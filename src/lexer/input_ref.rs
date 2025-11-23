@@ -118,7 +118,7 @@ where
 
     let off = match cache {
       Some(off) => {
-        if new.lt(&off) {
+        if new.lt(off) {
           off.clone()
         } else {
           new.clone()
@@ -638,7 +638,7 @@ where
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn save(&self) -> Checkpoint<'inp, '_, T, L> {
-    Checkpoint::new(self.cursor(), self.state.clone())
+    Checkpoint::new(self.cursor().clone(), self.state.clone())
   }
 
   /// Returns the current cursor position of the tokenizer.
@@ -647,13 +647,13 @@ where
   /// continue lexing. If there are cached tokens, the cursor points to the start
   /// of the first cached token; otherwise, it points to the current position.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn cursor(&self) -> Cursor<'inp, 'closure, T, L> {
-    Cursor::new(
+  pub fn cursor(&self) -> &Cursor<'inp, 'closure, T, L> {
+    Cursor::from_ref(
       self
         .cache()
         .first_span()
-        .map(|s| s.start())
-        .unwrap_or_else(|| self.cursor.clone()),
+        .map(|s| s.start_ref())
+        .unwrap_or_else(|| self.cursor),
     )
   }
 

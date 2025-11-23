@@ -278,7 +278,10 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>> {
   /// Returns `None` if the cache is empty. This is often used to determine
   /// where the next consumed token will come from.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn first_span(&self) -> Option<&L::Span> {
+  fn first_span<'s>(&'s self) -> Option<&'s L::Span>
+  where
+    'a: 's,
+  {
     self.first().map(move |t| t.token().span_ref())
   }
 
@@ -287,7 +290,10 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>> {
   /// Returns `None` if the cache is empty. This can be used to determine
   /// where the cache's lookahead ends.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn last_span(&self) -> Option<&L::Span> {
+  fn last_span<'s>(&'s self) -> Option<&'s L::Span>
+  where
+    'a: 's,
+  {
     self.last().map(move |t| t.token().span_ref())
   }
 }
