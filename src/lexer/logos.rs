@@ -4,15 +4,17 @@ use super::{Lexer, Source, State, Token};
 
 impl<'source, T, L> Lexer<'source, T> for logos::Lexer<'source, L>
 where
-  T: From<L> + Token<'source>,
+  T: From<L> + Token<'source> + 'source,
   T::Error: From<L::Error> + From<<L::Extras as State>::Error>,
-  L: logos::Logos<'source>,
+  L: logos::Logos<'source> + 'source,
   L::Extras: State,
-  L::Source: Source,
+  L::Source: Source<usize, Slice<'source> = <L::Source as logos::Source>::Slice<'source>>,
 {
   type State = L::Extras;
   type Source = L::Source;
-  type Cursor = usize;
+  // type Cursor = usize;
+  type Span = Span;
+  type Offset = usize;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn new(src: &'source Self::Source) -> Self
@@ -79,7 +81,15 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn bump(&mut self, n: usize) {
-    self.bump(n);
+  fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'source>
+  where
+    T: Token<'source>,
+  {
+    self.slice()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn bump(&mut self, n: &usize) {
+    self.bump(*n);
   }
 }

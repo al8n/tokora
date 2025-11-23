@@ -1,16 +1,18 @@
+use core::{fmt, hash::Hash};
+
 pub use cache::*;
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
 pub use emitter::Emitter;
+pub use input::Input;
+pub use input_ref::InputRef;
 pub use source::Source;
 pub use token::{
   DelimiterToken, IdentifierToken, KeywordToken, Lexed, LitToken, Logos, OperatorToken,
   PunctuatorToken, Require, Token, TriviaToken,
 };
-pub use input::Input;
-pub use input_ref::InputRef;
 
-use crate::utils::{Span, Spanned};
+use crate::utils::Spanned;
 
 /// The token related structures and traits
 pub mod token;
@@ -22,18 +24,24 @@ mod cache;
 mod checkpoint;
 mod cursor;
 mod emitter;
-mod logos;
 mod input;
 mod input_ref;
+mod logos;
 
 /// A trait for lexers
-pub trait Lexer<'source, T> {
+pub trait Lexer<'source, T: 'source>: 'source {
   /// The state of the lexer.
   type State: State;
   /// The source type of the lexer.
-  type Source: super::Source + ?Sized;
-  /// The cursor type of the lexer.
-  type Cursor;
+  type Source: super::Source<Self::Offset> + ?Sized;
+
+  // /// The cursor type of the lexer.
+  // type Cursor: Default + fmt::Debug + Ord + Clone + Hash;
+
+  /// The span type of the lexer.
+  type Span: fmt::Debug + Span<Offset = Self::Offset> + Ord + Clone + Hash;
+  /// The offset type of the source.
+  type Offset: Default + fmt::Debug + Ord + Clone + Hash;
 
   /// Lexes the input source and returns a tokenizer.
   fn new(src: &'source Self::Source) -> Self
@@ -68,13 +76,15 @@ pub trait Lexer<'source, T> {
     T: Token<'source>;
 
   /// Get the range for the current token in `Source`.
-  fn span(&self) -> Span;
+  fn span(&self) -> Self::Span;
+
+  // /// Returns the offset in the source for the given cursor.
+  // fn offset(&self, cursor: &Self::Cursor) -> Self::Offset;
 
   /// Returns the slice of the current token in the source.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice(&self) -> Option<<Self::Source as Source>::Slice<'source>> where T: Token<'source> {
-    self.source().slice(self.span().into())
-  }
+  fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'source>
+  where
+    T: Token<'source>;
 
   /// Lexes the next token from the input source.
   fn lex(&mut self) -> Option<Result<T, T::Error>>
@@ -87,7 +97,7 @@ pub trait Lexer<'source, T> {
   ///
   /// Panics if adding `n` to current offset would place the `Lexer` beyond the last byte,
   /// or in the middle of an UTF-8 code point (does not apply when lexing raw `&[u8]`).
-  fn bump(&mut self, n: usize);
+  fn bump(&mut self, n: &Self::Offset);
 }
 
 /// A trait for types that can be lexed from the input.
@@ -154,7 +164,7 @@ impl State for () {
 
 /// A cached token with its associated extras.
 pub struct CachedToken<'a, T: Token<'a>, L: Lexer<'a, T>> {
-  token: Spanned<Lexed<'a, T>>,
+  token: Spanned<Lexed<'a, T>, L::Span>,
   state: L::State,
 }
 
@@ -174,19 +184,19 @@ where
 impl<'a, T: Token<'a>, L: Lexer<'a, T>> CachedToken<'a, T, L> {
   /// Creates a new cached token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  const fn new(token: Spanned<Lexed<'a, T>>, state: L::State) -> Self {
+  const fn new(token: Spanned<Lexed<'a, T>, L::Span>, state: L::State) -> Self {
     Self { token, state }
   }
 
   /// Returns a reference to the token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn token(&self) -> &Spanned<Lexed<'a, T>> {
+  pub const fn token(&self) -> &Spanned<Lexed<'a, T>, L::Span> {
     &self.token
   }
 
   /// Consumes the cached token and returns the lexed token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_token(self) -> Spanned<Lexed<'a, T>> {
+  pub fn into_token(self) -> Spanned<Lexed<'a, T>, L::Span> {
     self.token
   }
 
@@ -198,8 +208,73 @@ impl<'a, T: Token<'a>, L: Lexer<'a, T>> CachedToken<'a, T, L> {
 
   /// Consumes the cached token and returns the extras.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Spanned<Lexed<'a, T>>, L::State) {
+  pub fn into_components(self) -> (Spanned<Lexed<'a, T>, L::Span>, L::State) {
     (self.token, self.state)
+  }
+}
+
+/// A trait representing a span in the source code.
+pub trait Span {
+  /// The offset type of the span.
+  type Offset: Ord + Clone + Hash;
+
+  /// Creates a new span from the given start and end offsets.
+  fn new(start: Self::Offset, end: Self::Offset) -> Self;
+
+  /// Returns the start offset of the span.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn start(&self) -> Self::Offset {
+    self.start_ref().clone()
+  }
+
+  /// Returns the start offset of the span.
+  fn start_ref(&self) -> &Self::Offset;
+
+  /// Returns the end offset of the span.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn end(&self) -> Self::Offset {
+    self.end_ref().clone()
+  }
+
+  /// Returns the end offset of the span.
+  fn end_ref(&self) -> &Self::Offset;
+}
+
+impl Span for core::ops::Range<usize> {
+  type Offset = usize;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn new(start: Self::Offset, end: Self::Offset) -> Self {
+    start..end
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn start_ref(&self) -> &Self::Offset {
+    &self.start
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn end_ref(&self) -> &Self::Offset {
+    &self.end
+  }
+}
+
+impl Span for crate::utils::Span {
+  type Offset = usize;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn new(start: Self::Offset, end: Self::Offset) -> Self {
+    crate::utils::Span::new(start, end)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn start_ref(&self) -> &Self::Offset {
+    self.start_ref()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn end_ref(&self) -> &Self::Offset {
+    self.end_ref()
   }
 }
 

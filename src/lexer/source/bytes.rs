@@ -1,4 +1,4 @@
-use core::ops::Range;
+use core::ops::RangeBounds;
 
 use bytes::Bytes;
 
@@ -39,11 +39,16 @@ impl Slice<'_> for Bytes {
   }
 }
 
-impl Source for Bytes {
+impl Source<usize> for Bytes {
   type Slice<'a>
     = Bytes
   where
     Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    <Bytes>::is_empty(self)
+  }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
@@ -51,12 +56,31 @@ impl Source for Bytes {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice(&self, range: Range<usize>) -> Option<Self::Slice<'_>> {
-    if range.end <= self.len() {
-      Some(self.slice(range))
-    } else {
-      None
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  where
+    R: RangeBounds<&'a usize>,
+  {
+    use core::ops::Bound;
+
+    let len = self.len();
+
+    let begin = match range.start_bound() {
+      Bound::Included(&&n) => n,
+      Bound::Excluded(&&n) => n.checked_add(1)?,
+      Bound::Unbounded => 0,
+    };
+
+    let end = match range.end_bound() {
+      Bound::Included(&&n) => n.checked_add(1)?,
+      Bound::Excluded(&&n) => n,
+      Bound::Unbounded => len,
+    };
+
+    if begin > end || end > len {
+      return None;
     }
+
+    Some(Bytes::slice(self, begin..end))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

@@ -52,4 +52,3 @@ impl<'a, 'closure, T: Token<'a>, L: Lexer<'a, T>> Checkpoint<'a, 'closure, T, L>
     &self.state
   }
 }
-

@@ -2,14 +2,14 @@ use core::mem::MaybeUninit;
 
 use mayber::MaybeRef;
 
-use super::{Cache, CachedToken, Checkpoint, Lexer, Token};
+use super::{Cache, CachedToken, Checkpoint, Lexer, Span, Token};
 
 use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 
 impl<'a, T, L, N> Cache<'a, T, L> for GenericArrayDeque<CachedToken<'a, T, L>, N>
 where
   T: Token<'a>,
-  L: Lexer<'a, T>,
+  L: Lexer<'a, T> + 'a,
   N: ArrayLength,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -23,7 +23,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn rewind(&mut self, ckp: &Checkpoint<'a, '_, T, L, Self>)
+  fn rewind(&mut self, ckp: &Checkpoint<'a, '_, T, L>)
   where
     Self: Sized,
   {
@@ -33,7 +33,7 @@ where
 
     let cursor = ckp.cursor();
     // if the rewind position is before the start of the cache, clear the cache
-    if let Some(span) = self.span_first() {
+    if let Some(span) = self.first_span() {
       if cursor.cursor < span.start() {
         self.clear();
         return;
@@ -46,16 +46,17 @@ where
     }
 
     // if the rewind position is after the end of the cache, clear the cache
-    if let Some(span) = self.span_last() {
+    if let Some(span) = self.last_span() {
       if cursor.cursor >= span.end() {
         self.clear();
         return;
       }
     }
 
-    match self.binary_search_by_key(&cursor.cursor, |tok| tok.token().span().start()) {
-      Ok(pos) => {
-        self.retain(|tok| tok.token().span().start() >= pos);
+    let off = cursor.as_inner();
+    match self.binary_search_by_key(off, |tok| tok.token().span_ref().start()) {
+      Ok(_) => {
+        self.retain(|tok| tok.token().span_ref().start().ge(off));
       }
       Err(_) => {
         self.clear();

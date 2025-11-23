@@ -1,19 +1,26 @@
-use core::ops::Range;
+use core::{
+  mem::MaybeUninit,
+  ops::{Range, RangeBounds},
+};
 
 use mayber::MaybeRef;
 
-use crate::utils::{Span, Spanned};
+use crate::utils::Spanned;
 
-use super::{Input, Lexer, Token, Emitter, Cache, CachedToken, Cursor, Checkpoint, Lexed, Source};
+use super::{Cache, CachedToken, Checkpoint, Cursor, Emitter, Lexed, Lexer, Source, Span, Token};
 
 mod iter;
 
 /// A reference to an [`Input`] instance.
 pub struct InputRef<'inp, 'closure, T: Token<'inp>, L: Lexer<'inp, T>, C> {
-  pub(crate) input: &'closure mut Input<'inp, T, L, C>,
+  // pub(crate) input: &'closure mut Input<'inp, T, L, C>,
+  pub(super) input: &'closure &'inp L::Source,
+  pub(super) state: &'closure mut L::State,
+  pub(super) cursor: &'closure mut L::Offset,
+  pub(super) cache: &'closure mut C,
 }
 
-impl<'inp, 'closure, T, L, C> InputRef<'inp, 'closure, T, L, C>
+impl<'inp, T, L, C> InputRef<'inp, '_, T, L, C>
 where
   T: Token<'inp>,
   L: Lexer<'inp, T>,
@@ -25,11 +32,11 @@ where
   /// lookahead logic.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn cache(&self) -> &C {
-    &self.input.cache
+    self.cache
   }
 
   const fn cache_mut(&mut self) -> &mut C {
-    &mut self.input.cache
+    self.cache
   }
 
   /// Returns a reference to the underlying input source.
@@ -38,19 +45,19 @@ where
   /// a `&str` or `&[u8]` depending on your Logos token definition.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn input(&self) -> &L::Source {
-    &self.input.input
+    self.input
   }
 
   /// Returns a reference to the current lexer state (extras)
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn state(&self) -> &L::State {
-    &self.input.state
+    self.state
   }
 
   /// Manually sets the lexer state (for context-sensitive lexing)
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn set_state(&mut self, state: L::State) {
-    self.input.state = state;
+    *self.state = state;
   }
 
   // /// Returns an iterator over the tokens of the lexer.
@@ -76,13 +83,13 @@ where
     L::State: Clone,
     C: Cache<'inp, T, L>,
   {
-    let mut lexer = L::with_state(self.input.input, self.input.state.clone());
+    let mut lexer = L::with_state(self.input, self.state.clone());
     lexer.bump(
       self
         .cache()
-        .span_last()
-        .map(|s| s.end())
-        .unwrap_or(self.input.cursor),
+        .last_span()
+        .map(|s| s.end_ref())
+        .unwrap_or(self.cursor),
     );
     lexer
   }
@@ -91,8 +98,9 @@ where
   ///
   /// This ensures the cursor never exceeds the bounds of the input source.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn set_cursor(&mut self, new: usize) {
-    self.input.cursor = new.min(self.input.input.len());
+  fn set_cursor(&mut self, new: &L::Offset) {
+    let end = self.input.len();
+    *self.cursor = if new.lt(&end) { new.clone() } else { end };
   }
 
   /// Sets the cursor to the latest position between the new value and the cache start.
@@ -101,17 +109,31 @@ where
   /// (if any), preventing the cursor from moving backwards past cached tokens.
   /// The cursor is also clamped to the input length.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn set_cursor_after_consume(&mut self, new: usize)
+  fn set_cursor_after_consume(&mut self, new: &L::Offset)
   where
     C: Cache<'inp, T, L>,
   {
-    self.input.cursor = new
-      .max(self.cache().span_first().map(|s| s.start()).unwrap_or(new))
-      .min(self.input.input.len());
-    debug_assert!(
-      self.input.cursor <= self.input.input.len(),
-      "Cursor exceeded input bounds"
-    );
+    let end = self.input.len();
+    let cache = self.cache().first_span().map(|s| s.start_ref());
+
+    let off = match cache {
+      Some(off) => {
+        if new.lt(&off) {
+          off.clone()
+        } else {
+          new.clone()
+        }
+      }
+      None => {
+        if new.lt(&end) {
+          new.clone()
+        } else {
+          end
+        }
+      }
+    };
+
+    *self.cursor = off;
   }
 }
 
@@ -141,7 +163,7 @@ where
   // }
 
   /// Consumes a token if it matches the predicate, returns `None` otherwise (no cursor advance on failure)
-  pub fn accept<F>(&mut self, pred: F) -> Option<Spanned<T>>
+  pub fn accept<F>(&mut self, pred: F) -> Option<Spanned<T, L::Span>>
   where
     F: FnOnce(&T) -> bool,
   {
@@ -151,8 +173,8 @@ where
           let tok = self.cache_mut().pop_front().unwrap();
           let (spanned_lexed, extras) = tok.into_components();
           let (span, lexed) = spanned_lexed.into_components();
-          self.set_cursor_after_consume(span.end());
-          self.input.state = extras;
+          self.set_cursor_after_consume(span.end_ref());
+          *self.state = extras;
           return Some(Spanned::new(span, lexed.unwrap_token()));
         }
         _ => return None,
@@ -165,8 +187,8 @@ where
 
       if let Lexed::Token(tk) = &lexed {
         if pred(tk) {
-          self.set_cursor_after_consume(lexer.span().end());
-          self.input.state = lexer.into_state();
+          self.set_cursor_after_consume(lexer.span().end_ref());
+          *self.state = lexer.into_state();
           return Some(Spanned::new(span, lexed.unwrap_token()));
         }
       }
@@ -189,7 +211,7 @@ where
     &mut self,
     pred: F,
     error_fn: impl FnOnce(Lexed<'inp, T>) -> Error,
-  ) -> Result<Option<Spanned<T>>, Error>
+  ) -> Result<Option<Spanned<T, L::Span>>, Error>
   where
     F: FnOnce(&T) -> bool,
   {
@@ -199,16 +221,16 @@ where
           let tok = self.cache_mut().pop_front().unwrap();
           let (spanned_lexed, extras) = tok.into_components();
           let (span, lexed) = spanned_lexed.into_components();
-          self.set_cursor_after_consume(span.end());
-          self.input.state = extras;
+          self.set_cursor_after_consume(span.end_ref());
+          *self.state = extras;
           return Ok(Some(Spanned::new(span, lexed.unwrap_token())));
         }
         _ => {
           let tok = self.cache_mut().pop_front().unwrap();
           let (spanned_lexed, extras) = tok.into_components();
           let (span, lexed) = spanned_lexed.into_components();
-          self.set_cursor_after_consume(span.end());
-          self.input.state = extras;
+          self.set_cursor_after_consume(span.end_ref());
+          *self.state = extras;
           return Err(error_fn(lexed));
         }
       }
@@ -221,13 +243,13 @@ where
 
       match &lexed {
         Lexed::Token(tk) if pred(tk) => {
-          self.set_cursor_after_consume(lexer.span().end());
-          self.input.state = lexer.into_state();
+          self.set_cursor_after_consume(lexer.span().end_ref());
+          *self.state = lexer.into_state();
           return Ok(Some(Spanned::new(span, lexed.unwrap_token())));
         }
         _ => {
-          self.set_cursor_after_consume(lexer.span().end());
-          self.input.state = lexer.into_state();
+          self.set_cursor_after_consume(lexer.span().end_ref());
+          *self.state = lexer.into_state();
           return Err(error_fn(lexed));
         }
       }
@@ -241,10 +263,10 @@ where
   pub fn slice_since(
     &self,
     cursor: &Cursor<'inp, 'closure, T, L>,
-  ) -> Option<<L::Source as Source>::Slice<'inp>> {
-    let start = cursor.cursor;
-    let end = self.cursor().cursor;
-    self.input.input.slice(start..end)
+  ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
+    // let start = cursor.cursor;
+    let end = self.cursor();
+    self.input.slice(cursor.as_inner()..end.as_inner())
   }
 
   /// Returns a slice of the input source from the given cursor to the end of the input.
@@ -252,50 +274,50 @@ where
   pub fn slice_from(
     &self,
     cursor: &Cursor<'inp, 'closure, T, L>,
-  ) -> Option<<L::Source as Source>::Slice<'inp>> {
-    let start = cursor.cursor;
-    let end = self.input.len();
-    self.input.input.slice(start..end)
+  ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
+    let start = cursor.as_inner();
+    self.input.slice(start..)
   }
 
   /// Returns a slice of the input source from the current cursor of the tokenizer to the end of the input.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn slice(
-    &self,
-    range: Range<&Cursor<'inp, 'closure, T, L>>,
-  ) -> Option<<L::Source as Source>::Slice<'inp>> {
-    let start = range.start.cursor;
-    let end = range.end.cursor;
+  pub fn slice<'r, R>(&self, range: R) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>>
+  where
+    R: RangeBounds<&'r Cursor<'inp, 'closure, T, L>>,
+    'closure: 'r,
+  {
+    let start = range.start_bound().map(|c| c.as_inner());
+    let end = range.end_bound().map(|c| c.as_inner());
     // SAFETY: The range is guaranteed to be within bounds as both cursors are within input length and comes from the same input.
-    self.input.slice(start..end)
+    self.input.slice((start, end))
   }
 
   /// Returns a span from the given cursor to the current cursor of the tokenizer.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_since(&self, cursor: &Cursor<'inp, 'closure, T, L>) -> Span {
-    Span::new(cursor.cursor, self.cursor().cursor)
+  pub fn span_since(&self, cursor: &Cursor<'inp, 'closure, T, L>) -> L::Span {
+    Span::new(cursor.as_inner().clone(), self.cursor().as_inner().clone())
   }
 
   /// Returns a span from the given cursor to the end of the input.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_from(&self, cursor: &Cursor<'inp, 'closure, T, L>) -> Span {
-    Span::new(cursor.cursor, self.input.len())
+  pub fn span_from(&self, cursor: &Cursor<'inp, 'closure, T, L>) -> L::Span {
+    Span::new(cursor.as_inner().clone(), self.input.len())
   }
 
   /// Returns a span from the current cursor of the tokenizer to the end of the input.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self, range: Range<&Cursor<'inp, 'closure, T, L>>) -> Span {
-    Span::new(range.start.cursor, range.end.cursor)
+  pub fn span(&self, range: Range<&Cursor<'inp, 'closure, T, L>>) -> L::Span {
+    Span::new(range.start.as_inner().clone(), range.end.as_inner().clone())
   }
 
   /// Consumes one token from the peeked tokens and returns the consumed token if any, the cursor is advanced.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
-  pub fn consume_one(&mut self) -> Option<Spanned<Lexed<'inp, T>>> {
+  pub fn consume_one(&mut self) -> Option<Spanned<Lexed<'inp, T>, L::Span>> {
     let tok = self.cache_mut().pop_front()?;
-    let (tok, extras): (Spanned<Lexed<'inp, T>>, _) = tok.into_components();
-    self.set_cursor_after_consume(tok.span().end());
-    self.state = extras;
+    let (tok, extras): (Spanned<Lexed<'inp, T>, L::Span>, _) = tok.into_components();
+    self.set_cursor_after_consume(tok.span_ref().end_ref());
+    *self.state = extras;
     Some(tok)
   }
 
@@ -303,16 +325,16 @@ where
   ///
   /// Returns the last consumed token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn consume_until<F>(&mut self, mut f: F) -> Option<Spanned<Lexed<'inp, T>>>
+  pub fn consume_until<F>(&mut self, mut f: F) -> Option<Spanned<Lexed<'inp, T>, L::Span>>
   where
     F: FnMut(&CachedToken<'inp, T, L>) -> bool,
   {
     let mut last = None;
     // pop from cache if not matching
     while let Some(tok) = self.cache_mut().pop_front_if(|t| !f(t)) {
-      self.set_cursor_after_consume(tok.token().span().end());
+      self.set_cursor_after_consume(tok.token().span_ref().end_ref());
       let (tok, state) = tok.into_components();
-      self.state = state;
+      *self.state = state;
       last = Some(tok);
     }
 
@@ -323,7 +345,7 @@ where
   ///
   /// Returns the last consumed token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn consume_while<F>(&mut self, mut f: F) -> Option<Spanned<Lexed<'inp, T>>>
+  pub fn consume_while<F>(&mut self, mut f: F) -> Option<Spanned<Lexed<'inp, T>, L::Span>>
   where
     F: FnMut(&CachedToken<'inp, T, L>) -> bool,
   {
@@ -334,12 +356,12 @@ where
   ///
   /// Returns the last consumed token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn consume_cached(&mut self) -> Option<Spanned<Lexed<'inp, T>>> {
+  pub fn consume_cached(&mut self) -> Option<Spanned<Lexed<'inp, T>, L::Span>> {
     let last = self.cache_mut().pop_back()?;
     self.cache_mut().clear();
-    let (tok, extras): (Spanned<Lexed<'inp, T>>, _) = last.into_components();
-    self.set_cursor_after_consume(tok.span().end());
-    self.input.state = extras;
+    let (tok, extras): (Spanned<Lexed<'inp, T>, L::Span>, _) = last.into_components();
+    self.set_cursor_after_consume(tok.span_ref().end_ref());
+    *self.state = extras;
     Some(tok)
   }
 
@@ -354,8 +376,8 @@ where
     if let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();
       let (span, _lexed) = spanned_lexed.into_components();
-      self.set_cursor_after_consume(span.end());
-      self.input.state = extras;
+      self.set_cursor_after_consume(span.end_ref());
+      *self.state = extras;
       true
     } else {
       self.next().is_some()
@@ -368,12 +390,12 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn skip_until<F>(&mut self, mut pred: F) -> Option<MaybeRef<'_, CachedToken<'inp, T, L>>>
   where
-    F: FnMut(&Spanned<Lexed<'inp, T>>) -> bool,
+    F: FnMut(&Spanned<Lexed<'inp, T>, L::Span>) -> bool,
   {
     // pop from cache if not matching
     while let Some(tok) = self.cache_mut().pop_front_if(|t| !pred(t.token())) {
-      self.set_cursor_after_consume(tok.token().span().end());
-      self.input.state = tok.state;
+      self.set_cursor_after_consume(tok.token().span_ref().end_ref());
+      *self.state = tok.state;
     }
 
     // as the matched token will not be consumed, we just peek it
@@ -383,15 +405,15 @@ where
       // Otherwise, let's skip the input
       false => {
         let mut lexer = self.lexer();
-        let mut end = self.cursor;
+        let mut end = self.cursor.clone();
         let mut state = self.state.clone();
 
         while let Some(lexed) = Lexed::<T>::lex_spanned(&mut lexer) {
           // if the token matches, we cache it and return it
           if pred(&lexed) {
             let ct = CachedToken::new(lexed, lexer.state().clone());
-            self.set_cursor_after_consume(end);
-            self.state = state;
+            self.set_cursor_after_consume(&end);
+            *self.state = state;
 
             return match self.cache_mut().push_back(ct) {
               Ok(tok) => Some(MaybeRef::Ref(tok)),
@@ -404,8 +426,8 @@ where
         }
 
         // No matched token found, we just update the cursor and state
-        self.set_cursor_after_consume(lexer.span().end());
-        self.state = lexer.into_state();
+        self.set_cursor_after_consume(lexer.span().end_ref());
+        *self.state = lexer.into_state();
 
         None
       }
@@ -418,7 +440,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn skip_while<F>(&mut self, mut pred: F) -> Option<MaybeRef<'_, CachedToken<'inp, T, L>>>
   where
-    F: FnMut(&Spanned<Lexed<'inp, T>>) -> bool,
+    F: FnMut(&Spanned<Lexed<'inp, T>, L::Span>) -> bool,
   {
     self.skip_until(|t| !pred(t))
   }
@@ -445,37 +467,38 @@ where
     mut emitter: E,
   ) -> Result<Option<MaybeRef<'_, CachedToken<'inp, T, L>>>, E::Error>
   where
-    F: FnMut(Spanned<&T>, &mut E) -> bool,
-    E: Emitter<'inp, T>,
+    F: FnMut(Spanned<&T, &L::Span>, &mut E) -> bool,
+    E: Emitter<'inp, T, L::Span>,
   {
     // pop from cache if not matching
     while let Some(tok) = self.cache_mut().pop_front_if(|t| {
-      let span = t.token().span();
+      let span = t.token().span_ref();
       match t.token().data() {
         Lexed::Token(tok) => !pred(Spanned::new(span, tok), &mut emitter),
         Lexed::Error(_) => true,
       }
     }) {
-      let span = tok.token().span();
-      self.set_cursor_after_consume(span.end());
-      self.state = tok.state;
+      let (lexed, state) = tok.into_components();
+      let (span, tok) = lexed.into_components();
+      self.set_cursor_after_consume(span.end_ref());
+      *self.state = state;
 
       // Note: cursor/state are updated before emission. If emission fails,
       // the error token has still been consumed (no backtracking here).
-      if let Lexed::Error(e) = tok.token.into_data() {
-        emitter.emit_token_error(Spanned::new(span, e))?;
+      if let Lexed::Error(e) = tok {
+        emitter.emit_token_error(Spanned::new(span.clone(), e))?;
       }
     }
 
     // as the matched token will not be consumed, we just peek it
-    match !self.cache.is_empty() {
+    match !self.cache().is_empty() {
       // If the matched token is in cache, return it
-      true => Ok(self.cache.peek_one()),
+      true => Ok(self.cache().peek_one()),
       // Otherwise, let's skip the input
       false => {
         let mut lexer = self.lexer();
 
-        let mut end = self.cursor;
+        let mut end = self.cursor.clone();
         let mut state = self.state.clone();
 
         while let Some(Spanned { span, data: tok }) = Lexed::<T>::lex_spanned(&mut lexer) {
@@ -486,8 +509,8 @@ where
                 state = lexer.state().clone();
               }
               Err(e) => {
-                self.set_cursor_after_consume(lexer.span().end());
-                self.state = lexer.into_state();
+                self.set_cursor_after_consume(lexer.span().end_ref());
+                *self.state = lexer.into_state();
                 return Err(e);
               }
             },
@@ -496,8 +519,8 @@ where
               // if the token matches, we cache it and return it
               if pred(tok.as_ref(), &mut emitter) {
                 let ct = CachedToken::new(tok.map_data(Lexed::Token), lexer.into_state());
-                self.set_cursor_after_consume(end);
-                self.state = state;
+                self.set_cursor_after_consume(&end);
+                *self.state = state;
                 return Ok(match self.cache_mut().push_back(ct) {
                   Ok(tok) => Some(MaybeRef::Ref(tok)),
                   Err(ct) => Some(MaybeRef::Owned(ct)),
@@ -511,8 +534,8 @@ where
         }
 
         // No matched token found, we just update the cursor and state
-        self.set_cursor_after_consume(lexer.span().end());
-        self.state = lexer.into_state();
+        self.set_cursor_after_consume(lexer.span().end_ref());
+        *self.state = lexer.into_state();
 
         Ok(None)
       }
@@ -555,13 +578,13 @@ where
     buf: &'b mut [MaybeUninit<MaybeRef<'p, CachedToken<'inp, T, L>>>],
   ) -> &'b mut [MaybeRef<'p, CachedToken<'inp, T, L>>] {
     let buf_len = buf.len();
-    let mut in_cache = self.cache.len();
+    let mut in_cache = self.cache().len();
     let mut want = buf_len.saturating_sub(in_cache);
 
     // If we already have enough tokens cached, just peek from cache
     if want == 0 {
       // SAFETY: Cache guarantees peek() returns only initialized tokens up to cache.len()
-      return unsafe { self.cache.peek(buf) };
+      return unsafe { self.cache().peek(buf) };
     }
 
     // Otherwise, lex additional tokens to fill the request
@@ -590,7 +613,7 @@ where
 
     // Fill buffer from cache (this covers both cached tokens and any we just added)
     // SAFETY: Cache.peek() returns slice of initialized tokens, guaranteed by trait contract
-    let output = unsafe { self.cache.peek(&mut buf[..in_cache]) };
+    let output = unsafe { self.cache().peek(&mut buf[..in_cache]) };
     debug_assert!(
       output.len() == in_cache,
       "Cache peek returned unexpected number of tokens"
@@ -614,7 +637,7 @@ where
   /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn save(&self) -> Checkpoint<'inp, '_, T, L, C> {
+  pub fn save(&self) -> Checkpoint<'inp, '_, T, L> {
     Checkpoint::new(self.cursor(), self.state.clone())
   }
 
@@ -627,11 +650,10 @@ where
   pub fn cursor(&self) -> Cursor<'inp, 'closure, T, L> {
     Cursor::new(
       self
-        .cache
-        .span_first()
+        .cache()
+        .first_span()
         .map(|s| s.start())
-        .unwrap_or(self.cursor),
-      self,
+        .unwrap_or_else(|| self.cursor.clone()),
     )
   }
 
@@ -642,10 +664,10 @@ where
   /// This is commonly used for parser backtracking.
   #[doc(alias = "rewinds")]
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn go(&mut self, checkpoint: Checkpoint<'inp, '_, T, L, C>) {
-    self.cache.rewind(&checkpoint);
-    self.set_cursor(checkpoint.cursor().cursor);
-    self.state = checkpoint.state;
+  pub fn go(&mut self, checkpoint: Checkpoint<'inp, '_, T, L>) {
+    self.cache_mut().rewind(&checkpoint);
+    self.set_cursor(checkpoint.cursor().as_inner());
+    *self.state = checkpoint.state;
   }
 
   /// Advances the cursor and returns the next valid token, emitting errors via the provided emitter.
@@ -656,16 +678,19 @@ where
   ///
   /// Returns `Ok(Some(token))` for valid tokens, `Ok(None)` at end of input, or
   /// `Err(error)` if a fatal error occurred.
-  pub fn next_valid_with<E>(&mut self, mut emitter: E) -> Result<Option<Spanned<T>>, E::Error>
+  pub fn next_valid_with<E>(
+    &mut self,
+    mut emitter: E,
+  ) -> Result<Option<Spanned<T, L::Span>>, E::Error>
   where
-    E: Emitter<'inp, T>,
+    E: Emitter<'inp, T, L::Span>,
   {
     // First, consume from cache if available
     while let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();
       let (span, lexed) = spanned_lexed.into_components();
-      self.set_cursor_after_consume(span.end());
-      self.state = extras;
+      self.set_cursor_after_consume(span.end_ref());
+      *self.state = extras;
       match lexed {
         Lexed::Token(t) => return Ok(Some(Spanned::new(span, t))),
         Lexed::Error(e) => {
@@ -680,8 +705,8 @@ where
 
     while let Some(lexed) = Lexed::lex_spanned(&mut lexer) {
       let (span, lexed) = lexed.into_components();
-      self.set_cursor_after_consume(lexer.span().end());
-      self.state = lexer.state().clone();
+      self.set_cursor_after_consume(lexer.span().end_ref());
+      *self.state = lexer.state().clone();
 
       match lexed {
         Lexed::Token(t) => return Ok(Some(Spanned::new(span, t))),
@@ -713,24 +738,24 @@ where
   /// Returns `Some(Spanned<Lexed>)` with either a token or error, or `None` at
   /// end of input.
   #[allow(clippy::should_implement_trait)]
-  pub fn next(&mut self) -> Option<Spanned<Lexed<'inp, T>>> {
+  pub fn next(&mut self) -> Option<Spanned<Lexed<'inp, T>, L::Span>> {
     if let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();
       let (span, lexed) = spanned_lexed.into_components();
-      self.set_cursor_after_consume(span.end());
-      self.state = extras;
+      self.set_cursor_after_consume(span.end_ref());
+      *self.state = extras;
       return Some(Spanned::new(span, lexed));
     }
 
     let mut lexer = self.lexer();
     Lexed::lex_spanned(&mut lexer).inspect(|_| {
-      self.set_cursor_after_consume(lexer.span().end());
-      self.state = lexer.state().clone();
+      self.set_cursor_after_consume(lexer.span().end_ref());
+      *self.state = lexer.state().clone();
     })
   }
 
   // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub(crate) fn next_at(&mut self, cursor: &mut usize) -> Option<Spanned<Lexed<'inp, T>>> {
+  // pub(crate) fn next_at(&mut self, cursor: &mut usize) -> Option<Spanned<Lexed<'inp, T>, L::Span>> {
   //   let state = self.state.clone();
   //   let mut lexer = logos::Lexer::<T::Logos>::with_extras(self.input, state);
   //   lexer.bump(*cursor);

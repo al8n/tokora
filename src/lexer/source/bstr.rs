@@ -1,14 +1,17 @@
-use core::ops::Range;
-
 use bstr::BStr;
 
 use super::Source;
 
-impl Source for BStr {
+impl Source<usize> for BStr {
   type Slice<'a>
     = &'a [u8]
   where
     Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    <[u8]>::is_empty(self)
+  }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
@@ -16,8 +19,12 @@ impl Source for BStr {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice(&self, range: Range<usize>) -> Option<Self::Slice<'_>> {
-    <[u8]>::get(self, range)
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  where
+    R: core::ops::RangeBounds<&'a usize>,
+    usize: 'a,
+  {
+    <[u8]>::slice(self, range)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

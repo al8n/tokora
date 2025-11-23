@@ -54,7 +54,7 @@ mod blackhole;
 ///     }
 /// }
 /// ```
-pub trait Emitter<'a, T: Token<'a>> {
+pub trait Emitter<'a, T: Token<'a>, S> {
   /// The error type that this emitter produces.
   ///
   /// This is the type returned when a fatal error occurs (via `Err(Self::Error)`).
@@ -75,7 +75,7 @@ pub trait Emitter<'a, T: Token<'a>> {
   ///
   /// - `Ok(())` if the error should be treated as non-fatal (processing continues)
   /// - `Err(Self::Error)` if the error is fatal (processing stops immediately)
-  fn emit_token_error(&mut self, err: Spanned<T::Error>) -> Result<(), Self::Error>;
+  fn emit_token_error(&mut self, err: Spanned<T::Error, S>) -> Result<(), Self::Error>;
 
   /// Emits a custom error from the application or parser.
   ///
@@ -91,23 +91,23 @@ pub trait Emitter<'a, T: Token<'a>> {
   ///
   /// - `Ok(())` if the error should be treated as non-fatal (processing continues)
   /// - `Err(Self::Error)` if the error is fatal (processing stops immediately)
-  fn emit_error(&mut self, err: Spanned<Self::Error>) -> Result<(), Self::Error>;
+  fn emit_error(&mut self, err: Spanned<Self::Error, S>) -> Result<(), Self::Error>;
 }
 
-impl<'a, T, U> Emitter<'a, T> for &mut U
+impl<'a, T, U, S> Emitter<'a, T, S> for &mut U
 where
   T: Token<'a>,
-  U: Emitter<'a, T>,
+  U: Emitter<'a, T, S>,
 {
   type Error = U::Error;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_error(&mut self, err: Spanned<Self::Error>) -> Result<(), Self::Error> {
+  fn emit_error(&mut self, err: Spanned<Self::Error, S>) -> Result<(), Self::Error> {
     (**self).emit_error(err)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_token_error(&mut self, err: Spanned<T::Error>) -> Result<(), Self::Error> {
+  fn emit_token_error(&mut self, err: Spanned<T::Error, S>) -> Result<(), Self::Error> {
     (**self).emit_token_error(err)
   }
 }

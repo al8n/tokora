@@ -7,7 +7,7 @@ use super::{super::BlackHole, Cache, CachedToken, Checkpoint, Lexer, Token};
 impl<'a, T, L> Cache<'a, T, L> for BlackHole
 where
   T: Token<'a>,
-  L: Lexer<'a, T>,
+  L: Lexer<'a, T> + 'a,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
@@ -20,7 +20,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn rewind(&mut self, _: &Checkpoint<'a, '_, T, L, Self>) {}
+  fn rewind(&mut self, _: &Checkpoint<'a, '_, T, L>) {}
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn push_back(

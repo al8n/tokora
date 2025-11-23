@@ -128,7 +128,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
 
   /// Lexes the next token from the given lexer, returning `None` if the input is exhausted.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn lex_spanned<L>(lexer: &mut L) -> Option<Spanned<Self>>
+  pub fn lex_spanned<L>(lexer: &mut L) -> Option<Spanned<Self, L::Span>>
   where
     L: super::Lexer<'a, T>,
   {

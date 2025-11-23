@@ -12,25 +12,20 @@ use super::{Lexer, Token};
 /// - The byte offset in the input where the tokenizer will continue lexing
 /// - If there are cached tokens, it points to the start of the first cached token
 /// - Otherwise, it points to the position where the next token will be lexed from
+#[repr(transparent)]
 pub struct Cursor<'a, 'closure, T: Token<'a>, L: Lexer<'a, T>> {
-  pub(crate) cursor: L::Cursor,
+  pub(crate) cursor: L::Offset,
   _phantom: PhantomData<fn(&'closure ()) -> &'closure ()>,
 }
 
-impl<'a, T: Token<'a>, L: Lexer<'a, T>> core::fmt::Debug for Cursor<'a, '_, T, L>
-where
-  L::Cursor: core::fmt::Debug,
-{
+impl<'a, T: Token<'a>, L: Lexer<'a, T>> core::fmt::Debug for Cursor<'a, '_, T, L> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "Cursor({:?})", self.cursor)
   }
 }
 
-impl<'a, T: Token<'a>, L: Lexer<'a, T>> Clone for Cursor<'a, '_, T, L>
-where
-  L::Cursor: Clone,
-{
+impl<'a, T: Token<'a>, L: Lexer<'a, T>> Clone for Cursor<'a, '_, T, L> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn clone(&self) -> Self {
     Self {
@@ -40,30 +35,33 @@ where
   }
 }
 
-impl<'a, T: Token<'a>, L: Lexer<'a, T>> Copy for Cursor<'a, '_, T, L>
-where
-  L::Cursor: Copy,
-{}
+impl<'a, T: Token<'a>, L: Lexer<'a, T>> Copy for Cursor<'a, '_, T, L> where L::Offset: Copy {}
 
-impl<'a, T: Token<'a>, L: Lexer<'a, T>> Cursor<'a, '_, T, L> {
+impl<'a, 'closure, T: Token<'a>, L: Lexer<'a, T>> Cursor<'a, 'closure, T, L> {
   /// Creates a new cursor.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(cursor: L::Cursor) -> Self {
+  pub(super) const fn new(cursor: L::Offset) -> Self {
     Self {
       cursor,
       _phantom: PhantomData,
     }
   }
 
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) const fn from_ref(cursor: &L::Offset) -> &Self {
+    // SAFETY: Cursor is #[repr(transparent)]
+    unsafe { &*(cursor as *const L::Offset as *const Cursor<'a, 'closure, T, L>) }
+  }
+
   /// Returns a reference to the actual cursor.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_inner(&self) -> &L::Cursor {
+  pub const fn as_inner(&self) -> &L::Offset {
     &self.cursor
   }
 
   /// Returns a the actual cursor.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_inner(self) -> L::Cursor {
+  pub fn into_inner(self) -> L::Offset {
     self.cursor
   }
 }

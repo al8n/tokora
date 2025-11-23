@@ -1,5 +1,3 @@
-use core::ops::Range;
-
 use hipstr::{HipByt, HipStr};
 
 use super::{Slice, Source};
@@ -39,11 +37,16 @@ impl<'source> Slice<'source> for HipStr<'source> {
   }
 }
 
-impl<'h> Source for HipStr<'h> {
+impl<'h> Source<usize> for HipStr<'h> {
   type Slice<'a>
     = HipStr<'a>
   where
     Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    <HipStr<'h>>::is_empty(self)
+  }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
@@ -51,12 +54,17 @@ impl<'h> Source for HipStr<'h> {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice(&self, range: Range<usize>) -> Option<Self::Slice<'_>> {
-    if range.end <= self.len() {
-      Some(self.slice(range))
-    } else {
-      None
-    }
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  where
+    R: core::ops::RangeBounds<&'a usize>,
+    usize: 'a,
+  {
+    self
+      .try_slice((
+        range.start_bound().map(|s| **s),
+        range.end_bound().map(|s| **s),
+      ))
+      .ok()
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -100,11 +108,16 @@ impl<'source> Slice<'source> for HipByt<'source> {
   }
 }
 
-impl Source for HipByt<'_> {
+impl Source<usize> for HipByt<'_> {
   type Slice<'a>
     = HipByt<'a>
   where
     Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    <HipByt<'_>>::is_empty(self)
+  }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
@@ -112,12 +125,17 @@ impl Source for HipByt<'_> {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice(&self, range: Range<usize>) -> Option<Self::Slice<'_>> {
-    if range.end <= self.len() {
-      Some(self.slice(range))
-    } else {
-      None
-    }
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  where
+    R: core::ops::RangeBounds<&'a usize>,
+    usize: 'a,
+  {
+    self
+      .try_slice((
+        range.start_bound().map(|s| **s),
+        range.end_bound().map(|s| **s),
+      ))
+      .ok()
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

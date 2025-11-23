@@ -156,8 +156,8 @@ mod to_equivalent;
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Span {
-  start: usize,
-  end: usize,
+  pub(crate) start: usize,
+  pub(crate) end: usize,
 }
 
 impl core::fmt::Display for Span {
@@ -389,6 +389,22 @@ impl Span {
     self.start
   }
 
+  /// Get the reference to the start of the span.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let span = Span::new(5, 15);
+  ///
+  /// assert_eq!(*span.start_ref(), 5);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn start_ref(&self) -> &usize {
+    &self.start
+  }
+
   /// Get the mutable reference to the start of the span.
   ///
   /// ## Example
@@ -418,6 +434,22 @@ impl Span {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn end(&self) -> usize {
     self.end
+  }
+
+  /// Get the reference to the end of the span.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let span = Span::new(5, 15);
+  ///
+  /// assert_eq!(*span.end_ref(), 15);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn end_ref(&self) -> &usize {
+    &self.end
   }
 
   /// Get the mutable reference to the end of the span.
@@ -647,12 +679,12 @@ impl From<Span> for (usize, usize) {
 /// assert_eq!(spanned.span().end(), 5);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Spanned<D> {
+pub struct Spanned<D, S = Span> {
   /// The source location span of the data.
   ///
   /// This indicates where in the source input this value came from,
   /// expressed as byte offsets.
-  pub span: Span,
+  pub span: S,
 
   /// The wrapped data value.
   ///
@@ -661,28 +693,28 @@ pub struct Spanned<D> {
   pub data: D,
 }
 
-impl<D> AsRef<Span> for Spanned<D> {
+impl<D, S> AsRef<S> for Spanned<D, S> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_ref(&self) -> &Span {
+  fn as_ref(&self) -> &S {
     self.span_ref()
   }
 }
 
-impl<D> AsSpan<Span> for Spanned<D> {
+impl<D, S> AsSpan<S> for Spanned<D, S> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_span(&self) -> &Span {
+  fn as_span(&self) -> &S {
     AsRef::as_ref(self)
   }
 }
 
-impl<D> IntoSpan<Span> for Spanned<D> {
+impl<D, S> IntoSpan<S> for Spanned<D, S> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn into_span(self) -> Span {
+  fn into_span(self) -> S {
     self.span
   }
 }
 
-impl<D> core::ops::Deref for Spanned<D> {
+impl<D, S> core::ops::Deref for Spanned<D, S> {
   type Target = D;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -691,14 +723,14 @@ impl<D> core::ops::Deref for Spanned<D> {
   }
 }
 
-impl<D> core::ops::DerefMut for Spanned<D> {
+impl<D, S> core::ops::DerefMut for Spanned<D, S> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.data
   }
 }
 
-impl<D> core::fmt::Display for Spanned<D>
+impl<D, S> core::fmt::Display for Spanned<D, S>
 where
   D: core::fmt::Display,
 {
@@ -708,8 +740,8 @@ where
   }
 }
 
-impl<D> IntoComponents for Spanned<D> {
-  type Components = (Span, D);
+impl<D, S> IntoComponents for Spanned<D, S> {
+  type Components = (S, D);
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn into_components(self) -> Self::Components {
@@ -717,10 +749,10 @@ impl<D> IntoComponents for Spanned<D> {
   }
 }
 
-impl<D> Spanned<D> {
+impl<D, S> Spanned<D, S> {
   /// Create a new spanned value.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, data: D) -> Self {
+  pub const fn new(span: S, data: D) -> Self {
     Self { span, data }
   }
 
@@ -735,7 +767,10 @@ impl<D> Spanned<D> {
   /// assert_eq!(spanned.span(), Span::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
@@ -750,7 +785,7 @@ impl<D> Spanned<D> {
   /// assert_eq!(spanned.span_ref(), &Span::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
@@ -766,7 +801,7 @@ impl<D> Spanned<D> {
   /// assert_eq!(spanned.span().end(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -813,9 +848,9 @@ impl<D> Spanned<D> {
   /// assert_eq!(borrowed.data(), &"hello");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_ref(&self) -> Spanned<&D> {
+  pub const fn as_ref(&self) -> Spanned<&D, &S> {
     Spanned {
-      span: self.span,
+      span: &self.span,
       data: &self.data,
     }
   }
@@ -833,9 +868,9 @@ impl<D> Spanned<D> {
   /// assert_eq!(spanned.data(), &"hello world");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_mut(&mut self) -> Spanned<&mut D> {
+  pub const fn as_mut(&mut self) -> Spanned<&mut D, &mut S> {
     Spanned {
-      span: self.span,
+      span: &mut self.span,
       data: &mut self.data,
     }
   }
@@ -848,13 +883,13 @@ impl<D> Spanned<D> {
 
   /// Decompose the spanned value into its span and data.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, D) {
+  pub fn into_components(self) -> (S, D) {
     (self.span, self.data)
   }
 
   /// Map the data to a new value, preserving the span.
   #[inline]
-  pub fn map_data<F, U>(self, f: F) -> Spanned<U>
+  pub fn map_data<F, U>(self, f: F) -> Spanned<U, S>
   where
     F: FnOnce(D) -> U,
   {

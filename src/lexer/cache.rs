@@ -2,9 +2,7 @@ use core::mem::MaybeUninit;
 
 use mayber::MaybeRef;
 
-use crate::utils::Span;
-
-use super::{CachedToken, Checkpoint, Lexer, Token};
+use super::{CachedToken, Checkpoint, Lexer, Span, Token};
 
 mod blackhole;
 mod generic_arraydeque;
@@ -265,11 +263,11 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>> {
   ///
   /// This is useful for error reporting or understanding the range of lookahead.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn span(&self) -> Option<Span> {
+  fn span(&self) -> Option<L::Span> {
     match (self.first(), self.last()) {
-      (Some(first), Some(last)) => Some(Span::new(
-        first.token().span().start(),
-        last.token().span().end(),
+      (Some(first), Some(last)) => Some(L::Span::new(
+        first.token().span_ref().start(),
+        last.token().span_ref().end(),
       )),
       _ => None,
     }
@@ -280,8 +278,8 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>> {
   /// Returns `None` if the cache is empty. This is often used to determine
   /// where the next consumed token will come from.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn span_first(&self) -> Option<Span> {
-    self.first().map(|t| t.token().span())
+  fn first_span(&self) -> Option<&L::Span> {
+    self.first().map(move |t| t.token().span_ref())
   }
 
   /// Returns the span of the last cached token.
@@ -289,7 +287,7 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>> {
   /// Returns `None` if the cache is empty. This can be used to determine
   /// where the cache's lookahead ends.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn span_last(&self) -> Option<Span> {
-    self.last().map(|t| t.token().span())
+  fn last_span(&self) -> Option<&L::Span> {
+    self.last().map(move |t| t.token().span_ref())
   }
 }
