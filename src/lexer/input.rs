@@ -98,17 +98,16 @@ use super::*;
 ///     alternative_parser.parse(checkpoint);
 /// }
 /// ```
-pub(crate) struct Input<'inp, T: Token<'inp>, L: Lexer<'inp, T>, C = DefaultCache<'inp, T, L>> {
+pub(crate) struct Input<'inp, L: Lexer<'inp>, C = DefaultCache<'inp, L>> {
   input: &'inp L::Source,
   state: L::State,
   cursor: L::Offset,
   cache: C,
 }
 
-impl<'inp, T, L, C> Clone for Input<'inp, T, L, C>
+impl<'inp, L, C> Clone for Input<'inp, L, C>
 where
-  T: Token<'inp>,
-  L: Lexer<'inp, T>,
+  L: Lexer<'inp>,
   L::State: Clone,
   C: Clone,
 {
@@ -123,11 +122,10 @@ where
   }
 }
 
-impl<'inp, T, L, C> core::fmt::Debug for Input<'inp, T, L, C>
+impl<'inp, L, C> core::fmt::Debug for Input<'inp, L, C>
 where
-  T: Token<'inp>,
   L::Source: core::fmt::Debug,
-  L: Lexer<'inp, T>,
+  L: Lexer<'inp>,
   L::State: core::fmt::Debug,
   C: core::fmt::Debug,
 {
@@ -142,26 +140,26 @@ where
   }
 }
 
-impl<'inp, T, L> Input<'inp, T, L>
+impl<'inp, L> Input<'inp, L>
 where
-  T: Token<'inp>,
-  L: Lexer<'inp, T>,
+  L: Lexer<'inp>,
   L::State: Default,
 {
   /// Creates a new lexer from the given input.
   #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(dead_code)]
   pub fn new(input: &'inp L::Source) -> Self {
     Self::with_state(input, L::State::default())
   }
 }
 
-impl<'inp, T, L> Input<'inp, T, L>
+impl<'inp, L> Input<'inp, L>
 where
-  T: Token<'inp>,
-  L: Lexer<'inp, T>,
+  L: Lexer<'inp>,
 {
   /// Creates a new lexer from the given input and state.
   #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(dead_code)]
   pub fn with_state(input: &'inp L::Source, state: L::State) -> Self {
     Self {
       input,
@@ -172,18 +170,13 @@ where
   }
 }
 
-impl<'inp, T, L, C> Input<'inp, T, L, C>
+impl<'inp, L, C> Input<'inp, L, C>
 where
-  T: Token<'inp>,
-  L: Lexer<'inp, T>,
+  L: Lexer<'inp>,
 {
-  pub fn with_state_and_cache(
-    input: &'inp L::Source,
-    state: L::State,
-    cache: C,
-  ) -> Self
+  pub fn with_state_and_cache(input: &'inp L::Source, state: L::State, cache: C) -> Self
   where
-    C: Cache<'inp, T, L>,
+    C: Cache<'inp, L>,
   {
     Self {
       input,
@@ -194,7 +187,10 @@ where
   }
 
   /// Creates a zero-copy reference adapter for this input.
-  pub const fn as_ref<'closure, E>(&'closure mut self, emitter: &'closure mut E) -> InputRef<'inp, 'closure, T, L, E, C> {
+  pub const fn as_ref<'closure, E>(
+    &'closure mut self,
+    emitter: &'closure mut E,
+  ) -> InputRef<'inp, 'closure, L, E, C> {
     InputRef {
       input: &self.input,
       state: &mut self.state,

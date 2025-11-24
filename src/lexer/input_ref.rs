@@ -7,14 +7,20 @@ use core::{
 
 use mayber::MaybeRef;
 
-use crate::utils::Spanned;
+use crate::{DefaultCache, utils::Spanned};
 
 use super::{Cache, CachedToken, Checkpoint, Cursor, Emitter, Lexed, Lexer, Source, Span, Token};
 
 mod iter;
 
 /// A reference to an [`Input`] instance.
-pub struct InputRef<'inp, 'closure, T: Token<'inp>, L: Lexer<'inp, T>, E, C> {
+pub struct InputRef<
+  'inp,
+  'closure,
+  L: Lexer<'inp>,
+  E,
+  C = DefaultCache<'inp, L>,
+> {
   pub(super) input: &'closure &'inp L::Source,
   pub(super) state: &'closure mut L::State,
   pub(super) cursor: &'closure mut L::Offset,
@@ -22,10 +28,9 @@ pub struct InputRef<'inp, 'closure, T: Token<'inp>, L: Lexer<'inp, T>, E, C> {
   pub(super) emitter: &'closure mut E,
 }
 
-impl<'inp, T, L, E, C> InputRef<'inp, '_, T, L, E, C>
+impl<'inp, L, E, C> InputRef<'inp, '_, L, E, C>
 where
-  T: Token<'inp>,
-  L: Lexer<'inp, T>,
+  L: Lexer<'inp>,
 {
   /// Returns a reference to the tokenizer's cache.
   ///
@@ -64,13 +69,13 @@ where
 
   // /// Returns an iterator over the tokens of the lexer.
   // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn iter(&mut self) -> iter::Iter<'inp, '_, T, L, C> {
+  // pub const fn iter(&mut self) -> iter::Iter<'inp, '_, L, C> {
   //   iter::Iter::new(self)
   // }
 
   // /// Consumes the lexer and returns an iterator over the tokens of the lexer.
   // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn into_iter(self) -> iter::IntoIter<'inp, '_, T, L, C> {
+  // pub const fn into_iter(self) -> iter::IntoIter<'inp, '_, L, C> {
   //   iter::IntoIter::new(self)
   // }
 
@@ -83,7 +88,7 @@ where
   fn lexer(&self) -> L
   where
     L::State: Clone,
-    C: Cache<'inp, T, L>,
+    C: Cache<'inp, L>,
   {
     let mut lexer = L::with_state(self.input, self.state.clone());
     lexer.bump(
@@ -113,7 +118,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn set_cursor_after_consume(&mut self, new: &L::Offset)
   where
-    C: Cache<'inp, T, L>,
+    C: Cache<'inp, L>,
   {
     let end = self.input.len();
     let cache = self.cache().first_span().map(|s| s.start_ref());
@@ -139,13 +144,12 @@ where
   }
 }
 
-impl<'inp, 'closure, T, L, E, C> InputRef<'inp, 'closure, T, L, E, C>
+impl<'inp, 'closure, L, E, C> InputRef<'inp, 'closure, L, E, C>
 where
-  T: Token<'inp>,
-  L: Lexer<'inp, T>,
+  L: Lexer<'inp>,
   L::State: Clone,
-  C: Cache<'inp, T, L>,
-  E: Emitter<'inp, T, L::Span>,
+  C: Cache<'inp, L>,
+  E: Emitter<'inp, L>,
 {
   /// Try parsing, returns `None` on failure (no error propagation)
   pub fn attempt<F, R>(&mut self, f: F) -> Option<R>
@@ -167,20 +171,26 @@ where
 
   /// Emits a lexer token error using the provided emitter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn emit_token_error(&mut self, err: Spanned<T::Error, L::Span>) -> Result<(), Spanned<E::Error, L::Span>> {
+  pub fn emit_token_error(
+    &mut self,
+    err: Spanned<<L::Token as Token<'inp>>::Error, L::Span>,
+  ) -> Result<(), Spanned<E::Error, L::Span>> {
     self.emitter.emit_token_error(err)
   }
 
   /// Emits an error using the provided emitter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn emit_error(&mut self, err: Spanned<E::Error, L::Span>) -> Result<(), Spanned<E::Error, L::Span>> {
+  pub fn emit_error(
+    &mut self,
+    err: Spanned<E::Error, L::Span>,
+  ) -> Result<(), Spanned<E::Error, L::Span>> {
     self.emitter.emit_error(err)
   }
 
   /// Consumes a token if it matches the predicate, returns `None` otherwise (no cursor advance on failure)
-  pub fn accept<F>(&mut self, pred: F) -> Option<Spanned<T, L::Span>>
+  pub fn accept<F>(&mut self, pred: F) -> Option<Spanned<L::Token, L::Span>>
   where
-    F: FnOnce(&T) -> bool,
+    F: FnOnce(&L::Token) -> bool,
   {
     if let Some(peeked) = self.cache().first() {
       match peeked.token().data() {
@@ -197,7 +207,7 @@ where
     }
 
     let mut lexer = self.lexer();
-    if let Some(lexed) = Lexed::<T>::lex_spanned(&mut lexer) {
+    if let Some(lexed) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
       let (span, lexed) = lexed.into_components();
 
       if let Lexed::Token(tk) = &lexed {
@@ -225,10 +235,10 @@ where
   pub fn expect<F, Error>(
     &mut self,
     pred: F,
-    error_fn: impl FnOnce(Lexed<'inp, T>) -> Error,
-  ) -> Result<Option<Spanned<T, L::Span>>, Error>
+    error_fn: impl FnOnce(Lexed<'inp, L::Token>) -> Error,
+  ) -> Result<Option<Spanned<L::Token, L::Span>>, Error>
   where
-    F: FnOnce(&T) -> bool,
+    F: FnOnce(&L::Token) -> bool,
   {
     if let Some(peeked) = self.cache().first() {
       match peeked.token().data() {
@@ -277,7 +287,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn slice_since(
     &self,
-    cursor: &Cursor<'inp, 'closure, T, L>,
+    cursor: &Cursor<'inp, 'closure, L>,
   ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
     // let start = cursor.cursor;
     let end = self.cursor();
@@ -288,7 +298,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn slice_from(
     &self,
-    cursor: &Cursor<'inp, 'closure, T, L>,
+    cursor: &Cursor<'inp, 'closure, L>,
   ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
     let start = cursor.as_inner();
     self.input.slice(start..)
@@ -298,7 +308,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn slice<'r, R>(&self, range: R) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>>
   where
-    R: RangeBounds<&'r Cursor<'inp, 'closure, T, L>>,
+    R: RangeBounds<&'r Cursor<'inp, 'closure, L>>,
     'closure: 'r,
   {
     let start = range.start_bound().map(|c| c.as_inner());
@@ -309,27 +319,27 @@ where
 
   /// Returns a span from the given cursor to the current cursor of the tokenizer.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_since(&self, cursor: &Cursor<'inp, 'closure, T, L>) -> L::Span {
+  pub fn span_since(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
     Span::new(cursor.as_inner().clone(), self.cursor().as_inner().clone())
   }
 
   /// Returns a span from the given cursor to the end of the input.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_from(&self, cursor: &Cursor<'inp, 'closure, T, L>) -> L::Span {
+  pub fn span_from(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
     Span::new(cursor.as_inner().clone(), self.input.len())
   }
 
   /// Returns a span from the current cursor of the tokenizer to the end of the input.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self, range: Range<&Cursor<'inp, 'closure, T, L>>) -> L::Span {
+  pub fn span(&self, range: Range<&Cursor<'inp, 'closure, L>>) -> L::Span {
     Span::new(range.start.as_inner().clone(), range.end.as_inner().clone())
   }
 
   /// Consumes one token from the peeked tokens and returns the consumed token if any, the cursor is advanced.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn consume_one(&mut self) -> Option<Spanned<Lexed<'inp, T>, L::Span>> {
+  pub fn consume_one(&mut self) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>> {
     let tok = self.cache_mut().pop_front()?;
-    let (tok, extras): (Spanned<Lexed<'inp, T>, L::Span>, _) = tok.into_components();
+    let (tok, extras): (Spanned<Lexed<'inp, L::Token>, L::Span>, _) = tok.into_components();
     self.set_cursor_after_consume(tok.span_ref().end_ref());
     *self.state = extras;
     Some(tok)
@@ -339,9 +349,9 @@ where
   ///
   /// Returns the last consumed token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn consume_until<F>(&mut self, mut f: F) -> Option<Spanned<Lexed<'inp, T>, L::Span>>
+  pub fn consume_until<F>(&mut self, mut f: F) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>>
   where
-    F: FnMut(&CachedToken<'inp, T, L>) -> bool,
+    F: FnMut(&CachedToken<'inp, L>) -> bool,
   {
     let mut last = None;
     // pop from cache if not matching
@@ -359,9 +369,9 @@ where
   ///
   /// Returns the last consumed token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn consume_while<F>(&mut self, mut f: F) -> Option<Spanned<Lexed<'inp, T>, L::Span>>
+  pub fn consume_while<F>(&mut self, mut f: F) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>>
   where
-    F: FnMut(&CachedToken<'inp, T, L>) -> bool,
+    F: FnMut(&CachedToken<'inp, L>) -> bool,
   {
     self.consume_until(|t| !f(t))
   }
@@ -370,10 +380,10 @@ where
   ///
   /// Returns the last consumed token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn consume_cached(&mut self) -> Option<Spanned<Lexed<'inp, T>, L::Span>> {
+  pub fn consume_cached(&mut self) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>> {
     let last = self.cache_mut().pop_back()?;
     self.cache_mut().clear();
-    let (tok, extras): (Spanned<Lexed<'inp, T>, L::Span>, _) = last.into_components();
+    let (tok, extras): (Spanned<Lexed<'inp, L::Token>, L::Span>, _) = last.into_components();
     self.set_cursor_after_consume(tok.span_ref().end_ref());
     *self.state = extras;
     Some(tok)
@@ -402,9 +412,9 @@ where
   ///
   /// Returns the first valid token found, but without consuming it.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn skip_until<F>(&mut self, mut pred: F) -> Option<MaybeRef<'_, CachedToken<'inp, T, L>>>
+  pub fn skip_until<F>(&mut self, mut pred: F) -> Option<MaybeRef<'_, CachedToken<'inp, L>>>
   where
-    F: FnMut(&Spanned<Lexed<'inp, T>, L::Span>) -> bool,
+    F: FnMut(&Spanned<Lexed<'inp, L::Token>, L::Span>) -> bool,
   {
     // pop from cache if not matching
     while let Some(tok) = self.cache_mut().pop_front_if(|t| !pred(t.token())) {
@@ -422,7 +432,7 @@ where
         let mut end = self.cursor.clone();
         let mut state = self.state.clone();
 
-        while let Some(lexed) = Lexed::<T>::lex_spanned(&mut lexer) {
+        while let Some(lexed) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
           // if the token matches, we cache it and return it
           if pred(&lexed) {
             let ct = CachedToken::new(lexed, lexer.state().clone());
@@ -452,9 +462,9 @@ where
   ///
   /// Returns the first token that does not match the predicate, but without consuming it.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn skip_while<F>(&mut self, mut pred: F) -> Option<MaybeRef<'_, CachedToken<'inp, T, L>>>
+  pub fn skip_while<F>(&mut self, mut pred: F) -> Option<MaybeRef<'_, CachedToken<'inp, L>>>
   where
-    F: FnMut(&Spanned<Lexed<'inp, T>, L::Span>) -> bool,
+    F: FnMut(&Spanned<Lexed<'inp, L::Token>, L::Span>) -> bool,
   {
     self.skip_until(|t| !pred(t))
   }
@@ -462,7 +472,7 @@ where
   /// Skips error tokens until a valid token is found or the end of input is reached.
   ///
   /// Returns the first valid token found, but without consuming it.
-  pub fn skip_until_valid(&mut self) -> Option<MaybeRef<'_, CachedToken<'inp, T, L>>> {
+  pub fn skip_until_valid(&mut self) -> Option<MaybeRef<'_, CachedToken<'inp, L>>> {
     self.skip_until(|t| matches!(t.data, Lexed::Token(_)))
   }
 
@@ -479,9 +489,9 @@ where
   pub fn skip_errors_and_until<F>(
     &mut self,
     mut pred: F,
-  ) -> Result<Option<MaybeRef<'_, CachedToken<'inp, T, L>>>, Spanned<E::Error, L::Span>>
+  ) -> Result<Option<MaybeRef<'_, CachedToken<'inp, L>>>, Spanned<E::Error, L::Span>>
   where
-    F: FnMut(Spanned<&T, &L::Span>, &mut E) -> bool,
+    F: FnMut(Spanned<&L::Token, &L::Span>, &mut E) -> bool,
   {
     // pop from cache if not matching
     while let Some(tok) = self.cache.pop_front_if(|t| {
@@ -514,7 +524,7 @@ where
         let mut end = self.cursor.clone();
         let mut state = self.state.clone();
 
-        while let Some(Spanned { span, data: tok }) = Lexed::<T>::lex_spanned(&mut lexer) {
+        while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
           match tok {
             Lexed::Error(err) => match self.emit_token_error(Spanned::new(span, err)) {
               Ok(_) => {
@@ -557,8 +567,8 @@ where
 
   /// Peeks the next token without advancing the cursor.
   #[inline]
-  pub fn peek_one(&mut self) -> Option<MaybeRef<'_, CachedToken<'inp, T, L>>> {
-    let mut buf: [MaybeUninit<MaybeRef<'_, CachedToken<'inp, T, L>>>; 1] = [MaybeUninit::uninit()];
+  pub fn peek_one(&mut self) -> Option<MaybeRef<'_, CachedToken<'inp, L>>> {
+    let mut buf: [MaybeUninit<MaybeRef<'_, CachedToken<'inp, L>>>; 1] = [MaybeUninit::uninit()];
     let feed = self.peek(&mut buf);
     if feed.is_empty() {
       return None;
@@ -569,7 +579,7 @@ where
   }
 
   // /// Peeks the tokens until find
-  // pub fn peek_until(&mut self, pred: impl Fn(&Lexed<'inp, T>) -> bool) -> Option<Lexed<'inp, T>> {
+  // pub fn peek_until(&mut self, pred: impl Fn(&Lexed<'inp, L::Token>) -> bool) -> Option<Lexed<'inp, L::Token>> {
   //   if let Some(cached_token) = self.cache.peek() {
   //     return Some(cached_token.data.clone());
   //   }
@@ -588,8 +598,8 @@ where
   #[inline]
   pub fn peek<'p, 'b>(
     &'p mut self,
-    buf: &'b mut [MaybeUninit<MaybeRef<'p, CachedToken<'inp, T, L>>>],
-  ) -> &'b mut [MaybeRef<'p, CachedToken<'inp, T, L>>] {
+    buf: &'b mut [MaybeUninit<MaybeRef<'p, CachedToken<'inp, L>>>],
+  ) -> &'b mut [MaybeRef<'p, CachedToken<'inp, L>>] {
     let buf_len = buf.len();
     let mut in_cache = self.cache().len();
     let mut want = buf_len.saturating_sub(in_cache);
@@ -650,7 +660,7 @@ where
   /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn save(&self) -> Checkpoint<'inp, '_, T, L> {
+  pub fn save(&self) -> Checkpoint<'inp, '_, L> {
     Checkpoint::new(self.cursor().clone(), self.state.clone())
   }
 
@@ -660,7 +670,7 @@ where
   /// continue lexing. If there are cached tokens, the cursor points to the start
   /// of the first cached token; otherwise, it points to the current position.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn cursor(&self) -> &Cursor<'inp, 'closure, T, L> {
+  pub fn cursor(&self) -> &Cursor<'inp, 'closure, L> {
     Cursor::from_ref(
       self
         .cache()
@@ -677,7 +687,7 @@ where
   /// This is commonly used for parser backtracking.
   #[doc(alias = "rewinds")]
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn go(&mut self, checkpoint: Checkpoint<'inp, '_, T, L>) {
+  pub fn go(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     self.cache_mut().rewind(&checkpoint);
     self.set_cursor(checkpoint.cursor().as_inner());
     *self.state = checkpoint.state;
@@ -691,11 +701,9 @@ where
   ///
   /// Returns `Ok(Some(token))` for valid tokens, `Ok(None)` at end of input, or
   /// `Err(error)` if a fatal error occurred.
-  pub fn next_valid(
-    &mut self,
-  ) -> Result<Option<Spanned<T, L::Span>>, Spanned<E::Error, L::Span>>
+  pub fn next_valid(&mut self) -> Result<Option<Spanned<L::Token, L::Span>>, Spanned<E::Error, L::Span>>
   where
-    E: Emitter<'inp, T, L::Span>,
+    E: Emitter<'inp, L>,
   {
     // First, consume from cache if available
     while let Some(cached_token) = self.cache_mut().pop_front() {
@@ -741,7 +749,7 @@ where
   /// Returns `Some(Spanned<Lexed>)` with either a token or error, or `None` at
   /// end of input.
   #[allow(clippy::should_implement_trait)]
-  pub fn next(&mut self) -> Option<Spanned<Lexed<'inp, T>, L::Span>> {
+  pub fn next(&mut self) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>> {
     if let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();
       let (span, lexed) = spanned_lexed.into_components();
@@ -758,7 +766,7 @@ where
   }
 
   // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub(crate) fn next_at(&mut self, cursor: &mut usize) -> Option<Spanned<Lexed<'inp, T>, L::Span>> {
+  // pub(crate) fn next_at(&mut self, cursor: &mut usize) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>> {
   //   let state = self.state.clone();
   //   let mut lexer = logos::Lexer::<T::Logos>::with_extras(self.input, state);
   //   lexer.bump(*cursor);

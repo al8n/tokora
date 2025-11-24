@@ -121,7 +121,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn lex<L>(lexer: &mut L) -> Option<Self>
   where
-    L: super::Lexer<'a, T>,
+    L: super::Lexer<'a, Token = T>,
   {
     lexer.lex().map(|res| res.into())
   }
@@ -130,7 +130,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn lex_spanned<L>(lexer: &mut L) -> Option<Spanned<Self, L::Span>>
   where
-    L: super::Lexer<'a, T>,
+    L: super::Lexer<'a, Token = T>,
   {
     lexer
       .lex()

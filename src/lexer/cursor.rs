@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use super::{Lexer, Token};
+use super::Lexer;
 
 /// A cursor representing a position in the input source.
 ///
@@ -13,19 +13,19 @@ use super::{Lexer, Token};
 /// - If there are cached tokens, it points to the start of the first cached token
 /// - Otherwise, it points to the position where the next token will be lexed from
 #[repr(transparent)]
-pub struct Cursor<'a, 'closure, T: Token<'a>, L: Lexer<'a, T>> {
+pub struct Cursor<'a, 'closure, L: Lexer<'a>> {
   pub(crate) cursor: L::Offset,
   _phantom: PhantomData<fn(&'closure ()) -> &'closure ()>,
 }
 
-impl<'a, T: Token<'a>, L: Lexer<'a, T>> core::fmt::Debug for Cursor<'a, '_, T, L> {
+impl<'a, L: Lexer<'a>> core::fmt::Debug for Cursor<'a, '_, L> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "Cursor({:?})", self.cursor)
   }
 }
 
-impl<'a, T: Token<'a>, L: Lexer<'a, T>> Clone for Cursor<'a, '_, T, L> {
+impl<'a, L: Lexer<'a>> Clone for Cursor<'a, '_, L> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn clone(&self) -> Self {
     Self {
@@ -35,9 +35,9 @@ impl<'a, T: Token<'a>, L: Lexer<'a, T>> Clone for Cursor<'a, '_, T, L> {
   }
 }
 
-impl<'a, T: Token<'a>, L: Lexer<'a, T>> Copy for Cursor<'a, '_, T, L> where L::Offset: Copy {}
+impl<'a, L: Lexer<'a>> Copy for Cursor<'a, '_, L> where L::Offset: Copy {}
 
-impl<'a, T: Token<'a>, L: Lexer<'a, T>> Cursor<'a, '_, T, L> {
+impl<'a, L: Lexer<'a>> Cursor<'a, '_, L> {
   /// Creates a new cursor.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new(cursor: L::Offset) -> Self {

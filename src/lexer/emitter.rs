@@ -1,4 +1,4 @@
-use crate::utils::Spanned;
+use crate::{Lexer, utils::Spanned};
 
 use super::Token;
 
@@ -55,7 +55,7 @@ mod noop;
 ///     }
 /// }
 /// ```
-pub trait Emitter<'a, T: Token<'a>, S> {
+pub trait Emitter<'a, L> {
   /// The error type that this emitter produces.
   ///
   /// This is the type returned when a fatal error occurs (via `Err(Self::Error)`).
@@ -76,7 +76,9 @@ pub trait Emitter<'a, T: Token<'a>, S> {
   ///
   /// - `Ok(())` if the error should be treated as non-fatal (processing continues)
   /// - `Err(Self::Error)` if the error is fatal (processing stops immediately)
-  fn emit_token_error(&mut self, err: Spanned<T::Error, S>) -> Result<(), Spanned<Self::Error, S>>;
+  fn emit_token_error(&mut self, err: Spanned<<L::Token as Token<'a>>::Error, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>;
 
   /// Emits a custom error from the application or parser.
   ///
@@ -92,23 +94,30 @@ pub trait Emitter<'a, T: Token<'a>, S> {
   ///
   /// - `Ok(())` if the error should be treated as non-fatal (processing continues)
   /// - `Err(Self::Error)` if the error is fatal (processing stops immediately)
-  fn emit_error(&mut self, err: Spanned<Self::Error, S>) -> Result<(), Spanned<Self::Error, S>>;
+  fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>;
 }
 
-impl<'a, T, U, S> Emitter<'a, T, S> for &mut U
+impl<'a, L, U> Emitter<'a, L> for &mut U
 where
-  T: Token<'a>,
-  U: Emitter<'a, T, S>,
+  U: Emitter<'a, L>,
 {
   type Error = U::Error;
-
+  
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_error(&mut self, err: Spanned<Self::Error, S>) -> Result<(), Spanned<Self::Error, S>> {
-    (**self).emit_error(err)
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_token_error(&mut self, err: Spanned<T::Error, S>) -> Result<(), Spanned<Self::Error, S>> {
+  fn emit_token_error(&mut self, err: Spanned<<L::Token as Token<'a>>::Error, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>
+  {
     (**self).emit_token_error(err)
   }
+  
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>
+  {
+    (**self).emit_error(err)
+  }  
 }

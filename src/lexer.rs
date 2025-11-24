@@ -29,12 +29,36 @@ mod input;
 mod input_ref;
 mod logos;
 
+/// a
+pub trait IntoLexer<T: ?Sized> {
+  /// a
+  type Lexer;
+
+  /// a
+  fn into_lexer(self) -> Self::Lexer;
+}
+
+impl<'inp, T, L> IntoLexer<T> for L
+where
+  T: Token<'inp>,
+  L: Lexer<'inp, Token = T>,
+{
+  type Lexer = L;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn into_lexer(self) -> Self::Lexer {
+    self
+  }
+}
+
 /// A trait for lexers
-pub trait Lexer<'source, T: 'source>: 'source {
+pub trait Lexer<'inp>: 'inp {
   /// The state of the lexer.
   type State: State;
   /// The source type of the lexer.
   type Source: super::Source<Self::Offset> + ?Sized;
+  /// The token type produced by the lexer.
+  type Token: Token<'inp>;
 
   // /// The cursor type of the lexer.
   // type Cursor: Default + fmt::Debug + Ord + Clone + Hash;
@@ -45,22 +69,17 @@ pub trait Lexer<'source, T: 'source>: 'source {
   type Offset: Default + fmt::Debug + Ord + Clone + Hash;
 
   /// Lexes the input source and returns a tokenizer.
-  fn new(src: &'source Self::Source) -> Self
+  fn new(src: &'inp Self::Source) -> Self
   where
-    Self::State: Default,
-    T: Token<'source>;
+    Self::State: Default;
 
   /// Lexes the input source with the given initial state and returns a tokenizer.
-  fn with_state(src: &'source Self::Source, state: Self::State) -> Self
-  where
-    T: Token<'source>;
+  fn with_state(src: &'inp Self::Source, state: Self::State) -> Self;
 
   /// Checks the current state of the lexer for errors.
   ///
   /// If the state is valid, returns `Ok(())`, otherwise returns an error.
-  fn check(&self) -> Result<(), T::Error>
-  where
-    T: Token<'source>;
+  fn check(&self) -> Result<(), <Self::Token as Token<'inp>>::Error>;
 
   /// Returns a reference to the current state of the lexer.
   fn state(&self) -> &Self::State;
@@ -72,9 +91,7 @@ pub trait Lexer<'source, T: 'source>: 'source {
   fn into_state(self) -> Self::State;
 
   /// Returns a reference to the source being lexed.
-  fn source(&self) -> &'source Self::Source
-  where
-    T: Token<'source>;
+  fn source(&self) -> &'inp Self::Source;
 
   /// Get the range for the current token in `Source`.
   fn span(&self) -> Self::Span;
@@ -83,14 +100,10 @@ pub trait Lexer<'source, T: 'source>: 'source {
   // fn offset(&self, cursor: &Self::Cursor) -> Self::Offset;
 
   /// Returns the slice of the current token in the source.
-  fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'source>
-  where
-    T: Token<'source>;
+  fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'inp>;
 
   /// Lexes the next token from the input source.
-  fn lex(&mut self) -> Option<Result<T, T::Error>>
-  where
-    T: Token<'source>;
+  fn lex(&mut self) -> Option<Result<Self::Token, <Self::Token as Token<'inp>>::Error>>;
 
   /// Bumps the end of currently lexed token by `n` offsets.
   ///
@@ -164,12 +177,12 @@ impl State for () {
 }
 
 /// A cached token with its associated extras.
-pub struct CachedToken<'a, T: Token<'a>, L: Lexer<'a, T>> {
-  token: Spanned<Lexed<'a, T>, L::Span>,
+pub struct CachedToken<'a, L: Lexer<'a>> {
+  token: Spanned<Lexed<'a, L::Token>, L::Span>,
   state: L::State,
 }
 
-impl<'a, T: Token<'a>, L: Lexer<'a, T>> Clone for CachedToken<'a, T, L>
+impl<'a, L: Lexer<'a>> Clone for CachedToken<'a, L>
 where
   L::State: Clone,
 {
@@ -182,22 +195,22 @@ where
   }
 }
 
-impl<'a, T: Token<'a>, L: Lexer<'a, T>> CachedToken<'a, T, L> {
+impl<'a, L: Lexer<'a>> CachedToken<'a, L> {
   /// Creates a new cached token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  const fn new(token: Spanned<Lexed<'a, T>, L::Span>, state: L::State) -> Self {
+  const fn new(token: Spanned<Lexed<'a, L::Token>, L::Span>, state: L::State) -> Self {
     Self { token, state }
   }
 
   /// Returns a reference to the token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn token(&self) -> &Spanned<Lexed<'a, T>, L::Span> {
+  pub const fn token(&self) -> &Spanned<Lexed<'a, L::Token>, L::Span> {
     &self.token
   }
 
   /// Consumes the cached token and returns the lexed token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_token(self) -> Spanned<Lexed<'a, T>, L::Span> {
+  pub fn into_token(self) -> Spanned<Lexed<'a, L::Token>, L::Span> {
     self.token
   }
 
@@ -209,7 +222,8 @@ impl<'a, T: Token<'a>, L: Lexer<'a, T>> CachedToken<'a, T, L> {
 
   /// Consumes the cached token and returns the extras.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Spanned<Lexed<'a, T>, L::Span>, L::State) {
+  #[allow(clippy::type_complexity)]
+  pub fn into_components(self) -> (Spanned<Lexed<'a, L::Token>, L::Span>, L::State) {
     (self.token, self.state)
   }
 }

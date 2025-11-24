@@ -2,13 +2,14 @@ use core::mem::MaybeUninit;
 
 use mayber::MaybeRef;
 
-use super::{CachedToken, Checkpoint, Lexer, Span, Token};
+use super::{CachedToken, Checkpoint, Lexer, Span};
 
 mod blackhole;
 mod generic_arraydeque;
 
 /// The default cache type used by the lexer.
-pub type DefaultCache<'a, T, L> = ::generic_arraydeque::GenericArrayDeque<CachedToken<'a, T, L>, ::generic_arraydeque::typenum::U3>;
+pub type DefaultCache<'a, L> =
+  ::generic_arraydeque::GenericArrayDeque<CachedToken<'a, L>, ::generic_arraydeque::typenum::U3>;
 
 /// A trait for caching lookahead tokens in the tokenizer.
 ///
@@ -78,7 +79,7 @@ pub type DefaultCache<'a, T, L> = ::generic_arraydeque::GenericArrayDeque<Cached
 ///     // ... other methods
 /// }
 /// ```
-pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>>: 'a {
+pub trait Cache<'a, L: Lexer<'a>>: 'a {
   /// The options for creating a new cache.
   type Options;
 
@@ -117,7 +118,7 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>>: 'a {
   /// This operation restores the cache state to match the checkpoint, typically
   /// by clearing any tokens that were added after the checkpoint was created.
   /// This is used for parser backtracking.
-  fn rewind(&mut self, checkpoint: &Checkpoint<'a, '_, T, L>)
+  fn rewind(&mut self, checkpoint: &Checkpoint<'a, '_, L>)
   where
     Self: Sized;
 
@@ -141,22 +142,22 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>>: 'a {
   /// ```
   fn push_back(
     &mut self,
-    tok: CachedToken<'a, T, L>,
-  ) -> Result<&CachedToken<'a, T, L>, CachedToken<'a, T, L>>;
+    tok: CachedToken<'a, L>,
+  ) -> Result<&CachedToken<'a, L>, CachedToken<'a, L>>;
 
   /// Removes and returns the token at the front of the cache.
   ///
   /// Returns `None` if the cache is empty. This is the primary way to consume
   /// cached tokens.
   #[allow(clippy::type_complexity)]
-  fn pop_front(&mut self) -> Option<CachedToken<'a, T, L>>;
+  fn pop_front(&mut self) -> Option<CachedToken<'a, L>>;
 
   /// Removes and returns the token at the back of the cache.
   ///
   /// Returns `None` if the cache is empty. This is less commonly used than
   /// `pop_front` but can be useful for certain cache management operations.
   #[allow(clippy::type_complexity)]
-  fn pop_back(&mut self) -> Option<CachedToken<'a, T, L>>;
+  fn pop_back(&mut self) -> Option<CachedToken<'a, L>>;
 
   /// Removes all tokens from the cache.
   ///
@@ -178,9 +179,9 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>>: 'a {
   /// }
   /// ```
   #[allow(clippy::type_complexity)]
-  fn pop_front_if<F>(&mut self, predicate: F) -> Option<CachedToken<'a, T, L>>
+  fn pop_front_if<F>(&mut self, predicate: F) -> Option<CachedToken<'a, L>>
   where
-    F: FnOnce(&CachedToken<'a, T, L>) -> bool,
+    F: FnOnce(&CachedToken<'a, L>) -> bool,
   {
     if let Some(peeked) = self.first() {
       if predicate(peeked) {
@@ -198,11 +199,11 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>>: 'a {
   ///
   /// This is a convenience wrapper around `peek` for looking at just one token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn peek_one<'c>(&self) -> Option<MaybeRef<'_, CachedToken<'a, T, L>>>
+  fn peek_one<'c>(&self) -> Option<MaybeRef<'_, CachedToken<'a, L>>>
   where
     'a: 'c,
   {
-    let mut buf: [MaybeUninit<MaybeRef<'_, CachedToken<'a, T, L>>>; 1] = [MaybeUninit::uninit()];
+    let mut buf: [MaybeUninit<MaybeRef<'_, CachedToken<'a, L>>>; 1] = [MaybeUninit::uninit()];
     let feed = unsafe { self.peek(&mut buf) };
     if feed.is_empty() {
       return None;
@@ -238,8 +239,8 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>>: 'a {
   #[allow(clippy::mut_from_ref)]
   unsafe fn peek<'p, 'b>(
     &'p self,
-    buf: &'b mut [MaybeUninit<MaybeRef<'p, CachedToken<'a, T, L>>>],
-  ) -> &'b mut [MaybeRef<'p, CachedToken<'a, T, L>>];
+    buf: &'b mut [MaybeUninit<MaybeRef<'p, CachedToken<'a, L>>>],
+  ) -> &'b mut [MaybeRef<'p, CachedToken<'a, L>>];
 
   /// Pushes multiple tokens into the cache at once.
   ///
@@ -257,20 +258,20 @@ pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>>: 'a {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn push_many<'p>(
     &'p mut self,
-    toks: impl Iterator<Item = CachedToken<'a, T, L>> + 'p,
-  ) -> impl Iterator<Item = CachedToken<'a, T, L>> + 'p {
+    toks: impl Iterator<Item = CachedToken<'a, L>> + 'p,
+  ) -> impl Iterator<Item = CachedToken<'a, L>> + 'p {
     toks.filter_map(move |tok| self.push_back(tok).err())
   }
 
   /// Returns a reference to the first (oldest) cached token.
   ///
   /// Returns `None` if the cache is empty. This does not remove the token.
-  fn first(&self) -> Option<&CachedToken<'a, T, L>>;
+  fn first(&self) -> Option<&CachedToken<'a, L>>;
 
   /// Returns a reference to the last (newest) cached token.
   ///
   /// Returns `None` if the cache is empty. This does not remove the token.
-  fn last(&self) -> Option<&CachedToken<'a, T, L>>;
+  fn last(&self) -> Option<&CachedToken<'a, L>>;
 
   /// Returns the combined span covering all cached tokens.
   ///
