@@ -3,6 +3,7 @@ use crate::utils::Spanned;
 use super::Token;
 
 mod blackhole;
+mod noop;
 
 /// A trait for handling and emitting errors during tokenization and parsing.
 ///
@@ -75,7 +76,7 @@ pub trait Emitter<'a, T: Token<'a>, S> {
   ///
   /// - `Ok(())` if the error should be treated as non-fatal (processing continues)
   /// - `Err(Self::Error)` if the error is fatal (processing stops immediately)
-  fn emit_token_error(&mut self, err: Spanned<T::Error, S>) -> Result<(), Self::Error>;
+  fn emit_token_error(&mut self, err: Spanned<T::Error, S>) -> Result<(), Spanned<Self::Error, S>>;
 
   /// Emits a custom error from the application or parser.
   ///
@@ -91,7 +92,7 @@ pub trait Emitter<'a, T: Token<'a>, S> {
   ///
   /// - `Ok(())` if the error should be treated as non-fatal (processing continues)
   /// - `Err(Self::Error)` if the error is fatal (processing stops immediately)
-  fn emit_error(&mut self, err: Spanned<Self::Error, S>) -> Result<(), Self::Error>;
+  fn emit_error(&mut self, err: Spanned<Self::Error, S>) -> Result<(), Spanned<Self::Error, S>>;
 }
 
 impl<'a, T, U, S> Emitter<'a, T, S> for &mut U
@@ -102,12 +103,12 @@ where
   type Error = U::Error;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_error(&mut self, err: Spanned<Self::Error, S>) -> Result<(), Self::Error> {
+  fn emit_error(&mut self, err: Spanned<Self::Error, S>) -> Result<(), Spanned<Self::Error, S>> {
     (**self).emit_error(err)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_token_error(&mut self, err: Spanned<T::Error, S>) -> Result<(), Self::Error> {
+  fn emit_token_error(&mut self, err: Spanned<T::Error, S>) -> Result<(), Spanned<Self::Error, S>> {
     (**self).emit_token_error(err)
   }
 }

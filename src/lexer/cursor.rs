@@ -38,14 +38,14 @@ impl<'a, T: Token<'a>, L: Lexer<'a, T>> Clone for Cursor<'a, '_, T, L> {
 impl<'a, T: Token<'a>, L: Lexer<'a, T>> Copy for Cursor<'a, '_, T, L> where L::Offset: Copy {}
 
 impl<'a, T: Token<'a>, L: Lexer<'a, T>> Cursor<'a, '_, T, L> {
-  // /// Creates a new cursor.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub(super) const fn new(cursor: L::Offset) -> Self {
-  //   Self {
-  //     cursor,
-  //     _phantom: PhantomData,
-  //   }
-  // }
+  /// Creates a new cursor.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) const fn new(cursor: L::Offset) -> Self {
+    Self {
+      cursor,
+      _phantom: PhantomData,
+    }
+  }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn from_ref(cursor: &L::Offset) -> &Self {

@@ -7,6 +7,9 @@ use super::{CachedToken, Checkpoint, Lexer, Span, Token};
 mod blackhole;
 mod generic_arraydeque;
 
+/// The default cache type used by the lexer.
+pub type DefaultCache<'a, T, L> = ::generic_arraydeque::GenericArrayDeque<CachedToken<'a, T, L>, ::generic_arraydeque::typenum::U3>;
+
 /// A trait for caching lookahead tokens in the tokenizer.
 ///
 /// `Cache` provides a buffer for tokens that have been lexed but not yet consumed,
@@ -75,7 +78,20 @@ mod generic_arraydeque;
 ///     // ... other methods
 /// }
 /// ```
-pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>> {
+pub trait Cache<'a, T: Token<'a>, L: Lexer<'a, T>>: 'a {
+  /// The options for creating a new cache.
+  type Options;
+
+  /// Creates a new, empty cache.
+  fn new() -> Self
+  where
+    Self: Sized;
+
+  /// Creates a new, empty cache with the specified capacity.
+  fn with_options(options: Self::Options) -> Self
+  where
+    Self: Sized;
+
   /// Returns `true` if the cache contains no tokens.
   ///
   /// This is a convenience method that checks if `len() == 0`.

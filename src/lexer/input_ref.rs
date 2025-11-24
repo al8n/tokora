@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use core::{
   mem::MaybeUninit,
   ops::{Range, RangeBounds},
@@ -12,15 +14,15 @@ use super::{Cache, CachedToken, Checkpoint, Cursor, Emitter, Lexed, Lexer, Sourc
 mod iter;
 
 /// A reference to an [`Input`] instance.
-pub struct InputRef<'inp, 'closure, T: Token<'inp>, L: Lexer<'inp, T>, C> {
-  // pub(crate) input: &'closure mut Input<'inp, T, L, C>,
+pub struct InputRef<'inp, 'closure, T: Token<'inp>, L: Lexer<'inp, T>, E, C> {
   pub(super) input: &'closure &'inp L::Source,
   pub(super) state: &'closure mut L::State,
   pub(super) cursor: &'closure mut L::Offset,
   pub(super) cache: &'closure mut C,
+  pub(super) emitter: &'closure mut E,
 }
 
-impl<'inp, T, L, C> InputRef<'inp, '_, T, L, C>
+impl<'inp, T, L, E, C> InputRef<'inp, '_, T, L, E, C>
 where
   T: Token<'inp>,
   L: Lexer<'inp, T>,
@@ -137,30 +139,43 @@ where
   }
 }
 
-impl<'inp, 'closure, T, L, C> InputRef<'inp, 'closure, T, L, C>
+impl<'inp, 'closure, T, L, E, C> InputRef<'inp, 'closure, T, L, E, C>
 where
   T: Token<'inp>,
   L: Lexer<'inp, T>,
   L::State: Clone,
   C: Cache<'inp, T, L>,
+  E: Emitter<'inp, T, L::Span>,
 {
-  // /// Try parsing, returns `None` on failure (no error propagation)
-  // pub fn attempt<F, R>(&mut self, f: F) -> Option<R>
-  // where
-  //   F: FnOnce(&mut Self) -> Option<R>,
-  // {
-  //   let cur = self.cursor().cursor;
-  //   let state = self.state.clone();
+  /// Try parsing, returns `None` on failure (no error propagation)
+  pub fn attempt<F, R>(&mut self, f: F) -> Option<R>
+  where
+    F: FnOnce(&mut Self) -> Option<R>,
+  {
+    let cur = self.cursor().as_inner().clone();
+    let state = self.state.clone();
 
-  //   match f(self) {
-  //     Some(result) => Some(result),
-  //     None => {
-  //       let ckp = Checkpoint::new(Cursor::new(cur, self), state);
-  //       self.go(ckp);
-  //       None
-  //     }
-  //   }
-  // }
+    match f(self) {
+      Some(result) => Some(result),
+      None => {
+        let ckp = Checkpoint::new(Cursor::new(cur), state);
+        self.go(ckp);
+        None
+      }
+    }
+  }
+
+  /// Emits a lexer token error using the provided emitter.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn emit_token_error(&mut self, err: Spanned<T::Error, L::Span>) -> Result<(), Spanned<E::Error, L::Span>> {
+    self.emitter.emit_token_error(err)
+  }
+
+  /// Emits an error using the provided emitter.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn emit_error(&mut self, err: Spanned<E::Error, L::Span>) -> Result<(), Spanned<E::Error, L::Span>> {
+    self.emitter.emit_error(err)
+  }
 
   /// Consumes a token if it matches the predicate, returns `None` otherwise (no cursor advance on failure)
   pub fn accept<F>(&mut self, pred: F) -> Option<Spanned<T, L::Span>>
@@ -312,7 +327,6 @@ where
 
   /// Consumes one token from the peeked tokens and returns the consumed token if any, the cursor is advanced.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(clippy::type_complexity)]
   pub fn consume_one(&mut self) -> Option<Spanned<Lexed<'inp, T>, L::Span>> {
     let tok = self.cache_mut().pop_front()?;
     let (tok, extras): (Spanned<Lexed<'inp, T>, L::Span>, _) = tok.into_components();
@@ -461,20 +475,19 @@ where
   /// Returns the first token that matches the predicate, but without consuming it.
   /// If no matching token is found, returns `None`.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn skip_until_with_emitter<F, E>(
+  #[allow(clippy::type_complexity)]
+  pub fn skip_errors_and_until<F>(
     &mut self,
     mut pred: F,
-    mut emitter: E,
-  ) -> Result<Option<MaybeRef<'_, CachedToken<'inp, T, L>>>, E::Error>
+  ) -> Result<Option<MaybeRef<'_, CachedToken<'inp, T, L>>>, Spanned<E::Error, L::Span>>
   where
     F: FnMut(Spanned<&T, &L::Span>, &mut E) -> bool,
-    E: Emitter<'inp, T, L::Span>,
   {
     // pop from cache if not matching
-    while let Some(tok) = self.cache_mut().pop_front_if(|t| {
+    while let Some(tok) = self.cache.pop_front_if(|t| {
       let span = t.token().span_ref();
       match t.token().data() {
-        Lexed::Token(tok) => !pred(Spanned::new(span, tok), &mut emitter),
+        Lexed::Token(tok) => !pred(Spanned::new(span, tok), self.emitter),
         Lexed::Error(_) => true,
       }
     }) {
@@ -486,7 +499,7 @@ where
       // Note: cursor/state are updated before emission. If emission fails,
       // the error token has still been consumed (no backtracking here).
       if let Lexed::Error(e) = tok {
-        emitter.emit_token_error(Spanned::new(span.clone(), e))?;
+        self.emit_token_error(Spanned::new(span.clone(), e))?;
       }
     }
 
@@ -503,7 +516,7 @@ where
 
         while let Some(Spanned { span, data: tok }) = Lexed::<T>::lex_spanned(&mut lexer) {
           match tok {
-            Lexed::Error(err) => match emitter.emit_token_error(Spanned::new(span, err)) {
+            Lexed::Error(err) => match self.emit_token_error(Spanned::new(span, err)) {
               Ok(_) => {
                 end = lexer.span().end();
                 state = lexer.state().clone();
@@ -517,7 +530,7 @@ where
             Lexed::Token(tok) => {
               let tok = Spanned::new(span, tok);
               // if the token matches, we cache it and return it
-              if pred(tok.as_ref(), &mut emitter) {
+              if pred(tok.as_ref(), self.emitter) {
                 let ct = CachedToken::new(tok.map_data(Lexed::Token), lexer.into_state());
                 self.set_cursor_after_consume(&end);
                 *self.state = state;
@@ -678,10 +691,9 @@ where
   ///
   /// Returns `Ok(Some(token))` for valid tokens, `Ok(None)` at end of input, or
   /// `Err(error)` if a fatal error occurred.
-  pub fn next_valid_with<E>(
+  pub fn next_valid(
     &mut self,
-    mut emitter: E,
-  ) -> Result<Option<Spanned<T, L::Span>>, E::Error>
+  ) -> Result<Option<Spanned<T, L::Span>>, Spanned<E::Error, L::Span>>
   where
     E: Emitter<'inp, T, L::Span>,
   {
@@ -694,7 +706,7 @@ where
       match lexed {
         Lexed::Token(t) => return Ok(Some(Spanned::new(span, t))),
         Lexed::Error(e) => {
-          emitter.emit_token_error(Spanned::new(span, e))?;
+          self.emit_token_error(Spanned::new(span, e))?;
           continue;
         }
       }
@@ -711,7 +723,7 @@ where
       match lexed {
         Lexed::Token(t) => return Ok(Some(Spanned::new(span, t))),
         Lexed::Error(e) => {
-          emitter.emit_token_error(Spanned::new(span, e))?;
+          self.emit_token_error(Spanned::new(span, e))?;
           continue;
         }
       }
@@ -719,15 +731,6 @@ where
 
     Ok(None)
   }
-
-  // /// Advances the cursor and returns the next valid token, emit non-fatal errors, fatal errors are returned and stop the process.
-  // pub fn next_valid<E>(&mut self, emitter: E) -> Result<Option<Spanned<T>>, E::Error>
-  // where
-  //   E: Emitter<'inp, T>,
-  //   E::Error: From<<T::Logos as Logos<'inp>>::Error>,
-  // {
-  //   self.next_valid_with(emitter)
-  // }
 
   /// Advances the cursor and returns the next token (valid or error).
   ///

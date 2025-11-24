@@ -4,13 +4,14 @@ pub use cache::*;
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
 pub use emitter::Emitter;
-pub use input::Input;
 pub use input_ref::InputRef;
 pub use source::Source;
 pub use token::{
   DelimiterToken, IdentifierToken, KeywordToken, Lexed, LitToken, Logos, OperatorToken,
   PunctuatorToken, Require, Token, TriviaToken,
 };
+
+pub(crate) use input::Input;
 
 use crate::utils::Spanned;
 
@@ -285,3 +286,29 @@ impl Span for crate::utils::Span {
 /// process tokens in a streaming fashion without maintaining a lookahead buffer.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BlackHole;
+
+/// A no-operation type.
+pub struct Noop<T: ?Sized>(core::marker::PhantomData<T>);
+
+impl<T: ?Sized> Default for Noop<T> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn default() -> Self {
+    Self(core::marker::PhantomData)
+  }
+}
+
+impl<T: ?Sized> core::fmt::Debug for Noop<T> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "Noop")
+  }
+}
+
+impl<T: ?Sized> Clone for Noop<T> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn clone(&self) -> Self {
+    *self
+  }
+}
+
+impl<T: ?Sized> Copy for Noop<T> {}

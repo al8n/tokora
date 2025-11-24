@@ -9,12 +9,12 @@ where
   type Error = core::convert::Infallible;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_token_error(&mut self, _err: Spanned<T::Error, S>) -> Result<(), Self::Error> {
+  fn emit_token_error(&mut self, _err: Spanned<T::Error, S>) -> Result<(), Spanned<Self::Error, S>> {
     Ok(())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_error(&mut self, _err: Spanned<Self::Error, S>) -> Result<(), Self::Error> {
+  fn emit_error(&mut self, _err: Spanned<Self::Error, S>) -> Result<(), Spanned<Self::Error, S>> {
     Ok(())
   }
 }

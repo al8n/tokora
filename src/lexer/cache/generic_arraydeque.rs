@@ -12,6 +12,18 @@ where
   L: Lexer<'a, T> + 'a,
   N: ArrayLength,
 {
+  type Options = ();
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn new() -> Self {
+    Self::new()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn with_options(_options: ()) -> Self {
+    Self::new()
+  }
+
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
     self.len()

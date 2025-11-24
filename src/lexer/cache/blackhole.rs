@@ -9,6 +9,21 @@ where
   T: Token<'a>,
   L: Lexer<'a, T> + 'a,
 {
+  type Options = ();
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn new() -> Self {
+    Self
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn with_options(_: Self::Options) -> Self
+  where
+    Self: Sized
+  {
+    Self
+  }
+
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
     0
@@ -42,7 +57,7 @@ where
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn clear(&mut self) {}
-
+  
   #[cfg_attr(not(tarpaulin), inline(always))]
   unsafe fn peek(
     &self,
@@ -56,12 +71,12 @@ where
       )
     }
   }
-
+  
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn first(&self) -> Option<&CachedToken<'a, T, L>> {
     None
   }
-
+  
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn last(&self) -> Option<&CachedToken<'a, T, L>> {
     None

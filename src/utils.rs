@@ -740,6 +740,13 @@ where
   }
 }
 
+impl<D, S> core::error::Error for Spanned<D, S>
+where
+  D: core::error::Error,
+  S: core::fmt::Debug,
+{
+}
+
 impl<D, S> IntoComponents for Spanned<D, S> {
   type Components = (S, D);
 
