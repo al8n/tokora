@@ -30,15 +30,15 @@ mod input_ref;
 mod logos;
 
 /// a
-pub trait IntoLexer<T: ?Sized> {
+pub trait IntoLexer<'inp, T: ?Sized> {
   /// a
   type Lexer;
 
   /// a
-  fn into_lexer(self) -> Self::Lexer;
+  fn into_lexer(self) -> Self::Lexer where Self: 'inp, T: Token<'inp>;
 }
 
-impl<'inp, T, L> IntoLexer<T> for L
+impl<'inp, T, L> IntoLexer<'inp, T> for L
 where
   T: Token<'inp>,
   L: Lexer<'inp, Token = T>,
@@ -46,7 +46,8 @@ where
   type Lexer = L;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn into_lexer(self) -> Self::Lexer {
+  fn into_lexer(self) -> Self::Lexer
+  {
     self
   }
 }

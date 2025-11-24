@@ -3,9 +3,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-  Cache, DefaultCache, Emitter, Lexer, Noop, Token,
-  lexer::{Input, InputRef},
-  utils::Spanned,
+  Cache, DefaultCache, Emitter, IntoLexer, Lexer, Noop, Token, lexer::{Input, InputRef}, utils::Spanned
 };
 
 mod sealed {
@@ -15,20 +13,24 @@ mod sealed {
 
   impl<'inp, F, L, O, E, C> sealed::Sealed<'inp, L, O, E, C> for F
   where
-    F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> ParseResult<O, E::Error>,
-    L: Lexer<'inp>,
-    E: Emitter<'inp, L>,
-    C: Cache<'inp, L>,
-  {
-  }
+    F: FnMut(&mut InputRef<'inp, '_, T, L, E, C>) -> ParseResult<O, E::Error>,
+    L: IntoLexer<'inp, T>,
+    L::Lexer: Lexer<'inp, Token = T>,
+    T: Token<'inp>,
+    E: Emitter<'inp, L::Lexer>,
+    C: Cache<'inp, L::Lexer>,
+  {}
+  
 
 
-  impl<'inp, F, L, O, E, C> Sealed<'inp, L, O, E, C> for Parser<F, L, O, E::Error>
+  impl<'inp, F, T, L, O, E, C> Sealed<'inp, T, L, O, E, C> for Parser<F, L, O, E::Error>
   where
-    F: ParseInput<'inp, L, O, E, C>,
-    L: Lexer<'inp>,
-    E: Emitter<'inp, L>,
-    C: Cache<'inp, L>,
+    F: ParseInput<'inp, T, L, O, E, C>,
+    L: IntoLexer<'inp, T>,
+    L::Lexer: Lexer<'inp, Token = T>,
+    T: Token<'inp>,
+    E: Emitter<'inp, L::Lexer>,
+    C: Cache<'inp, L::Lexer>,
   {
   }
 }
@@ -41,7 +43,7 @@ pub type ParseResult<O, Err> = Result<O, Err>;
 /// This mirrors the ergonomics of libraries like `winnow`: a parser is
 /// simply something that can mutate an [`InputRef`] and either produce
 /// a value or a spanned error using the configured `Emitter`.
-pub trait ParseInput<'inp, L, O, E, C = DefaultCache<'inp, L>>:
+pub trait ParseInput<'inp, L, O, E, C>:
   sealed::Sealed<'inp, L, O, E, C>
 {
   /// Error type produced when the parser fails.
@@ -50,27 +52,31 @@ pub trait ParseInput<'inp, L, O, E, C = DefaultCache<'inp, L>>:
   /// Try to parse from the given input.
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, E, C>,
-  ) -> ParseResult<O, Self::Error>
+    input: &mut InputRef<'inp, '_, T, L, E, C>,
+  ) -> Result<O, Self::Error>
   where
-    L: Lexer<'inp>,
-    E: Emitter<'inp, L>,
-    C: Cache<'inp, L>;
+    T: Token<'inp>,
+    L: IntoLexer<'inp, T>,
+    L::Lexer: Lexer<'inp, Token = T>,
+    E: Emitter<'inp, L::Lexer>,
+    C: Cache<'inp, L::Lexer>;
 }
 
-impl<'inp, F, L, O, E, C> ParseInput<'inp, L, O, E, C> for F
+impl<'inp, F, T, L, O, E, C> ParseInput<'inp, T, L, O, E, C> for F
 where
-  F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> ParseResult<O, E::Error>,
-  L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  C: Cache<'inp, L>,
+  F: FnMut(&mut InputRef<'inp, '_, T, L, E, C>) -> ParseResult<O, E::Error>,
+  T: Token<'inp>,
+  L: IntoLexer<'inp, T>,
+  L::Lexer: Lexer<'inp, Token = T>,
+  E: Emitter<'inp, L::Lexer>,
+  C: Cache<'inp, L::Lexer>,
 {
   type Error = E::Error;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, E, C>,
+    input: &mut InputRef<'inp, '_, T, L, E, C>,
   ) -> ParseResult<O, Self::Error> {
     (self)(input)
   }
@@ -115,20 +121,22 @@ impl<F, L, O, Error> Parser<F, L, O, Error> {
   }
 }
 
-impl<'inp, F, L, O, E, C> ParseInput<'inp, L, O, E, C>
+impl<'inp, F, T, L, O, E, C> ParseInput<'inp, T, L, O, E, C>
   for Parser<F, L, O, E::Error>
 where
-  F: ParseInput<'inp, L, O, E, C>,
-  L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  C: Cache<'inp, L>,
+  F: ParseInput<'inp, T, L, O, E, C>,
+  T: Token<'inp>,
+  L: IntoLexer<'inp, T>,
+  L::Lexer: Lexer<'inp, Token = T>,
+  E: Emitter<'inp, L::Lexer>,
+  C: Cache<'inp, L::Lexer>,
 {
   type Error = F::Error;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, E, C>,
+    input: &mut InputRef<'inp, '_, T, L, E, C>,
   ) -> ParseResult<O, Self::Error> {
     self.f.parse_input(input)
   }
@@ -187,16 +195,58 @@ where
 pub trait Parse<'inp, L, O, Error>: Sized {
   /// Parse using the lexer's default state.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse(self, src: &'inp L::Source) -> ParseResult<O, Error>
+  fn parse<T>(self, src: &'inp <L::Lexer as Lexer<'inp>>::Source) -> ParseResult<O, Error>
   where
-    L: Lexer<'inp>,
-    L::State: Default,
+    T: Token<'inp>,
+    L: IntoLexer<'inp, T>,
+    L::Lexer: Lexer<'inp>,
+    <L::Lexer as Lexer<'inp>>::State: Default,
   {
-    self.parse_with_state(src, L::State::default())
+    self.parse_with_state(src, <L::Lexer as Lexer<'inp>>::State::default())
   }
 
   /// Parse using an explicit lexer state.
-  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> ParseResult<O, Error>
+  fn parse_with_state<T>(self, src: &'inp <L::Lexer as Lexer<'inp>>::Source, state: <L::Lexer as Lexer<'inp>>::State) -> ParseResult<O, Error>
   where
-    L: Lexer<'inp>;
+    T: Token<'inp>,
+    L: IntoLexer<'inp, T>,
+    L::Lexer: Lexer<'inp>;
 }
+
+#[cfg_attr(not(tarpaulin), inline(always))]
+fn drive<'inp, P, T, L, O, E, C>(
+  mut parser: P,
+  src: &'inp <L::Lexer as Lexer<'inp>>::Source,
+  state: <L::Lexer as Lexer<'inp>>::State,
+  mut emitter: E,
+  cache: C,
+) -> Result<O, P::Error>
+where
+  P: ParseInput<'inp, T, L, O, E, C>,
+  T: Token<'inp>,
+  L: IntoLexer<'inp, T>,
+  L::Lexer: Lexer<'inp, Token = T>,
+  E: Emitter<'inp, L::Lexer>,
+  C: Cache<'inp, L::Lexer>,
+{
+  let mut input = Input::with_state_and_cache(src, state, cache);
+  let mut input_ref = input.as_ref(&mut emitter);
+  parser.parse_input(&mut input_ref)
+}
+
+// impl<'inp, F, L, O, Error> Parse<'inp, L, O, Error> for Parser<F, L, O, Error>
+// where
+//   Parser<F, L, O, Error>: ParseInput<'inp, T, L, O, Noop<Error>, DefaultCache<'inp, L::Lexer>>,
+//   L: IntoLexer<'inp, T>,
+//   L::Lexer: Lexer<'inp>,
+//   <L::Lexer as Lexer<'inp>>::State: Default,
+//   Error: From<T::Error>,
+// {
+//   fn parse_with_state<T>(self, src: &'inp <<T>::Lexer as Lexer<'inp>>::Source, state: <<T>::Lexer as Lexer<'inp>>::State) -> ParseResult<L, O>
+//   where
+//     T: Token<'inp>,
+//     L: IntoLexer<'inp, T>,
+//     L::Lexer: Lexer<'inp> {
+    
+//   }
+// }

@@ -98,17 +98,24 @@ use super::*;
 ///     alternative_parser.parse(checkpoint);
 /// }
 /// ```
-pub(crate) struct Input<'inp, L: Lexer<'inp>, C = DefaultCache<'inp, L>> {
-  input: &'inp L::Source,
-  state: L::State,
-  cursor: L::Offset,
+pub(crate) struct Input<'inp, T, L, C = DefaultCache<'inp, <L as IntoLexer<'inp, T>>::Lexer>>
+where
+  T: Token<'inp>,
+  L: IntoLexer<'inp, T>,
+  L::Lexer: Lexer<'inp, Token = T>,
+{
+  input: &'inp <L::Lexer as Lexer<'inp>>::Source,
+  state: <L::Lexer as Lexer<'inp>>::State,
+  cursor: <L::Lexer as Lexer<'inp>>::Offset,
   cache: C,
 }
 
-impl<'inp, L, C> Clone for Input<'inp, L, C>
+impl<'inp, T, L, C> Clone for Input<'inp, T, L, C>
 where
-  L: Lexer<'inp>,
-  L::State: Clone,
+  T: Token<'inp>,
+  L: IntoLexer<'inp, T>,
+  L::Lexer: Lexer<'inp, Token = T>,
+  <L::Lexer as Lexer<'inp>>::State: Clone,
   C: Clone,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -122,11 +129,13 @@ where
   }
 }
 
-impl<'inp, L, C> core::fmt::Debug for Input<'inp, L, C>
+impl<'inp, T, L, C> core::fmt::Debug for Input<'inp, T, L, C>
 where
-  L::Source: core::fmt::Debug,
-  L: Lexer<'inp>,
-  L::State: core::fmt::Debug,
+  T: Token<'inp>,
+  L: IntoLexer<'inp, T>,
+  L::Lexer: Lexer<'inp, Token = T>,
+  <L::Lexer as Lexer<'inp>>::Source: core::fmt::Debug,
+  <L::Lexer as Lexer<'inp>>::State: core::fmt::Debug,
   C: core::fmt::Debug,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -140,48 +149,54 @@ where
   }
 }
 
-impl<'inp, L> Input<'inp, L>
+impl<'inp, T, L> Input<'inp, T, L>
 where
-  L: Lexer<'inp>,
-  L::State: Default,
+  T: Token<'inp>,
+  L: IntoLexer<'inp, T>,
+  L::Lexer: Lexer<'inp, Token = T>,
+  <L::Lexer as Lexer<'inp>>::State: Default,
 {
   /// Creates a new lexer from the given input.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(dead_code)]
-  pub fn new(input: &'inp L::Source) -> Self {
-    Self::with_state(input, L::State::default())
+  pub fn new(input: &'inp <L::Lexer as Lexer<'inp>>::Source) -> Self {
+    Self::with_state(input, <L::Lexer as Lexer<'inp>>::State::default())
   }
 }
 
-impl<'inp, L> Input<'inp, L>
+impl<'inp, T, L> Input<'inp, T, L>
 where
-  L: Lexer<'inp>,
+  T: Token<'inp>,
+  L: IntoLexer<'inp, T>,
+  L::Lexer: Lexer<'inp, Token = T>,
 {
   /// Creates a new lexer from the given input and state.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(dead_code)]
-  pub fn with_state(input: &'inp L::Source, state: L::State) -> Self {
+  pub fn with_state(input: &'inp <L::Lexer as Lexer<'inp>>::Source, state: <L::Lexer as Lexer<'inp>>::State) -> Self {
     Self {
       input,
       state,
-      cursor: L::Offset::default(),
+      cursor: <L::Lexer as Lexer<'inp>>::Offset::default(),
       cache: DefaultCache::default(),
     }
   }
 }
 
-impl<'inp, L, C> Input<'inp, L, C>
+impl<'inp, T, L, C> Input<'inp, T, L, C>
 where
-  L: Lexer<'inp>,
+  T: Token<'inp>,
+  L: IntoLexer<'inp, T>,
+  L::Lexer: Lexer<'inp, Token = T>,
 {
-  pub fn with_state_and_cache(input: &'inp L::Source, state: L::State, cache: C) -> Self
+  pub fn with_state_and_cache(input: &'inp <L::Lexer as Lexer<'inp>>::Source, state: <L::Lexer as Lexer<'inp>>::State, cache: C) -> Self
   where
-    C: Cache<'inp, L>,
+    C: Cache<'inp, L::Lexer>,
   {
     Self {
       input,
       state,
-      cursor: L::Offset::default(),
+      cursor: <L::Lexer as Lexer<'inp>>::Offset::default(),
       cache,
     }
   }
@@ -190,7 +205,7 @@ where
   pub const fn as_ref<'closure, E>(
     &'closure mut self,
     emitter: &'closure mut E,
-  ) -> InputRef<'inp, 'closure, L, E, C> {
+  ) -> InputRef<'inp, 'closure, T, L, E, C> {
     InputRef {
       input: &self.input,
       state: &mut self.state,

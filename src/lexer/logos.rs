@@ -11,7 +11,7 @@ pub struct LogosLexer<'inp, T, L: logos::Logos<'inp>> {
   _marker: PhantomData<T>,
 }
 
-impl<'inp, T, L> IntoLexer<T> for logos::Lexer<'inp, L>
+impl<'inp, T, L> IntoLexer<'inp, T> for logos::Lexer<'inp, L>
 where
   T: From<L> + Token<'inp> + 'inp,
   T::Error: From<L::Error> + From<<L::Extras as State>::Error>,
