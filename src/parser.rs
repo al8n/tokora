@@ -3,8 +3,12 @@
 use core::marker::PhantomData;
 
 use crate::{
-  Cache, DefaultCache, Emitter, IntoLexer, Lexer, Noop, Token, lexer::{Input, InputRef}, utils::Spanned
+  Cache, DefaultCache, Emitter, Lexed, Lexer, Noop, Token, lexer::{Input, InputRef}, utils::Spanned
 };
+
+pub use any::*;
+
+mod any;
 
 mod sealed {
   use super::*;
@@ -13,30 +17,39 @@ mod sealed {
 
   impl<'inp, F, L, O, E, C> sealed::Sealed<'inp, L, O, E, C> for F
   where
-    F: FnMut(&mut InputRef<'inp, '_, T, L, E, C>) -> ParseResult<O, E::Error>,
-    L: IntoLexer<'inp, T>,
-    L::Lexer: Lexer<'inp, Token = T>,
-    T: Token<'inp>,
-    E: Emitter<'inp, L::Lexer>,
-    C: Cache<'inp, L::Lexer>,
+    F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> O,
+    L: Lexer<'inp>,
+    E: Emitter<'inp, L>,
+    C: Cache<'inp, L>,
   {}
-  
 
-
-  impl<'inp, F, T, L, O, E, C> Sealed<'inp, T, L, O, E, C> for Parser<F, L, O, E::Error>
+  impl<'inp, F, L, O, E, C> Sealed<'inp, L, O, E, C> for Parser<F, L, O, E::Error>
   where
-    F: ParseInput<'inp, T, L, O, E, C>,
-    L: IntoLexer<'inp, T>,
-    L::Lexer: Lexer<'inp, Token = T>,
-    T: Token<'inp>,
-    E: Emitter<'inp, L::Lexer>,
-    C: Cache<'inp, L::Lexer>,
+    F: ParseInput<'inp, L, O, E, C>,
+    L: Lexer<'inp>,
+    E: Emitter<'inp, L>,
+    C: Cache<'inp, L>,
+  {
+  }
+
+  impl<'inp, L, O, E, P, C> Sealed<'inp, L, O, E, C> for WithEmitter<P, E>
+  where
+    P: ParseInput<'inp, L, O, E, C>,
+    L: Lexer<'inp>,
+    E: Emitter<'inp, L>,
+    C: Cache<'inp, L>,
+  {
+  }
+
+  impl<'inp, L, O, E, P, C> Sealed<'inp, L, O, E, C> for WithCache<'inp, P, L, C>
+  where
+    P: ParseInput<'inp, L, O, E, C>,
+    L: Lexer<'inp>,
+    E: Emitter<'inp, L>,
+    C: Cache<'inp, L>,
   {
   }
 }
-
-/// Convenience result type returned by parser combinators.
-pub type ParseResult<O, Err> = Result<O, Err>;
 
 /// Core trait implemented by every parser combinator.
 ///
@@ -46,38 +59,29 @@ pub type ParseResult<O, Err> = Result<O, Err>;
 pub trait ParseInput<'inp, L, O, E, C>:
   sealed::Sealed<'inp, L, O, E, C>
 {
-  /// Error type produced when the parser fails.
-  type Error;
-
   /// Try to parse from the given input.
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, T, L, E, C>,
-  ) -> Result<O, Self::Error>
+    input: &mut InputRef<'inp, '_, L, E, C>,
+  ) -> O
   where
-    T: Token<'inp>,
-    L: IntoLexer<'inp, T>,
-    L::Lexer: Lexer<'inp, Token = T>,
-    E: Emitter<'inp, L::Lexer>,
-    C: Cache<'inp, L::Lexer>;
+    L: Lexer<'inp>,
+    E: Emitter<'inp, L>,
+    C: Cache<'inp, L>;
 }
 
-impl<'inp, F, T, L, O, E, C> ParseInput<'inp, T, L, O, E, C> for F
+impl<'inp, F, L, O, E, C> ParseInput<'inp, L, O, E, C> for F
 where
-  F: FnMut(&mut InputRef<'inp, '_, T, L, E, C>) -> ParseResult<O, E::Error>,
-  T: Token<'inp>,
-  L: IntoLexer<'inp, T>,
-  L::Lexer: Lexer<'inp, Token = T>,
-  E: Emitter<'inp, L::Lexer>,
-  C: Cache<'inp, L::Lexer>,
+  F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> O,
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+  C: Cache<'inp, L>,
 {
-  type Error = E::Error;
-
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, T, L, E, C>,
-  ) -> ParseResult<O, Self::Error> {
+    input: &mut InputRef<'inp, '_, L, E, C>,
+  ) -> O {
     (self)(input)
   }
 }
@@ -121,23 +125,19 @@ impl<F, L, O, Error> Parser<F, L, O, Error> {
   }
 }
 
-impl<'inp, F, T, L, O, E, C> ParseInput<'inp, T, L, O, E, C>
+impl<'inp, F, L, O, E, C> ParseInput<'inp, L, O, E, C>
   for Parser<F, L, O, E::Error>
 where
-  F: ParseInput<'inp, T, L, O, E, C>,
-  T: Token<'inp>,
-  L: IntoLexer<'inp, T>,
-  L::Lexer: Lexer<'inp, Token = T>,
-  E: Emitter<'inp, L::Lexer>,
-  C: Cache<'inp, L::Lexer>,
+  F: ParseInput<'inp, L, O, E, C>,
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+  C: Cache<'inp, L>,
 {
-  type Error = F::Error;
-
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, T, L, E, C>,
-  ) -> ParseResult<O, Self::Error> {
+    input: &mut InputRef<'inp, '_, L, E, C>,
+  ) -> O {
     self.f.parse_input(input)
   }
 }
@@ -166,6 +166,23 @@ impl<P, E> WithEmitter<P, E> {
   }
 }
 
+impl<'inp, P, L, O, E, C> ParseInput<'inp, L, O, E, C>
+  for WithEmitter<P, E>
+where
+  P: ParseInput<'inp, L, O, E, C>,
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+  C: Cache<'inp, L>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, E, C>,
+  ) -> O {
+    self.inner.parse_input(input)
+  }
+}
+
 /// Parser configured with a concrete cache.
 pub struct WithCache<'inp, P, L: Lexer<'inp>, C: Cache<'inp, L>> {
   inner: P,
@@ -187,66 +204,255 @@ where
   }
 }
 
+impl<'inp, P, L, O, E, C> ParseInput<'inp, L, O, E, C>
+  for WithCache<'inp, P, L, C>
+where
+  P: ParseInput<'inp, L, O, E, C>,
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+  C: Cache<'inp, L>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, E, C>,
+  ) -> O {
+    self.inner.parse_input(input)
+  }
+}
+
 /// Entry-point trait: run a parser against a source.
 ///
 /// This provides the ergonomic `.parse()` API similar to Chumsky and
 /// Winnow. Implementations wire up `Input`, `Emitter`, and `Cache`
 /// before delegating to [`ParseInput`].
-pub trait Parse<'inp, L, O, Error>: Sized {
+pub trait Parse<'inp, L, O, E>: Sized {
   /// Parse using the lexer's default state.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse<T>(self, src: &'inp <L::Lexer as Lexer<'inp>>::Source) -> ParseResult<O, Error>
+  fn parse(self, src: &'inp L::Source) -> O
   where
-    T: Token<'inp>,
-    L: IntoLexer<'inp, T>,
-    L::Lexer: Lexer<'inp>,
-    <L::Lexer as Lexer<'inp>>::State: Default,
+    L: Lexer<'inp>,
+    L::State: Default,
+    E: Emitter<'inp, L>,
   {
-    self.parse_with_state(src, <L::Lexer as Lexer<'inp>>::State::default())
+    self.parse_with_state(src, L::State::default())
   }
 
   /// Parse using an explicit lexer state.
-  fn parse_with_state<T>(self, src: &'inp <L::Lexer as Lexer<'inp>>::Source, state: <L::Lexer as Lexer<'inp>>::State) -> ParseResult<O, Error>
+  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> O
   where
-    T: Token<'inp>,
-    L: IntoLexer<'inp, T>,
-    L::Lexer: Lexer<'inp>;
+    L: Lexer<'inp>,
+    E: Emitter<'inp, L>;
 }
 
 #[cfg_attr(not(tarpaulin), inline(always))]
-fn drive<'inp, P, T, L, O, E, C>(
+fn drive<'inp, P, L, O, E, C>(
   mut parser: P,
-  src: &'inp <L::Lexer as Lexer<'inp>>::Source,
-  state: <L::Lexer as Lexer<'inp>>::State,
+  src: &'inp L::Source,
+  state: L::State,
   mut emitter: E,
   cache: C,
-) -> Result<O, P::Error>
+) -> O
 where
-  P: ParseInput<'inp, T, L, O, E, C>,
-  T: Token<'inp>,
-  L: IntoLexer<'inp, T>,
-  L::Lexer: Lexer<'inp, Token = T>,
-  E: Emitter<'inp, L::Lexer>,
-  C: Cache<'inp, L::Lexer>,
+  P: ParseInput<'inp, L, O, E, C>,
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+  C: Cache<'inp, L>,
 {
   let mut input = Input::with_state_and_cache(src, state, cache);
   let mut input_ref = input.as_ref(&mut emitter);
   parser.parse_input(&mut input_ref)
 }
 
-// impl<'inp, F, L, O, Error> Parse<'inp, L, O, Error> for Parser<F, L, O, Error>
-// where
-//   Parser<F, L, O, Error>: ParseInput<'inp, T, L, O, Noop<Error>, DefaultCache<'inp, L::Lexer>>,
-//   L: IntoLexer<'inp, T>,
-//   L::Lexer: Lexer<'inp>,
-//   <L::Lexer as Lexer<'inp>>::State: Default,
-//   Error: From<T::Error>,
-// {
-//   fn parse_with_state<T>(self, src: &'inp <<T>::Lexer as Lexer<'inp>>::Source, state: <<T>::Lexer as Lexer<'inp>>::State) -> ParseResult<L, O>
-//   where
-//     T: Token<'inp>,
-//     L: IntoLexer<'inp, T>,
-//     L::Lexer: Lexer<'inp> {
-    
-//   }
-// }
+impl<'inp, F, L, O, Error> Parse<'inp, L, O, Noop<Error>> for Parser<F, L, O, Error>
+where
+  F: ParseInput<'inp, L, O, Noop<Error>, DefaultCache<'inp, L>>,
+  L: Lexer<'inp>,
+  Error: From<<L::Token as Token<'inp>>::Error>,
+  Noop<Error>: Emitter<'inp, L, Error = Error>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> O {
+    let cache = <DefaultCache<'inp, L> as Cache<'inp, L>>::new();
+    let emitter = Noop::<Error>::default();
+    drive(self, src, state, emitter, cache)
+  }
+}
+
+impl<'inp, F, L, O, E> Parse<'inp, L, O, E> for WithEmitter<Parser<F, L, O, E::Error>, E>
+where
+  F: ParseInput<'inp, L, O, E, DefaultCache<'inp, L>>,
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> O
+  where
+    L: Lexer<'inp>,
+  {
+    let cache = <DefaultCache<'inp, L> as Cache<'inp, L>>::new();
+    drive(self.inner, src, state, self.emitter, cache)
+  }
+}
+
+impl<'inp, F, L, O, C, Error> Parse<'inp, L, O, Noop<Error>>
+  for WithCache<'inp, Parser<F, L, O, Error>, L, C>
+where
+  F: ParseInput<'inp, L, O, Noop<Error>, C>,
+  L: Lexer<'inp>,
+  C: Cache<'inp, L>,
+  Error: From<<L::Token as Token<'inp>>::Error>,
+  Noop<Error>: Emitter<'inp, L, Error = Error>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> O
+  where
+    L: Lexer<'inp>,
+  {
+    let cache = C::with_options(self.cache_opts);
+    let emitter = Noop::<Error>::default();
+    drive(self.inner, src, state, emitter, cache)
+  }
+}
+
+impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E> for WithEmitter<WithCache<'inp, Parser<F, L, O, E::Error>, L, C>, E>
+where
+  F: ParseInput<'inp, L, O, E, C>,
+  L: Lexer<'inp>,
+  C: Cache<'inp, L>,
+  E: Emitter<'inp, L>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> O
+  where
+    L: Lexer<'inp>,
+  {
+    let cache = C::with_options(self.inner.cache_opts);
+    drive(self.inner.inner, src, state, self.emitter, cache)
+  }
+}
+
+impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E> for WithCache<'inp, WithEmitter<Parser<F, L, O, E::Error>, E>, L, C>
+where
+  F: ParseInput<'inp, L, O, E, C>,
+  L: Lexer<'inp>,
+  C: Cache<'inp, L>,
+  E: Emitter<'inp, L>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> O
+  where
+    L: Lexer<'inp>,
+  {
+    let cache = C::with_options(self.cache_opts);
+    drive(self.inner.inner, src, state, self.inner.emitter, cache)
+  }
+}
+
+/// Shorthand for building a [`Parser`] from a closure.
+pub const fn parser<'inp, L, O, E, C, F>(f: F) -> Parser<F, L, O, E::Error>
+where
+  F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> O,
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+  C: Cache<'inp, L>,
+{
+  Parser::new(f)
+}
+
+#[cfg(test)]
+mod tests {
+  #![allow(warnings)]
+
+  use logos::*;
+  use super::{Token as TokenT, *};
+
+  #[derive(Debug, Logos, Clone)]
+  #[logos(skip r"[ \t\r\n\f]+")]
+  enum Token {
+    #[token("false", |_| false)]
+    #[token("true", |_| true)]
+    Bool(bool),
+
+    #[token("{")]
+    BraceOpen,
+
+    #[token("}")]
+    BraceClose,
+
+    #[token("[")]
+    BracketOpen,
+
+    #[token("]")]
+    BracketClose,
+
+    #[token(":")]
+    Colon,
+
+    #[token(",")]
+    Comma,
+
+    #[token("null")]
+    Null,
+
+    #[regex(r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?", |lex| lex.slice().parse::<f64>().unwrap())]
+    Number(f64),
+
+    #[regex(r#""([^"\\\x00-\x1F]|\\(["\\bnfrt/]|u[a-fA-F0-9]{4}))*""#, |lex| lex.slice().to_owned())]
+    String(String),
+  }
+
+  #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+  enum TokenKind {
+    Bool,
+    BraceOpen,
+    BraceClose,
+    BracketOpen,
+    BracketClose,
+    Colon,
+    Comma,
+    Null,
+    Number,
+    String,
+  }
+
+  impl From<&Token> for TokenKind {
+    fn from(token: &Token) -> Self {
+      match token {
+        Token::Bool(_) => TokenKind::Bool,
+        Token::BraceOpen => TokenKind::BraceOpen,
+        Token::BraceClose => TokenKind::BraceClose,
+        Token::BracketOpen => TokenKind::BracketOpen,
+        Token::BracketClose => TokenKind::BracketClose,
+        Token::Colon => TokenKind::Colon,
+        Token::Comma => TokenKind::Comma,
+        Token::Null => TokenKind::Null,
+        Token::Number(_) => TokenKind::Number,
+        Token::String(_) => TokenKind::String,
+      }
+    }
+  }
+
+  impl TokenT<'_> for Token {
+    type Kind = TokenKind;
+  
+    type Error = ();
+  
+    fn kind(&self) -> Self::Kind {
+      TokenKind::from(self)
+    }
+  }
+
+  type JsonLexer<'a> = crate::LogosLexer<'a, Token, Token>;
+
+  const fn assert_any_parse_impl<'inp>() -> impl Parse<'inp, JsonLexer<'inp>, Option<Spanned<Lexed<'inp, Token>>>, Noop<()>> {
+    any()
+  }
+
+  #[test]
+  fn t() {
+    let src = "{}";
+
+    let tok = any::<JsonLexer<'_>>().parse(src);
+  }
+}

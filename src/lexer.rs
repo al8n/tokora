@@ -1,4 +1,4 @@
-use core::{fmt, hash::Hash};
+use core::{convert::Infallible, fmt, hash::Hash};
 
 pub use cache::*;
 pub use checkpoint::Checkpoint;
@@ -10,6 +10,10 @@ pub use token::{
   DelimiterToken, IdentifierToken, KeywordToken, Lexed, LitToken, Logos, OperatorToken,
   PunctuatorToken, Require, Token, TriviaToken,
 };
+
+// #[cfg(feature = "logos")]
+pub use self::logos::LogosLexer;
+
 
 pub(crate) use input::Input;
 
@@ -162,14 +166,23 @@ pub trait Lexable<I, Error> {
 /// The state trait for lexers
 pub trait State: core::fmt::Debug + Clone {
   /// The error type of the state.
-  type Error: core::error::Error + Clone;
+  type Error: Clone;
 
   /// Checks the state for errors.
   fn check(&self) -> Result<(), Self::Error>;
 }
 
 impl State for () {
-  type Error = core::convert::Infallible;
+  type Error = ();
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn check(&self) -> Result<(), Self::Error> {
+    Ok(())
+  }
+}
+
+impl State for Infallible {
+  type Error = Infallible;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn check(&self) -> Result<(), Self::Error> {
@@ -254,6 +267,9 @@ pub trait Span {
 
   /// Returns the end offset of the span.
   fn end_ref(&self) -> &Self::Offset;
+
+  /// Bumps the span by `n` offsets.
+  fn bump(&mut self, n: &Self::Offset);
 }
 
 impl Span for core::ops::Range<usize> {
@@ -273,6 +289,11 @@ impl Span for core::ops::Range<usize> {
   fn end_ref(&self) -> &Self::Offset {
     &self.end
   }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn bump(&mut self, n: &Self::Offset) {
+    self.end += *n;
+  }
 }
 
 impl Span for crate::utils::Span {
@@ -291,6 +312,11 @@ impl Span for crate::utils::Span {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn end_ref(&self) -> &Self::Offset {
     self.end_ref()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn bump(&mut self, n: &Self::Offset) {
+    self.bump(*n);
   }
 }
 
