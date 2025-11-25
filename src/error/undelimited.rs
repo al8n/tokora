@@ -111,9 +111,9 @@
 //! assert_eq!(error.span(), Span::new(105, 106));
 //! ```
 
-use crate::utils::{
-  Span,
-  delimiter::{Angle, Brace, Bracket, Paren},
+use crate::{
+  punct::{Angle, Brace, Bracket, Paren},
+  utils::Span,
 };
 
 /// Content missing both opening `[` and closing `]`
@@ -222,7 +222,7 @@ impl<S> Undelimited<Paren, S> {
   pub const fn paren(span: S) -> Self {
     Self {
       span,
-      delimiter: Paren,
+      delimiter: Paren::PHANTOM,
     }
   }
 }
@@ -247,7 +247,7 @@ impl<S> Undelimited<Bracket, S> {
   pub const fn bracket(span: S) -> Self {
     Self {
       span,
-      delimiter: Bracket,
+      delimiter: Bracket::PHANTOM,
     }
   }
 }
@@ -272,7 +272,7 @@ impl<S> Undelimited<Brace, S> {
   pub const fn brace(span: S) -> Self {
     Self {
       span,
-      delimiter: Brace,
+      delimiter: Brace::PHANTOM,
     }
   }
 }
@@ -297,7 +297,7 @@ impl<S> Undelimited<Angle, S> {
   pub const fn angle(span: S) -> Self {
     Self {
       span,
-      delimiter: Angle,
+      delimiter: Angle::PHANTOM,
     }
   }
 }

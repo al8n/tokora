@@ -2,66 +2,6 @@ use derive_more::{Display, IsVariant};
 
 use crate::DelimiterToken;
 
-/// `{`.
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display("{{")]
-pub struct LBrace;
-
-/// `}`.
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display("}}")]
-pub struct RBrace;
-
-/// `{}` delimiters.
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display("{{}}")]
-pub struct Brace;
-
-/// `(`
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display("(")]
-pub struct LParen;
-
-/// `)`
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display(")")]
-pub struct RParen;
-
-/// `()` delimiters.
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display("()")]
-pub struct Paren;
-
-/// `[`
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display("[")]
-pub struct LBracket;
-
-/// `]`
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display("]")]
-pub struct RBracket;
-
-/// `[]` delimiters.
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display("[]")]
-pub struct Bracket;
-
-/// `<`
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display("<")]
-pub struct LAngle;
-
-/// `>`
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display(">")]
-pub struct RAngle;
-
-/// `<>` delimiters.
-#[derive(Debug, Default, Display, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[display("<>")]
-pub struct Angle;
-
 /// Common delimiters used in lexing and parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Display)]
 pub enum Delimiter {
@@ -84,10 +24,10 @@ impl Delimiter {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn is_open<'a, T: DelimiterToken<'a>>(&self, token: &T) -> bool {
     match self {
-      Delimiter::Brace => token.is_brace_open(),
-      Delimiter::Paren => token.is_paren_open(),
-      Delimiter::Bracket => token.is_bracket_open(),
-      Delimiter::Angle => token.is_angle_open(),
+      Delimiter::Brace => token.is_open_brace(),
+      Delimiter::Paren => token.is_open_paren(),
+      Delimiter::Bracket => token.is_open_bracket(),
+      Delimiter::Angle => token.is_open_angle(),
     }
   }
 
@@ -95,10 +35,10 @@ impl Delimiter {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn is_close<'a, T: DelimiterToken<'a>>(&self, token: &T) -> bool {
     match self {
-      Delimiter::Brace => token.is_brace_close(),
-      Delimiter::Paren => token.is_paren_close(),
-      Delimiter::Bracket => token.is_bracket_close(),
-      Delimiter::Angle => token.is_angle_close(),
+      Delimiter::Brace => token.is_close_brace(),
+      Delimiter::Paren => token.is_close_paren(),
+      Delimiter::Bracket => token.is_close_bracket(),
+      Delimiter::Angle => token.is_close_angle(),
     }
   }
 }

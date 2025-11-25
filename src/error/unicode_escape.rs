@@ -103,7 +103,8 @@ use core::ops::{Add, AddAssign};
 
 use crate::{
   error::{Unclosed, UnexpectedLexeme},
-  utils::{CharLen, Lexeme, PositionedChar, Span, delimiter::Brace, human_display::DisplayHuman},
+  punct::Brace,
+  utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman},
 };
 use derive_more::{Display, From, IsVariant, TryUnwrap, Unwrap};
 
@@ -1184,7 +1185,7 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   /// ```
   #[inline]
   pub const fn unclosed(span: Span<O>) -> Self {
-    Self::Unclosed(Unclosed::new(span, Brace))
+    Self::Unclosed(Unclosed::new(span, Brace::PHANTOM))
   }
 
   /// Creates an overflow error.

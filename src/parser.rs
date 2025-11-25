@@ -230,14 +230,13 @@ where
 /// This provides the ergonomic `.parse()` API similar to Chumsky and
 /// Winnow. Implementations wire up `Input`, `Emitter`, and `Cache`
 /// before delegating to [`ParseInput`].
-pub trait Parse<'inp, L, O, E>: Sized {
+pub trait Parse<'inp, L, O, Error>: Sized {
   /// Parse using the lexer's default state.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse(self, src: &'inp L::Source) -> O
   where
     L: Lexer<'inp>,
     L::State: Default,
-    E: Emitter<'inp, L>,
   {
     self.parse_with_state(src, L::State::default())
   }
@@ -245,8 +244,7 @@ pub trait Parse<'inp, L, O, E>: Sized {
   /// Parse using an explicit lexer state.
   fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> O
   where
-    L: Lexer<'inp>,
-    E: Emitter<'inp, L>;
+    L: Lexer<'inp>;
 }
 
 #[cfg_attr(not(tarpaulin), inline(always))]
@@ -283,7 +281,7 @@ where
   }
 }
 
-impl<'inp, F, L, O, E> Parse<'inp, L, O, E> for WithEmitter<Parser<F, L, O, E::Error>, E>
+impl<'inp, F, L, O, E> Parse<'inp, L, O, E::Error> for WithEmitter<Parser<F, L, O, E::Error>, E>
 where
   F: ParseInput<'inp, L, O, E, DefaultCache<'inp, L>>,
   L: Lexer<'inp>,
@@ -299,7 +297,7 @@ where
   }
 }
 
-impl<'inp, F, L, O, C, Error> Parse<'inp, L, O, Noop<Error>>
+impl<'inp, F, L, O, C, Error> Parse<'inp, L, O, Error>
   for WithCache<'inp, Parser<F, L, O, Error>, L, C>
 where
   F: ParseInput<'inp, L, O, Noop<Error>, C>,
@@ -319,7 +317,7 @@ where
   }
 }
 
-impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E>
+impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E::Error>
   for WithEmitter<WithCache<'inp, Parser<F, L, O, E::Error>, L, C>, E>
 where
   F: ParseInput<'inp, L, O, E, C>,
@@ -337,7 +335,7 @@ where
   }
 }
 
-impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E>
+impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E::Error>
   for WithCache<'inp, WithEmitter<Parser<F, L, O, E::Error>, E>, L, C>
 where
   F: ParseInput<'inp, L, O, E, C>,

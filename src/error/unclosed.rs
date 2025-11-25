@@ -103,9 +103,9 @@
 
 use core::ops::AddAssign;
 
-use crate::utils::{
-  Span,
-  delimiter::{Angle, Brace, Bracket, Paren},
+use crate::{
+  punct::{Angle, Brace, Bracket, Paren},
+  utils::Span,
 };
 
 /// A unclosed bracket error
@@ -213,7 +213,7 @@ impl<O> Unclosed<Paren, O> {
   pub const fn paren(span: Span<O>) -> Self {
     Self {
       span,
-      delimiter: Paren,
+      delimiter: Paren::PHANTOM,
     }
   }
 }
@@ -237,7 +237,7 @@ impl<O> Unclosed<Bracket, O> {
   pub const fn bracket(span: Span<O>) -> Self {
     Self {
       span,
-      delimiter: Bracket,
+      delimiter: Bracket::PHANTOM,
     }
   }
 }
@@ -261,7 +261,7 @@ impl<O> Unclosed<Brace, O> {
   pub const fn brace(span: Span<O>) -> Self {
     Self {
       span,
-      delimiter: Brace,
+      delimiter: Brace::PHANTOM,
     }
   }
 }
@@ -285,7 +285,7 @@ impl<O> Unclosed<Angle, O> {
   pub const fn angle(span: Span<O>) -> Self {
     Self {
       span,
-      delimiter: Angle,
+      delimiter: Angle::PHANTOM,
     }
   }
 }

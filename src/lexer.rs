@@ -8,7 +8,7 @@ pub use input_ref::InputRef;
 pub use source::Source;
 pub use token::{
   DelimiterToken, IdentifierToken, KeywordToken, Lexed, LitToken, Logos, OperatorToken,
-  PunctuatorToken, Require, Token, TriviaToken,
+  PunctuatorToken, Token, TriviaToken,
 };
 
 // #[cfg(feature = "logos")]

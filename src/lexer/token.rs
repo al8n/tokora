@@ -543,8 +543,8 @@ pub trait TriviaToken<'a>: Token<'a> {
 /// the ones that matter for your language, mapping them to your own token kinds. The provided
 /// predicates are:
 ///
-/// - Structural: `is_paren_open` `(`, `is_paren_close` `)`, `is_brace_open` `{`, `is_brace_close` `}`,
-///   `is_bracket_open` `[`, `is_bracket_close` `]`
+/// - Structural: `is_open_paren` `(`, `is_close_paren` `)`, `is_open_brace` `{`, `is_close_brace` `}`,
+///   `is_open_bracket` `[`, `is_close_bracket` `]`
 /// - Separators: `is_comma` `,`, `is_dot` `.`, `is_colon` `:`, `is_semicolon` `;`
 /// - Quote markers: `is_double_quote` `"`, `is_apostrophe` `'`, `is_backtick` `` ` ``
 /// - Math / operators: `is_plus` `+`, `is_minus` `-`, `is_asterisk` `*`, `is_slash` `/`,
@@ -658,27 +658,62 @@ pub trait PunctuatorToken<'a>: Token<'a> {
       || self.is_minus()
       || self.is_slash()
       || self.is_backslash()
-      || self.is_angle_open()
+      || self.is_open_angle()
       || self.is_equal()
-      || self.is_angle_close()
+      || self.is_close_angle()
       || self.is_question()
       || self.is_at()
-      || self.is_bracket_open()
-      || self.is_bracket_close()
-      || self.is_brace_open()
-      || self.is_brace_close()
-      || self.is_paren_open()
-      || self.is_paren_close()
+      || self.is_open_bracket()
+      || self.is_close_bracket()
+      || self.is_open_brace()
+      || self.is_close_brace()
+      || self.is_open_paren()
+      || self.is_close_paren()
       || self.is_backtick()
       || self.is_pipe()
       || self.is_caret()
       || self.is_underscore()
       || self.is_tilde()
+      || self.is_space()
+      || self.is_tab()
+      || self.is_newline()
+      || self.is_carriage_return()
+      || self.is_crlf()
   }
 
   /// Returns `true` when the token is the dot punctuator (`.`).
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_dot(&self) -> bool {
+    false
+  }
+
+  /// Returns `true` when the token is the space punctuator (` `).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_space(&self) -> bool {
+    false
+  }
+
+  /// Returns `true` when the token is a tab punctuator (`\t`).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_tab(&self) -> bool {
+    false
+  }
+
+  /// Returns `true` when the token is the newline punctuator (`\n`).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_newline(&self) -> bool {
+    false
+  }
+
+  /// Returns `true` when the token is the carriage return punctuator (`\r`).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_carriage_return(&self) -> bool {
+    false
+  }
+
+  /// Returns `true` when the token is carriage return + newline punctuator (`\r\n`).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_crlf(&self) -> bool {
     false
   }
 
@@ -755,6 +790,8 @@ pub trait PunctuatorToken<'a>: Token<'a> {
   }
 
   /// Returns `true` when the token is the minus punctuator (`-`).
+  #[doc(alias = "is_dash")]
+  #[doc(alias = "is_hyphen")]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_minus(&self) -> bool {
     false
@@ -774,7 +811,7 @@ pub trait PunctuatorToken<'a>: Token<'a> {
 
   /// Returns `true` when the token is the angle open punctuator (`<`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_open(&self) -> bool {
+  fn is_open_angle(&self) -> bool {
     false
   }
 
@@ -786,7 +823,7 @@ pub trait PunctuatorToken<'a>: Token<'a> {
 
   /// Returns `true` when the token is the angle close punctuator (`>`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_close(&self) -> bool {
+  fn is_close_angle(&self) -> bool {
     false
   }
 
@@ -804,37 +841,37 @@ pub trait PunctuatorToken<'a>: Token<'a> {
 
   /// Returns `true` when the token is the bracket-open punctuator (`[`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_open(&self) -> bool {
+  fn is_open_bracket(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is the bracket-close punctuator (`]`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_close(&self) -> bool {
+  fn is_close_bracket(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is the brace-open punctuator (`{`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_open(&self) -> bool {
+  fn is_open_brace(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is the brace-close punctuator (`}`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_close(&self) -> bool {
+  fn is_close_brace(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is the paren-open punctuator (`(`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_open(&self) -> bool {
+  fn is_open_paren(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is the paren-close punctuator (`)`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_close(&self) -> bool {
+  fn is_close_paren(&self) -> bool {
     false
   }
 
@@ -874,43 +911,43 @@ where
   T: PunctuatorToken<'a>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_open(&self) -> bool {
-    PunctuatorToken::is_paren_open(self)
+  fn is_open_paren(&self) -> bool {
+    PunctuatorToken::is_open_paren(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_close(&self) -> bool {
-    PunctuatorToken::is_paren_close(self)
+  fn is_close_paren(&self) -> bool {
+    PunctuatorToken::is_close_paren(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_open(&self) -> bool {
-    PunctuatorToken::is_brace_open(self)
+  fn is_open_brace(&self) -> bool {
+    PunctuatorToken::is_open_brace(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_close(&self) -> bool {
-    PunctuatorToken::is_brace_close(self)
+  fn is_close_brace(&self) -> bool {
+    PunctuatorToken::is_close_brace(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_open(&self) -> bool {
-    PunctuatorToken::is_bracket_open(self)
+  fn is_open_bracket(&self) -> bool {
+    PunctuatorToken::is_open_bracket(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_close(&self) -> bool {
-    PunctuatorToken::is_bracket_close(self)
+  fn is_close_bracket(&self) -> bool {
+    PunctuatorToken::is_close_bracket(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_open(&self) -> bool {
-    PunctuatorToken::is_angle_open(self)
+  fn is_open_angle(&self) -> bool {
+    PunctuatorToken::is_open_angle(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_close(&self) -> bool {
-    PunctuatorToken::is_angle_close(self)
+  fn is_close_angle(&self) -> bool {
+    PunctuatorToken::is_close_angle(self)
   }
 }
 
@@ -1784,11 +1821,11 @@ pub trait OperatorToken<'a>: Token<'a> {
 /// }
 ///
 /// impl DelimiterToken<'_> for MyToken {
-///     fn is_paren_open(&self) -> bool {
+///     fn is_open_paren(&self) -> bool {
 ///         matches!(self.kind, MyTokenKind::ParenOpen)
 ///     }
 ///
-///     fn is_paren_close(&self) -> bool {
+///     fn is_close_paren(&self) -> bool {
 ///         matches!(self.kind, MyTokenKind::ParenClose)
 ///     }
 /// }
@@ -1803,140 +1840,63 @@ pub trait DelimiterToken<'a>: Token<'a> {
   /// Returns `true` when the token is any opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_opening_delimiter(&self) -> bool {
-    self.is_paren_open() || self.is_brace_open() || self.is_bracket_open() || self.is_angle_open()
+    self.is_open_paren() || self.is_open_brace() || self.is_open_bracket() || self.is_open_angle()
   }
 
   /// Returns `true` when the token is any closing delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_closing_delimiter(&self) -> bool {
-    self.is_paren_close()
-      || self.is_brace_close()
-      || self.is_bracket_close()
-      || self.is_angle_close()
+    self.is_close_paren()
+      || self.is_close_brace()
+      || self.is_close_bracket()
+      || self.is_close_angle()
   }
 
   /// Returns `true` when the token is a parenthesis opening delimiter (`(`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_open(&self) -> bool {
+  fn is_open_paren(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is a parenthesis closing delimiter (`)`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_close(&self) -> bool {
+  fn is_close_paren(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is a brace opening delimiter (`{`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_open(&self) -> bool {
+  fn is_open_brace(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is a brace closing delimiter (`}`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_close(&self) -> bool {
+  fn is_close_brace(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is a bracket opening delimiter (`[`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_open(&self) -> bool {
+  fn is_open_bracket(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is a bracket closing delimiter (`]`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_close(&self) -> bool {
+  fn is_close_bracket(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is an angle/chevron opening delimiter (`<`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_open(&self) -> bool {
+  fn is_open_angle(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is an angle/chevron closing delimiter (`>`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_close(&self) -> bool {
+  fn is_close_angle(&self) -> bool {
     false
   }
 }
-
-/// A trait for tokens that can be compared for equivalence against a reference.
-/// A helper trait for ergonomically requiring specific token shapes.
-///
-/// `Require` is intended for tiny wrappers (e.g., `Dot`, `Comma`, `ParenOpen`) that want a
-/// `try_into`-style API without consuming the token stream. Implementors typically return
-/// `Ok(output)` when the token matches the desired pattern, or `Err(Self::Err)` to hand the
-/// original token (or a custom error type) back to the caller so other logic can handle it.
-///
-/// ## Example
-///
-/// ```rust
-/// use logosky::{Require, IdentifierToken};
-///
-/// #[derive(Debug, Clone)]
-/// pub enum Punct {
-///     Dot,
-///     Comma,
-///     Other(String),
-/// }
-///
-/// #[derive(Debug, Clone)]
-/// pub struct Dot(pub Punct);
-///
-/// impl Require<Dot> for Punct {
-///     type Err = Self;
-///
-///     fn require(self) -> Result<Dot, Self::Err> {
-///         match &self {
-///             Punct::Dot => Ok(Dot(Self::Dot)),
-///             _ => Err(self),
-///         }
-///     }
-/// }
-/// ```
-pub trait Require<O> {
-  /// The error type returned when a requirement is not met.
-  type Err;
-
-  /// Attempts to extract the desired output from the token, returning `Err(Self::Err)` if not possible.
-  fn require(self) -> Result<O, Self::Err>
-  where
-    Self: Sized;
-}
-
-// /// The token extension trait.
-// pub trait TokenExt<'a>: Token<'a> {
-//   /// Returns a lexer for the token type from the given input.
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   #[cfg(feature = "chumsky")]
-//   #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-//   fn lexer(input: &'a Self::Source) -> Tokenizer<'a, Self>
-//   where
-//     Self::Extras: Default,
-//   {
-//     Tokenizer::new(input)
-//   }
-
-//   /// Returns a lexer for the token type from the given input.
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   #[cfg(feature = "chumsky")]
-//   #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-//   fn lexer_with_state(
-//     input: &'a <Self::Logos as Logos<'a>>::Source,
-//     state: <Self::Logos as Logos<'a>>::Extras,
-//   ) -> Tokenizer<'a, Self> {
-//     Tokenizer::with_state(input, state)
-//   }
-
-//   /// Lexes the next token from the given lexer, returning `None` if the input is exhausted.
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   fn lex(lexer: &mut Lexer<'a, Self::Logos>) -> Option<Lexed<'a, Self>> {
-//     Lexed::lex(lexer)
-//   }
-// }
-
-// impl<'a, T> TokenExt<'a> for T where T: Token<'a> {}

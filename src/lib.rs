@@ -13,11 +13,15 @@ extern crate std;
 
 pub use logos;
 
+pub use check::*;
 pub use lexer::*;
 pub use parser::*;
+pub use require::*;
 
+mod check;
 mod lexer;
 mod parser;
+mod require;
 
 /// Concrete Syntax Tree (CST) representations and utilities.
 #[cfg(feature = "rowan")]
@@ -50,7 +54,7 @@ mod punct;
 
 #[doc(hidden)]
 pub mod __private {
-  pub use super::{error, lexer::*, syntax, utils};
+  pub use super::{check::Check, error, lexer::*, require::Require, syntax, utils};
   pub use paste;
 
   // #[cfg(feature = "chumsky")]
