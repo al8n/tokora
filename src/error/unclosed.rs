@@ -101,6 +101,8 @@
 //! assert_eq!(error.span(), Span::new(105, 106));
 //! ```
 
+use core::ops::AddAssign;
+
 use crate::utils::{
   Span,
   delimiter::{Angle, Brace, Bracket, Paren},
@@ -170,12 +172,12 @@ pub type UnclosedAngle = Unclosed<Angle>;
 /// }
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Unclosed<Delimiter, S = Span> {
-  span: S,
+pub struct Unclosed<Delimiter, O = usize> {
+  span: Span<O>,
   delimiter: Delimiter,
 }
 
-impl<Delimiter, S> core::fmt::Display for Unclosed<Delimiter, S>
+impl<Delimiter, O> core::fmt::Display for Unclosed<Delimiter, O>
 where
   Delimiter: core::fmt::Display,
 {
@@ -185,14 +187,14 @@ where
   }
 }
 
-impl<Delimiter, S> core::error::Error for Unclosed<Delimiter, S>
+impl<Delimiter, O> core::error::Error for Unclosed<Delimiter, O>
 where
   Delimiter: core::fmt::Display + core::fmt::Debug,
-  S: core::fmt::Debug,
+  O: core::fmt::Debug,
 {
 }
 
-impl<S> Unclosed<Paren, S> {
+impl<O> Unclosed<Paren, O> {
   /// Creates a new unclosed parenthesis error.
   ///
   /// The span should point to the position of the opening parenthesis.
@@ -208,7 +210,7 @@ impl<S> Unclosed<Paren, S> {
   /// assert_eq!(error.delimiter(), Paren);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn paren(span: S) -> Self {
+  pub const fn paren(span: Span<O>) -> Self {
     Self {
       span,
       delimiter: Paren,
@@ -216,7 +218,7 @@ impl<S> Unclosed<Paren, S> {
   }
 }
 
-impl<S> Unclosed<Bracket, S> {
+impl<O> Unclosed<Bracket, O> {
   /// Creates a new unclosed bracket error.
   ///
   /// The span should point to the position of the opening bracket.
@@ -232,7 +234,7 @@ impl<S> Unclosed<Bracket, S> {
   /// assert_eq!(error.delimiter(), Bracket);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bracket(span: S) -> Self {
+  pub const fn bracket(span: Span<O>) -> Self {
     Self {
       span,
       delimiter: Bracket,
@@ -240,7 +242,7 @@ impl<S> Unclosed<Bracket, S> {
   }
 }
 
-impl<S> Unclosed<Brace, S> {
+impl<O> Unclosed<Brace, O> {
   /// Creates a new unclosed brace error.
   ///
   /// The span should point to the position of the opening brace.
@@ -256,7 +258,7 @@ impl<S> Unclosed<Brace, S> {
   /// assert_eq!(error.delimiter(), Brace);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn brace(span: S) -> Self {
+  pub const fn brace(span: Span<O>) -> Self {
     Self {
       span,
       delimiter: Brace,
@@ -264,7 +266,7 @@ impl<S> Unclosed<Brace, S> {
   }
 }
 
-impl<S> Unclosed<Angle, S> {
+impl<O> Unclosed<Angle, O> {
   /// Creates a new unclosed angle bracket error.
   ///
   /// The span should point to the position of the opening angle bracket.
@@ -280,7 +282,7 @@ impl<S> Unclosed<Angle, S> {
   /// assert_eq!(error.delimiter(), Angle);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn angle(span: S) -> Self {
+  pub const fn angle(span: Span<O>) -> Self {
     Self {
       span,
       delimiter: Angle,
@@ -288,7 +290,7 @@ impl<S> Unclosed<Angle, S> {
   }
 }
 
-impl<Delimiter, S> Unclosed<Delimiter, S> {
+impl<Delimiter, O> Unclosed<Delimiter, O> {
   /// Creates a new unclosed delimiter error.
   ///
   /// The span should point to the position of the opening delimiter.
@@ -304,7 +306,7 @@ impl<Delimiter, S> Unclosed<Delimiter, S> {
   /// assert_eq!(error.delimiter(), '{');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: S, delimiter: Delimiter) -> Self {
+  pub const fn new(span: Span<O>, delimiter: Delimiter) -> Self {
     Self { span, delimiter }
   }
 
@@ -321,23 +323,23 @@ impl<Delimiter, S> Unclosed<Delimiter, S> {
   /// assert_eq!(error.span(), Span::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S
+  pub const fn span(&self) -> Span<O>
   where
-    S: Copy,
+    O: Copy,
   {
     self.span
   }
 
   /// Returns a reference to the span of the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &S {
-    &self.span
+  pub const fn span_ref(&self) -> Span<&O> {
+    self.span.as_ref()
   }
 
   /// Returns a mutable reference to the span of the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut S {
-    &mut self.span
+  pub const fn span_mut(&mut self) -> Span<&mut O> {
+    self.span.as_mut()
   }
 
   /// Returns a reference to the unclosed delimiter.
@@ -391,9 +393,9 @@ impl<Delimiter, S> Unclosed<Delimiter, S> {
   /// assert_eq!(error.span(), Span::new(105, 106));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  pub fn bump(&mut self, offset: &O) -> &mut Self
   where
-    S: crate::lexer::Span,
+    O: for<'a> AddAssign<&'a O> + Clone,
   {
     self.span.bump(offset);
     self
@@ -412,7 +414,7 @@ impl<Delimiter, S> Unclosed<Delimiter, S> {
   /// assert_eq!(delimiter, '"');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (S, Delimiter) {
+  pub fn into_components(self) -> (Span<O>, Delimiter) {
     (self.span, self.delimiter)
   }
 }

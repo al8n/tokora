@@ -36,12 +36,14 @@ impl Minimum {
 /// Leading-separator markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AllowLeading;
+/// Requires a leading separator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RequireLeading;
 
 /// Trailing-separator markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AllowTrailing;
+/// Requires a trailing separator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RequireTrailing;
 

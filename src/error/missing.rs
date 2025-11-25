@@ -77,15 +77,26 @@ impl<T, Lang, S> Missing<T, Lang, S> {
   /// The resulting [`span`](Self::span) covers the gap between `before.end()` and
   /// `after.start()`. When the anchors overlap (e.g., consecutive tokens), the gap collapses
   /// to a zero-width span at `after.start()`.
+  ///
+  /// # Panics
+  /// - If before and after are overlapping in a way that makes it impossible to determine a gap.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn between(before: S, after: S) -> Self
+  pub fn between(before: S, after: S) -> Self
   where
-    S: crate::lexer::Span,
+    S: crate::lexer::Span + Clone,
   {
+    let start = before.end_ref();
+    let end = after.start_ref();
+
+    let span = if end >= start {
+      S::new(start.clone(), end.clone())
+    } else {
+      S::new(end.clone(), end.clone())
+    };
     Self {
       before,
       after: Some(after),
-      span: Self::gap_span(before, Some(after)),
+      span: Some(span),
       _syntax: PhantomData,
       _lang: PhantomData,
     }
@@ -152,8 +163,9 @@ impl<T, Lang, S> Missing<T, Lang, S> {
     self.before.bump(offset);
     if let Some(after) = &mut self.after {
       after.bump(offset);
+      self.span = Some(Self::full_span(&self.before, after));
     }
-    self.span = Self::gap_span(self.before, self.after);
+
     self
   }
 
@@ -167,26 +179,31 @@ impl<T, Lang, S> Missing<T, Lang, S> {
     T::KIND
   }
 
-  const fn gap_span(before: S, after: Option<S>) -> S
+  fn full_span(before: &S, after: &S) -> S
   where
     S: crate::lexer::Span,
   {
-    match after {
-      Some(after_span) => {
-        let start = before.end();
-        let end = after_span.start();
+    let before_start = before.start_ref();
+    let before_end = before.end_ref();
+    let end_start = after.start_ref();
+    let end_end = after.end_ref();
 
-        if end >= start {
-          S::new(start, end)
-        } else {
-          S::new(end, end)
-        }
-      }
-      None => {
-        let pos = before.end();
-        S::new(pos, pos)
-      }
-    }
+    assert!(
+      end_start >= before_end,
+      "cannot determine full span: before.end() > after.start()"
+    );
+
+    assert!(
+      end_end >= before_start,
+      "cannot determine full span: before.start() > after.end()"
+    );
+
+    assert!(
+      before_end >= before_start,
+      "cannot determine full span: before.end() < before.start()"
+    );
+
+    S::new(before_start.clone(), end_end.clone())
   }
 }
 

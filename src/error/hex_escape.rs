@@ -66,6 +66,8 @@
 //! assert!(error.is_malformed());
 //! ```
 
+use core::ops::AddAssign;
+
 use crate::{
   error::InvalidHexDigits,
   utils::{Span, human_display::DisplayHuman},
@@ -73,7 +75,7 @@ use crate::{
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
 /// A type alias for invalid hex digits in hex escape sequences.
-pub type InvalidHexEscapeDigits<Char> = InvalidHexDigits<Char, 2>;
+pub type InvalidHexEscapeDigits<Char, Offset> = InvalidHexDigits<Char, 2, Offset>;
 
 /// An incomplete hex escape sequence error.
 ///
@@ -93,9 +95,12 @@ pub type InvalidHexEscapeDigits<Char> = InvalidHexDigits<Char, 2>;
 /// assert_eq!(error.span(), Span::new(10, 13));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct IncompleteHexEscape(Span);
+pub struct IncompleteHexEscape<O = usize>(Span<O>);
 
-impl core::fmt::Display for IncompleteHexEscape {
+impl<O> core::fmt::Display for IncompleteHexEscape<O>
+where
+  O: core::fmt::Display,
+{
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(
       f,
@@ -105,9 +110,9 @@ impl core::fmt::Display for IncompleteHexEscape {
   }
 }
 
-impl core::error::Error for IncompleteHexEscape {}
+impl<O> core::error::Error for IncompleteHexEscape<O> where O: core::fmt::Debug + core::fmt::Display {}
 
-impl IncompleteHexEscape {
+impl<O> IncompleteHexEscape<O> {
   /// Creates a new incomplete hex escape error.
   ///
   /// ## Examples
@@ -119,7 +124,7 @@ impl IncompleteHexEscape {
   /// let error = IncompleteHexEscape::new(Span::new(10, 12));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span) -> Self {
+  pub const fn new(span: Span<O>) -> Self {
     Self(span)
   }
 
@@ -135,11 +140,27 @@ impl IncompleteHexEscape {
   /// assert_eq!(error.span(), Span::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S
+  pub const fn span(&self) -> Span<O>
   where
-    S: Copy,
+    O: Copy,
   {
     self.0
+  }
+
+  /// Returns the span of the incomplete hex escape.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use logosky::error::IncompleteHexEscape;
+  /// use logosky::utils::Span;
+  ///
+  /// let error = IncompleteHexEscape::new(Span::new(10, 13));
+  /// assert_eq!(error.span_ref(), Span::new(&10, &13));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_ref(&self) -> Span<&O> {
+    self.0.as_ref()
   }
 
   /// Bumps the span or position by `n`.
@@ -158,7 +179,10 @@ impl IncompleteHexEscape {
   /// assert_eq!(error.span(), Span::new(15, 17));
   /// ```
   #[inline]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.0.bump(n);
     self
   }
@@ -193,14 +217,15 @@ impl IncompleteHexEscape {
 /// assert!(!error.is_incomplete()); // Only 4 chars total, expected 4 (\xXX)
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MalformedHexEscape<Char = char, S = Span> {
-  digits: InvalidHexEscapeDigits<Char>,
-  span: S,
+pub struct MalformedHexEscape<Char = char, O = usize> {
+  digits: InvalidHexEscapeDigits<Char, O>,
+  span: Span<O>,
 }
 
-impl<Char> core::fmt::Display for MalformedHexEscape<Char>
+impl<Char, O> core::fmt::Display for MalformedHexEscape<Char, O>
 where
   Char: DisplayHuman,
+  O: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(
@@ -212,12 +237,14 @@ where
   }
 }
 
-impl<Char> core::error::Error for MalformedHexEscape<Char> where
-  Char: DisplayHuman + core::fmt::Debug
+impl<Char, O> core::error::Error for MalformedHexEscape<Char, O>
+where
+  Char: DisplayHuman + core::fmt::Debug,
+  O: core::fmt::Debug + core::fmt::Display,
 {
 }
 
-impl<Char, S> MalformedHexEscape<Char, S> {
+impl<Char, O> MalformedHexEscape<Char, O> {
   /// Creates a new malformed hex escape error.
   ///
   /// ## Examples
@@ -230,29 +257,30 @@ impl<Char, S> MalformedHexEscape<Char, S> {
   /// let error = MalformedHexEscape::new(digits, Span::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(digits: InvalidHexEscapeDigits<Char>, span: Span) -> Self {
+  pub const fn new(digits: InvalidHexEscapeDigits<Char, O>, span: Span<O>) -> Self {
     Self { digits, span }
   }
 
-  /// Returns `true` if the sequence is also incomplete.
-  ///
-  /// A hex escape `\xXX` is 4 characters long total.
-  /// If the span is shorter, it means the escape was cut off mid-sequence.
-  ///
-  /// ## Examples
-  ///
-  /// ```
-  /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::Span;
-  ///
-  /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
-  /// let error = MalformedHexEscape::new(digits, Span::new(10, 13));
-  /// assert!(error.is_incomplete()); // Only 3 chars, not 4
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn is_incomplete(&self) -> bool {
-    self.span.len() < 4 // \x[0-9a-fA-F]{2} is 4 characters long
-  }
+  // /// Returns `true` if the sequence is also incomplete.
+  // ///
+  // /// A hex escape `\xXX` is 4 characters long total.
+  // /// If the span is shorter, it means the escape was cut off mid-sequence.
+  // ///
+  // /// ## Examples
+  // ///
+  // /// ```
+  // /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
+  // /// use logosky::utils::Span;
+  // ///
+  // /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
+  // /// let error = MalformedHexEscape::new(digits, Span::new(10, 13));
+  // /// assert!(error.is_incomplete()); // Only 3 chars, not 4
+  // /// ```
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // pub const fn is_incomplete(&self) -> bool
+  // {
+  //   self.span.len() < 4 // \x[0-9a-fA-F]{2} is 4 characters long
+  // }
 
   /// Returns the invalid hex digits.
   ///
@@ -267,9 +295,10 @@ impl<Char, S> MalformedHexEscape<Char, S> {
   /// assert_eq!(error.digits().len(), 1);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn digits(&self) -> InvalidHexEscapeDigits<Char>
+  pub fn digits(&self) -> InvalidHexEscapeDigits<Char, O>
   where
     Char: Clone,
+    O: Clone,
   {
     self.digits.clone()
   }
@@ -287,13 +316,13 @@ impl<Char, S> MalformedHexEscape<Char, S> {
   /// assert_eq!(error.digits_ref().len(), 1);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn digits_ref(&self) -> &InvalidHexEscapeDigits<Char> {
+  pub const fn digits_ref(&self) -> &InvalidHexEscapeDigits<Char, O> {
     &self.digits
   }
 
   /// Returns a mutable reference to the invalid hex digits.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn digits_mut(&mut self) -> &mut InvalidHexEscapeDigits<Char> {
+  pub fn digits_mut(&mut self) -> &mut InvalidHexEscapeDigits<Char, O> {
     &mut self.digits
   }
 
@@ -312,23 +341,23 @@ impl<Char, S> MalformedHexEscape<Char, S> {
   /// assert_eq!(error.span(), Span::new(10, 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S
+  pub const fn span(&self) -> Span<O>
   where
-    S: Copy,
+    O: Copy,
   {
     self.span
   }
 
   /// Returns a reference to the span of the malformed hex escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &S {
-    &self.span
+  pub const fn span_ref(&self) -> Span<&O> {
+    self.span.as_ref()
   }
 
   /// Returns a mutable reference to the span of the malformed hex escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut S {
-    &mut self.span
+  pub const fn span_mut(&mut self) -> Span<&mut O> {
+    self.span.as_mut()
   }
 
   /// Bumps the span and all digit positions by `n`.
@@ -348,7 +377,10 @@ impl<Char, S> MalformedHexEscape<Char, S> {
   /// assert_eq!(error.span(), Span::new(15, 19));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.span.bump(n);
     self.digits.bump(n);
     self
@@ -397,14 +429,14 @@ impl<Char, S> MalformedHexEscape<Char, S> {
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
-pub enum HexEscapeError<Char = char> {
+pub enum HexEscapeError<Char = char, O = usize> {
   /// An incomplete hex escape sequence.
   ///
   /// This occurs when the escape has fewer than 2 hex digits, typically
   /// due to unexpected end-of-input or a non-hex character.
   ///
   /// Examples: `\x`, `\xA`
-  Incomplete(IncompleteHexEscape),
+  Incomplete(IncompleteHexEscape<O>),
 
   /// A malformed hex escape sequence.
   ///
@@ -412,12 +444,13 @@ pub enum HexEscapeError<Char = char> {
   /// valid hexadecimal digits.
   ///
   /// Examples: `\xGG`, `\xZ9`, `\xAZ`
-  Malformed(MalformedHexEscape<Char>),
+  Malformed(MalformedHexEscape<Char, O>),
 }
 
-impl<Char> core::fmt::Display for HexEscapeError<Char>
+impl<Char, O> core::fmt::Display for HexEscapeError<Char, O>
 where
   Char: DisplayHuman,
+  O: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
@@ -427,9 +460,10 @@ where
   }
 }
 
-impl<Char> core::error::Error for HexEscapeError<Char>
+impl<Char, O> core::error::Error for HexEscapeError<Char, O>
 where
   Char: DisplayHuman + core::fmt::Debug + 'static,
+  O: core::fmt::Debug + core::fmt::Display + 'static,
 {
   fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
     match self {
@@ -439,7 +473,7 @@ where
   }
 }
 
-impl<Char, S> HexEscapeError<Char, S> {
+impl<Char, O> HexEscapeError<Char, O> {
   /// Creates an incomplete hex escape error.
   ///
   /// ## Examples
@@ -454,7 +488,7 @@ impl<Char, S> HexEscapeError<Char, S> {
   /// assert!(error.is_incomplete());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn incomplete(span: Span) -> Self {
+  pub const fn incomplete(span: Span<O>) -> Self {
     Self::Incomplete(IncompleteHexEscape::new(span))
   }
 
@@ -471,7 +505,7 @@ impl<Char, S> HexEscapeError<Char, S> {
   /// assert!(error.is_malformed());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn malformed(digits: InvalidHexEscapeDigits<Char>, span: Span) -> Self {
+  pub const fn malformed(digits: InvalidHexEscapeDigits<Char, O>, span: Span<O>) -> Self {
     Self::Malformed(MalformedHexEscape::new(digits, span))
   }
 
@@ -490,9 +524,9 @@ impl<Char, S> HexEscapeError<Char, S> {
   /// assert_eq!(error.span(), Span::new(10, 12));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S
+  pub const fn span(&self) -> Span<O>
   where
-    S: Copy,
+    O: Copy,
   {
     match self {
       Self::Incomplete(incomplete) => incomplete.span(),
@@ -518,7 +552,10 @@ impl<Char, S> HexEscapeError<Char, S> {
   /// // The span is now adjusted
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     match self {
       Self::Incomplete(incomplete) => {
         incomplete.bump(n);

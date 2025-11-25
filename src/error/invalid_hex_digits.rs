@@ -27,6 +27,8 @@
 //! # }
 //! ```
 
+use core::ops::AddAssign;
+
 use generic_arraydeque::{ConstArrayLength, GenericArrayDeque, IntoArrayLength, typenum::Const};
 
 use crate::utils::{PositionedChar, human_display::DisplayHuman};
@@ -94,7 +96,7 @@ where
         f,
         "'{}' at position {}",
         ch.char_ref().display(),
-        ch.position()
+        ch.position_ref()
       )?;
       first = false;
     }
@@ -308,7 +310,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, n: &O) -> &mut Self
   where
-    O: for<'a> core::ops::AddAssign<&'a O>,
+    O: for<'a> AddAssign<&'a O>,
   {
     let mut idx = 0;
     let slice = self.0.as_mut_slices().0;
@@ -320,31 +322,31 @@ where
   }
 }
 
-impl<Char, const N: usize> AsRef<[PositionedChar<Char>]> for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> AsRef<[PositionedChar<Char, O>]> for InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_ref(&self) -> &[PositionedChar<Char>] {
+  fn as_ref(&self) -> &[PositionedChar<Char, O>] {
     self
   }
 }
 
-impl<Char, const N: usize> AsMut<[PositionedChar<Char>]> for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> AsMut<[PositionedChar<Char, O>]> for InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_mut(&mut self) -> &mut [PositionedChar<Char>] {
+  fn as_mut(&mut self) -> &mut [PositionedChar<Char, O>] {
     self
   }
 }
 
-impl<Char, const N: usize> core::ops::Deref for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> core::ops::Deref for InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {
-  type Target = [PositionedChar<Char>];
+  type Target = [PositionedChar<Char, O>];
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref(&self) -> &Self::Target {
@@ -352,7 +354,7 @@ where
   }
 }
 
-impl<Char, const N: usize> core::ops::DerefMut for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> core::ops::DerefMut for InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {

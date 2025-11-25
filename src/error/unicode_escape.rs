@@ -99,6 +99,8 @@
 //! );
 //! ```
 
+use core::ops::{Add, AddAssign};
+
 use crate::{
   error::{Unclosed, UnexpectedLexeme},
   utils::{CharLen, Lexeme, PositionedChar, Span, delimiter::Brace, human_display::DisplayHuman},
@@ -148,7 +150,8 @@ use derive_more::{Display, From, IsVariant, TryUnwrap, Unwrap};
 ///     println!("Invalid hex digit at position {}", ch.position());
 /// }
 /// ```
-pub type InvalidFixedUnicodeHexDigits<Char = char> = crate::error::InvalidHexDigits<Char, 4>;
+pub type InvalidFixedUnicodeHexDigits<Char = char, O = usize> =
+  crate::error::InvalidHexDigits<Char, 4, O>;
 
 /// A malformed fixed-width unicode escape sequence error.
 ///
@@ -182,14 +185,15 @@ pub type InvalidFixedUnicodeHexDigits<Char = char> = crate::error::InvalidHexDig
 /// assert_eq!(error.span(), Span::new(10, 16));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MalformedFixedUnicodeEscape<Char = char, S = Span> {
-  digits: InvalidFixedUnicodeHexDigits<Char>,
-  span: S,
+pub struct MalformedFixedUnicodeEscape<Char = char, O = usize> {
+  digits: InvalidFixedUnicodeHexDigits<Char, O>,
+  span: Span<O>,
 }
 
-impl<Char> core::fmt::Display for MalformedFixedUnicodeEscape<Char>
+impl<Char, O> core::fmt::Display for MalformedFixedUnicodeEscape<Char, O>
 where
   Char: DisplayHuman,
+  O: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(
@@ -201,12 +205,14 @@ where
   }
 }
 
-impl<Char> core::error::Error for MalformedFixedUnicodeEscape<Char> where
-  Char: DisplayHuman + core::fmt::Debug
+impl<Char, O> core::error::Error for MalformedFixedUnicodeEscape<Char, O>
+where
+  Char: DisplayHuman + core::fmt::Debug,
+  O: core::fmt::Display + core::fmt::Debug,
 {
 }
 
-impl<Char, S> MalformedFixedUnicodeEscape<Char, S> {
+impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   /// Creates a new malformed fixed-width unicode escape error.
   ///
   /// ## Examples
@@ -221,29 +227,29 @@ impl<Char, S> MalformedFixedUnicodeEscape<Char, S> {
   /// let error = MalformedFixedUnicodeEscape::new(digits, Span::new(10, 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(digits: InvalidFixedUnicodeHexDigits<Char>, span: Span) -> Self {
+  pub const fn new(digits: InvalidFixedUnicodeHexDigits<Char, O>, span: Span<O>) -> Self {
     Self { digits, span }
   }
 
-  /// Returns `true` if the sequence is also incomplete.
-  ///
-  /// A fixed-width unicode escape `\uXXXX` is 6 characters long total.
-  /// If the span is shorter, it means the escape was cut off mid-sequence.
-  ///
-  /// ## Examples
-  ///
-  /// ```
-  /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::Span;
-  ///
-  /// let digits = InvalidFixedUnicodeHexDigits::<char>::from_char(12, 'G');
-  /// let error = MalformedFixedUnicodeEscape::new(digits, Span::new(10, 14));
-  /// assert!(error.is_incomplete()); // Only 4 chars, not 6
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn is_incomplete(&self) -> bool {
-    self.span.len() < 6 // \u[0-9a-fA-F]{4} is 6 characters long
-  }
+  // /// Returns `true` if the sequence is also incomplete.
+  // ///
+  // /// A fixed-width unicode escape `\uXXXX` is 6 characters long total.
+  // /// If the span is shorter, it means the escape was cut off mid-sequence.
+  // ///
+  // /// ## Examples
+  // ///
+  // /// ```
+  // /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
+  // /// use logosky::utils::Span;
+  // ///
+  // /// let digits = InvalidFixedUnicodeHexDigits::<char>::from_char(12, 'G');
+  // /// let error = MalformedFixedUnicodeEscape::new(digits, Span::new(10, 14));
+  // /// assert!(error.is_incomplete()); // Only 4 chars, not 6
+  // /// ```
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // pub const fn is_incomplete(&self) -> bool {
+  //   self.span.len() < 6 // \u[0-9a-fA-F]{4} is 6 characters long
+  // }
 
   /// Returns the invalid unicode hex digits.
   ///
@@ -260,9 +266,10 @@ impl<Char, S> MalformedFixedUnicodeEscape<Char, S> {
   /// assert_eq!(error.digits().len(), 1);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn digits(&self) -> InvalidFixedUnicodeHexDigits<Char>
+  pub fn digits(&self) -> InvalidFixedUnicodeHexDigits<Char, O>
   where
     Char: Clone,
+    O: Clone,
   {
     self.digits.clone()
   }
@@ -282,13 +289,13 @@ impl<Char, S> MalformedFixedUnicodeEscape<Char, S> {
   /// assert_eq!(error.digits_ref().len(), 1);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn digits_ref(&self) -> &InvalidFixedUnicodeHexDigits<Char> {
+  pub const fn digits_ref(&self) -> &InvalidFixedUnicodeHexDigits<Char, O> {
     &self.digits
   }
 
   /// Returns a mutable reference to the invalid unicode hex digits.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn digits_mut(&mut self) -> &mut InvalidFixedUnicodeHexDigits<Char> {
+  pub const fn digits_mut(&mut self) -> &mut InvalidFixedUnicodeHexDigits<Char, O> {
     &mut self.digits
   }
 
@@ -307,23 +314,23 @@ impl<Char, S> MalformedFixedUnicodeEscape<Char, S> {
   /// assert_eq!(error.span(), Span::new(10, 16));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S
+  pub const fn span(&self) -> Span<O>
   where
-    S: Copy,
+    O: Copy,
   {
     self.span
   }
 
   /// Returns a reference to the span of the malformed unicode escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &S {
-    &self.span
+  pub const fn span_ref(&self) -> Span<&O> {
+    self.span.as_ref()
   }
 
   /// Returns a mutable reference to the span of the malformed unicode escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut S {
-    &mut self.span
+  pub const fn span_mut(&mut self) -> Span<&mut O> {
+    self.span.as_mut()
   }
 
   /// Bumps the span and all digit positions by `n`.
@@ -345,7 +352,10 @@ impl<Char, S> MalformedFixedUnicodeEscape<Char, S> {
   /// assert_eq!(error.span(), Span::new(15, 21));
   /// ```
   #[inline]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.span.bump(n);
     self.digits_mut().bump(n);
     self
@@ -417,13 +427,16 @@ pub enum InvalidUnicodeScalarKind {
 /// assert_eq!(error.kind(), InvalidUnicodeScalarKind::Overflow);
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct InvalidUnicodeScalarValue {
+pub struct InvalidUnicodeScalarValue<O = usize> {
   value: u32,
-  span: S,
+  span: Span<O>,
   kind: InvalidUnicodeScalarKind,
 }
 
-impl core::fmt::Display for InvalidUnicodeScalarValue {
+impl<O> core::fmt::Display for InvalidUnicodeScalarValue<O>
+where
+  O: core::fmt::Display,
+{
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let cp = self.value;
 
@@ -442,9 +455,12 @@ impl core::fmt::Display for InvalidUnicodeScalarValue {
   }
 }
 
-impl core::error::Error for InvalidUnicodeScalarValue {}
+impl<O> core::error::Error for InvalidUnicodeScalarValue<O> where
+  O: core::fmt::Display + core::fmt::Debug
+{
+}
 
-impl InvalidUnicodeScalarValue {
+impl<O> InvalidUnicodeScalarValue<O> {
   /// Creates a new invalid unicode scalar value error.
   ///
   /// ## Examples
@@ -460,7 +476,7 @@ impl InvalidUnicodeScalarValue {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(value: u32, span: Span, kind: InvalidUnicodeScalarKind) -> Self {
+  pub const fn new(value: u32, span: Span<O>, kind: InvalidUnicodeScalarKind) -> Self {
     Self { value, span, kind }
   }
 
@@ -500,23 +516,23 @@ impl InvalidUnicodeScalarValue {
   /// assert_eq!(error.span(), Span::new(5, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S
+  pub const fn span(&self) -> Span<O>
   where
-    S: Copy,
+    O: Copy,
   {
     self.span
   }
 
   /// Returns a reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &S {
-    &self.span
+  pub const fn span_ref(&self) -> Span<&O> {
+    self.span.as_ref()
   }
 
   /// Returns a mutable reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut S {
-    &mut self.span
+  pub const fn span_mut(&mut self) -> Span<&mut O> {
+    self.span.as_mut()
   }
 
   /// Bumps the span by `n`.
@@ -539,7 +555,10 @@ impl InvalidUnicodeScalarValue {
   /// assert_eq!(error.span(), Span::new(15, 23));
   /// ```
   #[inline]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.span.bump(n);
     self
   }
@@ -585,9 +604,9 @@ impl InvalidUnicodeScalarValue {
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Display)]
 #[display("empty variable-length unicode escape at {_0}")]
-pub struct EmptyVariableUnicodeEscape(Span);
+pub struct EmptyVariableUnicodeEscape<O = usize>(Span<O>);
 
-impl EmptyVariableUnicodeEscape {
+impl<O> EmptyVariableUnicodeEscape<O> {
   /// Creates a new empty variable-length unicode escape error.
   ///
   /// ## Examples
@@ -600,7 +619,7 @@ impl EmptyVariableUnicodeEscape {
   /// assert_eq!(error.span(), Span::new(5, 9));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span) -> Self {
+  pub const fn new(span: Span<O>) -> Self {
     Self(span)
   }
 
@@ -616,11 +635,43 @@ impl EmptyVariableUnicodeEscape {
   /// assert_eq!(error.span(), Span::new(10, 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S
+  pub const fn span(&self) -> Span<O>
   where
-    S: Copy,
+    O: Copy,
   {
     self.0
+  }
+
+  /// Returns the span of the empty variable-length unicode escape.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use logosky::error::EmptyVariableUnicodeEscape;
+  /// use logosky::utils::Span;
+  ///
+  /// let error = EmptyVariableUnicodeEscape::new(Span::new(10, 14));
+  /// assert_eq!(error.span_ref(), Span::new(&10, &14));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_ref(&self) -> Span<&O> {
+    self.0.as_ref()
+  }
+
+  /// Returns the span of the empty variable-length unicode escape.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use logosky::error::EmptyVariableUnicodeEscape;
+  /// use logosky::utils::Span;
+  ///
+  /// let error = EmptyVariableUnicodeEscape::new(Span::new(10, 14));
+  /// assert_eq!(error.span_mut(), Span::new(&mut 10, &mut 14));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_mut(&mut self) -> Span<&mut O> {
+    self.0.as_mut()
   }
 
   /// Bumps the span by `n`.
@@ -639,13 +690,19 @@ impl EmptyVariableUnicodeEscape {
   /// assert_eq!(error.span(), Span::new(15, 19));
   /// ```
   #[inline]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.0.bump(n);
     self
   }
 }
 
-impl core::error::Error for EmptyVariableUnicodeEscape {}
+impl<O> core::error::Error for EmptyVariableUnicodeEscape<O> where
+  O: core::fmt::Display + core::fmt::Debug
+{
+}
 
 /// A malformed variable-length unicode escape sequence error.
 ///
@@ -675,11 +732,12 @@ impl core::error::Error for EmptyVariableUnicodeEscape {}
 ///     MalformedVariableUnicodeSequence::from_range((10, 15).into());
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct MalformedVariableUnicodeSequence<Char = char, S = Span>(Lexeme<Char>);
+pub struct MalformedVariableUnicodeSequence<Char = char, O = usize>(Lexeme<Char, O>);
 
-impl<Char> core::fmt::Display for MalformedVariableUnicodeSequence<Char>
+impl<Char, O> core::fmt::Display for MalformedVariableUnicodeSequence<Char, O>
 where
   Char: DisplayHuman,
+  O: core::fmt::Display,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -688,7 +746,7 @@ where
         f,
         "invalid variable-length unicode escape character '{}' at position {}",
         positioned_char.char_ref().display(),
-        positioned_char.position()
+        positioned_char.position_ref()
       ),
       Lexeme::Range(span) => write!(
         f,
@@ -699,12 +757,14 @@ where
   }
 }
 
-impl<Char> core::error::Error for MalformedVariableUnicodeSequence<Char> where
-  Char: DisplayHuman + core::fmt::Debug
+impl<Char, O> core::error::Error for MalformedVariableUnicodeSequence<Char, O>
+where
+  Char: DisplayHuman + core::fmt::Debug,
+  O: core::fmt::Display + core::fmt::Debug,
 {
 }
 
-impl<Char, S> MalformedVariableUnicodeSequence<Char, S> {
+impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   /// Creates a new malformed variable-length unicode escape error from a lexeme.
   ///
   /// ## Examples
@@ -717,7 +777,7 @@ impl<Char, S> MalformedVariableUnicodeSequence<Char, S> {
   /// let error = MalformedVariableUnicodeSequence::new(lexeme);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(lexeme: Lexeme<Char>) -> Self {
+  pub const fn new(lexeme: Lexeme<Char, O>) -> Self {
     Self(lexeme)
   }
 
@@ -735,7 +795,7 @@ impl<Char, S> MalformedVariableUnicodeSequence<Char, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_char(pos: usize, ch: Char) -> Self {
+  pub const fn from_char(pos: O, ch: Char) -> Self {
     Self::from_positioned_char(PositionedChar::with_position(ch, pos))
   }
 
@@ -753,7 +813,7 @@ impl<Char, S> MalformedVariableUnicodeSequence<Char, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_positioned_char(ch: PositionedChar<Char>) -> Self {
+  pub const fn from_positioned_char(ch: PositionedChar<Char, O>) -> Self {
     Self(Lexeme::Char(ch))
   }
 
@@ -769,7 +829,7 @@ impl<Char, S> MalformedVariableUnicodeSequence<Char, S> {
   ///     MalformedVariableUnicodeSequence::from_range(Span::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_range(span: Span) -> Self {
+  pub const fn from_range(span: Span<O>) -> Self {
     Self(Lexeme::Range(span))
   }
 
@@ -785,9 +845,11 @@ impl<Char, S> MalformedVariableUnicodeSequence<Char, S> {
   /// assert_eq!(error.span(), Span::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> Span<O>
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     self.0.span()
   }
@@ -804,16 +866,17 @@ impl<Char, S> MalformedVariableUnicodeSequence<Char, S> {
   /// assert!(error.lexeme().is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme(&self) -> Lexeme<Char>
+  pub const fn lexeme(&self) -> Lexeme<Char, O>
   where
     Char: Copy,
+    O: Copy,
   {
     self.0
   }
 
   /// Returns a reference to the lexeme.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme_ref(&self) -> &Lexeme<Char> {
+  pub const fn lexeme_ref(&self) -> &Lexeme<Char, O> {
     &self.0
   }
 
@@ -833,7 +896,10 @@ impl<Char, S> MalformedVariableUnicodeSequence<Char, S> {
   /// assert_eq!(error.span(), Span::new(15, 16));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.0.bump(n);
     self
   }
@@ -863,9 +929,9 @@ impl<Char, S> MalformedVariableUnicodeSequence<Char, S> {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Display)]
 #[display("too many digits ({_1}) in variable-length unicode escape at {_0}")]
-pub struct TooManyDigitsInVariableUnicodeEscape(Span, usize);
+pub struct TooManyDigitsInVariableUnicodeEscape<O = usize>(Span<O>, usize);
 
-impl TooManyDigitsInVariableUnicodeEscape {
+impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   /// Creates a new too many digits in variable-length unicode escape error.
   ///
   /// ## Examples
@@ -878,7 +944,7 @@ impl TooManyDigitsInVariableUnicodeEscape {
   /// assert_eq!(error.count(), 8);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, count: usize) -> Self {
+  pub const fn new(span: Span<O>, count: usize) -> Self {
     Self(span, count)
   }
 
@@ -894,11 +960,43 @@ impl TooManyDigitsInVariableUnicodeEscape {
   /// assert_eq!(error.span(), Span::new(10, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S
+  pub const fn span(&self) -> Span<O>
   where
-    S: Copy,
+    O: Copy,
   {
     self.0
+  }
+
+  /// Returns the span of the too many digits error.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
+  /// use logosky::utils::Span;
+  ///
+  /// let error = TooManyDigitsInVariableUnicodeEscape::new(Span::new(10, 20), 7);
+  /// assert_eq!(error.span(), Span::new(10, 20));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_ref(&self) -> Span<&O> {
+    self.0.as_ref()
+  }
+
+  /// Returns the span of the too many digits error.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
+  /// use logosky::utils::Span;
+  ///
+  /// let error = TooManyDigitsInVariableUnicodeEscape::new(Span::new(10, 20), 7);
+  /// assert_eq!(error.span(), Span::new(10, 20));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_mut(&mut self) -> Span<&mut O> {
+    self.0.as_mut()
   }
 
   /// Returns the count of hex digits found.
@@ -933,13 +1031,19 @@ impl TooManyDigitsInVariableUnicodeEscape {
   /// assert_eq!(error.span(), Span::new(15, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.0.bump(n);
     self
   }
 }
 
-impl core::error::Error for TooManyDigitsInVariableUnicodeEscape {}
+impl<O> core::error::Error for TooManyDigitsInVariableUnicodeEscape<O> where
+  O: core::fmt::Display + core::fmt::Debug + 'static
+{
+}
 
 /// An error encountered during lexing for `\u{...}` (variable-length) unicode escape sequences.
 ///
@@ -976,26 +1080,27 @@ impl core::error::Error for TooManyDigitsInVariableUnicodeEscape {}
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
-pub enum VariableUnicodeEscapeError<Char = char> {
+pub enum VariableUnicodeEscapeError<Char = char, O = usize> {
   /// The opening brace was not closed: `\u{1234`.
-  Unclosed(Unclosed<Brace>),
+  Unclosed(Unclosed<Brace, O>),
 
   /// The braces contained **no** digits: `\u{}`.
-  Empty(EmptyVariableUnicodeEscape),
+  Empty(EmptyVariableUnicodeEscape<O>),
 
   /// More than 6 hex digits inside the braces.
-  TooManyDigits(TooManyDigitsInVariableUnicodeEscape),
+  TooManyDigits(TooManyDigitsInVariableUnicodeEscape<O>),
 
   /// A malformed sequence of unicode in the braces.
-  Malformed(MalformedVariableUnicodeSequence<Char>),
+  Malformed(MalformedVariableUnicodeSequence<Char, O>),
 
   /// Parsed number is not a Unicode scalar value (surrogate or > 0x10_FFFF).
-  InvalidScalar(InvalidUnicodeScalarValue),
+  InvalidScalar(InvalidUnicodeScalarValue<O>),
 }
 
-impl<Char> core::fmt::Display for VariableUnicodeEscapeError<Char>
+impl<Char, O> core::fmt::Display for VariableUnicodeEscapeError<Char, O>
 where
   Char: DisplayHuman,
+  O: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
@@ -1003,7 +1108,7 @@ where
         write!(
           f,
           "unclosed variable-length unicode escape at {}",
-          err.span()
+          err.span_ref()
         )
       }
       Self::Empty(err) => err.fmt(f),
@@ -1014,9 +1119,10 @@ where
   }
 }
 
-impl<Char> core::error::Error for VariableUnicodeEscapeError<Char>
+impl<Char, O> core::error::Error for VariableUnicodeEscapeError<Char, O>
 where
   Char: DisplayHuman + core::fmt::Debug + 'static,
+  O: core::fmt::Display + core::fmt::Debug + 'static,
 {
   fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
     match self {
@@ -1029,7 +1135,7 @@ where
   }
 }
 
-impl<Char, S> VariableUnicodeEscapeError<Char, S> {
+impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   /// Creates an empty variable-length unicode escape error.
   ///
   /// ## Examples
@@ -1043,7 +1149,7 @@ impl<Char, S> VariableUnicodeEscapeError<Char, S> {
   /// assert!(error.is_empty());
   /// ```
   #[inline]
-  pub const fn empty(span: Span) -> Self {
+  pub const fn empty(span: Span<O>) -> Self {
     Self::Empty(EmptyVariableUnicodeEscape::new(span))
   }
 
@@ -1060,7 +1166,7 @@ impl<Char, S> VariableUnicodeEscapeError<Char, S> {
   /// assert!(error.is_too_many_digits());
   /// ```
   #[inline]
-  pub const fn too_many_digits(span: Span, count: usize) -> Self {
+  pub const fn too_many_digits(span: Span<O>, count: usize) -> Self {
     Self::TooManyDigits(TooManyDigitsInVariableUnicodeEscape::new(span, count))
   }
 
@@ -1077,7 +1183,7 @@ impl<Char, S> VariableUnicodeEscapeError<Char, S> {
   /// assert!(error.is_unclosed());
   /// ```
   #[inline]
-  pub const fn unclosed(span: Span) -> Self {
+  pub const fn unclosed(span: Span<O>) -> Self {
     Self::Unclosed(Unclosed::new(span, Brace))
   }
 
@@ -1094,7 +1200,7 @@ impl<Char, S> VariableUnicodeEscapeError<Char, S> {
   /// assert!(error.is_invalid_scalar());
   /// ```
   #[inline]
-  pub const fn overflow(span: Span, codepoint: u32) -> Self {
+  pub const fn overflow(span: Span<O>, codepoint: u32) -> Self {
     Self::InvalidScalar(InvalidUnicodeScalarValue::new(
       codepoint,
       span,
@@ -1115,7 +1221,7 @@ impl<Char, S> VariableUnicodeEscapeError<Char, S> {
   /// assert!(error.is_invalid_scalar());
   /// ```
   #[inline]
-  pub const fn surrogate(span: Span, codepoint: u32) -> Self {
+  pub const fn surrogate(span: Span<O>, codepoint: u32) -> Self {
     Self::InvalidScalar(InvalidUnicodeScalarValue::new(
       codepoint,
       span,
@@ -1140,7 +1246,10 @@ impl<Char, S> VariableUnicodeEscapeError<Char, S> {
   /// // Now the span would be adjusted by 5
   /// ```
   #[inline]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     match self {
       Self::Unclosed(err) => {
         err.bump(n);
@@ -1173,16 +1282,18 @@ impl<Char, S> VariableUnicodeEscapeError<Char, S> {
   ///    VariableUnicodeEscapeError::empty(Span::new(10, 14));
   /// assert_eq!(error.span(), Span::new(10, 14));
   /// ```
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> Span<O>
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     match self {
-      Self::Unclosed(err) => err.span(),
-      Self::Empty(err) => err.span(),
-      Self::TooManyDigits(err) => err.span(),
+      Self::Unclosed(err) => err.span_ref().cloned(),
+      Self::Empty(err) => err.span_ref().cloned(),
+      Self::TooManyDigits(err) => err.span_ref().cloned(),
       Self::Malformed(err) => err.span(),
-      Self::InvalidScalar(err) => err.span(),
+      Self::InvalidScalar(err) => err.span_ref().cloned(),
     }
   }
 }
@@ -1238,9 +1349,12 @@ pub enum UnpairedSurrogateHint {
 /// assert_eq!(error.span(), Span::new(10, 13));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct IncompleteFixedUnicodeEscape(Span);
+pub struct IncompleteFixedUnicodeEscape<O = usize>(Span<O>);
 
-impl core::fmt::Display for IncompleteFixedUnicodeEscape {
+impl<O> core::fmt::Display for IncompleteFixedUnicodeEscape<O>
+where
+  O: core::fmt::Display,
+{
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(
       f,
@@ -1250,9 +1364,12 @@ impl core::fmt::Display for IncompleteFixedUnicodeEscape {
   }
 }
 
-impl core::error::Error for IncompleteFixedUnicodeEscape {}
+impl<O> core::error::Error for IncompleteFixedUnicodeEscape<O> where
+  O: core::fmt::Display + core::fmt::Debug
+{
+}
 
-impl IncompleteFixedUnicodeEscape {
+impl<O> IncompleteFixedUnicodeEscape<O> {
   /// Creates a new incomplete hex escape error.
   ///
   /// ## Examples
@@ -1264,7 +1381,7 @@ impl IncompleteFixedUnicodeEscape {
   /// let error = IncompleteFixedUnicodeEscape::new(Span::new(10, 12));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span) -> Self {
+  pub const fn new(span: Span<O>) -> Self {
     Self(span)
   }
 
@@ -1280,11 +1397,43 @@ impl IncompleteFixedUnicodeEscape {
   /// assert_eq!(error.span(), Span::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S
+  pub const fn span(&self) -> Span<O>
   where
-    S: Copy,
+    O: Copy,
   {
     self.0
+  }
+
+  /// Returns the span of the incomplete hex escape.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use logosky::error::IncompleteFixedUnicodeEscape;
+  /// use logosky::utils::Span;
+  ///
+  /// let error = IncompleteFixedUnicodeEscape::new(Span::new(10, 13));
+  /// assert_eq!(error.span_ref(), Span::new(&10, &13));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_ref(&self) -> Span<&O> {
+    self.0.as_ref()
+  }
+
+  /// Returns the span of the incomplete hex escape.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// use logosky::error::IncompleteFixedUnicodeEscape;
+  /// use logosky::utils::Span;
+  ///
+  /// let error = IncompleteFixedUnicodeEscape::new(Span::new(10, 13));
+  /// assert_eq!(error.span_mut(), Span::new(&mut 10, &mut 13));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_mut(&mut self) -> Span<&mut O> {
+    self.0.as_mut()
   }
 
   /// Bumps the span or position by `n`.
@@ -1303,7 +1452,10 @@ impl IncompleteFixedUnicodeEscape {
   /// assert_eq!(error.span(), Span::new(15, 17));
   /// ```
   #[inline]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.0.bump(n);
     self
   }
@@ -1345,29 +1497,31 @@ impl IncompleteFixedUnicodeEscape {
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
-pub enum FixedUnicodeEscapeError<Char = char> {
+pub enum FixedUnicodeEscapeError<Char = char, O = usize> {
   /// An incomplete fixed-width unicode escape sequence.
   ///
   /// This occurs when the escape has fewer than 4 hex digits, typically
   /// due to unexpected end-of-input or a non-hex character.
-  Incomplete(IncompleteFixedUnicodeEscape),
+  Incomplete(IncompleteFixedUnicodeEscape<O>),
 
   /// A malformed fixed-width unicode escape sequence.
   ///
   /// This occurs when 4 characters follow `\u` but they are not all
   /// valid hexadecimal digits.
-  Malformed(MalformedFixedUnicodeEscape<Char>),
+  Malformed(MalformedFixedUnicodeEscape<Char, O>),
 
   /// An unpaired surrogate in a fixed-width unicode escape sequence.
   ///
   /// This occurs when a surrogate value (U+D800..U+DFFF) appears without
   /// its required pair.
-  UnpairedSurrogate(UnexpectedLexeme<Char, UnpairedSurrogateHint>),
+  UnpairedSurrogate(UnexpectedLexeme<Char, UnpairedSurrogateHint, O>),
 }
 
-impl<Char> core::fmt::Display for FixedUnicodeEscapeError<Char>
+impl<Char, O> core::fmt::Display for FixedUnicodeEscapeError<Char, O>
 where
   Char: DisplayHuman + CharLen,
+  O: core::fmt::Display + Clone + Ord,
+  for<'a> &'a O: Add<usize, Output = O>,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
@@ -1389,9 +1543,11 @@ where
   }
 }
 
-impl<Char> core::error::Error for FixedUnicodeEscapeError<Char>
+impl<Char, O> core::error::Error for FixedUnicodeEscapeError<Char, O>
 where
   Char: DisplayHuman + CharLen + core::fmt::Debug + 'static,
+  O: core::fmt::Display + core::fmt::Debug + 'static + Clone + Ord,
+  for<'a> &'a O: Add<usize, Output = O>,
 {
   fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
     match self {
@@ -1402,7 +1558,7 @@ where
   }
 }
 
-impl<Char, S> FixedUnicodeEscapeError<Char, S> {
+impl<Char, O> FixedUnicodeEscapeError<Char, O> {
   /// Creates an unpaired high surrogate error.
   ///
   /// ## Examples
@@ -1417,7 +1573,7 @@ impl<Char, S> FixedUnicodeEscapeError<Char, S> {
   /// assert!(error.is_unpaired_surrogate());
   /// ```
   #[inline]
-  pub const fn unpaired_high_surrogate(lexeme: Lexeme<Char>) -> Self {
+  pub const fn unpaired_high_surrogate(lexeme: Lexeme<Char, O>) -> Self {
     Self::UnpairedSurrogate(UnexpectedLexeme::new(lexeme, UnpairedSurrogateHint::High))
   }
 
@@ -1435,7 +1591,7 @@ impl<Char, S> FixedUnicodeEscapeError<Char, S> {
   /// assert!(error.is_unpaired_surrogate());
   /// ```
   #[inline]
-  pub const fn unpaired_low_surrogate(lexeme: Lexeme<Char>) -> Self {
+  pub const fn unpaired_low_surrogate(lexeme: Lexeme<Char, O>) -> Self {
     Self::UnpairedSurrogate(UnexpectedLexeme::new(lexeme, UnpairedSurrogateHint::Low))
   }
 
@@ -1456,7 +1612,10 @@ impl<Char, S> FixedUnicodeEscapeError<Char, S> {
   /// // The span is now adjusted
   /// ```
   #[inline]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     match self {
       Self::Incomplete(lexeme) => {
         lexeme.bump(n);
@@ -1485,13 +1644,15 @@ impl<Char, S> FixedUnicodeEscapeError<Char, S> {
   /// assert_eq!(error.span(), Span::new(10, 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> Span<O>
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     match self {
-      Self::Incomplete(lexeme) => lexeme.span(),
-      Self::Malformed(seq) => seq.span(),
+      Self::Incomplete(lexeme) => lexeme.span_ref().cloned(),
+      Self::Malformed(seq) => seq.span_ref().cloned(),
       Self::UnpairedSurrogate(lexeme) => lexeme.span(),
     }
   }
@@ -1558,16 +1719,18 @@ impl<Char, S> FixedUnicodeEscapeError<Char, S> {
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
-pub enum UnicodeEscapeError<Char = char> {
+pub enum UnicodeEscapeError<Char = char, O = usize> {
   /// An error in a fixed-width unicode escape sequence (`\uXXXX`).
-  Fixed(FixedUnicodeEscapeError<Char>),
+  Fixed(FixedUnicodeEscapeError<Char, O>),
   /// An error in a variable-length unicode escape sequence (`\u{...}`).
-  Variable(VariableUnicodeEscapeError<Char>),
+  Variable(VariableUnicodeEscapeError<Char, O>),
 }
 
-impl<Char> core::fmt::Display for UnicodeEscapeError<Char>
+impl<Char, O> core::fmt::Display for UnicodeEscapeError<Char, O>
 where
   Char: DisplayHuman + CharLen,
+  O: core::fmt::Display + Clone + Ord,
+  for<'a> &'a O: Add<usize, Output = O>,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
@@ -1577,9 +1740,11 @@ where
   }
 }
 
-impl<Char> core::error::Error for UnicodeEscapeError<Char>
+impl<Char, O> core::error::Error for UnicodeEscapeError<Char, O>
 where
   Char: DisplayHuman + CharLen + core::fmt::Debug + 'static,
+  O: core::fmt::Display + core::fmt::Debug + Clone + Ord + 'static,
+  for<'a> &'a O: Add<usize, Output = O>,
 {
   fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
     match self {
@@ -1589,7 +1754,7 @@ where
   }
 }
 
-impl<Char, S> UnicodeEscapeError<Char, S> {
+impl<Char, O> UnicodeEscapeError<Char, O> {
   /// Creates an unpaired high surrogate error.
   ///
   /// ## Examples
@@ -1604,7 +1769,7 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert!(error.is_fixed());
   /// ```
   #[inline]
-  pub const fn unpaired_high_surrogate(lexeme: Lexeme<Char>) -> Self {
+  pub const fn unpaired_high_surrogate(lexeme: Lexeme<Char, O>) -> Self {
     Self::Fixed(FixedUnicodeEscapeError::unpaired_high_surrogate(lexeme))
   }
 
@@ -1622,7 +1787,7 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert!(error.is_fixed());
   /// ```
   #[inline]
-  pub const fn unpaired_low_surrogate(lexeme: Lexeme<Char>) -> Self {
+  pub const fn unpaired_low_surrogate(lexeme: Lexeme<Char, O>) -> Self {
     Self::Fixed(FixedUnicodeEscapeError::unpaired_low_surrogate(lexeme))
   }
 
@@ -1640,7 +1805,7 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert!(error.is_fixed());
   /// ```
   #[inline]
-  pub const fn incomplete_fixed_unicode_escape(span: Span) -> Self {
+  pub const fn incomplete_fixed_unicode_escape(span: Span<O>) -> Self {
     Self::Fixed(FixedUnicodeEscapeError::Incomplete(
       IncompleteFixedUnicodeEscape::new(span),
     ))
@@ -1665,8 +1830,8 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// ```
   #[inline]
   pub const fn malformed_fixed_unicode_escape(
-    digits: InvalidFixedUnicodeHexDigits<Char>,
-    span: Span,
+    digits: InvalidFixedUnicodeHexDigits<Char, O>,
+    span: Span<O>,
   ) -> Self {
     Self::Fixed(FixedUnicodeEscapeError::Malformed(
       MalformedFixedUnicodeEscape::new(digits, span),
@@ -1687,7 +1852,7 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn empty_variable_unicode_escape(span: Span) -> Self {
+  pub const fn empty_variable_unicode_escape(span: Span<O>) -> Self {
     Self::Variable(VariableUnicodeEscapeError::empty(span))
   }
 
@@ -1706,7 +1871,7 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn too_many_digits_in_variable_unicode_escape(span: Span, count: usize) -> Self {
+  pub const fn too_many_digits_in_variable_unicode_escape(span: Span<O>, count: usize) -> Self {
     Self::Variable(VariableUnicodeEscapeError::too_many_digits(span, count))
   }
 
@@ -1724,7 +1889,7 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn unclosed_variable_unicode_escape(span: Span) -> Self {
+  pub const fn unclosed_variable_unicode_escape(span: Span<O>) -> Self {
     Self::Variable(VariableUnicodeEscapeError::unclosed(span))
   }
 
@@ -1743,7 +1908,7 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn surrogate_variable_unicode_escape(span: Span, codepoint: u32) -> Self {
+  pub const fn surrogate_variable_unicode_escape(span: Span<O>, codepoint: u32) -> Self {
     Self::Variable(VariableUnicodeEscapeError::surrogate(span, codepoint))
   }
 
@@ -1762,7 +1927,7 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn overflow_variable_unicode_escape(span: Span, codepoint: u32) -> Self {
+  pub const fn overflow_variable_unicode_escape(span: Span<O>, codepoint: u32) -> Self {
     Self::Variable(VariableUnicodeEscapeError::overflow(span, codepoint))
   }
 
@@ -1777,7 +1942,7 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn invalid_variable_unicode_escape_char(pos: usize, ch: Char) -> Self {
+  pub const fn invalid_variable_unicode_escape_char(pos: O, ch: Char) -> Self {
     Self::Variable(VariableUnicodeEscapeError::Malformed(
       MalformedVariableUnicodeSequence::from_char(pos, ch),
     ))
@@ -1798,7 +1963,7 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn invalid_variable_unicode_escape_sequence(span: Span) -> Self {
+  pub const fn invalid_variable_unicode_escape_sequence(span: Span<O>) -> Self {
     Self::Variable(VariableUnicodeEscapeError::Malformed(
       MalformedVariableUnicodeSequence::from_range(span),
     ))
@@ -1822,7 +1987,10 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// // The span is now adjusted by 5
   /// ```
   #[inline]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     match self {
       Self::Fixed(err) => {
         err.bump(n);
@@ -1850,9 +2018,11 @@ impl<Char, S> UnicodeEscapeError<Char, S> {
   /// assert_eq!(error.span(), Span::new(10, 14));
   /// ```
   #[inline]
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> Span<O>
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     match self {
       Self::Fixed(err) => err.span(),

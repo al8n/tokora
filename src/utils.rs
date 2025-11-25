@@ -170,6 +170,20 @@ where
   }
 }
 
+impl<O> Span<&O>
+where
+  O: Clone,
+{
+  /// Clone the span into owned offsets.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn cloned(self) -> Span<O> {
+    Span {
+      start: self.start.clone(),
+      end: self.end.clone(),
+    }
+  }
+}
+
 #[cfg(feature = "chumsky")]
 const _: () = {
   use chumsky::{error::Cheap, span::SimpleSpan};

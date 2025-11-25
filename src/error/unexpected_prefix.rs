@@ -1,14 +1,16 @@
+use core::ops::{Add, AddAssign};
+
 use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman};
 
 /// An error indicating that an unexpected prefix was found after a valid token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UnexpectedPrefix<Char, Knowledge, S = Span> {
-  token: Span,
-  prefix: Lexeme<Char>,
+pub struct UnexpectedPrefix<Char, Knowledge, O = usize> {
+  token: Span<O>,
+  prefix: Lexeme<Char, O>,
   knowledge: Option<Knowledge>,
 }
 
-impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
+impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// Create a new `UnexpectedPrefix` error indicating a leading zero was found.
   ///
   /// ## Panics
@@ -26,10 +28,12 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn leading_zero(token: Span, pos: usize, ch: Char) -> Self
+  pub fn leading_zero(token: Span<O>, pos: O, ch: Char) -> Self
   where
     Knowledge: DenyLeadingZero,
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     Self::from_char(token, pos, ch).with_knowledge(Knowledge::INIT)
   }
@@ -50,16 +54,18 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn leading_zeros(token: Span, span: Span) -> Self
+  pub fn leading_zeros(token: Span<O>, span: Span<O>) -> Self
   where
     Knowledge: DenyLeadingZero,
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     Self::from_prefix(token, span).with_knowledge(Knowledge::INIT)
   }
 }
 
-impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
+impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// Creates a new `UnexpectedPrefix` error with the span of the valid token and the unexpected prefix.
   ///
   /// ## Panics
@@ -76,12 +82,14 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn new(token: Span, prefix: Lexeme<Char>) -> Self
+  pub fn new(token: Span<O>, prefix: Lexeme<Char, O>) -> Self
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     assert!(
-      prefix.end() <= token.start(),
+      prefix.end().le(token.start_ref()),
       "prefix ends after token starts"
     );
 
@@ -109,9 +117,11 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_char(token: Span, pos: usize, ch: Char) -> Self
+  pub fn from_char(token: Span<O>, pos: O, ch: Char) -> Self
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     Self::from_positioned_char(token, PositionedChar::with_position(ch, pos))
   }
@@ -132,9 +142,11 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_positioned_char(token: Span, ch: PositionedChar<Char>) -> Self
+  pub fn from_positioned_char(token: Span<O>, ch: PositionedChar<Char, O>) -> Self
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     Self::new(token, Lexeme::Char(ch))
   }
@@ -172,9 +184,11 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_prefix(token: Span, span: Span) -> Self
+  pub fn from_prefix(token: Span<O>, span: Span<O>) -> Self
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     Self::new(token, Lexeme::Range(span))
   }
@@ -193,16 +207,17 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// assert_eq!(error.span(), Span::new(0, 5));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> Span<O>
   where
     Char: CharLen,
+    O: Clone + Ord,
   {
-    let end = self.token.end();
+    let end = self.token.end_ref();
     let start = match &self.prefix {
-      Lexeme::Char(positioned_char) => positioned_char.position(),
-      Lexeme::Range(span) => span.start(),
+      Lexeme::Char(positioned_char) => positioned_char.position_ref().clone(),
+      Lexeme::Range(span) => span.start_ref().clone(),
     };
-    Span::new(start, end)
+    Span::new(start, end.clone())
   }
 
   /// Returns the span of the valid token before the unexpected prefix.
@@ -219,7 +234,10 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// assert_eq!(error.token(), Span::new(1, 5));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn token(&self) -> Span {
+  pub const fn token(&self) -> Span<O>
+  where
+    O: Copy,
+  {
     self.token
   }
 
@@ -241,7 +259,7 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn prefix(&self) -> &Lexeme<Char> {
+  pub const fn prefix(&self) -> &Lexeme<Char, O> {
     &self.prefix
   }
 
@@ -264,7 +282,7 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Lexeme<Char>) {
+  pub fn into_components(self) -> (Span<O>, Lexeme<Char, O>) {
     (self.token, self.prefix)
   }
 
@@ -286,8 +304,12 @@ impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// assert_eq!(error.token(), Span::new(11, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bump(&mut self, offset: usize) {
+  pub fn bump(&mut self, offset: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.token.bump(offset);
+    self
   }
 }
 

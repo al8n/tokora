@@ -1,14 +1,16 @@
+use core::ops::{Add, AddAssign};
+
 use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman};
 
 /// An error indicating that an unexpected suffix was found after a valid token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UnexpectedSuffix<Char, Knowledge, S = Span> {
-  token: Span,
-  suffix: Lexeme<Char>,
+pub struct UnexpectedSuffix<Char, Knowledge, O = usize> {
+  token: Span<O>,
+  suffix: Lexeme<Char, O>,
   knowledge: Option<Knowledge>,
 }
 
-impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
+impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// Creates a new `UnexpectedSuffix` error with the span of the valid token and the unexpected suffix.
   ///
   /// ## Panics
@@ -25,9 +27,12 @@ impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(token: Span, suffix: Lexeme<Char>) -> Self {
+  pub fn new(token: Span<O>, suffix: Lexeme<Char, O>) -> Self
+  where
+    O: Ord,
+  {
     assert!(
-      suffix.start() >= token.end(),
+      suffix.start_ref() >= token.end_ref(),
       "suffix starts before token ends"
     );
 
@@ -55,7 +60,10 @@ impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_char(token: Span, pos: usize, ch: Char) -> Self {
+  pub fn from_char(token: Span<O>, pos: O, ch: Char) -> Self
+  where
+    O: Ord,
+  {
     Self::from_positioned_char(token, PositionedChar::with_position(ch, pos))
   }
 
@@ -75,7 +83,10 @@ impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_positioned_char(token: Span, ch: PositionedChar<Char>) -> Self {
+  pub fn from_positioned_char(token: Span<O>, ch: PositionedChar<Char, O>) -> Self
+  where
+    O: Ord,
+  {
     Self::new(token, Lexeme::Char(ch))
   }
 
@@ -112,7 +123,10 @@ impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_suffix(token: Span, span: Span) -> Self {
+  pub fn from_suffix(token: Span<O>, span: Span<O>) -> Self
+  where
+    O: Ord,
+  {
     Self::new(token, Lexeme::Range(span))
   }
 
@@ -130,18 +144,20 @@ impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
   /// assert_eq!(error.span(), Span::new(0, 6));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> Span<O>
   where
     Char: CharLen,
+    for<'a> &'a O: Add<usize, Output = O>,
+    O: Clone + Ord,
   {
-    let start = self.token.start();
+    let start = self.token.start_ref();
     let end = match &self.suffix {
       Lexeme::Char(positioned_char) => {
-        positioned_char.position() + positioned_char.char_ref().char_len()
+        positioned_char.position_ref() + positioned_char.char_ref().char_len()
       }
-      Lexeme::Range(span) => span.end(),
+      Lexeme::Range(span) => span.end_ref().clone(),
     };
-    Span::new(start, end)
+    Span::new(start.clone(), end)
   }
 
   /// Returns the span of the valid token before the unexpected suffix.
@@ -158,8 +174,29 @@ impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
   /// assert_eq!(error.token(), Span::new(0, 5));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn token(&self) -> Span {
+  pub const fn token(&self) -> Span<O>
+  where
+    O: Copy,
+  {
     self.token
+  }
+
+  /// Returns the span of the valid token before the unexpected suffix.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  ///
+  /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
+  ///     Span::new(0, 5),
+  ///     Lexeme::Char(PositionedChar::with_position('x', 5))
+  /// );
+  /// assert_eq!(error.token_ref(), Span::new(&0, &5));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn token_ref(&self) -> Span<&O> {
+    self.token.as_ref()
   }
 
   /// Returns the unexpected suffix found after the valid token.
@@ -180,7 +217,7 @@ impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn suffix(&self) -> &Lexeme<Char> {
+  pub const fn suffix(&self) -> &Lexeme<Char, O> {
     &self.suffix
   }
 
@@ -203,7 +240,7 @@ impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Lexeme<Char>) {
+  pub fn into_components(self) -> (Span<O>, Lexeme<Char, O>) {
     (self.token, self.suffix)
   }
 
@@ -225,8 +262,12 @@ impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
   /// assert_eq!(error.token(), Span::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bump(&mut self, offset: usize) {
+  pub fn bump(&mut self, offset: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.token.bump(offset);
+    self
   }
 }
 

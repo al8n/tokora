@@ -1,3 +1,5 @@
+use core::ops::{Add, AddAssign};
+
 use crate::utils::{
   CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman, knowledge::LineTerminator,
 };
@@ -7,7 +9,7 @@ use crate::utils::{
 /// This type represents an unexpected line terminator character
 /// encountered during lexing or parsing, along with a hint
 /// describing what was expected instead.
-pub type UnexpectedLineTerminator<Char> = UnexpectedLexeme<Char, LineTerminator>;
+pub type UnexpectedLineTerminator<Char, O = usize> = UnexpectedLexeme<Char, LineTerminator, O>;
 
 /// A zero-copy error structure combining an unexpected lexeme with a diagnostic hint.
 ///
@@ -115,14 +117,15 @@ pub type UnexpectedLineTerminator<Char> = UnexpectedLexeme<Char, LineTerminator>
 /// assert_eq!(span.start(), 10);
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedLexeme<Char, Hint, S = Span> {
-  lexeme: Lexeme<Char>,
+pub struct UnexpectedLexeme<Char, Hint, O = usize> {
+  lexeme: Lexeme<Char, O>,
   hint: Hint,
 }
 
-impl<Char, Hint> core::fmt::Display for UnexpectedLexeme<Char, Hint>
+impl<Char, Hint, O> core::fmt::Display for UnexpectedLexeme<Char, Hint, O>
 where
   Char: DisplayHuman,
+  O: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match &self.lexeme {
@@ -130,22 +133,23 @@ where
         f,
         "unexpected character '{}' at position {}",
         pc.char_ref().display(),
-        pc.position(),
+        pc.position_ref(),
       ),
       Lexeme::Range(span) => write!(f, "unexpected characters at {}", span,),
     }
   }
 }
 
-impl<Char, Hint> core::error::Error for UnexpectedLexeme<Char, Hint>
+impl<Char, Hint, O> core::error::Error for UnexpectedLexeme<Char, Hint, O>
 where
   Char: DisplayHuman + core::fmt::Debug,
   Hint: core::fmt::Debug,
+  O: core::fmt::Debug + core::fmt::Display,
 {
 }
 
-impl<Char, Hint> core::ops::Deref for UnexpectedLexeme<Char, Hint> {
-  type Target = Lexeme<Char>;
+impl<Char, Hint, O> core::ops::Deref for UnexpectedLexeme<Char, Hint, O> {
+  type Target = Lexeme<Char, O>;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref(&self) -> &Self::Target {
@@ -153,14 +157,14 @@ impl<Char, Hint> core::ops::Deref for UnexpectedLexeme<Char, Hint> {
   }
 }
 
-impl<Char, Hint> core::ops::DerefMut for UnexpectedLexeme<Char, Hint> {
+impl<Char, Hint, O> core::ops::DerefMut for UnexpectedLexeme<Char, Hint, O> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.lexeme
   }
 }
 
-impl<Char, S> UnexpectedLexeme<Char, LineTerminator, S> {
+impl<Char, O> UnexpectedLexeme<Char, LineTerminator, O> {
   /// Creates a new `UnexpectedLineTerminator` from a lexeme and line terminator hint.
   ///
   /// ## Example
@@ -173,7 +177,7 @@ impl<Char, S> UnexpectedLexeme<Char, LineTerminator, S> {
   /// assert_eq!(*error.hint(), LineTerminator::NewLine);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new_line(pos: usize, ch: Char) -> Self {
+  pub const fn new_line(pos: O, ch: Char) -> Self {
     Self::from_char(pos, ch, LineTerminator::NewLine)
   }
 
@@ -189,7 +193,7 @@ impl<Char, S> UnexpectedLexeme<Char, LineTerminator, S> {
   /// assert_eq!(*error.hint(), LineTerminator::CarriageReturn);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn carriage_return(pos: usize, ch: Char) -> Self {
+  pub const fn carriage_return(pos: O, ch: Char) -> Self {
     Self::from_char(pos, ch, LineTerminator::CarriageReturn)
   }
 
@@ -205,12 +209,12 @@ impl<Char, S> UnexpectedLexeme<Char, LineTerminator, S> {
   /// assert_eq!(*error.hint(), LineTerminator::CarriageReturnNewLine);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn carriage_return_new_line(span: Span) -> Self {
+  pub const fn carriage_return_new_line(span: Span<O>) -> Self {
     Self::from_range_const(span, LineTerminator::CarriageReturnNewLine)
   }
 }
 
-impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
+impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// Creates a new `UnexpectedLexeme` from a lexeme and hint.
   ///
   /// # Example
@@ -224,7 +228,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(*error.hint(), "identifier");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(lexeme: Lexeme<Char>, hint: Hint) -> Self {
+  pub const fn new(lexeme: Lexeme<Char, O>, hint: Hint) -> Self {
     Self { lexeme, hint }
   }
 
@@ -245,7 +249,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(error.unwrap_char().position(), 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_char(pos: usize, ch: Char, hint: Hint) -> Self {
+  pub const fn from_char(pos: O, ch: Char, hint: Hint) -> Self {
     Self::from_positioned_char(PositionedChar::with_position(ch, pos), hint)
   }
 
@@ -265,7 +269,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(error.unwrap_char().position(), 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_positioned_char(pc: PositionedChar<Char>, hint: Hint) -> Self {
+  pub const fn from_positioned_char(pc: PositionedChar<Char, O>, hint: Hint) -> Self {
     Self::new(Lexeme::Char(pc), hint)
   }
 
@@ -286,7 +290,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert!(error.is_range());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_range_const(span: Span, hint: Hint) -> Self {
+  pub const fn from_range_const(span: Span<O>, hint: Hint) -> Self {
     Self::new(Lexeme::Range(span), hint)
   }
 
@@ -303,7 +307,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(error.unwrap_range().start(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_range(span: impl Into<Span>, hint: Hint) -> Self {
+  pub fn from_range(span: impl Into<Span<O>>, hint: Hint) -> Self {
     Self::new(Lexeme::Range(span.into()), hint)
   }
 
@@ -322,7 +326,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert!(error.lexeme().is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme(&self) -> &Lexeme<Char> {
+  pub const fn lexeme(&self) -> &Lexeme<Char, O> {
     &self.lexeme
   }
 
@@ -361,7 +365,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(error.unwrap_char().position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme_mut(&mut self) -> &mut Lexeme<Char> {
+  pub const fn lexeme_mut(&mut self) -> &mut Lexeme<Char, O> {
     &mut self.lexeme
   }
 
@@ -402,7 +406,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(hint, "identifier");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Lexeme<Char>, Hint) {
+  pub fn into_components(self) -> (Lexeme<Char, O>, Hint) {
     (self.lexeme, self.hint)
   }
 
@@ -422,7 +426,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert!(lexeme.is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_lexeme(self) -> Lexeme<Char> {
+  pub fn into_lexeme(self) -> Lexeme<Char, O> {
     self.lexeme
   }
 
@@ -465,7 +469,11 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(span.end(), 8); // '€' is 3 bytes
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> Span {
+  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> Span<O>
+  where
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
+  {
     self.lexeme.span_with(len_of)
   }
 
@@ -486,9 +494,11 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(error.span(), Span::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> Span<O>
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     self.lexeme.span()
   }
@@ -510,7 +520,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(*upper.hint(), "digit");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map_char<F, NewChar>(self, f: F) -> UnexpectedLexeme<NewChar, Hint>
+  pub fn map_char<F, NewChar>(self, f: F) -> UnexpectedLexeme<NewChar, Hint, O>
   where
     F: FnMut(Char) -> NewChar,
   {
@@ -536,7 +546,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(detailed.hint(), "expected digit");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map_hint<F, NewHint>(self, f: F) -> UnexpectedLexeme<Char, NewHint>
+  pub fn map_hint<F, NewHint>(self, f: F) -> UnexpectedLexeme<Char, NewHint, O>
   where
     F: FnOnce(Hint) -> NewHint,
   {
@@ -567,7 +577,7 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(transformed.hint(), "expected number");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map<F, NewChar, G, NewHint>(self, f: F, g: G) -> UnexpectedLexeme<NewChar, NewHint>
+  pub fn map<F, NewChar, G, NewHint>(self, f: F, g: G) -> UnexpectedLexeme<NewChar, NewHint, O>
   where
     F: FnMut(Char) -> NewChar,
     G: FnOnce(Hint) -> NewHint,
@@ -596,7 +606,10 @@ impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// assert_eq!(error.unwrap_char().position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.lexeme.bump(n);
     self
   }

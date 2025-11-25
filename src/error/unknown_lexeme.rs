@@ -1,3 +1,5 @@
+use core::ops::{Add, AddAssign};
+
 use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman};
 
 /// A zero-copy error structure combining an unrecognized lexeme with diagnostic knowledge.
@@ -192,7 +194,7 @@ impl<Char, O> UnknownLexeme<Char, crate::utils::knowledge::Characters, O> {
   /// assert_eq!(error.unwrap_char().position(), 7);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn unknown_character(pos: usize, ch: Char) -> Self {
+  pub const fn unknown_character(pos: O, ch: Char) -> Self {
     Self::from_char(pos, ch, sealed::Sealed::INIT)
   }
 }
@@ -451,7 +453,11 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// assert_eq!(span.end(), 8); // '€' is 3 bytes
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> Span<O> {
+  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> Span<O>
+  where
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
+  {
     self.lexeme.span_with(len_of)
   }
 
@@ -475,6 +481,8 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   pub fn span(&self) -> Span<O>
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     self.lexeme.span()
   }
@@ -496,7 +504,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// assert_eq!(*upper.knowledge(), "digit");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map_char<F, NewChar>(self, f: F) -> UnknownLexeme<NewChar, Knowledge>
+  pub fn map_char<F, NewChar>(self, f: F) -> UnknownLexeme<NewChar, Knowledge, O>
   where
     F: FnMut(Char) -> NewChar,
   {
@@ -522,7 +530,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// assert_eq!(detailed.knowledge(), "unrecognized, valid: digit");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map_knowledge<F, NewKnowledge>(self, f: F) -> UnknownLexeme<Char, NewKnowledge>
+  pub fn map_knowledge<F, NewKnowledge>(self, f: F) -> UnknownLexeme<Char, NewKnowledge, O>
   where
     F: FnOnce(Knowledge) -> NewKnowledge,
   {
@@ -553,7 +561,11 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// assert_eq!(transformed.knowledge(), "unrecognized, valid: number");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map<F, NewChar, G, NewKnowledge>(self, f: F, g: G) -> UnknownLexeme<NewChar, NewKnowledge>
+  pub fn map<F, NewChar, G, NewKnowledge>(
+    self,
+    f: F,
+    g: G,
+  ) -> UnknownLexeme<NewChar, NewKnowledge, O>
   where
     F: FnMut(Char) -> NewChar,
     G: FnOnce(Knowledge) -> NewKnowledge,
@@ -582,7 +594,10 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// assert_eq!(error.unwrap_char().position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.lexeme.bump(n);
     self
   }

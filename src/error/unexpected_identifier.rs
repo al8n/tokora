@@ -77,13 +77,13 @@ use crate::utils::{Expected, Span};
 /// );
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedIdentifier<'a, S, S = Span> {
+pub struct UnexpectedIdentifier<'a, F, S = Span> {
   span: S,
-  found: S,
+  found: F,
   expected: Expected<'a, &'a str>,
 }
 
-impl<'a, S, S> UnexpectedIdentifier<'a, S, S> {
+impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// Creates a new unexpected identifier error.
   ///
   /// This is the most general constructor that accepts the span, the found identifier,
@@ -104,7 +104,7 @@ impl<'a, S, S> UnexpectedIdentifier<'a, S, S> {
   /// assert_eq!(format!("{}", error), "unexpected 'let', expected 'const' identifier");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, found: S, expected: Expected<'a, &'a str>) -> Self {
+  pub const fn new(span: S, found: F, expected: Expected<'a, &'a str>) -> Self {
     Self {
       span,
       found,
@@ -130,7 +130,7 @@ impl<'a, S, S> UnexpectedIdentifier<'a, S, S> {
   /// assert_eq!(format!("{}", error), "unexpected 'var', expected 'let' identifier");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected_one(span: Span, found: S, expected: &'a str) -> Self {
+  pub const fn expected_one(span: S, found: F, expected: &'a str) -> Self {
     Self::new(span, found, Expected::one(expected))
   }
 
@@ -155,7 +155,7 @@ impl<'a, S, S> UnexpectedIdentifier<'a, S, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected_one_of(span: Span, found: S, expected: &'a [&'a str]) -> Self {
+  pub const fn expected_one_of(span: S, found: F, expected: &'a [&'a str]) -> Self {
     Self::new(span, found, Expected::one_of(expected))
   }
 
@@ -196,7 +196,7 @@ impl<'a, S, S> UnexpectedIdentifier<'a, S, S> {
   /// assert_eq!(error.found(), &"import");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn found(&self) -> &S {
+  pub const fn found(&self) -> &F {
     &self.found
   }
 
@@ -241,8 +241,12 @@ impl<'a, S, S> UnexpectedIdentifier<'a, S, S> {
   /// assert_eq!(error.span(), Span::new(15, 18));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bump(&mut self, offset: usize) {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
     self.span.bump(offset);
+    self
   }
 }
 
