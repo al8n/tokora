@@ -7,8 +7,10 @@ use crate::{
 };
 
 pub use any::*;
+pub use sep::*;
 
 mod any;
+mod sep;
 
 mod sealed {
   use super::*;
@@ -91,6 +93,22 @@ where
 pub struct Parser<F, L, O, Error> {
   f: F,
   _marker: PhantomData<(L, O, Error)>,
+}
+
+impl<F, L, O, Error> core::ops::Deref for Parser<F, L, O, Error> {
+  type Target = F;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn deref(&self) -> &Self::Target {
+    &self.f
+  }
+}
+
+impl<F, L, O, Error> core::ops::DerefMut for Parser<F, L, O, Error> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.f
+  }
 }
 
 impl<F, L, O, Error> Parser<F, L, O, Error> {
@@ -358,6 +376,45 @@ where
   C: Cache<'inp, L>,
 {
   Parser::new(f)
+}
+
+/// With something else.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct With<P, S> {
+  primary: P,
+  secondary: S,
+}
+
+impl<P, S> With<P, S> {
+  /// Create a new `With` combinator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(primary: P, secondary: S) -> Self {
+    Self { primary, secondary }
+  }
+
+  /// Returns a reference to the primary.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn primary(&self) -> &P {
+    &self.primary
+  }
+
+  /// Returns a reference to the secondary.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn secondary(&self) -> &S {
+    &self.secondary
+  }
+
+  /// Returns a mutable reference to the primary.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn primary_mut(&mut self) -> &mut P {
+    &mut self.primary
+  }
+
+  /// Returns a mutable reference to the secondary.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn secondary_mut(&mut self) -> &mut S {
+    &mut self.secondary
+  }
 }
 
 #[cfg(test)]

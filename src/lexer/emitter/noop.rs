@@ -24,4 +24,12 @@ where
   fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>> {
     Err(err)
   }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_too_many(&mut self, span: <L>::Span, found: usize, max: usize) -> Result<(), Spanned<Self::Error, <L>::Span>>
+  where
+    L: Lexer<'a>
+  {
+    todo!()
+  }
 }

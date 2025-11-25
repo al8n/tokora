@@ -70,6 +70,12 @@ where
     *self.state = state;
   }
 
+  /// Returns a mutable reference to the emitter.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn emitter(&mut self) -> &mut E {
+    self.emitter
+  }
+
   // /// Returns an iterator over the tokens of the lexer.
   // #[cfg_attr(not(tarpaulin), inline(always))]
   // pub const fn iter(&mut self) -> iter::Iter<'inp, '_, L, C> {
