@@ -200,7 +200,8 @@ where
   }
 }
 
-impl<Hint, S> core::error::Error for UnexpectedEnd<Hint, S> where
+impl<Hint, S> core::error::Error for UnexpectedEnd<Hint, S>
+where
   Hint: core::fmt::Debug + core::fmt::Display,
   S: core::fmt::Debug,
 {
@@ -560,7 +561,10 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   /// assert_eq!(error.span(), Span::new(100, 101));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S where S: Copy {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
@@ -630,4 +634,3 @@ impl<Hint, S> From<(S, Hint)> for UnexpectedEnd<Hint, S> {
     Self::new(span, hint)
   }
 }
-

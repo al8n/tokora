@@ -2,13 +2,13 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 
 /// An error indicating that an unexpected suffix was found after a valid token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UnexpectedSuffix<Char, Knowledge> {
+pub struct UnexpectedSuffix<Char, Knowledge, S = Span> {
   token: Span,
   suffix: Lexeme<Char>,
   knowledge: Option<Knowledge>,
 }
 
-impl<Char, Knowledge> UnexpectedSuffix<Char, Knowledge> {
+impl<Char, Knowledge, S> UnexpectedSuffix<Char, Knowledge, S> {
   /// Creates a new `UnexpectedSuffix` error with the span of the valid token and the unexpected suffix.
   ///
   /// ## Panics

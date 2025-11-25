@@ -1,4 +1,4 @@
-use crate::{Lexer, utils::Spanned};
+use crate::{Lexer, error::UnclosedParen, utils::Spanned};
 
 use super::Token;
 
@@ -62,25 +62,25 @@ pub trait Emitter<'a, L> {
   /// It can be any type that represents your application's error model.
   type Error;
 
-  /// Emits an error indicating that too many elements were found.
-  /// 
-  /// # Parameters
-  /// - `span`: The span covering the full range of the elements found.
-  /// - `found`: The number of elements that were found.
-  /// - `max`: The maximum allowed number of elements.
-  fn emit_too_many(&mut self, span: L::Span, found: usize, max: usize) -> Result<(), Spanned<Self::Error, L::Span>>
-  where
-    L: Lexer<'a>;
+  // /// Emits an error indicating that too many elements were found.
+  // ///
+  // /// # Parameters
+  // /// - `span`: The span covering the full range of the elements found.
+  // /// - `found`: The number of elements that were found.
+  // /// - `max`: The maximum allowed number of elements.
+  // fn emit_too_many(&mut self, span: L::Span, found: usize, max: usize) -> Result<(), Spanned<Self::Error, L::Span>>
+  // where
+  //   L: Lexer<'a>;
 
-  /// Emits an error indicating that too few elements were found.
-  /// 
-  /// # Parameters
-  /// - `span`: The span covering the full range of the elements found.
-  /// - `found`: The number of elements that were found.
-  /// - `min`: The minimum required number of elements.
-  fn emit_too_less(&mut self, span: L::Span, found: usize, min: usize) -> Result<(), Spanned<Self::Error, L::Span>>
-  where
-    L: Lexer<'a>;
+  // /// Emits an error indicating that too few elements were found.
+  // ///
+  // /// # Parameters
+  // /// - `span`: The span covering the full range of the elements found.
+  // /// - `found`: The number of elements that were found.
+  // /// - `min`: The minimum required number of elements.
+  // fn emit_too_less(&mut self, span: L::Span, found: usize, min: usize) -> Result<(), Spanned<Self::Error, L::Span>>
+  // where
+  //   L: Lexer<'a>;
 
   /// Emits a lexer error from the underlying Logos tokenizer.
   ///
@@ -96,7 +96,10 @@ pub trait Emitter<'a, L> {
   ///
   /// - `Ok(())` if the error should be treated as non-fatal (processing continues)
   /// - `Err(Self::Error)` if the error is fatal (processing stops immediately)
-  fn emit_token_error(&mut self, err: Spanned<<L::Token as Token<'a>>::Error, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_token_error(
+    &mut self,
+    err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>;
 
@@ -114,7 +117,10 @@ pub trait Emitter<'a, L> {
   ///
   /// - `Ok(())` if the error should be treated as non-fatal (processing continues)
   /// - `Err(Self::Error)` if the error is fatal (processing stops immediately)
-  fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_error(
+    &mut self,
+    err: Spanned<Self::Error, L::Span>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>;
 }
@@ -125,35 +131,75 @@ where
 {
   type Error = U::Error;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(&mut self, span: <L>::Span, found: usize, max: usize) -> Result<(), Spanned<Self::Error, <L>::Span>>
-  where
-    L: Lexer<'a>
-  {
-    (**self).emit_too_many(span, found, max)  
-  }
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // fn emit_too_many(&mut self, span: <L>::Span, found: usize, max: usize) -> Result<(), Spanned<Self::Error, <L>::Span>>
+  // where
+  //   L: Lexer<'a>
+  // {
+  //   (**self).emit_too_many(span, found, max)
+  // }
+
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // fn emit_too_less(&mut self, span: L::Span, found: usize, min: usize) -> Result<(), Spanned<Self::Error, L::Span>>
+  // where
+  //   L: Lexer<'a>
+  // {
+  //   (**self).emit_too_less(span, found, min)
+  // }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_less(&mut self, span: L::Span, found: usize, min: usize) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_token_error(
+    &mut self,
+    err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
-    L: Lexer<'a>
-  {
-    (**self).emit_too_less(span, found, min)
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_token_error(&mut self, err: Spanned<<L::Token as Token<'a>>::Error, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
-  where
-    L: Lexer<'a>
+    L: Lexer<'a>,
   {
     (**self).emit_token_error(err)
   }
-  
+
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_error(
+    &mut self,
+    err: Spanned<Self::Error, L::Span>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
-    L: Lexer<'a>
+    L: Lexer<'a>,
   {
     (**self).emit_error(err)
-  }  
+  }
+}
+
+/// An emitter that handles "too many" elements found during parsing.
+pub trait TooManyEmitter<'a, L>: Emitter<'a, L> {
+  /// Emits an error indicating that too many elements were found.
+  fn emit_too_many(
+    &mut self,
+    span: L::Span,
+    found: usize,
+    max: usize,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>;
+}
+
+/// An emitter that handles "too few" elements found during parsing.
+pub trait TooLessEmitter<'a, L>: Emitter<'a, L> {
+  /// Emits an error indicating that too few elements were found.
+  fn emit_too_less(
+    &mut self,
+    span: L::Span,
+    found: usize,
+    min: usize,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>;
+}
+
+/// An emitter that emits unclosed parenthesis errors.
+pub trait UnclosedEmitter<'a, L>: Emitter<'a, L> {
+  /// Emits an error indicating that there are unclosed parentheses.
+  fn emit_unclosed(&mut self, err: UnclosedParen) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>;
 }

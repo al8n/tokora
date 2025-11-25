@@ -182,9 +182,9 @@ pub type InvalidFixedUnicodeHexDigits<Char = char> = crate::error::InvalidHexDig
 /// assert_eq!(error.span(), Span::new(10, 16));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MalformedFixedUnicodeEscape<Char = char> {
+pub struct MalformedFixedUnicodeEscape<Char = char, S = Span> {
   digits: InvalidFixedUnicodeHexDigits<Char>,
-  span: Span,
+  span: S,
 }
 
 impl<Char> core::fmt::Display for MalformedFixedUnicodeEscape<Char>
@@ -206,7 +206,7 @@ impl<Char> core::error::Error for MalformedFixedUnicodeEscape<Char> where
 {
 }
 
-impl<Char> MalformedFixedUnicodeEscape<Char> {
+impl<Char, S> MalformedFixedUnicodeEscape<Char, S> {
   /// Creates a new malformed fixed-width unicode escape error.
   ///
   /// ## Examples
@@ -307,19 +307,22 @@ impl<Char> MalformedFixedUnicodeEscape<Char> {
   /// assert_eq!(error.span(), Span::new(10, 16));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the malformed unicode escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the malformed unicode escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -416,7 +419,7 @@ pub enum InvalidUnicodeScalarKind {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct InvalidUnicodeScalarValue {
   value: u32,
-  span: Span,
+  span: S,
   kind: InvalidUnicodeScalarKind,
 }
 
@@ -497,19 +500,22 @@ impl InvalidUnicodeScalarValue {
   /// assert_eq!(error.span(), Span::new(5, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -610,7 +616,10 @@ impl EmptyVariableUnicodeEscape {
   /// assert_eq!(error.span(), Span::new(10, 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.0
   }
 
@@ -666,7 +675,7 @@ impl core::error::Error for EmptyVariableUnicodeEscape {}
 ///     MalformedVariableUnicodeSequence::from_range((10, 15).into());
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct MalformedVariableUnicodeSequence<Char = char>(Lexeme<Char>);
+pub struct MalformedVariableUnicodeSequence<Char = char, S = Span>(Lexeme<Char>);
 
 impl<Char> core::fmt::Display for MalformedVariableUnicodeSequence<Char>
 where
@@ -695,7 +704,7 @@ impl<Char> core::error::Error for MalformedVariableUnicodeSequence<Char> where
 {
 }
 
-impl<Char> MalformedVariableUnicodeSequence<Char> {
+impl<Char, S> MalformedVariableUnicodeSequence<Char, S> {
   /// Creates a new malformed variable-length unicode escape error from a lexeme.
   ///
   /// ## Examples
@@ -885,7 +894,10 @@ impl TooManyDigitsInVariableUnicodeEscape {
   /// assert_eq!(error.span(), Span::new(10, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.0
   }
 
@@ -1017,7 +1029,7 @@ where
   }
 }
 
-impl<Char> VariableUnicodeEscapeError<Char> {
+impl<Char, S> VariableUnicodeEscapeError<Char, S> {
   /// Creates an empty variable-length unicode escape error.
   ///
   /// ## Examples
@@ -1268,7 +1280,10 @@ impl IncompleteFixedUnicodeEscape {
   /// assert_eq!(error.span(), Span::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.0
   }
 
@@ -1387,7 +1402,7 @@ where
   }
 }
 
-impl<Char> FixedUnicodeEscapeError<Char> {
+impl<Char, S> FixedUnicodeEscapeError<Char, S> {
   /// Creates an unpaired high surrogate error.
   ///
   /// ## Examples
@@ -1574,7 +1589,7 @@ where
   }
 }
 
-impl<Char> UnicodeEscapeError<Char> {
+impl<Char, S> UnicodeEscapeError<Char, S> {
   /// Creates an unpaired high surrogate error.
   ///
   /// ## Examples

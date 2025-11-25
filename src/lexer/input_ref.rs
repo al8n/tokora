@@ -14,13 +14,7 @@ use super::{Cache, CachedToken, Checkpoint, Cursor, Emitter, Lexed, Lexer, Sourc
 mod iter;
 
 /// A reference to an [`Input`] instance.
-pub struct InputRef<
-  'inp,
-  'closure,
-  L,
-  E,
-  C,
->
+pub struct InputRef<'inp, 'closure, L, E, C>
 where
   L: Lexer<'inp>,
 {
@@ -710,8 +704,9 @@ where
   ///
   /// Returns `Ok(Some(token))` for valid tokens, `Ok(None)` at end of input, or
   /// `Err(error)` if a fatal error occurred.
-  pub fn next_valid(&mut self) -> Result<Option<Spanned<L::Token, L::Span>>, Spanned<E::Error, L::Span>>
-  {
+  pub fn next_valid(
+    &mut self,
+  ) -> Result<Option<Spanned<L::Token, L::Span>>, Spanned<E::Error, L::Span>> {
     // First, consume from cache if available
     while let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();

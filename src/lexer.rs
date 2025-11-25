@@ -1,4 +1,4 @@
-use core::{convert::Infallible, fmt, hash::Hash};
+use core::{convert::Infallible, fmt, hash::Hash, ops::AddAssign};
 
 pub use cache::*;
 pub use checkpoint::Checkpoint;
@@ -14,7 +14,6 @@ pub use token::{
 // #[cfg(feature = "logos")]
 pub use self::logos::LogosLexer;
 
-
 pub(crate) use input::Input;
 
 use crate::utils::Spanned;
@@ -25,10 +24,12 @@ pub mod token;
 /// The source related structures and traits
 pub mod source;
 
+/// The emitter related structures and traits
+pub mod emitter;
+
 mod cache;
 mod checkpoint;
 mod cursor;
-mod emitter;
 mod input;
 mod input_ref;
 mod logos;
@@ -39,7 +40,10 @@ pub trait IntoLexer<'inp, T: ?Sized> {
   type Lexer;
 
   /// a
-  fn into_lexer(self) -> Self::Lexer where Self: 'inp, T: Token<'inp>;
+  fn into_lexer(self) -> Self::Lexer
+  where
+    Self: 'inp,
+    T: Token<'inp>;
 }
 
 impl<'inp, T, L> IntoLexer<'inp, T> for L
@@ -50,8 +54,7 @@ where
   type Lexer = L;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn into_lexer(self) -> Self::Lexer
-  {
+  fn into_lexer(self) -> Self::Lexer {
     self
   }
 }
@@ -296,8 +299,11 @@ impl Span for core::ops::Range<usize> {
   }
 }
 
-impl Span for crate::utils::Span {
-  type Offset = usize;
+impl<O> Span for crate::utils::Span<O>
+where
+  O: Ord + Clone + Hash + for<'a> AddAssign<&'a O>,
+{
+  type Offset = O;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn new(start: Self::Offset, end: Self::Offset) -> Self {
@@ -316,7 +322,7 @@ impl Span for crate::utils::Span {
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn bump(&mut self, n: &Self::Offset) {
-    self.bump(*n);
+    self.bump(n);
   }
 }
 

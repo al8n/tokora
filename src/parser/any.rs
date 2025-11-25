@@ -3,7 +3,8 @@ use super::*;
 /// A parser that accepts any token.
 pub struct Any;
 
-impl<'inp, L, E, C> sealed::Sealed<'inp, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, E, C> for Any
+impl<'inp, L, E, C> sealed::Sealed<'inp, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, E, C>
+  for Any
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
@@ -11,7 +12,8 @@ where
 {
 }
 
-impl<'inp, L, E, C> ParseInput<'inp, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, E, C> for Any
+impl<'inp, L, E, C> ParseInput<'inp, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, E, C>
+  for Any
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
@@ -27,7 +29,7 @@ where
 }
 
 /// A parser that accepts any input, returning the next token if available.
-/// 
+///
 /// Returns `None` if the input is exhausted.
 #[cfg_attr(not(tarpaulin), inline(always))]
 pub const fn any<'inp, L>() -> Parser<Any, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, ()>

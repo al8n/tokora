@@ -1,6 +1,6 @@
 use crate::utils::Spanned;
 
-use super::{super::Noop, Emitter, Token, Lexer};
+use super::{super::Noop, Emitter, Lexer, Token};
 
 impl<'a, L, E> Emitter<'a, L> for Noop<E>
 where
@@ -21,15 +21,10 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>> {
+  fn emit_error(
+    &mut self,
+    err: Spanned<Self::Error, L::Span>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>> {
     Err(err)
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(&mut self, span: <L>::Span, found: usize, max: usize) -> Result<(), Spanned<Self::Error, <L>::Span>>
-  where
-    L: Lexer<'a>
-  {
-    todo!()
   }
 }

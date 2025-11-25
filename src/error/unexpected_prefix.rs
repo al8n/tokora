@@ -2,13 +2,13 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 
 /// An error indicating that an unexpected prefix was found after a valid token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UnexpectedPrefix<Char, Knowledge> {
+pub struct UnexpectedPrefix<Char, Knowledge, S = Span> {
   token: Span,
   prefix: Lexeme<Char>,
   knowledge: Option<Knowledge>,
 }
 
-impl<Char, Knowledge> UnexpectedPrefix<Char, Knowledge> {
+impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// Create a new `UnexpectedPrefix` error indicating a leading zero was found.
   ///
   /// ## Panics
@@ -59,7 +59,7 @@ impl<Char, Knowledge> UnexpectedPrefix<Char, Knowledge> {
   }
 }
 
-impl<Char, Knowledge> UnexpectedPrefix<Char, Knowledge> {
+impl<Char, Knowledge, S> UnexpectedPrefix<Char, Knowledge, S> {
   /// Creates a new `UnexpectedPrefix` error with the span of the valid token and the unexpected prefix.
   ///
   /// ## Panics

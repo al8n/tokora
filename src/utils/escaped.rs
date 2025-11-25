@@ -115,21 +115,22 @@ use super::{PositionedChar, Span};
 /// assert_eq!(tab.char(), 't');
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SingleCharEscape<Char = char> {
+pub struct SingleCharEscape<Char = char, S = Span> {
   character: PositionedChar<Char>,
-  span: Span,
+  span: S,
 }
 
-impl<Char> core::fmt::Display for SingleCharEscape<Char>
+impl<Char, S> core::fmt::Display for SingleCharEscape<Char, S>
 where
   Char: DisplayHuman,
+  S: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "\\{} at {}", self.char_ref().display(), self.span)
   }
 }
 
-impl<Char> SingleCharEscape<Char> {
+impl<Char, S> SingleCharEscape<Char, S> {
   /// Creates a new single-character escape sequence.
   ///
   /// ## Examples
@@ -145,7 +146,7 @@ impl<Char> SingleCharEscape<Char> {
   /// assert_eq!(escape.char(), 'r');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_char(span: Span, pos: usize, ch: Char) -> Self {
+  pub const fn from_char(span: S, pos: usize, ch: Char) -> Self {
     Self::from_positioned_char(span, PositionedChar::with_position(ch, pos))
   }
 
@@ -163,7 +164,7 @@ impl<Char> SingleCharEscape<Char> {
   /// assert_eq!(escape.char(), 'r');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_positioned_char(span: Span, character: PositionedChar<Char>) -> Self {
+  pub const fn from_positioned_char(span: S, character: PositionedChar<Char>) -> Self {
     Self { character, span }
   }
 
@@ -249,19 +250,22 @@ impl<Char> SingleCharEscape<Char> {
   /// assert_eq!(escape.span(), Span::new(4, 6)); // Covers both '\' and 'r'
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -286,9 +290,12 @@ impl<Char> SingleCharEscape<Char> {
   /// assert_eq!(escape.span(), Span::new(15, 17)); // Was 10-12, now 15-17
   /// ```
   #[inline]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
-    self.span.bump(n);
-    self.character.bump_position(n);
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
+    self.span.bump(offset);
+    self.character.bump_position(&S::Offset::from(1usize)); // bump by 1 for the character position
     self
   }
 }
@@ -331,18 +338,21 @@ impl<Char> SingleCharEscape<Char> {
 /// assert_eq!(unicode.content(), Span::new(11, 16));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct MultiCharEscape {
-  content: Span,
-  span: Span,
+pub struct MultiCharEscape<S = Span> {
+  content: S,
+  span: S,
 }
 
-impl core::fmt::Display for MultiCharEscape {
+impl<S> core::fmt::Display for MultiCharEscape<S>
+where
+  S: core::fmt::Display,
+{
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "escape sequence at {}", self.span)
   }
 }
 
-impl MultiCharEscape {
+impl<S> MultiCharEscape<S> {
   /// Creates a new multi-character escape sequence.
   ///
   /// ## Parameters
@@ -361,7 +371,7 @@ impl MultiCharEscape {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(content: Span, span: Span) -> Self {
+  pub const fn new(content: S, span: S) -> Self {
     Self { content, span }
   }
 
@@ -381,19 +391,22 @@ impl MultiCharEscape {
   /// assert_eq!(escape.content(), Span::new(6, 9));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn content(&self) -> Span {
+  pub const fn content(&self) -> S
+  where
+    S: Copy,
+  {
     self.content
   }
 
   /// Returns a reference to the content span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn content_ref(&self) -> &Span {
+  pub const fn content_ref(&self) -> &S {
     &self.content
   }
 
   /// Returns a mutable reference to the content span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn content_mut(&mut self) -> &mut Span {
+  pub const fn content_mut(&mut self) -> &mut S {
     &mut self.content
   }
 
@@ -413,19 +426,22 @@ impl MultiCharEscape {
   /// assert_eq!(escape.span(), Span::new(5, 9)); // Full `\xFF`
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -450,9 +466,12 @@ impl MultiCharEscape {
   /// assert_eq!(escape.span(), Span::new(15, 19));
   /// ```
   #[inline]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
-    self.span.bump(n);
-    self.content.bump(n);
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
+    self.span.bump(offset);
+    self.content.bump(offset);
     self
   }
 }
@@ -507,14 +526,18 @@ impl MultiCharEscape {
 /// assert!(escape.lexeme_ref().is_range());
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct EscapedLexeme<Char = char> {
-  span: Span,
-  lexeme: Lexeme<Char>,
+pub struct EscapedLexeme<Char = char, S = Span>
+where
+  S: crate::lexer::Span,
+{
+  span: S,
+  lexeme: Lexeme<Char, S>,
 }
 
-impl<Char> core::fmt::Display for EscapedLexeme<Char>
+impl<Char, S> core::fmt::Display for EscapedLexeme<Char, S>
 where
   Char: DisplayHuman,
+  S: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self.lexeme {
@@ -524,7 +547,7 @@ where
   }
 }
 
-impl<Char> EscapedLexeme<Char> {
+impl<Char, S> EscapedLexeme<Char, S> {
   /// Creates a new escaped lexeme.
   ///
   /// ## Parameters
@@ -541,7 +564,7 @@ impl<Char> EscapedLexeme<Char> {
   /// let escape = EscapedLexeme::new(Span::new(10, 12), lexeme);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, lexeme: Lexeme<Char>) -> Self {
+  pub const fn new(span: S, lexeme: Lexeme<Char, S>) -> Self {
     Self { span, lexeme }
   }
 
@@ -562,7 +585,7 @@ impl<Char> EscapedLexeme<Char> {
   /// assert!(escape.lexeme_ref().is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_positioned_char(span: Span, ch: PositionedChar<Char>) -> Self {
+  pub const fn from_positioned_char(span: S, ch: PositionedChar<Char>) -> Self {
     Self::new(span, Lexeme::Char(ch))
   }
 
@@ -584,7 +607,7 @@ impl<Char> EscapedLexeme<Char> {
   /// assert!(escape.lexeme_ref().is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_char(span: Span, pos: usize, ch: Char) -> Self {
+  pub const fn from_char(span: S, pos: usize, ch: Char) -> Self {
     Self::from_positioned_char(span, PositionedChar::with_position(ch, pos))
   }
 
@@ -605,7 +628,7 @@ impl<Char> EscapedLexeme<Char> {
   /// assert!(escape.lexeme_ref().is_range());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_sequence(span: Span, content: Span) -> Self {
+  pub const fn from_sequence(span: S, content: S) -> Self {
     Self::new(span, Lexeme::Range(content))
   }
 
@@ -623,19 +646,22 @@ impl<Char> EscapedLexeme<Char> {
   /// assert_eq!(escape.span(), Span::new(10, 12));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -655,9 +681,10 @@ impl<Char> EscapedLexeme<Char> {
   /// assert!(lexeme.is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme(&self) -> Lexeme<Char>
+  pub const fn lexeme(&self) -> Lexeme<Char, S>
   where
     Char: Copy,
+    S: Copy,
   {
     self.lexeme
   }
@@ -676,13 +703,13 @@ impl<Char> EscapedLexeme<Char> {
   /// assert!(escape.lexeme_ref().is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme_ref(&self) -> &Lexeme<Char> {
+  pub const fn lexeme_ref(&self) -> &Lexeme<Char, S> {
     &self.lexeme
   }
 
   /// Returns a mutable reference to the lexeme.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme_mut(&mut self) -> &mut Lexeme<Char> {
+  pub const fn lexeme_mut(&mut self) -> &mut Lexeme<Char, S> {
     &mut self.lexeme
   }
 
@@ -705,9 +732,12 @@ impl<Char> EscapedLexeme<Char> {
   /// assert_eq!(escape.span(), Span::new(15, 17));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
-    self.span.bump(n);
-    self.lexeme.bump(n);
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
+    self.span.bump(offset);
+    self.lexeme.bump(offset);
     self
   }
 }

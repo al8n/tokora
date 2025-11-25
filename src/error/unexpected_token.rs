@@ -91,14 +91,14 @@ use crate::utils::{Expected, Span};
 /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedToken<'a, T, TK> {
-  span: Span,
+pub struct UnexpectedToken<'a, T, TK, S = Span> {
+  span: S,
   found: Option<T>,
   expected: Expected<'a, TK>,
 }
 
-impl<'a, T, TK> UnexpectedToken<'a, T, TK> {
-  const fn new_in(span: Span, found: Option<T>, expected: Expected<'a, TK>) -> Self {
+impl<'a, T, TK, S> UnexpectedToken<'a, T, TK, S> {
+  const fn new_in(span: S, found: Option<T>, expected: Expected<'a, TK>) -> Self {
     Self {
       span,
       found,
@@ -125,7 +125,7 @@ impl<'a, T, TK> UnexpectedToken<'a, T, TK> {
   /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, expected: Expected<'a, TK>) -> Self {
+  pub const fn new(span: S, expected: Expected<'a, TK>) -> Self {
     Self::new_in(span, None, expected)
   }
 
@@ -147,7 +147,7 @@ impl<'a, T, TK> UnexpectedToken<'a, T, TK> {
   /// assert_eq!(format!("{}", error), "unexpected end of input, expected ';'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected_one(span: Span, expected: TK) -> Self {
+  pub const fn expected_one(span: S, expected: TK) -> Self {
     Self::new(span, Expected::one(expected))
   }
 
@@ -170,7 +170,7 @@ impl<'a, T, TK> UnexpectedToken<'a, T, TK> {
   /// assert_eq!(format!("{}", error), "unexpected token ':', expected ';'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected_one_with_found(span: Span, found: T, expected: TK) -> Self {
+  pub const fn expected_one_with_found(span: S, found: T, expected: TK) -> Self {
     Self::new_in(span, Some(found), Expected::one(expected))
   }
 
@@ -195,7 +195,7 @@ impl<'a, T, TK> UnexpectedToken<'a, T, TK> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected_one_of(span: Span, expected: &'static [TK]) -> Self {
+  pub const fn expected_one_of(span: S, expected: &'static [TK]) -> Self {
     Self::new(span, Expected::one_of(expected))
   }
 
@@ -221,7 +221,7 @@ impl<'a, T, TK> UnexpectedToken<'a, T, TK> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected_one_of_with_found(span: Span, found: T, expected: &'static [TK]) -> Self {
+  pub const fn expected_one_of_with_found(span: S, found: T, expected: &'static [TK]) -> Self {
     Self::new_in(span, Some(found), Expected::one_of(expected))
   }
 
@@ -358,7 +358,10 @@ impl<'a, T, TK> UnexpectedToken<'a, T, TK> {
   /// assert_eq!(error.span(), Span::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
@@ -430,7 +433,10 @@ impl<'a, T, TK> UnexpectedToken<'a, T, TK> {
   /// assert_eq!(error.span(), Span::new(15, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) {
+  pub fn bump(&mut self, offset: &S::Offset)
+  where
+    S: crate::lexer::Span,
+  {
     self.span.bump(offset);
   }
 
@@ -456,7 +462,7 @@ impl<'a, T, TK> UnexpectedToken<'a, T, TK> {
   /// });
   /// # }
   /// ```
-  pub fn map_expected<F, TK2>(self, f: F) -> UnexpectedToken<'a, T, TK2>
+  pub fn map_expected<F, TK2>(self, f: F) -> UnexpectedToken<'a, T, TK2, S>
   where
     F: FnOnce(Expected<'a, TK>) -> Expected<'a, TK2>,
   {
@@ -488,13 +494,13 @@ impl<'a, T, TK> UnexpectedToken<'a, T, TK> {
   /// assert_eq!(expected, Expected::one("{"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Option<T>, Expected<'a, TK>) {
+  pub fn into_components(self) -> (S, Option<T>, Expected<'a, TK>) {
     (self.span, self.found, self.expected)
   }
 }
 
-impl<T: core::fmt::Display, TK: core::fmt::Display + 'static> core::fmt::Display
-  for UnexpectedToken<'_, T, TK>
+impl<T: core::fmt::Display, TK: core::fmt::Display + 'static, S> core::fmt::Display
+  for UnexpectedToken<'_, T, TK, S>
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -505,7 +511,10 @@ impl<T: core::fmt::Display, TK: core::fmt::Display + 'static> core::fmt::Display
   }
 }
 
-impl<T: core::fmt::Debug + core::fmt::Display, TK: core::fmt::Display + core::fmt::Debug + 'static>
-  core::error::Error for UnexpectedToken<'_, T, TK>
+impl<
+  T: core::fmt::Debug + core::fmt::Display,
+  TK: core::fmt::Display + core::fmt::Debug + 'static,
+  S: core::fmt::Debug,
+> core::error::Error for UnexpectedToken<'_, T, TK, S>
 {
 }

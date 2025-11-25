@@ -180,12 +180,12 @@ pub type UndelimitedAngle = Undelimited<Angle>;
 /// }
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Undelimited<Delimiter> {
-  span: Span,
+pub struct Undelimited<Delimiter, S = Span> {
+  span: S,
   delimiter: Delimiter,
 }
 
-impl<Delimiter> core::fmt::Display for Undelimited<Delimiter>
+impl<Delimiter, S> core::fmt::Display for Undelimited<Delimiter, S>
 where
   Delimiter: core::fmt::Display,
 {
@@ -195,12 +195,14 @@ where
   }
 }
 
-impl<Delimiter> core::error::Error for Undelimited<Delimiter> where
-  Delimiter: core::fmt::Display + core::fmt::Debug
+impl<Delimiter, S> core::error::Error for Undelimited<Delimiter, S>
+where
+  Delimiter: core::fmt::Display + core::fmt::Debug,
+  S: core::fmt::Debug,
 {
 }
 
-impl Undelimited<Paren> {
+impl<S> Undelimited<Paren, S> {
   /// Creates a new undelimited content error for missing parentheses.
   ///
   /// The span should point to the position of the content that should have been
@@ -217,7 +219,7 @@ impl Undelimited<Paren> {
   /// assert_eq!(error.delimiter(), Paren);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn paren(span: Span) -> Self {
+  pub const fn paren(span: S) -> Self {
     Self {
       span,
       delimiter: Paren,
@@ -225,7 +227,7 @@ impl Undelimited<Paren> {
   }
 }
 
-impl Undelimited<Bracket> {
+impl<S> Undelimited<Bracket, S> {
   /// Creates a new undelimited content error for missing brackets.
   ///
   /// The span should point to the position of the content that should have been
@@ -242,7 +244,7 @@ impl Undelimited<Bracket> {
   /// assert_eq!(error.delimiter(), Bracket);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bracket(span: Span) -> Self {
+  pub const fn bracket(span: S) -> Self {
     Self {
       span,
       delimiter: Bracket,
@@ -250,7 +252,7 @@ impl Undelimited<Bracket> {
   }
 }
 
-impl Undelimited<Brace> {
+impl<S> Undelimited<Brace, S> {
   /// Creates a new undelimited content error for missing braces.
   ///
   /// The span should point to the position of the content that should have been
@@ -267,7 +269,7 @@ impl Undelimited<Brace> {
   /// assert_eq!(error.delimiter(), Brace);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn brace(span: Span) -> Self {
+  pub const fn brace(span: S) -> Self {
     Self {
       span,
       delimiter: Brace,
@@ -275,7 +277,7 @@ impl Undelimited<Brace> {
   }
 }
 
-impl Undelimited<Angle> {
+impl<S> Undelimited<Angle, S> {
   /// Creates a new undelimited content error for missing angle brackets.
   ///
   /// The span should point to the position of the content that should have been
@@ -292,7 +294,7 @@ impl Undelimited<Angle> {
   /// assert_eq!(error.delimiter(), Angle);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn angle(span: Span) -> Self {
+  pub const fn angle(span: S) -> Self {
     Self {
       span,
       delimiter: Angle,
@@ -300,7 +302,7 @@ impl Undelimited<Angle> {
   }
 }
 
-impl<Delimiter> Undelimited<Delimiter> {
+impl<Delimiter, S> Undelimited<Delimiter, S> {
   /// Creates a new undelimited content error.
   ///
   /// The span should point to the position of the content that should have been
@@ -317,7 +319,7 @@ impl<Delimiter> Undelimited<Delimiter> {
   /// assert_eq!(error.delimiter(), '{');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, delimiter: Delimiter) -> Self {
+  pub const fn new(span: S, delimiter: Delimiter) -> Self {
     Self { span, delimiter }
   }
 
@@ -334,19 +336,22 @@ impl<Delimiter> Undelimited<Delimiter> {
   /// assert_eq!(error.span(), Span::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -401,7 +406,10 @@ impl<Delimiter> Undelimited<Delimiter> {
   /// assert_eq!(error.span(), Span::new(105, 110));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
     self.span.bump(offset);
     self
   }
@@ -419,7 +427,7 @@ impl<Delimiter> Undelimited<Delimiter> {
   /// assert_eq!(delimiter, '"');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Delimiter) {
+  pub fn into_components(self) -> (S, Delimiter) {
     (self.span, self.delimiter)
   }
 }

@@ -64,10 +64,7 @@ where
   ) -> &mut [MaybeRef<'_, CachedToken<'a, L>>] {
     // SAFETY: We never initialize any element in the buffer, so the returned slice is always empty.
     unsafe {
-      core::slice::from_raw_parts_mut(
-        buf.as_mut_ptr() as *mut MaybeRef<'_, CachedToken<'a, L>>,
-        0,
-      )
+      core::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeRef<'_, CachedToken<'a, L>>, 0)
     }
   }
 

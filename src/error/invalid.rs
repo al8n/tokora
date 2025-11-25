@@ -190,14 +190,15 @@ pub type InvalidHexFloatLiteral = Invalid<HexFloatLiteral>;
 /// assert_eq!(error.to_string(), "invalid at 5..8, did you mean int literal?");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Invalid<Knowledge> {
-  span: Span,
+pub struct Invalid<Knowledge, S = Span> {
+  span: S,
   knowledge: Option<Knowledge>,
 }
 
-impl<Knowledge> core::fmt::Display for Invalid<Knowledge>
+impl<Knowledge, S> core::fmt::Display for Invalid<Knowledge, S>
 where
   Knowledge: DisplayHuman,
+  S: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match &self.knowledge {
@@ -212,12 +213,14 @@ where
   }
 }
 
-impl<Knowledge> core::error::Error for Invalid<Knowledge> where
-  Knowledge: DisplayHuman + core::fmt::Debug
+impl<Knowledge, S> core::error::Error for Invalid<Knowledge, S>
+where
+  Knowledge: DisplayHuman + core::fmt::Debug,
+  S: core::fmt::Debug + core::fmt::Display,
 {
 }
 
-impl Invalid<BooleanLiteral> {
+impl<S> Invalid<BooleanLiteral, S> {
   /// Create a new Invalid knowledge for a boolean literal from a Span
   ///
   /// ## Examples
@@ -230,12 +233,12 @@ impl Invalid<BooleanLiteral> {
   /// assert_eq!(error.knowledge(), Some(&BooleanLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn boolean(span: Span) -> Self {
+  pub const fn boolean(span: S) -> Self {
     Self::with_knowledge(span, BooleanLiteral(()))
   }
 }
 
-impl Invalid<NullLiteral> {
+impl<S> Invalid<NullLiteral, S> {
   /// Create a new Invalid knowledge for a null literal from a Span
   ///
   /// ## Examples
@@ -248,12 +251,12 @@ impl Invalid<NullLiteral> {
   /// assert_eq!(error.knowledge(), Some(&NullLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn null(span: Span) -> Self {
+  pub const fn null(span: S) -> Self {
     Self::with_knowledge(span, NullLiteral(()))
   }
 }
 
-impl Invalid<EnumLiteral> {
+impl<S> Invalid<EnumLiteral, S> {
   /// Create a new Invalid knowledge for an enum literal from a Span
   ///
   /// ## Examples
@@ -266,12 +269,12 @@ impl Invalid<EnumLiteral> {
   /// assert_eq!(error.knowledge(), Some(&EnumLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn enumeration(span: Span) -> Self {
+  pub const fn enumeration(span: S) -> Self {
     Self::with_knowledge(span, EnumLiteral(()))
   }
 }
 
-impl Invalid<EnumValueLiteral> {
+impl<S> Invalid<EnumValueLiteral, S> {
   /// Create a new Invalid knowledge for an enum value literal from a Span
   ///
   /// ## Examples
@@ -284,12 +287,12 @@ impl Invalid<EnumValueLiteral> {
   /// assert_eq!(error.knowledge(), Some(&EnumValueLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn enum_value(span: Span) -> Self {
+  pub const fn enum_value(span: S) -> Self {
     Self::with_knowledge(span, EnumValueLiteral(()))
   }
 }
 
-impl Invalid<DecimalLiteral> {
+impl<S> Invalid<DecimalLiteral, S> {
   /// Create a new Invalid knowledge for a decimal literal from a Span
   ///
   /// ## Examples
@@ -302,12 +305,12 @@ impl Invalid<DecimalLiteral> {
   /// assert_eq!(error.knowledge(), Some(&DecimalLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn decimal(span: Span) -> Self {
+  pub const fn decimal(span: S) -> Self {
     Self::with_knowledge(span, DecimalLiteral(()))
   }
 }
 
-impl Invalid<OctalLiteral> {
+impl<S> Invalid<OctalLiteral, S> {
   /// Create a new Invalid knowledge for an octal literal from a Span
   ///
   /// ## Examples
@@ -320,12 +323,12 @@ impl Invalid<OctalLiteral> {
   /// assert_eq!(error.knowledge(), Some(&OctalLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn octal(span: Span) -> Self {
+  pub const fn octal(span: S) -> Self {
     Self::with_knowledge(span, OctalLiteral(()))
   }
 }
 
-impl Invalid<StringLiteral> {
+impl<S> Invalid<StringLiteral, S> {
   /// Create a new Invalid knowledge for a string literal from a Span
   ///
   /// ## Examples
@@ -338,12 +341,12 @@ impl Invalid<StringLiteral> {
   /// assert_eq!(error.knowledge(), Some(&StringLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn string(span: Span) -> Self {
+  pub const fn string(span: S) -> Self {
     Self::with_knowledge(span, StringLiteral(()))
   }
 }
 
-impl Invalid<HexLiteral> {
+impl<S> Invalid<HexLiteral, S> {
   /// Create a new Invalid knowledge for a hex literal from a Span
   ///
   /// ## Examples
@@ -356,12 +359,12 @@ impl Invalid<HexLiteral> {
   /// assert_eq!(error.knowledge(), Some(&HexLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn hex(span: Span) -> Self {
+  pub const fn hex(span: S) -> Self {
     Self::with_knowledge(span, HexLiteral(()))
   }
 }
 
-impl Invalid<IntLiteral> {
+impl<S> Invalid<IntLiteral, S> {
   /// Create a new Invalid knowledge for an int literal from a Span
   ///
   /// ## Examples
@@ -374,12 +377,12 @@ impl Invalid<IntLiteral> {
   /// assert_eq!(error.knowledge(), Some(&IntLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn int(span: Span) -> Self {
+  pub const fn int(span: S) -> Self {
     Self::with_knowledge(span, IntLiteral(()))
   }
 }
 
-impl Invalid<BinaryLiteral> {
+impl<S> Invalid<BinaryLiteral, S> {
   /// Create a new Invalid knowledge for a binary literal from a Span
   ///
   /// ## Examples
@@ -392,12 +395,12 @@ impl Invalid<BinaryLiteral> {
   /// assert_eq!(error.knowledge(), Some(&BinaryLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn binary(span: Span) -> Self {
+  pub const fn binary(span: S) -> Self {
     Self::with_knowledge(span, BinaryLiteral(()))
   }
 }
 
-impl Invalid<FloatLiteral> {
+impl<S> Invalid<FloatLiteral, S> {
   /// Create a new Invalid knowledge for a float literal from a Span
   ///
   /// ## Examples
@@ -410,12 +413,12 @@ impl Invalid<FloatLiteral> {
   /// assert_eq!(error.knowledge(), Some(&FloatLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn float(span: Span) -> Self {
+  pub const fn float(span: S) -> Self {
     Self::with_knowledge(span, FloatLiteral(()))
   }
 }
 
-impl Invalid<HexFloatLiteral> {
+impl<S> Invalid<HexFloatLiteral, S> {
   /// Create a new Invalid knowledge for a hex float literal from a Span
   ///
   /// ## Examples
@@ -428,12 +431,12 @@ impl Invalid<HexFloatLiteral> {
   /// assert_eq!(error.knowledge(), Some(&HexFloatLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn hex_float(span: Span) -> Self {
+  pub const fn hex_float(span: S) -> Self {
     Self::with_knowledge(span, HexFloatLiteral(()))
   }
 }
 
-impl<Knowledge> Invalid<Knowledge> {
+impl<Knowledge, S> Invalid<Knowledge, S> {
   /// Creates a new invalid value error without specific knowledge context.
   ///
   /// Use this constructor when you know a value is invalid but don't have (or need)
@@ -451,7 +454,7 @@ impl<Knowledge> Invalid<Knowledge> {
   /// assert_eq!(error.to_string(), "invalid at 10..13");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span) -> Self {
+  pub const fn new(span: S) -> Self {
     Self {
       span,
       knowledge: None,
@@ -476,7 +479,7 @@ impl<Knowledge> Invalid<Knowledge> {
   /// assert_eq!(error.to_string(), "invalid at 5..8, did you mean int literal?");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_knowledge(span: Span, knowledge: Knowledge) -> Self {
+  pub const fn with_knowledge(span: S, knowledge: Knowledge) -> Self {
     Self {
       span,
       knowledge: Some(knowledge),
@@ -496,7 +499,10 @@ impl<Knowledge> Invalid<Knowledge> {
   /// assert_eq!(error.span(), Span::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
@@ -511,7 +517,7 @@ impl<Knowledge> Invalid<Knowledge> {
   /// assert_eq!(error.span_ref(), &Span::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
@@ -527,7 +533,7 @@ impl<Knowledge> Invalid<Knowledge> {
   /// assert_eq!(error.span(), Span::new(20, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -568,7 +574,7 @@ impl<Knowledge> Invalid<Knowledge> {
   /// assert_eq!(knowledge, Some(IntLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Option<Knowledge>) {
+  pub fn into_components(self) -> (S, Option<Knowledge>) {
     (self.span, self.knowledge)
   }
 
@@ -598,7 +604,10 @@ impl<Knowledge> Invalid<Knowledge> {
   /// assert_eq!(error.span(), Span::new(155, 160));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
     self.span.bump(offset);
     self
   }

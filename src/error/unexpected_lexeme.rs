@@ -115,7 +115,7 @@ pub type UnexpectedLineTerminator<Char> = UnexpectedLexeme<Char, LineTerminator>
 /// assert_eq!(span.start(), 10);
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedLexeme<Char, Hint> {
+pub struct UnexpectedLexeme<Char, Hint, S = Span> {
   lexeme: Lexeme<Char>,
   hint: Hint,
 }
@@ -160,7 +160,7 @@ impl<Char, Hint> core::ops::DerefMut for UnexpectedLexeme<Char, Hint> {
   }
 }
 
-impl<Char> UnexpectedLexeme<Char, LineTerminator> {
+impl<Char, S> UnexpectedLexeme<Char, LineTerminator, S> {
   /// Creates a new `UnexpectedLineTerminator` from a lexeme and line terminator hint.
   ///
   /// ## Example
@@ -210,7 +210,7 @@ impl<Char> UnexpectedLexeme<Char, LineTerminator> {
   }
 }
 
-impl<Char, Hint> UnexpectedLexeme<Char, Hint> {
+impl<Char, Hint, S> UnexpectedLexeme<Char, Hint, S> {
   /// Creates a new `UnexpectedLexeme` from a lexeme and hint.
   ///
   /// # Example

@@ -135,7 +135,10 @@ impl IncompleteHexEscape {
   /// assert_eq!(error.span(), Span::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.0
   }
 
@@ -190,9 +193,9 @@ impl IncompleteHexEscape {
 /// assert!(!error.is_incomplete()); // Only 4 chars total, expected 4 (\xXX)
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MalformedHexEscape<Char = char> {
+pub struct MalformedHexEscape<Char = char, S = Span> {
   digits: InvalidHexEscapeDigits<Char>,
-  span: Span,
+  span: S,
 }
 
 impl<Char> core::fmt::Display for MalformedHexEscape<Char>
@@ -214,7 +217,7 @@ impl<Char> core::error::Error for MalformedHexEscape<Char> where
 {
 }
 
-impl<Char> MalformedHexEscape<Char> {
+impl<Char, S> MalformedHexEscape<Char, S> {
   /// Creates a new malformed hex escape error.
   ///
   /// ## Examples
@@ -309,19 +312,22 @@ impl<Char> MalformedHexEscape<Char> {
   /// assert_eq!(error.span(), Span::new(10, 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the malformed hex escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the malformed hex escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -433,7 +439,7 @@ where
   }
 }
 
-impl<Char> HexEscapeError<Char> {
+impl<Char, S> HexEscapeError<Char, S> {
   /// Creates an incomplete hex escape error.
   ///
   /// ## Examples
@@ -484,7 +490,10 @@ impl<Char> HexEscapeError<Char> {
   /// assert_eq!(error.span(), Span::new(10, 12));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     match self {
       Self::Incomplete(incomplete) => incomplete.span(),
       Self::Malformed(malformed) => malformed.span(),

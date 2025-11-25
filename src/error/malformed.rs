@@ -195,14 +195,15 @@ pub type MalformedHexFloatLiteral = Malformed<HexFloatLiteral>;
 /// assert_eq!(error.to_string(), "malformed at 5..11, did you mean int literal?");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Malformed<Knowledge> {
-  span: Span,
+pub struct Malformed<Knowledge, S = Span> {
+  span: S,
   knowledge: Option<Knowledge>,
 }
 
-impl<Knowledge> core::fmt::Display for Malformed<Knowledge>
+impl<Knowledge, S> core::fmt::Display for Malformed<Knowledge, S>
 where
   Knowledge: DisplayHuman,
+  S: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match &self.knowledge {
@@ -217,12 +218,14 @@ where
   }
 }
 
-impl<Knowledge> core::error::Error for Malformed<Knowledge> where
-  Knowledge: DisplayHuman + core::fmt::Debug
+impl<Knowledge, S> core::error::Error for Malformed<Knowledge, S>
+where
+  Knowledge: DisplayHuman + core::fmt::Debug,
+  S: core::fmt::Debug + core::fmt::Display,
 {
 }
 
-impl Malformed<BooleanLiteral> {
+impl<S> Malformed<BooleanLiteral, S> {
   /// Create a new Malformed knowledge for a boolean literal from a Span
   ///
   /// ## Examples
@@ -235,12 +238,12 @@ impl Malformed<BooleanLiteral> {
   /// assert_eq!(error.knowledge(), Some(&BooleanLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn boolean(span: Span) -> Self {
+  pub const fn boolean(span: S) -> Self {
     Self::with_knowledge(span, BooleanLiteral(()))
   }
 }
 
-impl Malformed<NullLiteral> {
+impl<S> Malformed<NullLiteral, S> {
   /// Create a new Malformed knowledge for a null literal from a Span
   ///
   /// ## Examples
@@ -253,12 +256,12 @@ impl Malformed<NullLiteral> {
   /// assert_eq!(error.knowledge(), Some(&NullLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn null(span: Span) -> Self {
+  pub const fn null(span: S) -> Self {
     Self::with_knowledge(span, NullLiteral(()))
   }
 }
 
-impl Malformed<EnumLiteral> {
+impl<S> Malformed<EnumLiteral, S> {
   /// Create a new Malformed knowledge for an enum literal from a Span
   ///
   /// ## Examples
@@ -271,12 +274,12 @@ impl Malformed<EnumLiteral> {
   /// assert_eq!(error.knowledge(), Some(&EnumLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn enumeration(span: Span) -> Self {
+  pub const fn enumeration(span: S) -> Self {
     Self::with_knowledge(span, EnumLiteral(()))
   }
 }
 
-impl Malformed<EnumValueLiteral> {
+impl<S> Malformed<EnumValueLiteral, S> {
   /// Create a new Malformed knowledge for an enum value literal from a Span
   ///
   /// ## Examples
@@ -289,12 +292,12 @@ impl Malformed<EnumValueLiteral> {
   /// assert_eq!(error.knowledge(), Some(&EnumValueLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn enum_value(span: Span) -> Self {
+  pub const fn enum_value(span: S) -> Self {
     Self::with_knowledge(span, EnumValueLiteral(()))
   }
 }
 
-impl Malformed<DecimalLiteral> {
+impl<S> Malformed<DecimalLiteral, S> {
   /// Create a new Malformed knowledge for a decimal literal from a Span
   ///
   /// ## Examples
@@ -307,12 +310,12 @@ impl Malformed<DecimalLiteral> {
   /// assert_eq!(error.knowledge(), Some(&DecimalLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn decimal(span: Span) -> Self {
+  pub const fn decimal(span: S) -> Self {
     Self::with_knowledge(span, DecimalLiteral(()))
   }
 }
 
-impl Malformed<OctalLiteral> {
+impl<S> Malformed<OctalLiteral, S> {
   /// Create a new Malformed knowledge for an octal literal from a Span
   ///
   /// ## Examples
@@ -325,12 +328,12 @@ impl Malformed<OctalLiteral> {
   /// assert_eq!(error.knowledge(), Some(&OctalLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn octal(span: Span) -> Self {
+  pub const fn octal(span: S) -> Self {
     Self::with_knowledge(span, OctalLiteral(()))
   }
 }
 
-impl Malformed<StringLiteral> {
+impl<S> Malformed<StringLiteral, S> {
   /// Create a new Malformed knowledge for a string literal from a Span
   ///
   /// ## Examples
@@ -343,12 +346,12 @@ impl Malformed<StringLiteral> {
   /// assert_eq!(error.knowledge(), Some(&StringLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn string(span: Span) -> Self {
+  pub const fn string(span: S) -> Self {
     Self::with_knowledge(span, StringLiteral(()))
   }
 }
 
-impl Malformed<HexLiteral> {
+impl<S> Malformed<HexLiteral, S> {
   /// Create a new Malformed knowledge for a hex literal from a Span
   ///
   /// ## Examples
@@ -361,12 +364,12 @@ impl Malformed<HexLiteral> {
   /// assert_eq!(error.knowledge(), Some(&HexLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn hex(span: Span) -> Self {
+  pub const fn hex(span: S) -> Self {
     Self::with_knowledge(span, HexLiteral(()))
   }
 }
 
-impl Malformed<IntLiteral> {
+impl<S> Malformed<IntLiteral, S> {
   /// Create a new Malformed knowledge for an int literal from a Span
   ///
   /// ## Examples
@@ -379,12 +382,12 @@ impl Malformed<IntLiteral> {
   /// assert_eq!(error.knowledge(), Some(&IntLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn int(span: Span) -> Self {
+  pub const fn int(span: S) -> Self {
     Self::with_knowledge(span, IntLiteral(()))
   }
 }
 
-impl Malformed<BinaryLiteral> {
+impl<S> Malformed<BinaryLiteral, S> {
   /// Create a new Malformed knowledge for a binary literal from a Span
   ///
   /// ## Examples
@@ -397,12 +400,12 @@ impl Malformed<BinaryLiteral> {
   /// assert_eq!(error.knowledge(), Some(&BinaryLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn binary(span: Span) -> Self {
+  pub const fn binary(span: S) -> Self {
     Self::with_knowledge(span, BinaryLiteral(()))
   }
 }
 
-impl Malformed<FloatLiteral> {
+impl<S> Malformed<FloatLiteral, S> {
   /// Create a new Malformed knowledge for a float literal from a Span
   ///
   /// ## Examples
@@ -415,12 +418,12 @@ impl Malformed<FloatLiteral> {
   /// assert_eq!(error.knowledge(), Some(&FloatLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn float(span: Span) -> Self {
+  pub const fn float(span: S) -> Self {
     Self::with_knowledge(span, FloatLiteral(()))
   }
 }
 
-impl Malformed<HexFloatLiteral> {
+impl<S> Malformed<HexFloatLiteral, S> {
   /// Create a new Malformed knowledge for a hex float literal from a Span
   ///
   /// ## Examples
@@ -433,12 +436,12 @@ impl Malformed<HexFloatLiteral> {
   /// assert_eq!(error.knowledge(), Some(&HexFloatLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn hex_float(span: Span) -> Self {
+  pub const fn hex_float(span: S) -> Self {
     Self::with_knowledge(span, HexFloatLiteral(()))
   }
 }
 
-impl<Knowledge> Malformed<Knowledge> {
+impl<Knowledge, S> Malformed<Knowledge, S> {
   /// Creates a new malformed error without specific knowledge context.
   ///
   /// # Examples
@@ -451,7 +454,7 @@ impl<Knowledge> Malformed<Knowledge> {
   /// assert_eq!(error.knowledge(), None);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span) -> Self {
+  pub const fn new(span: S) -> Self {
     Self {
       span,
       knowledge: None,
@@ -469,7 +472,7 @@ impl<Knowledge> Malformed<Knowledge> {
   /// assert_eq!(error.knowledge().is_some(), true);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_knowledge(span: Span, knowledge: Knowledge) -> Self {
+  pub const fn with_knowledge(span: S, knowledge: Knowledge) -> Self {
     Self {
       span,
       knowledge: Some(knowledge),
@@ -487,19 +490,22 @@ impl<Knowledge> Malformed<Knowledge> {
   /// assert_eq!(error.span(), Span::new(20, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the malformed construct.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the malformed construct.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -531,7 +537,7 @@ impl<Knowledge> Malformed<Knowledge> {
   /// assert_eq!(knowledge, None);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Option<Knowledge>) {
+  pub fn into_components(self) -> (S, Option<Knowledge>) {
     (self.span, self.knowledge)
   }
 
@@ -551,7 +557,10 @@ impl<Knowledge> Malformed<Knowledge> {
   /// assert_eq!(error.span(), Span::new(110, 115));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
     self.span.bump(offset);
     self
   }

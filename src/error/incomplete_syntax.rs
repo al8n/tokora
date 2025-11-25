@@ -222,14 +222,15 @@ use core::{
 /// # }
 /// ```
 #[derive(Debug, Clone)]
-pub struct IncompleteSyntax<S: Syntax> {
-  span: Span,
+pub struct IncompleteSyntax<S: Syntax, Sp = Span> {
+  span: Sp,
   components: GenericArrayDeque<S::Component, S::COMPONENTS>,
 }
 
-impl<S> PartialEq for IncompleteSyntax<S>
+impl<S, Sp> PartialEq for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
+  Sp: PartialEq,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn eq(&self, other: &Self) -> bool {
@@ -237,11 +238,17 @@ where
   }
 }
 
-impl<S> Eq for IncompleteSyntax<S> where S: Syntax {}
-
-impl<S> Hash for IncompleteSyntax<S>
+impl<S, Sp> Eq for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
+  Sp: Eq,
+{
+}
+
+impl<S, Sp> Hash for IncompleteSyntax<S, Sp>
+where
+  S: Syntax,
+  Sp: Hash,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
@@ -250,7 +257,7 @@ where
   }
 }
 
-impl<S> AsRef<[S::Component]> for IncompleteSyntax<S>
+impl<S, Sp> AsRef<[S::Component]> for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
 {
@@ -260,7 +267,7 @@ where
   }
 }
 
-impl<S> AsMut<[S::Component]> for IncompleteSyntax<S>
+impl<S, Sp> AsMut<[S::Component]> for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
 {
@@ -270,7 +277,7 @@ where
   }
 }
 
-impl<S> IncompleteSyntax<S>
+impl<S, Sp> IncompleteSyntax<S, Sp>
 where
   S: Syntax,
 {
@@ -317,7 +324,7 @@ where
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn new(span: Span, component: S::Component) -> Self {
+  pub fn new(span: Sp, component: S::Component) -> Self {
     if S::COMPONENTS::USIZE == 0 {
       panic!("IncompleteSyntax requires S::COMPONENTS to be non-zero");
     }
@@ -374,7 +381,7 @@ where
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::should_implement_trait)]
-  pub fn from_iter(span: Span, iter: impl IntoIterator<Item = S::Component>) -> Option<Self> {
+  pub fn from_iter(span: Sp, iter: impl IntoIterator<Item = S::Component>) -> Option<Self> {
     let mut components = GenericArrayDeque::new();
     for component in iter {
       Self::try_push_impl(&mut components, component);
@@ -925,19 +932,22 @@ where
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> Sp
+  where
+    Sp: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the incomplete syntax.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &Sp {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the incomplete syntax.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut Sp {
     &mut self.span
   }
 
@@ -980,13 +990,16 @@ where
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &Sp::Offset) -> &mut Self
+  where
+    Sp: crate::lexer::Span,
+  {
     self.span.bump(offset);
     self
   }
 }
 
-impl<S> Display for IncompleteSyntax<S>
+impl<S, Sp> Display for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
 {
@@ -1013,4 +1026,9 @@ where
   }
 }
 
-impl<S> core::error::Error for IncompleteSyntax<S> where S: Syntax + Debug {}
+impl<S, Sp> core::error::Error for IncompleteSyntax<S, Sp>
+where
+  S: Syntax + Debug,
+  Sp: Debug,
+{
+}

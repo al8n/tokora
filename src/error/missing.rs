@@ -48,25 +48,25 @@ use crate::{
 /// assert_eq!(error.span(), Span::new(11, 12)); // gap between '(' and ')'
 /// ```
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Missing<T, Lang> {
-  before: Span,
-  after: Option<Span>,
-  span: Span,
+pub struct Missing<T, Lang, S = Span> {
+  before: S,
+  after: Option<S>,
+  span: Option<S>,
   _syntax: PhantomData<T>,
   _lang: PhantomData<Lang>,
 }
 
-impl<T, Lang> Missing<T, Lang> {
+impl<T, Lang, S> Missing<T, Lang, S> {
   /// Creates a missing error that occurs **after** the provided span.
   ///
   /// Use this when the parser reached the end of a construct without finding the required
   /// syntax (e.g., missing trailing expression before `}` or end-of-input).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(before: Span) -> Self {
+  pub fn new(before: S) -> Self {
     Self {
       before,
       after: None,
-      span: Span::new(before.end(), before.end()),
+      span: None,
       _syntax: PhantomData,
       _lang: PhantomData,
     }
@@ -78,7 +78,10 @@ impl<T, Lang> Missing<T, Lang> {
   /// `after.start()`. When the anchors overlap (e.g., consecutive tokens), the gap collapses
   /// to a zero-width span at `after.start()`.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn between(before: Span, after: Span) -> Self {
+  pub const fn between(before: S, after: S) -> Self
+  where
+    S: crate::lexer::Span,
+  {
     Self {
       before,
       after: Some(after),
@@ -90,44 +93,62 @@ impl<T, Lang> Missing<T, Lang> {
 
   /// Updates the trailing anchor, returning `self` for chaining.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_after(mut self, after: Span) -> Self {
+  pub fn with_after(mut self, after: S) -> Self {
     self.after = Some(after);
     self
   }
 
   /// Sets/overwrites the trailing anchor in-place.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn set_after(&mut self, after: Span) {
+  pub fn set_after(&mut self, after: S) {
     self.after = Some(after);
   }
 
   /// Returns the span immediately preceding the missing syntax.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn before(&self) -> Span {
+  pub const fn before(&self) -> S
+  where
+    S: Copy,
+  {
     self.before
   }
 
   /// Returns the optional span immediately following the missing syntax.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn after(&self) -> Option<Span> {
+  pub const fn after(&self) -> Option<S>
+  where
+    S: Copy,
+  {
     self.after
   }
 
   /// Returns the span representing the gap where the syntax should have existed.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
-    self.span
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
+    match self.span.as_ref() {
+      Some(span) => *span,
+      None => self.before,
+    }
   }
 
   /// Returns the span representing the gap where the syntax should have existed.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
-    &self.span
+  pub const fn span_ref(&self) -> &S {
+    match self.span.as_ref() {
+      Some(span) => span,
+      None => &self.before,
+    }
   }
 
   /// Bumps the spans of the missing node by the specified offset.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
     self.before.bump(offset);
     if let Some(after) = &mut self.after {
       after.bump(offset);
@@ -146,34 +167,38 @@ impl<T, Lang> Missing<T, Lang> {
     T::KIND
   }
 
-  const fn gap_span(before: Span, after: Option<Span>) -> Span {
+  const fn gap_span(before: S, after: Option<S>) -> S
+  where
+    S: crate::lexer::Span,
+  {
     match after {
       Some(after_span) => {
         let start = before.end();
         let end = after_span.start();
 
         if end >= start {
-          Span::new(start, end)
+          S::new(start, end)
         } else {
-          Span::new(end, end)
+          S::new(end, end)
         }
       }
       None => {
         let pos = before.end();
-        Span::new(pos, pos)
+        S::new(pos, pos)
       }
     }
   }
 }
 
-impl<T, Lang> fmt::Display for Missing<T, Lang>
+impl<T, Lang, S> fmt::Display for Missing<T, Lang, S>
 where
   T: Syntax<Lang = Lang>,
   Lang: Language,
   <Lang as Language>::SyntaxKind: fmt::Display,
+  S: fmt::Display,
 {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self.after {
+    match &self.after {
       Some(after) => write!(
         f,
         "missing {} between {} and {}",
@@ -186,7 +211,10 @@ where
   }
 }
 
-impl<T, Lang> fmt::Debug for Missing<T, Lang> {
+impl<T, Lang, S> fmt::Debug for Missing<T, Lang, S>
+where
+  S: fmt::Debug,
+{
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     f.debug_struct("Missing")
       .field("before", &self.before)
@@ -195,10 +223,11 @@ impl<T, Lang> fmt::Debug for Missing<T, Lang> {
   }
 }
 
-impl<T, Lang> core::error::Error for Missing<T, Lang>
+impl<T, Lang, S> core::error::Error for Missing<T, Lang, S>
 where
   T: Syntax<Lang = Lang>,
   Lang: Language,
   <Lang as Language>::SyntaxKind: fmt::Display + fmt::Debug,
+  S: fmt::Debug + fmt::Display,
 {
 }

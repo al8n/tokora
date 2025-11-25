@@ -8,8 +8,6 @@
 // {
 //   type Error = core::convert::Infallible;
 
-  
-
 //   #[cfg_attr(not(tarpaulin), inline(always))]
 //   fn emit_token_error(
 //     &mut self,

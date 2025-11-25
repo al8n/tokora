@@ -106,14 +106,15 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// assert_eq!(span.start(), 10);
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnknownLexeme<Char, Knowledge> {
-  lexeme: Lexeme<Char>,
+pub struct UnknownLexeme<Char, Knowledge, O = usize> {
+  lexeme: Lexeme<Char, O>,
   knowledge: Knowledge,
 }
 
-impl<Char, Knowledge> core::fmt::Display for UnknownLexeme<Char, Knowledge>
+impl<Char, Knowledge, O> core::fmt::Display for UnknownLexeme<Char, Knowledge, O>
 where
   Char: DisplayHuman,
+  O: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self.lexeme() {
@@ -121,22 +122,23 @@ where
         f,
         "unknown character '{}' encountered at {}",
         pc.char_ref().display(),
-        pc.position(),
+        pc.position_ref(),
       ),
       Lexeme::Range(span) => write!(f, "unknown lexeme encountered at {}", span),
     }
   }
 }
 
-impl<Char, Knowledge> core::error::Error for UnknownLexeme<Char, Knowledge>
+impl<Char, Knowledge, O> core::error::Error for UnknownLexeme<Char, Knowledge, O>
 where
   Char: DisplayHuman + core::fmt::Debug,
   Knowledge: core::fmt::Debug,
+  O: core::fmt::Debug + core::fmt::Display,
 {
 }
 
-impl<Char, Knowledge> core::ops::Deref for UnknownLexeme<Char, Knowledge> {
-  type Target = Lexeme<Char>;
+impl<Char, Knowledge, O> core::ops::Deref for UnknownLexeme<Char, Knowledge, O> {
+  type Target = Lexeme<Char, O>;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref(&self) -> &Self::Target {
@@ -144,14 +146,14 @@ impl<Char, Knowledge> core::ops::Deref for UnknownLexeme<Char, Knowledge> {
   }
 }
 
-impl<Char, Knowledge> core::ops::DerefMut for UnknownLexeme<Char, Knowledge> {
+impl<Char, Knowledge, O> core::ops::DerefMut for UnknownLexeme<Char, Knowledge, O> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.lexeme
   }
 }
 
-impl<Char> UnknownLexeme<Char, crate::utils::knowledge::Characters> {
+impl<Char, O> UnknownLexeme<Char, crate::utils::knowledge::Characters, O> {
   /// Creates an `UnknownLexeme` with character knowledge.
   ///
   /// This is a convenience method for cases where no specific knowledge is provided.
@@ -169,7 +171,7 @@ impl<Char> UnknownLexeme<Char, crate::utils::knowledge::Characters> {
   /// assert_eq!(error.unwrap_range().start(), 7);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn unknown_characters(span: Span) -> Self {
+  pub const fn unknown_characters(span: Span<O>) -> Self {
     Self::new(Lexeme::Range(span), sealed::Sealed::INIT)
   }
 
@@ -195,7 +197,7 @@ impl<Char> UnknownLexeme<Char, crate::utils::knowledge::Characters> {
   }
 }
 
-impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
+impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// Creates a new `UnknownLexeme` from a lexeme and diagnostic knowledge.
   ///
   /// # Example
@@ -209,7 +211,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(*error.knowledge(), "valid: identifier");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(lexeme: Lexeme<Char>, knowledge: Knowledge) -> Self {
+  pub const fn new(lexeme: Lexeme<Char, O>, knowledge: Knowledge) -> Self {
     Self { lexeme, knowledge }
   }
 
@@ -229,7 +231,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(error.unwrap_char().position(), 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_char(pos: usize, ch: Char, knowledge: Knowledge) -> Self {
+  pub const fn from_char(pos: O, ch: Char, knowledge: Knowledge) -> Self {
     Self::from_positioned_char(PositionedChar::with_position(ch, pos), knowledge)
   }
 
@@ -249,7 +251,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(error.unwrap_char().position(), 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_positioned_char(pc: PositionedChar<Char>, knowledge: Knowledge) -> Self {
+  pub const fn from_positioned_char(pc: PositionedChar<Char, O>, knowledge: Knowledge) -> Self {
     Self::new(Lexeme::Char(pc), knowledge)
   }
 
@@ -270,7 +272,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert!(error.is_range());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_range_const(span: Span, knowledge: Knowledge) -> Self {
+  pub const fn from_range_const(span: Span<O>, knowledge: Knowledge) -> Self {
     Self::new(Lexeme::Range(span), knowledge)
   }
 
@@ -287,7 +289,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(error.unwrap_range().start(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_range(span: impl Into<Span>, knowledge: Knowledge) -> Self {
+  pub fn from_range(span: impl Into<Span<O>>, knowledge: Knowledge) -> Self {
     Self::new(Lexeme::Range(span.into()), knowledge)
   }
 
@@ -306,7 +308,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert!(error.lexeme().is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme(&self) -> &Lexeme<Char> {
+  pub const fn lexeme(&self) -> &Lexeme<Char, O> {
     &self.lexeme
   }
 
@@ -345,7 +347,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(error.unwrap_char().position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme_mut(&mut self) -> &mut Lexeme<Char> {
+  pub const fn lexeme_mut(&mut self) -> &mut Lexeme<Char, O> {
     &mut self.lexeme
   }
 
@@ -386,7 +388,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(knowledge, "identifier");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Lexeme<Char>, Knowledge) {
+  pub fn into_components(self) -> (Lexeme<Char, O>, Knowledge) {
     (self.lexeme, self.knowledge)
   }
 
@@ -406,7 +408,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert!(lexeme.is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_lexeme(self) -> Lexeme<Char> {
+  pub fn into_lexeme(self) -> Lexeme<Char, O> {
     self.lexeme
   }
 
@@ -449,7 +451,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(span.end(), 8); // '€' is 3 bytes
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> Span {
+  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> Span<O> {
     self.lexeme.span_with(len_of)
   }
 
@@ -470,7 +472,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(error.span(), Span::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> Span<O>
   where
     Char: CharLen,
   {

@@ -77,13 +77,13 @@ use crate::utils::{Expected, Span};
 /// );
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedIdentifier<'a, S> {
-  span: Span,
+pub struct UnexpectedIdentifier<'a, S, S = Span> {
+  span: S,
   found: S,
   expected: Expected<'a, &'a str>,
 }
 
-impl<'a, S> UnexpectedIdentifier<'a, S> {
+impl<'a, S, S> UnexpectedIdentifier<'a, S, S> {
   /// Creates a new unexpected identifier error.
   ///
   /// This is the most general constructor that accepts the span, the found identifier,
@@ -174,7 +174,10 @@ impl<'a, S> UnexpectedIdentifier<'a, S> {
   /// assert_eq!(error.span(), Span::new(20, 26));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 

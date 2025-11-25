@@ -1,4 +1,4 @@
-use core::ops::Range;
+use core::ops::{AddAssign, Range};
 
 pub use escaped::*;
 pub use expected::*;
@@ -154,13 +154,16 @@ mod to_equivalent;
 ///     eprintln!("{}^", " ".repeat(column));
 /// }
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Span {
-  pub(crate) start: usize,
-  pub(crate) end: usize,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
+pub struct Span<Offset = usize> {
+  pub(crate) start: Offset,
+  pub(crate) end: Offset,
 }
 
-impl core::fmt::Display for Span {
+impl<O> core::fmt::Display for Span<O>
+where
+  O: core::fmt::Display,
+{
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "{}..{}", self.start, self.end)
@@ -231,7 +234,7 @@ impl Span {
   ///
   /// Panics if `end < start`.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(start: usize, end: usize) -> Self {
+  pub fn const_new(start: usize, end: usize) -> Self {
     assert!(end >= start, "end must be greater than or equal to start");
     Self { start, end }
   }
@@ -240,7 +243,7 @@ impl Span {
   ///
   /// Returns `None` if `end < start`.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn try_new(start: usize, end: usize) -> Option<Self> {
+  pub fn try_const_new(start: usize, end: usize) -> Option<Self> {
     if end >= start {
       Some(Self { start, end })
     } else {
@@ -264,7 +267,7 @@ impl Span {
   /// assert_eq!(span, Span::new(8, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump_start(&mut self, n: usize) -> &mut Self {
+  pub const fn bump_start_const(&mut self, n: usize) -> &mut Self {
     self.start += n;
     assert!(
       self.start <= self.end,
@@ -285,7 +288,7 @@ impl Span {
   /// assert_eq!(span, Span::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump_end(&mut self, n: usize) -> &mut Self {
+  pub const fn bump_end_const(&mut self, n: usize) -> &mut Self {
     self.end += n;
     self
   }
@@ -302,7 +305,7 @@ impl Span {
   /// assert_eq!(span, Span::new(15, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub const fn bump_const(&mut self, n: usize) -> &mut Self {
     self.start += n;
     self.end += n;
     self
@@ -320,7 +323,7 @@ impl Span {
   /// assert_eq!(span, Span::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn set_start(&mut self, start: usize) -> &mut Self {
+  pub const fn set_start_const(&mut self, start: usize) -> &mut Self {
     self.start = start;
     self
   }
@@ -337,7 +340,7 @@ impl Span {
   /// assert_eq!(span, Span::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn set_end(&mut self, end: usize) -> &mut Self {
+  pub const fn set_end_const(&mut self, end: usize) -> &mut Self {
     self.end = end;
     self
   }
@@ -353,7 +356,7 @@ impl Span {
   /// assert_eq!(span, Span::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_start(mut self, start: usize) -> Self {
+  pub const fn with_start_const(mut self, start: usize) -> Self {
     self.start = start;
     self
   }
@@ -369,7 +372,214 @@ impl Span {
   /// assert_eq!(span, Span::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_end(mut self, end: usize) -> Self {
+  pub const fn with_end_const(mut self, end: usize) -> Self {
+    self.end = end;
+    self
+  }
+}
+
+impl<O> Span<O> {
+  /// Convert to a span of references.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let span = Span::new(5, 15);
+  /// let span_ref = span.as_ref();
+  /// assert_eq!(*span_ref.start, 5);
+  /// assert_eq!(*span_ref.end, 15);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn as_ref(&self) -> Span<&O> {
+    Span {
+      start: &self.start,
+      end: &self.end,
+    }
+  }
+
+  /// Convert to a span of mutable references.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let mut span = Span::new(5, 15);
+  /// let span_mut = span.as_mut();
+  /// *span_mut.start = 10;
+  /// *span_mut.end = 20;
+  /// assert_eq!(span, Span::new(10, 20));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn as_mut(&mut self) -> Span<&mut O> {
+    Span {
+      start: &mut self.start,
+      end: &mut self.end,
+    }
+  }
+
+  /// Create a new span.
+  ///
+  /// ## Panics
+  ///
+  /// Panics if `end < start`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn new(start: O, end: O) -> Self
+  where
+    O: Ord,
+  {
+    assert!(end >= start, "end must be greater than or equal to start");
+    Self { start, end }
+  }
+
+  /// Try to create a new span.
+  ///
+  /// Returns `None` if `end < start`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn try_new(start: O, end: O) -> Option<Self>
+  where
+    O: Ord,
+  {
+    if end >= start {
+      Some(Self { start, end })
+    } else {
+      None
+    }
+  }
+
+  /// Bump the start of the span by `n`.
+  ///
+  /// ## Panics
+  ///
+  /// Panics if `self.start + n > self.end`.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let mut span = Span::new(5, 15);
+  /// span.bump_start(3);
+  /// assert_eq!(span, Span::new(8, 15));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn bump_start(&mut self, n: O) -> &mut Self
+  where
+    O: AddAssign<O> + Ord,
+  {
+    self.start += n;
+    assert!(
+      self.start <= self.end,
+      "start must be less than or equal to end"
+    );
+    self
+  }
+
+  /// Bump the end of the span by `n`.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let mut span = Span::new(5, 15);
+  /// span.bump_end(5);
+  /// assert_eq!(span, Span::new(5, 20));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn bump_end(&mut self, n: O) -> &mut Self
+  where
+    O: AddAssign<O>,
+  {
+    self.end += n;
+    self
+  }
+
+  /// Bump the start and the end of the span by `n`.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let mut span = Span::new(5, 15);
+  /// span.bump(10);
+  /// assert_eq!(span, Span::new(15, 25));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
+    self.start += n;
+    self.end += n;
+    self
+  }
+
+  /// Set the start of the span, returning a mutable reference to self.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let mut span = Span::new(5, 15);
+  /// span.set_start(10);
+  /// assert_eq!(span, Span::new(10, 15));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn set_start(&mut self, start: O) -> &mut Self {
+    self.start = start;
+    self
+  }
+
+  /// Set the end of the span, returning a mutable reference to self.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let mut span = Span::new(5, 15);
+  /// span.set_end(20);
+  /// assert_eq!(span, Span::new(5, 20));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn set_end(&mut self, end: O) -> &mut Self {
+    self.end = end;
+    self
+  }
+
+  /// Set the start of the span, returning self.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let span = Span::new(5, 15).with_start(10);
+  /// assert_eq!(span, Span::new(10, 15));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn with_start(mut self, start: O) -> Self {
+    self.start = start;
+    self
+  }
+
+  /// Set the end of the span, returning self.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::utils::Span;
+  ///
+  /// let span = Span::new(5, 15).with_end(20);
+  /// assert_eq!(span, Span::new(5, 20));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn with_end(mut self, end: O) -> Self {
     self.end = end;
     self
   }
@@ -385,7 +595,10 @@ impl Span {
   /// assert_eq!(span.start(), 5);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn start(&self) -> usize {
+  pub const fn start(&self) -> O
+  where
+    O: Copy,
+  {
     self.start
   }
 
@@ -401,7 +614,7 @@ impl Span {
   /// assert_eq!(*span.start_ref(), 5);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn start_ref(&self) -> &usize {
+  pub const fn start_ref(&self) -> &O {
     &self.start
   }
 
@@ -417,7 +630,7 @@ impl Span {
   /// assert_eq!(span.start(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn start_mut(&mut self) -> &mut usize {
+  pub const fn start_mut(&mut self) -> &mut O {
     &mut self.start
   }
 
@@ -432,7 +645,10 @@ impl Span {
   /// assert_eq!(span.end(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn end(&self) -> usize {
+  pub const fn end(&self) -> O
+  where
+    O: Copy,
+  {
     self.end
   }
 
@@ -448,7 +664,7 @@ impl Span {
   /// assert_eq!(*span.end_ref(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn end_ref(&self) -> &usize {
+  pub const fn end_ref(&self) -> &O {
     &self.end
   }
 
@@ -464,7 +680,7 @@ impl Span {
   /// assert_eq!(span.end(), 20);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn end_mut(&mut self) -> &mut usize {
+  pub const fn end_mut(&mut self) -> &mut O {
     &mut self.end
   }
 
@@ -479,8 +695,11 @@ impl Span {
   /// assert_eq!(span.len(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn len(&self) -> usize {
-    self.end - self.start
+  pub fn len(&self) -> O
+  where
+    O: for<'a> core::ops::Sub<&'a O, Output = O> + Clone,
+  {
+    self.end.clone().sub(&self.start)
   }
 
   /// Check if the span is empty.
@@ -497,7 +716,10 @@ impl Span {
   /// assert!(!not_empty.is_empty());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn is_empty(&self) -> bool {
+  pub fn is_empty(&self) -> bool
+  where
+    O: PartialEq,
+  {
     self.start == self.end
   }
 
@@ -512,35 +734,41 @@ impl Span {
   /// assert_eq!(span.range(), 5..15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn range(&self) -> Range<usize> {
-    self.start..self.end
+  pub fn range(&self) -> Range<&O> {
+    &self.start..&self.end
   }
 }
 
-impl From<Range<usize>> for Span {
+impl<O> From<Range<O>> for Span<O>
+where
+  O: Ord,
+{
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(range: Range<usize>) -> Self {
+  fn from(range: Range<O>) -> Self {
     Self::new(range.start, range.end)
   }
 }
 
-impl From<Span> for Range<usize> {
+impl<O> From<Span<O>> for Range<O> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(span: Span) -> Self {
+  fn from(span: Span<O>) -> Self {
     span.start..span.end
   }
 }
 
-impl From<(usize, usize)> for Span {
+impl<O> From<(O, O)> for Span<O>
+where
+  O: Ord,
+{
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from((start, end): (usize, usize)) -> Self {
+  fn from((start, end): (O, O)) -> Self {
     Self::new(start, end)
   }
 }
 
-impl From<Span> for (usize, usize) {
+impl<O> From<Span<O>> for (O, O) {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(span: Span) -> Self {
+  fn from(span: Span<O>) -> Self {
     (span.start, span.end)
   }
 }
@@ -678,7 +906,7 @@ impl From<Span> for (usize, usize) {
 /// spanned.span_mut().bump_end(4);
 /// assert_eq!(spanned.span().end(), 5);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct Spanned<D, S = Span> {
   /// The source location span of the data.
   ///

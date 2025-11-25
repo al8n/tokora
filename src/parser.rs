@@ -3,7 +3,9 @@
 use core::marker::PhantomData;
 
 use crate::{
-  Cache, DefaultCache, Emitter, Lexed, Lexer, Noop, Token, lexer::{Input, InputRef}, utils::Spanned
+  Cache, DefaultCache, Emitter, Lexed, Lexer, Noop, Token,
+  lexer::{Input, InputRef},
+  utils::Spanned,
 };
 
 pub use any::*;
@@ -17,13 +19,14 @@ mod sealed {
 
   pub trait Sealed<'inp, L, O, E, C> {}
 
-  impl<'inp, F, L, O, E, C> sealed::Sealed<'inp, L, O, E, C> for F
+  impl<'inp, F, L, O, E, C> Sealed<'inp, L, O, E, C> for F
   where
     F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> O,
     L: Lexer<'inp>,
     E: Emitter<'inp, L>,
     C: Cache<'inp, L>,
-  {}
+  {
+  }
 
   impl<'inp, F, L, O, E, C> Sealed<'inp, L, O, E, C> for Parser<F, L, O, E::Error>
   where
@@ -58,14 +61,9 @@ mod sealed {
 /// This mirrors the ergonomics of libraries like `winnow`: a parser is
 /// simply something that can mutate an [`InputRef`] and either produce
 /// a value or a spanned error using the configured `Emitter`.
-pub trait ParseInput<'inp, L, O, E, C>:
-  sealed::Sealed<'inp, L, O, E, C>
-{
+pub trait ParseInput<'inp, L, O, E, C>: sealed::Sealed<'inp, L, O, E, C> {
   /// Try to parse from the given input.
-  fn parse_input(
-    &mut self,
-    input: &mut InputRef<'inp, '_, L, E, C>,
-  ) -> O
+  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> O
   where
     L: Lexer<'inp>,
     E: Emitter<'inp, L>,
@@ -80,10 +78,7 @@ where
   C: Cache<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(
-    &mut self,
-    input: &mut InputRef<'inp, '_, L, E, C>,
-  ) -> O {
+  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> O {
     (self)(input)
   }
 }
@@ -143,8 +138,7 @@ impl<F, L, O, Error> Parser<F, L, O, Error> {
   }
 }
 
-impl<'inp, F, L, O, E, C> ParseInput<'inp, L, O, E, C>
-  for Parser<F, L, O, E::Error>
+impl<'inp, F, L, O, E, C> ParseInput<'inp, L, O, E, C> for Parser<F, L, O, E::Error>
 where
   F: ParseInput<'inp, L, O, E, C>,
   L: Lexer<'inp>,
@@ -152,10 +146,7 @@ where
   C: Cache<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(
-    &mut self,
-    input: &mut InputRef<'inp, '_, L, E, C>,
-  ) -> O {
+  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> O {
     self.f.parse_input(input)
   }
 }
@@ -168,7 +159,10 @@ pub struct WithEmitter<P, E> {
 
 impl<P, E> WithEmitter<P, E> {
   /// Attach cache options after an emitter has been selected.
-  pub fn with_cache<'inp, L, C>(self, options: C::Options) -> WithEmitter<WithCache<'inp, P, L, C>, E>
+  pub fn with_cache<'inp, L, C>(
+    self,
+    options: C::Options,
+  ) -> WithEmitter<WithCache<'inp, P, L, C>, E>
   where
     L: Lexer<'inp>,
     C: Cache<'inp, L>,
@@ -184,8 +178,7 @@ impl<P, E> WithEmitter<P, E> {
   }
 }
 
-impl<'inp, P, L, O, E, C> ParseInput<'inp, L, O, E, C>
-  for WithEmitter<P, E>
+impl<'inp, P, L, O, E, C> ParseInput<'inp, L, O, E, C> for WithEmitter<P, E>
 where
   P: ParseInput<'inp, L, O, E, C>,
   L: Lexer<'inp>,
@@ -193,10 +186,7 @@ where
   C: Cache<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(
-    &mut self,
-    input: &mut InputRef<'inp, '_, L, E, C>,
-  ) -> O {
+  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> O {
     self.inner.parse_input(input)
   }
 }
@@ -222,8 +212,7 @@ where
   }
 }
 
-impl<'inp, P, L, O, E, C> ParseInput<'inp, L, O, E, C>
-  for WithCache<'inp, P, L, C>
+impl<'inp, P, L, O, E, C> ParseInput<'inp, L, O, E, C> for WithCache<'inp, P, L, C>
 where
   P: ParseInput<'inp, L, O, E, C>,
   L: Lexer<'inp>,
@@ -231,10 +220,7 @@ where
   C: Cache<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(
-    &mut self,
-    input: &mut InputRef<'inp, '_, L, E, C>,
-  ) -> O {
+  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> O {
     self.inner.parse_input(input)
   }
 }
@@ -333,7 +319,8 @@ where
   }
 }
 
-impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E> for WithEmitter<WithCache<'inp, Parser<F, L, O, E::Error>, L, C>, E>
+impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E>
+  for WithEmitter<WithCache<'inp, Parser<F, L, O, E::Error>, L, C>, E>
 where
   F: ParseInput<'inp, L, O, E, C>,
   L: Lexer<'inp>,
@@ -350,7 +337,8 @@ where
   }
 }
 
-impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E> for WithCache<'inp, WithEmitter<Parser<F, L, O, E::Error>, E>, L, C>
+impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E>
+  for WithCache<'inp, WithEmitter<Parser<F, L, O, E::Error>, E>, L, C>
 where
   F: ParseInput<'inp, L, O, E, C>,
   L: Lexer<'inp>,
@@ -421,8 +409,8 @@ impl<P, S> With<P, S> {
 mod tests {
   #![allow(warnings)]
 
-  use logos::*;
   use super::{Token as TokenT, *};
+  use logos::*;
 
   #[derive(Debug, Logos, Clone)]
   #[logos(skip r"[ \t\r\n\f]+")]
@@ -492,9 +480,9 @@ mod tests {
 
   impl TokenT<'_> for Token {
     type Kind = TokenKind;
-  
+
     type Error = ();
-  
+
     fn kind(&self) -> Self::Kind {
       TokenKind::from(self)
     }
@@ -502,7 +490,8 @@ mod tests {
 
   type JsonLexer<'a> = crate::LogosLexer<'a, Token, Token>;
 
-  const fn assert_any_parse_impl<'inp>() -> impl Parse<'inp, JsonLexer<'inp>, Option<Spanned<Lexed<'inp, Token>>>, Noop<()>> {
+  const fn assert_any_parse_impl<'inp>()
+  -> impl Parse<'inp, JsonLexer<'inp>, Option<Spanned<Lexed<'inp, Token>>>, Noop<()>> {
     any()
   }
 

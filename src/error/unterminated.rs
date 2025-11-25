@@ -158,12 +158,12 @@ use crate::utils::Span;
 /// }
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Unterminated<Knowledge> {
-  span: Span,
+pub struct Unterminated<Knowledge, S = Span> {
+  span: S,
   knowledge: Knowledge,
 }
 
-impl<Knowledge> core::fmt::Display for Unterminated<Knowledge>
+impl<Knowledge, S> core::fmt::Display for Unterminated<Knowledge, S>
 where
   Knowledge: core::fmt::Display,
 {
@@ -173,12 +173,14 @@ where
   }
 }
 
-impl<Knowledge> core::error::Error for Unterminated<Knowledge> where
-  Knowledge: core::fmt::Display + core::fmt::Debug
+impl<Knowledge, S> core::error::Error for Unterminated<Knowledge, S>
+where
+  Knowledge: core::fmt::Display + core::fmt::Debug,
+  S: core::fmt::Debug,
 {
 }
 
-impl<Knowledge> Unterminated<Knowledge> {
+impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// Creates a new unterminated sequence error.
   ///
   /// The span should point to the position of the incomplete sequence.
@@ -194,7 +196,7 @@ impl<Knowledge> Unterminated<Knowledge> {
   /// assert_eq!(error.knowledge(), "spread operator");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, knowledge: Knowledge) -> Self {
+  pub const fn new(span: S, knowledge: Knowledge) -> Self {
     Self { span, knowledge }
   }
 
@@ -211,19 +213,22 @@ impl<Knowledge> Unterminated<Knowledge> {
   /// assert_eq!(error.span(), Span::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the incomplete sequence.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the incomplete sequence.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -278,7 +283,10 @@ impl<Knowledge> Unterminated<Knowledge> {
   /// assert_eq!(error.span(), Span::new(105, 107));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
     self.span.bump(offset);
     self
   }
@@ -296,7 +304,7 @@ impl<Knowledge> Unterminated<Knowledge> {
   /// assert_eq!(knowledge, "escape sequence");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Knowledge) {
+  pub fn into_components(self) -> (S, Knowledge) {
     (self.span, self.knowledge)
   }
 }
