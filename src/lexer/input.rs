@@ -104,6 +104,7 @@ where
 {
   input: &'inp L::Source,
   state: L::State,
+  span: L::Span,
   cursor: L::Offset,
   cache: C,
 }
@@ -119,6 +120,7 @@ where
     Self {
       input: self.input,
       state: self.state.clone(),
+      span: self.span.clone(),
       cursor: self.cursor.clone(),
       cache: self.cache.clone(),
     }
@@ -137,7 +139,7 @@ where
     f.debug_struct("Input")
       .field("input", &self.input)
       .field("state", &self.state)
-      .field("cursor", &self.cursor)
+      .field("span", &self.span)
       .field("cache", &self.cache)
       .finish()
   }
@@ -168,6 +170,7 @@ where
       input,
       state,
       cursor: L::Offset::default(),
+      span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache: DefaultCache::default(),
     }
   }
@@ -185,6 +188,7 @@ where
       input,
       state,
       cursor: L::Offset::default(),
+      span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache,
     }
   }
@@ -197,8 +201,9 @@ where
     InputRef {
       input: &self.input,
       state: &mut self.state,
-      cursor: &mut self.cursor,
+      // cursor: &mut self.cursor,
       cache: &mut self.cache,
+      span: &mut self.span,
       emitter,
     }
   }

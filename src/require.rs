@@ -32,7 +32,7 @@
 ///     }
 /// }
 /// ```
-pub trait Require<O>: super::Check<O> {
+pub trait Require<O> {
   /// The error type returned when a requirement is not met.
   type Err;
 

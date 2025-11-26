@@ -62,26 +62,6 @@ pub trait Emitter<'a, L> {
   /// It can be any type that represents your application's error model.
   type Error;
 
-  // /// Emits an error indicating that too many elements were found.
-  // ///
-  // /// # Parameters
-  // /// - `span`: The span covering the full range of the elements found.
-  // /// - `found`: The number of elements that were found.
-  // /// - `max`: The maximum allowed number of elements.
-  // fn emit_too_many(&mut self, span: L::Span, found: usize, max: usize) -> Result<(), Spanned<Self::Error, L::Span>>
-  // where
-  //   L: Lexer<'a>;
-
-  // /// Emits an error indicating that too few elements were found.
-  // ///
-  // /// # Parameters
-  // /// - `span`: The span covering the full range of the elements found.
-  // /// - `found`: The number of elements that were found.
-  // /// - `min`: The minimum required number of elements.
-  // fn emit_too_less(&mut self, span: L::Span, found: usize, min: usize) -> Result<(), Spanned<Self::Error, L::Span>>
-  // where
-  //   L: Lexer<'a>;
-
   /// Emits a lexer error from the underlying Logos tokenizer.
   ///
   /// This method is called when Logos encounters an error during lexing (e.g.,
@@ -202,4 +182,43 @@ pub trait UnclosedEmitter<'a, L>: Emitter<'a, L> {
   fn emit_unclosed(&mut self, err: UnclosedParen) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>;
+}
+
+/// An emitter that handles missing separator(s) found during parsing.
+pub trait TrailingSeparatorEmitter<'inp, L>: Emitter<'inp, L> {
+  /// Emits an error or warning for a trailing separator(s) found during parsing.
+  /// 
+  /// The first `span` covers the range from the start of sequence to the end of trailings,
+  /// the second `trailings` covers the trailing separator(s).
+  fn emit_trailing_separator(&mut self, span: L::Span, trailings: L::Span) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>;
+}
+
+/// An emitter that handles leading separator(s) found during parsing.
+pub trait LeadingSeparatorEmitter<'inp, L>: Emitter<'inp, L> {
+  /// Emits an error or warning for a leading separator(s) found during parsing.
+  /// 
+  /// The first `span` covers the range from the start of the leading separator(s) to the end of sequence,
+  /// the second `leadings` covers the leading separator(s).
+  fn emit_leading_separator(&mut self, span: L::Span, leadings: L::Span) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>;
+}
+
+/// An emitter that handles missing separator or repeated separators found during parsing.
+pub trait SeparatorEmitter<'inp, L>: Emitter<'inp, L> {
+  /// Emits an error or warning for a missing separator found during parsing.
+  /// 
+  /// The `offset` indicates the position where the separator was expected.
+  fn emit_missing_separator(&mut self, offset: L::Offset) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>;
+
+  /// Emits an error or warning for a repeated separators found during parsing.
+  /// 
+  /// The `span` covers all the repeated separators.
+  fn emit_repeated_separators(&mut self, span: L::Span) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>;
 }

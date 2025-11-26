@@ -14,6 +14,9 @@ pub use sep::*;
 mod any;
 mod sep;
 
+/// Shorthand for the result type of a parser returning a result.
+pub type ParseResult<'inp, O, L, E> = Result<Spanned<O, <L as Lexer<'inp>>::Span>, Spanned<<E as Emitter<'inp, L>>::Error, <L as Lexer<'inp>>::Span>>;
+
 mod sealed {
   use super::*;
 
@@ -351,6 +354,21 @@ where
     let cache = C::with_options(self.cache_opts);
     drive(self.inner.inner, src, state, self.inner.emitter, cache)
   }
+}
+
+/// Trait for computing the next state
+pub trait Next<State> {
+  /// The options for computing the next state
+  type Options;
+
+  /// Computes the next state given the options.
+  fn next(self, options: Self::Options) -> State;
+}
+
+/// Trait for container types used in parsers.
+pub trait Container<T> {
+  /// Push an item into the container.
+  fn push(&mut self, item: T);
 }
 
 /// Shorthand for building a [`Parser`] from a closure.

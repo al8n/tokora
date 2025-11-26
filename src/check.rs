@@ -1,18 +1,18 @@
 use crate::punct::*;
 
 /// A trait for checking
-pub trait Check<T: ?Sized> {
+pub trait Check<T: ?Sized, O = bool> {
   /// Check against the target.
-  fn check(&mut self, target: &T) -> bool;
+  fn check(&self, target: &T) -> O;
 }
 
-impl<F, T> Check<T> for F
+impl<F, T, O> Check<T, O> for F
 where
-  F: ?Sized + FnMut(&T) -> bool,
+  F: ?Sized + Fn(&T) -> O,
   T: ?Sized,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check(&mut self, target: &T) -> bool {
+  fn check(&self, target: &T) -> O {
     (self)(target)
   }
 }
@@ -22,12 +22,12 @@ macro_rules! check_punct {
     $name:ident::$trait:ident::$is_fn:ident
   ),+$(,)?) => {
     $(
-      impl<T, S, C, Lang> $crate::__private::Check<T> for $name<S, C, Lang>
+      impl<T, S, C, Lang> $crate::__private::Check<T, ::core::primitive::bool> for $name<S, C, Lang>
       where
         T: for<'a> $crate::__private::$trait<'a> + ?::core::marker::Sized,
       {
         #[cfg_attr(not(tarpaulin), inline(always))]
-        fn check(&mut self, target: &T) -> ::core::primitive::bool {
+        fn check(&self, target: &T) -> ::core::primitive::bool {
           target.$is_fn()
         }
       }
@@ -49,7 +49,6 @@ check_punct!(
   Newline::PunctuatorToken::is_newline,
   CarriageReturn::PunctuatorToken::is_carriage_return,
   CarriageReturnNewline::PunctuatorToken::is_crlf,
-  Trivia::TriviaToken::is_trivia,
   OpenAngle::PunctuatorToken::is_open_angle,
   CloseAngle::PunctuatorToken::is_close_angle,
   OpenBrace::PunctuatorToken::is_open_brace,
@@ -61,4 +60,5 @@ check_punct!(
   Equal::PunctuatorToken::is_equal,
   FatArrow::OperatorToken::is_fat_arrow,
   Arrow::OperatorToken::is_arrow,
+  Trivia::TriviaToken::is_trivia,
 );

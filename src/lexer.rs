@@ -253,6 +253,11 @@ pub trait Span {
   /// Creates a new span from the given start and end offsets.
   fn new(start: Self::Offset, end: Self::Offset) -> Self;
 
+  /// Consumes the span and returns it.
+  fn into_range(self) -> core::ops::Range<Self::Offset>
+  where
+    Self: Sized;
+
   /// Returns the start offset of the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn start(&self) -> Self::Offset {
@@ -297,6 +302,11 @@ impl Span for core::ops::Range<usize> {
   fn bump(&mut self, n: &Self::Offset) {
     self.end += *n;
   }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn into_range(self) -> core::ops::Range<Self::Offset> {
+    self.start..self.end
+  }
 }
 
 impl<O> Span for crate::utils::Span<O>
@@ -323,6 +333,11 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn bump(&mut self, n: &Self::Offset) {
     self.bump(n);
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn into_range(self) -> core::ops::Range<Self::Offset> {
+    self.start..self.end
   }
 }
 

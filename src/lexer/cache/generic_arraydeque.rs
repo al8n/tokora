@@ -45,20 +45,20 @@ where
     let cursor = ckp.cursor();
     // if the rewind position is before the start of the cache, clear the cache
     if let Some(span) = self.first_span() {
-      if cursor.cursor < span.start() {
+      if cursor.as_inner() < span.start_ref() {
         self.clear();
         return;
       }
 
       // If the rewind position is exactly at the start of the cache, do nothing
-      if cursor.cursor == span.start() {
+      if cursor.as_inner() == span.start_ref() {
         return;
       }
     }
 
     // if the rewind position is after the end of the cache, clear the cache
     if let Some(span) = self.last_span() {
-      if cursor.cursor >= span.end() {
+      if cursor.as_inner() >= span.end_ref() {
         self.clear();
         return;
       }
