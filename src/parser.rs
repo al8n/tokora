@@ -15,7 +15,10 @@ mod any;
 mod sep;
 
 /// Shorthand for the result type of a parser returning a result.
-pub type ParseResult<'inp, O, L, E> = Result<Spanned<O, <L as Lexer<'inp>>::Span>, Spanned<<E as Emitter<'inp, L>>::Error, <L as Lexer<'inp>>::Span>>;
+pub type ParseResult<'inp, O, L, E> = Result<
+  Spanned<O, <L as Lexer<'inp>>::Span>,
+  Spanned<<E as Emitter<'inp, L>>::Error, <L as Lexer<'inp>>::Span>,
+>;
 
 mod sealed {
   use super::*;
@@ -369,6 +372,12 @@ pub trait Next<State> {
 pub trait Container<T> {
   /// Push an item into the container.
   fn push(&mut self, item: T);
+
+  /// Returns the first item in the container, if any.
+  fn first(&self) -> Option<&T>;
+
+  /// Returns the last item in the container, if any.
+  fn last(&self) -> Option<&T>;
 }
 
 /// Shorthand for building a [`Parser`] from a closure.

@@ -216,7 +216,7 @@ punctuator! {
   (Dot, "DOT", "."),
   (Underscore, "UNDERSCORE", "_"),
   (Equal, "EQUAL", "="),
-  (Dash, "DASH", "-"),
+  (Hyphen, "HYPHEN", "-"),
   #[doc(alias = "ThinArrow")]
   (Arrow, "ARROW", "->"),
   (FatArrow, "FAT_ARROW", "=>"),

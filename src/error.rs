@@ -14,7 +14,7 @@ pub use unexpected_keyword::*;
 pub use unexpected_lexeme::*;
 pub use unexpected_prefix::*;
 pub use unexpected_suffix::*;
-pub use unexpected_token::*;
+
 pub use unicode_escape::*;
 pub use unknown_lexeme::*;
 pub use unopened::*;
@@ -25,6 +25,13 @@ use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 use crate::utils::Span;
 
 mod errors;
+
+/// Common error types for parsers.
+pub mod parser;
+
+/// Common error types for lexers.
+pub mod lexer;
+
 
 mod hex_escape;
 mod incomplete_syntax;
@@ -40,7 +47,6 @@ mod unexpected_keyword;
 mod unexpected_lexeme;
 mod unexpected_prefix;
 mod unexpected_suffix;
-mod unexpected_token;
 mod unknown_lexeme;
 mod unopened;
 mod unterminated;

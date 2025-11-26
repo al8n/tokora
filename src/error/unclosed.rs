@@ -109,13 +109,13 @@ use crate::{
 };
 
 /// A unclosed bracket error
-pub type UnclosedBracket = Unclosed<Bracket>;
+pub type UnclosedBracket<O = usize> = Unclosed<Bracket, O>;
 /// A unclosed parenthesis error
-pub type UnclosedParen = Unclosed<Paren>;
+pub type UnclosedParen<O = usize> = Unclosed<Paren, O>;
 /// A unclosed brace error
-pub type UnclosedBrace = Unclosed<Brace>;
+pub type UnclosedBrace<O = usize> = Unclosed<Brace, O>;
 /// A unclosed angle bracket error
-pub type UnclosedAngle = Unclosed<Angle>;
+pub type UnclosedAngle<O = usize> = Unclosed<Angle, O>;
 
 /// A zero-copy error type representing an unclosed delimiter.
 ///

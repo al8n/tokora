@@ -110,7 +110,11 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn set_span(&mut self, new: MaybeRef<'_, L::Span>) {
     let end = self.input.len();
-    *self.span = if new.end_ref().lt(&end) { to_owned(new) } else { L::Span::new(L::Offset::default(), end) };
+    *self.span = if new.end_ref().lt(&end) {
+      to_owned(new)
+    } else {
+      L::Span::new(L::Offset::default(), end)
+    };
   }
 
   /// Sets the cursor to the latest position between the new value and the cache start.
@@ -174,11 +178,11 @@ where
 
   /// Emits a lexer token error using the provided emitter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn emit_token_error(
+  pub fn emit_lexer_error(
     &mut self,
     err: Spanned<<L::Token as Token<'inp>>::Error, L::Span>,
   ) -> Result<(), Spanned<E::Error, L::Span>> {
-    self.emitter.emit_token_error(err)
+    self.emitter.emit_lexer_error(err)
   }
 
   /// Emits an error using the provided emitter.
@@ -288,9 +292,7 @@ where
 
   /// Returns a slice of the current token from the input source.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn slice(
-    &self,
-  ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
+  pub fn slice(&self) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
     self.input.slice(self.span.start_ref()..self.span.end_ref())
   }
 
@@ -317,7 +319,10 @@ where
 
   /// Returns a slice of the input source from the current cursor of the tokenizer to the end of the input.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn slice_range<'r, R>(&self, range: R) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>>
+  pub fn slice_range<'r, R>(
+    &self,
+    range: R,
+  ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>>
   where
     R: RangeBounds<&'r Cursor<'inp, 'closure, L>>,
     'closure: 'r,
@@ -331,7 +336,7 @@ where
   /// Returns the span of the current token.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span(&self) -> &L::Span {
-    &self.span
+    self.span
   }
 
   /// Returns a span from the given cursor to the current cursor of the tokenizer.
@@ -526,7 +531,7 @@ where
       // Note: cursor/state are updated before emission. If emission fails,
       // the error token has still been consumed (no backtracking here).
       if let Lexed::Error(e) = tok {
-        self.emit_token_error(Spanned::new(span.clone(), e))?;
+        self.emit_lexer_error(Spanned::new(span.clone(), e))?;
       }
     }
 
@@ -543,7 +548,7 @@ where
 
         while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
           match tok {
-            Lexed::Error(err) => match self.emit_token_error(Spanned::new(span, err)) {
+            Lexed::Error(err) => match self.emit_lexer_error(Spanned::new(span, err)) {
               Ok(_) => {
                 end = lexer.span();
                 state = lexer.state().clone();
@@ -688,12 +693,7 @@ where
   /// of the first cached token; otherwise, it points to the current position.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn cursor(&self) -> &Cursor<'inp, 'closure, L> {
-    Cursor::from_ref(
-      self
-        .cache()
-        .first_span()
-        .unwrap_or_else(|| self.span),
-    )
+    Cursor::from_ref(self.cache().first_span().unwrap_or(self.span))
   }
 
   /// Restores the tokenizer state to a previously saved checkpoint.
@@ -729,7 +729,7 @@ where
       match lexed {
         Lexed::Token(t) => return Ok(Some(Spanned::new(span, t))),
         Lexed::Error(e) => {
-          self.emit_token_error(Spanned::new(span, e))?;
+          self.emit_lexer_error(Spanned::new(span, e))?;
           continue;
         }
       }
@@ -746,7 +746,7 @@ where
       match lexed {
         Lexed::Token(t) => return Ok(Some(Spanned::new(span, t))),
         Lexed::Error(e) => {
-          self.emit_token_error(Spanned::new(span, e))?;
+          self.emit_lexer_error(Spanned::new(span, e))?;
           continue;
         }
       }

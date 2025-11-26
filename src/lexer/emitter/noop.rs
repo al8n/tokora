@@ -10,7 +10,7 @@ where
   type Error = E;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_token_error(
+  fn emit_lexer_error(
     &mut self,
     Spanned { span, data: err }: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
   ) -> Result<(), Spanned<Self::Error, L::Span>> {

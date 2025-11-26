@@ -1124,6 +1124,12 @@ impl<D, S> Spanned<D, S> {
     }
   }
 
+  /// Consume the spanned value and return the span.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_span(self) -> S {
+    self.span
+  }
+
   /// Consume the spanned value and return the data.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn into_data(self) -> D {

@@ -326,7 +326,7 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   /// - Must be `Debug` for error messages
   /// - Must be `PartialEq` and `Eq` for comparisons in parsers
   /// - Must be `Hash` for use in hash-based collections
-  type Kind: Copy + core::fmt::Debug + PartialEq + Eq + core::hash::Hash;
+  type Kind: Copy + core::fmt::Debug + core::fmt::Display + PartialEq + Eq + core::hash::Hash;
 
   /// The error type of this token.
   type Error: Clone + core::fmt::Debug;

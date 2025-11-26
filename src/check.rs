@@ -40,7 +40,7 @@ check_punct!(
   Semicolon::PunctuatorToken::is_semicolon,
   Colon::PunctuatorToken::is_colon,
   Dot::PunctuatorToken::is_dot,
-  Dash::PunctuatorToken::is_minus,
+  Hyphen::PunctuatorToken::is_minus,
   Underscore::PunctuatorToken::is_underscore,
   Pipe::PunctuatorToken::is_pipe,
   Ampersand::PunctuatorToken::is_ampersand,

@@ -1,10 +1,11 @@
-use core::{marker::PhantomData, mem::MaybeUninit};
+use core::marker::PhantomData;
 
 use derive_more::IsVariant;
 
-use crate::{Check, emitter::{SeparatedByEmitter, TrailingSeparatorEmitter}, utils::Span};
-
 use super::*;
+
+mod init;
+
 /// A marker type representing the maximum number of elements allowed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Maximum(pub usize);
@@ -37,10 +38,19 @@ impl Minimum {
 
 /// Leading-separator markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DenyLeading;
+
+/// Leading-separator markers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AllowLeading;
+
 /// Requires a leading separator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RequireLeading;
+
+/// Denies trailing separators.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DenyTrailing;
 
 /// Trailing-separator markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -62,6 +72,8 @@ pub enum SeqSepHint {
   End,
   /// Indicates a separator was found, hint to parse another element.
   Separator,
+  /// Indicates an element was found, hint to continue parsing.
+  Continue,
 }
 
 /// A parser that parses a sequence of elements separated by a specific separator.
@@ -91,10 +103,14 @@ impl<F, Sep, O, Container> SeqSep<F, Sep, O, Container> {
   }
 }
 
-impl<F, Sep, O, Container, Trailing, Leading, Max, Min> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Max, Min>> {
+impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
+  SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Max, Min>>
+{
   /// Allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn allow_trailing(self) -> SeqSep<F, Sep, O, Container, SeqSepOptions<AllowTrailing, Leading, Max, Min>>
+  pub fn allow_trailing(
+    self,
+  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<AllowTrailing, Leading, Max, Min>>
   where
     Trailing: Next<AllowTrailing>,
   {
@@ -111,7 +127,9 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min> SeqSep<F, Sep, O, Contai
 
   /// Requires a trailing separator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn require_trailing(self) -> SeqSep<F, Sep, O, Container, SeqSepOptions<RequireTrailing, Leading, Max, Min>>
+  pub fn require_trailing(
+    self,
+  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<RequireTrailing, Leading, Max, Min>>
   where
     Trailing: Next<RequireTrailing>,
   {
@@ -128,7 +146,9 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min> SeqSep<F, Sep, O, Contai
 
   /// Allows leading separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn allow_leading(self) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, AllowLeading, Max, Min>>
+  pub fn allow_leading(
+    self,
+  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, AllowLeading, Max, Min>>
   where
     Leading: Next<AllowLeading>,
   {
@@ -145,7 +165,9 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min> SeqSep<F, Sep, O, Contai
 
   /// Requires a leading separator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn require_leading(self) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, RequireLeading, Max, Min>>
+  pub fn require_leading(
+    self,
+  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, RequireLeading, Max, Min>>
   where
     Leading: Next<RequireLeading>,
   {
@@ -162,7 +184,10 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min> SeqSep<F, Sep, O, Contai
 
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_least(self, n: Min::Options) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Max, Minimum>>
+  pub fn at_least(
+    self,
+    n: Min::Options,
+  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Max, Minimum>>
   where
     Min: Next<Minimum>,
   {
@@ -171,7 +196,10 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min> SeqSep<F, Sep, O, Contai
       sep: self.sep,
       config: SeqSepOptions::new(
         self.config.primary,
-        With::new(self.config.secondary.primary, Min::next(self.config.secondary.secondary, n)),
+        With::new(
+          self.config.secondary.primary,
+          Min::next(self.config.secondary.secondary, n),
+        ),
       ),
       _m: PhantomData,
     }
@@ -179,7 +207,10 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min> SeqSep<F, Sep, O, Contai
 
   /// Sets the maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_most(self, n: Max::Options) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Maximum, Min>>
+  pub fn at_most(
+    self,
+    n: Max::Options,
+  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Maximum, Min>>
   where
     Max: Next<Maximum>,
   {
@@ -188,22 +219,18 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min> SeqSep<F, Sep, O, Contai
       sep: self.sep,
       config: SeqSepOptions::new(
         self.config.primary,
-        With::new(Max::next(self.config.secondary.primary, n), self.config.secondary.secondary),
+        With::new(
+          Max::next(self.config.secondary.primary, n),
+          self.config.secondary.secondary,
+        ),
       ),
       _m: PhantomData,
     }
   }
 }
 
-
-impl<'inp, L, F, Sep, O, Output, Container, E, C, Config> sealed::Sealed<'inp, L, Output, E, C>
+impl<L, F, Sep, O, Output, Container, E, C, Config> sealed::Sealed<'_, L, Output, E, C>
   for SeqSep<F, Sep, O, Container, Config>
-where
-  L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, E, C>,
-  Sep: Check<L::Token, SeqSepHint>,
-  E: Emitter<'inp, L>,
-  C: Cache<'inp, L>,
 {
 }
 
@@ -211,92 +238,8 @@ where
 enum State<S> {
   Start,
   Element,
-  Separator,
+  Separator(S),
   RepeatedSeparator(S),
-}
-
-// No trailing, no leading, unbounded
-impl<'inp, L, F, Sep, O, Container, E, C> ParseInput<'inp, L, ParseResult<'inp, Container, L, E>, E, C> for SeqSep<F, Sep, O, Container, Init>
-where
-  L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, E, C>,
-  Sep: Check<L::Token, SeqSepHint>,
-  E: SeparatedByEmitter<'inp, L>,
-  C: Cache<'inp, L>,
-  Container: Default + super::Container<O>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(&mut self, inp: &mut InputRef<'inp, '_, L, E, C>) -> ParseResult<'inp, Container, L, E>
-  where
-    L: Lexer<'inp>,
-    E: Emitter<'inp, L>,
-    C: Cache<'inp, L>,
-  {
-    let mut container = Container::default();
-    let mut state = State::Start;
-    let ckp = inp.save();
-
-    loop {
-      // peek two tokens ahead
-      let peeked = inp.peek_one();
-
-      match peeked {
-        None => {
-          let trailings = match state {
-            State::Separator => inp.span().clone(),
-            State::RepeatedSeparator(span) => span,
-            _ => return Ok(Spanned::new(inp.span_since(ckp.cursor()), container)),
-          };
-
-          // if the emitter treat trailing separator error as a non-fatal error, emit it
-          // otherwise, return an error
-          let span = inp.span_since(ckp.cursor());
-          inp.emitter().emit_trailing_separator(span, trailings.clone())?;
-
-          return Ok(Spanned::new(inp.span_since(ckp.cursor()), container));
-        },
-        Some(tok) => {
-          let tok = tok.as_ref();
-          match tok.token().data() {
-            Lexed::Error(_) => {
-              // if the next token is an error token, emit the error.
-              let nxt = inp.next().expect("peeked token already confirmed there must be a token");
-              inp.emit_token_error(nxt.map_data(|s| s.unwrap_error()))?;
-              continue;
-            },
-            Lexed::Token(tok) => {
-              match self.sep.check(tok) {
-                SeqSepHint::End => {
-                  let trailings = match state {
-                    State::Separator => inp.span().clone(),
-                    State::RepeatedSeparator(span) => span,
-                    _ => return Ok(Spanned::new(inp.span_since(ckp.cursor()), container)),
-                  };
-
-                  let span = inp.span_since(ckp.cursor());
-                  // TODO(al8n): improve the trailing error, add info about the separator
-                  inp.emitter().emit_trailing_separator(span.clone(), trailings)?;
-                  return Ok(Spanned::new(span, container));
-                }
-                SeqSepHint::Separator => {
-                  match &state {
-                    State::Start => todo!(),
-                    State::Element => todo!(),
-                    State::Separator => todo!(),
-                    State::RepeatedSeparator(_) => todo!(),
-                  }
-                }
-              }
-
-
-            },
-          }
-        }
-      }
-    }
-
-    Ok(Spanned::new(inp.span_since(ckp.cursor()), container))
-  }
 }
 
 impl Next<AllowLeading> for () {
@@ -368,5 +311,75 @@ impl Next<Minimum> for Minimum {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn next(self, options: Self::Options) -> Minimum {
     Minimum(options)
+  }
+}
+
+enum Spec {
+  Deny,
+  Allow,
+  Require,
+}
+
+trait Leading {
+  const SPEC: Spec;
+}
+
+impl Leading for DenyLeading {
+  const SPEC: Spec = Spec::Deny;
+}
+
+impl Leading for AllowLeading {
+  const SPEC: Spec = Spec::Allow;
+}
+
+impl Leading for RequireLeading {
+  const SPEC: Spec = Spec::Require;
+}
+
+trait Trailing {
+  const SPEC: Spec;
+}
+
+impl Trailing for DenyTrailing {
+  const SPEC: Spec = Spec::Deny;
+}
+
+impl Trailing for AllowTrailing {
+  const SPEC: Spec = Spec::Allow;
+}
+
+trait Min {
+  fn minimum(&self) -> usize;
+}
+
+impl Min for Minimum {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn minimum(&self) -> usize {
+    self.0
+  }
+}
+
+impl Min for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn minimum(&self) -> usize {
+    0
+  }
+}
+
+trait Max {
+  fn maximum(&self) -> usize;
+}
+
+impl Max for Maximum {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn maximum(&self) -> usize {
+    self.0
+  }
+}
+
+impl Max for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn maximum(&self) -> usize {
+    usize::MAX
   }
 }

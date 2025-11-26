@@ -267,6 +267,9 @@ pub trait Span {
   /// Returns the start offset of the span.
   fn start_ref(&self) -> &Self::Offset;
 
+  /// Returns the mutable reference to the start offset of the span.
+  fn start_mut(&mut self) -> &mut Self::Offset;
+
   /// Returns the end offset of the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn end(&self) -> Self::Offset {
@@ -275,6 +278,9 @@ pub trait Span {
 
   /// Returns the end offset of the span.
   fn end_ref(&self) -> &Self::Offset;
+
+  /// Returns the mutable reference to the end offset of the span.
+  fn end_mut(&mut self) -> &mut Self::Offset;
 
   /// Bumps the span by `n` offsets.
   fn bump(&mut self, n: &Self::Offset);
@@ -296,6 +302,16 @@ impl Span for core::ops::Range<usize> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn end_ref(&self) -> &Self::Offset {
     &self.end
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn start_mut(&mut self) -> &mut Self::Offset {
+    &mut self.start
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn end_mut(&mut self) -> &mut Self::Offset {
+    &mut self.end
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -326,8 +342,18 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  fn start_mut(&mut self) -> &mut Self::Offset {
+    self.start_mut()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn end_ref(&self) -> &Self::Offset {
     self.end_ref()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn end_mut(&mut self) -> &mut Self::Offset {
+    self.end_mut()
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

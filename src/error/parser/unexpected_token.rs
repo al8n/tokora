@@ -45,7 +45,13 @@
 //! assert_eq!(format!("{}", error), "unexpected token 'else', expected 'if'");
 //! ```
 
-use crate::utils::{Expected, Span};
+use crate::{error::parser::{Trailing, Leading}, utils::{Expected, Span}};
+
+pub use unexpected_trailing::*;
+pub use unexpected_leading::*;
+
+mod unexpected_leading;
+mod unexpected_trailing;
 
 /// An error representing an unexpected token encountered during parsing.
 ///
@@ -56,7 +62,7 @@ use crate::utils::{Expected, Span};
 /// # Type Parameters
 ///
 /// * `T` - The type of the actual token that was found
-/// * `TK` - The type of the expected token (often an enum of token kinds)
+/// * `Kind` - The type of the expected token (often an enum of token kinds)
 ///
 /// # Examples
 ///
@@ -90,20 +96,73 @@ use crate::utils::{Expected, Span};
 /// );
 /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
 /// ```
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedToken<'a, T, TK, S = Span> {
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct UnexpectedToken<'a, T, Kind, S = Span, Knowledge = ()> {
   span: S,
   found: Option<T>,
-  expected: Expected<'a, TK>,
+  expected: Option<Expected<'a, Kind>>,
+  knowledge: Option<Knowledge>,
 }
 
-impl<'a, T, TK, S> UnexpectedToken<'a, T, TK, S> {
-  const fn new_in(span: S, found: Option<T>, expected: Expected<'a, TK>) -> Self {
+impl<T, Kind, S, Knowledge> UnexpectedToken<'_, T, Kind, S, Trailing<Knowledge>> {
+  /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn trailing(span: S, found: T) -> Self {
+    Self::new_in(span, Some(found), None, Some(Trailing::new()))
+  }
+}
+
+impl<T, Kind, S, Knowledge> UnexpectedToken<'_, T, Kind, S, Leading<Knowledge>> {
+  /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn leading(span: S, found: T) -> Self {
+    Self::new_in(span, Some(found), None, Some(Leading::new()))
+  }
+}
+
+impl<'a, T, Kind, S, Knowledge> UnexpectedToken<'a, T, Kind, S, Knowledge> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) const fn new_in(span: S, found: Option<T>, expected: Option<Expected<'a, Kind>>, knowledge: Option<Knowledge>) -> Self {
     Self {
       span,
       found,
       expected,
+      knowledge,
     }
+  }
+
+  /// Creates a new unexpected token error.
+  /// 
+  /// This error indicates that an unexpected token was encountered,
+  /// without specifying what token was found or expected.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(
+    span: S,
+  ) -> Self {
+    Self::new_in(span, None, None, None)
+  }
+
+  /// Adds knowledge to the `UnexpectedToken` error.
+  /// 
+  /// This method allows attaching additional context or information
+  /// to the error, which can be useful for debugging or reporting.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_knowledge_const(mut self, knowledge: Knowledge) -> Self
+  where
+    Knowledge: Copy,
+  {
+    self.knowledge = Some(knowledge);
+    self
+  }
+
+  /// Adds knowledge to the `UnexpectedToken` error.
+  /// 
+  /// This method allows attaching additional context or information
+  /// to the error, which can be useful for debugging or reporting.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn with_knowledge(mut self, knowledge: Knowledge) -> Self {
+    self.knowledge = Some(knowledge);
+    self
   }
 
   /// Creates an unexpected token error without a found token.
@@ -125,8 +184,8 @@ impl<'a, T, TK, S> UnexpectedToken<'a, T, TK, S> {
   /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: S, expected: Expected<'a, TK>) -> Self {
-    Self::new_in(span, None, expected)
+  pub const fn with_expected(span: S, expected: Expected<'a, Kind>) -> Self {
+    Self::new_in(span, None, Some(expected), None)
   }
 
   /// Creates a new unexpected token error with a single expected token.
@@ -147,8 +206,8 @@ impl<'a, T, TK, S> UnexpectedToken<'a, T, TK, S> {
   /// assert_eq!(format!("{}", error), "unexpected end of input, expected ';'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected_one(span: S, expected: TK) -> Self {
-    Self::new(span, Expected::one(expected))
+  pub const fn expected_one(span: S, expected: Kind) -> Self {
+    Self::with_expected(span, Expected::one(expected))
   }
 
   /// Creates a new unexpected token error with a single expected token.
@@ -170,8 +229,8 @@ impl<'a, T, TK, S> UnexpectedToken<'a, T, TK, S> {
   /// assert_eq!(format!("{}", error), "unexpected token ':', expected ';'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected_one_with_found(span: S, found: T, expected: TK) -> Self {
-    Self::new_in(span, Some(found), Expected::one(expected))
+  pub const fn expected_one_with_found(span: S, found: T, expected: Kind) -> Self {
+    Self::new_in(span, Some(found), Some(Expected::one(expected)), None)
   }
 
   /// Creates a new unexpected token error with multiple expected tokens.
@@ -195,8 +254,8 @@ impl<'a, T, TK, S> UnexpectedToken<'a, T, TK, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected_one_of(span: S, expected: &'static [TK]) -> Self {
-    Self::new(span, Expected::one_of(expected))
+  pub const fn expected_one_of(span: S, expected: &'static [Kind]) -> Self {
+    Self::with_expected(span, Expected::one_of(expected))
   }
 
   /// Creates a new unexpected token error with multiple expected tokens.
@@ -221,8 +280,8 @@ impl<'a, T, TK, S> UnexpectedToken<'a, T, TK, S> {
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected_one_of_with_found(span: S, found: T, expected: &'static [TK]) -> Self {
-    Self::new_in(span, Some(found), Expected::one_of(expected))
+  pub const fn expected_one_of_with_found(span: S, found: T, expected: &'static [Kind]) -> Self {
+    Self::new_in(span, Some(found), Some(Expected::one_of(expected)), None)
   }
 
   /// Creates a new unexpected token error with an optional found token.
@@ -410,8 +469,8 @@ impl<'a, T, TK, S> UnexpectedToken<'a, T, TK, S> {
   /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected(&self) -> &Expected<'a, TK> {
-    &self.expected
+  pub const fn expected(&self) -> Option<&Expected<'a, Kind>> {
+    self.expected.as_ref()
   }
 
   /// Bumps both the start and end positions of the span by the given offset.
@@ -462,14 +521,15 @@ impl<'a, T, TK, S> UnexpectedToken<'a, T, TK, S> {
   /// });
   /// # }
   /// ```
-  pub fn map_expected<F, TK2>(self, f: F) -> UnexpectedToken<'a, T, TK2, S>
+  pub fn map_expected<F, Kind2>(self, f: F) -> UnexpectedToken<'a, T, Kind2, S, Knowledge>
   where
-    F: FnOnce(Expected<'a, TK>) -> Expected<'a, TK2>,
+    F: FnOnce(Expected<'a, Kind>) -> Expected<'a, Kind2>,
   {
     UnexpectedToken {
       span: self.span,
       found: self.found,
-      expected: f(self.expected),
+      expected: self.expected.map(f),
+      knowledge: self.knowledge,
     }
   }
 
@@ -494,27 +554,27 @@ impl<'a, T, TK, S> UnexpectedToken<'a, T, TK, S> {
   /// assert_eq!(expected, Expected::one("{"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (S, Option<T>, Expected<'a, TK>) {
-    (self.span, self.found, self.expected)
+  pub fn into_components(self) -> (S, Option<T>, Option<Expected<'a, Kind>>, Option<Knowledge>) {
+    (self.span, self.found, self.expected, self.knowledge)
   }
 }
 
-impl<T: core::fmt::Display, TK: core::fmt::Display + 'static, S> core::fmt::Display
-  for UnexpectedToken<'_, T, TK, S>
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match &self.found {
-      Some(found) => write!(f, "unexpected token '{found}', {}", self.expected),
-      None => write!(f, "unexpected end of input, {}", self.expected),
-    }
-  }
-}
+// impl<T: core::fmt::Display, Kind: core::fmt::Display + 'static, S> core::fmt::Display
+//   for UnexpectedToken<'_, T, Kind, S>
+// {
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+//     match &self.found {
+//       Some(found) => write!(f, "unexpected token '{found}', {}", self.expected),
+//       None => write!(f, "unexpected end of input, {}", self.expected),
+//     }
+//   }
+// }
 
-impl<
-  T: core::fmt::Debug + core::fmt::Display,
-  TK: core::fmt::Display + core::fmt::Debug + 'static,
-  S: core::fmt::Debug,
-> core::error::Error for UnexpectedToken<'_, T, TK, S>
-{
-}
+// impl<
+//   T: core::fmt::Debug + core::fmt::Display,
+//   Kind: core::fmt::Display + core::fmt::Debug + 'static,
+//   S: core::fmt::Debug,
+// > core::error::Error for UnexpectedToken<'_, T, Kind, S>
+// {
+// }

@@ -1,4 +1,8 @@
-use crate::{Lexer, error::UnclosedParen, utils::Spanned};
+use crate::{
+  Lexer,
+  error::{UnclosedParen, parser::{UnexpectedLeadingOf, UnexpectedTrailingOf}},
+  utils::Spanned,
+};
 
 use super::Token;
 
@@ -76,7 +80,7 @@ pub trait Emitter<'a, L> {
   ///
   /// - `Ok(())` if the error should be treated as non-fatal (processing continues)
   /// - `Err(Self::Error)` if the error is fatal (processing stops immediately)
-  fn emit_token_error(
+  fn emit_lexer_error(
     &mut self,
     err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
   ) -> Result<(), Spanned<Self::Error, L::Span>>
@@ -111,31 +115,15 @@ where
 {
   type Error = U::Error;
 
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_too_many(&mut self, span: <L>::Span, found: usize, max: usize) -> Result<(), Spanned<Self::Error, <L>::Span>>
-  // where
-  //   L: Lexer<'a>
-  // {
-  //   (**self).emit_too_many(span, found, max)
-  // }
-
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_too_less(&mut self, span: L::Span, found: usize, min: usize) -> Result<(), Spanned<Self::Error, L::Span>>
-  // where
-  //   L: Lexer<'a>
-  // {
-  //   (**self).emit_too_less(span, found, min)
-  // }
-
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_token_error(
+  fn emit_lexer_error(
     &mut self,
     err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
   ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>,
   {
-    (**self).emit_token_error(err)
+    (**self).emit_lexer_error(err)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -150,8 +138,26 @@ where
   }
 }
 
-/// An emitter that handles "too many" elements found during parsing.
-pub trait TooManyEmitter<'a, L>: Emitter<'a, L> {
+/// An emitter that emits unclosed parenthesis errors.
+pub trait UnclosedEmitter<'a, L>: Emitter<'a, L> {
+  /// Emits an error indicating that there are unclosed parentheses.
+  fn emit_unclosed(&mut self, err: UnclosedParen) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>;
+}
+
+/// An emitter that handles errors related to repeated elements during parsing.
+pub trait RepeatedEmitter<'a, L>: Emitter<'a, L> {
+  /// Emits an error indicating that too few elements were found.
+  fn emit_too_less(
+    &mut self,
+    span: L::Span,
+    found: usize,
+    min: usize,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>;
+  
   /// Emits an error indicating that too many elements were found.
   fn emit_too_many(
     &mut self,
@@ -163,9 +169,11 @@ pub trait TooManyEmitter<'a, L>: Emitter<'a, L> {
     L: Lexer<'a>;
 }
 
-/// An emitter that handles "too few" elements found during parsing.
-pub trait TooLessEmitter<'a, L>: Emitter<'a, L> {
-  /// Emits an error indicating that too few elements were found.
+impl<'a, L, U> RepeatedEmitter<'a, L> for &mut U
+where
+  U: RepeatedEmitter<'a, L>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_too_less(
     &mut self,
     span: L::Span,
@@ -173,52 +181,113 @@ pub trait TooLessEmitter<'a, L>: Emitter<'a, L> {
     min: usize,
   ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
-    L: Lexer<'a>;
-}
+    L: Lexer<'a>,
+  {
+    (**self).emit_too_less(span, found, min)
+  }
 
-/// An emitter that emits unclosed parenthesis errors.
-pub trait UnclosedEmitter<'a, L>: Emitter<'a, L> {
-  /// Emits an error indicating that there are unclosed parentheses.
-  fn emit_unclosed(&mut self, err: UnclosedParen) -> Result<(), Spanned<Self::Error, L::Span>>
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_too_many(
+    &mut self,
+    span: L::Span,
+    found: usize,
+    max: usize,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
-    L: Lexer<'a>;
-}
-
-/// An emitter that handles missing separator(s) found during parsing.
-pub trait TrailingSeparatorEmitter<'inp, L>: Emitter<'inp, L> {
-  /// Emits an error or warning for a trailing separator(s) found during parsing.
-  /// 
-  /// The first `span` covers the range from the start of sequence to the end of trailings,
-  /// the second `trailings` covers the trailing separator(s).
-  fn emit_trailing_separator(&mut self, span: L::Span, trailings: L::Span) -> Result<(), Spanned<Self::Error, L::Span>>
-  where
-    L: Lexer<'inp>;
-}
-
-/// An emitter that handles leading separator(s) found during parsing.
-pub trait LeadingSeparatorEmitter<'inp, L>: Emitter<'inp, L> {
-  /// Emits an error or warning for a leading separator(s) found during parsing.
-  /// 
-  /// The first `span` covers the range from the start of the leading separator(s) to the end of sequence,
-  /// the second `leadings` covers the leading separator(s).
-  fn emit_leading_separator(&mut self, span: L::Span, leadings: L::Span) -> Result<(), Spanned<Self::Error, L::Span>>
-  where
-    L: Lexer<'inp>;
+    L: Lexer<'a>,
+  {
+    (**self).emit_too_many(span, found, max)
+  }
 }
 
 /// An emitter that handles missing separator or repeated separators found during parsing.
-pub trait SeparatorEmitter<'inp, L>: Emitter<'inp, L> {
+pub trait SeparatedByEmitter<'inp, L, Sep>: RepeatedEmitter<'inp, L> {
   /// Emits an error or warning for a missing separator found during parsing.
-  /// 
+  ///
   /// The `offset` indicates the position where the separator was expected.
-  fn emit_missing_separator(&mut self, offset: L::Offset) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_missing_separator(
+    &mut self,
+    offset: L::Offset,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'inp>;
 
   /// Emits an error or warning for a repeated separators found during parsing.
-  /// 
+  ///
   /// The `span` covers all the repeated separators.
-  fn emit_repeated_separators(&mut self, span: L::Span) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_repeated_separators(
+    &mut self,
+    span: L::Span,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'inp>;
+
+  /// Emits an error or warning for a leading separator(s) found during parsing.
+  ///
+  /// The `leadings` covers the leading separator(s).
+  fn emit_leading_separator(
+    &mut self,
+    err: UnexpectedLeadingOf<'inp, Sep, L>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>;
+  
+  /// Emits an error or warning for a trailing separator(s) found during parsing.
+  ///
+  /// The `trailings` covers the trailing separator(s).
+  fn emit_trailing_separator(
+    &mut self,
+    err: UnexpectedTrailingOf<'inp, Sep, L>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>;
+}
+
+impl<'inp, L, Sep, U> SeparatedByEmitter<'inp, L, Sep> for &mut U
+where
+  U: SeparatedByEmitter<'inp, L, Sep>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_missing_separator(
+    &mut self,
+    offset: L::Offset,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>,
+  {
+    (**self).emit_missing_separator(offset)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_repeated_separators(
+    &mut self,
+    span: L::Span,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>,
+  {
+    (**self).emit_repeated_separators(span)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_leading_separator(
+    &mut self,
+    err: UnexpectedLeadingOf<'inp, Sep, L>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>,
+  {
+    (**self).emit_leading_separator(err)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_trailing_separator(
+    &mut self,
+    err: UnexpectedTrailingOf<'inp, Sep, L>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>,
+  {
+    (**self).emit_trailing_separator(err)
+  }
 }
