@@ -1,6 +1,14 @@
 /// A no-operation marker type.
 pub struct Noop<T: ?Sized>(core::marker::PhantomData<T>);
 
+impl<T: ?Sized> Noop<T> {
+  /// Creates a new `Noop`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new() -> Self {
+    Self(core::marker::PhantomData)
+  }
+}
+
 impl<T: ?Sized> Default for Noop<T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn default() -> Self {

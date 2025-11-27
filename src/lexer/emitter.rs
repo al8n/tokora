@@ -275,7 +275,7 @@ pub trait UnclosedEmitter<'a, L>: Emitter<'a, L> {
 }
 
 /// An emitter that handles errors related to repeated elements during parsing.
-pub trait RepeatedEmitter<'a, O, L>: Emitter<'a, L> {
+pub trait RepeatedEmitter<'a, O: ?Sized, L>: Emitter<'a, L> {
   /// Emits an error indicating that too few elements were found.
   fn emit_too_few(&mut self, err: TooFew<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
   where

@@ -320,6 +320,44 @@ impl<'a, Kind, O, Knowledge> MissingToken<'a, Kind, O, Knowledge> {
     self.offset
   }
 
+  /// Returns the span of the missing token.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  ///
+  /// let error = MissingToken::expected_one_with_found(
+  ///     10,
+  ///     "identifier",
+  ///     "number"
+  /// );
+  /// assert_eq!(error.offset_ref(), &10);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn offset_ref(&self) -> &O {
+    &self.offset
+  }
+
+  /// Returns the span of the missing token.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  ///
+  /// let error = MissingToken::expected_one_with_found(
+  ///     10,
+  ///     "identifier",
+  ///     "number"
+  /// );
+  /// assert_eq!(error.offset_mut(), &mut 10);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn offset_mut(&mut self) -> &mut O {
+    &mut self.offset
+  }
+
   /// Returns a reference to the expected token(s).
   ///
   /// # Examples

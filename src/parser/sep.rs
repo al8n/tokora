@@ -6,6 +6,9 @@ use crate::utils::Expected;
 
 use super::*;
 
+// pub use comma::*;
+
+mod comma;
 mod parser_input;
 
 /// A marker type representing the maximum number of elements allowed.
@@ -62,13 +65,11 @@ pub struct Allow(());
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Require(());
 
-/// The Initial configuration layout for `SeqSep`.
-pub type Init = SeqSepOptions<(), (), (), ()>;
-
 /// A type-safe alias for configuring `SeqSep` parsers.
 ///
 /// Canonical configuration layout: `With<With<Trailing, Leading>, With<Maximum, Minimum>>`.
-pub type SeqSepOptions<Trailing, Leading, Max, Min> = With<With<Trailing, Leading>, With<Max, Min>>;
+pub type SeqSepOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
+  With<With<Trailing, Leading>, With<Max, Min>>;
 
 /// A hint used during parsing sequences with separators.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
@@ -86,7 +87,7 @@ pub enum SeqSepHint<'a, Kind> {
 }
 
 /// A parser that parses a sequence of elements separated by a specific separator.
-pub struct SeqSep<F, Sep, O, Container, Config = Init> {
+pub struct SeqSep<F, Sep, O, Container, Config = SeqSepOptions> {
   f: F,
   sep: Sep,
   config: Config,

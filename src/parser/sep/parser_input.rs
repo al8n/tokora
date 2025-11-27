@@ -41,6 +41,7 @@ where
     let mut state: State<L::Token, L::Span> = State::Start;
     let ckp = inp.save();
     let leading_spec = self.leading();
+    let mut num_elems = 0;
 
     let mut lexer_errs_id = None;
 
@@ -51,7 +52,7 @@ where
       match peeked {
         None => {
           return self
-            .handle_end(state, inp, &ckp, &mut container)
+            .handle_end(state, inp, &ckp, num_elems, &mut container)
             .map(|span| Spanned::new(span, container));
         }
         Some(tok) => {
@@ -83,7 +84,7 @@ where
               match self.sep.check(tok) {
                 SeqSepHint::End => {
                   return self
-                    .handle_end(state, inp, &ckp, &mut container)
+                    .handle_end(state, inp, &ckp, num_elems, &mut container)
                     .map(|span| Spanned::new(span, container));
                 }
                 SeqSepHint::Skip => {
@@ -264,7 +265,7 @@ where
                     State::Separator(_) => {
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      container.push(element.map_data(|d| d));
+                      push(&mut num_elems, &mut container, element.map_data(|d| d));
                       state = State::Element;
                     }
                     // we have only one leading separator before
@@ -282,7 +283,7 @@ where
 
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      container.push(element);
+                      push(&mut num_elems, &mut container, element);
                       state = State::Element;
                     }
                     State::Leadings(span) => {
@@ -294,7 +295,7 @@ where
                       )?;
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      container.push(element);
+                      push(&mut num_elems, &mut container, element);
                       state = State::Element;
                     }
                     // parse the first element
@@ -316,7 +317,8 @@ where
 
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      container.push(element);
+                      push(&mut num_elems, &mut container, element);
+                      
                       state = State::Element;
                     }
                     // we are in element state, so the next token should be a separator,
@@ -330,7 +332,7 @@ where
 
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      container.push(element);
+                      push(&mut num_elems, &mut container, element);
                       state = State::Element;
                     }
                     // before finding an element, there are repeated separators
@@ -344,7 +346,7 @@ where
 
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      container.push(element.map_data(|d| d));
+                      push(&mut num_elems, &mut container, element);
                       state = State::Element;
                     }
                   }
@@ -366,6 +368,7 @@ impl<'inp, F, Sep, O, Container, Trailing, Leading, Max, Min>
     state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, E, C>,
     ckp: &Checkpoint<'inp, 'closure, L>,
+    num_elems: usize,
     container: &mut Container,
   ) -> Result<L::Span, Spanned<E::Error, L::Span>>
   where
@@ -395,24 +398,23 @@ impl<'inp, F, Sep, O, Container, Trailing, Leading, Max, Min>
         if minimum > 0 {
           inp
             .emitter()
-            .emit_too_few(TooFew::new(span.clone(), container.len(), minimum))?;
+            .emit_too_few(TooFew::new(span.clone(), num_elems, minimum))?;
         }
         span
       }
       // we are in element state, so all good, check for trailing separator, and the minimum, maximum constraints
       State::Element => {
         let full_span = inp.span_since(ckp.cursor());
-        let nums = container.len();
-        if nums < minimum {
+        if num_elems < minimum {
           inp
             .emitter()
-            .emit_too_few(TooFew::new(full_span.clone(), nums, minimum))?;
+            .emit_too_few(TooFew::new(full_span.clone(), num_elems, minimum))?;
         }
 
-        if nums > maximum {
+        if num_elems > maximum {
           inp
             .emitter()
-            .emit_too_many(TooMany::new(full_span.clone(), nums, maximum))?;
+            .emit_too_many(TooMany::new(full_span.clone(), num_elems, maximum))?;
         }
 
         if trailing_spec.is_require() {
@@ -538,4 +540,13 @@ impl<'inp, F, Sep, O, Container, Trailing, Leading, Max, Min>
       }
     })
   }
+}
+
+#[cfg_attr(not(tarpaulin), inline(always))]
+fn push<C, T>(nums: &mut usize, container: &mut C, item: T)
+where
+  C: super::Container<T>,
+{
+  container.push(item);
+  *nums += 1;
 }

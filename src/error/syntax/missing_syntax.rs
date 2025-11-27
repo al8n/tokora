@@ -152,12 +152,10 @@ impl<Syntax, O, Knowledge> MissingSyntax<Syntax, O, Knowledge> {
   /// ```
   /// use logosky::{utils::{Expected, Span}, error::MissingSyntax};
   ///
-  /// let error = MissingSyntax::expected_one_with_found(
-  ///     Span::new(10, 15),
-  ///     "identifier",
-  ///     "number"
+  /// let error = MissingSyntax::new(
+  ///     10,
   /// );
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// assert_eq!(error.offset(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn offset(&self) -> O
@@ -165,6 +163,40 @@ impl<Syntax, O, Knowledge> MissingSyntax<Syntax, O, Knowledge> {
     O: Copy,
   {
     self.offset
+  }
+
+  /// Returns the span of the missing token.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::MissingSyntax};
+  ///
+  /// let error = MissingSyntax::new(
+  ///     10,
+  /// );
+  /// assert_eq!(error.offset_ref(), &10);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn offset_ref(&self) -> &O {
+    &self.offset
+  }
+
+  /// Returns the span of the missing token.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::MissingSyntax};
+  ///
+  /// let error = MissingSyntax::new(
+  ///     10,
+  /// );
+  /// assert_eq!(error.offset_mut(), &mut 10);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn offset_mut(&mut self) -> &mut O {
+    &mut self.offset
   }
 
   /// Bumps both the start and end positions of the span by the given offset.

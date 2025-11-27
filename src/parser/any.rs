@@ -28,13 +28,26 @@ where
   }
 }
 
-/// A parser that accepts any input, returning the next token if available.
-///
-/// Returns `None` if the input is exhausted.
-#[cfg_attr(not(tarpaulin), inline(always))]
-pub const fn any<'inp, L>() -> Parser<Any, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, ()>
-where
-  L: Lexer<'inp>,
-{
-  Parser::new(Any)
+// /// A parser that accepts any input, returning the next token if available.
+// ///
+// /// Returns `None` if the input is exhausted.
+// #[cfg_attr(not(tarpaulin), inline(always))]
+// pub const fn any<'inp, L>() -> Parser<Any, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, ()>
+// where
+//   L: Lexer<'inp>,
+// {
+//   Parser::with(Any)
+// }
+
+impl Parser<(), (), (), ()> {
+  /// A parser that accepts any input, returning the next token if available.
+  ///
+  /// Returns `None` if the input is exhausted.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn any<'inp, L, Error>() -> Parser<Any, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, Error>
+  where
+    L: Lexer<'inp>,
+  {
+    Parser::with(Any)
+  }
 }

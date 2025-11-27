@@ -90,7 +90,6 @@ where
 }
 
 /// Lightweight wrapper around a parsing function.
-#[repr(transparent)]
 pub struct Parser<F, L, O, Error> {
   f: F,
   _marker: PhantomData<(L, O, Error)>,
@@ -112,11 +111,54 @@ impl<F, L, O, Error> core::ops::DerefMut for Parser<F, L, O, Error> {
   }
 }
 
-impl<F, L, O, Error> Parser<F, L, O, Error> {
-  /// Wrap a parsing function.
+impl<L> Default for Parser<(), L, (), ()> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(f: F) -> Self {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
+impl<L> Parser<(), L, (), ()> {
+  /// A parser without any behavior.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new() -> Self {
     Self {
+      f: (),
+      _marker: PhantomData,
+    }
+  }
+}
+
+impl<F, L, O, Error> Parser<F, L, O, Error> {
+  /// A parser without any behavior.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with(f: F) -> Self {
+    Self {
+      f,
+      _marker: PhantomData,
+    }
+  }
+}
+
+impl<F, L, O, Error> Parser<F, L, O, Error> {
+  // /// Wrap a parsing function.
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // pub const fn new(f: F) -> Self {
+  //   Self {
+  //     f,
+  //     _marker: PhantomData,
+  //   }
+  // }
+
+  /// Apply a new parsing function to the parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn apply<'inp, NF, NO, NE>(self, f: NF) -> Parser<NF, L, NO, NE>
+  where
+    NF: FnMut(&mut InputRef<'inp, '_, L, Noop<NE>, ()>) -> NO,
+    L: Lexer<'inp>,
+    NE: Emitter<'inp, L>,
+  {
+    Parser {
       f,
       _marker: PhantomData,
     }
@@ -368,6 +410,24 @@ pub trait Next<State> {
   fn next(self, options: Self::Options) -> State;
 }
 
+// impl<'inp, F, L, O, Error, C> Next<WithCache<'inp, Parser<F, L, O, Error>, L, C>>
+//   for Parser<F, L, O, Error>
+// where
+//   C: Cache<'inp, L>,
+//   L: Lexer<'inp>,
+// {
+//   type Options = C::Options;
+
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn next(self, options: Self::Options) -> WithCache<'inp, Parser<F, L, O, Error>, L, C> {
+//     WithCache {
+//       inner: self,
+//       cache_opts: options,
+//       _marker: PhantomData,
+//     }
+//   }
+// }
+
 /// Trait for container types used in parsers.
 pub trait Container<T> {
   /// Push an item into the container.
@@ -389,6 +449,36 @@ pub trait Container<T> {
   }
 }
 
+macro_rules! blackhole {
+  ($ty:ty) => {
+    impl<T> Container<T> for $ty {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push(&mut self, _: T) {}
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn first(&self) -> Option<&T> {
+        None
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn last(&self) -> Option<&T> {
+        None
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn len(&self) -> usize {
+        0
+      }
+    }
+  };
+}
+
+blackhole!(());
+blackhole!(core::marker::PhantomData<T>);
+blackhole!(crate::utils::marker::Ignored<T>);
+blackhole!(crate::lexer::BlackHole);
+
+
 /// Shorthand for building a [`Parser`] from a closure.
 pub const fn parser<'inp, L, O, E, C, F>(f: F) -> Parser<F, L, O, E::Error>
 where
@@ -397,7 +487,7 @@ where
   E: Emitter<'inp, L>,
   C: Cache<'inp, L>,
 {
-  Parser::new(f)
+  Parser::with(f)
 }
 
 /// With something else.
@@ -444,7 +534,7 @@ mod tests {
   #![allow(warnings)]
 
   use super::{Token as TokenT, *};
-  use crate::{BlackHole, utils::marker::Ignored};
+  use crate::{BlackHole, punct::Comma, utils::marker::Ignored};
   use derive_more::Display;
   use logos::*;
 
@@ -539,13 +629,40 @@ mod tests {
 
   const fn assert_any_parse_impl<'inp>()
   -> impl Parse<'inp, JsonLexer<'inp>, Option<Spanned<Lexed<'inp, Token>>>, ()> {
-    any()
+    Parser::any()
   }
 
-  #[test]
-  fn t() {
-    let src = "{}";
-
-    let tok = any::<JsonLexer<'_>>().parse(src);
+  const fn assert_comma_seq_parse_impl<'inp>()
+  -> impl Parse<
+    'inp,
+    JsonLexer<'inp>,
+    ParseResult<'inp, (), JsonLexer<'inp>, Noop<()>>,
+    (),
+  > {
+    // simple element parser that always succeeds with ()
+    Parser::separated_by::<
+      _,
+      _,
+      JsonLexer<'inp>,
+      _,
+      (),
+      (),
+    >(parser(|inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Noop<()>, DefaultCache<'inp, JsonLexer<'inp>>>| {
+      Ok(Spanned::new(inp.span().clone(), ()))
+    }), |t: &Token| {
+      if let TokenKind::Comma = t.kind() {
+        SeqSepHint::Separator
+      } else {
+        SeqSepHint::Continue
+      }
+    })
   }
+
+  // #[test]
+  // fn t() {
+  //   let src = "{}";
+
+  //   let tok = Parser::any::<JsonLexer<'_>, ()>().parse(src);
+  //   let a = Parse::parse(Parser::comma_seq::<'_, _, JsonLexer<'_>, Option<Spanned<Lexed<'_, Token>>>, (), ()>(Parser::any()), src);
+  // }
 }
