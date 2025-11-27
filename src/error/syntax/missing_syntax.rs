@@ -218,3 +218,8 @@ impl<Syntax, O, Knowledge> MissingSyntax<Syntax, O, Knowledge> {
     (self.offset, self.knowledge)
   }
 }
+
+impl<Syntax, O, Knowledge> From<MissingSyntax<Syntax, O, Knowledge>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: MissingSyntax<Syntax, O, Knowledge>) -> Self {}
+}

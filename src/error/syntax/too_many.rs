@@ -47,3 +47,8 @@ impl<O: ?Sized, S> TooMany<O, S> {
     self.limit
   }
 }
+
+impl<O: ?Sized, S> From<TooMany<O, S>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: TooMany<O, S>) -> Self {}
+}

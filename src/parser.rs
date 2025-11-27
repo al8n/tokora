@@ -3,9 +3,9 @@
 use core::marker::PhantomData;
 
 use crate::{
-  Cache, DefaultCache, Emitter, Lexed, Lexer, Noop, Token,
+  Cache, DefaultCache, Emitter, Lexed, Lexer, Token,
   lexer::{Input, InputRef},
-  utils::Spanned,
+  utils::{Spanned, marker::Noop},
 };
 
 pub use any::*;
@@ -272,7 +272,7 @@ where
   parser.parse_input(&mut input_ref)
 }
 
-impl<'inp, F, L, O, Error> Parse<'inp, L, O, Noop<Error>> for Parser<F, L, O, Error>
+impl<'inp, F, L, O, Error> Parse<'inp, L, O, Error> for Parser<F, L, O, Error>
 where
   F: ParseInput<'inp, L, O, Noop<Error>, DefaultCache<'inp, L>>,
   L: Lexer<'inp>,
@@ -444,6 +444,7 @@ mod tests {
   #![allow(warnings)]
 
   use super::{Token as TokenT, *};
+  use crate::{BlackHole, utils::marker::Ignored};
   use derive_more::Display;
   use logos::*;
 
@@ -537,7 +538,7 @@ mod tests {
   type JsonLexer<'a> = crate::LogosLexer<'a, Token, Token>;
 
   const fn assert_any_parse_impl<'inp>()
-  -> impl Parse<'inp, JsonLexer<'inp>, Option<Spanned<Lexed<'inp, Token>>>, Noop<()>> {
+  -> impl Parse<'inp, JsonLexer<'inp>, Option<Spanned<Lexed<'inp, Token>>>, ()> {
     any()
   }
 

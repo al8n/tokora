@@ -427,22 +427,7 @@ impl<'a, Kind, O, Knowledge> MissingToken<'a, Kind, O, Knowledge> {
   }
 }
 
-// impl<T: core::fmt::Display, Kind: core::fmt::Display + 'static, S> core::fmt::Display
-//   for MissingToken<'_, T, Kind, S>
-// {
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-//     match &self.found {
-//       Some(found) => write!(f, "missing token '{found}', {}", self.expected),
-//       None => write!(f, "missing end of input, {}", self.expected),
-//     }
-//   }
-// }
-
-// impl<
-//   T: core::fmt::Debug + core::fmt::Display,
-//   Kind: core::fmt::Display + core::fmt::Debug + 'static,
-//   S: core::fmt::Debug,
-// > core::error::Error for MissingToken<'_, T, Kind, S>
-// {
-// }
+impl<'a, Kind, O, Knowledge> From<MissingToken<'a, Kind, O, Knowledge>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: MissingToken<'a, Kind, O, Knowledge>) -> Self {}
+}

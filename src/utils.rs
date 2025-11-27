@@ -41,6 +41,9 @@ pub use generic_arraydeque::typenum;
 #[cfg_attr(docsrs, doc(cfg(feature = "smallvec")))]
 pub mod container;
 
+/// Marker types used in various utilities.
+pub mod marker;
+
 mod escaped;
 mod expected;
 mod lexeme;

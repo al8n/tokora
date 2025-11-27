@@ -614,22 +614,7 @@ impl<'a, T, Kind, S, Knowledge> UnexpectedToken<'a, T, Kind, S, Knowledge> {
   }
 }
 
-// impl<T: core::fmt::Display, Kind: core::fmt::Display + 'static, S> core::fmt::Display
-//   for UnexpectedToken<'_, T, Kind, S>
-// {
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-//     match &self.found {
-//       Some(found) => write!(f, "unexpected token '{found}', {}", self.expected),
-//       None => write!(f, "unexpected end of input, {}", self.expected),
-//     }
-//   }
-// }
-
-// impl<
-//   T: core::fmt::Debug + core::fmt::Display,
-//   Kind: core::fmt::Display + core::fmt::Debug + 'static,
-//   S: core::fmt::Debug,
-// > core::error::Error for UnexpectedToken<'_, T, Kind, S>
-// {
-// }
+impl<'a, T, Kind, S, Knowledge> From<UnexpectedToken<'a, T, Kind, S, Knowledge>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: UnexpectedToken<'a, T, Kind, S, Knowledge>) -> Self {}
+}

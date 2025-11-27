@@ -47,3 +47,8 @@ impl<O: ?Sized, S> TooFew<O, S> {
     self.limit
   }
 }
+
+impl<O: ?Sized, S> From<TooFew<O, S>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: TooFew<O, S>) -> Self {}
+}
