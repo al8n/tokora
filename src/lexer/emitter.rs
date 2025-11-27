@@ -2,6 +2,7 @@ use crate::{
   Lexer,
   error::{
     UnclosedParen,
+    syntax::{MissingSyntaxOf, TooFew, TooMany},
     token::{
       MissingLeadingOf, MissingTokenOf, MissingTrailingOf, UnexpectedLeadingOf,
       UnexpectedRepeatedOf, UnexpectedTrailingOf,
@@ -255,62 +256,45 @@ pub trait UnclosedEmitter<'a, L>: Emitter<'a, L> {
 }
 
 /// An emitter that handles errors related to repeated elements during parsing.
-pub trait RepeatedEmitter<'a, L>: Emitter<'a, L> {
+pub trait RepeatedEmitter<'a, O, L>: Emitter<'a, L> {
   /// Emits an error indicating that too few elements were found.
-  fn emit_too_less(
-    &mut self,
-    span: L::Span,
-    found: usize,
-    min: usize,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_few(&mut self, err: TooFew<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>;
 
   /// Emits an error indicating that too many elements were found.
   fn emit_too_many(
     &mut self,
-    span: L::Span,
-    found: usize,
-    max: usize,
+    err: TooMany<O, L::Span>,
   ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>;
 }
 
-impl<'a, L, U> RepeatedEmitter<'a, L> for &mut U
+impl<'a, O, L, U> RepeatedEmitter<'a, O, L> for &mut U
 where
-  U: RepeatedEmitter<'a, L>,
+  U: RepeatedEmitter<'a, O, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_less(
-    &mut self,
-    span: L::Span,
-    found: usize,
-    min: usize,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_few(&mut self, err: TooFew<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>,
   {
-    (**self).emit_too_less(span, found, min)
+    (**self).emit_too_few(err)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(
-    &mut self,
-    span: L::Span,
-    found: usize,
-    max: usize,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_many(&mut self, err: TooMany<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>,
   {
-    (**self).emit_too_many(span, found, max)
+    (**self).emit_too_many(err)
   }
 }
 
 /// An emitter that handles missing separator or repeated separators found during parsing.
-pub trait SeparatedByEmitter<'inp, L, Sep>:
-  RepeatedEmitter<'inp, L>
+pub trait SeparatedByEmitter<'inp, O, Sep, L>:
+  RepeatedEmitter<'inp, O, L>
   + BatchEmitter<'inp, L, UnexpectedLeadingOf<'inp, Sep, L>>
   + BatchEmitter<'inp, L, UnexpectedTrailingOf<'inp, Sep, L>>
   + BatchEmitter<'inp, L, UnexpectedRepeatedOf<'inp, Sep, L>>
@@ -319,11 +303,17 @@ where
   L: Lexer<'inp>,
 {
   /// Emits an error or warning for a missing separator found during parsing.
-  ///
-  /// The `offset` indicates the position where the separator was expected.
   fn emit_missing_separator(
     &mut self,
     err: MissingTokenOf<'inp, Sep, L>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>;
+
+  /// Emits an error or warning for a missing an element after a leading separator.
+  fn emit_missing_element(
+    &mut self,
+    err: MissingSyntaxOf<'inp, O, L>,
   ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'inp>;
@@ -375,10 +365,10 @@ where
     L: Lexer<'inp>;
 }
 
-impl<'inp, L, Sep, U> SeparatedByEmitter<'inp, L, Sep> for &mut U
+impl<'inp, O, L, Sep, U> SeparatedByEmitter<'inp, O, Sep, L> for &mut U
 where
   L: Lexer<'inp>,
-  U: SeparatedByEmitter<'inp, L, Sep>,
+  U: SeparatedByEmitter<'inp, O, Sep, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_separator(
@@ -389,6 +379,17 @@ where
     L: Lexer<'inp>,
   {
     (**self).emit_missing_separator(err)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_missing_element(
+    &mut self,
+    err: MissingSyntaxOf<'inp, O, L>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>,
+  {
+    (**self).emit_missing_element(err)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

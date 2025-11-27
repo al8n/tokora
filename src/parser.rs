@@ -378,6 +378,15 @@ pub trait Container<T> {
 
   /// Returns the last item in the container, if any.
   fn last(&self) -> Option<&T>;
+
+  /// Returns the number of items in the container.
+  fn len(&self) -> usize;
+
+  /// Returns `true` if the container is empty.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    self.len() == 0
+  }
 }
 
 /// Shorthand for building a [`Parser`] from a closure.

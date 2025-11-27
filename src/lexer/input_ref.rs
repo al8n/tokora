@@ -82,13 +82,13 @@ where
   //   iter::IntoIter::new(self)
   // }
 
-  /// Creates a Logos lexer positioned at the end of the cache or current cursor.
+  /// Creates a lexer positioned at the end of the cache or current cursor.
   ///
   /// This internal method constructs a fresh Logos lexer with the current state and
   /// positions it to continue lexing from where the cache ends (or from the cursor
   /// if the cache is empty).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn lexer(&self) -> L
+  pub fn lexer(&self) -> L
   where
     L::State: Clone,
     C: Cache<'inp, L>,
@@ -101,6 +101,17 @@ where
         .map(|s| s.end_ref())
         .unwrap_or_else(|| self.span.end_ref()),
     );
+    lexer
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) fn lexer_at(&self, off: &L::Offset) -> L
+  where
+    L::State: Clone,
+    C: Cache<'inp, L>,
+  {
+    let mut lexer = L::with_state(self.input, self.state.clone());
+    lexer.bump(off);
     lexer
   }
 

@@ -1,7 +1,13 @@
 use crate::{
-  Check, Span,
+  Check, Checkpoint, Span,
   emitter::{BatchEmitter, SeparatedByEmitter},
-  error::token::{MissingLeadingOf, MissingTokenOf, UnexpectedLeadingOf, UnexpectedRepeatedOf, UnexpectedTrailingOf},
+  error::{
+    syntax::{MissingSyntaxOf, TooFew, TooMany},
+    token::{
+      MissingLeadingOf, MissingTokenOf, MissingTrailingOf, UnexpectedLeadingOf,
+      UnexpectedRepeatedOf, UnexpectedTrailingOf,
+    },
+  },
 };
 
 use super::*;
@@ -14,7 +20,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, ParseResult<'inp, O, L, E>, E, C>,
   Sep: Check<L::Token, SeqSepHint>,
-  E: SeparatedByEmitter<'inp, L, Sep>,
+  E: SeparatedByEmitter<'inp, O, Sep, L>,
   C: Cache<'inp, L>,
   Container: Default + super::Container<Spanned<O, L::Span>>,
   Trailing: super::TrailingSpec,
@@ -34,21 +40,10 @@ where
   {
     let mut container = Container::default();
     let mut state: State<L::Token, L::Span> = State::Start;
-    let mut leading_seps = None;
     let ckp = inp.save();
-    let mut num = 0;
-    let minimum = self.minimum();
-    let maximum = self.maximum();
-
-    let mut leadings = 0;
-    let mut trailings = 0;
     let leading_spec = self.leading();
-    let trailing_spec = self.trailing();
 
     let mut lexer_errs_id = None;
-    let mut leading_seps_errs_id = None;
-    let mut trailing_seps_errs_id = None;
-    let mut repeated_seps_errs_id = None;
 
     loop {
       // peek two tokens ahead
@@ -56,26 +51,9 @@ where
 
       match peeked {
         None => {
-          let trailings: L::Span = match state {
-            State::Separator(span) => span,
-            State::RepeatedSeparator(span) => span,
-            _ => return Ok(Spanned::new(inp.span_since(ckp.cursor()), container)),
-          };
-
-          if let Some(leadings) = leading_seps.take() {
-            let first = container.first().map(|t| t.span()).unwrap_or_else(|| {});
-            inp
-              .emitter()
-              .emit_leading_separator(UnexpectedLeadingOf::leading(first, leadings))?;
-          }
-
-          // if the emitter treat trailing separator error as a non-fatal error, emit it
-          // otherwise, return an error
-          let span = inp.span_since(ckp.cursor());
-          // TODO(al8n): improve the trailing error, add info about the separator
-          inp.emitter().emit_trailing_separator(trailings.clone())?;
-
-          return Ok(Spanned::new(span, container));
+          return self
+            .handle_end(state, inp, &ckp, &mut container)
+            .map(|span| Spanned::new(span, container));
         }
         Some(tok) => {
           let tok = tok.as_ref();
@@ -105,27 +83,15 @@ where
             Lexed::Token(tok) => {
               match self.sep.check(tok) {
                 SeqSepHint::End => {
-                  let trailings = match state {
-                    State::Separator(span) => span,
-                    _ => return Ok(Spanned::new(inp.span_since(ckp.cursor()), container)),
-                  };
-
-                  if let Some(leadings) = leading_seps.take() {
-                    inp.emitter().emit_leading_separator(leadings)?;
-                  }
-
-                  let span = inp.span_since(ckp.cursor());
-                  // TODO(al8n): improve the trailing error, add info about the separator
-                  inp
-                    .emitter()
-                    .emit_trailing_separator(UnexpectedTrailingOf::trailing(trailings, found))?;
-                  return Ok(Spanned::new(span, container));
+                  return self
+                    .handle_end(state, inp, &ckp, &mut container)
+                    .map(|span| Spanned::new(span, container));
                 }
                 SeqSepHint::Separator => {
                   let sep_tok = inp
                     .next()
                     .expect("peeked token already confirmed there must be a token");
-                  match &mut state {
+                  match state {
                     // happy path, we found a separator after an element
                     State::Element => {
                       // Change the current state to Separator.
@@ -138,34 +104,52 @@ where
                       // to the batch
                       match leading_spec {
                         SepFixSpec::Deny(_) => {
-                          let sep_span = sep_tok.span_ref().clone();
-                          // if leading sep is denied, we must have an existing leading sep error batch
-                          <E as BatchEmitter<'_, L, UnexpectedLeadingOf<'_, Sep, L>>>::emit_to_batch(
-                            inp.emitter(),
-                            tok.span_ref(),
-                            Spanned::new(
-                              sep_span.clone(),
-                              UnexpectedLeadingOf::leading(
-                                sep_span.clone(),
-                                sep_tok.into_data().unwrap_token()
-                              ),
-                            ),
-                          )?;
+                          // we are not allowed to have multiple leading separators.
+                          let (tok_span, tok_token) = tok.into_components();
+                          let (sep_span, sep_tok) = sep_tok.into_components();
 
-                          state = State::Leadings(tok.span_ref().clone());
-                        }
-                        SepFixSpec::Allow(_) | SepFixSpec::Require(_) => {
-                          let sep_span = sep_tok.span_ref().clone();
                           // we are not allowed to have multiple leading separators.
                           // try to emit leading separator error via the emitter
                           <E as BatchEmitter<'_, L, UnexpectedLeadingOf<'_, Sep, L>>>::create_batch_with_error(
                             inp.emitter(),
-                            "leading separator".into(),
+                            "leading separators".into(),
+                            Spanned::new(
+                              tok_span.clone(),
+                              UnexpectedLeadingOf::<'_, Sep, L>::leading(
+                                tok_span.clone(),
+                                tok_token,
+                              ),
+                            ),
+                          )?;
+
+                          <E as BatchEmitter<'_, L, UnexpectedLeadingOf<'_, Sep, L>>>::emit_to_batch(
+                            inp.emitter(),
+                            &tok_span,
                             Spanned::new(
                               sep_span.clone(),
-                              UnexpectedLeadingOf::leading(
+                              UnexpectedLeadingOf::<'_, Sep, L>::leading(
                                 sep_span.clone(),
-                                sep_tok.into_data().unwrap_token()
+                                sep_tok.unwrap_token(),
+                              ),
+                            ),
+                          )?;
+
+                          // store the first leading sep span as this will be used to identify the batch later
+                          state = State::Leadings(tok_span);
+                        }
+                        SepFixSpec::Allow(_) | SepFixSpec::Require(_) => {
+                          let (sep_span, sep_tok) = sep_tok.into_components();
+
+                          // we are not allowed to have multiple leading separators.
+                          // try to emit leading separator error via the emitter
+                          <E as BatchEmitter<'_, L, UnexpectedLeadingOf<'_, Sep, L>>>::create_batch_with_error(
+                            inp.emitter(),
+                            "leading separators".into(),
+                            Spanned::new(
+                              sep_span.clone(),
+                              UnexpectedLeadingOf::<'_, Sep, L>::leading(
+                                sep_span.clone(),
+                                sep_tok.unwrap_token(),
                               ),
                             ),
                           )?;
@@ -180,10 +164,10 @@ where
                       let sep_span = sep_tok.span_ref().clone();
                       <E as BatchEmitter<'_, L, UnexpectedLeadingOf<'_, Sep, L>>>::emit_to_batch(
                         inp.emitter(),
-                        span,
+                        &span,
                         Spanned::new(
                           sep_span.clone(),
-                          UnexpectedLeadingOf::leading(
+                          UnexpectedLeadingOf::<'_, Sep, L>::leading(
                             sep_span.clone(),
                             sep_tok.into_data().unwrap_token(),
                           ),
@@ -191,28 +175,12 @@ where
                       )?;
 
                       // no need to change state, still in leadings
+                      state = State::Leadings(span);
                     }
                     // first token is a separator
                     State::Start => {
-                      match leading_spec {
-                        SepFixSpec::Deny(deny) => {
-                          let sep_span = sep_tok.span_ref().clone();
-                          // we are not allowed to have leading separator.
-                          // try to emit leading separator error via the emitter
-                          <E as BatchEmitter<'_, L, UnexpectedLeadingOf<'_, Sep, L>>>::create_batch_with_error(
-                            inp.emitter(),
-                            "leading separator".into(),
-                            Spanned::new(
-                              sep_span.clone(),
-                              UnexpectedLeadingOf::leading(
-                                sep_span.clone(),
-                                sep_tok.into_data().unwrap_token()
-                              ),
-                            ),
-                          )?;
-                        }
-                        SepFixSpec::Allow(_) | SepFixSpec::Require(_) => {}
-                      }
+                      // we do not need to check leading spec here, as we cached the leading separator token,
+                      // the check will be done when we find the first element or reach the end of input
 
                       state = State::Leading(sep_tok.map_data(|t| t.unwrap_token()));
                     }
@@ -221,6 +189,7 @@ where
                     // and emit it via the emitter, and let the emitter decide whether to return early
                     State::Separator(tok) => {
                       // one more repeated separator
+                      let (tok_span, tok_token) = tok.into_components();
                       let (sep_span, sep_token) = sep_tok.into_components();
 
                       // create a batch for repeated separator errors if not already created
@@ -228,16 +197,28 @@ where
                         inp.emitter(),
                         "repeated separator".into(),
                         Spanned::new(
+                          tok_span.clone(),
+                          UnexpectedRepeatedOf::<'_, Sep, L>::repeated(
+                            tok_span.clone(),
+                            tok_token.clone(),
+                          ),
+                        ),
+                      )?;
+
+                      <E as BatchEmitter<'_, L, UnexpectedRepeatedOf<'_, Sep, L>>>::emit_to_batch(
+                        inp.emitter(),
+                        &tok_span,
+                        Spanned::new(
                           sep_span.clone(),
-                          UnexpectedRepeatedOf::repeated(
-                            sep_span.clone(),
+                          UnexpectedRepeatedOf::<'_, Sep, L>::repeated(
+                            sep_span,
                             sep_token.unwrap_token(),
                           ),
                         ),
                       )?;
 
                       // change state to RepeatedSeparator, store the span as the id for the batch
-                      state = State::RepeatedSeparator(sep_span);
+                      state = State::RepeatedSeparator(tok_span);
                     }
                     // we are in repeated separator state,
                     // so just extend the repeated separator span
@@ -245,16 +226,17 @@ where
                       let (sep_span, sep_token) = sep_tok.into_components();
                       <E as BatchEmitter<'_, L, UnexpectedRepeatedOf<'_, Sep, L>>>::emit_to_batch(
                         inp.emitter(),
-                        span,
+                        &span,
                         Spanned::new(
                           sep_span.clone(),
-                          UnexpectedRepeatedOf::repeated(
+                          UnexpectedRepeatedOf::<'_, Sep, L>::repeated(
                             sep_span.clone(),
                             sep_token.unwrap_token(),
                           ),
                         ),
                       )?;
                       // no need to change state, still in RepeatedSeparator
+                      state = State::RepeatedSeparator(span);
                     }
                   }
                 }
@@ -274,10 +256,10 @@ where
                         SepFixSpec::Deny(_) => {
                           let (sep_span, sep_token) = leading_tok.into_components();
                           inp.emitter().emit_unexpected_leading_separator(
-                            UnexpectedLeadingOf::leading(sep_span, sep_token),
+                            UnexpectedLeadingOf::<'_, Sep, L>::leading(sep_span, sep_token),
                           )?;
                         }
-                        SepFixSpec::Allow(_) | SepFixSpec::Require(_) => {},
+                        SepFixSpec::Allow(_) | SepFixSpec::Require(_) => {}
                       }
 
                       // parse the first element
@@ -301,8 +283,13 @@ where
                     State::Start => {
                       match leading_spec {
                         SepFixSpec::Require(_) => {
+                          let off = peek_span.start();
                           // unhappy, missing the required leading separator
-                          inp.emitter().emit_missing_leading_separator(MissingLeadingOf::leading(peek_span.start()))?;
+                          inp
+                            .emitter()
+                            .emit_missing_leading_separator(
+                              MissingLeadingOf::<'_, Sep, L>::leading(off),
+                            )?;
                         }
                         SepFixSpec::Deny(_) | SepFixSpec::Allow(_) => {
                           // so happyyyyy, no leading separators, just parse the first element
@@ -319,7 +306,9 @@ where
                     // and emit it via the emitter, and let the emitter decide whether to return early
                     State::Element => {
                       let off = peek_span.start();
-                      inp.emitter().emit_missing_separator(MissingTokenOf::new(off).with_knowledge(Default::default()))?;
+                      inp.emitter().emit_missing_separator(
+                        MissingTokenOf::<'_, Sep, L>::new(off).with_knowledge(Default::default()),
+                      )?;
 
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
@@ -348,5 +337,187 @@ where
         }
       }
     }
+  }
+}
+
+impl<'inp, F, Sep, O, Container, Trailing, Leading, Max, Min>
+  SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Max, Min>>
+{
+  fn handle_end<'closure, L, E, C>(
+    &mut self,
+    state: State<L::Token, L::Span>,
+    inp: &mut InputRef<'inp, 'closure, L, E, C>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+    container: &mut Container,
+  ) -> Result<L::Span, Spanned<E::Error, L::Span>>
+  where
+    'inp: 'closure,
+    L: Lexer<'inp>,
+    E: Emitter<'inp, L>,
+    C: Cache<'inp, L>,
+    F: ParseInput<'inp, L, ParseResult<'inp, O, L, E>, E, C>,
+    Sep: Check<L::Token, SeqSepHint>,
+    E: SeparatedByEmitter<'inp, O, Sep, L>,
+    C: Cache<'inp, L>,
+    Container: super::Container<Spanned<O, L::Span>>,
+    Trailing: super::TrailingSpec,
+    Leading: super::LeadingSpec,
+    Max: super::MaxSpec,
+    Min: super::MinSpec,
+  {
+    let minimum = self.minimum();
+    let maximum = self.maximum();
+    let leading_spec = self.leading();
+    let trailing_spec = self.trailing();
+
+    Ok(match state {
+      // we are in the start state, so no elements were found
+      State::Start => {
+        let span = inp.span_since(ckp.cursor());
+        if minimum > 0 {
+          inp
+            .emitter()
+            .emit_too_few(TooFew::new(span.clone(), container.len(), minimum))?;
+        }
+        span
+      }
+      // we are in element state, so all good, check for trailing separator, and the minimum, maximum constraints
+      State::Element => {
+        let full_span = inp.span_since(ckp.cursor());
+        let nums = container.len();
+        if nums < minimum {
+          inp
+            .emitter()
+            .emit_too_few(TooFew::new(full_span.clone(), nums, minimum))?;
+        }
+
+        if nums > maximum {
+          inp
+            .emitter()
+            .emit_too_many(TooMany::new(full_span.clone(), nums, maximum))?;
+        }
+
+        if trailing_spec.is_require() {
+          let off = inp.span().end();
+          inp
+            .emitter()
+            .emit_missing_trailing_separator(MissingTrailingOf::<'_, Sep, L>::trailing(off))?;
+        }
+        full_span
+      }
+      State::Leading(spanned) => {
+        // only find leading separators, no element
+        let (sep_span, sep_token) = spanned.into_components();
+        match leading_spec {
+          SepFixSpec::Deny(_) => {
+            // we are not allowed to have leading separators
+            inp.emitter().emit_unexpected_leading_separator(
+              UnexpectedLeadingOf::<'_, Sep, L>::leading(sep_span, sep_token),
+            )?;
+          }
+          SepFixSpec::Allow(_) | SepFixSpec::Require(_) => {
+            // we should emit an error as we are missing the element followed the leading separator
+            inp
+              .emitter()
+              .emit_missing_element(MissingSyntaxOf::<'_, O, L>::new(sep_span.end()))?;
+          }
+        }
+        inp.span_since(ckp.cursor())
+      }
+      State::Leadings(leadings) => {
+        // only find leading separators, no element
+        // emit the batch via the emitter
+        <E as BatchEmitter<'_, L, UnexpectedLeadingOf<'_, Sep, L>>>::emit_batch(
+          inp.emitter(),
+          &leadings,
+        )?;
+
+        let full_span = inp.span_since(ckp.cursor());
+        if !leading_spec.is_deny() {
+          // we should emit an error as we are missing the element followed the leading separator
+          inp
+            .emitter()
+            .emit_missing_element(MissingSyntaxOf::<'_, O, L>::new(full_span.end()))?;
+        }
+
+        full_span
+      }
+      // we have a trailing separator
+      State::Separator(spanned) => {
+        let (sep_span, sep_token) = spanned.into_components();
+
+        // we have a trailing separator, but the spec says no trailing separators allowed
+        if trailing_spec.is_deny() {
+          inp.emitter().emit_unexpected_trailing_separator(
+            UnexpectedTrailingOf::<'_, Sep, L>::trailing(sep_span, sep_token),
+          )?;
+        }
+
+        let full_span = inp.span_since(ckp.cursor());
+        let nums = container.len();
+        if nums < minimum {
+          inp
+            .emitter()
+            .emit_too_few(TooFew::new(full_span.clone(), nums, minimum))?;
+        }
+
+        if nums > maximum {
+          inp
+            .emitter()
+            .emit_too_many(TooMany::new(full_span.clone(), nums, maximum))?;
+        }
+
+        full_span
+      }
+      State::RepeatedSeparator(trailings) => {
+        // we have more than one trailing separator
+        // drop the repeated separator errors batch.
+        <E as BatchEmitter<'_, L, UnexpectedRepeatedOf<'_, Sep, L>>>::drop_batch(
+          inp.emitter(),
+          &trailings,
+        );
+
+        // rewind to the end of the last element
+        let mut lxr = inp.lexer_at(trailings.start_ref());
+
+        // create a new batch for unexpected trailing separators
+        <E as BatchEmitter<'_, L, UnexpectedTrailingOf<'_, Sep, L>>>::create_batch(
+          inp.emitter(),
+          trailings.clone(),
+          "trailing separators".into(),
+        );
+
+        while let Some(tok) = lxr.lex() {
+          let span = lxr.span();
+
+          if span.end_ref().ge(trailings.end_ref()) {
+            break;
+          }
+
+          match tok {
+            Err(_) => {}
+            Ok(tok) => {
+              if self.sep.check(&tok) == SeqSepHint::Separator {
+                <E as BatchEmitter<'_, L, UnexpectedTrailingOf<'_, Sep, L>>>::emit_to_batch(
+                  inp.emitter(),
+                  &trailings,
+                  Spanned::new(
+                    span.clone(),
+                    UnexpectedTrailingOf::<'_, Sep, L>::trailing(span, tok),
+                  ),
+                )?;
+              }
+            }
+          }
+        }
+
+        <E as BatchEmitter<'_, L, UnexpectedTrailingOf<'_, Sep, L>>>::emit_batch(
+          inp.emitter(),
+          &trailings,
+        )?;
+
+        inp.span_since(ckp.cursor())
+      }
+    })
   }
 }

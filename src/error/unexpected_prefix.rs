@@ -2,7 +2,7 @@ use core::ops::{Add, AddAssign};
 
 use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman};
 
-// An error indicating that an unexpected prefix was found after a valid token.
+/// An error indicating that an unexpected prefix was found after a valid token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnexpectedPrefix<Char, Knowledge, O = usize> {
   token: Span<O>,
