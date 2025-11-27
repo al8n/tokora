@@ -109,6 +109,12 @@ pub struct UnexpectedToken<'a, T, Kind, S = Span, Knowledge = ()> {
   knowledge: Option<Knowledge>,
 }
 
+// Allow unit to be used as an error sink for tests and no-op emitters.
+impl<'a, T, Kind, S, Knowledge> From<UnexpectedToken<'a, T, Kind, S, Knowledge>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: UnexpectedToken<'a, T, Kind, S, Knowledge>) -> Self {}
+}
+
 impl<T, Kind, S, Knowledge> UnexpectedToken<'_, T, Kind, S, Trailing<Knowledge>> {
   /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -612,9 +618,4 @@ impl<'a, T, Kind, S, Knowledge> UnexpectedToken<'a, T, Kind, S, Knowledge> {
   pub fn into_components(self) -> (S, Option<T>, Option<Expected<'a, Kind>>, Option<Knowledge>) {
     (self.span, self.found, self.expected, self.knowledge)
   }
-}
-
-impl<'a, T, Kind, S, Knowledge> From<UnexpectedToken<'a, T, Kind, S, Knowledge>> for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: UnexpectedToken<'a, T, Kind, S, Knowledge>) -> Self {}
 }

@@ -410,6 +410,20 @@ impl TrailingSpec for Require {
   }
 }
 
+impl TrailingSpec for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn trailing(&self) -> SepFixSpec {
+    SepFixSpec::Deny(Deny(()))
+  }
+}
+
+impl LeadingSpec for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn leading(&self) -> SepFixSpec {
+    SepFixSpec::Deny(Deny(()))
+  }
+}
+
 trait MinSpec {
   fn minimum(&self) -> usize;
 }

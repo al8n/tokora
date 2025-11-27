@@ -248,7 +248,7 @@ const _: () = {
   const fn assert_noop_repeated_emitter<'a, L, Any, Error, E>()
   where
     L: Lexer<'a>,
-    E: RepeatedEmitter<'a, L, Any, Error = Error>,
+    E: RepeatedEmitter<'a, Any, L, Error = Error>,
   {
   }
 
@@ -263,7 +263,6 @@ const _: () = {
   assert_noop_batch_emitter::<'_, DummyLexer, (), BlackHole, Noop<BlackHole>>();
 
   assert_noop_repeated_emitter::<'_, DummyLexer, (), (), Noop<()>>();
-
 
   assert_noop_separated_by_emitter::<'_, DummyLexer, (), DummySep, (), Noop<()>>();
 };

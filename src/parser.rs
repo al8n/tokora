@@ -647,9 +647,7 @@ mod tests {
       _,
       (),
       (),
-    >(parser(|inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Noop<()>, DefaultCache<'inp, JsonLexer<'inp>>>| {
-      Ok(Spanned::new(inp.span().clone(), ()))
-    }), |t: &Token| {
+    >(Parser::any(), |t: &Token| {
       if let TokenKind::Comma = t.kind() {
         SeqSepHint::Separator
       } else {
