@@ -45,12 +45,17 @@
 //! assert_eq!(format!("{}", error), "unexpected token 'else', expected 'if'");
 //! ```
 
-use crate::{error::parser::{Trailing, Leading}, utils::{Expected, Span}};
+use crate::{
+  error::token::{Leading, Repeated, Trailing},
+  utils::{Expected, Span},
+};
 
-pub use unexpected_trailing::*;
 pub use unexpected_leading::*;
+pub use unexpected_repeated::*;
+pub use unexpected_trailing::*;
 
 mod unexpected_leading;
+mod unexpected_repeated;
 mod unexpected_trailing;
 
 /// An error representing an unexpected token encountered during parsing.
@@ -120,9 +125,22 @@ impl<T, Kind, S, Knowledge> UnexpectedToken<'_, T, Kind, S, Leading<Knowledge>> 
   }
 }
 
+impl<T, Kind, S, Knowledge> UnexpectedToken<'_, T, Kind, S, Repeated<Knowledge>> {
+  /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn repeated(span: S, found: T) -> Self {
+    Self::new_in(span, Some(found), None, Some(Repeated::new()))
+  }
+}
+
 impl<'a, T, Kind, S, Knowledge> UnexpectedToken<'a, T, Kind, S, Knowledge> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new_in(span: S, found: Option<T>, expected: Option<Expected<'a, Kind>>, knowledge: Option<Knowledge>) -> Self {
+  pub(super) const fn new_in(
+    span: S,
+    found: Option<T>,
+    expected: Option<Expected<'a, Kind>>,
+    knowledge: Option<Knowledge>,
+  ) -> Self {
     Self {
       span,
       found,
@@ -132,18 +150,16 @@ impl<'a, T, Kind, S, Knowledge> UnexpectedToken<'a, T, Kind, S, Knowledge> {
   }
 
   /// Creates a new unexpected token error.
-  /// 
+  ///
   /// This error indicates that an unexpected token was encountered,
   /// without specifying what token was found or expected.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(
-    span: S,
-  ) -> Self {
+  pub const fn new(span: S) -> Self {
     Self::new_in(span, None, None, None)
   }
 
   /// Adds knowledge to the `UnexpectedToken` error.
-  /// 
+  ///
   /// This method allows attaching additional context or information
   /// to the error, which can be useful for debugging or reporting.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -156,7 +172,7 @@ impl<'a, T, Kind, S, Knowledge> UnexpectedToken<'a, T, Kind, S, Knowledge> {
   }
 
   /// Adds knowledge to the `UnexpectedToken` error.
-  /// 
+  ///
   /// This method allows attaching additional context or information
   /// to the error, which can be useful for debugging or reporting.
   #[cfg_attr(not(tarpaulin), inline(always))]

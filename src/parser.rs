@@ -435,6 +435,7 @@ mod tests {
   #![allow(warnings)]
 
   use super::{Token as TokenT, *};
+  use derive_more::Display;
   use logos::*;
 
   #[derive(Debug, Logos, Clone)]
@@ -472,17 +473,28 @@ mod tests {
     String(String),
   }
 
-  #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+  #[derive(Debug, Display, PartialEq, Eq, Clone, Copy, Hash)]
   enum TokenKind {
+    #[display("bool")]
     Bool,
+
+    #[display("{{")]
     BraceOpen,
+    #[display("}}")]
     BraceClose,
+    #[display("[")]
     BracketOpen,
+    #[display("]")]
     BracketClose,
+    #[display(":")]
     Colon,
+    #[display(",")]
     Comma,
+    #[display("null")]
     Null,
+    #[display("number")]
     Number,
+    #[display("string")]
     String,
   }
 

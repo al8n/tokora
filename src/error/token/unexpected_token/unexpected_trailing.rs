@@ -1,8 +1,5 @@
-
-use crate::{
-  Lexer, Token, punct::*,
-};
 use super::{Trailing, UnexpectedToken};
+use crate::{Lexer, Token, punct::*};
 
 macro_rules! alias {
   (
@@ -85,7 +82,8 @@ alias! {
 }
 
 /// A type alias for an `UnexpectedPrefix` error indicating a leading punctuator was found for a given lexer and separator.
-pub type UnexpectedTrailingOf<'inp, Sep, L> = UnexpectedToken<'inp, 
+pub type UnexpectedTrailingOf<'inp, Sep, L> = UnexpectedToken<
+  'inp,
   <L as Lexer<'inp>>::Token,
   <<L as Lexer<'inp>>::Token as Token<'inp>>::Kind,
   <L as Lexer<'inp>>::Span,

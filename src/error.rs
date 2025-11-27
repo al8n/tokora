@@ -26,12 +26,11 @@ use crate::utils::Span;
 
 mod errors;
 
-/// Common error types for parsers.
-pub mod parser;
+/// Token-level error types.
+pub mod token;
 
 /// Common error types for lexers.
 pub mod lexer;
-
 
 mod hex_escape;
 mod incomplete_syntax;

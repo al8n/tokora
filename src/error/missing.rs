@@ -48,7 +48,7 @@ use crate::{
 /// assert_eq!(error.span(), Span::new(11, 12)); // gap between '(' and ')'
 /// ```
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Missing<T, Lang, S = Span> {
+pub struct Missing<T, S = Span, Lang = ()> {
   before: S,
   after: Option<S>,
   span: Option<S>,
@@ -56,7 +56,7 @@ pub struct Missing<T, Lang, S = Span> {
   _lang: PhantomData<Lang>,
 }
 
-impl<T, Lang, S> Missing<T, Lang, S> {
+impl<T, S, Lang> Missing<T, S, Lang> {
   /// Creates a missing error that occurs **after** the provided span.
   ///
   /// Use this when the parser reached the end of a construct without finding the required
@@ -207,7 +207,7 @@ impl<T, Lang, S> Missing<T, Lang, S> {
   }
 }
 
-impl<T, Lang, S> fmt::Display for Missing<T, Lang, S>
+impl<T, S, Lang> fmt::Display for Missing<T, S, Lang>
 where
   T: Syntax<Lang = Lang>,
   Lang: Language,
@@ -228,7 +228,7 @@ where
   }
 }
 
-impl<T, Lang, S> fmt::Debug for Missing<T, Lang, S>
+impl<T, S, Lang> fmt::Debug for Missing<T, S, Lang>
 where
   S: fmt::Debug,
 {
@@ -240,7 +240,7 @@ where
   }
 }
 
-impl<T, Lang, S> core::error::Error for Missing<T, Lang, S>
+impl<T, S, Lang> core::error::Error for Missing<T, S, Lang>
 where
   T: Syntax<Lang = Lang>,
   Lang: Language,

@@ -2,7 +2,6 @@ use core::ops::{Add, AddAssign};
 
 use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman};
 
-
 /// An error indicating that an unexpected suffix was found after a valid token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnexpectedSuffix<Char, Knowledge, O = usize> {

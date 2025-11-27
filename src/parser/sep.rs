@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use derive_more::IsVariant;
+use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use super::*;
 
@@ -12,7 +12,13 @@ pub struct Maximum(pub usize);
 
 impl Maximum {
   /// The maximum possible value for `Maximum`.
-  pub const MAX: Self = Self(usize::MAX);
+  pub const MAX: Self = Self::new(usize::MAX);
+
+  /// Creates a new `Maximum`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(n: usize) -> Self {
+    Self(n)
+  }
 
   /// Returns the maximum number of elements allowed.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -23,11 +29,17 @@ impl Maximum {
 
 /// A marker type representing the minimum number of elements required.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Minimum(pub usize);
+pub struct Minimum(usize);
 
 impl Minimum {
   /// The minimum possible value for `Minimum`.
-  pub const MIN: Self = Self(0);
+  pub const MIN: Self = Self::new(0);
+
+  /// Creates a new `Minimum`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(n: usize) -> Self {
+    Self(n)
+  }
 
   /// Returns the minimum number of elements required.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -38,30 +50,21 @@ impl Minimum {
 
 /// Leading-separator markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct DenyLeading;
+pub struct Deny(());
 
 /// Leading-separator markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AllowLeading;
+pub struct Allow(());
 
 /// Requires a leading separator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RequireLeading;
-
-/// Denies trailing separators.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct DenyTrailing;
-
-/// Trailing-separator markers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AllowTrailing;
-/// Requires a trailing separator.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RequireTrailing;
+pub struct Require(());
 
 /// The Initial configuration layout for `SeqSep`.
 pub type Init = SeqSepOptions<(), (), (), ()>;
 
+/// A type-safe alias for configuring `SeqSep` parsers.
+///
 /// Canonical configuration layout: `With<With<Trailing, Leading>, With<Maximum, Minimum>>`.
 pub type SeqSepOptions<Trailing, Leading, Max, Min> = With<With<Trailing, Leading>, With<Max, Min>>;
 
@@ -72,7 +75,7 @@ pub enum SeqSepHint {
   End,
   /// Indicates a separator was found, hint to parse another element.
   Separator,
-  /// Indicates an element was found, hint to continue parsing.
+  /// Indicates a token belongs to an element was found, hint to continue parsing.
   Continue,
 }
 
@@ -110,15 +113,15 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_trailing(
     self,
-  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<AllowTrailing, Leading, Max, Min>>
+  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Allow, Leading, Max, Min>>
   where
-    Trailing: Next<AllowTrailing>,
+    Trailing: Next<Allow>,
   {
     SeqSep {
       f: self.f,
       sep: self.sep,
       config: SeqSepOptions::new(
-        With::new(AllowTrailing, self.config.primary.secondary),
+        With::new(Allow(()), self.config.primary.secondary),
         self.config.secondary,
       ),
       _m: PhantomData,
@@ -129,15 +132,15 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_trailing(
     self,
-  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<RequireTrailing, Leading, Max, Min>>
+  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Require, Leading, Max, Min>>
   where
-    Trailing: Next<RequireTrailing>,
+    Trailing: Next<Require>,
   {
     SeqSep {
       f: self.f,
       sep: self.sep,
       config: SeqSepOptions::new(
-        With::new(RequireTrailing, self.config.primary.secondary),
+        With::new(Require(()), self.config.primary.secondary),
         self.config.secondary,
       ),
       _m: PhantomData,
@@ -148,15 +151,15 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_leading(
     self,
-  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, AllowLeading, Max, Min>>
+  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Allow, Max, Min>>
   where
-    Leading: Next<AllowLeading>,
+    Leading: Next<Allow>,
   {
     SeqSep {
       f: self.f,
       sep: self.sep,
       config: SeqSepOptions::new(
-        With::new(self.config.primary.primary, AllowLeading),
+        With::new(self.config.primary.primary, Allow(())),
         self.config.secondary,
       ),
       _m: PhantomData,
@@ -167,15 +170,15 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_leading(
     self,
-  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, RequireLeading, Max, Min>>
+  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Require, Max, Min>>
   where
-    Leading: Next<RequireLeading>,
+    Leading: Next<Require>,
   {
     SeqSep {
       f: self.f,
       sep: self.sep,
       config: SeqSepOptions::new(
-        With::new(self.config.primary.primary, RequireLeading),
+        With::new(self.config.primary.primary, Require(())),
         self.config.secondary,
       ),
       _m: PhantomData,
@@ -227,6 +230,42 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
       _m: PhantomData,
     }
   }
+
+  /// Returns the specification for leading separators.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn leading(&self) -> SepFixSpec
+  where
+    Leading: LeadingSpec,
+  {
+    Leading::leading(&self.config.primary.secondary)
+  }
+
+  /// Returns the specification for trailing separators.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn trailing(&self) -> SepFixSpec
+  where
+    Trailing: TrailingSpec,
+  {
+    Trailing::trailing(&self.config.primary.primary)
+  }
+
+  /// Returns the minimum number of elements required.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn minimum(&self) -> usize
+  where
+    Min: MinSpec,
+  {
+    Min::minimum(&self.config.secondary.secondary)
+  }
+
+  /// Returns the maximum number of elements allowed.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn maximum(&self) -> usize
+  where
+    Max: MaxSpec,
+  {
+    Max::maximum(&self.config.secondary.primary)
+  }
 }
 
 impl<L, F, Sep, O, Output, Container, E, C, Config> sealed::Sealed<'_, L, Output, E, C>
@@ -235,46 +274,31 @@ impl<L, F, Sep, O, Output, Container, E, C, Config> sealed::Sealed<'_, L, Output
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
-enum State<S> {
+enum State<T, S> {
   Start,
   Element,
-  Separator(S),
+  Leading(Spanned<T, S>),
+  /// the span is the start of the
+  Leadings(S),
+  Separator(Spanned<T, S>),
   RepeatedSeparator(S),
 }
 
-impl Next<AllowLeading> for () {
+impl Next<Allow> for () {
   type Options = ();
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next(self, _options: Self::Options) -> AllowLeading {
-    AllowLeading
+  fn next(self, _: Self::Options) -> Allow {
+    Allow(())
   }
 }
 
-impl Next<RequireLeading> for () {
+impl Next<Require> for () {
   type Options = ();
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next(self, _options: Self::Options) -> RequireLeading {
-    RequireLeading
-  }
-}
-
-impl Next<AllowTrailing> for () {
-  type Options = ();
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next(self, _options: Self::Options) -> AllowTrailing {
-    AllowTrailing
-  }
-}
-
-impl Next<RequireTrailing> for () {
-  type Options = ();
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next(self, _options: Self::Options) -> RequireTrailing {
-    RequireTrailing
+  fn next(self, _: Self::Options) -> Require {
+    Require(())
   }
 }
 
@@ -314,72 +338,139 @@ impl Next<Minimum> for Minimum {
   }
 }
 
-enum Spec {
-  Deny,
-  Allow,
-  Require,
+/// Specification for leading/trailing separators.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]
+pub enum SepFixSpec {
+  /// Denies leading/trailing separators.
+  Deny(Deny),
+  /// Allows leading/trailing separators.
+  Allow(Allow),
+  /// Requires leading/trailing separators.
+  Require(Require),
 }
 
-trait Leading {
-  const SPEC: Spec;
+trait LeadingSpec {
+  fn leading(&self) -> SepFixSpec;
 }
 
-impl Leading for DenyLeading {
-  const SPEC: Spec = Spec::Deny;
+impl LeadingSpec for Deny {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn leading(&self) -> SepFixSpec {
+    SepFixSpec::Deny(*self)
+  }
 }
 
-impl Leading for AllowLeading {
-  const SPEC: Spec = Spec::Allow;
+impl LeadingSpec for Allow {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn leading(&self) -> SepFixSpec {
+    SepFixSpec::Allow(*self)
+  }
 }
 
-impl Leading for RequireLeading {
-  const SPEC: Spec = Spec::Require;
+impl LeadingSpec for Require {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn leading(&self) -> SepFixSpec {
+    SepFixSpec::Require(*self)
+  }
 }
 
-trait Trailing {
-  const SPEC: Spec;
+trait TrailingSpec {
+  fn trailing(&self) -> SepFixSpec;
 }
 
-impl Trailing for DenyTrailing {
-  const SPEC: Spec = Spec::Deny;
+impl TrailingSpec for Deny {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn trailing(&self) -> SepFixSpec {
+    SepFixSpec::Deny(*self)
+  }
 }
 
-impl Trailing for AllowTrailing {
-  const SPEC: Spec = Spec::Allow;
+impl TrailingSpec for Allow {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn trailing(&self) -> SepFixSpec {
+    SepFixSpec::Allow(*self)
+  }
 }
 
-trait Min {
+impl TrailingSpec for Require {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn trailing(&self) -> SepFixSpec {
+    SepFixSpec::Require(*self)
+  }
+}
+
+trait MinSpec {
   fn minimum(&self) -> usize;
 }
 
-impl Min for Minimum {
+impl MinSpec for Minimum {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn minimum(&self) -> usize {
     self.0
   }
 }
 
-impl Min for () {
+impl MinSpec for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn minimum(&self) -> usize {
     0
   }
 }
 
-trait Max {
+trait MaxSpec {
   fn maximum(&self) -> usize;
 }
 
-impl Max for Maximum {
+impl MaxSpec for Maximum {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn maximum(&self) -> usize {
     self.0
   }
 }
 
-impl Max for () {
+impl MaxSpec for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn maximum(&self) -> usize {
     usize::MAX
+  }
+}
+
+impl<T, L, MAX, MIN> MaxSpec for SeqSepOptions<T, L, MAX, MIN>
+where
+  MAX: MaxSpec,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn maximum(&self) -> usize {
+    self.secondary.primary.maximum()
+  }
+}
+
+impl<T, L, MAX, MIN> MinSpec for SeqSepOptions<T, L, MAX, MIN>
+where
+  MIN: MinSpec,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn minimum(&self) -> usize {
+    self.secondary.secondary.minimum()
+  }
+}
+
+impl<T, L, MAX, MIN> TrailingSpec for SeqSepOptions<T, L, MAX, MIN>
+where
+  T: TrailingSpec,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn trailing(&self) -> SepFixSpec {
+    T::trailing(&self.primary.primary)
+  }
+}
+
+impl<T, L, MAX, MIN> LeadingSpec for SeqSepOptions<T, L, MAX, MIN>
+where
+  L: LeadingSpec,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn leading(&self) -> SepFixSpec {
+    L::leading(&self.primary.secondary)
   }
 }

@@ -68,9 +68,6 @@ pub trait Lexer<'inp>: 'inp {
   /// The token type produced by the lexer.
   type Token: Token<'inp>;
 
-  // /// The cursor type of the lexer.
-  // type Cursor: Default + fmt::Debug + Ord + Clone + Hash;
-
   /// The span type of the lexer.
   type Span: fmt::Debug + Span<Offset = Self::Offset> + Ord + Clone + Hash;
   /// The offset type of the source.

@@ -1,0 +1,448 @@
+//! Unexpected token error type for parser error reporting.
+//!
+//! This module provides the [`MissingToken`] type, which represents parser errors
+//! when an missing token is encountered. It captures both the location of the error,
+//! what token was found (if any), and what tokens were expected.
+//!
+//! # Design Philosophy
+//!
+//! `MissingToken` is designed to provide rich, actionable error messages:
+//! - **Location tracking**: The `span` field pinpoints exactly where the error occurred
+//! - **Optional found token**: Distinguishes between missing tokens and end-of-input
+//! - **Flexible expectations**: Can express single or multiple alternative expected tokens
+//! - **Position adjustment**: The `bump()` method allows adjusting error positions when
+//!   combining errors from different parsing contexts
+//!
+//! # Common Patterns
+//!
+//! ## End of Input Errors
+//!
+//! When the parser reaches the end of input missingly, use constructors without a found token:
+//!
+//! ```
+//! use logosky::{utils::Span, error::MissingToken};
+//!
+//! // Simple end-of-input error
+//! let error: MissingToken<&str, &str> = MissingToken::expected_one(
+//!     Span::new(100, 100),
+//!     "}"
+//! );
+//! assert_eq!(format!("{}", error), "missing end of input, expected '}'");
+//! ```
+//!
+//! ## Unexpected Token Errors
+//!
+//! When a specific token was found but something else was expected:
+//!
+//! ```
+//! use logosky::{utils::{Expected, Span}, error::MissingToken};
+//!
+//! let error = MissingToken::expected_one_with_found(
+//!     Span::new(10, 15),
+//!     "else",
+//!     "if"
+//! );
+//! assert_eq!(format!("{}", error), "missing token 'else', expected 'if'");
+//! ```
+
+use core::{marker::PhantomData, ops::AddAssign};
+
+use crate::{
+  Lexer, Token,
+  error::token::{Leading, Trailing},
+  utils::Expected,
+};
+
+pub use missing_leading::*;
+pub use missing_trailing::*;
+
+mod missing_leading;
+mod missing_trailing;
+
+/// A type alias for a `MissingToken` error for a given lexer and separator.
+pub type MissingTokenOf<'inp, Sep, L> = MissingToken<
+  'inp,
+  <<L as Lexer<'inp>>::Token as Token<'inp>>::Kind,
+  <L as Lexer<'inp>>::Offset,
+  PhantomData<Sep>,
+>;
+
+/// An error representing an missing token encountered during parsing.
+///
+/// This error type captures the location (span), what token was found (if any),
+/// and what token(s) were expected. It's commonly used in parsers to provide
+/// detailed error messages when the input doesn't match the expected syntax.
+///
+/// # Type Parameters
+///
+/// * `T` - The type of the actual token that was found
+/// * `Kind` - The type of the expected token (often an enum of token kinds)
+///
+/// # Examples
+///
+/// ```
+/// use logosky::{utils::{Expected, Span}, error::MissingToken};
+///
+/// // Error when expecting a specific token but got something else
+/// let error = MissingToken::expected_one_with_found(
+///     Span::new(10, 15),
+///     "}",
+///     "{"
+/// );
+/// assert_eq!(error.span(), Span::new(10, 15));
+/// assert_eq!(format!("{}", error), "missing token '}', expected '{'");
+///
+/// // Error when expecting one of multiple tokens
+/// let error = MissingToken::expected_one_of_with_found(
+///     Span::new(0, 10),
+///     "identifier",
+///     &["if", "while", "for"]
+/// );
+/// assert_eq!(
+///     format!("{}", error),
+///     "missing token 'identifier', expected one of: 'if', 'while', 'for'"
+/// );
+///
+/// // Error when reaching end of input missingly
+/// let error: MissingToken<&str, &str> = MissingToken::expected_one(
+///     Span::new(100, 100),
+///     "}"
+/// );
+/// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
+/// ```
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub struct MissingToken<'a, Kind, O = usize, Knowledge = ()> {
+  offset: O,
+  expected: Option<Expected<'a, Kind>>,
+  knowledge: Option<Knowledge>,
+}
+
+impl<Kind, O, Knowledge> MissingToken<'_, Kind, O, Trailing<Knowledge>> {
+  /// Creates a new `MissingToken` error indicating a trailing token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn trailing(offset: O) -> Self {
+    Self::new_in(offset, None, Some(Trailing::new()))
+  }
+}
+
+impl<Kind, O, Knowledge> MissingToken<'_, Kind, O, Leading<Knowledge>> {
+  /// Creates a new `MissingToken` error indicating a trailing token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn leading(offset: O) -> Self {
+    Self::new_in(offset, None, Some(Leading::new()))
+  }
+}
+
+impl<'a, Kind, O, Knowledge> MissingToken<'a, Kind, O, Knowledge> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) const fn new_in(
+    offset: O,
+    expected: Option<Expected<'a, Kind>>,
+    knowledge: Option<Knowledge>,
+  ) -> Self {
+    Self {
+      offset,
+      expected,
+      knowledge,
+    }
+  }
+
+  /// Creates a new missing token error.
+  ///
+  /// This error indicates that an missing token was encountered,
+  /// without specifying what token was found or expected.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(offset: O) -> Self {
+    Self::new_in(offset, None, None)
+  }
+
+  /// Adds knowledge to the `MissingToken` error.
+  ///
+  /// This method allows attaching additional context or information
+  /// to the error, which can be useful for debugging or reporting.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_knowledge_const(mut self, knowledge: Knowledge) -> Self
+  where
+    Knowledge: Copy,
+  {
+    self.knowledge = Some(knowledge);
+    self
+  }
+
+  /// Adds knowledge to the `MissingToken` error.
+  ///
+  /// This method allows attaching additional context or information
+  /// to the error, which can be useful for debugging or reporting.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn with_knowledge(mut self, knowledge: Knowledge) -> Self {
+    self.knowledge = Some(knowledge);
+    self
+  }
+
+  /// Creates an missing token error without a found token.
+  ///
+  /// This is useful when the parser reaches the end of input missingly.
+  /// The error will indicate "missing end of input" in its display message.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  ///
+  /// let error: MissingToken<&str, &str> = MissingToken::new(
+  ///     Span::new(100, 101),
+  ///     Expected::one("}")
+  /// );
+  /// assert!(error.found().is_none());
+  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_expected(offset: O, expected: Expected<'a, Kind>) -> Self {
+    Self::new_in(offset, Some(expected), None)
+  }
+
+  /// Creates a new missing token error with a single expected token.
+  ///
+  /// This is a convenience method that combines `new` with `Expected::one`.
+  /// The error has no found token, indicating the end of input was reached.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::Span, error::MissingToken};
+  ///
+  /// let error: MissingToken<&str, &str> = MissingToken::expected_one(
+  ///     Span::new(50, 51),
+  ///     ";"
+  /// );
+  /// assert!(error.found().is_none());
+  /// assert_eq!(format!("{}", error), "missing end of input, expected ';'");
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn expected_one(offset: O, expected: Kind) -> Self {
+    Self::with_expected(offset, Expected::one(expected))
+  }
+
+  /// Creates a new missing token error with a single expected token.
+  ///
+  /// This is a convenience method that combines `new` with `Expected::one`.
+  /// The error has no found token, indicating the end of input was reached.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::Span, error::MissingToken};
+  ///
+  /// let error: MissingToken<&str, &str> = MissingToken::expected_one_with_found(
+  ///     Span::new(50, 51),
+  ///     ":",
+  ///     ";"
+  /// );
+  /// assert!(error.found().is_some());
+  /// assert_eq!(format!("{}", error), "missing token ':', expected ';'");
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn expected_one_with_found(offset: O, expected: Kind) -> Self {
+    Self::new_in(offset, Some(Expected::one(expected)), None)
+  }
+
+  /// Creates a new missing token error with multiple expected tokens.
+  ///
+  /// This is a convenience method that combines `new` with `Expected::one_of`.
+  /// The error has no found token, indicating the end of input was reached.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::Span, error::MissingToken};
+  ///
+  /// let error: MissingToken<&str, &str> = MissingToken::expected_one_of(
+  ///     Span::new(25, 26),
+  ///     &["+", "-", "*", "/"]
+  /// );
+  /// assert!(error.found().is_none());
+  /// assert_eq!(
+  ///     format!("{}", error),
+  ///     "missing end of input, expected one of: '+', '-', '*', '/'"
+  /// );
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn expected_one_of(offset: O, expected: &'static [Kind]) -> Self {
+    Self::with_expected(offset, Expected::one_of(expected))
+  }
+
+  /// Creates a new missing token error with multiple expected tokens.
+  ///
+  /// This is a convenience method that combines `new` with `Expected::one_of`.
+  /// The error has no found token, indicating the end of input was reached.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::Span, error::MissingToken};
+  ///
+  /// let error: MissingToken<&str, &str> = MissingToken::expected_one_of_with_found(
+  ///     Span::new(25, 26),
+  ///     ":",
+  ///     &["+", "-", "*", "/"]
+  /// );
+  /// assert!(!error.found().is_none());
+  /// assert_eq!(
+  ///     format!("{}", error),
+  ///     "missing token ':', expected one of: '+', '-', '*', '/'"
+  /// );
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn expected_one_of_with_found(offset: O, expected: &'static [Kind]) -> Self {
+    Self::new_in(offset, Some(Expected::one_of(expected)), None)
+  }
+
+  /// Returns the span of the missing token.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  ///
+  /// let error = MissingToken::expected_one_with_found(
+  ///     Span::new(10, 15),
+  ///     "identifier",
+  ///     "number"
+  /// );
+  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn offset(&self) -> O
+  where
+    O: Copy,
+  {
+    self.offset
+  }
+
+  /// Returns a reference to the expected token(s).
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  ///
+  /// let error = MissingToken::expected_one_with_found(
+  ///     Span::new(5, 6),
+  ///     "}",
+  ///     "{"
+  /// );
+  /// assert_eq!(*error.expected(), Expected::one("{"));
+  /// if let Expected::One(value) = error.expected() {
+  ///     assert_eq!(*value, "{");
+  /// }
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn expected(&self) -> Option<&Expected<'a, Kind>> {
+    self.expected.as_ref()
+  }
+
+  /// Bumps both the start and end positions of the span by the given offset.
+  ///
+  /// This is useful when adjusting error positions after processing or
+  /// when combining spans from different contexts.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  ///
+  /// let mut error = MissingToken::expected_one_with_found(
+  ///     Span::new(10, 15),
+  ///     "}",
+  ///     "{"
+  /// );
+  /// error.bump(5);
+  /// assert_eq!(error.span(), Span::new(15, 20));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn bump(&mut self, offset: &O)
+  where
+    O: for<'b> AddAssign<&'b O>,
+  {
+    self.offset += offset;
+  }
+
+  /// Maps the expected token(s) using the provided function.
+  ///
+  /// This is useful for transforming the expected token type while preserving
+  /// the rest of the error information.
+  ///
+  /// ## Examples
+  ///
+  /// ```
+  /// # #[cfg(feature = "std")] {
+  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  ///
+  /// let error = MissingToken::expected_one_with_found(
+  ///    Span::new(0, 5),
+  ///   "identifier",
+  ///   "number"
+  /// );
+  /// let mapped_error = error.map_expected(|expected| {
+  ///     // Transform the expected token type here
+  ///     Expected::one(expected.unwrap_one().to_string())
+  /// });
+  /// # }
+  /// ```
+  pub fn map_expected<F, Kind2>(self, f: F) -> MissingToken<'a, Kind2, O, Knowledge>
+  where
+    F: FnOnce(Expected<'a, Kind>) -> Expected<'a, Kind2>,
+  {
+    MissingToken {
+      offset: self.offset,
+      expected: self.expected.map(f),
+      knowledge: self.knowledge,
+    }
+  }
+
+  /// Consumes the error and returns its components.
+  ///
+  /// This method deconstructs the error into its constituent parts:
+  /// the span, the found token (if any), and the expected token(s).
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  ///
+  /// let error = MissingToken::expected_one_with_found(
+  ///     Span::new(5, 6),
+  ///     "}",
+  ///     "{"
+  /// );
+  /// let (span, found, expected) = error.into_components();
+  /// assert_eq!(span, Span::new(5, 6));
+  /// assert_eq!(found, Some("}"));
+  /// assert_eq!(expected, Expected::one("{"));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_components(self) -> (O, Option<Expected<'a, Kind>>, Option<Knowledge>) {
+    (self.offset, self.expected, self.knowledge)
+  }
+}
+
+// impl<T: core::fmt::Display, Kind: core::fmt::Display + 'static, S> core::fmt::Display
+//   for MissingToken<'_, T, Kind, S>
+// {
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+//     match &self.found {
+//       Some(found) => write!(f, "missing token '{found}', {}", self.expected),
+//       None => write!(f, "missing end of input, {}", self.expected),
+//     }
+//   }
+// }
+
+// impl<
+//   T: core::fmt::Debug + core::fmt::Display,
+//   Kind: core::fmt::Display + core::fmt::Debug + 'static,
+//   S: core::fmt::Debug,
+// > core::error::Error for MissingToken<'_, T, Kind, S>
+// {
+// }
