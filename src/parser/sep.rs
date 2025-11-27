@@ -2,9 +2,11 @@ use core::marker::PhantomData;
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
+use crate::utils::Expected;
+
 use super::*;
 
-mod init;
+mod parser_input;
 
 /// A marker type representing the maximum number of elements allowed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -70,13 +72,17 @@ pub type SeqSepOptions<Trailing, Leading, Max, Min> = With<With<Trailing, Leadin
 
 /// A hint used during parsing sequences with separators.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
-pub enum SeqSepHint {
+pub enum SeqSepHint<'a, Kind> {
   /// Indicates the start of the sequence, hint to stop.
   End,
   /// Indicates a separator was found, hint to parse another element.
   Separator,
   /// Indicates a token belongs to an element was found, hint to continue parsing.
   Continue,
+  /// Indicates that we should skip the token, useful for trivial tokens like whitespace, comments, etc.
+  Skip,
+  /// Indicates this is an unexpected token, but this token should not terminate the parsing.
+  Unexpected(Option<Expected<'a, Kind>>),
 }
 
 /// A parser that parses a sequence of elements separated by a specific separator.
@@ -233,6 +239,7 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
 
   /// Returns the specification for leading separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(private_bounds)]
   pub fn leading(&self) -> SepFixSpec
   where
     Leading: LeadingSpec,
@@ -242,6 +249,7 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
 
   /// Returns the specification for trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(private_bounds)]
   pub fn trailing(&self) -> SepFixSpec
   where
     Trailing: TrailingSpec,
@@ -251,6 +259,7 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
 
   /// Returns the minimum number of elements required.
   #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(private_bounds)]
   pub fn minimum(&self) -> usize
   where
     Min: MinSpec,
@@ -260,6 +269,7 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
 
   /// Returns the maximum number of elements allowed.
   #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(private_bounds)]
   pub fn maximum(&self) -> usize
   where
     Max: MaxSpec,

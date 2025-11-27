@@ -440,6 +440,45 @@ impl<'a, T, Kind, S, Knowledge> UnexpectedToken<'a, T, Kind, S, Knowledge> {
     self.span
   }
 
+  /// Returns the span of the unexpected token.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  ///
+  /// let error = UnexpectedToken::expected_one_with_found(
+  ///     Span::new(10, 15),
+  ///     "identifier",
+  ///     "number"
+  /// );
+  /// assert_eq!(error.span_ref(), &Span::new(10, 15));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_ref(&self) -> &S {
+    &self.span
+  }
+
+  /// Returns a mutable reference to the span of the unexpected token.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  ///
+  /// let mut error = UnexpectedToken::expected_one_with_found(
+  ///    Span::new(10, 15),
+  ///   "identifier",
+  ///   "number"
+  /// );
+  /// error.bump(5);
+  /// assert_eq!(error.span(), Span::new(15, 20));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_mut(&mut self) -> &mut S {
+    &mut self.span
+  }
+
   /// Returns a reference to the found token, if any.
   ///
   /// Returns `None` if the error represents an unexpected end of input.

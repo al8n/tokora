@@ -9,7 +9,7 @@ use crate::{
 };
 
 pub use any::*;
-pub use sep::*;
+pub use sep::{SepFixSpec, SeqSep, SeqSepHint, SeqSepOptions};
 
 mod any;
 mod sep;

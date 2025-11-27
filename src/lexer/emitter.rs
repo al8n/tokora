@@ -5,7 +5,7 @@ use crate::{
     syntax::{MissingSyntaxOf, TooFew, TooMany},
     token::{
       MissingLeadingOf, MissingTokenOf, MissingTrailingOf, UnexpectedLeadingOf,
-      UnexpectedRepeatedOf, UnexpectedTrailingOf,
+      UnexpectedRepeatedOf, UnexpectedToken, UnexpectedTrailingOf,
     },
   },
   utils::{Message, Spanned},
@@ -94,6 +94,14 @@ pub trait Emitter<'a, L> {
   where
     L: Lexer<'a>;
 
+  /// Emits an unexpected token error encountered during parsing.
+  fn emit_unexpected_token(
+    &mut self,
+    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>;
+
   /// Emits a custom error from the application or parser.
   ///
   /// This method is called for application-level errors (not lexer errors).
@@ -131,6 +139,17 @@ where
     L: Lexer<'a>,
   {
     (**self).emit_lexer_error(err)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_unexpected_token(
+    &mut self,
+    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>,
+  {
+    (**self).emit_unexpected_token(err)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

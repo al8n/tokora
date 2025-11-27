@@ -5,21 +5,20 @@ use crate::{
     syntax::{MissingSyntaxOf, TooFew, TooMany},
     token::{
       MissingLeadingOf, MissingTokenOf, MissingTrailingOf, UnexpectedLeadingOf,
-      UnexpectedRepeatedOf, UnexpectedTrailingOf,
+      UnexpectedRepeatedOf, UnexpectedToken, UnexpectedTrailingOf,
     },
   },
 };
 
 use super::*;
 
-// No trailing, no leading, unbounded
 impl<'inp, L, F, Sep, O, Container, E, C, Trailing, Leading, Max, Min>
   ParseInput<'inp, L, ParseResult<'inp, Container, L, E>, E, C>
   for SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Max, Min>>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, ParseResult<'inp, O, L, E>, E, C>,
-  Sep: Check<L::Token, SeqSepHint>,
+  Sep: Check<L::Token, SeqSepHint<'inp, <L::Token as Token<'inp>>::Kind>>,
   E: SeparatedByEmitter<'inp, O, Sep, L>,
   C: Cache<'inp, L>,
   Container: Default + super::Container<Spanned<O, L::Span>>,
@@ -86,6 +85,25 @@ where
                   return self
                     .handle_end(state, inp, &ckp, &mut container)
                     .map(|span| Spanned::new(span, container));
+                }
+                SeqSepHint::Skip => {
+                  inp.consume_one();
+                  continue;
+                }
+                SeqSepHint::Unexpected(exp) => {
+                  let unexpected_tok = inp
+                    .next()
+                    .expect("peeked token already confirmed there must be a token");
+                  let (span, token) = unexpected_tok.into_components();
+                  let err = match exp {
+                    Some(expected) => UnexpectedToken::with_expected(span, expected)
+                      .with_found(token.unwrap_token()),
+                    None => UnexpectedToken::new(span).with_found(token.unwrap_token()),
+                  };
+
+                  inp.emitter().emit_unexpected_token(err)?;
+
+                  continue;
                 }
                 SeqSepHint::Separator => {
                   let sep_tok = inp
@@ -356,7 +374,7 @@ impl<'inp, F, Sep, O, Container, Trailing, Leading, Max, Min>
     E: Emitter<'inp, L>,
     C: Cache<'inp, L>,
     F: ParseInput<'inp, L, ParseResult<'inp, O, L, E>, E, C>,
-    Sep: Check<L::Token, SeqSepHint>,
+    Sep: Check<L::Token, SeqSepHint<'inp, <L::Token as Token<'inp>>::Kind>>,
     E: SeparatedByEmitter<'inp, O, Sep, L>,
     C: Cache<'inp, L>,
     Container: super::Container<Spanned<O, L::Span>>,
