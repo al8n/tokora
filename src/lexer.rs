@@ -390,8 +390,6 @@ pub(crate) struct DummyLexer;
 #[display("DummyToken")]
 pub(crate) struct DummyToken;
 
-
-
 #[cfg(test)]
 const _: () = {
   impl Token<'_> for DummyToken {
@@ -406,54 +404,54 @@ const _: () = {
 
   impl<'inp> Lexer<'inp> for DummyLexer {
     type State = ();
-    
+
     type Source = str;
-    
+
     type Token = DummyToken;
-    
+
     type Span = crate::utils::Span;
-    
+
     type Offset = usize;
-    
+
     fn new(_: &'inp Self::Source) -> Self
     where
-      Self::State: Default
+      Self::State: Default,
     {
       todo!()
     }
-    
+
     fn with_state(_: &'inp Self::Source, _: Self::State) -> Self {
       todo!()
     }
-    
+
     fn check(&self) -> Result<(), <Self::Token as Token<'inp>>::Error> {
       todo!()
     }
-    
+
     fn state(&self) -> &Self::State {
       todo!()
     }
-    
+
     fn state_mut(&mut self) -> &mut Self::State {
       todo!()
     }
-    
+
     fn into_state(self) -> Self::State {
       todo!()
     }
-    
+
     fn source(&self) -> &'inp Self::Source {
       todo!()
     }
-    
+
     fn span(&self) -> Self::Span {
       todo!()
     }
-    
+
     fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'inp> {
       todo!()
     }
-    
+
     fn lex(&mut self) -> Option<Result<Self::Token, <Self::Token as Token<'inp>>::Error>> {
       todo!()
     }

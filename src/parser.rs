@@ -9,7 +9,7 @@ use crate::{
 };
 
 pub use any::*;
-pub use sep::{SepFixSpec, SeqSep, SeqSepHint, SeqSepOptions};
+pub use sep::{SepFixSpec, SeqSep, SeqSepAction, SeqSepOptions, comma_seq};
 
 mod any;
 mod sep;
@@ -141,15 +141,6 @@ impl<F, L, O, Error> Parser<F, L, O, Error> {
 }
 
 impl<F, L, O, Error> Parser<F, L, O, Error> {
-  // /// Wrap a parsing function.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn new(f: F) -> Self {
-  //   Self {
-  //     f,
-  //     _marker: PhantomData,
-  //   }
-  // }
-
   /// Apply a new parsing function to the parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn apply<'inp, NF, NO, NE>(self, f: NF) -> Parser<NF, L, NO, NE>
@@ -366,7 +357,7 @@ where
 }
 
 impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E::Error>
-  for WithEmitter<WithCache<'inp, Parser<F, L, O, E::Error>, L, C>, E>
+  for WithEmitter<WithCache<'inp, F, L, C>, E>
 where
   F: ParseInput<'inp, L, O, E, C>,
   L: Lexer<'inp>,
@@ -384,7 +375,7 @@ where
 }
 
 impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E::Error>
-  for WithCache<'inp, WithEmitter<Parser<F, L, O, E::Error>, E>, L, C>
+  for WithCache<'inp, WithEmitter<F, E>, L, C>
 where
   F: ParseInput<'inp, L, O, E, C>,
   L: Lexer<'inp>,
@@ -402,31 +393,13 @@ where
 }
 
 /// Trait for computing the next state
-pub trait Next<State> {
+pub trait Apply<State> {
   /// The options for computing the next state
   type Options;
 
   /// Computes the next state given the options.
-  fn next(self, options: Self::Options) -> State;
+  fn apply(self, options: Self::Options) -> State;
 }
-
-// impl<'inp, F, L, O, Error, C> Next<WithCache<'inp, Parser<F, L, O, Error>, L, C>>
-//   for Parser<F, L, O, Error>
-// where
-//   C: Cache<'inp, L>,
-//   L: Lexer<'inp>,
-// {
-//   type Options = C::Options;
-
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   fn next(self, options: Self::Options) -> WithCache<'inp, Parser<F, L, O, Error>, L, C> {
-//     WithCache {
-//       inner: self,
-//       cache_opts: options,
-//       _marker: PhantomData,
-//     }
-//   }
-// }
 
 /// Trait for container types used in parsers.
 pub trait Container<T> {
@@ -477,7 +450,6 @@ blackhole!(());
 blackhole!(core::marker::PhantomData<T>);
 blackhole!(crate::utils::marker::Ignored<T>);
 blackhole!(crate::lexer::BlackHole);
-
 
 /// Shorthand for building a [`Parser`] from a closure.
 pub const fn parser<'inp, L, O, E, C, F>(f: F) -> Parser<F, L, O, E::Error>
@@ -534,7 +506,7 @@ mod tests {
   #![allow(warnings)]
 
   use super::{Token as TokenT, *};
-  use crate::{BlackHole, punct::Comma, utils::marker::Ignored};
+  use crate::{BlackHole, parser::sep::comma_seq, punct::Comma, utils::marker::Ignored};
   use derive_more::Display;
   use logos::*;
 
@@ -633,27 +605,17 @@ mod tests {
   }
 
   const fn assert_comma_seq_parse_impl<'inp>()
-  -> impl Parse<
-    'inp,
-    JsonLexer<'inp>,
-    ParseResult<'inp, (), JsonLexer<'inp>, Noop<()>>,
-    (),
-  > {
+  -> impl Parse<'inp, JsonLexer<'inp>, ParseResult<'inp, (), JsonLexer<'inp>, Noop<()>>, ()> {
     // simple element parser that always succeeds with ()
-    Parser::separated_by::<
-      _,
-      _,
-      JsonLexer<'inp>,
-      _,
-      (),
-      (),
-    >(Parser::any(), |t: &Token| {
+    comma_seq::<_, _, JsonLexer<'inp>, _, (), ()>(parser(|inp| {
+      todo!()
+    }), |t: &Token| {
       if let TokenKind::Comma = t.kind() {
-        SeqSepHint::Separator
+        SeqSepAction::Separator
       } else {
-        SeqSepHint::Continue
+        SeqSepAction::Continue
       }
-    })
+    }).with_emitter(Noop::new())
   }
 
   // #[test]

@@ -1,5 +1,7 @@
 use crate::{
-  error::token::UnexpectedToken, utils::{Spanned, marker::Noop}, lexer::Span as _,
+  error::token::UnexpectedToken,
+  lexer::Span as _,
+  utils::{Spanned, marker::Noop},
 };
 
 use super::*;
@@ -59,10 +61,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(
-    &mut self,
-    err: TooMany<O, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_many(&mut self, err: TooMany<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>,
   {
@@ -153,7 +152,10 @@ where
     L: Lexer<'inp>,
   {
     let offset = err.offset_ref().clone();
-    Err(Spanned::new(L::Span::new(offset.clone(), offset), err.into()))
+    Err(Spanned::new(
+      L::Span::new(offset.clone(), offset),
+      err.into(),
+    ))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -165,7 +167,10 @@ where
     L: Lexer<'inp>,
   {
     let offset = err.offset_ref().clone();
-    Err(Spanned::new(L::Span::new(offset.clone(), offset), err.into()))
+    Err(Spanned::new(
+      L::Span::new(offset.clone(), offset),
+      err.into(),
+    ))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -177,7 +182,10 @@ where
     L: Lexer<'inp>,
   {
     let offset = err.offset_ref().clone();
-    Err(Spanned::new(L::Span::new(offset.clone(), offset), err.into()))
+    Err(Spanned::new(
+      L::Span::new(offset.clone(), offset),
+      err.into(),
+    ))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -189,16 +197,20 @@ where
     L: Lexer<'inp>,
   {
     let offset = err.offset_ref().clone();
-    Err(Spanned::new(L::Span::new(offset.clone(), offset), err.into()))
+    Err(Spanned::new(
+      L::Span::new(offset.clone(), offset),
+      err.into(),
+    ))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_repeated_separator(
-      &mut self,
-      err: UnexpectedRepeatedOf<'inp, Sep, L>,
-    ) -> Result<(), Spanned<Self::Error, L::Span>>
-    where
-      L: Lexer<'inp> {
+    &mut self,
+    err: UnexpectedRepeatedOf<'inp, Sep, L>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'inp>,
+  {
     Err(Spanned::new(err.span_ref().clone(), err.into()))
   }
 
@@ -227,13 +239,13 @@ where
 
 #[cfg(test)]
 const _: () = {
-  use crate::{BlackHole, Check, DummyLexer, DummyToken, SeqSepHint};
+  use crate::{BlackHole, Check, DummyLexer, DummyToken, SeqSepAction};
 
   struct DummySep;
 
-  impl<'inp> Check<DummyToken, SeqSepHint<'inp , DummyToken>> for DummySep {
+  impl<'inp> Check<DummyToken, SeqSepAction<'inp, DummyToken>> for DummySep {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn check(&self, _: &DummyToken) -> SeqSepHint<'inp, DummyToken> {
+    fn check(&self, _: &DummyToken) -> SeqSepAction<'inp, DummyToken> {
       unimplemented!()
     }
   }

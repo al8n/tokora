@@ -6,7 +6,7 @@ use crate::utils::Expected;
 
 use super::*;
 
-// pub use comma::*;
+pub use comma::*;
 
 mod comma;
 mod parser_input;
@@ -73,7 +73,7 @@ pub type SeqSepOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
 
 /// A hint used during parsing sequences with separators.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
-pub enum SeqSepHint<'a, Kind> {
+pub enum SeqSepAction<'a, Kind> {
   /// Indicates the start of the sequence, hint to stop.
   End,
   /// Indicates a separator was found, hint to parse another element.
@@ -87,46 +87,67 @@ pub enum SeqSepHint<'a, Kind> {
 }
 
 /// A parser that parses a sequence of elements separated by a specific separator.
-pub struct SeqSep<F, Sep, O, Container, Config = SeqSepOptions> {
+pub struct SeqSep<F, Classifier, O, Container, Config = SeqSepOptions> {
   f: F,
-  sep: Sep,
+  classifier: Classifier,
   config: Config,
   _m: PhantomData<(O, Config, Container)>,
 }
 
-impl<F, Sep, O, Container> SeqSep<F, Sep, O, Container> {
+impl<F, Classifier, O, Container> SeqSep<F, Classifier, O, Container> {
   /// Creates a new `SeqSep` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(f: F, sep: Sep) -> Self {
-    Self::with_container(f, sep)
+  pub const fn new(f: F, classifier: Classifier) -> Self {
+    Self::with_container(f, classifier)
   }
 
   /// Creates a new `SeqSep` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  const fn with_container(f: F, sep: Sep) -> Self {
+  const fn with_container(f: F, classifier: Classifier) -> Self {
     Self {
       f,
-      sep,
+      classifier,
       config: SeqSepOptions::new(With::new((), ()), With::new((), ())),
       _m: PhantomData,
     }
   }
 }
 
-impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
-  SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Max, Min>>
+impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
+  SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Leading, Max, Min>>
 {
+  /// Attach a custom emitter to the parser.
+  pub fn with_emitter<E>(self, emitter: E) -> WithEmitter<Self, E> {
+    WithEmitter {
+      inner: self,
+      emitter,
+    }
+  }
+
+  /// Attach custom cache options to the parser.
+  pub fn with_cache<'inp, L, C>(self, options: C::Options) -> WithCache<'inp, Self, L, C>
+  where
+    L: Lexer<'inp>,
+    C: Cache<'inp, L>,
+  {
+    WithCache {
+      inner: self,
+      cache_opts: options,
+      _marker: PhantomData,
+    }
+  }
+
   /// Allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_trailing(
     self,
-  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Allow, Leading, Max, Min>>
+  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Allow, Leading, Max, Min>>
   where
-    Trailing: Next<Allow>,
+    Trailing: Apply<Allow>,
   {
     SeqSep {
       f: self.f,
-      sep: self.sep,
+      classifier: self.classifier,
       config: SeqSepOptions::new(
         With::new(Allow(()), self.config.primary.secondary),
         self.config.secondary,
@@ -139,13 +160,13 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_trailing(
     self,
-  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Require, Leading, Max, Min>>
+  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Require, Leading, Max, Min>>
   where
-    Trailing: Next<Require>,
+    Trailing: Apply<Require>,
   {
     SeqSep {
       f: self.f,
-      sep: self.sep,
+      classifier: self.classifier,
       config: SeqSepOptions::new(
         With::new(Require(()), self.config.primary.secondary),
         self.config.secondary,
@@ -158,13 +179,13 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_leading(
     self,
-  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Allow, Max, Min>>
+  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Allow, Max, Min>>
   where
-    Leading: Next<Allow>,
+    Leading: Apply<Allow>,
   {
     SeqSep {
       f: self.f,
-      sep: self.sep,
+      classifier: self.classifier,
       config: SeqSepOptions::new(
         With::new(self.config.primary.primary, Allow(())),
         self.config.secondary,
@@ -177,13 +198,13 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_leading(
     self,
-  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Require, Max, Min>>
+  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Require, Max, Min>>
   where
-    Leading: Next<Require>,
+    Leading: Apply<Require>,
   {
     SeqSep {
       f: self.f,
-      sep: self.sep,
+      classifier: self.classifier,
       config: SeqSepOptions::new(
         With::new(self.config.primary.primary, Require(())),
         self.config.secondary,
@@ -197,18 +218,18 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
   pub fn at_least(
     self,
     n: Min::Options,
-  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Max, Minimum>>
+  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Leading, Max, Minimum>>
   where
-    Min: Next<Minimum>,
+    Min: Apply<Minimum>,
   {
     SeqSep {
       f: self.f,
-      sep: self.sep,
+      classifier: self.classifier,
       config: SeqSepOptions::new(
         self.config.primary,
         With::new(
           self.config.secondary.primary,
-          Min::next(self.config.secondary.secondary, n),
+          Min::apply(self.config.secondary.secondary, n),
         ),
       ),
       _m: PhantomData,
@@ -220,17 +241,17 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
   pub fn at_most(
     self,
     n: Max::Options,
-  ) -> SeqSep<F, Sep, O, Container, SeqSepOptions<Trailing, Leading, Maximum, Min>>
+  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Leading, Maximum, Min>>
   where
-    Max: Next<Maximum>,
+    Max: Apply<Maximum>,
   {
     SeqSep {
       f: self.f,
-      sep: self.sep,
+      classifier: self.classifier,
       config: SeqSepOptions::new(
         self.config.primary,
         With::new(
-          Max::next(self.config.secondary.primary, n),
+          Max::apply(self.config.secondary.primary, n),
           self.config.secondary.secondary,
         ),
       ),
@@ -279,8 +300,8 @@ impl<F, Sep, O, Container, Trailing, Leading, Max, Min>
   }
 }
 
-impl<L, F, Sep, O, Output, Container, E, C, Config> sealed::Sealed<'_, L, Output, E, C>
-  for SeqSep<F, Sep, O, Container, Config>
+impl<L, F, Classifier, O, Output, Container, E, C, Config> sealed::Sealed<'_, L, Output, E, C>
+  for SeqSep<F, Classifier, O, Container, Config>
 {
 }
 
@@ -295,56 +316,56 @@ enum State<T, S> {
   RepeatedSeparator(S),
 }
 
-impl Next<Allow> for () {
+impl Apply<Allow> for () {
   type Options = ();
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next(self, _: Self::Options) -> Allow {
+  fn apply(self, _: Self::Options) -> Allow {
     Allow(())
   }
 }
 
-impl Next<Require> for () {
+impl Apply<Require> for () {
   type Options = ();
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next(self, _: Self::Options) -> Require {
+  fn apply(self, _: Self::Options) -> Require {
     Require(())
   }
 }
 
-impl Next<Maximum> for () {
+impl Apply<Maximum> for () {
   type Options = usize;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next(self, options: Self::Options) -> Maximum {
+  fn apply(self, options: Self::Options) -> Maximum {
     Maximum(options)
   }
 }
 
-impl Next<Minimum> for () {
+impl Apply<Minimum> for () {
   type Options = usize;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next(self, options: Self::Options) -> Minimum {
+  fn apply(self, options: Self::Options) -> Minimum {
     Minimum(options)
   }
 }
 
-impl Next<Maximum> for Maximum {
+impl Apply<Maximum> for Maximum {
   type Options = usize;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next(self, options: Self::Options) -> Maximum {
+  fn apply(self, options: Self::Options) -> Maximum {
     Maximum(options)
   }
 }
 
-impl Next<Minimum> for Minimum {
+impl Apply<Minimum> for Minimum {
   type Options = usize;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next(self, options: Self::Options) -> Minimum {
+  fn apply(self, options: Self::Options) -> Minimum {
     Minimum(options)
   }
 }
