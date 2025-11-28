@@ -10,9 +10,10 @@ impl<'a, L, E> Emitter<'a, L> for Noop<E>
 where
   L: Lexer<'a>,
   E: From<<L::Token as Token<'a>>::Error>
-    + From<UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>>,
+    + From<UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>>
+    + From<UnexpectedEot<L::Span>>,
 {
-  type Error = E;
+  type Error = E where L: Lexer<'a>;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_lexer_error(

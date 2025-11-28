@@ -15,17 +15,20 @@ where
 }
 
 /// A parser that accepts an empty comma-separated sequence.
-pub const fn comma_seq<'inp, F, Classifier, L, O, Container, Error>(
+pub const fn comma_seq<'inp, F, Classifier, L, O, Container, E, C>(
   parser: F,
   classifier: Classifier,
 ) -> SeqSep<F, Comma<(), Classifier>, O, Container>
 where
-  F: ParseInput<'inp, L, ParseResult<'inp, O, L, Noop<Error>>, Noop<Error>, DefaultCache<'inp, L>>,
+  F: ParseInput<'inp, L, ParseResult<'inp, O, L, E>, E, C>,
   Classifier: Check<L::Token, SeqSepAction<'inp, <L::Token as Token<'inp>>::Kind>>,
   L: Lexer<'inp>,
-  Error: From<<L::Token as Token<'inp>>::Error>
+  E: Emitter<'inp, L>,
+  C: Cache<'inp, L>,
+  E: SeparatedByEmitter<'inp, O, Classifier, L>,
+  E::Error: From<<L::Token as Token<'inp>>::Error>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
-  Noop<Error>: SeparatedByEmitter<'inp, O, Classifier, L>,
 {
+  // Parser::with()
   SeqSep::new(parser, Comma::with_content((), classifier))
 }

@@ -116,23 +116,18 @@ impl<F, Classifier, O, Container> SeqSep<F, Classifier, O, Container> {
 impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
   SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Leading, Max, Min>>
 {
-  /// Attach a custom emitter to the parser.
-  pub fn with_emitter<E>(self, emitter: E) -> WithEmitter<Self, E> {
-    WithEmitter {
-      inner: self,
-      emitter,
-    }
-  }
-
-  /// Attach custom cache options to the parser.
-  pub fn with_cache<'inp, L, C>(self, options: C::Options) -> WithCache<'inp, Self, L, C>
+  /// Convert to a configurable parser with all defaults.
+  ///
+  /// This allows you to configure emitter and cache options in any order
+  /// before calling `.parse()`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn configured<'inp, L>(self) -> super::Configured<'inp, Self, L>
   where
     L: Lexer<'inp>,
-    C: Cache<'inp, L>,
   {
-    WithCache {
-      inner: self,
-      cache_opts: options,
+    super::Configured {
+      parser: self,
+      config: super::With::new((), ()),
       _marker: PhantomData,
     }
   }
