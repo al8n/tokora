@@ -1,10 +1,11 @@
+use crate::{Span, error::UnexpectedEot};
+
 use super::*;
 
 /// A parser that accepts any token.
 pub struct Any;
 
-impl<'inp, L, E, C> sealed::Sealed<'inp, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, E, C>
-  for Any
+impl<'inp, L, E, C> sealed::Sealed<'inp, L, ParseResult<'inp, L::Token, L, E>, E, C> for Any
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
@@ -12,8 +13,7 @@ where
 {
 }
 
-impl<'inp, L, E, C> ParseInput<'inp, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, E, C>
-  for Any
+impl<'inp, L, E, C> ParseInput<'inp, L, ParseResult<'inp, L::Token, L, E>, E, C> for Any
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
@@ -23,8 +23,15 @@ where
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, E, C>,
-  ) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>> {
-    inp.next()
+  ) -> ParseResult<'inp, L::Token, L, E> {
+    match inp.next() {
+      Some(_) => todo!(),
+      None => {
+        let end = inp.span().end();
+        let span = L::Span::new(end.clone(), end);
+        Err(Spanned::new(span.clone(), UnexpectedEot::eot(span).into()))
+      }
+    }
   }
 }
 

@@ -1,10 +1,12 @@
 use crate::{
   Lexer,
   error::{
-    UnclosedParen, UnexpectedEot, syntax::{MissingSyntaxOf, TooFew, TooMany}, token::{
+    UnclosedParen, UnexpectedEot,
+    syntax::{MissingSyntaxOf, TooFew, TooMany},
+    token::{
       MissingLeadingOf, MissingTokenOf, MissingTrailingOf, UnexpectedLeadingOf,
       UnexpectedRepeatedOf, UnexpectedToken, UnexpectedTrailingOf,
-    }
+    },
   },
   utils::{Message, Spanned},
 };
@@ -69,7 +71,9 @@ pub trait Emitter<'a, L> {
   ///
   /// This is the type returned when a fatal error occurs (via `Err(Self::Error)`).
   /// It can be any type that represents your application's error model.
-  type Error: From<UnexpectedEot<L::Span>> where L: Lexer<'a>;
+  type Error: From<UnexpectedEot<L::Span>>
+  where
+    L: Lexer<'a>;
 
   /// Emits a lexer error from the underlying Logos tokenizer.
   ///
@@ -126,7 +130,10 @@ impl<'a, L, U> Emitter<'a, L> for &mut U
 where
   U: Emitter<'a, L>,
 {
-  type Error = U::Error where L: Lexer<'a>;
+  type Error
+    = U::Error
+  where
+    L: Lexer<'a>;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_lexer_error(

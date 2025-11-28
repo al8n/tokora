@@ -116,22 +116,6 @@ impl<F, Classifier, O, Container> SeqSep<F, Classifier, O, Container> {
 impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
   SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Leading, Max, Min>>
 {
-  /// Convert to a configurable parser with all defaults.
-  ///
-  /// This allows you to configure emitter and cache options in any order
-  /// before calling `.parse()`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn configured<'inp, L>(self) -> super::Configured<'inp, Self, L>
-  where
-    L: Lexer<'inp>,
-  {
-    super::Configured {
-      parser: self,
-      config: super::With::new((), ()),
-      _marker: PhantomData,
-    }
-  }
-
   /// Allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_trailing(

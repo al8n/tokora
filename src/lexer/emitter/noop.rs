@@ -13,7 +13,10 @@ where
     + From<UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>>
     + From<UnexpectedEot<L::Span>>,
 {
-  type Error = E where L: Lexer<'a>;
+  type Error
+    = E
+  where
+    L: Lexer<'a>;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_lexer_error(

@@ -621,6 +621,11 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   }
 }
 
+impl<Hint, S> From<UnexpectedEnd<Hint, S>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: UnexpectedEnd<Hint, S>) -> Self {}
+}
+
 /// An type alias for unexpected EOF.
 pub type UnexpectedEof<S = Span> = UnexpectedEnd<FileHint, S>;
 /// An type alias for unexpected end of token stream.
