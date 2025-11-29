@@ -34,11 +34,12 @@ where
     inp: &mut InputRef<'inp, '_, L, E, C>,
   ) -> ParseResult<'inp, L::Token, L, E> {
     match inp.next() {
-      Some(Spanned { span, data: tok }) => {
-        match tok {
-          Lexed::Token(tok) => Ok(Spanned { span, data: tok }),
-          Lexed::Error(err) => Err(Spanned { span, data: err.into() }),
-        }
+      Some(Spanned { span, data: tok }) => match tok {
+        Lexed::Token(tok) => Ok(Spanned { span, data: tok }),
+        Lexed::Error(err) => Err(Spanned {
+          span,
+          data: err.into(),
+        }),
       },
       None => {
         let end = inp.span().end();

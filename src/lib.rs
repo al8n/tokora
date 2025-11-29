@@ -49,8 +49,8 @@ mod punct;
 #[doc(hidden)]
 pub mod __private {
   pub use super::{check::Check, error, lexer::*, require::Require, syntax, utils};
-  pub use paste;
   pub use logos;
+  pub use paste;
 
   #[cfg(any(feature = "std", feature = "alloc"))]
   pub use std::{boxed::Box, string::String, vec::Vec};

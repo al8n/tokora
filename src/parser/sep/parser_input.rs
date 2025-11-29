@@ -2,7 +2,7 @@ use crate::{
   Check, Checkpoint, Span,
   emitter::{BatchEmitter, SeparatedByEmitter},
   error::{
-    syntax::{MissingSyntaxOf, TooFew, TooMany},
+    syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
     token::{
       MissingLeadingOf, MissingTokenOf, MissingTrailingOf, UnexpectedLeadingOf,
       UnexpectedRepeatedOf, UnexpectedToken, UnexpectedTrailingOf,
@@ -265,7 +265,15 @@ where
                     State::Separator(_) => {
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      push(&mut num_elems, &mut container, element.map_data(|d| d));
+                      if let Some(Spanned { span, .. }) =
+                        push(&mut num_elems, &mut container, element)
+                      {
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          container.len(),
+                          Container::capacity(),
+                        ))?;
+                      }
                       state = State::Element;
                     }
                     // we have only one leading separator before
@@ -283,7 +291,15 @@ where
 
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      push(&mut num_elems, &mut container, element);
+                      if let Some(Spanned { span, .. }) =
+                        push(&mut num_elems, &mut container, element)
+                      {
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          num_elems,
+                          Container::capacity(),
+                        ))?;
+                      }
                       state = State::Element;
                     }
                     State::Leadings(span) => {
@@ -295,7 +311,15 @@ where
                       )?;
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      push(&mut num_elems, &mut container, element);
+                      if let Some(Spanned { span, .. }) =
+                        push(&mut num_elems, &mut container, element)
+                      {
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          num_elems,
+                          Container::capacity(),
+                        ))?;
+                      }
                       state = State::Element;
                     }
                     // parse the first element
@@ -317,7 +341,15 @@ where
 
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      push(&mut num_elems, &mut container, element);
+                      if let Some(Spanned { span, .. }) =
+                        push(&mut num_elems, &mut container, element)
+                      {
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          num_elems,
+                          Container::capacity(),
+                        ))?;
+                      }
 
                       state = State::Element;
                     }
@@ -333,7 +365,15 @@ where
 
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      push(&mut num_elems, &mut container, element);
+                      if let Some(Spanned { span, .. }) =
+                        push(&mut num_elems, &mut container, element)
+                      {
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          num_elems,
+                          Container::capacity(),
+                        ))?;
+                      }
                       state = State::Element;
                     }
                     // before finding an element, there are repeated separators
@@ -347,7 +387,15 @@ where
 
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      push(&mut num_elems, &mut container, element);
+                      if let Some(Spanned { span, .. }) =
+                        push(&mut num_elems, &mut container, element)
+                      {
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          num_elems,
+                          Container::capacity(),
+                        ))?;
+                      }
                       state = State::Element;
                     }
                   }
@@ -548,10 +596,15 @@ impl<'inp, F, Classifier, O, Container, Trailing, Leading, Max, Min>
 }
 
 #[cfg_attr(not(tarpaulin), inline(always))]
-fn push<C, T>(nums: &mut usize, container: &mut C, item: T)
+fn push<C, T>(nums: &mut usize, container: &mut C, item: T) -> Option<T>
 where
   C: crate::container::Container<T>,
 {
-  container.push(item);
-  *nums += 1;
+  match container.push(item) {
+    None => {
+      *nums += 1;
+      None
+    }
+    Some(item) => Some(item),
+  }
 }

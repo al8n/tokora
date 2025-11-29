@@ -202,7 +202,10 @@ impl<F, L, O, Error> With<F, Parser<(), L, O, Error>> {
   {
     Parser {
       f: self.primary,
-      opts: With::new(With::new(emitter, PhantomData), self.secondary.opts.secondary),
+      opts: With::new(
+        With::new(emitter, PhantomData),
+        self.secondary.opts.secondary,
+      ),
       _marker: PhantomData,
     }
   }
@@ -363,7 +366,6 @@ impl<P, S> With<P, S> {
     &mut self.secondary
   }
 }
-
 
 /// A hint used during parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]

@@ -53,7 +53,7 @@ impl<'a, O, L, E> RepeatedEmitter<'a, O, L> for Noop<E>
 where
   O: ?Sized,
   L: Lexer<'a>,
-  E: From<TooFew<O, L::Span>> + From<TooMany<O, L::Span>>,
+  E: From<TooFew<O, L::Span>> + From<TooMany<O, L::Span>> + From<FullContainer<O, L::Span>>,
   Noop<E>: Emitter<'a, L, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -66,6 +66,17 @@ where
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_too_many(&mut self, err: TooMany<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>,
+  {
+    Err(Spanned::new(err.span().clone(), err.into()))
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_full_container(
+    &mut self,
+    err: FullContainer<O, L::Span>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>,
   {

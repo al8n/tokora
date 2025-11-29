@@ -2,7 +2,7 @@ use crate::{
   Lexer,
   error::{
     UnclosedParen, UnexpectedEot,
-    syntax::{MissingSyntaxOf, TooFew, TooMany},
+    syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
     token::{
       MissingLeadingOf, MissingTokenOf, MissingTrailingOf, UnexpectedLeadingOf,
       UnexpectedRepeatedOf, UnexpectedToken, UnexpectedTrailingOf,
@@ -293,6 +293,14 @@ pub trait RepeatedEmitter<'a, O: ?Sized, L>: Emitter<'a, L> {
   ) -> Result<(), Spanned<Self::Error, L::Span>>
   where
     L: Lexer<'a>;
+
+  /// Emits an error indicating that the given container is full, and cannot accept more elements.
+  fn emit_full_container(
+    &mut self,
+    err: FullContainer<O, L::Span>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>;
 }
 
 impl<'a, O, L, U> RepeatedEmitter<'a, O, L> for &mut U
@@ -313,6 +321,17 @@ where
     L: Lexer<'a>,
   {
     (**self).emit_too_many(err)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_full_container(
+    &mut self,
+    err: FullContainer<O, L::Span>,
+  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  where
+    L: Lexer<'a>,
+  {
+    (**self).emit_full_container(err)
   }
 }
 
