@@ -37,6 +37,9 @@ pub mod syntax;
 /// Common utilities for working with tokens and lexers.
 pub mod utils;
 
+/// Trait for container types.
+pub mod container;
+
 /// Common error types for lexers and parsers.
 pub mod error;
 

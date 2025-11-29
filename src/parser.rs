@@ -304,7 +304,6 @@ where
   }
 }
 
-
 /// Trait for computing the next state
 pub trait Apply<State> {
   /// The options for computing the next state
@@ -313,56 +312,6 @@ pub trait Apply<State> {
   /// Computes the next state given the options.
   fn apply(self, options: Self::Options) -> State;
 }
-
-/// Trait for container types used in parsers.
-pub trait Container<T> {
-  /// Push an item into the container.
-  fn push(&mut self, item: T);
-
-  /// Returns the first item in the container, if any.
-  fn first(&self) -> Option<&T>;
-
-  /// Returns the last item in the container, if any.
-  fn last(&self) -> Option<&T>;
-
-  /// Returns the number of items in the container.
-  fn len(&self) -> usize;
-
-  /// Returns `true` if the container is empty.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_empty(&self) -> bool {
-    self.len() == 0
-  }
-}
-
-macro_rules! blackhole {
-  ($ty:ty) => {
-    impl<T> Container<T> for $ty {
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn push(&mut self, _: T) {}
-
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn first(&self) -> Option<&T> {
-        None
-      }
-
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn last(&self) -> Option<&T> {
-        None
-      }
-
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn len(&self) -> usize {
-        0
-      }
-    }
-  };
-}
-
-blackhole!(());
-blackhole!(core::marker::PhantomData<T>);
-blackhole!(crate::utils::marker::Ignored<T>);
-blackhole!(crate::lexer::BlackHole);
 
 /// Shorthand for building a [`Parser`] from a closure.
 pub const fn parser<'inp, L, O, E, C, F>(f: F) -> With<F, Parser<(), L, O, E::Error>>

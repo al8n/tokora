@@ -21,7 +21,7 @@ where
   Classifier: Check<L::Token, SeqSepAction<'inp, <L::Token as Token<'inp>>::Kind>>,
   E: SeparatedByEmitter<'inp, O, Classifier, L>,
   C: Cache<'inp, L>,
-  Container: Default + super::Container<Spanned<O, L::Span>>,
+  Container: Default + crate::container::Container<Spanned<O, L::Span>>,
   Trailing: super::TrailingSpec,
   Leading: super::LeadingSpec,
   Max: super::MaxSpec,
@@ -381,7 +381,7 @@ impl<'inp, F, Classifier, O, Container, Trailing, Leading, Max, Min>
     Classifier: Check<L::Token, SeqSepAction<'inp, <L::Token as Token<'inp>>::Kind>>,
     E: SeparatedByEmitter<'inp, O, Classifier, L>,
     C: Cache<'inp, L>,
-    Container: super::Container<Spanned<O, L::Span>>,
+    Container: crate::container::Container<Spanned<O, L::Span>>,
     Trailing: super::TrailingSpec,
     Leading: super::LeadingSpec,
     Max: super::MaxSpec,
@@ -550,7 +550,7 @@ impl<'inp, F, Classifier, O, Container, Trailing, Leading, Max, Min>
 #[cfg_attr(not(tarpaulin), inline(always))]
 fn push<C, T>(nums: &mut usize, container: &mut C, item: T)
 where
-  C: super::Container<T>,
+  C: crate::container::Container<T>,
 {
   container.push(item);
   *nums += 1;

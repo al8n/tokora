@@ -1,0 +1,129 @@
+
+/// Trait for container types used in parsers.
+pub trait Container<T> {
+  /// Push an item into the container.
+  fn push(&mut self, item: T);
+
+  /// Returns the first item in the container, if any.
+  fn first(&self) -> Option<&T>;
+
+  /// Returns the last item in the container, if any.
+  fn last(&self) -> Option<&T>;
+
+  /// Returns the number of items in the container.
+  fn len(&self) -> usize;
+
+  /// Returns `true` if the container is empty.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    self.len() == 0
+  }
+}
+
+macro_rules! blackhole {
+  ($ty:ty) => {
+    impl<T> Container<T> for $ty {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push(&mut self, _: T) {}
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn first(&self) -> Option<&T> {
+        None
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn last(&self) -> Option<&T> {
+        None
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn len(&self) -> usize {
+        0
+      }
+    }
+  };
+}
+
+blackhole!(());
+blackhole!(core::marker::PhantomData<T>);
+blackhole!(crate::utils::marker::Ignored<T>);
+blackhole!(crate::lexer::BlackHole);
+
+#[cfg(any(feature = "std", feature = "alloc"))]
+const _: () = {
+  use std::{vec::Vec, collections::VecDeque};
+
+  impl<T> Container<T> for Vec<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, item: T) {
+      Vec::push(self, item);
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn first(&self) -> Option<&T> {
+      self.as_slice().first()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn last(&self) -> Option<&T> {
+      self.as_slice().last()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn len(&self) -> usize {
+      Vec::len(self)
+    }
+  }
+
+  impl<T> Container<T> for VecDeque<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, item: T) {
+      VecDeque::push_back(self, item);
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn first(&self) -> Option<&T> {
+      self.front()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn last(&self) -> Option<&T> {
+      self.back()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn len(&self) -> usize {
+      VecDeque::len(self)
+    }
+  }
+
+  #[cfg(feature = "smallvec")]
+  const _: () = {
+    use smallvec::SmallVec;
+
+    impl<A, T> Container<T> for SmallVec<A>
+    where
+      A: smallvec::Array<Item = T>,
+    {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push(&mut self, item: T) {
+        SmallVec::push(self, item);
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn first(&self) -> Option<&T> {
+        self.as_slice().first()
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn last(&self) -> Option<&T> {
+        self.as_slice().last()
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn len(&self) -> usize {
+        SmallVec::len(self)
+      }
+    }
+  };
+};
