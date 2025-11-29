@@ -86,6 +86,18 @@ pub enum SeqSepAction<'a, Kind> {
   Unexpected(Option<Expected<'a, Kind>>),
 }
 
+impl<'a, Kind> From<Action<'a, Kind>> for SeqSepAction<'a, Kind> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(action: Action<'a, Kind>) -> Self {
+    match action {
+      Action::End => Self::End,
+      Action::Continue => Self::Continue,
+      Action::Skip => Self::Skip,
+      Action::Unexpected(expected) => Self::Unexpected(expected),
+    }
+  }
+}
+
 /// A parser that parses a sequence of elements separated by a specific separator.
 pub struct SeqSep<F, Classifier, O, Container, Config = SeqSepOptions> {
   f: F,

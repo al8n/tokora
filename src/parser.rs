@@ -5,10 +5,11 @@ use core::marker::PhantomData;
 use crate::{
   Cache, Emitter, Lexed, Lexer, Token,
   lexer::{Input, InputRef},
-  utils::{Spanned, marker::Noop},
+  utils::{Expected, Spanned, marker::Noop},
 };
 
 pub use any::*;
+use derive_more::{IsVariant, TryUnwrap, Unwrap};
 pub use sep::{SepFixSpec, SeqSep, SeqSepAction, SeqSepOptions, comma_seq};
 
 mod any;
@@ -363,6 +364,29 @@ impl<P, S> With<P, S> {
   }
 }
 
+
+/// A hint used during parsing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]
+#[unwrap(ref, ref_mut)]
+#[try_unwrap(ref, ref_mut)]
+pub enum Action<'a, Kind> {
+  /// Indicates the token belongs to another syntactic element, hint to end parsing.
+  #[unwrap(ignore)]
+  #[try_unwrap(ignore)]
+  End,
+  /// Indicates a token belongs to an element was found, hint to continue parsing.
+  #[unwrap(ignore)]
+  #[try_unwrap(ignore)]
+  Continue,
+  /// Indicates that we should skip the token, useful for trivial tokens like whitespace, comments, etc.
+  #[unwrap(ignore)]
+  #[try_unwrap(ignore)]
+  Skip,
+  /// Indicates this is an unexpected token, but this token should not terminate the parsing,
+  /// the unexpected token will be emitted to the emitter.
+  Unexpected(Option<Expected<'a, Kind>>),
+}
+
 #[cfg(test)]
 mod tests {
   #![allow(warnings)]
@@ -463,16 +487,8 @@ mod tests {
 
   fn assert_any_parse_impl<'inp>()
   -> impl Parse<'inp, JsonLexer<'inp>, ParseResult<'inp, Token, JsonLexer<'inp>, Noop<()>>, ()> {
-    Parser::new()
-      .with_emitter(Noop::new())
-      .with_cache::<'_, ()>(())
-      .apply(any())
+    Parser::with(any())
   }
-
-  // fn assert_configured_api_compiles<'inp>()
-  // -> Configured<'inp, Parser<Any, JsonLexer<'inp>, Option<Spanned<Lexed<'inp, Token>>>, ()>, JsonLexer<'inp>, With<WithEmitter<Noop<()>>, ()>> {
-  //   Parser::any().configured()
-  // }
 
   fn assert_comma_seq_parse_impl<'inp>()
   -> impl Parse<'inp, JsonLexer<'inp>, ParseResult<'inp, (), JsonLexer<'inp>, Noop<()>>, ()> {

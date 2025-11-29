@@ -20,6 +20,31 @@ pub trait Container<T> {
   }
 }
 
+impl<T, U> Container<T> for &mut U
+where
+  U: Container<T>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push(&mut self, item: T) {
+    U::push(self, item);
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn first(&self) -> Option<&T> {
+    U::first(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn last(&self) -> Option<&T> {
+    U::last(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    U::len(self)
+  }
+}
+
 macro_rules! blackhole {
   ($ty:ty) => {
     impl<T> Container<T> for $ty {
