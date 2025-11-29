@@ -7,9 +7,9 @@ use core::{
 
 use mayber::MaybeRef;
 
-use crate::utils::Spanned;
+use crate::{utils::Spanned, emitter::Emitter};
 
-use super::{Cache, CachedToken, Checkpoint, Cursor, Emitter, Lexed, Lexer, Source, Span, Token};
+use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span, Token};
 
 mod iter;
 

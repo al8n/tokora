@@ -17,6 +17,7 @@ pub use check::*;
 pub use lexer::*;
 pub use parser::*;
 pub use require::*;
+pub use emitter::Emitter;
 
 mod check;
 mod lexer;
@@ -39,6 +40,10 @@ pub mod utils;
 
 /// Trait for container types.
 pub mod container;
+
+
+/// The emitter related structures and traits
+pub mod emitter;
 
 /// Common error types for lexers and parsers.
 pub mod error;

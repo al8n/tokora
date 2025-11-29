@@ -1,25 +1,91 @@
 #![allow(clippy::type_complexity)]
 
-use core::marker::PhantomData;
+use core::{marker::PhantomData, hash::Hash};
 
 use crate::{
-  Cache, Emitter, Lexed, Lexer, Token,
-  lexer::{Input, InputRef},
-  utils::{Expected, Spanned, marker::Noop},
+  Cache, Emitter, Lexed, Lexer, Token, emitter::Fatal, error::UnexpectedEot, lexer::{Input, InputRef}, utils::{Expected, Spanned}
 };
 
 pub use any::*;
-use derive_more::{IsVariant, TryUnwrap, Unwrap};
+use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 pub use sep::{SepFixSpec, SeqSep, SeqSepAction, SeqSepOptions, comma_seq};
 
 mod any;
 mod sep;
 
-/// Shorthand for the result type of a parser returning a result.
-pub type ParseResult<'inp, O, L, E> = Result<
-  Spanned<O, <L as Lexer<'inp>>::Span>,
-  Spanned<<E as Emitter<'inp, L>>::Error, <L as Lexer<'inp>>::Span>,
->;
+/// The result type returned by parsers.
+pub type ParseResult<'inp, O, L, E> = Result<Spanned<O, <L as Lexer<'inp>>::Span>, ParseError<'inp, L, E>>;
+
+/// An error type returned by parsers.
+#[derive(Debug, Clone, From, IsVariant, Unwrap, TryUnwrap)]
+#[unwrap(ref, ref_mut)]
+#[try_unwrap(ref, ref_mut)]
+pub enum ParseError<'inp, L, E>
+where
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+{
+  /// Parser error encountered during parsing.
+  Parser(Spanned<E::Error, L::Span>),
+  /// Lexer error encountered during lexing.
+  #[from(skip)]
+  Lexer(Spanned<<L::Token as Token<'inp>>::Error, L::Span>),
+  /// End of input reached unexpectedly.
+  End(UnexpectedEot<L::Span>),
+}
+
+impl<'inp, L, E> PartialEq for ParseError<'inp, L, E>
+where
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+  E::Error: PartialEq,
+  <L::Token as Token<'inp>>::Error: PartialEq,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn eq(&self, other: &Self) -> bool {
+    match (self, other) {
+      (Self::Parser(a), Self::Parser(b)) => a == b,
+      (Self::Lexer(a), Self::Lexer(b)) => a == b,
+      (Self::End(a), Self::End(b)) => a == b,
+      _ => false,
+    }
+  }
+}
+
+impl<'inp, L, E> Eq for ParseError<'inp, L, E>
+where
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+  E::Error: Eq,
+  <L::Token as Token<'inp>>::Error: Eq,
+{
+}
+
+impl<'inp, L, E> Hash for ParseError<'inp, L, E>
+where
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+  E::Error: Hash,
+  <L::Token as Token<'inp>>::Error: Hash,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+    match self {
+      Self::Parser(v) => {
+        0u8.hash(state);
+        v.hash(state);
+      }
+      Self::Lexer(v) => {
+        1u8.hash(state);
+        v.hash(state);
+      }
+      Self::End(v) => {
+        2u8.hash(state);
+        v.hash(state);
+      }
+    }
+  }
+}
 
 mod sealed {
   use super::*;
@@ -84,7 +150,7 @@ where
 }
 
 /// m
-pub type ParserOptions<Error, Options = (), E = Noop<Error>, C = ()> =
+pub type ParserOptions<Error, Options = (), E = Fatal<Error>, C = ()> =
   With<With<E, PhantomData<Error>>, With<Options, PhantomData<C>>>;
 
 /// Lightweight wrapper around a parsing function.
@@ -124,7 +190,7 @@ impl<L, O, Error> Parser<(), L, O, Error> {
     Self {
       f: (),
       opts: With::new(
-        With::new(Noop::new(), PhantomData),
+        With::new(Fatal::new(), PhantomData),
         With::new((), PhantomData),
       ),
       _marker: PhantomData,
@@ -163,7 +229,7 @@ impl<L, O, Error> Parser<(), L, O, Error> {
   pub const fn with_cache<'inp, C>(
     self,
     options: C::Options,
-  ) -> Parser<(), L, O, Error, ParserOptions<Error, C::Options, Noop<Error>, C>>
+  ) -> Parser<(), L, O, Error, ParserOptions<Error, C::Options, Fatal<Error>, C>>
   where
     C: Cache<'inp, L>,
     L: Lexer<'inp>,
@@ -183,7 +249,7 @@ impl<F, L, O, Error> With<F, Parser<(), L, O, Error>> {
     Parser {
       f: self.primary,
       opts: With::new(
-        With::new(Noop::new(), PhantomData),
+        With::new(Fatal::new(), PhantomData),
         With::new((), PhantomData),
       ),
       _marker: PhantomData,
@@ -215,7 +281,7 @@ impl<F, L, O, Error> With<F, Parser<(), L, O, Error>> {
   pub fn with_cache<'inp, C>(
     self,
     options: C::Options,
-  ) -> Parser<F, L, O, Error, ParserOptions<Error, C::Options, Noop<Error>, C>>
+  ) -> Parser<F, L, O, Error, ParserOptions<Error, C::Options, Fatal<Error>, C>>
   where
     C: Cache<'inp, L>,
     L: Lexer<'inp>,
@@ -394,7 +460,7 @@ mod tests {
   #![allow(warnings)]
 
   use super::{Token as TokenT, *};
-  use crate::{BlackHole, parser::sep::comma_seq, punct::Comma, utils::marker::Ignored};
+  use crate::{BlackHole, emitter::Fatal, parser::sep::comma_seq, punct::Comma, utils::marker::Ignored};
   use derive_more::Display;
   use logos::*;
 
@@ -488,16 +554,16 @@ mod tests {
   type JsonLexer<'a> = crate::LogosLexer<'a, Token, Token>;
 
   fn assert_any_parse_impl<'inp>()
-  -> impl Parse<'inp, JsonLexer<'inp>, ParseResult<'inp, Token, JsonLexer<'inp>, Noop<()>>, ()> {
+  -> impl Parse<'inp, JsonLexer<'inp>, ParseResult<'inp, Token, JsonLexer<'inp>, Fatal<()>>, ()> {
     Parser::with(any())
   }
 
   fn assert_comma_seq_parse_impl<'inp>()
-  -> impl Parse<'inp, JsonLexer<'inp>, ParseResult<'inp, (), JsonLexer<'inp>, Noop<()>>, ()> {
+  -> impl Parse<'inp, JsonLexer<'inp>, ParseResult<'inp, (), JsonLexer<'inp>, Fatal<()>>, ()> {
     Parser::new()
       .with_cache::<()>(())
-      .with_emitter(Noop::new())
-      .apply(comma_seq::<_, _, JsonLexer<'inp>, Token, (), Noop<()>, ()>(
+      .with_emitter(Fatal::new())
+      .apply(comma_seq::<_, _, JsonLexer<'inp>, Token, (), Fatal<()>, ()>(
         any(),
         |t: &Token| {
           if let TokenKind::Comma = t.kind() {

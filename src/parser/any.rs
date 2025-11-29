@@ -36,15 +36,12 @@ where
     match inp.next() {
       Some(Spanned { span, data: tok }) => match tok {
         Lexed::Token(tok) => Ok(Spanned { span, data: tok }),
-        Lexed::Error(err) => Err(Spanned {
-          span,
-          data: err.into(),
-        }),
+        Lexed::Error(err) => Err(ParseError::Lexer(Spanned::new(span, err))),
       },
       None => {
         let end = inp.span().end();
         let span = L::Span::new(end.clone(), end);
-        Err(Spanned::new(span.clone(), UnexpectedEot::eot(span).into()))
+        Err(ParseError::End(UnexpectedEot::eot(span)))
       }
     }
   }

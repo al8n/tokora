@@ -3,7 +3,7 @@ use core::{convert::Infallible, fmt, hash::Hash, ops::AddAssign};
 pub use cache::*;
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
-pub use emitter::Emitter;
+
 pub use input_ref::InputRef;
 pub use source::Source;
 pub use token::{
@@ -24,8 +24,7 @@ pub mod token;
 /// The source related structures and traits
 pub mod source;
 
-/// The emitter related structures and traits
-pub mod emitter;
+
 
 mod cache;
 mod checkpoint;

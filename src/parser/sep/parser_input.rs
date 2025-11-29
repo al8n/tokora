@@ -53,7 +53,8 @@ where
         None => {
           return self
             .handle_end(state, inp, &ckp, num_elems, &mut container)
-            .map(|span| Spanned::new(span, container));
+            .map(|span| Spanned::new(span, container))
+            .map_err(ParseError::Parser);
         }
         Some(tok) => {
           let tok = tok.as_ref();
@@ -85,7 +86,8 @@ where
                 SeqSepAction::End => {
                   return self
                     .handle_end(state, inp, &ckp, num_elems, &mut container)
-                    .map(|span| Spanned::new(span, container));
+                    .map(|span| Spanned::new(span, container))
+                    .map_err(ParseError::Parser);
                 }
                 SeqSepAction::Skip => {
                   inp.consume_one();
@@ -265,14 +267,8 @@ where
                     State::Separator(_) => {
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) =
-                        push(&mut num_elems, &mut container, element)
-                      {
-                        inp.emitter().emit_full_container(FullContainer::new(
-                          span,
-                          container.len(),
-                          Container::capacity(),
-                        ))?;
+                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
+                        inp.emitter().emit_full_container(FullContainer::new(span, container.len(), Container::capacity()))?;
                       }
                       state = State::Element;
                     }
@@ -291,14 +287,8 @@ where
 
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) =
-                        push(&mut num_elems, &mut container, element)
-                      {
-                        inp.emitter().emit_full_container(FullContainer::new(
-                          span,
-                          num_elems,
-                          Container::capacity(),
-                        ))?;
+                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
+                        inp.emitter().emit_full_container(FullContainer::new(span, num_elems, Container::capacity()))?;
                       }
                       state = State::Element;
                     }
@@ -311,14 +301,8 @@ where
                       )?;
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) =
-                        push(&mut num_elems, &mut container, element)
-                      {
-                        inp.emitter().emit_full_container(FullContainer::new(
-                          span,
-                          num_elems,
-                          Container::capacity(),
-                        ))?;
+                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
+                        inp.emitter().emit_full_container(FullContainer::new(span, num_elems, Container::capacity()))?;
                       }
                       state = State::Element;
                     }
@@ -341,14 +325,8 @@ where
 
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) =
-                        push(&mut num_elems, &mut container, element)
-                      {
-                        inp.emitter().emit_full_container(FullContainer::new(
-                          span,
-                          num_elems,
-                          Container::capacity(),
-                        ))?;
+                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
+                        inp.emitter().emit_full_container(FullContainer::new(span, num_elems, Container::capacity()))?;
                       }
 
                       state = State::Element;
@@ -365,14 +343,8 @@ where
 
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) =
-                        push(&mut num_elems, &mut container, element)
-                      {
-                        inp.emitter().emit_full_container(FullContainer::new(
-                          span,
-                          num_elems,
-                          Container::capacity(),
-                        ))?;
+                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
+                        inp.emitter().emit_full_container(FullContainer::new(span, num_elems, Container::capacity()))?;
                       }
                       state = State::Element;
                     }
@@ -387,14 +359,8 @@ where
 
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) =
-                        push(&mut num_elems, &mut container, element)
-                      {
-                        inp.emitter().emit_full_container(FullContainer::new(
-                          span,
-                          num_elems,
-                          Container::capacity(),
-                        ))?;
+                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
+                        inp.emitter().emit_full_container(FullContainer::new(span, num_elems, Container::capacity()))?;
                       }
                       state = State::Element;
                     }

@@ -13,8 +13,13 @@ use crate::{
 
 use super::Token;
 
-mod blackhole;
-mod noop;
+pub use fatal::Fatal;
+pub use silent::Silent;
+
+mod ignored;
+mod fatal;
+mod silent;
+
 
 /// A trait for handling and emitting errors during tokenization and parsing.
 ///
@@ -71,9 +76,7 @@ pub trait Emitter<'a, L> {
   ///
   /// This is the type returned when a fatal error occurs (via `Err(Self::Error)`).
   /// It can be any type that represents your application's error model.
-  type Error: From<UnexpectedEot<L::Span>> + From<<L::Token as Token<'a>>::Error>
-  where
-    L: Lexer<'a>;
+  type Error;
 
   /// Emits a lexer error from the underlying Logos tokenizer.
   ///
@@ -131,9 +134,7 @@ where
   U: Emitter<'a, L>,
 {
   type Error
-    = U::Error
-  where
-    L: Lexer<'a>;
+    = U::Error;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_lexer_error(
