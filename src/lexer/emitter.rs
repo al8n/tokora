@@ -71,7 +71,7 @@ pub trait Emitter<'a, L> {
   ///
   /// This is the type returned when a fatal error occurs (via `Err(Self::Error)`).
   /// It can be any type that represents your application's error model.
-  type Error: From<UnexpectedEot<L::Span>>
+  type Error: From<UnexpectedEot<L::Span>> + From<<L::Token as Token<'a>>::Error>
   where
     L: Lexer<'a>;
 

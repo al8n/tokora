@@ -40,15 +40,6 @@ pub mod utils;
 /// Common error types for lexers and parsers.
 pub mod error;
 
-// /// Re-exports for chumsky integration.
-// #[cfg(feature = "chumsky")]
-// #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-// pub mod chumsky;
-
-// #[cfg(feature = "chumsky")]
-// #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-// pub use chumsky::LogoStream;
-
 mod keyword;
 mod punct;
 
@@ -56,14 +47,6 @@ mod punct;
 pub mod __private {
   pub use super::{check::Check, error, lexer::*, require::Require, syntax, utils};
   pub use paste;
-
-  // #[cfg(feature = "chumsky")]
-  // #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-  // pub use super::LogoStream;
-  // #[cfg(feature = "chumsky")]
-  // #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-  // pub use super::chumsky;
-
   pub use logos;
 
   #[cfg(any(feature = "std", feature = "alloc"))]

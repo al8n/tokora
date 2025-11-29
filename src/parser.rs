@@ -20,13 +20,6 @@ pub type ParseResult<'inp, O, L, E> = Result<
   Spanned<<E as Emitter<'inp, L>>::Error, <L as Lexer<'inp>>::Span>,
 >;
 
-// /// a
-// pub struct ParseOptions<E, C = (), S = ()> {
-//   state: S,
-//   emitter: E,
-//   cache_opts: C,
-// }
-
 mod sealed {
   use super::*;
 
@@ -43,6 +36,16 @@ mod sealed {
 
   impl<'inp, F, L, O, E, C> Sealed<'inp, L, O, E, C>
     for Parser<F, L, O, E::Error, ParserOptions<E::Error, C::Options, E, C>>
+  where
+    F: ParseInput<'inp, L, O, E, C>,
+    L: Lexer<'inp>,
+    E: Emitter<'inp, L>,
+    C: Cache<'inp, L>,
+  {
+  }
+
+  impl<'inp, F, L, O, E, C> Sealed<'inp, L, O, E, C>
+    for With<F, Parser<(), L, O, E::Error, ParserOptions<E::Error, C::Options, E, C>>>
   where
     F: ParseInput<'inp, L, O, E, C>,
     L: Lexer<'inp>,
@@ -128,18 +131,11 @@ impl<L, O, Error> Parser<(), L, O, Error> {
   }
 }
 
-impl<F, L, O, Error> Parser<F, L, O, Error> {
-  /// A parser without any behavior.
+impl<L, O, Error> Parser<(), L, O, Error> {
+  /// A parser with the given parser
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with(f: F) -> Self {
-    Self {
-      f,
-      opts: With::new(
-        With::new(Noop::new(), PhantomData),
-        With::new((), PhantomData),
-      ),
-      _marker: PhantomData,
-    }
+  pub const fn with<F>(f: F) -> With<F, Self> {
+    With::new(f, Self::new())
   }
 }
 
@@ -174,6 +170,55 @@ impl<L, O, Error> Parser<(), L, O, Error> {
     Parser {
       f: self.f,
       opts: With::new(self.opts.primary, With::new(options, PhantomData)),
+      _marker: PhantomData,
+    }
+  }
+}
+
+impl<F, L, O, Error> With<F, Parser<(), L, O, Error>> {
+  /// Convert the `With` combinator into a `Parser`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_parser(self) -> Parser<F, L, O, Error> {
+    Parser {
+      f: self.primary,
+      opts: With::new(
+        With::new(Noop::new(), PhantomData),
+        With::new((), PhantomData),
+      ),
+      _marker: PhantomData,
+    }
+  }
+
+  /// Apply a new emitter to the parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn with_emitter<'inp, E>(
+    self,
+    emitter: E,
+  ) -> Parser<F, L, O, Error, ParserOptions<Error, (), E>>
+  where
+    E: Emitter<'inp, L, Error = Error>,
+    L: Lexer<'inp>,
+  {
+    Parser {
+      f: self.primary,
+      opts: With::new(With::new(emitter, PhantomData), self.secondary.opts.secondary),
+      _marker: PhantomData,
+    }
+  }
+
+  /// Apply new cache options to the parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn with_cache<'inp, C>(
+    self,
+    options: C::Options,
+  ) -> Parser<F, L, O, Error, ParserOptions<Error, C::Options, Noop<Error>, C>>
+  where
+    C: Cache<'inp, L>,
+    L: Lexer<'inp>,
+  {
+    Parser {
+      f: self.primary,
+      opts: With::new(self.secondary.opts.primary, With::new(options, PhantomData)),
       _marker: PhantomData,
     }
   }
@@ -240,6 +285,26 @@ where
   }
 }
 
+impl<'inp, F, L, O, E, C> Parse<'inp, L, O, E::Error>
+  for With<F, Parser<(), L, O, E::Error, ParserOptions<E::Error, C::Options, E, C>>>
+where
+  F: ParseInput<'inp, L, O, E, C>,
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L>,
+  C: Cache<'inp, L>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_with_state(mut self, src: &'inp L::Source, state: L::State) -> O {
+    let cache = C::with_options(self.secondary.opts.secondary.primary);
+    let mut emitter = self.secondary.opts.primary.primary;
+
+    let mut input = Input::with_state_and_cache(src, state, cache);
+    let mut input_ref = input.as_ref(&mut emitter);
+    self.primary.parse_input(&mut input_ref)
+  }
+}
+
+
 /// Trait for computing the next state
 pub trait Apply<State> {
   /// The options for computing the next state
@@ -300,7 +365,7 @@ blackhole!(crate::utils::marker::Ignored<T>);
 blackhole!(crate::lexer::BlackHole);
 
 /// Shorthand for building a [`Parser`] from a closure.
-pub const fn parser<'inp, L, O, E, C, F>(f: F) -> Parser<F, L, O, E::Error>
+pub const fn parser<'inp, L, O, E, C, F>(f: F) -> With<F, Parser<(), L, O, E::Error>>
 where
   F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> O,
   L: Lexer<'inp>,
@@ -452,7 +517,7 @@ mod tests {
     Parser::new()
       .with_emitter(Noop::new())
       .with_cache::<'_, ()>(())
-      .apply(Any)
+      .apply(any())
   }
 
   // fn assert_configured_api_compiles<'inp>()
@@ -466,7 +531,7 @@ mod tests {
       .with_cache::<()>(())
       .with_emitter(Noop::new())
       .apply(comma_seq::<_, _, JsonLexer<'inp>, Token, (), Noop<()>, ()>(
-        Any,
+        any(),
         |t: &Token| {
           if let TokenKind::Comma = t.kind() {
             SeqSepAction::Separator

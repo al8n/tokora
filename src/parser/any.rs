@@ -3,7 +3,16 @@ use crate::{Span, error::UnexpectedEot};
 use super::*;
 
 /// A parser that accepts any token.
-pub struct Any;
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct Any(());
+
+impl Any {
+  /// Creates a new `Any` parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new() -> Self {
+    Self(())
+  }
+}
 
 impl<'inp, L, E, C> sealed::Sealed<'inp, L, ParseResult<'inp, L::Token, L, E>, E, C> for Any
 where
@@ -25,7 +34,12 @@ where
     inp: &mut InputRef<'inp, '_, L, E, C>,
   ) -> ParseResult<'inp, L::Token, L, E> {
     match inp.next() {
-      Some(_) => todo!(),
+      Some(Spanned { span, data: tok }) => {
+        match tok {
+          Lexed::Token(tok) => Ok(Spanned { span, data: tok }),
+          Lexed::Error(err) => Err(Spanned { span, data: err.into() }),
+        }
+      },
       None => {
         let end = inp.span().end();
         let span = L::Span::new(end.clone(), end);
@@ -35,27 +49,8 @@ where
   }
 }
 
-// /// A parser that accepts any input, returning the next token if available.
-// ///
-// /// Returns `None` if the input is exhausted.
-// #[cfg_attr(not(tarpaulin), inline(always))]
-// pub const fn any<'inp, L>() -> Parser<Any, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, ()>
-// where
-//   L: Lexer<'inp>,
-// {
-//   Parser::with(Any)
-// }
-
-impl Parser<(), (), (), ()> {
-  /// A parser that accepts any input, returning the next token if available.
-  ///
-  /// Returns `None` if the input is exhausted.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn any<'inp, L, Error>()
-  -> Parser<Any, L, Option<Spanned<Lexed<'inp, L::Token>, L::Span>>, Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Parser::with(Any)
-  }
+/// Creates a parser that accepts any token.
+#[cfg_attr(not(tarpaulin), inline(always))]
+pub const fn any() -> Any {
+  Any::new()
 }
