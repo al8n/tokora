@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 use derive_more::Display;
 
 use crate::utils::Message;
@@ -181,13 +183,14 @@ pub struct CharacterHint;
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedEnd<Hint, O = usize> {
+pub struct UnexpectedEnd<Hint, O = usize, Lang: ?Sized = ()> {
   offset: O,
   name: Option<Message>,
   hint: Hint,
+  _lang: PhantomData<Lang>,
 }
 
-impl<Hint, O> core::fmt::Display for UnexpectedEnd<Hint, O>
+impl<Hint, O, Lang> core::fmt::Display for UnexpectedEnd<Hint, O, Lang>
 where
   Hint: core::fmt::Display,
 {
@@ -200,14 +203,15 @@ where
   }
 }
 
-impl<Hint, O> core::error::Error for UnexpectedEnd<Hint, O>
+impl<Hint, O, Lang> core::error::Error for UnexpectedEnd<Hint, O, Lang>
 where
   Hint: core::fmt::Debug + core::fmt::Display,
   O: core::fmt::Debug,
+  Lang: core::fmt::Debug,
 {
 }
 
-impl<O> UnexpectedEnd<FileHint, O> {
+impl<O, Lang> UnexpectedEnd<FileHint, O, Lang> {
   /// Creates an unexpected **end of file** (EOF) error at the given span.
   ///
   /// ## Example
@@ -221,15 +225,11 @@ impl<O> UnexpectedEnd<FileHint, O> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eof(offset: O) -> Self {
-    Self {
-      offset,
-      name: Some(Message::from_static("file")),
-      hint: FileHint,
-    }
+    Self::maybe_name(offset, Some(Message::from_static("file")), FileHint)
   }
 }
 
-impl<O> UnexpectedEnd<TokenHint, O> {
+impl<O, Lang> UnexpectedEnd<TokenHint, O, Lang> {
   /// Creates an unexpected **end of token stream** (EOT) error at the given span.
   ///
   /// ## Example
@@ -243,15 +243,15 @@ impl<O> UnexpectedEnd<TokenHint, O> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eot(offset: O) -> Self {
-    Self {
+    Self::maybe_name(
       offset,
-      name: Some(Message::from_static("token stream")),
-      hint: TokenHint,
-    }
+      Some(Message::from_static("token stream")),
+      TokenHint,
+    )
   }
 }
 
-impl<O> UnexpectedEnd<CharacterHint, O> {
+impl<O, Lang> UnexpectedEnd<CharacterHint, O, Lang> {
   /// Creates an unexpected **end of string** (EOS) error at the given span.
   ///
   /// ## Example
@@ -265,15 +265,11 @@ impl<O> UnexpectedEnd<CharacterHint, O> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eos(offset: O) -> Self {
-    Self {
-      offset,
-      name: Some(Message::from_static("string")),
-      hint: CharacterHint,
-    }
+    Self::maybe_name(offset, Some(Message::from_static("string")), CharacterHint)
   }
 }
 
-impl<Hint, O> UnexpectedEnd<Hint, O> {
+impl<Hint, O, Lang> UnexpectedEnd<Hint, O, Lang> {
   /// Creates a new unexpected end with the given span and hint.
   ///
   /// ## Example
@@ -287,11 +283,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(offset: O, hint: Hint) -> Self {
-    Self {
-      offset,
-      name: None,
-      hint,
-    }
+    Self::maybe_name(offset, None, hint)
   }
 
   /// Creates a new unexpected end with the given span, optional name, and hint.
@@ -310,7 +302,12 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn maybe_name(offset: O, name: Option<Message>, hint: Hint) -> Self {
-    Self { offset, name, hint }
+    Self {
+      offset,
+      name,
+      hint,
+      _lang: PhantomData,
+    }
   }
 
   /// Creates a new unexpected end with the given span, name, and hint.
@@ -348,6 +345,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
       offset,
       name: None,
       hint,
+      _lang: PhantomData,
     }
   }
 
@@ -469,7 +467,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// assert_eq!(token_error.span(), Span::new(100, 101));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map_hint<F, NewHint>(self, f: F) -> UnexpectedEnd<NewHint, O>
+  pub fn map_hint<F, NewHint>(self, f: F) -> UnexpectedEnd<NewHint, O, Lang>
   where
     F: FnOnce(Hint) -> NewHint,
   {
@@ -477,6 +475,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
       offset: self.offset,
       name: self.name,
       hint: f(self.hint),
+      _lang: PhantomData,
     }
   }
 
@@ -497,7 +496,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
     self,
     name: Option<impl Into<Message>>,
     f: F,
-  ) -> UnexpectedEnd<NewHint, O>
+  ) -> UnexpectedEnd<NewHint, O, Lang>
   where
     F: FnOnce(Hint) -> NewHint,
   {
@@ -521,7 +520,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
     self,
     name: impl Into<Message>,
     f: F,
-  ) -> UnexpectedEnd<NewHint, O>
+  ) -> UnexpectedEnd<NewHint, O, Lang>
   where
     F: FnOnce(Hint) -> NewHint,
   {
@@ -543,7 +542,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn reconstruct_without_name<F, NewHint>(self, f: F) -> UnexpectedEnd<NewHint, O>
+  pub fn reconstruct_without_name<F, NewHint>(self, f: F) -> UnexpectedEnd<NewHint, O, Lang>
   where
     F: FnOnce(Hint) -> NewHint,
   {
@@ -621,19 +620,19 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   }
 }
 
-impl<Hint, O> From<UnexpectedEnd<Hint, O>> for () {
+impl<Hint, O, Lang> From<UnexpectedEnd<Hint, O, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: UnexpectedEnd<Hint, O>) -> Self {}
+  fn from(_: UnexpectedEnd<Hint, O, Lang>) -> Self {}
 }
 
 /// An type alias for unexpected EOF.
-pub type UnexpectedEof<O = usize> = UnexpectedEnd<FileHint, O>;
+pub type UnexpectedEof<O = usize, Lang = ()> = UnexpectedEnd<FileHint, O, Lang>;
 /// An type alias for unexpected end of token stream.
-pub type UnexpectedEot<O = usize> = UnexpectedEnd<TokenHint, O>;
+pub type UnexpectedEot<O = usize, Lang = ()> = UnexpectedEnd<TokenHint, O, Lang>;
 /// An type alias for unexpected end of string.
-pub type UnexpectedEos<O = usize> = UnexpectedEnd<CharacterHint, O>;
+pub type UnexpectedEos<O = usize, Lang = ()> = UnexpectedEnd<CharacterHint, O, Lang>;
 
-impl<Hint, O> From<(O, Hint)> for UnexpectedEnd<Hint, O> {
+impl<Hint, O, Lang> From<(O, Hint)> for UnexpectedEnd<Hint, O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from((offset, hint): (O, Hint)) -> Self {
     Self::new(offset, hint)

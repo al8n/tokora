@@ -1,6 +1,5 @@
 use crate::{
-  Check, Span,
-  error::{UnexpectedEot, token::UnexpectedToken},
+  Check, Span, error::{UnexpectedEot, token::UnexpectedToken}
 };
 
 use super::*;
@@ -12,7 +11,7 @@ pub struct Expect<Classifier, Lang: ?Sized = ()> {
   _lang: PhantomData<Lang>,
 }
 
-impl<Classifier, Lang> Expect<Classifier, Lang> {
+impl<Classifier> Expect<Classifier> {
   /// Creates a parser that accepts a specific token.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn parser<'inp, L, Error>(
@@ -20,9 +19,26 @@ impl<Classifier, Lang> Expect<Classifier, Lang> {
   ) -> With<Self, Parser<(), L, Result<L::Token, Error>, Error>>
   where
     L: Lexer<'inp>,
+    Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, ()>>
+      + From<<L::Token as Token<'inp>>::Error>
+      + From<UnexpectedEot<L::Offset, ()>>,
+    Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
+  {
+    Self::parser_of(classifier)
+  }
+}
+
+impl<Classifier, Lang> Expect<Classifier, Lang> {
+  /// Creates a parser that accepts a specific token.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn parser_of<'inp, L, Error>(
+    classifier: Classifier,
+  ) -> With<Self, Parser<(), L, Result<L::Token, Error>, Error>>
+  where
+    L: Lexer<'inp>,
     Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
       + From<<L::Token as Token<'inp>>::Error>
-      + From<UnexpectedEot<L::Offset>>,
+      + From<UnexpectedEot<L::Offset, Lang>>,
     Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
   {
     Parser::with(Expect {
@@ -39,7 +55,7 @@ where
   E: Emitter<'inp, L>,
   E::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
     + From<<L::Token as Token<'inp>>::Error>
-    + From<UnexpectedEot<L::Offset>>,
+    + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
   C: Cache<'inp, L>,
 {
@@ -70,24 +86,23 @@ mod tests {
 
   fn assert_expect_parse_impl_with_all<'inp>()
   -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-    Expect::<_, ()>::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(()))
+    Expect::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(()))
       .with_cache::<()>(())
       .with_emitter(Fatal::new())
   }
 
   fn assert_expect_parse_impl_with_emitter<'inp>()
   -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-    Expect::<_, ()>::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(()))
-      .with_emitter(Fatal::new())
+    Expect::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(())).with_emitter(Fatal::new())
   }
 
   fn assert_expect_parse_impl_with_cache<'inp>()
   -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-    Expect::<_, ()>::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(())).with_cache::<()>(())
+    Expect::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(())).with_cache::<()>(())
   }
 
   fn assert_expect_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-    Expect::<_, ()>::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(()))
+    Expect::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(()))
   }
 
   #[test]

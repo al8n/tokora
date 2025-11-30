@@ -4,21 +4,38 @@ use super::*;
 
 /// A parser that accepts any token.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-pub struct Any(());
+pub struct Any<Lang: ?Sized = ()>(PhantomData<Lang>);
 
 impl Any {
-  /// Creates a new `Any` parser.
+  /// Creates a parser that accepts any token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new() -> Self {
-    Self(())
+  pub const fn parser<'inp, L, Error>() -> With<Self, Parser<(), L, Result<L::Token, Error>, Error>>
+  where
+    L: Lexer<'inp>,
+    Error: From<UnexpectedEot<L::Offset, ()>> + From<<L::Token as Token<'inp>>::Error>,
+  {
+    Self::parser_of()
   }
 }
 
-impl<'inp, L, E, C> ParseInput<'inp, L, Result<L::Token, E::Error>, E, C> for Any
+impl<Lang> Any<Lang> {
+  /// Creates a parser that accepts any token.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn parser_of<'inp, L, Error>()
+  -> With<Self, Parser<(), L, Result<L::Token, Error>, Error>>
+  where
+    L: Lexer<'inp>,
+    Error: From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
+  {
+    Parser::with(Any(PhantomData))
+  }
+}
+
+impl<'inp, L, E, C, Lang> ParseInput<'inp, L, Result<L::Token, E::Error>, E, C> for Any<Lang>
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
-  E::Error: From<UnexpectedEot<L::Offset>> + From<<L::Token as Token<'inp>>::Error>,
+  E::Error: From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
   C: Cache<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -33,16 +50,6 @@ where
   }
 }
 
-/// Creates a parser that accepts any token.
-#[cfg_attr(not(tarpaulin), inline(always))]
-pub const fn any<'inp, L, Error>() -> With<Any, Parser<(), L, Result<L::Token, Error>, Error>>
-where
-  L: Lexer<'inp>,
-  Error: From<UnexpectedEot<L::Offset>> + From<<L::Token as Token<'inp>>::Error>,
-{
-  Parser::with(Any::new())
-}
-
 #[cfg(test)]
 mod tests {
   use crate::{DummyLexer, DummyToken};
@@ -51,24 +58,24 @@ mod tests {
 
   const fn assert_any_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()>
   {
-    any()
+    Any::parser()
   }
 
   fn assert_any_parse_with_cache_impl<'inp>()
   -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-    any().with_cache::<()>(())
+    Any::parser().with_cache::<()>(())
   }
 
   fn assert_any_parse_with_emitter_impl<'inp>()
   -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-    any()
+    Any::parser()
       .with_emitter::<Fatal<()>>(Fatal::new())
       .with_cache::<()>(())
   }
 
   fn assert_any_parse_full_impl<'inp>() -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()>
   {
-    any()
+    Any::parser()
       .with_emitter::<Fatal<()>>(Fatal::new())
       .with_cache::<()>(())
   }

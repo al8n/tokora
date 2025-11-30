@@ -1,3 +1,31 @@
+//! Parser combinators with flexible emitter and cache configuration.
+//!
+//! This module provides a type-safe parser combinator framework with:
+//!
+//! - **Flexible configuration**: Configure error emitters and caches independently
+//! - **Type-level state tracking**: The type system ensures correct configurations
+//! - **Zero-cost abstractions**: All configuration resolved at compile time
+//!
+//! # Quick Start
+//!
+//! ```ignore
+//! use logosky::parser::any;
+//!
+//! // Parse with defaults
+//! let result = any::<MyLexer, ()>().parse(source);
+//!
+//! // Configure emitter
+//! let result = any::<MyLexer, ()>()
+//!     .with_emitter(MyEmitter::new())
+//!     .parse(source);
+//!
+//! // Full configuration
+//! let result = any::<MyLexer, ()>()
+//!     .with_emitter(MyEmitter::new())
+//!     .with_cache::<MyCache>(cache_opts)
+//!     .parse(source);
+//! ```
+
 #![allow(clippy::type_complexity)]
 
 use core::{hash::Hash, marker::PhantomData};
@@ -14,11 +42,14 @@ use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
 pub use any::*;
 pub use expect::*;
+pub use map::*;
+pub use then::*;
 pub use sep::{SepFixSpec, SeqSep, SeqSepAction, SeqSepOptions, comma_seq};
 
 mod any;
 mod expect;
-mod match_;
+mod map;
+mod then;
 mod sep;
 
 /// The result type returned by parsers.
@@ -123,21 +154,52 @@ where
   }
 }
 
-/// Parser options type.
+/// Type alias for parser configuration.
+///
+/// Normalizes emitter and cache configuration into a canonical form:
+/// `With<PhantomData<L>, With<E, C>>` where:
+/// - `L` is the lexer type
+/// - `E` is the emitter (default `()` for [`Fatal`] emitter)
+/// - `C` is the cache (default `()` for [`DefaultCache`])
 pub type ParserOptions<L, E = (), C = ()> = With<PhantomData<L>, With<E, C>>;
 
-/// Cache wrapper type.
+/// Wrapper for cache configuration in parsers.
+///
+/// Wraps a cache type `C` to distinguish it from bare `()` in type parameters,
+/// preventing trait overlap in Parse implementations.
 #[repr(transparent)]
 pub struct WithCache<'inp, L, C> {
   cache: C,
   _marker: PhantomData<&'inp L>,
 }
 
-/// Emitter wrapper type.
+/// Wrapper for emitter configuration in parsers.
+///
+/// Wraps an emitter type `E` to distinguish it from bare `()` in type parameters,
+/// preventing trait overlap in Parse implementations.
 #[repr(transparent)]
 pub struct WithEmitter<E: ?Sized>(E);
 
-/// Lightweight wrapper around a parsing function.
+/// A parser with configurable emitter and cache.
+///
+/// # Type Parameters
+///
+/// - `F`: The parsing function
+/// - `L`: The lexer type
+/// - `O`: The output type
+/// - `Error`: The error type
+/// - `Options`: Configuration for emitter and cache (defaults to `ParserOptions<L>`)
+///
+/// # Examples
+///
+/// ```ignore
+/// // Create parser with defaults
+/// let p = Parser::with(|inp| inp.next());
+///
+/// // Configure emitter
+/// let p = Parser::with(|inp| inp.next())
+///     .with_emitter(MyEmitter::new());
+/// ```
 pub struct Parser<F, L, O, Error, Options = ParserOptions<L>> {
   f: F,
   opts: Options,
@@ -188,7 +250,17 @@ impl<L, O, Error> Parser<(), L, O, Error> {
 }
 
 impl<L, O, Error, E, C> Parser<(), L, O, Error, ParserOptions<L, E, C>> {
-  /// Apply a new emitter to the parser.
+  /// Configure a custom error emitter for this parser.
+  ///
+  /// Replaces the current emitter configuration with a new one. The emitter
+  /// controls how parsing errors are collected and reported.
+  ///
+  /// # Examples
+  ///
+  /// ```ignore
+  /// let parser = Parser::with(|inp| inp.next())
+  ///     .with_emitter(MyEmitter::new());
+  /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn with_emitter<'inp, NE>(
     self,
@@ -212,7 +284,17 @@ impl<L, O, Error, E, C> Parser<(), L, O, Error, ParserOptions<L, E, C>> {
     }
   }
 
-  /// Apply a new cache to the parser.
+  /// Configure a custom token cache for this parser.
+  ///
+  /// Replaces the current cache configuration with a new one. The cache
+  /// controls how parsed tokens are stored for backtracking and lookahead.
+  ///
+  /// # Examples
+  ///
+  /// ```ignore
+  /// let parser = Parser::with(|inp| inp.next())
+  ///     .with_cache::<MyCache>(cache_options);
+  /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn with_cache<'inp, NC>(
     self,
@@ -238,7 +320,16 @@ impl<L, O, Error, E, C> Parser<(), L, O, Error, ParserOptions<L, E, C>> {
 }
 
 impl<F, L, O, Error, E, C> With<F, Parser<(), L, O, Error, ParserOptions<L, E, C>>> {
-  /// Flatten the with state back into a parser.
+  /// Convert a `With<F, Parser<()>>` back into a `Parser<F>`.
+  ///
+  /// This flattens the parser function into the parser, creating a fully
+  /// configured parser ready to use.
+  ///
+  /// # Examples
+  ///
+  /// ```ignore
+  /// let parser = Expect::parser(classifier).into_parser();
+  /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn into_parser(self) -> Parser<F, L, O, Error, ParserOptions<L, E, C>> {
     Parser {
@@ -495,12 +586,20 @@ where
   }
 }
 
-/// Trait for computing the next state
+/// Type-level function for configuration transformations.
+///
+/// This trait enables progressive parser configuration by transforming
+/// one configuration type into another. For example:
+///
+/// - `()` → `WithEmitter<E>` (add emitter configuration)
+/// - `()` → `WithCache<C>` (add cache configuration)
+///
+/// Used internally by `.with_emitter()` and `.with_cache()` methods.
 pub trait Apply<State> {
-  /// The options for computing the next state
+  /// The input required to perform the transformation
   type Options;
 
-  /// Computes the next state given the options.
+  /// Transform `self` into `State` using the provided `options`.
   fn apply(self, options: Self::Options) -> State;
 }
 
@@ -515,7 +614,18 @@ where
   Parser::with(f)
 }
 
-/// With something else.
+/// Combines two values in a type-safe way.
+///
+/// This type is used throughout the parser system for:
+///
+/// - Wrapping parser functions with base parsers: `With<F, Parser<()>>`
+/// - Building configuration structures: `With<E, C>` for emitter + cache
+/// - Nested configurations: `With<PhantomData<L>, With<E, C>>` for ParserOptions
+///
+/// # Type Parameters
+///
+/// - `P`: The primary value (typically a parser function or marker)
+/// - `S`: The secondary value (typically configuration or a base parser)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct With<P, S> {
   primary: P,
@@ -585,100 +695,10 @@ mod tests {
     BlackHole, emitter::Fatal, parser::sep::comma_seq, punct::Comma, utils::marker::Ignored,
   };
   use derive_more::Display;
-  use logos::*;
 
-  #[derive(Debug, Logos, Clone)]
-  #[logos(skip r"[ \t\r\n\f]+")]
-  enum Token {
-    #[token("false", |_| false)]
-    #[token("true", |_| true)]
-    Bool(bool),
-
-    #[token("{")]
-    BraceOpen,
-
-    #[token("}")]
-    BraceClose,
-
-    #[token("[")]
-    BracketOpen,
-
-    #[token("]")]
-    BracketClose,
-
-    #[token(":")]
-    Colon,
-
-    #[token(",")]
-    Comma,
-
-    #[token("null")]
-    Null,
-
-    #[regex(r"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?", |lex| lex.slice().parse::<f64>().unwrap())]
-    Number(f64),
-
-    #[regex(r#""([^"\\\x00-\x1F]|\\(["\\bnfrt/]|u[a-fA-F0-9]{4}))*""#, |lex| lex.slice().to_owned())]
-    String(String),
-  }
-
-  #[derive(Debug, Display, PartialEq, Eq, Clone, Copy, Hash)]
-  enum TokenKind {
-    #[display("bool")]
-    Bool,
-
-    #[display("{{")]
-    BraceOpen,
-    #[display("}}")]
-    BraceClose,
-    #[display("[")]
-    BracketOpen,
-    #[display("]")]
-    BracketClose,
-    #[display(":")]
-    Colon,
-    #[display(",")]
-    Comma,
-    #[display("null")]
-    Null,
-    #[display("number")]
-    Number,
-    #[display("string")]
-    String,
-  }
-
-  impl From<&Token> for TokenKind {
-    fn from(token: &Token) -> Self {
-      match token {
-        Token::Bool(_) => TokenKind::Bool,
-        Token::BraceOpen => TokenKind::BraceOpen,
-        Token::BraceClose => TokenKind::BraceClose,
-        Token::BracketOpen => TokenKind::BracketOpen,
-        Token::BracketClose => TokenKind::BracketClose,
-        Token::Colon => TokenKind::Colon,
-        Token::Comma => TokenKind::Comma,
-        Token::Null => TokenKind::Null,
-        Token::Number(_) => TokenKind::Number,
-        Token::String(_) => TokenKind::String,
-      }
-    }
-  }
-
-  impl TokenT<'_> for Token {
-    type Kind = TokenKind;
-
-    type Error = ();
-
-    fn kind(&self) -> Self::Kind {
-      TokenKind::from(self)
-    }
-  }
-
-  type JsonLexer<'a> = crate::LogosLexer<'a, Token, Token>;
-
-  fn assert_any_parse_impl<'inp>() -> impl Parse<'inp, JsonLexer<'inp>, Result<Token, ()>, ()> {
-    any()
-  }
+  // fn assert_any_parse_impl<'inp>() -> impl Parse<'inp, JsonLexer<'inp>, Result<Token, ()>, ()> {
+  //   any()
+  // }
 
   // fn assert_comma_seq_parse_impl<'inp>()
   // -> impl Parse<'inp, JsonLexer<'inp>, Result<(), ()>, ()> {
