@@ -91,7 +91,7 @@ use core::marker::PhantomData;
 
 use crate::{
   error::ErrorNode,
-  utils::{AsSpan, IntoComponents, Span},
+  utils::{AsSpan, IntoComponents},
 };
 
 /// A macro to generate literal type structures.
@@ -142,103 +142,104 @@ macro_rules! define_literal {
       #[doc = "let bad_lit = " $name "::<String, YulLang>::error(span);"]
       /// ```
       #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-      pub struct $name<S, Lang> {
-        span: Span,
-        source: S,
+      pub struct $name<D, S = $crate::__private::utils::Span, Lang = ()> {
+        span: S,
+        data: D,
         _lang: PhantomData<Lang>,
       }
     }
 
-    impl<S, Lang> AsSpan<Span> for $name<S, Lang> {
+    impl<D, S, Lang> AsSpan<S> for $name<D, S, Lang> {
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn as_span(&self) -> &Span {
+      fn as_span(&self) -> &S {
         self.span_ref()
       }
     }
 
-    impl<S, Lang> IntoComponents for $name<S, Lang> {
-      type Components = (Span, S);
+    impl<D, S, Lang> IntoComponents for $name<D, S, Lang> {
+      type Components = (S, D);
 
       #[cfg_attr(not(tarpaulin), inline(always))]
       fn into_components(self) -> Self::Components {
-        (self.span, self.source)
+        (self.span, self.data)
       }
     }
 
-    impl<S, Lang> $name<S, Lang> {
+    impl<D, S, Lang> $name<D, S, Lang> {
       /// Creates a new literal with the given span and source string.
       ///
       /// # Parameters
       ///
       /// - `span`: The source location of this literal
-      /// - `source`: The literal's source text
+      /// - `data`: The literal's data
       #[cfg_attr(not(tarpaulin), inline(always))]
-      pub const fn new(span: Span, source: S) -> Self {
+      pub const fn new(span: S, data: D) -> Self {
         Self {
           span,
-          source,
+          data,
           _lang: PhantomData,
         }
       }
 
       /// Returns the span (source location) of this literal.
       #[cfg_attr(not(tarpaulin), inline(always))]
-      pub const fn span(&self) -> Span {
+      pub const fn span(&self) -> S where S: ::core::marker::Copy {
         self.span
       }
 
       /// Returns an immutable reference to the span.
       #[cfg_attr(not(tarpaulin), inline(always))]
-      pub const fn span_ref(&self) -> &Span {
+      pub const fn span_ref(&self) -> &S {
         &self.span
       }
 
       /// Returns a mutable reference to the span.
       #[cfg_attr(not(tarpaulin), inline(always))]
-      pub const fn span_mut(&mut self) -> &mut Span {
+      pub const fn span_mut(&mut self) -> &mut S {
         &mut self.span
       }
 
       /// Returns a mutable reference to the source string.
       #[cfg_attr(not(tarpaulin), inline(always))]
-      pub const fn source_mut(&mut self) -> &mut S {
-        &mut self.source
+      pub const fn data_mut(&mut self) -> &mut D {
+        &mut self.data
       }
 
       /// Returns an immutable reference to the source string.
       ///
       /// This is the most common way to access the literal's text.
       #[cfg_attr(not(tarpaulin), inline(always))]
-      pub const fn source_ref(&self) -> &S {
-        &self.source
+      pub const fn data_ref(&self) -> &D {
+        &self.data
       }
 
       /// Returns a copy of the source string by value.
       ///
       /// Only available when `S` implements [`Copy`].
       #[cfg_attr(not(tarpaulin), inline(always))]
-      pub const fn source(self) -> S
+      pub const fn data(&self) -> D
       where
-        S: Copy,
+        D: Copy,
       {
-        self.source
+        self.data
       }
     }
 
-    impl<S, Lang> ErrorNode for $name<S, Lang>
+    impl<D, S, Lang> ErrorNode<S> for $name<D, S, Lang>
     where
-      S: ErrorNode,
+      D: ErrorNode<S>,
+      S: Clone,
     {
       /// Creates a placeholder literal for **malformed content**.
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn error(span: Span) -> Self {
-        Self::new(span, S::error(span))
+      fn error(span: S) -> Self {
+        Self::new(span.clone(), D::error(span))
       }
 
       /// Creates a placeholder literal for **missing required content**.
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn missing(span: Span) -> Self {
-        Self::new(span, S::missing(span))
+      fn missing(span: S) -> Self {
+        Self::new(span.clone(), D::missing(span))
       }
     }
   };
@@ -421,172 +422,3 @@ define_literal!(
   "\"null\"",
   "Malformed null literal"
 );
-
-// // Chumsky parser implementations
-// #[cfg(feature = "chumsky")]
-// #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-// const _: () = {
-//   use chumsky::{Parser, extra::ParserExtra, prelude::*};
-//   use logos::{Logos, Source};
-
-//   use crate::{
-//     Lexed, LitToken, LogoStream, error::UnexpectedToken, syntax::Language, utils::Spanned,
-//   };
-
-//   /// A macro to generate parser implementations for literal types.
-//   ///
-//   /// This generates a consistent parser method for each literal type that validates
-//   /// the token is the correct literal kind.
-//   macro_rules! impl_literal_parser {
-//     ($name:ident, $check_method:ident, $doc_kind:expr, $example_token:expr) => {
-//       paste::paste! {
-//         impl<S, Lang> $name<S, Lang> {
-//           #[doc = concat!("Creates a Chumsky parser that parses ", $doc_kind, " tokens into `", stringify!($name), "`.")]
-//           ///
-//           /// This parser validates that the token is the expected literal type
-//           /// and converts it with proper span tracking.
-//           ///
-//           /// # Type Parameters
-//           ///
-//           /// - `'a`: Lifetime of the input source
-//           /// - `I`: Token stream implementing [`LogoStream`]
-//           /// - `T`: Token type implementing [`LitToken`]
-//           /// - `Error`: Error type that can be constructed from lexer and parser errors
-//           /// - `E`: Parser extra state carrying errors and metadata
-//           ///
-//           /// # Parameters
-//           ///
-//           /// - `lit_kind`: Function that returns the expected syntax kind for error
-//           ///   reporting. Called when wrong literal type is found.
-//           /// - `extract`: Function that extracts the literal source from a token.
-//           ///   Should return `Some(source)` for matching tokens, `None` otherwise.
-//           ///
-//           /// # Returns
-//           ///
-//           /// A Chumsky parser that produces
-//           #[doc = "`" $name "<S, Lang>`"]
-//           /// on success or emits an
-//           /// [`UnexpectedToken`] error when wrong token type is found.
-//           ///
-//           /// # Examples
-//           ///
-//           /// ## Basic Usage
-//           ///
-//           /// ```rust,ignore
-//           #[doc = "use logosky::types::" $name ";"]
-//           /// use logosky::chumsky::Parser;
-//           ///
-//           #[doc = "// Parser for " $doc_kind]
-//           #[doc = "let lit_parser = " $name "::<&str, YulLang>::parser("]
-//           ///     || YulSyntaxKind::DecimalLit,
-//           ///     |tok| if let YulToken::DecimalLit(s) = tok { Some(s) } else { None }
-//           /// );
-//           ///
-//           #[doc = "// Parse " $example_token " into " $name]
-//           /// let result = lit_parser.parse(stream)?;
-//           /// ```
-//           ///
-//           /// ## With Error Recovery
-//           ///
-//           /// ```rust,ignore
-//           #[doc = "use logosky::types::" $name ";"]
-//           /// use logosky::error::ErrorNode;
-//           /// use logosky::chumsky::{Parser, prelude::*};
-//           ///
-//           /// // Parser with recovery for missing literals
-//           #[doc = "let lit_parser = " $name "::<String, YulLang>::parser("]
-//           ///     || YulSyntaxKind::DecimalLit,
-//           ///     |tok| if let YulToken::DecimalLit(s) = tok { Some(s) } else { None }
-//           /// ).recover_with(via_parser(
-//           ///     // Create placeholder on error
-//           #[doc = "    empty().map_with(|_, exa| " $name "::missing(exa.span()))"]
-//           /// ));
-//           /// ```
-//           #[cfg_attr(not(tarpaulin), inline(always))]
-//           pub fn parser<'a, I, T, Error, E, F>(
-//             lit_kind: impl Fn() -> Lang::SyntaxKind + Clone + 'a,
-//             extract: F,
-//           ) -> impl Parser<'a, I, Self, E> + Clone + 'a
-//           where
-//             I: LogoStream<'a, T>,
-//             T: LitToken<'a>,
-//             S: From<<<<T>::Logos as Logos<'a>>::Source as Source>::Slice<'a>> + 'a,
-//             Lang: Language,
-//             Lang::SyntaxKind: 'a,
-//             F: Fn(&T) -> Option<<<<T>::Logos as Logos<'a>>::Source as Source>::Slice<'a>> + Clone + 'a,
-//             Error: From<<T::Logos as Logos<'a>>::Error>
-//               + From<<T::Logos as Logos<'a>>::Error>
-//               + From<UnexpectedToken<'a, T, Lang::SyntaxKind>>,
-//             E: ParserExtra<'a, I, Error = Error> + 'a,
-//           {
-//             any().try_map(move |tok: Lexed<'_, T>, _| match tok {
-//               Lexed::Token(Spanned { span, data: tok }) => {
-//                 if let Some(source) = extract(&tok) {
-//                   Ok($name::new(span, source.into()))
-//                 } else {
-//                   Err(UnexpectedToken::expected_one_with_found(span, tok, lit_kind()).into())
-//                 }
-//               }
-//               Lexed::Error(e) => Err(Error::from(e)),
-//             })
-//           }
-//         }
-//       }
-//     };
-//   }
-
-//   // Implement parser for generic literal
-//   impl_literal_parser!(Lit, is_literal, "any literal", "\"value\"");
-
-//   // Implement parsers for all numeric literal types
-//   impl_literal_parser!(LitDecimal, is_decimal_literal, "decimal integer", "\"42\"");
-//   impl_literal_parser!(
-//     LitHex,
-//     is_hexadecimal_literal,
-//     "hexadecimal integer",
-//     "\"0xFF\""
-//   );
-//   impl_literal_parser!(LitOctal, is_octal_literal, "octal integer", "\"0o77\"");
-//   impl_literal_parser!(LitBinary, is_binary_literal, "binary integer", "\"0b1010\"");
-//   impl_literal_parser!(LitFloat, is_float_literal, "floating-point", "\"3.14\"");
-//   impl_literal_parser!(
-//     LitHexFloat,
-//     is_hex_float_literal,
-//     "hexadecimal floating-point",
-//     "\"0x1.8p3\""
-//   );
-
-//   // Implement parsers for string literal types
-//   impl_literal_parser!(
-//     LitString,
-//     is_inline_string_literal,
-//     "single-line string",
-//     "\"\\\"hello\\\"\""
-//   );
-//   impl_literal_parser!(
-//     LitMultilineString,
-//     is_multiline_string_literal,
-//     "multi-line string",
-//     "\"\\\"\\\"\\\"text\\\"\\\"\\\"\""
-//   );
-//   impl_literal_parser!(
-//     LitRawString,
-//     is_raw_string_literal,
-//     "raw string",
-//     "\"r\\\"path\\\"\""
-//   );
-
-//   // Implement parsers for character/byte literal types
-//   impl_literal_parser!(LitChar, is_char_literal, "character", "\"'a'\"");
-//   impl_literal_parser!(LitByte, is_byte_literal, "byte", "\"b'a'\"");
-//   impl_literal_parser!(
-//     LitByteString,
-//     is_byte_string_literal,
-//     "byte string",
-//     "\"b\\\"bytes\\\"\""
-//   );
-
-//   // Implement parsers for boolean and null
-//   impl_literal_parser!(LitBool, is_boolean_literal, "boolean", "\"true\"");
-//   impl_literal_parser!(LitNull, is_null_literal, "null", "\"null\"");
-// };

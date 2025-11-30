@@ -7,9 +7,9 @@ use core::{
 
 use mayber::MaybeRef;
 
-use crate::{utils::Spanned, emitter::Emitter};
+use crate::{emitter::Emitter, utils::Spanned};
 
-use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span, Token};
+use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
 
 mod iter;
 
@@ -185,24 +185,6 @@ where
         None
       }
     }
-  }
-
-  /// Emits a lexer token error using the provided emitter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn emit_lexer_error(
-    &mut self,
-    err: Spanned<<L::Token as Token<'inp>>::Error, L::Span>,
-  ) -> Result<(), Spanned<E::Error, L::Span>> {
-    self.emitter.emit_lexer_error(err)
-  }
-
-  /// Emits an error using the provided emitter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn emit_error(
-    &mut self,
-    err: Spanned<E::Error, L::Span>,
-  ) -> Result<(), Spanned<E::Error, L::Span>> {
-    self.emitter.emit_error(err)
   }
 
   /// Consumes a token if it matches the predicate, returns `None` otherwise (no cursor advance on failure)
@@ -522,7 +504,7 @@ where
   pub fn skip_errors_and_until<F>(
     &mut self,
     mut pred: F,
-  ) -> Result<Option<MaybeRef<'_, CachedToken<'inp, L>>>, Spanned<E::Error, L::Span>>
+  ) -> Result<Option<MaybeRef<'_, CachedToken<'inp, L>>>, E::Error>
   where
     F: FnMut(Spanned<&L::Token, &L::Span>, &mut E) -> bool,
   {
@@ -542,7 +524,9 @@ where
       // Note: cursor/state are updated before emission. If emission fails,
       // the error token has still been consumed (no backtracking here).
       if let Lexed::Error(e) = tok {
-        self.emit_lexer_error(Spanned::new(span.clone(), e))?;
+        self
+          .emitter()
+          .emit_lexer_error(Spanned::new(span.clone(), e))?;
       }
     }
 
@@ -559,7 +543,7 @@ where
 
         while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
           match tok {
-            Lexed::Error(err) => match self.emit_lexer_error(Spanned::new(span, err)) {
+            Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
               Ok(_) => {
                 end = lexer.span();
                 state = lexer.state().clone();
@@ -728,9 +712,7 @@ where
   ///
   /// Returns `Ok(Some(token))` for valid tokens, `Ok(None)` at end of input, or
   /// `Err(error)` if a fatal error occurred.
-  pub fn next_valid(
-    &mut self,
-  ) -> Result<Option<Spanned<L::Token, L::Span>>, Spanned<E::Error, L::Span>> {
+  pub fn next_valid(&mut self) -> Result<Option<Spanned<L::Token, L::Span>>, E::Error> {
     // First, consume from cache if available
     while let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();
@@ -740,7 +722,7 @@ where
       match lexed {
         Lexed::Token(t) => return Ok(Some(Spanned::new(span, t))),
         Lexed::Error(e) => {
-          self.emit_lexer_error(Spanned::new(span, e))?;
+          self.emitter().emit_lexer_error(Spanned::new(span, e))?;
           continue;
         }
       }
@@ -757,7 +739,7 @@ where
       match lexed {
         Lexed::Token(t) => return Ok(Some(Spanned::new(span, t))),
         Lexed::Error(e) => {
-          self.emit_lexer_error(Spanned::new(span, e))?;
+          self.emitter().emit_lexer_error(Spanned::new(span, e))?;
           continue;
         }
       }

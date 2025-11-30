@@ -3,7 +3,7 @@ use crate::utils::Spanned;
 use super::*;
 
 /// An emitter that ignores all errors, and the error type is `()`.
-/// 
+///
 /// If you want to preserve the error type, use [`Silent`](super::silent::Silent) emitter instead.
 pub type Ignored = crate::utils::marker::Ignored<()>;
 
@@ -11,22 +11,18 @@ impl<'a, L> Emitter<'a, L> for Ignored
 where
   L: Lexer<'a>,
 {
-  type Error
-    = ();
+  type Error = ();
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_lexer_error(
     &mut self,
     _: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>> {
+  ) -> Result<(), Self::Error> {
     Ok(())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_error(
-    &mut self,
-    _: Spanned<Self::Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>> {
+  fn emit_error(&mut self, _: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error> {
     Ok(())
   }
 
@@ -34,7 +30,7 @@ where
   fn emit_unexpected_token(
     &mut self,
     _: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, <L>::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -48,7 +44,7 @@ where
   L: Lexer<'a>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_few(&mut self, _: TooFew<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_few(&mut self, _: TooFew<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -56,7 +52,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(&mut self, _: TooMany<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_many(&mut self, _: TooMany<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -64,10 +60,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_full_container(
-    &mut self,
-    _: FullContainer<O, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_full_container(&mut self, _: FullContainer<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -91,7 +84,7 @@ where
     &mut self,
     _: Message,
     _: Spanned<Any, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -99,11 +92,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_to_batch(
-    &mut self,
-    _: &<L>::Span,
-    _: Spanned<Any, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_to_batch(&mut self, _: &<L>::Span, _: Spanned<Any, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -111,7 +100,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_batch(&mut self, _: &<L>::Span) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_batch(&mut self, _: &<L>::Span) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -131,10 +120,7 @@ where
   L: Lexer<'inp>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_separator(
-    &mut self,
-    _: MissingTokenOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_missing_separator(&mut self, _: MissingTokenOf<'inp, Sep, L>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -142,10 +128,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_element(
-    &mut self,
-    _: MissingSyntaxOf<'inp, O, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_missing_element(&mut self, _: MissingSyntaxOf<'inp, O, L>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -156,7 +139,7 @@ where
   fn emit_missing_leading_separator(
     &mut self,
     _: MissingLeadingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -167,7 +150,7 @@ where
   fn emit_missing_trailing_separator(
     &mut self,
     _: MissingTrailingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -178,7 +161,7 @@ where
   fn emit_unexpected_repeated_separator(
     &mut self,
     _: UnexpectedRepeatedOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -189,7 +172,7 @@ where
   fn emit_unexpected_leading_separator(
     &mut self,
     _: UnexpectedLeadingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -200,7 +183,7 @@ where
   fn emit_unexpected_trailing_separator(
     &mut self,
     _: UnexpectedTrailingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {

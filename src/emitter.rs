@@ -16,10 +16,9 @@ use super::Token;
 pub use fatal::Fatal;
 pub use silent::Silent;
 
-mod ignored;
 mod fatal;
+mod ignored;
 mod silent;
-
 
 /// A trait for handling and emitting errors during tokenization and parsing.
 ///
@@ -95,7 +94,7 @@ pub trait Emitter<'a, L> {
   fn emit_lexer_error(
     &mut self,
     err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 
@@ -103,7 +102,7 @@ pub trait Emitter<'a, L> {
   fn emit_unexpected_token(
     &mut self,
     err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 
@@ -121,10 +120,7 @@ pub trait Emitter<'a, L> {
   ///
   /// - `Ok(())` if the error should be treated as non-fatal (processing continues)
   /// - `Err(Self::Error)` if the error is fatal (processing stops immediately)
-  fn emit_error(
-    &mut self,
-    err: Spanned<Self::Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 }
@@ -133,14 +129,13 @@ impl<'a, L, U> Emitter<'a, L> for &mut U
 where
   U: Emitter<'a, L>,
 {
-  type Error
-    = U::Error;
+  type Error = U::Error;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_lexer_error(
     &mut self,
     err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -151,7 +146,7 @@ where
   fn emit_unexpected_token(
     &mut self,
     err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -159,10 +154,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_error(
-    &mut self,
-    err: Spanned<Self::Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -187,7 +179,7 @@ pub trait BatchEmitter<'a, L, Error>: Emitter<'a, L> {
     &mut self,
     description: Message,
     err: Spanned<Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 
@@ -198,7 +190,7 @@ pub trait BatchEmitter<'a, L, Error>: Emitter<'a, L> {
     &mut self,
     id: &L::Span,
     err: Spanned<Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 
@@ -207,7 +199,7 @@ pub trait BatchEmitter<'a, L, Error>: Emitter<'a, L> {
   /// If the batch does not exist or is empty, this method does nothing.
   ///
   /// If emitting the batch triggers a fatal condition, the emitter can return an `Err`.
-  fn emit_batch(&mut self, id: &L::Span) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_batch(&mut self, id: &L::Span) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 
@@ -236,7 +228,7 @@ where
     &mut self,
     description: Message,
     err: Spanned<Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -244,11 +236,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_to_batch(
-    &mut self,
-    id: &L::Span,
-    err: Spanned<Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_to_batch(&mut self, id: &L::Span, err: Spanned<Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -256,7 +244,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_batch(&mut self, id: &L::Span) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_batch(&mut self, id: &L::Span) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -275,7 +263,7 @@ where
 /// An emitter that emits unclosed parenthesis errors.
 pub trait UnclosedEmitter<'a, L>: Emitter<'a, L> {
   /// Emits an error indicating that there are unclosed parentheses.
-  fn emit_unclosed(&mut self, err: UnclosedParen) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_unclosed(&mut self, err: UnclosedParen) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 }
@@ -283,23 +271,17 @@ pub trait UnclosedEmitter<'a, L>: Emitter<'a, L> {
 /// An emitter that handles errors related to repeated elements during parsing.
 pub trait RepeatedEmitter<'a, O: ?Sized, L>: Emitter<'a, L> {
   /// Emits an error indicating that too few elements were found.
-  fn emit_too_few(&mut self, err: TooFew<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_few(&mut self, err: TooFew<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 
   /// Emits an error indicating that too many elements were found.
-  fn emit_too_many(
-    &mut self,
-    err: TooMany<O, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_many(&mut self, err: TooMany<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 
   /// Emits an error indicating that the given container is full, and cannot accept more elements.
-  fn emit_full_container(
-    &mut self,
-    err: FullContainer<O, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_full_container(&mut self, err: FullContainer<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 }
@@ -309,7 +291,7 @@ where
   U: RepeatedEmitter<'a, O, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_few(&mut self, err: TooFew<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_few(&mut self, err: TooFew<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -317,7 +299,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(&mut self, err: TooMany<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_many(&mut self, err: TooMany<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -325,10 +307,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_full_container(
-    &mut self,
-    err: FullContainer<O, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_full_container(&mut self, err: FullContainer<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -350,15 +329,12 @@ where
   fn emit_missing_separator(
     &mut self,
     err: MissingTokenOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>;
 
   /// Emits an error or warning for a missing an element after a leading separator.
-  fn emit_missing_element(
-    &mut self,
-    err: MissingSyntaxOf<'inp, O, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_missing_element(&mut self, err: MissingSyntaxOf<'inp, O, L>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>;
 
@@ -366,7 +342,7 @@ where
   fn emit_missing_leading_separator(
     &mut self,
     err: MissingLeadingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>;
 
@@ -374,7 +350,7 @@ where
   fn emit_missing_trailing_separator(
     &mut self,
     err: MissingTrailingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>;
 
@@ -384,7 +360,7 @@ where
   fn emit_unexpected_repeated_separator(
     &mut self,
     err: UnexpectedRepeatedOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>;
 
@@ -394,7 +370,7 @@ where
   fn emit_unexpected_leading_separator(
     &mut self,
     err: UnexpectedLeadingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>;
 
@@ -404,7 +380,7 @@ where
   fn emit_unexpected_trailing_separator(
     &mut self,
     err: UnexpectedTrailingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>;
 }
@@ -415,10 +391,7 @@ where
   U: SeparatedByEmitter<'inp, O, Sep, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_separator(
-    &mut self,
-    err: MissingTokenOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_missing_separator(&mut self, err: MissingTokenOf<'inp, Sep, L>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -426,10 +399,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_element(
-    &mut self,
-    err: MissingSyntaxOf<'inp, O, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_missing_element(&mut self, err: MissingSyntaxOf<'inp, O, L>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -440,7 +410,7 @@ where
   fn emit_missing_leading_separator(
     &mut self,
     err: MissingLeadingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -451,7 +421,7 @@ where
   fn emit_missing_trailing_separator(
     &mut self,
     err: MissingTrailingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -462,7 +432,7 @@ where
   fn emit_unexpected_repeated_separator(
     &mut self,
     err: UnexpectedRepeatedOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -473,7 +443,7 @@ where
   fn emit_unexpected_leading_separator(
     &mut self,
     err: UnexpectedLeadingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -484,7 +454,7 @@ where
   fn emit_unexpected_trailing_separator(
     &mut self,
     err: UnexpectedTrailingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {

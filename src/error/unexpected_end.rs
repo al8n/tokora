@@ -1,6 +1,6 @@
 use derive_more::Display;
 
-use crate::utils::{Message, Span};
+use crate::utils::Message;
 
 /// A zero-sized marker indicating the parser expected more bytes when the file ended.
 ///
@@ -181,13 +181,13 @@ pub struct CharacterHint;
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedEnd<Hint, S = Span> {
-  span: S,
+pub struct UnexpectedEnd<Hint, O = usize> {
+  offset: O,
   name: Option<Message>,
   hint: Hint,
 }
 
-impl<Hint, S> core::fmt::Display for UnexpectedEnd<Hint, S>
+impl<Hint, O> core::fmt::Display for UnexpectedEnd<Hint, O>
 where
   Hint: core::fmt::Display,
 {
@@ -200,14 +200,14 @@ where
   }
 }
 
-impl<Hint, S> core::error::Error for UnexpectedEnd<Hint, S>
+impl<Hint, O> core::error::Error for UnexpectedEnd<Hint, O>
 where
   Hint: core::fmt::Debug + core::fmt::Display,
-  S: core::fmt::Debug,
+  O: core::fmt::Debug,
 {
 }
 
-impl<S> UnexpectedEnd<FileHint, S> {
+impl<O> UnexpectedEnd<FileHint, O> {
   /// Creates an unexpected **end of file** (EOF) error at the given span.
   ///
   /// ## Example
@@ -220,16 +220,16 @@ impl<S> UnexpectedEnd<FileHint, S> {
   /// assert_eq!(error.name(), Some("file"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn eof(span: S) -> Self {
+  pub const fn eof(offset: O) -> Self {
     Self {
-      span,
+      offset,
       name: Some(Message::from_static("file")),
       hint: FileHint,
     }
   }
 }
 
-impl<S> UnexpectedEnd<TokenHint, S> {
+impl<O> UnexpectedEnd<TokenHint, O> {
   /// Creates an unexpected **end of token stream** (EOT) error at the given span.
   ///
   /// ## Example
@@ -242,16 +242,16 @@ impl<S> UnexpectedEnd<TokenHint, S> {
   /// assert_eq!(error.name(), Some("token stream"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn eot(span: S) -> Self {
+  pub const fn eot(offset: O) -> Self {
     Self {
-      span,
+      offset,
       name: Some(Message::from_static("token stream")),
       hint: TokenHint,
     }
   }
 }
 
-impl<S> UnexpectedEnd<CharacterHint, S> {
+impl<O> UnexpectedEnd<CharacterHint, O> {
   /// Creates an unexpected **end of string** (EOS) error at the given span.
   ///
   /// ## Example
@@ -264,16 +264,16 @@ impl<S> UnexpectedEnd<CharacterHint, S> {
   /// assert_eq!(error.name(), Some("string"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn eos(span: S) -> Self {
+  pub const fn eos(offset: O) -> Self {
     Self {
-      span,
+      offset,
       name: Some(Message::from_static("string")),
       hint: CharacterHint,
     }
   }
 }
 
-impl<Hint, S> UnexpectedEnd<Hint, S> {
+impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// Creates a new unexpected end with the given span and hint.
   ///
   /// ## Example
@@ -286,9 +286,9 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   /// assert_eq!(error.span(), Span::new(10, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: S, hint: Hint) -> Self {
+  pub const fn new(offset: O, hint: Hint) -> Self {
     Self {
-      span,
+      offset,
       name: None,
       hint,
     }
@@ -309,8 +309,8 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn maybe_name(span: S, name: Option<Message>, hint: Hint) -> Self {
-    Self { span, name, hint }
+  pub const fn maybe_name(offset: O, name: Option<Message>, hint: Hint) -> Self {
+    Self { offset, name, hint }
   }
 
   /// Creates a new unexpected end with the given span, name, and hint.
@@ -327,8 +327,8 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_name(span: S, name: Message, hint: Hint) -> Self {
-    Self::maybe_name(span, Some(name), hint)
+  pub const fn with_name(offset: O, name: Message, hint: Hint) -> Self {
+    Self::maybe_name(offset, Some(name), hint)
   }
 
   /// Creates a new unexpected end with the given span and hint.
@@ -343,9 +343,9 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   /// assert_eq!(error.span(), Span::new(15, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_hint(span: S, hint: Hint) -> Self {
+  pub const fn with_hint(offset: O, hint: Hint) -> Self {
     Self {
-      span,
+      offset,
       name: None,
       hint,
     }
@@ -469,12 +469,12 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   /// assert_eq!(token_error.span(), Span::new(100, 101));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map_hint<F, NewHint>(self, f: F) -> UnexpectedEnd<NewHint, S>
+  pub fn map_hint<F, NewHint>(self, f: F) -> UnexpectedEnd<NewHint, O>
   where
     F: FnOnce(Hint) -> NewHint,
   {
     UnexpectedEnd {
-      span: self.span,
+      offset: self.offset,
       name: self.name,
       hint: f(self.hint),
     }
@@ -497,11 +497,11 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
     self,
     name: Option<impl Into<Message>>,
     f: F,
-  ) -> UnexpectedEnd<NewHint, S>
+  ) -> UnexpectedEnd<NewHint, O>
   where
     F: FnOnce(Hint) -> NewHint,
   {
-    UnexpectedEnd::maybe_name(self.span, name.map(Into::into), f(self.hint))
+    UnexpectedEnd::maybe_name(self.offset, name.map(Into::into), f(self.hint))
   }
 
   /// Reconstructs the error with a new name and a transformed hint.
@@ -521,11 +521,11 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
     self,
     name: impl Into<Message>,
     f: F,
-  ) -> UnexpectedEnd<NewHint, S>
+  ) -> UnexpectedEnd<NewHint, O>
   where
     F: FnOnce(Hint) -> NewHint,
   {
-    UnexpectedEnd::with_name(self.span, name.into(), f(self.hint))
+    UnexpectedEnd::with_name(self.offset, name.into(), f(self.hint))
   }
 
   /// Reconstructs the error with a transformed hint.
@@ -543,11 +543,11 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn reconstruct_without_name<F, NewHint>(self, f: F) -> UnexpectedEnd<NewHint, S>
+  pub fn reconstruct_without_name<F, NewHint>(self, f: F) -> UnexpectedEnd<NewHint, O>
   where
     F: FnOnce(Hint) -> NewHint,
   {
-    UnexpectedEnd::new(self.span, f(self.hint))
+    UnexpectedEnd::new(self.offset, f(self.hint))
   }
 
   /// Returns the span of the unexpected end.
@@ -561,23 +561,23 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   /// assert_eq!(error.span(), Span::new(100, 101));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> S
+  pub const fn offset(&self) -> O
   where
-    S: Copy,
+    O: Copy,
   {
-    self.span
+    self.offset
   }
 
   /// Returns a reference to the span of the unexpected end.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &S {
-    &self.span
+  pub const fn offset_ref(&self) -> &O {
+    &self.offset
   }
 
   /// Returns a mutable reference to the span of the unexpected end.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut S {
-    &mut self.span
+  pub const fn offset_mut(&mut self) -> &mut O {
+    &mut self.offset
   }
 
   /// Bumps the span by `n`.
@@ -595,11 +595,11 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   /// assert_eq!(error.span(), Span::new(15, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bump(&mut self, n: &S::Offset) -> &mut Self
+  pub fn bump(&mut self, n: &O) -> &mut Self
   where
-    S: crate::Span,
+    O: for<'a> core::ops::AddAssign<&'a O>,
   {
-    self.span.bump(n);
+    self.offset += n;
     self
   }
 
@@ -616,26 +616,26 @@ impl<Hint, S> UnexpectedEnd<Hint, S> {
   /// assert_eq!(name, Some("file".into()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (S, Option<Message>, Hint) {
-    (self.span, self.name, self.hint)
+  pub fn into_components(self) -> (O, Option<Message>, Hint) {
+    (self.offset, self.name, self.hint)
   }
 }
 
-impl<Hint, S> From<UnexpectedEnd<Hint, S>> for () {
+impl<Hint, O> From<UnexpectedEnd<Hint, O>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: UnexpectedEnd<Hint, S>) -> Self {}
+  fn from(_: UnexpectedEnd<Hint, O>) -> Self {}
 }
 
 /// An type alias for unexpected EOF.
-pub type UnexpectedEof<S = Span> = UnexpectedEnd<FileHint, S>;
+pub type UnexpectedEof<O = usize> = UnexpectedEnd<FileHint, O>;
 /// An type alias for unexpected end of token stream.
-pub type UnexpectedEot<S = Span> = UnexpectedEnd<TokenHint, S>;
+pub type UnexpectedEot<O = usize> = UnexpectedEnd<TokenHint, O>;
 /// An type alias for unexpected end of string.
-pub type UnexpectedEos<S = Span> = UnexpectedEnd<CharacterHint, S>;
+pub type UnexpectedEos<O = usize> = UnexpectedEnd<CharacterHint, O>;
 
-impl<Hint, S> From<(S, Hint)> for UnexpectedEnd<Hint, S> {
+impl<Hint, O> From<(O, Hint)> for UnexpectedEnd<Hint, O> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from((span, hint): (S, Hint)) -> Self {
-    Self::new(span, hint)
+  fn from((offset, hint): (O, Hint)) -> Self {
+    Self::new(offset, hint)
   }
 }

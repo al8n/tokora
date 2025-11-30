@@ -1,13 +1,9 @@
-use crate::{
-  error::token::UnexpectedToken,
-  lexer::Span as _,
-  utils::Spanned,
-};
+use crate::{error::token::UnexpectedToken, utils::Spanned};
 
 use super::*;
 
 /// A fatal emitter that treats all errors as fatal.
-/// 
+///
 /// When an error is emitted, it immediately returns the error wrapped in a `Spanned` struct,
 pub struct Fatal<T: ?Sized>(core::marker::PhantomData<T>);
 
@@ -54,31 +50,28 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_lexer_error(
     &mut self,
-    Spanned { span, data: err }: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>> {
-    Err(Spanned {
-      span,
-      data: err.into(),
-    })
+    Spanned { data: err, .. }: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
+  ) -> Result<(), Self::Error> {
+    Err(err.into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_error(
-    &mut self,
-    err: Spanned<Self::Error, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>> {
-    Err(err)
+  fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    Err(err.into_data())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_token(
     &mut self,
     err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, <L>::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
-    Err(Spanned::new(err.span_ref().clone(), err.into()))
+    Err(err.into())
   }
 }
 
@@ -90,30 +83,27 @@ where
   Fatal<E>: Emitter<'a, L, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_few(&mut self, err: TooFew<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_few(&mut self, err: TooFew<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
-    Err(Spanned::new(err.span().clone(), err.into()))
+    Err(err.into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(&mut self, err: TooMany<O, L::Span>) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_too_many(&mut self, err: TooMany<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
-    Err(Spanned::new(err.span().clone(), err.into()))
+    Err(err.into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_full_container(
-    &mut self,
-    err: FullContainer<O, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_full_container(&mut self, err: FullContainer<O, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
-    Err(Spanned::new(err.span().clone(), err.into()))
+    Err(err.into())
   }
 }
 
@@ -135,27 +125,23 @@ where
     &mut self,
     _: Message,
     err: Spanned<Any, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
-    Err(err.map_data(Into::into))
+    Err(err.into_data().into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_to_batch(
-    &mut self,
-    _: &<L>::Span,
-    err: Spanned<Any, L::Span>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_to_batch(&mut self, _: &<L>::Span, err: Spanned<Any, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
-    Err(err.map_data(Into::into))
+    Err(err.into_data().into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_batch(&mut self, _: &<L>::Span) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_batch(&mut self, _: &<L>::Span) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -192,96 +178,74 @@ where
     + RepeatedEmitter<'inp, O, L, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_separator(
-    &mut self,
-    err: MissingTokenOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_missing_separator(&mut self, err: MissingTokenOf<'inp, Sep, L>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    let offset = err.offset_ref().clone();
-    Err(Spanned::new(
-      L::Span::new(offset.clone(), offset),
-      err.into(),
-    ))
+    Err(err.into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_element(
-    &mut self,
-    err: MissingSyntaxOf<'inp, O, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  fn emit_missing_element(&mut self, err: MissingSyntaxOf<'inp, O, L>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    let offset = err.offset_ref().clone();
-    Err(Spanned::new(
-      L::Span::new(offset.clone(), offset),
-      err.into(),
-    ))
+    Err(err.into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_leading_separator(
     &mut self,
     err: MissingLeadingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    let offset = err.offset_ref().clone();
-    Err(Spanned::new(
-      L::Span::new(offset.clone(), offset),
-      err.into(),
-    ))
+    Err(err.into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_trailing_separator(
     &mut self,
     err: MissingTrailingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    let offset = err.offset_ref().clone();
-    Err(Spanned::new(
-      L::Span::new(offset.clone(), offset),
-      err.into(),
-    ))
+    Err(err.into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_repeated_separator(
     &mut self,
     err: UnexpectedRepeatedOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    Err(Spanned::new(err.span_ref().clone(), err.into()))
+    Err(err.into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_leading_separator(
     &mut self,
     err: UnexpectedLeadingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    Err(Spanned::new(err.span_ref().clone(), err.into()))
+    Err(err.into())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_trailing_separator(
     &mut self,
     err: UnexpectedTrailingOf<'inp, Sep, L>,
-  ) -> Result<(), Spanned<Self::Error, L::Span>>
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    Err(Spanned::new(err.span_ref().clone(), err.into()))
+    Err(err.into())
   }
 }
 

@@ -291,11 +291,6 @@ impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
   }
 }
 
-impl<L, F, Classifier, O, Output, Container, E, C, Config> sealed::Sealed<'_, L, Output, E, C>
-  for SeqSep<F, Classifier, O, Container, Config>
-{
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
 enum State<T, S> {
   Start,

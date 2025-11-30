@@ -257,7 +257,7 @@ mod unicode_escape;
 /// - [`via_parser`](crate::chumsky::recovery::via_parser): Recovery combinator
 /// - [`or_else`](crate::chumsky::Parser::or_else): Fallback for failed parsing
 /// - [`DelimitedByBrace`](crate::chumsky::delimited::DelimitedByBrace): Delimited parser with recovery
-pub trait ErrorNode {
+pub trait ErrorNode<S = Span> {
   /// Creates a placeholder node for **malformed content**.
   ///
   /// Use this when the parser encounters **invalid syntax that is present but wrong**.
@@ -297,7 +297,7 @@ pub trait ErrorNode {
   /// // Parser found "123abc" as identifier
   /// let node = Identifier::error(Span::new(0, 6));
   /// ```
-  fn error(span: Span) -> Self;
+  fn error(span: S) -> Self;
 
   /// Creates a placeholder node for **missing required content**.
   ///
@@ -338,7 +338,7 @@ pub trait ErrorNode {
   /// // Parser expected function name but found "("
   /// let node = FunctionName::missing(Span::new(3, 3));
   /// ```
-  fn missing(span: Span) -> Self;
+  fn missing(span: S) -> Self;
 }
 
 impl ErrorNode for &str {

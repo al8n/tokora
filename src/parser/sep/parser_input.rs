@@ -13,25 +13,22 @@ use crate::{
 use super::*;
 
 impl<'inp, L, F, Classifier, O, Container, E, C, Trailing, Leading, Max, Min>
-  ParseInput<'inp, L, ParseResult<'inp, Container, L, E>, E, C>
+  ParseInput<'inp, L, Result<Container, E::Error>, E, C>
   for SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Leading, Max, Min>>
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, ParseResult<'inp, O, L, E>, E, C>,
+  F: ParseInput<'inp, L, Result<O, E::Error>, E, C>,
   Classifier: Check<L::Token, SeqSepAction<'inp, <L::Token as Token<'inp>>::Kind>>,
   E: SeparatedByEmitter<'inp, O, Classifier, L>,
   C: Cache<'inp, L>,
-  Container: Default + crate::container::Container<Spanned<O, L::Span>>,
+  Container: Default + crate::container::Container<O>,
   Trailing: super::TrailingSpec,
   Leading: super::LeadingSpec,
   Max: super::MaxSpec,
   Min: super::MinSpec,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(
-    &mut self,
-    inp: &mut InputRef<'inp, '_, L, E, C>,
-  ) -> ParseResult<'inp, Container, L, E>
+  fn parse_input(&mut self, inp: &mut InputRef<'inp, '_, L, E, C>) -> Result<Container, E::Error>
   where
     L: Lexer<'inp>,
     E: Emitter<'inp, L>,
@@ -53,8 +50,7 @@ where
         None => {
           return self
             .handle_end(state, inp, &ckp, num_elems, &mut container)
-            .map(|span| Spanned::new(span, container))
-            .map_err(ParseError::Parser);
+            .map(|_| container);
         }
         Some(tok) => {
           let tok = tok.as_ref();
@@ -86,8 +82,7 @@ where
                 SeqSepAction::End => {
                   return self
                     .handle_end(state, inp, &ckp, num_elems, &mut container)
-                    .map(|span| Spanned::new(span, container))
-                    .map_err(ParseError::Parser);
+                    .map(|_| container);
                 }
                 SeqSepAction::Skip => {
                   inp.consume_one();
@@ -267,8 +262,13 @@ where
                     State::Separator(_) => {
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
-                        inp.emitter().emit_full_container(FullContainer::new(span, container.len(), Container::capacity()))?;
+                      if push(&mut num_elems, &mut container, element).is_some() {
+                        let span = inp.span_since(ckp.cursor());
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          container.len(),
+                          Container::capacity(),
+                        ))?;
                       }
                       state = State::Element;
                     }
@@ -287,8 +287,13 @@ where
 
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
-                        inp.emitter().emit_full_container(FullContainer::new(span, num_elems, Container::capacity()))?;
+                      if push(&mut num_elems, &mut container, element).is_some() {
+                        let span = inp.span_since(ckp.cursor());
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          num_elems,
+                          Container::capacity(),
+                        ))?;
                       }
                       state = State::Element;
                     }
@@ -301,8 +306,13 @@ where
                       )?;
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
-                        inp.emitter().emit_full_container(FullContainer::new(span, num_elems, Container::capacity()))?;
+                      if push(&mut num_elems, &mut container, element).is_some() {
+                        let span = inp.span_since(ckp.cursor());
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          num_elems,
+                          Container::capacity(),
+                        ))?;
                       }
                       state = State::Element;
                     }
@@ -325,8 +335,13 @@ where
 
                       // parse the first element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
-                        inp.emitter().emit_full_container(FullContainer::new(span, num_elems, Container::capacity()))?;
+                      if push(&mut num_elems, &mut container, element).is_some() {
+                        let span = inp.span_since(ckp.cursor());
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          num_elems,
+                          Container::capacity(),
+                        ))?;
                       }
 
                       state = State::Element;
@@ -343,8 +358,13 @@ where
 
                       // parse the next element
                       let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
-                        inp.emitter().emit_full_container(FullContainer::new(span, num_elems, Container::capacity()))?;
+                      if push(&mut num_elems, &mut container, element).is_some() {
+                        let span = inp.span_since(ckp.cursor());
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          num_elems,
+                          Container::capacity(),
+                        ))?;
                       }
                       state = State::Element;
                     }
@@ -358,9 +378,13 @@ where
                       )?;
 
                       // parse the next element
-                      let element = self.f.parse_input(inp)?;
-                      if let Some(Spanned { span, .. }) = push(&mut num_elems, &mut container, element) {
-                        inp.emitter().emit_full_container(FullContainer::new(span, num_elems, Container::capacity()))?;
+                      if push(&mut num_elems, &mut container, self.f.parse_input(inp)?).is_some() {
+                        let span = inp.span_since(ckp.cursor());
+                        inp.emitter().emit_full_container(FullContainer::new(
+                          span,
+                          num_elems,
+                          Container::capacity(),
+                        ))?;
                       }
                       state = State::Element;
                     }
@@ -385,17 +409,17 @@ impl<'inp, F, Classifier, O, Container, Trailing, Leading, Max, Min>
     ckp: &Checkpoint<'inp, 'closure, L>,
     num_elems: usize,
     container: &mut Container,
-  ) -> Result<L::Span, Spanned<E::Error, L::Span>>
+  ) -> Result<L::Span, E::Error>
   where
     'inp: 'closure,
     L: Lexer<'inp>,
     E: Emitter<'inp, L>,
     C: Cache<'inp, L>,
-    F: ParseInput<'inp, L, ParseResult<'inp, O, L, E>, E, C>,
+    F: ParseInput<'inp, L, Result<O, E::Error>, E, C>,
     Classifier: Check<L::Token, SeqSepAction<'inp, <L::Token as Token<'inp>>::Kind>>,
     E: SeparatedByEmitter<'inp, O, Classifier, L>,
     C: Cache<'inp, L>,
-    Container: crate::container::Container<Spanned<O, L::Span>>,
+    Container: crate::container::Container<O>,
     Trailing: super::TrailingSpec,
     Leading: super::LeadingSpec,
     Max: super::MaxSpec,

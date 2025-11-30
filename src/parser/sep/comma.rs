@@ -20,7 +20,7 @@ pub const fn comma_seq<'inp, F, Classifier, L, O, Container, E, C>(
   classifier: Classifier,
 ) -> SeqSep<F, Comma<(), Classifier>, O, Container>
 where
-  F: ParseInput<'inp, L, ParseResult<'inp, O, L, E>, E, C>,
+  F: ParseInput<'inp, L, Result<O, E::Error>, E, C>,
   Classifier: Check<L::Token, SeqSepAction<'inp, <L::Token as Token<'inp>>::Kind>>,
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
