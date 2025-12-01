@@ -76,7 +76,7 @@ smallvec = { version = "1", default-features = false, optional = true, features 
 ] }
 
 [dev-dependencies]
-criterion = "0.7"
+criterion = "0.8"
 tempfile = "3"
 
 [[example]]
