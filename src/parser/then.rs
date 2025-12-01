@@ -27,39 +27,32 @@ use super::*;
 ///         }
 ///     });
 /// ```
-pub struct Then<F, ThenFn, O> {
+pub struct Then<F, T> {
   parser: F,
-  then_fn: ThenFn,
-  _marker: PhantomData<O>,
+  then: T,
 }
 
-impl<F, ThenFn, O> Then<F, ThenFn, O> {
+impl<F, T> Then<F, T> {
   /// Creates a new `Then` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(parser: F, then_fn: ThenFn) -> Self {
-    Self {
-      parser,
-      then_fn,
-      _marker: PhantomData,
-    }
+  pub const fn new(parser: F, then: T) -> Self {
+    Self { parser, then }
   }
 }
 
-impl<'inp, F, ThenFn, L, O, NO, E, C, NextParser> ParseInput<'inp, L, NO, E, C>
-  for Then<F, ThenFn, O>
+impl<'inp, F, T, L, O, U, E, C> ParseInput<'inp, L, (O, U), E, C> for Then<F, T>
 where
   F: ParseInput<'inp, L, O, E, C>,
-  ThenFn: FnMut(O) -> NextParser,
-  NextParser: ParseInput<'inp, L, NO, E, C>,
+  T: ParseInput<'inp, L, U, E, C>,
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
   C: Cache<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> NO {
-    let result = self.parser.parse_input(input);
-    let mut next_parser = (self.then_fn)(result);
-    next_parser.parse_input(input)
+  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<(O, U), E::Error> {
+    let a = self.parser.parse_input(input)?;
+    let b = self.then.parse_input(input)?;
+    Ok((a, b))
   }
 }
 
@@ -109,8 +102,8 @@ where
   C: Cache<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> O2 {
-    let _first_result = self.first.parse_input(input);
+  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<O2, E::Error> {
+    let _ = self.first.parse_input(input)?;
     self.second.parse_input(input)
   }
 }
@@ -161,97 +154,9 @@ where
   C: Cache<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> O1 {
-    let first_result = self.first.parse_input(input);
-    let _second_result = self.second.parse_input(input);
-    first_result
-  }
-}
-
-impl<F, L, O, Error, E, C> With<F, Parser<(), L, O, Error, ParserOptions<L, E, C>>> {
-  /// Sequence this parser with another, using the first result to determine the second parser.
-  ///
-  /// This creates a new parser that runs this parser first, then uses its result
-  /// to determine and run the next parser.
-  ///
-  /// # Examples
-  ///
-  /// ```ignore
-  /// let parser = Any::parser()
-  ///     .then(|tok| match tok.kind() {
-  ///         TokenKind::Number => parse_number(),
-  ///         TokenKind::String => parse_string(),
-  ///         _ => parse_value(),
-  ///     });
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn then<ThenFn, NextParser, NO>(
-    self,
-    then_fn: ThenFn,
-  ) -> With<Then<F, ThenFn, O>, Parser<(), L, NO, Error, ParserOptions<L, E, C>>>
-  where
-    ThenFn: FnMut(O) -> NextParser,
-  {
-    With::new(
-      Then::new(self.primary, then_fn),
-      Parser {
-        f: (),
-        opts: self.secondary.opts,
-        _marker: PhantomData,
-      },
-    )
-  }
-
-  /// Sequence this parser with another, keeping only the second result.
-  ///
-  /// This runs this parser first (discarding its result), then runs the
-  /// second parser and returns its result.
-  ///
-  /// # Examples
-  ///
-  /// ```ignore
-  /// let parser = Expect::parser(is_keyword("let"))
-  ///     .ignore_then(Any::parser());
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn ignore_then<G, NO, E2, C2>(
-    self,
-    second: With<G, Parser<(), L, NO, Error, ParserOptions<L, E2, C2>>>,
-  ) -> With<IgnoreThen<F, G, O>, Parser<(), L, NO, Error, ParserOptions<L, E, C>>> {
-    With::new(
-      IgnoreThen::new(self.primary, second.primary),
-      Parser {
-        f: (),
-        opts: self.secondary.opts,
-        _marker: PhantomData,
-      },
-    )
-  }
-
-  /// Sequence this parser with another, keeping only the first result.
-  ///
-  /// This runs this parser first, then runs the second parser (discarding
-  /// its result), and returns the first result.
-  ///
-  /// # Examples
-  ///
-  /// ```ignore
-  /// let parser = Any::parser()
-  ///     .then_ignore(Expect::parser(is_semicolon));
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn then_ignore<G, NO, E2, C2>(
-    self,
-    second: With<G, Parser<(), L, NO, Error, ParserOptions<L, E2, C2>>>,
-  ) -> With<ThenIgnore<F, G, NO>, Parser<(), L, O, Error, ParserOptions<L, E, C>>> {
-    With::new(
-      ThenIgnore::new(self.primary, second.primary),
-      Parser {
-        f: (),
-        opts: self.secondary.opts,
-        _marker: PhantomData,
-      },
-    )
+  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<O1, E::Error> {
+    let first_result = self.first.parse_input(input)?;
+    self.second.parse_input(input).map(|_| first_result)
   }
 }
 
@@ -261,14 +166,14 @@ mod tests {
 
   use super::*;
 
-  fn assert_ignore_then_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()>
-  {
-    Any::parser().ignore_then(Any::parser())
+  fn assert_ignore_then_parse_impl<'inp>()
+  -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
+    Parser::new().apply(Any::new().ignore_then(Any::new()))
   }
 
-  fn assert_then_ignore_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()>
-  {
-    Any::parser().then_ignore(Any::parser())
+  fn assert_then_ignore_parse_impl<'inp>()
+  -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
+    Parser::new().apply(Any::new().then_ignore(Any::new()))
   }
 
   #[test]

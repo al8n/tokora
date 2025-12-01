@@ -399,6 +399,16 @@ const _: () = {
     }
   }
 
+  impl PunctuatorToken<'_> for DummyToken {}
+
+  impl LitToken<'_> for DummyToken {}
+
+  impl TriviaToken<'_> for DummyToken {
+    fn is_trivia(&self) -> bool {
+      true
+    }
+  }
+
   impl<'inp> Lexer<'inp> for DummyLexer {
     type State = ();
 

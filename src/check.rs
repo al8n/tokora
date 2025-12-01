@@ -61,4 +61,11 @@ check_punct!(
   FatArrow::OperatorToken::is_fat_arrow,
   Arrow::OperatorToken::is_arrow,
   Trivia::TriviaToken::is_trivia,
+  Tilde::PunctuatorToken::is_tilde,
+  Percent::PunctuatorToken::is_percent,
+  Slash::PunctuatorToken::is_slash,
+  BackSlash::PunctuatorToken::is_backslash,
+  Dollar::PunctuatorToken::is_dollar,
+  Hash::PunctuatorToken::is_hash,
+  At::PunctuatorToken::is_at,
 );

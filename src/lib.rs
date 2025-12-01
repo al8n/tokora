@@ -48,7 +48,9 @@ pub mod emitter;
 pub mod error;
 
 mod keyword;
-mod punct;
+
+/// Common punctuation tokens.
+pub mod punct;
 
 #[doc(hidden)]
 pub mod __private {

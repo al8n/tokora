@@ -9,29 +9,20 @@ pub struct Any<Lang: ?Sized = ()>(PhantomData<Lang>);
 impl Any {
   /// Creates a parser that accepts any token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn parser<'inp, L, Error>() -> With<Self, Parser<(), L, Result<L::Token, Error>, Error>>
-  where
-    L: Lexer<'inp>,
-    Error: From<UnexpectedEot<L::Offset, ()>> + From<<L::Token as Token<'inp>>::Error>,
-  {
-    Self::parser_of()
+  pub const fn new() -> Self {
+    Self::of()
   }
 }
 
 impl<Lang> Any<Lang> {
   /// Creates a parser that accepts any token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn parser_of<'inp, L, Error>()
-  -> With<Self, Parser<(), L, Result<L::Token, Error>, Error>>
-  where
-    L: Lexer<'inp>,
-    Error: From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
-  {
-    Parser::with(Any(PhantomData))
+  pub const fn of() -> Self {
+    Any(PhantomData)
   }
 }
 
-impl<'inp, L, E, C, Lang> ParseInput<'inp, L, Result<L::Token, E::Error>, E, C> for Any<Lang>
+impl<'inp, L, E, C, Lang> ParseInput<'inp, L, L::Token, E, C> for Any<Lang>
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
@@ -56,28 +47,26 @@ mod tests {
 
   use super::*;
 
-  const fn assert_any_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()>
-  {
-    Any::parser()
+  fn assert_any_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
+    Parser::new().apply(Any::new())
   }
 
-  fn assert_any_parse_with_cache_impl<'inp>()
-  -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-    Any::parser().with_cache::<()>(())
+  fn assert_any_parse_with_cache_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
+    Parser::new().with_cache::<()>(()).apply(Any::new())
   }
 
-  fn assert_any_parse_with_emitter_impl<'inp>()
-  -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-    Any::parser()
+  fn assert_any_parse_with_emitter_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
+    Parser::new()
       .with_emitter::<Fatal<()>>(Fatal::new())
       .with_cache::<()>(())
+      .apply(Any::new())
   }
 
-  fn assert_any_parse_full_impl<'inp>() -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()>
-  {
-    Any::parser()
+  fn assert_any_parse_full_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
+    Parser::new()
       .with_emitter::<Fatal<()>>(Fatal::new())
       .with_cache::<()>(())
+      .apply(Any::new())
   }
 
   #[test]

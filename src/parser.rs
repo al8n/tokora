@@ -28,7 +28,7 @@
 
 #![allow(clippy::type_complexity)]
 
-use core::{hash::Hash, marker::PhantomData};
+use core::{hash, marker::PhantomData};
 
 use crate::{
   Cache, DefaultCache, Emitter, Lexed, Lexer, Token,
@@ -41,16 +41,18 @@ use crate::{
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
 pub use any::*;
+pub use collect::Collect;
 pub use expect::*;
 pub use map::*;
+pub use sep::{SepFixSpec, SeqSep, SeqSepOptions};
 pub use then::*;
-pub use sep::{SepFixSpec, SeqSep, SeqSepAction, SeqSepOptions, comma_seq};
 
 mod any;
+mod collect;
 mod expect;
 mod map;
-mod then;
 mod sep;
+mod then;
 
 /// The result type returned by parsers.
 pub type ParseResult<'inp, O, L, E> = Result<O, ParseError<'inp, L, E>>;
@@ -101,12 +103,12 @@ where
 {
 }
 
-impl<'inp, L, E> Hash for ParseError<'inp, L, E>
+impl<'inp, L, E> hash::Hash for ParseError<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
-  E::Error: Hash,
-  <L::Token as Token<'inp>>::Error: Hash,
+  E::Error: hash::Hash,
+  <L::Token as Token<'inp>>::Error: hash::Hash,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
@@ -134,25 +136,93 @@ where
 /// a value or a spanned error using the configured `Emitter`.
 pub trait ParseInput<'inp, L, O, E, C> {
   /// Try to parse from the given input.
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> O
+  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<O, E::Error>
   where
     L: Lexer<'inp>,
     E: Emitter<'inp, L>,
     C: Cache<'inp, L>;
+
+  /// Map the output of this parser using the given function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn map<U, F>(self, f: F) -> Map<Self, F, U>
+  where
+    Self: Sized,
+    F: FnMut(O) -> U,
+  {
+    Map::new(self, f)
+  }
+
+  /// Sequence this parser with another, ignoring the output of the second.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn then_ignore<G, U>(self, second: G) -> ThenIgnore<Self, G, U>
+  where
+    Self: Sized,
+    G: ParseInput<'inp, L, U, E, C>,
+  {
+    ThenIgnore::new(self, second)
+  }
+
+  /// Sequence this parser with another, using the first result to determine the second parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn then<T, U>(self, then: T) -> Then<Self, T>
+  where
+    Self: Sized,
+    T: ParseInput<'inp, L, U, E, C>,
+  {
+    Then::new(self, then)
+  }
+
+  /// Sequence this parser with another, ignoring the output of the first.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn ignore_then<G, U>(self, second: G) -> IgnoreThen<Self, G, O>
+  where
+    Self: Sized,
+    G: ParseInput<'inp, L, U, E, C>,
+  {
+    IgnoreThen::new(self, second)
+  }
 }
 
 impl<'inp, F, L, O, E, C> ParseInput<'inp, L, O, E, C> for F
 where
-  F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> O,
+  F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> Result<O, E::Error>,
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
   C: Cache<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> O {
+  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<O, E::Error> {
     (self)(input)
   }
 }
+
+// impl<'inp, F, L, O, Error, E, C, Em, Ca> ParseInput<'inp, L, O, Em, Ca>
+//   for With<F, Parser<(), L, O, Error, ParserOptions<L, E, C>>>
+// where
+//   F: ParseInput<'inp, L, O, Em, Ca>,
+//   L: Lexer<'inp>,
+//   Em: Emitter<'inp, L>,
+//   Ca: Cache<'inp, L>,
+// {
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, Em, Ca>) -> O {
+//     self.primary.parse_input(input)
+//   }
+// }
+
+// impl<'inp, F, L, O, Error, E, C, Em, Ca> ParseInput<'inp, L, O, Em, Ca>
+//   for Parser<F, L, O, Error, ParserOptions<L, E, C>>
+// where
+//   F: ParseInput<'inp, L, O, Em, Ca>,
+//   L: Lexer<'inp>,
+//   Em: Emitter<'inp, L>,
+//   Ca: Cache<'inp, L>,
+// {
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, Em, Ca>) -> O {
+//     self.f.parse_input(input)
+//   }
+// }
 
 /// Type alias for parser configuration.
 ///
@@ -250,6 +320,17 @@ impl<L, O, Error> Parser<(), L, O, Error> {
 }
 
 impl<L, O, Error, E, C> Parser<(), L, O, Error, ParserOptions<L, E, C>> {
+  // pub fn apply<F>(self, f: F) -> Parser<F, L, O, Error, ParserOptions<L, E, C>>
+  // where
+  //   F: ParseInput<'inp, L, O, E, C>,
+  // {
+  //   Parser {
+  //     f,
+  //     opts: self.opts,
+  //     _marker: PhantomData,
+  //   }
+  // }
+
   /// Configure a custom error emitter for this parser.
   ///
   /// Replaces the current emitter configuration with a new one. The emitter
@@ -419,15 +500,17 @@ impl<E> Apply<WithEmitter<E>> for () {
   }
 }
 
-impl<'inp, L, O, E, C> Parser<(), L, O, E::Error, ParserOptions<L, E, C>>
+impl<'inp, L, O, E, Error, C> Parser<(), L, O, Error, ParserOptions<L, E, C>>
 where
   L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  C: Cache<'inp, L>,
+  E: EmitterProvider<'inp, L, Error>,
+  E::Emitter: Emitter<'inp, L, Error = Error>,
+  C: CacheProvider<'inp, L>,
+  C::Cache: Cache<'inp, L>,
 {
   /// Apply a new parsing function to the parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn apply<F>(self, f: F) -> Parser<F, L, O, E::Error, ParserOptions<L, E, C>> {
+  pub fn apply<F>(self, f: F) -> Parser<F, L, O, Error, ParserOptions<L, E, C>> {
     Parser {
       f,
       opts: self.opts,
@@ -444,7 +527,7 @@ where
 pub trait Parse<'inp, L, O, Error>: Sized {
   /// Parse using the lexer's default state.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse(self, src: &'inp L::Source) -> O
+  fn parse(self, src: &'inp L::Source) -> Result<O, Error>
   where
     L: Lexer<'inp>,
     L::State: Default,
@@ -453,7 +536,7 @@ pub trait Parse<'inp, L, O, Error>: Sized {
   }
 
   /// Parse using an explicit lexer state.
-  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> O
+  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> Result<O, Error>
   where
     L: Lexer<'inp>;
 }
@@ -469,7 +552,7 @@ where
   C: CacheProvider<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> O {
+  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> Result<O, Error> {
     let Parser {
       mut f,
       opts:
@@ -502,14 +585,30 @@ where
   C: CacheProvider<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> O {
+  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> Result<O, Error> {
     self.into_parser().parse_with_state(src, state)
   }
 }
 
-trait CacheProvider<'inp, L> {
+mod sealed_provider {
+  use super::*;
+
+  pub trait Sealed {}
+
+  impl Sealed for () {}
+
+  impl<L, C> Sealed for WithCache<'_, L, C> {}
+
+  impl<E: ?Sized> Sealed for WithEmitter<E> {}
+}
+
+/// A provider for cache instances.
+#[doc(hidden)]
+pub trait CacheProvider<'inp, L>: sealed_provider::Sealed {
+  /// The cache type provided.
   type Cache;
 
+  /// Provide a cache instance.
   fn provide(self) -> Self::Cache
   where
     L: Lexer<'inp>,
@@ -544,9 +643,13 @@ impl<'inp, L, C> CacheProvider<'inp, L> for WithCache<'inp, L, C> {
   }
 }
 
-trait EmitterProvider<'inp, L, Error> {
+/// A provider for emitter instances.
+#[doc(hidden)]
+pub trait EmitterProvider<'inp, L, Error>: sealed_provider::Sealed {
+  /// The emitter type provided.
   type Emitter;
 
+  /// Provide an emitter instance.
   fn provide(self) -> Self::Emitter
   where
     L: Lexer<'inp>,
@@ -691,9 +794,7 @@ mod tests {
   #![allow(warnings)]
 
   use super::{Token as TokenT, *};
-  use crate::{
-    BlackHole, emitter::Fatal, parser::sep::comma_seq, punct::Comma, utils::marker::Ignored,
-  };
+  use crate::{BlackHole, emitter::Fatal, punct::Comma, utils::marker::Ignored};
   use derive_more::Display;
 
   // fn assert_any_parse_impl<'inp>() -> impl Parse<'inp, JsonLexer<'inp>, Result<Token, ()>, ()> {

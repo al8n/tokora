@@ -1,6 +1,6 @@
 use derive_more::Display;
 use logos::*;
-use logosky::{Token as TokenT, Any, Parse};
+use logosky::{Any, Parse, Token as TokenT};
 
 #[derive(Debug, Logos, Clone)]
 #[logos(skip r"[ \t\r\n\f]+")]
@@ -118,11 +118,10 @@ fn main() {
   // Example 2: Using map_ok() to transform only successful results
   // Parse a number token and extract its value
   println!("Example 2: Using map_ok() to extract number value");
-  let number_parser = Any::parser::<'_, JsonLexer<'_>, ()>()
-    .map_ok(|tok: Token| match tok {
-      Token::Number(n) => Some(n),
-      _ => None,
-    });
+  let number_parser = Any::parser::<'_, JsonLexer<'_>, ()>().map_ok(|tok: Token| match tok {
+    Token::Number(n) => Some(n),
+    _ => None,
+  });
 
   let src = "42.5";
   let result = number_parser.parse(src);
@@ -132,14 +131,13 @@ fn main() {
   // Example 3: Chaining map operations
   // Parse any token and convert it to a JsonValue
   println!("Example 3: Using map_ok() to convert tokens to JsonValue");
-  let value_parser = Any::parser::<'_, JsonLexer<'_>, ()>()
-    .map_ok(|tok: Token| match tok {
-      Token::Null => JsonValue::Null,
-      Token::Bool(b) => JsonValue::Bool(b),
-      Token::Number(n) => JsonValue::Number(n),
-      Token::String(s) => JsonValue::String(s),
-      _ => JsonValue::Null,
-    });
+  let value_parser = Any::parser::<'_, JsonLexer<'_>, ()>().map_ok(|tok: Token| match tok {
+    Token::Null => JsonValue::Null,
+    Token::Bool(b) => JsonValue::Bool(b),
+    Token::Number(n) => JsonValue::Number(n),
+    Token::String(s) => JsonValue::String(s),
+    _ => JsonValue::Null,
+  });
 
   let src = r#""hello""#;
   let result = value_parser.parse(src);
@@ -150,9 +148,7 @@ fn main() {
   println!("Example 4: Chaining multiple transformations");
   let chained_parser = Any::parser::<'_, JsonLexer<'_>, ()>()
     .map_ok(|tok: Token| tok.kind())
-    .map(|result: Result<TokenKind, ()>| {
-      result.map(|kind| format!("Parsed: {}", kind))
-    });
+    .map(|result: Result<TokenKind, ()>| result.map(|kind| format!("Parsed: {}", kind)));
 
   let src = "null";
   let result = chained_parser.parse(src);

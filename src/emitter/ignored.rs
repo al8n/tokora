@@ -193,16 +193,9 @@ where
 
 #[cfg(test)]
 const _: () = {
-  use crate::{Check, DummyLexer, DummyToken, SeqSepAction};
+  use crate::DummyLexer;
 
   struct DummySep;
-
-  impl<'inp> Check<DummyToken, SeqSepAction<'inp, DummyToken>> for DummySep {
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn check(&self, _: &DummyToken) -> SeqSepAction<'inp, DummyToken> {
-      unimplemented!()
-    }
-  }
 
   const fn assert_noop_batch_emitter<'a, L, Any, Error, E>()
   where

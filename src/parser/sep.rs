@@ -2,13 +2,10 @@ use core::marker::PhantomData;
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
-use crate::utils::Expected;
+use crate::{Check, Token, punct::*, utils::Expected};
 
 use super::*;
 
-pub use comma::*;
-
-mod comma;
 mod parser_input;
 
 /// A marker type representing the maximum number of elements allowed.
@@ -73,7 +70,7 @@ pub type SeqSepOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
 
 /// A hint used during parsing sequences with separators.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
-pub enum SeqSepAction<'a, Kind> {
+enum SeqSepAction<'a, Kind> {
   /// Indicates the start of the sequence, hint to stop.
   End,
   /// Indicates a separator was found, hint to parse another element.
@@ -98,41 +95,96 @@ impl<'a, Kind> From<Action<'a, Kind>> for SeqSepAction<'a, Kind> {
   }
 }
 
-/// A parser that parses a sequence of elements separated by a specific separator.
-pub struct SeqSep<F, Classifier, O, Container, Config = SeqSepOptions> {
-  f: F,
-  classifier: Classifier,
-  config: Config,
-  _m: PhantomData<(O, Config, Container)>,
+struct SeqSepClassifier<Sep, Element> {
+  sep: Sep,
+  element: Element,
 }
 
-impl<F, Classifier, O, Container> SeqSep<F, Classifier, O, Container> {
+impl<Sep, Element> SeqSepClassifier<Sep, Element> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(sep: Sep, element: Element) -> Self {
+    Self { sep, element }
+  }
+}
+
+impl<'a, Sep, Element, T> Check<T, SeqSepAction<'a, T::Kind>> for SeqSepClassifier<Sep, Element>
+where
+  T: Token<'a>,
+  Sep: Check<T>,
+  Element: Check<T, Action<'a, T::Kind>>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn check(&self, target: &T) -> SeqSepAction<'a, T::Kind> {
+    if self.sep.check(target) {
+      return SeqSepAction::Separator;
+    }
+
+    SeqSepAction::from(self.element.check(target))
+  }
+}
+
+/// A parser that parses a sequence of elements separated by a specific separator.
+pub struct SeqSep<F, SepClassifier, ElementClassifier, O, Config = SeqSepOptions> {
+  f: F,
+  classifier: SeqSepClassifier<SepClassifier, ElementClassifier>,
+  config: Config,
+  _m: PhantomData<(O, Config)>,
+}
+
+impl<F, SepClassifier, ElementClassifier, O> SeqSep<F, SepClassifier, ElementClassifier, O> {
   /// Creates a new `SeqSep` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(f: F, classifier: Classifier) -> Self {
-    Self::with_container(f, classifier)
+  pub const fn new(
+    f: F,
+    sep_classifier: SepClassifier,
+    element_classifier: ElementClassifier,
+  ) -> Self {
+    Self::with_container(f, sep_classifier, element_classifier)
   }
 
   /// Creates a new `SeqSep` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  const fn with_container(f: F, classifier: Classifier) -> Self {
+  const fn with_container(
+    f: F,
+    sep_classifier: SepClassifier,
+    element_classifier: ElementClassifier,
+  ) -> Self {
     Self {
       f,
-      classifier,
+      classifier: SeqSepClassifier::new(sep_classifier, element_classifier),
       config: SeqSepOptions::new(With::new((), ()), With::new((), ())),
       _m: PhantomData,
     }
   }
 }
 
-impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
-  SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Leading, Max, Min>>
+impl<F, SepClassifier, ElementClassifier, O, Options>
+  SeqSep<F, SepClassifier, ElementClassifier, O, Options>
+{
+  /// Collects the parsed elements into the specified container.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn collect<Container>(self) -> Collect<Self, Container>
+  where
+    Container: Default,
+  {
+    Collect::new(self, Container::default())
+  }
+
+  /// Collects the parsed elements with the given container.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container> {
+    Collect::new(self, container)
+  }
+}
+
+impl<F, SepClassifier, ElementClassifier, O, Trailing, Leading, Max, Min>
+  SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Leading, Max, Min>>
 {
   /// Allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_trailing(
     self,
-  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Allow, Leading, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Allow, Leading, Max, Min>>
   where
     Trailing: Apply<Allow>,
   {
@@ -151,7 +203,7 @@ impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_trailing(
     self,
-  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Require, Leading, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Require, Leading, Max, Min>>
   where
     Trailing: Apply<Require>,
   {
@@ -170,7 +222,7 @@ impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_leading(
     self,
-  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Allow, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Allow, Max, Min>>
   where
     Leading: Apply<Allow>,
   {
@@ -189,7 +241,7 @@ impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_leading(
     self,
-  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Require, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Require, Max, Min>>
   where
     Leading: Apply<Require>,
   {
@@ -209,7 +261,7 @@ impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
   pub fn at_least(
     self,
     n: Min::Options,
-  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Leading, Max, Minimum>>
+  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Leading, Max, Minimum>>
   where
     Min: Apply<Minimum>,
   {
@@ -232,7 +284,7 @@ impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
   pub fn at_most(
     self,
     n: Max::Options,
-  ) -> SeqSep<F, Classifier, O, Container, SeqSepOptions<Trailing, Leading, Maximum, Min>>
+  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Leading, Maximum, Min>>
   where
     Max: Apply<Maximum>,
   {
@@ -291,16 +343,64 @@ impl<F, Classifier, O, Container, Trailing, Leading, Max, Min>
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
-enum State<T, S> {
-  Start,
-  Element,
-  Leading(Spanned<T, S>),
-  /// the span is the start of the
-  Leadings(S),
-  Separator(Spanned<T, S>),
-  RepeatedSeparator(S),
+macro_rules! sep_by {
+  ($(
+    $(#[$meta:meta])*
+    $sep:ident
+  ),+$(,)?) => {
+    paste::paste! {
+      $(
+        impl<F, ElementClassifier, O> SeqSep<F, $sep, ElementClassifier, O> {
+          #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser."]
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          pub const fn [< $sep:snake >]<'inp, L>(f: F, element_classifier: ElementClassifier) -> Self
+          where
+            L: Lexer<'inp>,
+            $sep: Check<L::Token>,
+            ElementClassifier: Check<L::Token, Action<'inp, <L::Token as Token<'inp>>::Kind>>,
+          {
+            Self::with_container(f, <$sep>::PHANTOM, element_classifier)
+          }
+        }
+
+        impl<F, ElementClassifier, O, Lang> SeqSep<F, $sep<(), (), Lang>, ElementClassifier, O> {
+          #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser of a specific language."]
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          pub const fn [< $sep:snake _of >]<'inp, L>(f: F, element_classifier: ElementClassifier) -> Self
+          where
+            L: Lexer<'inp>,
+            $sep<(), (), Lang>: Check<L::Token>,
+            ElementClassifier: Check<L::Token, Action<'inp, <L::Token as Token<'inp>>::Kind>>,
+          {
+            Self::with_container(f, <$sep>::PHANTOM.change_language_const(), element_classifier)
+          }
+        }
+      )*
+    }
+  };
 }
+
+sep_by!(
+  Comma,
+  Semicolon,
+  Dot,
+  Colon,
+  Pipe,
+  Ampersand,
+  Hyphen,
+  Underscore,
+  DoubleColon,
+  Arrow,
+  FatArrow,
+  Tilde,
+  Trivia,
+  Slash,
+  BackSlash,
+  Percent,
+  Dollar,
+  Hash,
+  At,
+);
 
 impl Apply<Allow> for () {
   type Options = ();
@@ -504,5 +604,42 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn leading(&self) -> SepFixSpec {
     L::leading(&self.primary.secondary)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use crate::{DummyLexer, DummyToken};
+
+  use super::*;
+
+  fn assert_comma_parse_impl_with_all<'inp>() -> impl Parse<'inp, DummyLexer, Result<(), ()>, ()> {
+    SeqSep::comma::<DummyLexer>(Any::new(), |_tok: &DummyToken| Action::Continue)
+      .collect::<()>()
+      .into_parser()
+      .with_cache::<()>(())
+      .with_emitter(Fatal::new())
+  }
+
+  // fn assert_expect_parse_impl_with_emitter<'inp>()
+  // -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
+  //   Expect::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(())).with_emitter(Fatal::new())
+  // }
+
+  // fn assert_expect_parse_impl_with_cache<'inp>()
+  // -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
+  //   Expect::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(())).with_cache::<()>(())
+  // }
+
+  // fn assert_expect_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
+  //   Expect::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(()))
+  // }
+
+  #[test]
+  fn assert_parse_impl() {
+    let _ = assert_comma_parse_impl_with_all();
+    // let _ = assert_expect_parse_impl_with_all();
+    // let _ = assert_expect_parse_impl_with_emitter();
+    // let _ = assert_expect_parse_impl_with_cache();
   }
 }
