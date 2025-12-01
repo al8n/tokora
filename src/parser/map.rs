@@ -20,28 +20,28 @@ use super::*;
 /// let parser = Any::parser()
 ///     .map(|tok| tok.kind());
 /// ```
-pub struct Map<F, MapFn, O> {
-  parser: F,
-  map_fn: MapFn,
-  _marker: PhantomData<O>,
+pub struct Map<A, U, F> {
+  parser: A,
+  map_fn: F,
+  _m: PhantomData<U>,
 }
 
-impl<F, MapFn, O> Map<F, MapFn, O> {
+impl<A, F, U> Map<A, U, F> {
   /// Creates a new `Map` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(parser: F, map_fn: MapFn) -> Self {
+  pub const fn new(parser: A, map_fn: F) -> Self {
     Self {
       parser,
       map_fn,
-      _marker: PhantomData,
+      _m: PhantomData,
     }
   }
 }
 
-impl<'inp, F, MapFn, L, O, U, E, C> ParseInput<'inp, L, U, E, C> for Map<F, MapFn, O>
+impl<'inp, A, F, L, O, U, E, C> ParseInput<'inp, L, U, E, C> for Map<A, O, F>
 where
-  F: ParseInput<'inp, L, O, E, C>,
-  MapFn: FnMut(O) -> U,
+  A: ParseInput<'inp, L, O, E, C>,
+  F: FnMut(O) -> U,
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,
   C: Cache<'inp, L>,

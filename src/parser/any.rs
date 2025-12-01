@@ -4,9 +4,14 @@ use super::*;
 
 /// A parser that accepts any token.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
-pub struct Any<Lang: ?Sized = ()>(PhantomData<Lang>);
+pub struct Any<L, E, C, Lang: ?Sized = ()> {
+  _lxr: PhantomData<L>,
+  _emitter: PhantomData<E>,
+  _cache: PhantomData<C>,
+  _lang: PhantomData<Lang>,
+}
 
-impl Any {
+impl<L, E, C> Any<L, E, C> {
   /// Creates a parser that accepts any token.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new() -> Self {
@@ -14,15 +19,20 @@ impl Any {
   }
 }
 
-impl<Lang> Any<Lang> {
+impl<L, E, C, Lang> Any<L, E, C, Lang> {
   /// Creates a parser that accepts any token.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn of() -> Self {
-    Any(PhantomData)
+    Any {
+      _lxr: PhantomData,
+      _emitter: PhantomData,
+      _cache: PhantomData,
+      _lang: PhantomData,
+    }
   }
 }
 
-impl<'inp, L, E, C, Lang> ParseInput<'inp, L, L::Token, E, C> for Any<Lang>
+impl<'inp, L, E, C, Lang> ParseInput<'inp, L, L::Token, E, C> for Any<L, E, C, Lang>
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L>,

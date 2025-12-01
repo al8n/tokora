@@ -144,7 +144,7 @@ pub trait ParseInput<'inp, L, O, E, C> {
 
   /// Map the output of this parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn map<U, F>(self, f: F) -> Map<Self, F, U>
+  fn map<U, F>(self, f: F) -> Map<Self, O, F>
   where
     Self: Sized,
     F: FnMut(O) -> U,
