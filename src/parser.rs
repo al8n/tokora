@@ -31,7 +31,7 @@
 use core::{hash, marker::PhantomData};
 
 use crate::{
-  Emitter, Lexed, Lexer, Source, Token,
+  CachedToken, Emitter, Lexed, Lexer, Source, Token,
   emitter::Fatal,
   error::{UnexpectedEot, token::UnexpectedToken},
   lexer::{Input, InputRef},
@@ -49,6 +49,8 @@ pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
 pub use expect::*;
 pub use map::*;
+use mayber::MaybeRef;
+pub use or_not::*;
 pub use peek_then::*;
 pub use peek_then_choice::*;
 pub use sep::{SepFixSpec, SeqSep, SeqSepOptions};
@@ -60,6 +62,7 @@ mod collect;
 mod ctx;
 mod expect;
 mod map;
+mod or_not;
 mod peek_then;
 mod peek_then_choice;
 mod sep;
@@ -180,6 +183,80 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Self: Sized,
   {
     With::new(PhantomLocated::PHANTOM, self)
+  }
+
+  /// Creates a `PeekThen` combinator that peeks at most `N` tokens first from the input before parsing.
+  ///
+  /// If the condition handler `C` returns `Ok(())`, the inner parser is applied, otherwise,
+  /// parsing is stopped and return the error from the handler.
+  fn peek_then<C, const N: usize>(self, condition: C) -> PeekThen<Self, C, L::Token, N>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    C: FnMut(
+      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &mut Ctx::Emitter,
+    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    PeekThen::of(self, condition)
+  }
+
+  /// Creates a `PeekThen` combinator that peeks at most `N` tokens first from the input before parsing.
+  ///
+  /// If the condition handler `C` returns `Ok(())`, the inner parser is applied, otherwise,
+  /// parsing is stopped and return the error from the handler.
+  fn peek_then_or_not<C, const N: usize>(
+    self,
+    condition: C,
+  ) -> OrNot<PeekThen<Self, C, L::Token, N>>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    C: FnMut(
+      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &mut Ctx::Emitter,
+    ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    PeekThen::or_not_of(self, condition)
+  }
+
+  /// Creates a `PeekThenChoice` combinator that peeks at most `N` tokens first from the input before parsing.
+  ///
+  /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
+  /// parsing is stopped and return the error from the handler.
+  fn peek_then_choice<H, const N: usize>(self, condition: H) -> PeekThenChoice<Self, H, L::Token, N>
+  where
+    Self: Sized + ParseChoice<'inp, L, O, Ctx, Lang>,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    H: FnMut(
+      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &mut Ctx::Emitter,
+    ) -> Result<Self::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    PeekThenChoice::of(self, condition)
+  }
+
+  /// Creates a `PeekThenChoice` combinator that peeks at most `N` tokens first from the input before parsing.
+  ///
+  /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
+  /// parsing is stopped and return the error from the handler.
+  fn peek_then_choice_or_not<H, const N: usize>(
+    self,
+    condition: H,
+  ) -> OrNot<PeekThenChoice<Self, H, L::Token, N>>
+  where
+    Self: Sized + ParseChoice<'inp, L, O, Ctx, Lang>,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    H: FnMut(
+      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &mut Ctx::Emitter,
+    ) -> Result<Option<Self::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    PeekThenChoice::or_not_of(self, condition)
   }
 
   /// Map the output of this parser using the given function.

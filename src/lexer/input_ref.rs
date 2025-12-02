@@ -663,6 +663,58 @@ where
     output
   }
 
+  /// Try to peeks tokens to fill the provided buffer, if not enough tokens are cached, lex more tokens to fill the buffer.
+  ///
+  /// The returned slice will contain only the initialized tokens.
+  #[inline]
+  pub fn peek_with_emitter<'p, 'b>(
+    &'p mut self,
+    buf: &'b mut [MaybeUninit<MaybeRef<'p, CachedToken<'inp, L>>>],
+  ) -> (&'b mut [MaybeRef<'p, CachedToken<'inp, L>>], &'p mut E) {
+    let buf_len = buf.len();
+    let mut in_cache = self.cache().len();
+    let mut want = buf_len.saturating_sub(in_cache);
+
+    // If we already have enough tokens cached, just peek from cache
+    if want == 0 {
+      // SAFETY: Cache guarantees peek() returns only initialized tokens up to cache.len()
+      return (unsafe { self.cache.peek(buf) }, self.emitter);
+    }
+
+    // Otherwise, lex additional tokens to fill the request
+    let mut lexer = self.lexer();
+    while want > 0 {
+      if let Some(lexed) = Lexed::lex_spanned(&mut lexer) {
+        let (span, lexed) = lexed.into_components();
+        let cached = CachedToken::new(Spanned::new(span, lexed), lexer.state().clone());
+
+        // Try to cache the token; if cache is full, write directly to output buffer
+        match self.cache_mut().push_back(cached) {
+          Ok(_) => {
+            in_cache += 1;
+          }
+          Err(ct) => {
+            // Cache full: write overflow tokens directly to buffer
+            // Position: buf[buf_len - want] is the next unfilled slot
+            buf[buf_len - want].write(MaybeRef::Owned(ct));
+          }
+        }
+        want -= 1;
+      } else {
+        break;
+      }
+    }
+
+    // Fill buffer from cache (this covers both cached tokens and any we just added)
+    // SAFETY: Cache.peek() returns slice of initialized tokens, guaranteed by trait contract
+    let output = unsafe { self.cache.peek(&mut buf[..in_cache]) };
+    debug_assert!(
+      output.len() == in_cache,
+      "Cache peek returned unexpected number of tokens"
+    );
+    (output, self.emitter)
+  }
+
   /// Saves the current state of the tokenizer as a checkpoint.
   ///
   /// This creates a snapshot of the current position and lexer state, which can
