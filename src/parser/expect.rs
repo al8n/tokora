@@ -33,7 +33,7 @@ impl<Classifier, Ctx, Lang> Expect<Classifier, Ctx, Lang> {
   }
 }
 
-impl<'inp, L, Ctx, Lang, Classifier> ParseInput<'inp, L, L::Token, Ctx, Lang>
+impl<'inp, L, Ctx, Lang, Classifier> ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang>
   for Expect<Classifier, Ctx, Lang>
 where
   L: Lexer<'inp>,
@@ -47,11 +47,11 @@ where
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
-  ) -> Result<L::Token, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+  ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     match inp.next() {
       Some(Spanned { span, data: tok }) => match tok {
         Lexed::Token(tok) => match self.is.check(&tok) {
-          Ok(()) => Ok(tok),
+          Ok(()) => Ok(Spanned::new(span, tok)),
           Err(expected) => Err(
             UnexpectedToken::with_expected(span, expected)
               .with_found(tok)
@@ -71,11 +71,11 @@ mod tests {
 
   use super::*;
 
-  fn assert_expect_parse_impl_with_ctx<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
+  fn assert_expect_parse_impl_with_ctx<'inp>() -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
     Parser::with_context(()).apply(Expect::new(|_tok: &DummyToken| Ok(())))
   }
 
-  fn assert_expect_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
+  fn assert_expect_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
     Parser::new().apply(Expect::new(|_tok: &DummyToken| Ok(())))
   }
 

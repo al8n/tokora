@@ -31,11 +31,7 @@
 use core::{hash, marker::PhantomData};
 
 use crate::{
-  Emitter, Lexed, Lexer, Token,
-  emitter::Fatal,
-  error::{UnexpectedEot, token::UnexpectedToken},
-  lexer::{Input, InputRef},
-  utils::{Expected, Spanned},
+  Emitter, Lexed, Lexer, Source, Token, emitter::Fatal, error::{UnexpectedEot, token::UnexpectedToken}, lexer::{Input, InputRef}, utils::{Expected, Sliced, Spanned, marker::{PhantomSliced, PhantomSpan}}
 };
 
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
@@ -146,6 +142,24 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>;
 
+  /// Wraps the output of this parser in a `Spanned` with the span of the parsed input.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn spanned(self) -> With<PhantomSpan, Self>
+  where
+    Self: Sized,
+  {
+    With::new(PhantomSpan::PHANTOM, self)
+  }
+
+  /// Wraps the output of this parser in a `Sliced` with the given source.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn sourced(self) -> With<PhantomSliced, Self>
+  where
+    Self: Sized,
+  {
+    With::new(PhantomSliced::PHANTOM, self)
+  }
+
   /// Map the output of this parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn map<U, F>(self, f: F) -> Map<Self, O, F>
@@ -203,6 +217,40 @@ where
     input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (self)(input)
+  }
+}
+
+impl<'inp, L, O, Ctx, P, Lang: ?Sized> ParseInput<'inp, L, Spanned<O, L::Span>, Ctx, Lang> for With<PhantomSpan, P>
+where
+  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<Spanned<O, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    let cursor = inp.cursor().clone();
+    self.secondary.parse_input(inp)
+      .map(|output| Spanned::new(inp.span_since(&cursor), output))
+  }
+}
+
+impl<'inp, L, O, Ctx, P, Lang: ?Sized> ParseInput<'inp, L, Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang> for With<PhantomSliced, P>
+where
+  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    let cursor = inp.cursor().clone();
+    self.secondary.parse_input(inp)
+      .map(|output| Sliced::new(inp.slice_since(&cursor).expect("parser should guarantee slice"), output))
   }
 }
 
