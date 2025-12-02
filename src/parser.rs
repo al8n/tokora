@@ -44,18 +44,24 @@ use crate::{
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
 pub use any::*;
+pub use choice::*;
 pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
 pub use expect::*;
 pub use map::*;
+pub use peek_then::*;
+pub use peek_then_choice::*;
 pub use sep::{SepFixSpec, SeqSep, SeqSepOptions};
 pub use then::*;
 
 mod any;
+mod choice;
 mod collect;
 mod ctx;
 mod expect;
 mod map;
+mod peek_then;
+mod peek_then_choice;
 mod sep;
 mod then;
 

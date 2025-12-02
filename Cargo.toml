@@ -34,6 +34,7 @@ smallvec = ["dep:smallvec", "alloc"]
 
 [dependencies]
 ascii = { version = "1", default-features = false }
+deranged = { version = "0.5", default-features = false }
 either = { version = "1", default-features = false }
 mayber = { version = "0.1", path = "../mayber", default-features = false }
 derive_more = { version = "2", default-features = false, features = [
@@ -52,6 +53,7 @@ logos = { version = "0.15", default-features = false, features = [
   "export_derive",
 ] }
 paste = "1"
+seq-macro = { version = "0.3", default-features = false }
 thiserror = { version = "2", default-features = false }
 
 rowan = { version = "0.16", optional = true }
