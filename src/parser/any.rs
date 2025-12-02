@@ -1,4 +1,8 @@
-use crate::{Span, error::UnexpectedEot};
+use crate::{
+  Span,
+  error::UnexpectedEot,
+  utils::{Located, marker::PhantomLocated},
+};
 
 use super::*;
 
@@ -22,6 +26,12 @@ impl<L, Ctx> Any<L, Ctx> {
   pub const fn sliced() -> With<Self, PhantomSliced> {
     Self::sliced_of()
   }
+
+  /// Creates a parser that yields any token without its source and span.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn located() -> With<Self, PhantomLocated> {
+    Self::located_of()
+  }
 }
 
 impl<L, Ctx, Lang> Any<L, Ctx, Lang> {
@@ -40,9 +50,16 @@ impl<L, Ctx, Lang> Any<L, Ctx, Lang> {
   pub const fn sliced_of() -> With<Self, PhantomSliced> {
     With::new(Self::of(), PhantomSliced::PHANTOM)
   }
+
+  /// Creates a parser that yields any token without its source and span.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn located_of() -> With<Self, PhantomLocated> {
+    With::new(Self::of(), PhantomLocated::PHANTOM)
+  }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang> for Any<L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized> ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang>
+  for Any<L, Ctx, Lang>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -67,7 +84,9 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> ParseInput<'inp, L, Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang> for With<Any<L, Ctx, Lang>, PhantomSliced>
+impl<'inp, L, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang>
+  for With<Any<L, Ctx, Lang>, PhantomSliced>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -78,13 +97,62 @@ where
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
-  ) -> Result<Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  ) -> Result<
+    Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  >
   where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     match inp.next() {
       Some(Spanned { data: tok, .. }) => match tok {
-        Lexed::Token(tok) => Ok(Sliced::new(inp.slice().expect("lexer gurantees there must be a valid slice to yield a token"), tok)),
+        Lexed::Token(tok) => Ok(Sliced::new(
+          inp
+            .slice()
+            .expect("lexer gurantees there must be a valid slice to yield a token"),
+          tok,
+        )),
+        Lexed::Error(err) => Err(err.into()),
+      },
+      None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
+    }
+  }
+}
+
+impl<'inp, L, Ctx, Lang: ?Sized>
+  ParseInput<
+    'inp,
+    L,
+    Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    Ctx,
+    Lang,
+  > for With<Any<L, Ctx, Lang>, PhantomLocated>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+    From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<
+    Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  >
+  where
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    match inp.next() {
+      Some(Spanned { data: tok, span }) => match tok {
+        Lexed::Token(tok) => Ok(Located::new(
+          inp
+            .slice()
+            .expect("lexer gurantees there must be a valid slice to yield a token"),
+          span,
+          tok,
+        )),
         Lexed::Error(err) => Err(err.into()),
       },
       None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),

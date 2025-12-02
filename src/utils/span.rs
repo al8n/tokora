@@ -1,6 +1,5 @@
 use core::ops::{AddAssign, Range};
 
-
 /// A lightweight span representing a range of positions in source input.
 ///
 /// `Span` is a simple but powerful type that tracks where in the source code a particular

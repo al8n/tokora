@@ -49,3 +49,15 @@ impl PhantomSliced {
     data: (),
   };
 }
+
+/// A located value with no meaningful source or span, used as a type marker.
+pub type PhantomLocated = super::Located<(), (), ()>;
+
+impl PhantomLocated {
+  /// A zero-sized located value for phantom usage.
+  pub const PHANTOM: Self = Self {
+    slice: (),
+    span: (),
+    data: (),
+  };
+}

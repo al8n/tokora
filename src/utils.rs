@@ -5,10 +5,10 @@ pub use lexeme::*;
 pub use located::*;
 pub use message::Message;
 pub use positioned_char::*;
-pub use to_equivalent::*;
+pub use sourced::*;
 pub use span::*;
 pub use spanned::*;
-pub use sourced::*;
+pub use to_equivalent::*;
 
 /// Re-export of generic-arraydeque for direct access.
 pub use generic_arraydeque::{self, typenum};
@@ -49,10 +49,10 @@ mod lexeme;
 mod located;
 mod message;
 mod positioned_char;
-mod to_equivalent;
+mod sourced;
 mod span;
 mod spanned;
-mod sourced;
+mod to_equivalent;
 
 /// Enables accessing the source span of a parsed element.
 ///

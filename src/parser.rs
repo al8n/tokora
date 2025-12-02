@@ -31,7 +31,14 @@
 use core::{hash, marker::PhantomData};
 
 use crate::{
-  Emitter, Lexed, Lexer, Source, Token, emitter::Fatal, error::{UnexpectedEot, token::UnexpectedToken}, lexer::{Input, InputRef}, utils::{Expected, Sliced, Spanned, marker::{PhantomSliced, PhantomSpan}}
+  Emitter, Lexed, Lexer, Source, Token,
+  emitter::Fatal,
+  error::{UnexpectedEot, token::UnexpectedToken},
+  lexer::{Input, InputRef},
+  utils::{
+    Expected, Located, Sliced, Spanned,
+    marker::{PhantomLocated, PhantomSliced, PhantomSpan},
+  },
 };
 
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
@@ -151,13 +158,22 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     With::new(PhantomSpan::PHANTOM, self)
   }
 
-  /// Wraps the output of this parser in a `Sliced` with the given source.
+  /// Wraps the output of this parser in a `Sliced` with the source slice of the parsed input.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn sourced(self) -> With<PhantomSliced, Self>
   where
     Self: Sized,
   {
     With::new(PhantomSliced::PHANTOM, self)
+  }
+
+  /// Wraps the output of this parser in a `Located` with the span and source slice of the parsed input.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn located(self) -> With<PhantomLocated, Self>
+  where
+    Self: Sized,
+  {
+    With::new(PhantomLocated::PHANTOM, self)
   }
 
   /// Map the output of this parser using the given function.
@@ -220,7 +236,8 @@ where
   }
 }
 
-impl<'inp, L, O, Ctx, P, Lang: ?Sized> ParseInput<'inp, L, Spanned<O, L::Span>, Ctx, Lang> for With<PhantomSpan, P>
+impl<'inp, L, O, Ctx, P, Lang: ?Sized> ParseInput<'inp, L, Spanned<O, L::Span>, Ctx, Lang>
+  for With<PhantomSpan, P>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   L: Lexer<'inp>,
@@ -232,12 +249,16 @@ where
     inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
   ) -> Result<Spanned<O, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let cursor = inp.cursor().clone();
-    self.secondary.parse_input(inp)
+    self
+      .secondary
+      .parse_input(inp)
       .map(|output| Spanned::new(inp.span_since(&cursor), output))
   }
 }
 
-impl<'inp, L, O, Ctx, P, Lang: ?Sized> ParseInput<'inp, L, Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang> for With<PhantomSliced, P>
+impl<'inp, L, O, Ctx, P, Lang: ?Sized>
+  ParseInput<'inp, L, Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang>
+  for With<PhantomSliced, P>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   L: Lexer<'inp>,
@@ -247,10 +268,48 @@ where
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
-  ) -> Result<Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+  ) -> Result<
+    Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  > {
     let cursor = inp.cursor().clone();
-    self.secondary.parse_input(inp)
-      .map(|output| Sliced::new(inp.slice_since(&cursor).expect("parser should guarantee slice"), output))
+    self.secondary.parse_input(inp).map(|output| {
+      Sliced::new(
+        inp
+          .slice_since(&cursor)
+          .expect("parser should guarantee slice"),
+        output,
+      )
+    })
+  }
+}
+
+impl<'inp, L, O, Ctx, P, Lang: ?Sized>
+  ParseInput<'inp, L, Located<O, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang>
+  for With<PhantomLocated, P>
+where
+  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<
+    Located<O, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  > {
+    let cursor = inp.cursor().clone();
+    self.secondary.parse_input(inp).map(|output| {
+      Located::new(
+        inp
+          .slice_since(&cursor)
+          .expect("parser should guarantee slice"),
+        inp.span_since(&cursor),
+        output,
+      )
+    })
   }
 }
 

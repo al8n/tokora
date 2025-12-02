@@ -1,4 +1,4 @@
-use super::{Span, AsSpan, IntoComponents, IntoSpan};
+use super::{AsSpan, IntoComponents, IntoSpan, Span};
 
 /// A value paired with its source location span.
 ///
