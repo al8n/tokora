@@ -4,21 +4,26 @@ use super::*;
 
 /// A fatal emitter that treats all errors as fatal.
 ///
-/// When an error is emitted, it immediately returns the error wrapped in a `Spanned` struct,
-pub struct Fatal<T: ?Sized>(core::marker::PhantomData<T>);
+/// This will make the parser stop at the first error encountered, so it is a fail-fast emitter,
+/// suitable for scenarios where error recovery is not desired.
+pub struct Fatal<T: ?Sized, Lang: ?Sized = ()> {
+  _e: core::marker::PhantomData<T>,
+  _lang: core::marker::PhantomData<Lang>,
+}
 
-impl<T: ?Sized> Fatal<T> {
-  /// Creates a new `Fatal`.
+impl<T: ?Sized, Lang: ?Sized> Clone for Fatal<T, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new() -> Self {
-    Self(core::marker::PhantomData)
+  fn clone(&self) -> Self {
+    *self
   }
 }
+
+impl<T: ?Sized, Lang: ?Sized> Copy for Fatal<T, Lang> {}
 
 impl<T: ?Sized> Default for Fatal<T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn default() -> Self {
-    Self(core::marker::PhantomData)
+    Self::new()
   }
 }
 
@@ -29,21 +34,31 @@ impl<T: ?Sized> core::fmt::Debug for Fatal<T> {
   }
 }
 
-impl<T: ?Sized> Clone for Fatal<T> {
+impl<T: ?Sized> Fatal<T> {
+  /// Creates a new `Fatal`.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn clone(&self) -> Self {
-    *self
+  pub const fn new() -> Self {
+    Self::of()
   }
 }
 
-impl<T: ?Sized> Copy for Fatal<T> {}
+impl<T: ?Sized, Lang: ?Sized> Fatal<T, Lang> {
+  /// Creates a new `Fatal` for the given language.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of() -> Self {
+    Self {
+      _e: core::marker::PhantomData,
+      _lang: core::marker::PhantomData,
+    }
+  }
+}
 
-impl<'a, L, E> Emitter<'a, L> for Fatal<E>
+impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Fatal<E, Lang>
 where
   L: Lexer<'a>,
   E: From<<L::Token as Token<'a>>::Error>
-    + From<UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>>
-    + From<UnexpectedEot<L::Span>>,
+    + From<UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>
+    + From<UnexpectedEot<L::Span, Lang>>,
 {
   type Error = E;
 
@@ -66,7 +81,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_token(
     &mut self,
-    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>,
+    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -75,15 +90,17 @@ where
   }
 }
 
-impl<'a, O, L, E> RepeatedEmitter<'a, O, L> for Fatal<E>
+impl<'a, O, L, E, Lang: ?Sized> RepeatedEmitter<'a, O, L, Lang> for Fatal<E, Lang>
 where
   O: ?Sized,
   L: Lexer<'a>,
-  E: From<TooFew<O, L::Span>> + From<TooMany<O, L::Span>> + From<FullContainer<O, L::Span>>,
-  Fatal<E>: Emitter<'a, L, Error = E>,
+  E: From<TooFew<O, L::Span, Lang>>
+    + From<TooMany<O, L::Span, Lang>>
+    + From<FullContainer<O, L::Span, Lang>>,
+  Fatal<E, Lang>: Emitter<'a, L, Lang, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_few(&mut self, err: TooFew<O, L::Span>) -> Result<(), Self::Error>
+  fn emit_too_few(&mut self, err: TooFew<O, <L>::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -91,7 +108,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(&mut self, err: TooMany<O, L::Span>) -> Result<(), Self::Error>
+  fn emit_too_many(&mut self, err: TooMany<O, L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -99,7 +116,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_full_container(&mut self, err: FullContainer<O, L::Span>) -> Result<(), Self::Error>
+  fn emit_full_container(&mut self, err: FullContainer<O, L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -107,14 +124,14 @@ where
   }
 }
 
-impl<'a, L, Any, E> BatchEmitter<'a, L, Any> for Fatal<E>
+impl<'a, L, Any, E, Lang: ?Sized> BatchEmitter<'a, L, Any, Lang> for Fatal<E, Lang>
 where
   L: Lexer<'a>,
   E: From<Any>,
-  Fatal<E>: Emitter<'a, L, Error = E>,
+  Fatal<E, Lang>: Emitter<'a, L, Lang, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn create_batch(&mut self, _: <L>::Span, _: Message)
+  fn create_batch(&mut self, _: L::Span, _: Message)
   where
     L: Lexer<'a>,
   {
@@ -133,7 +150,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_to_batch(&mut self, _: &<L>::Span, err: Spanned<Any, L::Span>) -> Result<(), Self::Error>
+  fn emit_to_batch(&mut self, _: &L::Span, err: Spanned<Any, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -141,7 +158,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_batch(&mut self, _: &<L>::Span) -> Result<(), Self::Error>
+  fn emit_batch(&mut self, _: &L::Span) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -156,29 +173,32 @@ where
   }
 }
 
-impl<'inp, L, O, Sep, E> SeparatedByEmitter<'inp, O, Sep, L> for Fatal<E>
+impl<'inp, L, O, Sep, E, Lang: ?Sized> SeparatedByEmitter<'inp, O, Sep, L, Lang> for Fatal<E, Lang>
 where
   L: Lexer<'inp>,
-  E: From<MissingTokenOf<'inp, Sep, L>>
-    + From<MissingSyntaxOf<'inp, O, L>>
-    + From<MissingLeadingOf<'inp, Sep, L>>
-    + From<MissingTrailingOf<'inp, Sep, L>>
-    + From<UnexpectedLeadingOf<'inp, Sep, L>>
-    + From<UnexpectedTrailingOf<'inp, Sep, L>>
-    + From<UnexpectedRepeatedOf<'inp, Sep, L>>
-    + From<TooFew<O, L::Span>>
-    + From<TooMany<O, L::Span>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
+  E: From<MissingSeparatorOf<'inp, Sep, L, Lang>>
+    + From<MissingSyntaxOf<'inp, O, L, Lang>>
+    + From<MissingLeadingOf<'inp, Sep, L, Lang>>
+    + From<MissingTrailingOf<'inp, Sep, L, Lang>>
+    + From<UnexpectedLeadingOf<'inp, Sep, L, Lang>>
+    + From<UnexpectedTrailingOf<'inp, Sep, L, Lang>>
+    + From<UnexpectedRepeatedOf<'inp, Sep, L, Lang>>
+    + From<TooFew<O, L::Span, Lang>>
+    + From<TooMany<O, L::Span, Lang>>
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
     + From<<L::Token as Token<'inp>>::Error>,
-  Fatal<E>: Emitter<'inp, L, Error = E>
-    + BatchEmitter<'inp, L, UnexpectedLeadingOf<'inp, Sep, L>>
-    + BatchEmitter<'inp, L, UnexpectedTrailingOf<'inp, Sep, L>>
-    + BatchEmitter<'inp, L, UnexpectedRepeatedOf<'inp, Sep, L>>
-    + BatchEmitter<'inp, L, <L::Token as Token<'inp>>::Error>
-    + RepeatedEmitter<'inp, O, L, Error = E>,
+  Fatal<E, Lang>: Emitter<'inp, L, Lang, Error = E>
+    + BatchEmitter<'inp, L, UnexpectedLeadingOf<'inp, Sep, L, Lang>>
+    + BatchEmitter<'inp, L, UnexpectedTrailingOf<'inp, Sep, L, Lang>>
+    + BatchEmitter<'inp, L, UnexpectedRepeatedOf<'inp, Sep, L, Lang>>
+    + BatchEmitter<'inp, L, <L::Token as Token<'inp>>::Error, Lang>
+    + RepeatedEmitter<'inp, O, L, Lang, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_separator(&mut self, err: MissingTokenOf<'inp, Sep, L>) -> Result<(), Self::Error>
+  fn emit_missing_separator(
+    &mut self,
+    err: MissingSeparatorOf<'inp, Sep, L, Lang>,
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -186,7 +206,10 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_element(&mut self, err: MissingSyntaxOf<'inp, O, L>) -> Result<(), Self::Error>
+  fn emit_missing_element(
+    &mut self,
+    err: MissingSyntaxOf<'inp, O, L, Lang>,
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -196,7 +219,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_leading_separator(
     &mut self,
-    err: MissingLeadingOf<'inp, Sep, L>,
+    err: MissingLeadingOf<'inp, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
@@ -207,7 +230,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_trailing_separator(
     &mut self,
-    err: MissingTrailingOf<'inp, Sep, L>,
+    err: MissingTrailingOf<'inp, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
@@ -218,7 +241,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_repeated_separator(
     &mut self,
-    err: UnexpectedRepeatedOf<'inp, Sep, L>,
+    err: UnexpectedRepeatedOf<'inp, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
@@ -229,7 +252,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_leading_separator(
     &mut self,
-    err: UnexpectedLeadingOf<'inp, Sep, L>,
+    err: UnexpectedLeadingOf<'inp, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
@@ -240,7 +263,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_trailing_separator(
     &mut self,
-    err: UnexpectedTrailingOf<'inp, Sep, L>,
+    err: UnexpectedTrailingOf<'inp, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,

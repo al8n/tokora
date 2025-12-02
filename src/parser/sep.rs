@@ -375,6 +375,21 @@ macro_rules! sep_by {
             Self::with_container(f, <$sep>::PHANTOM.change_language_const(), element_classifier)
           }
         }
+
+        #[cfg(test)]
+        const _: () = {
+          use crate::{DummyLexer, DummyToken};
+
+          fn __assert_parse_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
+            Parser::with_parser(SeqSep::comma::<DummyLexer>(Any::new(), |_tok: &DummyToken| Action::Continue)
+            .collect::<()>())
+          }
+
+          fn __assert_parse_with_ctx_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
+            Parser::with_parser_and_context(SeqSep::comma::<DummyLexer>(Any::new(), |_tok: &DummyToken| Action::Continue)
+            .collect::<()>(), ())
+          }
+        };
       )*
     }
   };
@@ -604,42 +619,5 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn leading(&self) -> SepFixSpec {
     L::leading(&self.primary.secondary)
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use crate::{DummyLexer, DummyToken};
-
-  use super::*;
-
-  fn assert_comma_parse_impl_with_all<'inp>() -> impl Parse<'inp, DummyLexer, Result<(), ()>, ()> {
-    SeqSep::comma::<DummyLexer>(Any::new(), |_tok: &DummyToken| Action::Continue)
-      .collect::<()>()
-      .into_parser()
-      .with_cache::<()>(())
-      .with_emitter(Fatal::new())
-  }
-
-  // fn assert_expect_parse_impl_with_emitter<'inp>()
-  // -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-  //   Expect::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(())).with_emitter(Fatal::new())
-  // }
-
-  // fn assert_expect_parse_impl_with_cache<'inp>()
-  // -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-  //   Expect::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(())).with_cache::<()>(())
-  // }
-
-  // fn assert_expect_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Result<DummyToken, ()>, ()> {
-  //   Expect::parser::<'inp, DummyLexer, ()>(|_tok: &DummyToken| Ok(()))
-  // }
-
-  #[test]
-  fn assert_parse_impl() {
-    let _ = assert_comma_parse_impl_with_all();
-    // let _ = assert_expect_parse_impl_with_all();
-    // let _ = assert_expect_parse_impl_with_emitter();
-    // let _ = assert_expect_parse_impl_with_cache();
   }
 }

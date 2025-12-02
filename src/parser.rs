@@ -31,9 +31,9 @@
 use core::{hash, marker::PhantomData};
 
 use crate::{
-  Cache, DefaultCache, Emitter, Lexed, Lexer, Token,
+  Emitter, Lexed, Lexer, Token,
   emitter::Fatal,
-  error::UnexpectedEot,
+  error::{UnexpectedEot, token::UnexpectedToken},
   lexer::{Input, InputRef},
   utils::{Expected, Spanned},
 };
@@ -42,6 +42,7 @@ use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
 pub use any::*;
 pub use collect::Collect;
+pub use ctx::{FatalContext, ParseContext, ParserContext};
 pub use expect::*;
 pub use map::*;
 pub use sep::{SepFixSpec, SeqSep, SeqSepOptions};
@@ -49,6 +50,7 @@ pub use then::*;
 
 mod any;
 mod collect;
+mod ctx;
 mod expect;
 mod map;
 mod sep;
@@ -134,13 +136,15 @@ where
 /// This mirrors the ergonomics of libraries like `winnow`: a parser is
 /// simply something that can mutate an [`InputRef`] and either produce
 /// a value or a spanned error using the configured `Emitter`.
-pub trait ParseInput<'inp, L, O, E, C> {
+pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Try to parse from the given input.
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<O, E::Error>
+  fn parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    E: Emitter<'inp, L>,
-    C: Cache<'inp, L>;
+    Ctx: ParseContext<'inp, L, Lang>;
 
   /// Map the output of this parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -157,7 +161,8 @@ pub trait ParseInput<'inp, L, O, E, C> {
   fn then_ignore<G, U>(self, second: G) -> ThenIgnore<Self, G, U>
   where
     Self: Sized,
-    G: ParseInput<'inp, L, U, E, C>,
+    G: ParseInput<'inp, L, U, Ctx, Lang>,
+    Ctx: ParseContext<'inp, L, Lang>,
   {
     ThenIgnore::new(self, second)
   }
@@ -167,7 +172,8 @@ pub trait ParseInput<'inp, L, O, E, C> {
   fn then<T, U>(self, then: T) -> Then<Self, T>
   where
     Self: Sized,
-    T: ParseInput<'inp, L, U, E, C>,
+    T: ParseInput<'inp, L, U, Ctx, Lang>,
+    Ctx: ParseContext<'inp, L, Lang>,
   {
     Then::new(self, then)
   }
@@ -177,61 +183,28 @@ pub trait ParseInput<'inp, L, O, E, C> {
   fn ignore_then<G, U>(self, second: G) -> IgnoreThen<Self, G, O>
   where
     Self: Sized,
-    G: ParseInput<'inp, L, U, E, C>,
+    G: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     IgnoreThen::new(self, second)
   }
 }
 
-impl<'inp, F, L, O, E, C> ParseInput<'inp, L, O, E, C> for F
+impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInput<'inp, L, O, Ctx, Lang> for F
 where
-  F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> Result<O, E::Error>,
+  F: FnMut(
+    &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  C: Cache<'inp, L>,
+  Ctx: ParseContext<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<O, E::Error> {
+  fn parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (self)(input)
   }
 }
-
-// impl<'inp, F, L, O, Error, E, C, Em, Ca> ParseInput<'inp, L, O, Em, Ca>
-//   for With<F, Parser<(), L, O, Error, ParserOptions<L, E, C>>>
-// where
-//   F: ParseInput<'inp, L, O, Em, Ca>,
-//   L: Lexer<'inp>,
-//   Em: Emitter<'inp, L>,
-//   Ca: Cache<'inp, L>,
-// {
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, Em, Ca>) -> O {
-//     self.primary.parse_input(input)
-//   }
-// }
-
-// impl<'inp, F, L, O, Error, E, C, Em, Ca> ParseInput<'inp, L, O, Em, Ca>
-//   for Parser<F, L, O, Error, ParserOptions<L, E, C>>
-// where
-//   F: ParseInput<'inp, L, O, Em, Ca>,
-//   L: Lexer<'inp>,
-//   Em: Emitter<'inp, L>,
-//   Ca: Cache<'inp, L>,
-// {
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, Em, Ca>) -> O {
-//     self.f.parse_input(input)
-//   }
-// }
-
-/// Type alias for parser configuration.
-///
-/// Normalizes emitter and cache configuration into a canonical form:
-/// `With<PhantomData<L>, With<E, C>>` where:
-/// - `L` is the lexer type
-/// - `E` is the emitter (default `()` for [`Fatal`] emitter)
-/// - `C` is the cache (default `()` for [`DefaultCache`])
-pub type ParserOptions<L, E = (), C = ()> = With<PhantomData<L>, With<E, C>>;
 
 /// Wrapper for cache configuration in parsers.
 ///
@@ -270,13 +243,13 @@ pub struct WithEmitter<E: ?Sized>(E);
 /// let p = Parser::with(|inp| inp.next())
 ///     .with_emitter(MyEmitter::new());
 /// ```
-pub struct Parser<F, L, O, Error, Options = ParserOptions<L>> {
+pub struct Parser<F, L, O, Error, Context> {
   f: F,
-  opts: Options,
+  ctx: Context,
   _marker: PhantomData<(L, O, Error)>,
 }
 
-impl<F, L, O, Error> core::ops::Deref for Parser<F, L, O, Error> {
+impl<F, L, O, Error, Context> core::ops::Deref for Parser<F, L, O, Error, Context> {
   type Target = F;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -285,235 +258,183 @@ impl<F, L, O, Error> core::ops::Deref for Parser<F, L, O, Error> {
   }
 }
 
-impl<F, L, O, Error> core::ops::DerefMut for Parser<F, L, O, Error> {
+impl<F, L, O, Error, Context> core::ops::DerefMut for Parser<F, L, O, Error, Context> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.f
   }
 }
 
-impl<L> Default for Parser<(), L, (), ()> {
+impl<'inp, L, O, Error> Default for Parser<(), L, O, Error, FatalContext<'inp, L, Error>>
+where
+  L: Lexer<'inp>,
+  Error: From<<L::Token as Token<'inp>>::Error>
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
+    + From<UnexpectedEot<L::Span>>,
+{
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn default() -> Self {
-    Self::new()
+    Parser::new()
   }
 }
 
-impl<L, O, Error> Parser<(), L, O, Error> {
+impl Parser<(), (), (), (), ()> {
   /// A parser without any behavior.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new() -> Self {
-    Self {
-      f: (),
-      opts: With::new(PhantomData, With::new((), ())),
-      _marker: PhantomData,
-    }
-  }
-}
-
-impl<L, O, Error> Parser<(), L, O, Error> {
-  /// A parser with the given parser
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with<F>(f: F) -> With<F, Self> {
-    With::new(f, Self::new())
-  }
-}
-
-impl<L, O, Error, E, C> Parser<(), L, O, Error, ParserOptions<L, E, C>> {
-  // pub fn apply<F>(self, f: F) -> Parser<F, L, O, Error, ParserOptions<L, E, C>>
-  // where
-  //   F: ParseInput<'inp, L, O, E, C>,
-  // {
-  //   Parser {
-  //     f,
-  //     opts: self.opts,
-  //     _marker: PhantomData,
-  //   }
-  // }
-
-  /// Configure a custom error emitter for this parser.
-  ///
-  /// Replaces the current emitter configuration with a new one. The emitter
-  /// controls how parsing errors are collected and reported.
-  ///
-  /// # Examples
-  ///
-  /// ```ignore
-  /// let parser = Parser::with(|inp| inp.next())
-  ///     .with_emitter(MyEmitter::new());
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_emitter<'inp, NE>(
-    self,
-    emitter: NE,
-  ) -> Parser<(), L, O, Error, ParserOptions<L, WithEmitter<NE>, C>>
+  pub const fn new<'inp, L, O, Error>() -> Parser<(), L, O, Error, FatalContext<'inp, L, Error>>
   where
-    E: Apply<WithEmitter<NE>, Options = NE>,
     L: Lexer<'inp>,
-    NE: Emitter<'inp, L, Error = Error>,
+    Error: From<<L::Token as Token<'inp>>::Error>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
+      + From<UnexpectedEot<L::Span>>,
+  {
+    Self::of()
+  }
+
+  /// Creates a parser with the given context.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_context<'inp, L, O, Error, Ctx>(ctx: Ctx) -> Parser<(), L, O, Error, Ctx>
+  where
+    L: Lexer<'inp>,
+    Error: From<<L::Token as Token<'inp>>::Error>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
+      + From<UnexpectedEot<L::Span>>,
+    Ctx: ParseContext<'inp, L>,
+    Ctx::Emitter: Emitter<'inp, L, Error = Error>,
+  {
+    Self::with_context_of(ctx)
+  }
+
+  /// A parser without any behavior.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of<'inp, L, O, Error, Lang>()
+  -> Parser<(), L, O, Error, FatalContext<'inp, L, Error, Lang>>
+  where
+    L: Lexer<'inp>,
+    Error: From<<L::Token as Token<'inp>>::Error>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+      + From<UnexpectedEot<L::Span, Lang>>,
+    Lang: ?Sized,
+  {
+    Self::with_context_of(FatalContext::of(Fatal::of()))
+  }
+
+  /// Creates a parser with the given context for a specific language.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_context_of<'inp, L, O, Error, Ctx, Lang>(
+    ctx: Ctx,
+  ) -> Parser<(), L, O, Error, Ctx>
+  where
+    L: Lexer<'inp>,
+    Error: From<<L::Token as Token<'inp>>::Error>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+      + From<UnexpectedEot<L::Span, Lang>>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Ctx::Emitter: Emitter<'inp, L, Lang, Error = Error>,
+    Lang: ?Sized,
   {
     Parser {
       f: (),
-      opts: With::new(
-        PhantomData,
-        With::new(
-          self.opts.secondary.primary.apply(emitter),
-          self.opts.secondary.secondary,
-        ),
-      ),
+      ctx,
       _marker: PhantomData,
     }
   }
 
-  /// Configure a custom token cache for this parser.
-  ///
-  /// Replaces the current cache configuration with a new one. The cache
-  /// controls how parsed tokens are stored for backtracking and lookahead.
-  ///
-  /// # Examples
-  ///
-  /// ```ignore
-  /// let parser = Parser::with(|inp| inp.next())
-  ///     .with_cache::<MyCache>(cache_options);
-  /// ```
+  /// Creates a parser with a parser function and the fatal context.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_cache<'inp, NC>(
-    self,
-    options: NC::Options,
-  ) -> Parser<(), L, O, Error, ParserOptions<L, E, WithCache<'inp, L, NC>>>
+  pub const fn with_parser<'inp, L, O, Error, F>(
+    f: F,
+  ) -> Parser<F, L, O, Error, FatalContext<'inp, L, Error>>
   where
-    C: Apply<WithCache<'inp, L, NC>, Options = NC::Options>,
     L: Lexer<'inp>,
-    NC: Cache<'inp, L>,
+    F: ParseInput<'inp, L, O, FatalContext<'inp, L, Error>>,
+    Error: From<<L::Token as Token<'inp>>::Error>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
+      + From<UnexpectedEot<L::Span>>,
+  {
+    Self::with_parser_of(f)
+  }
+
+  /// Creates a parser with a parser function and the fatal context for a specific language.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_parser_of<'inp, L, O, Error, F, Lang>(
+    f: F,
+  ) -> Parser<F, L, O, Error, FatalContext<'inp, L, Error, Lang>>
+  where
+    L: Lexer<'inp>,
+    F: ParseInput<'inp, L, O, FatalContext<'inp, L, Error, Lang>>,
+    Error: From<<L::Token as Token<'inp>>::Error>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+      + From<UnexpectedEot<L::Span, Lang>>,
+    Lang: ?Sized,
+  {
+    Self::with_parser_and_context_of(f, FatalContext::of(Fatal::of()))
+  }
+
+  /// Creates a parser with a parser function and the fatal context.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_parser_and_context<'inp, L, O, Error, Ctx, F>(
+    f: F,
+    ctx: Ctx,
+  ) -> Parser<F, L, O, Error, Ctx>
+  where
+    L: Lexer<'inp>,
+    F: ParseInput<'inp, L, O, Ctx>,
+    Ctx: ParseContext<'inp, L>,
+    Error: From<<L::Token as Token<'inp>>::Error>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
+      + From<UnexpectedEot<L::Span>>,
+  {
+    Self::with_parser_and_context_of(f, ctx)
+  }
+
+  /// Creates a parser with a parser function and the fatal context for a specific language.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_parser_and_context_of<'inp, L, O, Error, Ctx, F, Lang>(
+    f: F,
+    ctx: Ctx,
+  ) -> Parser<F, L, O, Error, Ctx>
+  where
+    L: Lexer<'inp>,
+    F: ParseInput<'inp, L, O, Ctx>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Error: From<<L::Token as Token<'inp>>::Error>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+      + From<UnexpectedEot<L::Span, Lang>>,
+    Lang: ?Sized,
   {
     Parser {
-      f: (),
-      opts: With::new(
-        PhantomData,
-        With::new(
-          self.opts.secondary.primary,
-          self.opts.secondary.secondary.apply(options),
-        ),
-      ),
+      f,
+      ctx,
       _marker: PhantomData,
     }
   }
 }
 
-impl<F, L, O, Error, E, C> With<F, Parser<(), L, O, Error, ParserOptions<L, E, C>>> {
-  /// Convert a `With<F, Parser<()>>` back into a `Parser<F>`.
-  ///
-  /// This flattens the parser function into the parser, creating a fully
-  /// configured parser ready to use.
-  ///
-  /// # Examples
-  ///
-  /// ```ignore
-  /// let parser = Expect::parser(classifier).into_parser();
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_parser(self) -> Parser<F, L, O, Error, ParserOptions<L, E, C>> {
-    Parser {
-      f: self.primary,
-      opts: self.secondary.opts,
-      _marker: PhantomData,
-    }
-  }
-
-  /// Apply a new emitter to the parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_emitter<'inp, NE>(
-    self,
-    emitter: NE,
-  ) -> With<F, Parser<(), L, O, Error, ParserOptions<L, WithEmitter<NE>, C>>>
-  where
-    E: Apply<WithEmitter<NE>, Options = NE>,
-    L: Lexer<'inp>,
-    NE: Emitter<'inp, L, Error = Error>,
-  {
-    With::new(
-      self.primary,
-      Parser {
-        f: self.secondary.f,
-        opts: With::new(
-          PhantomData,
-          With::new(
-            self.secondary.opts.secondary.primary.apply(emitter),
-            self.secondary.opts.secondary.secondary,
-          ),
-        ),
-        _marker: PhantomData,
-      },
-    )
-  }
-
-  /// Apply a new cache to the parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_cache<'inp, NC>(
-    self,
-    options: NC::Options,
-  ) -> With<F, Parser<(), L, O, Error, ParserOptions<L, E, WithCache<'inp, L, NC>>>>
-  where
-    C: Apply<WithCache<'inp, L, NC>, Options = NC::Options>,
-    L: Lexer<'inp>,
-    NC: Cache<'inp, L>,
-  {
-    With::new(
-      self.primary,
-      Parser {
-        f: self.secondary.f,
-        opts: With::new(
-          PhantomData,
-          With::new(
-            self.secondary.opts.secondary.primary,
-            self.secondary.opts.secondary.secondary.apply(options),
-          ),
-        ),
-        _marker: PhantomData,
-      },
-    )
-  }
-}
-
-impl<'inp, L, C> Apply<WithCache<'inp, L, C>> for ()
+impl<'inp, L, O, Error, Ctx> Parser<(), L, O, Error, Ctx>
 where
   L: Lexer<'inp>,
-  C: Cache<'inp, L>,
-{
-  type Options = C::Options;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> WithCache<'inp, L, C> {
-    WithCache {
-      cache: C::with_options(options),
-      _marker: PhantomData,
-    }
-  }
-}
-
-impl<E> Apply<WithEmitter<E>> for () {
-  type Options = E;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> WithEmitter<E> {
-    WithEmitter(options)
-  }
-}
-
-impl<'inp, L, O, E, Error, C> Parser<(), L, O, Error, ParserOptions<L, E, C>>
-where
-  L: Lexer<'inp>,
-  E: EmitterProvider<'inp, L, Error>,
-  E::Emitter: Emitter<'inp, L, Error = Error>,
-  C: CacheProvider<'inp, L>,
-  C::Cache: Cache<'inp, L>,
 {
   /// Apply a new parsing function to the parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn apply<F>(self, f: F) -> Parser<F, L, O, Error, ParserOptions<L, E, C>> {
+  pub fn apply<F>(self, f: F) -> Parser<F, L, O, Error, Ctx>
+  where
+    Ctx: ParseContext<'inp, L>,
+    F: ParseInput<'inp, L, O, Ctx>,
+  {
+    self.apply_of(f)
+  }
+
+  /// Apply a new parsing function to the parser for a specific language.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn apply_of<F, Lang>(self, f: F) -> Parser<F, L, O, Error, Ctx>
+  where
+    Ctx: ParseContext<'inp, L, Lang>,
+    F: ParseInput<'inp, L, O, Ctx>,
+  {
     Parser {
       f,
-      opts: self.opts,
+      ctx: self.ctx,
       _marker: PhantomData,
     }
   }
@@ -524,7 +445,7 @@ where
 /// This provides the ergonomic `.parse()` API similar to Chumsky and
 /// Winnow. Implementations wire up `Input`, `Emitter`, and `Cache`
 /// before delegating to [`ParseInput`].
-pub trait Parse<'inp, L, O, Error>: Sized {
+pub trait Parse<'inp, L, O, Error, Lang: ?Sized = ()>: Sized {
   /// Parse using the lexer's default state.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse(self, src: &'inp L::Source) -> Result<O, Error>
@@ -541,151 +462,22 @@ pub trait Parse<'inp, L, O, Error>: Sized {
     L: Lexer<'inp>;
 }
 
-impl<'inp, F, L, O, Error, E, C> Parse<'inp, L, O, Error>
-  for Parser<F, L, O, Error, ParserOptions<L, E, C>>
+impl<'inp, F, L, O, Error, Ctx, Lang: ?Sized> Parse<'inp, L, O, Error, Lang>
+  for Parser<F, L, O, Error, Ctx>
 where
-  F: ParseInput<'inp, L, O, E::Emitter, C::Cache>,
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
   L: Lexer<'inp>,
-  E::Emitter: Emitter<'inp, L, Error = Error>,
-  E: EmitterProvider<'inp, L, Error>,
-  C::Cache: Cache<'inp, L>,
-  C: CacheProvider<'inp, L>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Ctx::Emitter: Emitter<'inp, L, Lang, Error = Error>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> Result<O, Error> {
-    let Parser {
-      mut f,
-      opts:
-        With {
-          secondary: With {
-            primary: emitter,
-            secondary: cache,
-          },
-          ..
-        },
-      ..
-    } = self;
+    let Parser { mut f, ctx, .. } = self;
 
-    let cache = cache.provide();
-    let mut emitter = emitter.provide();
+    let (mut emitter, cache) = ctx.provide().into_components();
     let mut input = Input::with_state_and_cache(src, state, cache);
     let mut input_ref = input.as_ref(&mut emitter);
     f.parse_input(&mut input_ref)
-  }
-}
-
-impl<'inp, F, L, O, Error, E, C> Parse<'inp, L, O, Error>
-  for With<F, Parser<(), L, O, Error, ParserOptions<L, E, C>>>
-where
-  F: ParseInput<'inp, L, O, E::Emitter, C::Cache>,
-  L: Lexer<'inp>,
-  E::Emitter: Emitter<'inp, L, Error = Error>,
-  E: EmitterProvider<'inp, L, Error>,
-  C::Cache: Cache<'inp, L>,
-  C: CacheProvider<'inp, L>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> Result<O, Error> {
-    self.into_parser().parse_with_state(src, state)
-  }
-}
-
-mod sealed_provider {
-  use super::*;
-
-  pub trait Sealed {}
-
-  impl Sealed for () {}
-
-  impl<L, C> Sealed for WithCache<'_, L, C> {}
-
-  impl<E: ?Sized> Sealed for WithEmitter<E> {}
-}
-
-/// A provider for cache instances.
-#[doc(hidden)]
-pub trait CacheProvider<'inp, L>: sealed_provider::Sealed {
-  /// The cache type provided.
-  type Cache;
-
-  /// Provide a cache instance.
-  fn provide(self) -> Self::Cache
-  where
-    L: Lexer<'inp>,
-    Self::Cache: Cache<'inp, L>;
-}
-
-impl<'inp, L> CacheProvider<'inp, L> for ()
-where
-  L: Lexer<'inp>,
-{
-  type Cache = DefaultCache<'inp, L>;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn provide(self) -> Self::Cache
-  where
-    L: Lexer<'inp>,
-  {
-    DefaultCache::new()
-  }
-}
-
-impl<'inp, L, C> CacheProvider<'inp, L> for WithCache<'inp, L, C> {
-  type Cache = C;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn provide(self) -> Self::Cache
-  where
-    L: Lexer<'inp>,
-    C: Cache<'inp, L>,
-  {
-    self.cache
-  }
-}
-
-/// A provider for emitter instances.
-#[doc(hidden)]
-pub trait EmitterProvider<'inp, L, Error>: sealed_provider::Sealed {
-  /// The emitter type provided.
-  type Emitter;
-
-  /// Provide an emitter instance.
-  fn provide(self) -> Self::Emitter
-  where
-    L: Lexer<'inp>,
-    Self::Emitter: Emitter<'inp, L, Error = Error>;
-}
-
-impl<'inp, L, Error> EmitterProvider<'inp, L, Error> for ()
-where
-  L: Lexer<'inp>,
-{
-  type Emitter = Fatal<Error>;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn provide(self) -> Self::Emitter
-  where
-    L: Lexer<'inp>,
-    Self::Emitter: Emitter<'inp, L, Error = Error>,
-  {
-    Fatal::new()
-  }
-}
-
-impl<'inp, L, Error, E> EmitterProvider<'inp, L, Error> for WithEmitter<E>
-where
-  L: Lexer<'inp>,
-  E: Emitter<'inp, L, Error = Error>,
-{
-  type Emitter = E;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn provide(self) -> Self::Emitter
-  where
-    L: Lexer<'inp>,
-    Self::Emitter: Emitter<'inp, L, Error = Error>,
-  {
-    self.0
   }
 }
 
@@ -704,17 +496,6 @@ pub trait Apply<State> {
 
   /// Transform `self` into `State` using the provided `options`.
   fn apply(self, options: Self::Options) -> State;
-}
-
-/// Shorthand for building a [`Parser`] from a closure.
-pub const fn parser<'inp, L, O, E, C, F>(f: F) -> With<F, Parser<(), L, O, E::Error>>
-where
-  F: FnMut(&mut InputRef<'inp, '_, L, E, C>) -> O,
-  L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  C: Cache<'inp, L>,
-{
-  Parser::with(f)
 }
 
 /// Combines two values in a type-safe way.
@@ -787,41 +568,4 @@ pub enum Action<'a, Kind> {
   /// Indicates this is an unexpected token, but this token should not terminate the parsing,
   /// the unexpected token will be emitted to the emitter.
   Unexpected(Option<Expected<'a, Kind>>),
-}
-
-#[cfg(test)]
-mod tests {
-  #![allow(warnings)]
-
-  use super::{Token as TokenT, *};
-  use crate::{BlackHole, emitter::Fatal, punct::Comma, utils::marker::Ignored};
-  use derive_more::Display;
-
-  // fn assert_any_parse_impl<'inp>() -> impl Parse<'inp, JsonLexer<'inp>, Result<Token, ()>, ()> {
-  //   any()
-  // }
-
-  // fn assert_comma_seq_parse_impl<'inp>()
-  // -> impl Parse<'inp, JsonLexer<'inp>, Result<(), ()>, ()> {
-  //   Parser::new()
-  //     .with_cache::<()>(())
-  //     .with_emitter(Fatal::new())
-  //     .apply(
-  //       comma_seq::<_, _, JsonLexer<'inp>, Token, (), Fatal<()>, ()>(any(), |t: &Token| {
-  //         if let TokenKind::Comma = t.kind() {
-  //           SeqSepAction::Separator
-  //         } else {
-  //           SeqSepAction::Continue
-  //         }
-  //       }),
-  //     )
-  // }
-
-  // #[test]
-  // fn t() {
-  //   let src = "{}";
-
-  //   let tok = Parser::any::<JsonLexer<'_>, ()>().parse(src);
-  //   let a = Parse::parse(Parser::comma_seq::<'_, _, JsonLexer<'_>, Option<Spanned<Lexed<'_, Token>>>, (), ()>(Parser::any()), src);
-  // }
 }

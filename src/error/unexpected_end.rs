@@ -211,7 +211,7 @@ where
 {
 }
 
-impl<O, Lang> UnexpectedEnd<FileHint, O, Lang> {
+impl<O> UnexpectedEnd<FileHint, O> {
   /// Creates an unexpected **end of file** (EOF) error at the given span.
   ///
   /// ## Example
@@ -229,7 +229,25 @@ impl<O, Lang> UnexpectedEnd<FileHint, O, Lang> {
   }
 }
 
-impl<O, Lang> UnexpectedEnd<TokenHint, O, Lang> {
+impl<O, Lang: ?Sized> UnexpectedEnd<FileHint, O, Lang> {
+  /// Creates an unexpected **end of file** (EOF) error at the given span.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  ///
+  /// let error = UnexpectedEnd::eof(Span::new(100, 101));
+  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// assert_eq!(error.name(), Some("file"));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn eof_of(offset: O) -> Self {
+    Self::maybe_name_of(offset, Some(Message::from_static("file")), FileHint)
+  }
+}
+
+impl<O> UnexpectedEnd<TokenHint, O> {
   /// Creates an unexpected **end of token stream** (EOT) error at the given span.
   ///
   /// ## Example
@@ -251,7 +269,29 @@ impl<O, Lang> UnexpectedEnd<TokenHint, O, Lang> {
   }
 }
 
-impl<O, Lang> UnexpectedEnd<CharacterHint, O, Lang> {
+impl<O, Lang: ?Sized> UnexpectedEnd<TokenHint, O, Lang> {
+  /// Creates an unexpected **end of token stream** (EOT) error at the given span.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  ///
+  /// let error = UnexpectedEnd::eot(Span::new(50, 51));
+  /// assert_eq!(error.span(), Span::new(50, 51));
+  /// assert_eq!(error.name(), Some("token stream"));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn eot_of(offset: O) -> Self {
+    Self::maybe_name_of(
+      offset,
+      Some(Message::from_static("token stream")),
+      TokenHint,
+    )
+  }
+}
+
+impl<O> UnexpectedEnd<CharacterHint, O> {
   /// Creates an unexpected **end of string** (EOS) error at the given span.
   ///
   /// ## Example
@@ -269,7 +309,25 @@ impl<O, Lang> UnexpectedEnd<CharacterHint, O, Lang> {
   }
 }
 
-impl<Hint, O, Lang> UnexpectedEnd<Hint, O, Lang> {
+impl<O, Lang: ?Sized> UnexpectedEnd<CharacterHint, O, Lang> {
+  /// Creates an unexpected **end of string** (EOS) error at the given span.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  ///
+  /// let error = UnexpectedEnd::eos(Span::new(25, 25));
+  /// assert_eq!(error.span(), Span::new(25, 25));
+  /// assert_eq!(error.name(), Some("string"));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn eos_of(offset: O) -> Self {
+    Self::maybe_name_of(offset, Some(Message::from_static("string")), CharacterHint)
+  }
+}
+
+impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// Creates a new unexpected end with the given span and hint.
   ///
   /// ## Example
@@ -302,6 +360,77 @@ impl<Hint, O, Lang> UnexpectedEnd<Hint, O, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn maybe_name(offset: O, name: Option<Message>, hint: Hint) -> Self {
+    Self::maybe_name_of(offset, name, hint)
+  }
+
+  /// Creates a new unexpected end with the given span, name, and hint.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// # #[cfg(feature = "std")] {
+  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  ///
+  /// let error = UnexpectedEnd::with_name(Span::new(20, 20), Message::from_static("block"), FileHint);
+  /// assert_eq!(error.name(), Some("block"));
+  /// assert_eq!(error.span(), Span::new(20, 20));
+  /// # }
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_name(offset: O, name: Message, hint: Hint) -> Self {
+    Self::with_name_of(offset, name, hint)
+  }
+
+  /// Creates a new unexpected end with the given span and hint.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::{error::{UnexpectedEnd, TokenHint}, utils::Span};
+  ///
+  /// let error = UnexpectedEnd::with_hint(Span::new(15, 15), TokenHint);
+  /// assert_eq!(error.name(), None);
+  /// assert_eq!(error.span(), Span::new(15, 15));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_hint(offset: O, hint: Hint) -> Self {
+    Self::with_hint_of(offset, hint)
+  }
+}
+
+impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
+  /// Creates a new unexpected end with the given span and hint.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::Span};
+  ///
+  /// let error = UnexpectedEnd::new(Span::new(10, 10), FileHint);
+  /// assert_eq!(error.name(), None);
+  /// assert_eq!(error.span(), Span::new(10, 10));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of(offset: O, hint: Hint) -> Self {
+    Self::maybe_name_of(offset, None, hint)
+  }
+
+  /// Creates a new unexpected end with the given span, optional name, and hint.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  ///
+  /// # #[cfg(feature = "std")] {
+  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  ///
+  /// let error = UnexpectedEnd::maybe_name(Span::new(10, 10), Some(Message::from_static("string")), FileHint);
+  /// assert_eq!(error.name(), Some("string"));
+  /// assert_eq!(error.span(), Span::new(10, 10));
+  /// # }
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn maybe_name_of(offset: O, name: Option<Message>, hint: Hint) -> Self {
     Self {
       offset,
       name,
@@ -324,8 +453,8 @@ impl<Hint, O, Lang> UnexpectedEnd<Hint, O, Lang> {
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_name(offset: O, name: Message, hint: Hint) -> Self {
-    Self::maybe_name(offset, Some(name), hint)
+  pub const fn with_name_of(offset: O, name: Message, hint: Hint) -> Self {
+    Self::maybe_name_of(offset, Some(name), hint)
   }
 
   /// Creates a new unexpected end with the given span and hint.
@@ -340,7 +469,7 @@ impl<Hint, O, Lang> UnexpectedEnd<Hint, O, Lang> {
   /// assert_eq!(error.span(), Span::new(15, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_hint(offset: O, hint: Hint) -> Self {
+  pub const fn with_hint_of(offset: O, hint: Hint) -> Self {
     Self {
       offset,
       name: None,
@@ -500,7 +629,7 @@ impl<Hint, O, Lang> UnexpectedEnd<Hint, O, Lang> {
   where
     F: FnOnce(Hint) -> NewHint,
   {
-    UnexpectedEnd::maybe_name(self.offset, name.map(Into::into), f(self.hint))
+    UnexpectedEnd::maybe_name_of(self.offset, name.map(Into::into), f(self.hint))
   }
 
   /// Reconstructs the error with a new name and a transformed hint.
@@ -524,7 +653,7 @@ impl<Hint, O, Lang> UnexpectedEnd<Hint, O, Lang> {
   where
     F: FnOnce(Hint) -> NewHint,
   {
-    UnexpectedEnd::with_name(self.offset, name.into(), f(self.hint))
+    UnexpectedEnd::with_name_of(self.offset, name.into(), f(self.hint))
   }
 
   /// Reconstructs the error with a transformed hint.
@@ -546,7 +675,7 @@ impl<Hint, O, Lang> UnexpectedEnd<Hint, O, Lang> {
   where
     F: FnOnce(Hint) -> NewHint,
   {
-    UnexpectedEnd::new(self.offset, f(self.hint))
+    UnexpectedEnd::of(self.offset, f(self.hint))
   }
 
   /// Returns the span of the unexpected end.
@@ -620,7 +749,7 @@ impl<Hint, O, Lang> UnexpectedEnd<Hint, O, Lang> {
   }
 }
 
-impl<Hint, O, Lang> From<UnexpectedEnd<Hint, O, Lang>> for () {
+impl<Hint, O, Lang: ?Sized> From<UnexpectedEnd<Hint, O, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: UnexpectedEnd<Hint, O, Lang>) -> Self {}
 }
@@ -632,9 +761,9 @@ pub type UnexpectedEot<O = usize, Lang = ()> = UnexpectedEnd<TokenHint, O, Lang>
 /// An type alias for unexpected end of string.
 pub type UnexpectedEos<O = usize, Lang = ()> = UnexpectedEnd<CharacterHint, O, Lang>;
 
-impl<Hint, O, Lang> From<(O, Hint)> for UnexpectedEnd<Hint, O, Lang> {
+impl<Hint, O, Lang: ?Sized> From<(O, Hint)> for UnexpectedEnd<Hint, O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from((offset, hint): (O, Hint)) -> Self {
-    Self::new(offset, hint)
+    Self::of(offset, hint)
   }
 }

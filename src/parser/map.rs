@@ -38,16 +38,18 @@ impl<A, F, U> Map<A, U, F> {
   }
 }
 
-impl<'inp, A, F, L, O, U, E, C> ParseInput<'inp, L, U, E, C> for Map<A, O, F>
+impl<'inp, A, F, L, O, U, Ctx, Lang> ParseInput<'inp, L, U, Ctx, Lang> for Map<A, O, F>
 where
-  A: ParseInput<'inp, L, O, E, C>,
+  A: ParseInput<'inp, L, O, Ctx, Lang>,
   F: FnMut(O) -> U,
   L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  C: Cache<'inp, L>,
+  Ctx: ParseContext<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<U, E::Error> {
+  fn parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self.parser.parse_input(input).map(&mut self.map_fn)
   }
 }
@@ -62,22 +64,13 @@ mod tests {
     Parser::new().apply(Any::new().map(|_tok: DummyToken| ()))
   }
 
-  fn assert_map_parse_with_cache_impl<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-    Parser::new()
-      .with_cache::<()>(())
-      .apply(Any::new().map(|_tok: DummyToken| ()))
+  fn assert_map_parse_with_ctx_impl<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
+    Parser::with_context(()).apply(Any::new().map(|_tok: DummyToken| ()))
   }
-
-  fn assert_map_parse_with_emitter_impl<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-    Parser::new()
-      .with_emitter::<Fatal<()>>(Fatal::new())
-      .with_cache::<()>(())
-      .apply(Any::new().map(|_tok: DummyToken| ()))
-  }
-
 
   #[test]
   fn assert_parse_impl() {
     let _ = assert_map_parse_impl();
+    let _ = assert_map_parse_with_ctx_impl();
   }
 }

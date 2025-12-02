@@ -133,18 +133,18 @@ impl<'a, T, const N: usize> core::iter::IntoIterator for &'a SmallVec<T, N> {
   }
 }
 
-#[cfg(feature = "chumsky")]
-impl<T, const N: usize> chumsky::container::Container<T> for SmallVec<T, N> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn with_capacity(n: usize) -> Self {
-    Self::with_capacity(n)
-  }
+// #[cfg(feature = "chumsky")]
+// impl<T, const N: usize> chumsky::container::Container<T> for SmallVec<T, N> {
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn with_capacity(n: usize) -> Self {
+//     Self::with_capacity(n)
+//   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn push(&mut self, item: T) {
-    self.0.push(item);
-  }
-}
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn push(&mut self, item: T) {
+//     self.0.push(item);
+//   }
+// }
 
 impl<T, const N: usize> From<Vec<T>> for SmallVec<T, N> {
   #[cfg_attr(not(tarpaulin), inline(always))]

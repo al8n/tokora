@@ -4,28 +4,38 @@ use crate::utils::Span;
 
 /// An error indicating too few elements were found.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct TooFew<O: ?Sized, S = Span> {
+pub struct TooFew<O: ?Sized, S = Span, Lang: ?Sized = ()> {
   span: S,
   nums: usize,
   limit: usize,
   _syn: PhantomData<O>,
+  _lang: PhantomData<Lang>,
 }
 
 impl<O: ?Sized, S> TooFew<O, S> {
   /// Creates a new `TooFew` error.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(span: S, nums: usize, minimum: usize) -> Self {
+    Self::of(span, nums, minimum)
+  }
+}
+
+impl<O: ?Sized, S, Lang: ?Sized> TooFew<O, S, Lang> {
+  /// Creates a new `TooFew` error for the given language.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of(span: S, nums: usize, minimum: usize) -> Self {
     Self::new_in(span, nums, minimum)
   }
 }
 
-impl<O: ?Sized, S> TooFew<O, S> {
+impl<O: ?Sized, S, Lang: ?Sized> TooFew<O, S, Lang> {
   const fn new_in(span: S, nums: usize, limit: usize) -> Self {
     Self {
       span,
       nums,
       limit,
       _syn: PhantomData,
+      _lang: PhantomData,
     }
   }
 
@@ -48,7 +58,7 @@ impl<O: ?Sized, S> TooFew<O, S> {
   }
 }
 
-impl<O: ?Sized, S> From<TooFew<O, S>> for () {
+impl<O: ?Sized, S, Lang: ?Sized> From<TooFew<O, S, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: TooFew<O, S>) -> Self {}
+  fn from(_: TooFew<O, S, Lang>) -> Self {}
 }

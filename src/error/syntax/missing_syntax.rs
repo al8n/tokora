@@ -47,11 +47,11 @@
 
 use core::{marker::PhantomData, ops::AddAssign};
 
-use crate::Lexer;
+use crate::{Lexer, utils::Message};
 
 /// A type alias for a `MissingSyntax` error for a given lexer and separator.
-pub type MissingSyntaxOf<'inp, Syntax, L, Knowledge = ()> =
-  MissingSyntax<Syntax, <L as Lexer<'inp>>::Offset, Knowledge>;
+pub type MissingSyntaxOf<'inp, Syntax, L, Lang = ()> =
+  MissingSyntax<Syntax, <L as Lexer<'inp>>::Offset, Lang>;
 
 /// An error representing an missing token encountered during parsing.
 ///
@@ -96,53 +96,52 @@ pub type MissingSyntaxOf<'inp, Syntax, L, Knowledge = ()> =
 /// );
 /// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
 /// ```
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct MissingSyntax<Syntax, O = usize, Knowledge = ()> {
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct MissingSyntax<Syntax, O = usize, Lang: ?Sized = ()> {
   offset: O,
-  knowledge: Option<Knowledge>,
+  msg: Option<Message>,
   _syntax: PhantomData<Syntax>,
+  _lang: PhantomData<Lang>,
 }
 
-impl<Syntax, O, Knowledge> MissingSyntax<Syntax, O, Knowledge> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new_in(offset: O, knowledge: Option<Knowledge>) -> Self {
-    Self {
-      offset,
-      knowledge,
-      _syntax: PhantomData,
-    }
-  }
-
+impl<Syntax, O> MissingSyntax<Syntax, O> {
   /// Creates a new missing token error.
   ///
   /// This error indicates that an missing token was encountered,
   /// without specifying what token was found or expected.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(offset: O) -> Self {
+    Self::of(offset)
+  }
+
+  /// Sets a custom message for the error.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_message(offset: O, message: Message) -> Self {
+    Self::with_message_of(offset, message)
+  }
+}
+
+impl<Syntax, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) const fn new_in(offset: O, message: Option<Message>) -> Self {
+    Self {
+      offset,
+      msg: message,
+      _syntax: PhantomData,
+      _lang: PhantomData,
+    }
+  }
+
+  /// Creates a new missing token error for the given language.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of(offset: O) -> Self {
     Self::new_in(offset, None)
   }
 
-  /// Adds knowledge to the `MissingSyntax` error.
-  ///
-  /// This method allows attaching additional context or information
-  /// to the error, which can be useful for debugging or reporting.
+  /// Sets a custom message for the error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_knowledge_const(mut self, knowledge: Knowledge) -> Self
-  where
-    Knowledge: Copy,
-  {
-    self.knowledge = Some(knowledge);
-    self
-  }
-
-  /// Adds knowledge to the `MissingSyntax` error.
-  ///
-  /// This method allows attaching additional context or information
-  /// to the error, which can be useful for debugging or reporting.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_knowledge(mut self, knowledge: Knowledge) -> Self {
-    self.knowledge = Some(knowledge);
-    self
+  pub const fn with_message_of(offset: O, msg: Message) -> Self {
+    Self::new_in(offset, Some(msg))
   }
 
   /// Returns the span of the missing token.
@@ -199,6 +198,18 @@ impl<Syntax, O, Knowledge> MissingSyntax<Syntax, O, Knowledge> {
     &mut self.offset
   }
 
+  /// Returns the custom message associated with the error, if any.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn message(&self) -> Option<&Message> {
+    self.msg.as_ref()
+  }
+
+  /// Returns the custom message associated with the error, if any.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn message_mut(&mut self) -> Option<&mut Message> {
+    self.msg.as_mut()
+  }
+
   /// Bumps both the start and end positions of the span by the given offset.
   ///
   /// This is useful when adjusting error positions after processing or
@@ -246,12 +257,12 @@ impl<Syntax, O, Knowledge> MissingSyntax<Syntax, O, Knowledge> {
   /// assert_eq!(expected, Expected::one("{"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (O, Option<Knowledge>) {
-    (self.offset, self.knowledge)
+  pub fn into_components(self) -> (O, Option<Message>) {
+    (self.offset, self.msg)
   }
 }
 
-impl<Syntax, O, Knowledge> From<MissingSyntax<Syntax, O, Knowledge>> for () {
+impl<Syntax, O, Lang> From<MissingSyntax<Syntax, O, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: MissingSyntax<Syntax, O, Knowledge>) -> Self {}
+  fn from(_: MissingSyntax<Syntax, O, Lang>) -> Self {}
 }

@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 use crate::utils::Spanned;
 
 use super::*;
@@ -5,40 +7,49 @@ use super::*;
 /// A silent emitter that treats all errors as non-fatal, and ignores them.
 ///
 /// Compared to [`Ignored`](super::ignored::Ignored) emitter, the error type is preserved.
-pub struct Silent<T: ?Sized>(core::marker::PhantomData<T>);
+pub struct Silent<T: ?Sized, Lang: ?Sized = ()> {
+  _marker: PhantomData<T>,
+  _lang: PhantomData<Lang>,
+}
 
-impl<T: ?Sized> Silent<T> {
+impl<T: ?Sized, Lang: ?Sized> Silent<T, Lang> {
   /// Creates a new `Silent`.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new() -> Self {
-    Self(core::marker::PhantomData)
+    Self {
+      _marker: PhantomData,
+      _lang: PhantomData,
+    }
   }
 }
 
-impl<T: ?Sized> Default for Silent<T> {
+impl<T: ?Sized, Lang: ?Sized> Default for Silent<T, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn default() -> Self {
-    Self(core::marker::PhantomData)
+    Self {
+      _marker: PhantomData,
+      _lang: PhantomData,
+    }
   }
 }
 
-impl<T: ?Sized> core::fmt::Debug for Silent<T> {
+impl<T: ?Sized, Lang: ?Sized> core::fmt::Debug for Silent<T, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "Silent")
   }
 }
 
-impl<T: ?Sized> Clone for Silent<T> {
+impl<T: ?Sized, Lang: ?Sized> Clone for Silent<T, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn clone(&self) -> Self {
     *self
   }
 }
 
-impl<T: ?Sized> Copy for Silent<T> {}
+impl<T: ?Sized, Lang: ?Sized> Copy for Silent<T, Lang> {}
 
-impl<'a, L, E> Emitter<'a, L> for Silent<E>
+impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Silent<E, Lang>
 where
   L: Lexer<'a>,
 {
@@ -60,7 +71,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_token(
     &mut self,
-    _: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span>,
+    _: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -69,13 +80,13 @@ where
   }
 }
 
-impl<'a, O, L, E> RepeatedEmitter<'a, O, L> for Silent<E>
+impl<'a, O, L, E, Lang: ?Sized> RepeatedEmitter<'a, O, L, Lang> for Silent<E, Lang>
 where
   O: ?Sized,
   L: Lexer<'a>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_few(&mut self, _: TooFew<O, L::Span>) -> Result<(), Self::Error>
+  fn emit_too_few(&mut self, _: TooFew<O, L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -83,7 +94,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(&mut self, _: TooMany<O, L::Span>) -> Result<(), Self::Error>
+  fn emit_too_many(&mut self, _: TooMany<O, L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -91,7 +102,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_full_container(&mut self, _: FullContainer<O, L::Span>) -> Result<(), Self::Error>
+  fn emit_full_container(&mut self, _: FullContainer<O, L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -99,7 +110,7 @@ where
   }
 }
 
-impl<'a, L, Any, E> BatchEmitter<'a, L, Any> for Silent<E>
+impl<'a, L, Any, E, Lang: ?Sized> BatchEmitter<'a, L, Any, Lang> for Silent<E, Lang>
 where
   L: Lexer<'a>,
 {
@@ -146,12 +157,15 @@ where
   }
 }
 
-impl<'inp, L, O, Sep, E> SeparatedByEmitter<'inp, O, Sep, L> for Silent<E>
+impl<'inp, L, O, Sep, E, Lang: ?Sized> SeparatedByEmitter<'inp, O, Sep, L, Lang> for Silent<E, Lang>
 where
   L: Lexer<'inp>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_separator(&mut self, _: MissingTokenOf<'inp, Sep, L>) -> Result<(), Self::Error>
+  fn emit_missing_separator(
+    &mut self,
+    _: MissingSeparatorOf<'inp, Sep, L, Lang>,
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -159,7 +173,10 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_element(&mut self, _: MissingSyntaxOf<'inp, O, L>) -> Result<(), Self::Error>
+  fn emit_missing_element(
+    &mut self,
+    _: MissingSyntaxOf<'inp, O, L, Lang>,
+  ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -169,7 +186,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_leading_separator(
     &mut self,
-    _: MissingLeadingOf<'inp, Sep, L>,
+    _: MissingLeadingOf<'inp, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
@@ -180,7 +197,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_trailing_separator(
     &mut self,
-    _: MissingTrailingOf<'inp, Sep, L>,
+    _: MissingTrailingOf<'inp, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
@@ -191,7 +208,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_repeated_separator(
     &mut self,
-    _: UnexpectedRepeatedOf<'inp, Sep, L>,
+    _: UnexpectedRepeatedOf<'inp, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
@@ -202,7 +219,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_leading_separator(
     &mut self,
-    _: UnexpectedLeadingOf<'inp, Sep, L>,
+    _: UnexpectedLeadingOf<'inp, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
@@ -213,7 +230,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_trailing_separator(
     &mut self,
-    _: UnexpectedTrailingOf<'inp, Sep, L>,
+    _: UnexpectedTrailingOf<'inp, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,

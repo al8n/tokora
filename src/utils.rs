@@ -187,62 +187,62 @@ where
   }
 }
 
-#[cfg(feature = "chumsky")]
-const _: () = {
-  use chumsky::{error::Cheap, span::SimpleSpan};
+// #[cfg(feature = "chumsky")]
+// const _: () = {
+//   use chumsky::{error::Cheap, span::SimpleSpan};
 
-  impl From<Span> for Cheap {
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn from(span: Span) -> Self {
-      Cheap::new(span.into())
-    }
-  }
+//   impl From<Span> for Cheap {
+//     #[cfg_attr(not(tarpaulin), inline(always))]
+//     fn from(span: Span) -> Self {
+//       Cheap::new(span.into())
+//     }
+//   }
 
-  impl From<Cheap> for Span {
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn from(cheap: Cheap) -> Self {
-      Self::from(*cheap.span())
-    }
-  }
+//   impl From<Cheap> for Span {
+//     #[cfg_attr(not(tarpaulin), inline(always))]
+//     fn from(cheap: Cheap) -> Self {
+//       Self::from(*cheap.span())
+//     }
+//   }
 
-  impl From<SimpleSpan> for Span {
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn from(span: SimpleSpan) -> Self {
-      Self::new(span.start, span.end)
-    }
-  }
+//   impl From<SimpleSpan> for Span {
+//     #[cfg_attr(not(tarpaulin), inline(always))]
+//     fn from(span: SimpleSpan) -> Self {
+//       Self::new(span.start, span.end)
+//     }
+//   }
 
-  impl From<Span> for SimpleSpan {
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn from(span: Span) -> Self {
-      SimpleSpan::from(span.start..span.end)
-    }
-  }
+//   impl From<Span> for SimpleSpan {
+//     #[cfg_attr(not(tarpaulin), inline(always))]
+//     fn from(span: Span) -> Self {
+//       SimpleSpan::from(span.start..span.end)
+//     }
+//   }
 
-  impl chumsky::span::Span for Span {
-    type Context = ();
+//   impl chumsky::span::Span for Span {
+//     type Context = ();
 
-    type Offset = usize;
+//     type Offset = usize;
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn new(_: Self::Context, range: Range<Self::Offset>) -> Self {
-      Self::new(range.start, range.end)
-    }
+//     #[cfg_attr(not(tarpaulin), inline(always))]
+//     fn new(_: Self::Context, range: Range<Self::Offset>) -> Self {
+//       Self::new(range.start, range.end)
+//     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn context(&self) -> Self::Context {}
+//     #[cfg_attr(not(tarpaulin), inline(always))]
+//     fn context(&self) -> Self::Context {}
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn start(&self) -> Self::Offset {
-      self.start
-    }
+//     #[cfg_attr(not(tarpaulin), inline(always))]
+//     fn start(&self) -> Self::Offset {
+//       self.start
+//     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn end(&self) -> Self::Offset {
-      self.end
-    }
-  }
-};
+//     #[cfg_attr(not(tarpaulin), inline(always))]
+//     fn end(&self) -> Self::Offset {
+//       self.end
+//     }
+//   }
+// };
 
 impl Span {
   /// Create a new span.

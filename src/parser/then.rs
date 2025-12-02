@@ -40,16 +40,18 @@ impl<F, T> Then<F, T> {
   }
 }
 
-impl<'inp, F, T, L, O, U, E, C> ParseInput<'inp, L, (O, U), E, C> for Then<F, T>
+impl<'inp, F, T, L, O, U, Ctx, Lang> ParseInput<'inp, L, (O, U), Ctx, Lang> for Then<F, T>
 where
-  F: ParseInput<'inp, L, O, E, C>,
-  T: ParseInput<'inp, L, U, E, C>,
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  T: ParseInput<'inp, L, U, Ctx, Lang>,
   L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  C: Cache<'inp, L>,
+  Ctx: ParseContext<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<(O, U), E::Error> {
+  fn parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<(O, U), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let a = self.parser.parse_input(input)?;
     let b = self.then.parse_input(input)?;
     Ok((a, b))
@@ -93,16 +95,18 @@ impl<F, G, O1> IgnoreThen<F, G, O1> {
   }
 }
 
-impl<'inp, F, G, L, O1, O2, E, C> ParseInput<'inp, L, O2, E, C> for IgnoreThen<F, G, O1>
+impl<'inp, F, G, L, O1, O2, Ctx, Lang> ParseInput<'inp, L, O2, Ctx, Lang> for IgnoreThen<F, G, O1>
 where
-  F: ParseInput<'inp, L, O1, E, C>,
-  G: ParseInput<'inp, L, O2, E, C>,
+  F: ParseInput<'inp, L, O1, Ctx, Lang>,
+  G: ParseInput<'inp, L, O2, Ctx, Lang>,
   L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  C: Cache<'inp, L>,
+  Ctx: ParseContext<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<O2, E::Error> {
+  fn parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<O2, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let _ = self.first.parse_input(input)?;
     self.second.parse_input(input)
   }
@@ -145,16 +149,18 @@ impl<F, G, O2> ThenIgnore<F, G, O2> {
   }
 }
 
-impl<'inp, F, G, L, O1, O2, E, C> ParseInput<'inp, L, O1, E, C> for ThenIgnore<F, G, O2>
+impl<'inp, F, G, L, O1, O2, Ctx, Lang> ParseInput<'inp, L, O1, Ctx, Lang> for ThenIgnore<F, G, O2>
 where
-  F: ParseInput<'inp, L, O1, E, C>,
-  G: ParseInput<'inp, L, O2, E, C>,
+  F: ParseInput<'inp, L, O1, Ctx, Lang>,
+  G: ParseInput<'inp, L, O2, Ctx, Lang>,
   L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  C: Cache<'inp, L>,
+  Ctx: ParseContext<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(&mut self, input: &mut InputRef<'inp, '_, L, E, C>) -> Result<O1, E::Error> {
+  fn parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<O1, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let first_result = self.first.parse_input(input)?;
     self.second.parse_input(input).map(|_| first_result)
   }
@@ -166,14 +172,12 @@ mod tests {
 
   use super::*;
 
-  fn assert_ignore_then_parse_impl<'inp>()
-  -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
-    Parser::<(), DummyLexer, DummyToken, ()>::new().apply(Any::new().ignore_then(Any::new()))
+  fn assert_ignore_then_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
+    Parser::new().apply(Any::new().ignore_then(Any::new()))
   }
 
-  fn assert_then_ignore_parse_impl<'inp>()
-  -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
-    Parser::<(), DummyLexer, DummyToken, ()>::new().apply(Any::new().then_ignore(Any::new()))
+  fn assert_then_ignore_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
+    Parser::new().apply(Any::new().then_ignore(Any::new()))
   }
 
   #[test]

@@ -1,4 +1,26 @@
+use core::marker::PhantomData;
+
 use super::*;
+
+/// The context for parsing input
+pub struct InputContext<E, C> {
+  emitter: E,
+  cache: C,
+}
+
+impl<E, C> InputContext<E, C> {
+  /// Creates a new `InputContext` with the given emitter and cache.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(emitter: E, cache: C) -> Self {
+    Self { emitter, cache }
+  }
+
+  /// Decomposes this context into its emitter and cache components.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_components(self) -> (E, C) {
+    (self.emitter, self.cache)
+  }
+}
 
 /// A zero-copy token stream adapter that bridges Logos and Chumsky.
 ///
@@ -180,6 +202,7 @@ impl<'inp, L, C> Input<'inp, L, C>
 where
   L: Lexer<'inp>,
 {
+  #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn with_state_and_cache(input: &'inp L::Source, state: L::State, cache: C) -> Self
   where
     C: Cache<'inp, L>,
@@ -194,17 +217,18 @@ where
   }
 
   /// Creates a zero-copy reference adapter for this input.
-  pub const fn as_ref<'closure, E>(
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn as_ref<'closure, E, Lang: ?Sized>(
     &'closure mut self,
     emitter: &'closure mut E,
-  ) -> InputRef<'inp, 'closure, L, E, C> {
+  ) -> InputRef<'inp, 'closure, L, E, C, Lang> {
     InputRef {
       input: &self.input,
       state: &mut self.state,
-      // cursor: &mut self.cursor,
       cache: &mut self.cache,
       span: &mut self.span,
       emitter,
+      _marker: PhantomData,
     }
   }
 }

@@ -49,8 +49,8 @@ use core::{marker::PhantomData, ops::AddAssign};
 
 use crate::{
   Lexer, Token,
-  error::token::{Leading, Trailing},
-  utils::Expected,
+  error::token::{Leading, Separator, Trailing},
+  utils::{Expected, Message},
 };
 
 pub use missing_leading::*;
@@ -60,11 +60,11 @@ mod missing_leading;
 mod missing_trailing;
 
 /// A type alias for a `MissingToken` error for a given lexer and separator.
-pub type MissingTokenOf<'inp, Sep, L> = MissingToken<
+pub type MissingSeparatorOf<'inp, Sep, L, Lang = ()> = MissingToken<
   'inp,
   <<L as Lexer<'inp>>::Token as Token<'inp>>::Kind,
   <L as Lexer<'inp>>::Offset,
-  PhantomData<Sep>,
+  Separator<Sep, Lang>,
 >;
 
 /// An error representing an missing token encountered during parsing.
@@ -110,40 +110,102 @@ pub type MissingTokenOf<'inp, Sep, L> = MissingToken<
 /// );
 /// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
 /// ```
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct MissingToken<'a, Kind, O = usize, Knowledge = ()> {
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct MissingToken<'a, Kind, O = usize, Lang: ?Sized = ()> {
   offset: O,
   expected: Option<Expected<'a, Kind>>,
-  knowledge: Option<Knowledge>,
+  message: Option<Message>,
+  _lang: PhantomData<Lang>,
 }
 
-impl<Kind, O, Knowledge> MissingToken<'_, Kind, O, Trailing<Knowledge>> {
+impl<Kind, O, Data> MissingToken<'_, Kind, O, Trailing<Data>> {
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn trailing(offset: O) -> Self {
-    Self::new_in(offset, None, Some(Trailing::new()))
+    Self::trailing_of(offset)
+  }
+
+  /// Creates a new `MissingToken` error indicating a trailing token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn trailing_with_message(offset: O, message: Message) -> Self {
+    Self::trailing_with_message_of(offset, message)
   }
 }
 
-impl<Kind, O, Knowledge> MissingToken<'_, Kind, O, Leading<Knowledge>> {
+impl<Kind, O, Data, Lang> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn leading(offset: O) -> Self {
-    Self::new_in(offset, None, Some(Leading::new()))
+    Self::leading_of(offset)
+  }
+
+  /// Creates a new `MissingToken` error indicating a trailing token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn leading_with_message(offset: O, message: Message) -> Self {
+    Self::leading_with_message_of(offset, message)
   }
 }
 
-impl<'a, Kind, O, Knowledge> MissingToken<'a, Kind, O, Knowledge> {
+impl<Kind, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<Data, Lang>> {
+  /// Creates a new `MissingToken` error indicating a trailing token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn trailing_of(offset: O) -> Self {
+    Self::of(offset)
+  }
+
+  /// Creates a new `MissingToken` error indicating a trailing token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn trailing_with_message_of(offset: O, message: Message) -> Self {
+    Self::with_message_of(offset, message)
+  }
+}
+
+impl<Kind, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
+  /// Creates a new `MissingToken` error indicating a trailing token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn leading_of(offset: O) -> Self {
+    Self::of(offset)
+  }
+
+  /// Creates a new `MissingToken` error indicating a trailing token was found.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn leading_with_message_of(offset: O, message: Message) -> Self {
+    Self::with_message_of(offset, message)
+  }
+}
+
+impl<Kind, O> MissingToken<'_, Kind, O> {
+  /// Creates a new missing token error.
+  ///
+  /// This error indicates that an missing token was encountered,
+  /// without specifying what token was found or expected.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(offset: O) -> Self {
+    Self::of(offset)
+  }
+
+  /// Adds knowledge to the `MissingToken` error.
+  ///
+  /// This method allows attaching additional context or information
+  /// to the error, which can be useful for debugging or reporting.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_message(offset: O, message: Message) -> Self {
+    Self::with_message_of(offset, message)
+  }
+}
+
+impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new_in(
     offset: O,
     expected: Option<Expected<'a, Kind>>,
-    knowledge: Option<Knowledge>,
+    message: Option<Message>,
   ) -> Self {
     Self {
       offset,
       expected,
-      knowledge,
+      message,
+      _lang: PhantomData,
     }
   }
 
@@ -152,7 +214,7 @@ impl<'a, Kind, O, Knowledge> MissingToken<'a, Kind, O, Knowledge> {
   /// This error indicates that an missing token was encountered,
   /// without specifying what token was found or expected.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(offset: O) -> Self {
+  pub const fn of(offset: O) -> Self {
     Self::new_in(offset, None, None)
   }
 
@@ -161,22 +223,8 @@ impl<'a, Kind, O, Knowledge> MissingToken<'a, Kind, O, Knowledge> {
   /// This method allows attaching additional context or information
   /// to the error, which can be useful for debugging or reporting.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_knowledge_const(mut self, knowledge: Knowledge) -> Self
-  where
-    Knowledge: Copy,
-  {
-    self.knowledge = Some(knowledge);
-    self
-  }
-
-  /// Adds knowledge to the `MissingToken` error.
-  ///
-  /// This method allows attaching additional context or information
-  /// to the error, which can be useful for debugging or reporting.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_knowledge(mut self, knowledge: Knowledge) -> Self {
-    self.knowledge = Some(knowledge);
-    self
+  pub const fn with_message_of(offset: O, message: Message) -> Self {
+    Self::new_in(offset, None, Some(message))
   }
 
   /// Creates an missing token error without a found token.
@@ -358,6 +406,18 @@ impl<'a, Kind, O, Knowledge> MissingToken<'a, Kind, O, Knowledge> {
     &mut self.offset
   }
 
+  /// Returns a reference to the custom message, if any.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn message(&self) -> Option<&Message> {
+    self.message.as_ref()
+  }
+
+  /// Returns a mutable reference to the custom message, if any.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn message_mut(&mut self) -> Option<&mut Message> {
+    self.message.as_mut()
+  }
+
   /// Returns a reference to the expected token(s).
   ///
   /// # Examples
@@ -428,14 +488,15 @@ impl<'a, Kind, O, Knowledge> MissingToken<'a, Kind, O, Knowledge> {
   /// });
   /// # }
   /// ```
-  pub fn map_expected<F, Kind2>(self, f: F) -> MissingToken<'a, Kind2, O, Knowledge>
+  pub fn map_expected<F, Kind2>(self, f: F) -> MissingToken<'a, Kind2, O, Lang>
   where
     F: FnOnce(Expected<'a, Kind>) -> Expected<'a, Kind2>,
   {
     MissingToken {
       offset: self.offset,
       expected: self.expected.map(f),
-      knowledge: self.knowledge,
+      message: self.message,
+      _lang: PhantomData,
     }
   }
 
@@ -460,12 +521,12 @@ impl<'a, Kind, O, Knowledge> MissingToken<'a, Kind, O, Knowledge> {
   /// assert_eq!(expected, Expected::one("{"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (O, Option<Expected<'a, Kind>>, Option<Knowledge>) {
-    (self.offset, self.expected, self.knowledge)
+  pub fn into_components(self) -> (O, Option<Expected<'a, Kind>>, Option<Message>) {
+    (self.offset, self.expected, self.message)
   }
 }
 
-impl<'a, Kind, O, Knowledge> From<MissingToken<'a, Kind, O, Knowledge>> for () {
+impl<'a, Kind, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: MissingToken<'a, Kind, O, Knowledge>) -> Self {}
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {}
 }

@@ -11,23 +11,35 @@ macro_rules! alias {
     paste::paste! {
       $(
         $(#[$attr])*
-        pub type [< UnexpectedRepeated $name >] <'inp, Sep, L> = UnexpectedRepeatedOf<'inp, Sep, L>;
+        pub type [< UnexpectedRepeated $name >] <'inp, Sep, L, Lang = ()> = UnexpectedRepeatedOf<'inp, Sep, L, Lang>;
 
         impl<T, Kind, S> UnexpectedToken<'_, T, Kind, S, Repeated<$name>> {
           #[doc = "Create a new `UnexpectedToken` error indicating a repeated `" $name "` was found."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< repeated_ $name:snake >](
+          pub const fn [< repeated_ $name:snake>](
             span: S,
             token: T,
           ) -> Self {
-            Self::repeated(span, token)
+            Self::[< repeated_ $name:snake _of>](span, token)
           }
         }
 
-        impl<T, Kind, S> ::core::fmt::Debug for UnexpectedToken<'_, T, Kind, S, Repeated<$name>>
+        impl<T, Kind, S, Lang> UnexpectedToken<'_, T, Kind, S, Repeated<$name, Lang>> {
+          #[doc = "Create a new `UnexpectedToken` error indicating a repeated `" $name "` was found for the given langauge."]
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          pub const fn [< repeated_ $name:snake _of>](
+            span: S,
+            token: T,
+          ) -> Self {
+            Self::repeated_of(span, token)
+          }
+        }
+
+        impl<T, Kind, S, Lang> ::core::fmt::Debug for UnexpectedToken<'_, T, Kind, S, Repeated<$name, Lang>>
         where
           S: ::core::fmt::Debug,
           T: ::core::fmt::Debug,
+          Lang: ?Sized,
         {
           #[cfg_attr(not(tarpaulin), inline(always))]
           fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
@@ -38,9 +50,10 @@ macro_rules! alias {
           }
         }
 
-        impl<T, Kind, S> ::core::fmt::Display for UnexpectedToken<'_, T, Kind, S, Repeated<$name>>
+        impl<T, Kind, S, Lang> ::core::fmt::Display for UnexpectedToken<'_, T, Kind, S, Repeated<$name, Lang>>
         where
           S: ::core::fmt::Display,
+          Lang: ?Sized,
         {
           #[cfg_attr(not(tarpaulin), inline(always))]
           fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
@@ -53,10 +66,11 @@ macro_rules! alias {
           }
         }
 
-        impl<T, Kind, S> ::core::error::Error for UnexpectedToken<'_, T, Kind, S, Repeated<$name>>
+        impl<T, Kind, S, Lang> ::core::error::Error for UnexpectedToken<'_, T, Kind, S, Repeated<$name, Lang>>
         where
           S: ::core::fmt::Display + ::core::fmt::Debug,
           T: ::core::fmt::Debug,
+          Lang: ?Sized,
         {
         }
       )*
@@ -81,11 +95,11 @@ alias! {
   DoubleColon,
 }
 
-/// A type alias for an `UnexpectedPrefix` error indicating a leading punctuator was found for a given lexer and separator.
-pub type UnexpectedRepeatedOf<'inp, Sep, L> = UnexpectedToken<
+/// A type alias for an `UnexpectedPrefix` error indicating a repeated punctuator was found for a given lexer and separator.
+pub type UnexpectedRepeatedOf<'inp, Sep, L, Lang = ()> = UnexpectedToken<
   'inp,
   <L as Lexer<'inp>>::Token,
   <<L as Lexer<'inp>>::Token as Token<'inp>>::Kind,
   <L as Lexer<'inp>>::Span,
-  Repeated<Sep>,
+  Repeated<Sep, Lang>,
 >;

@@ -12,7 +12,7 @@ categories = ["parsing", "text-processing", "no-std"]
 keywords = ["lexer", "parser", "logos", "chumsky", "combinator"]
 
 [features]
-default = ["std", "chumsky", "stacker"]
+default = ["std"]
 alloc = ["generic-arraydeque/alloc"]
 std = [
   "generic-arraydeque/default",
@@ -20,23 +20,15 @@ std = [
   "bytes?/default",
   "hipstr?/default",
   "bstr?/default",
-  "chumsky?/default",
 ]
 
-chumsky = ["dep:chumsky"]
-extension = ["chumsky/extension"]
-lexical-numbers = ["chumsky/lexical-numbers"]
-memoization = ["chumsky/memoization"]
-pratt = ["chumsky/pratt"]
-regex = ["chumsky/regex"]
-stacker = ["chumsky/stacker"]
-unstable = ["chumsky/unstable", "generic-arraydeque/unstable"]
+unstable = ["generic-arraydeque/unstable"]
 
 rowan = ["dep:rowan", "std"]
 
 among = ["dep:among"]
 hipstr = ["dep:hipstr"]
-bytes = ["dep:bytes", "chumsky/bytes"]
+bytes = ["dep:bytes"]
 bstr = ["dep:bstr"]
 smallvec = ["dep:smallvec", "alloc"]
 
@@ -62,8 +54,6 @@ logos = { version = "0.15", default-features = false, features = [
 paste = "1"
 thiserror = { version = "2", default-features = false }
 
-chumsky = { git = "https://github.com/zesterer/chumsky", default-features = false, optional = true, features = ["either"] }
-
 rowan = { version = "0.16", optional = true }
 
 
@@ -83,12 +73,12 @@ tempfile = "3"
 [[example]]
 name = "simple_calculator"
 path = "examples/simple_calculator.rs"
-required-features = ["chumsky", "std"]
+required-features = ["std"]
 
 [[example]]
 name = "custom_parser"
 path = "examples/custom_parser.rs"
-required-features = ["chumsky", "std"]
+required-features = ["std"]
 
 [profile.bench]
 opt-level = 3

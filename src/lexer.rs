@@ -4,6 +4,7 @@ pub use cache::*;
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
 
+pub use input::InputContext;
 pub use input_ref::InputRef;
 pub use source::Source;
 pub use token::{

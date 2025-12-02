@@ -11,19 +11,29 @@ macro_rules! alias {
     paste::paste! {
       $(
         $(#[$attr])*
-        pub type [< MissingTrailing $name >] <'inp, Sep, L> = MissingTrailingOf<'inp, Sep, L>;
+        pub type [< MissingTrailing $name >] <'inp, Sep, L, Lang = ()> = MissingTrailingOf<'inp, Sep, L, Lang>;
 
         impl<Kind, O> MissingToken<'_, Kind, O, Trailing<$name>> {
-          #[doc = "Create a new `MissingToken` error indicating a trailing `" $name "` was found."]
+          #[doc = "Create a new `MissingToken` error indicating a trailing `" $name "` was missing for a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< trailing_ $name:snake >](
+          pub const fn [< trailing_ $name:snake>](
             offset: O,
           ) -> Self {
-            Self::trailing(offset)
+            Self::[< trailing_ $name:snake _of>](offset)
           }
         }
 
-        impl<Kind, O> ::core::fmt::Debug for MissingToken<'_, Kind, O, Trailing<$name>>
+        impl<Kind, O, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<$name, Lang>> {
+          #[doc = "Create a new `MissingToken` error indicating a trailing `" $name "` was missing for a specific language."]
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          pub const fn [< trailing_ $name:snake _of>](
+            offset: O,
+          ) -> Self {
+            Self::trailing_of(offset)
+          }
+        }
+
+        impl<Kind, O, Lang: ?Sized> ::core::fmt::Debug for MissingToken<'_, Kind, O, Trailing<$name, Lang>>
         where
           O: ::core::fmt::Debug,
         {
@@ -35,7 +45,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O> ::core::fmt::Display for MissingToken<'_, Kind, O, Trailing<$name>>
+        impl<Kind, O, Lang: ?Sized> ::core::fmt::Display for MissingToken<'_, Kind, O, Trailing<$name, Lang>>
         where
           O: ::core::fmt::Display,
         {
@@ -50,7 +60,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O> ::core::error::Error for MissingToken<'_, Kind, O, Trailing<$name>>
+        impl<Kind, O, Lang: ?Sized> ::core::error::Error for MissingToken<'_, Kind, O, Trailing<$name, Lang>>
         where
           O: ::core::fmt::Display + ::core::fmt::Debug,
         {
@@ -61,26 +71,26 @@ macro_rules! alias {
 }
 
 alias! {
-  /// A type alias for an `MissingToken` error indicating a trailing comma was found.
+  /// A type alias for an `MissingToken` error indicating a trailing comma was missing.
   Comma,
-  /// A type alias for an `MissingToken` error indicating a trailing dot was found.
+  /// A type alias for an `MissingToken` error indicating a trailing dot was missing.
   Dot,
-  /// A type alias for an `MissingToken` error indicating a trailing underscore was found.
+  /// A type alias for an `MissingToken` error indicating a trailing underscore was missing.
   Underscore,
-  /// A type alias for an `MissingToken` error indicating a trailing pipe was found.
+  /// A type alias for an `MissingToken` error indicating a trailing pipe was missing.
   Pipe,
-  /// A type alias for an `MissingToken` error indicating a trailing ampersand was found.
+  /// A type alias for an `MissingToken` error indicating a trailing ampersand was missing.
   Ampersand,
-  /// A type alias for an `MissingToken` error indicating a trailing hyphen was found.
+  /// A type alias for an `MissingToken` error indicating a trailing hyphen was missing.
   Hyphen,
-  /// A type alias for an `MissingToken` error indicating a trailing double colon was found.
+  /// A type alias for an `MissingToken` error indicating a trailing double colon was missing.
   DoubleColon,
 }
 
-/// A type alias for an `MissingPrefix` error indicating a leading punctuator was found for a given lexer and separator.
-pub type MissingTrailingOf<'inp, Sep, L> = MissingToken<
+/// A type alias for an `MissingPrefix` error indicating a trailing punctuator was missing for a given lexer and separator.
+pub type MissingTrailingOf<'inp, Sep, L, Lang = ()> = MissingToken<
   'inp,
   <<L as Lexer<'inp>>::Token as Token<'inp>>::Kind,
   <L as Lexer<'inp>>::Offset,
-  Trailing<Sep>,
+  Trailing<Sep, Lang>,
 >;

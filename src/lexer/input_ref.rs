@@ -1,6 +1,7 @@
 #![allow(clippy::type_complexity)]
 
 use core::{
+  marker::PhantomData,
   mem::MaybeUninit,
   ops::{Range, RangeBounds},
 };
@@ -14,7 +15,7 @@ use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
 mod iter;
 
 /// A reference to an [`Input`] instance.
-pub struct InputRef<'inp, 'closure, L, E, C>
+pub struct InputRef<'inp, 'closure, L, E, C, Lang: ?Sized = ()>
 where
   L: Lexer<'inp>,
 {
@@ -23,9 +24,10 @@ where
   pub(super) span: &'closure mut L::Span,
   pub(super) cache: &'closure mut C,
   pub(super) emitter: &'closure mut E,
+  pub(super) _marker: PhantomData<Lang>,
 }
 
-impl<'inp, L, E, C> InputRef<'inp, '_, L, E, C>
+impl<'inp, L, E, C, Lang: ?Sized> InputRef<'inp, '_, L, E, C, Lang>
 where
   L: Lexer<'inp>,
 {
@@ -162,12 +164,12 @@ where
   }
 }
 
-impl<'inp, 'closure, L, E, C> InputRef<'inp, 'closure, L, E, C>
+impl<'inp, 'closure, L, E, C, Lang: ?Sized> InputRef<'inp, 'closure, L, E, C, Lang>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   C: Cache<'inp, L>,
-  E: Emitter<'inp, L>,
+  E: Emitter<'inp, L, Lang>,
 {
   /// Try parsing, returns `None` on failure (no error propagation)
   pub fn attempt<F, R>(&mut self, f: F) -> Option<R>

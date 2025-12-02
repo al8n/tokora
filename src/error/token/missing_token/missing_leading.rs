@@ -11,19 +11,29 @@ macro_rules! alias {
     paste::paste! {
       $(
         $(#[$attr])*
-        pub type [< MissingLeading $name >] <'inp, Sep, L> = MissingLeadingOf<'inp, Sep, L>;
+        pub type [< MissingLeading $name >] <'inp, Sep, L, Lang = ()> = MissingLeadingOf<'inp, Sep, L, Lang>;
 
         impl<Kind, O> MissingToken<'_, Kind, O, Leading<$name>> {
-          #[doc = "Create a new `MissingToken` error indicating a leading `" $name "` was missing."]
+          #[doc = "Create a new `MissingToken` error indicating a leading `" $name "` was missing for a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< leading_ $name:snake >](
+          pub const fn [< leading_ $name:snake>](
             offset: O,
           ) -> Self {
-            Self::leading(offset)
+            Self::[< leading_ $name:snake _of>](offset)
           }
         }
 
-        impl<Kind, O> ::core::fmt::Debug for MissingToken<'_, Kind, O, Leading<$name>>
+        impl<Kind, O, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<$name, Lang>> {
+          #[doc = "Create a new `MissingToken` error indicating a leading `" $name "` was missing for a specific language."]
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          pub const fn [< leading_ $name:snake _of>](
+            offset: O,
+          ) -> Self {
+            Self::leading_of(offset)
+          }
+        }
+
+        impl<Kind, O, Lang: ?Sized> ::core::fmt::Debug for MissingToken<'_, Kind, O, Leading<$name, Lang>>
         where
           O: ::core::fmt::Debug,
         {
@@ -35,7 +45,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O> ::core::fmt::Display for MissingToken<'_, Kind, O, Leading<$name>>
+        impl<Kind, O, Lang: ?Sized> ::core::fmt::Display for MissingToken<'_, Kind, O, Leading<$name, Lang>>
         where
           O: ::core::fmt::Display,
         {
@@ -50,7 +60,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O> ::core::error::Error for MissingToken<'_, Kind, O, Leading<$name>>
+        impl<Kind, O, Lang: ?Sized> ::core::error::Error for MissingToken<'_, Kind, O, Leading<$name, Lang>>
         where
           O: ::core::fmt::Display + ::core::fmt::Debug,
         {
@@ -78,9 +88,9 @@ alias! {
 }
 
 /// A type alias for an `MissingPrefix` error indicating a leading punctuator was missing for a given lexer and separator.
-pub type MissingLeadingOf<'inp, Sep, L> = MissingToken<
+pub type MissingLeadingOf<'inp, Sep, L, Lang = ()> = MissingToken<
   'inp,
   <<L as Lexer<'inp>>::Token as Token<'inp>>::Kind,
   <L as Lexer<'inp>>::Offset,
-  Leading<Sep>,
+  Leading<Sep, Lang>,
 >;

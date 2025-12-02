@@ -4,28 +4,38 @@ use crate::utils::Span;
 
 /// An error indicating too many elements were found.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct TooMany<O: ?Sized, S = Span> {
+pub struct TooMany<O: ?Sized, S = Span, Lang: ?Sized = ()> {
   span: S,
   nums: usize,
   limit: usize,
   _syn: PhantomData<O>,
+  _lang: PhantomData<Lang>,
 }
 
 impl<O: ?Sized, S> TooMany<O, S> {
   /// Creates a new `TooMany` error.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(span: S, nums: usize, maximum: usize) -> Self {
+    Self::of(span, nums, maximum)
+  }
+}
+
+impl<O: ?Sized, S, Lang: ?Sized> TooMany<O, S, Lang> {
+  /// Creates a new `TooMany` error for the given language.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of(span: S, nums: usize, maximum: usize) -> Self {
     Self::new_in(span, nums, maximum)
   }
 }
 
-impl<O: ?Sized, S> TooMany<O, S> {
+impl<O: ?Sized, S, Lang: ?Sized> TooMany<O, S, Lang> {
   const fn new_in(span: S, nums: usize, limit: usize) -> Self {
     Self {
       span,
       nums,
       limit,
       _syn: PhantomData,
+      _lang: PhantomData,
     }
   }
 
