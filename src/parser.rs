@@ -31,7 +31,7 @@
 use core::{hash, marker::PhantomData};
 
 use crate::{
-  CachedToken, Emitter, Lexed, Lexer, Source, Token,
+  CachedToken, Check, Emitter, Lexed, Lexer, Source, Token,
   emitter::Fatal,
   error::{UnexpectedEot, token::UnexpectedToken},
   lexer::{Input, InputRef},
@@ -55,6 +55,7 @@ use mayber::MaybeRef;
 pub use or_not::*;
 pub use peek_then::*;
 pub use peek_then_choice::*;
+pub use repeated::*;
 pub use sep::{SepFixSpec, SeqSep, SeqSepOptions};
 pub use then::*;
 pub use validate::*;
@@ -70,12 +71,16 @@ mod map;
 mod or_not;
 mod peek_then;
 mod peek_then_choice;
+mod repeated;
 mod sep;
 mod then;
 mod validate;
 
 /// The result type returned by parsers.
 pub type ParseResult<'inp, O, L, E> = Result<O, ParseError<'inp, L, E>>;
+
+/// A buffer of peeked tokens.
+pub type PeekBuf<'a, 'r, L> = [MaybeRef<'r, CachedToken<'a, L>>];
 
 /// An error type returned by parsers.
 #[derive(Debug, Clone, From, IsVariant, Unwrap, TryUnwrap)]
@@ -191,6 +196,44 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     With::new(PhantomLocated::PHANTOM, self)
   }
 
+  /// Creates a `Repeated` combinator that applies this parser repeatedly
+  /// until the condition handler `Condition` returns [`RepeatedAction::End`] or an fatal error.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn repeated<Condition, const PEEK: usize>(
+    self,
+    condition: Condition,
+  ) -> Repeated<Self, Condition, O, PEEK>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Condition: FnMut(
+      &PeekBuf<'inp, '_, L>,
+      &mut Ctx::Emitter,
+    )
+      -> Result<RepeatedAction, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    Repeated::new(self, condition)
+  }
+
+  /// Creates a `SeqSep` combinator that applies this parser repeatedly,
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn separated_by<SepClassifier, Condition, const PEEK: usize>(
+    self,
+    sep_classifier: SepClassifier,
+    condition: Condition,
+  ) -> SeqSep<Self, SepClassifier, Condition, O, PEEK>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    L: Lexer<'inp>,
+    Condition: Check<L::Token, Action>,
+    SepClassifier: Check<L::Token>,
+  {
+    SeqSep::new(self, sep_classifier, condition)
+  }
+
   /// Creates a `PeekThen` combinator that peeks at most `N` tokens first from the input before parsing.
   ///
   /// If the condition handler `C` returns `Ok(())`, the inner parser is applied, otherwise,
@@ -201,7 +244,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     C: FnMut(
-      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &[MaybeRef<'_, CachedToken<'_, L>>],
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
@@ -221,7 +264,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     C: FnMut(
-      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &[MaybeRef<'_, CachedToken<'_, L>>],
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
@@ -238,7 +281,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     H: FnMut(
-      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &[MaybeRef<'_, CachedToken<'_, L>>],
       &mut Ctx::Emitter,
     ) -> Result<Self::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
@@ -258,7 +301,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     H: FnMut(
-      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &[MaybeRef<'_, CachedToken<'_, L>>],
       &mut Ctx::Emitter,
     ) -> Result<Option<Self::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
@@ -793,7 +836,7 @@ impl<P, S> With<P, S> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
-pub enum Action<'a, Kind> {
+pub enum Action {
   /// Indicates the token belongs to another syntactic element, hint to end parsing.
   #[unwrap(ignore)]
   #[try_unwrap(ignore)]
@@ -802,11 +845,125 @@ pub enum Action<'a, Kind> {
   #[unwrap(ignore)]
   #[try_unwrap(ignore)]
   Continue,
-  /// Indicates that we should skip the token, useful for trivial tokens like whitespace, comments, etc.
-  #[unwrap(ignore)]
-  #[try_unwrap(ignore)]
-  Skip,
-  /// Indicates this is an unexpected token, but this token should not terminate the parsing,
-  /// the unexpected token will be emitted to the emitter.
-  Unexpected(Option<Expected<'a, Kind>>),
+  // /// Indicates that we should skip the token, useful for trivial tokens like whitespace, comments, etc.
+  // #[unwrap(ignore)]
+  // #[try_unwrap(ignore)]
+  // Skip,
+  // /// Indicates this is an unexpected token, but this token should not terminate the parsing,
+  // /// the unexpected token will be emitted to the emitter.
+  // Unexpected(Option<Expected<'a, Kind>>),
+}
+
+impl Apply<Maximum> for () {
+  type Options = usize;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn apply(self, options: Self::Options) -> Maximum {
+    Maximum(options)
+  }
+}
+
+impl Apply<Minimum> for () {
+  type Options = usize;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn apply(self, options: Self::Options) -> Minimum {
+    Minimum(options)
+  }
+}
+
+impl Apply<Maximum> for Maximum {
+  type Options = usize;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn apply(self, options: Self::Options) -> Maximum {
+    Maximum(options)
+  }
+}
+
+impl Apply<Minimum> for Minimum {
+  type Options = usize;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn apply(self, options: Self::Options) -> Minimum {
+    Minimum(options)
+  }
+}
+
+/// A marker type representing the maximum number of elements allowed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Maximum(pub usize);
+
+impl Maximum {
+  /// The maximum possible value for `Maximum`.
+  pub const MAX: Self = Self::new(usize::MAX);
+
+  /// Creates a new `Maximum`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(n: usize) -> Self {
+    Self(n)
+  }
+
+  /// Returns the maximum number of elements allowed.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn get(&self) -> usize {
+    self.0
+  }
+}
+
+/// A marker type representing the minimum number of elements required.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Minimum(usize);
+
+impl Minimum {
+  /// The minimum possible value for `Minimum`.
+  pub const MIN: Self = Self::new(0);
+
+  /// Creates a new `Minimum`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(n: usize) -> Self {
+    Self(n)
+  }
+
+  /// Returns the minimum number of elements required.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn get(&self) -> usize {
+    self.0
+  }
+}
+
+trait MinSpec {
+  fn minimum(&self) -> usize;
+}
+
+impl MinSpec for Minimum {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn minimum(&self) -> usize {
+    self.0
+  }
+}
+
+impl MinSpec for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn minimum(&self) -> usize {
+    0
+  }
+}
+
+trait MaxSpec {
+  fn maximum(&self) -> usize;
+}
+
+impl MaxSpec for Maximum {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn maximum(&self) -> usize {
+    self.0
+  }
+}
+
+impl MaxSpec for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn maximum(&self) -> usize {
+    usize::MAX
+  }
 }

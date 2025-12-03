@@ -52,16 +52,8 @@ impl<P, F> Filter<P, F> {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, ()>,
-    P: ParseInput<
-      'inp,
-      L,
-      O,
-      Ctx,
-      (),
-    >,
-    F: FnMut(
-      &O,
-    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
+    P: ParseInput<'inp, L, O, Ctx, ()>,
+    F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
     Self::of(parser, filter)
   }
@@ -73,21 +65,10 @@ impl<P, F> Filter<P, F> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Lang: ?Sized,
-    P: ParseInput<
-      'inp,
-      L,
-      O,
-      Ctx,
-      Lang,
-    >,
-    F: FnMut(
-      &O,
-    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
-    Self {
-      parser,
-      filter,
-    }
+    Self { parser, filter }
   }
 }
 
@@ -104,7 +85,10 @@ where
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    self.parser.parse_input(input).and_then(|output| (self.filter)(&output).map(|_| output))
+    self
+      .parser
+      .parse_input(input)
+      .and_then(|output| (self.filter)(&output).map(|_| output))
   }
 }
 
@@ -114,18 +98,13 @@ mod tests {
 
   use super::*;
 
-  fn assert_filter_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
-    Parser::new().apply(
-      Any::new()
-        .filter(|_tok: &DummyToken| Ok(())),
-    )
+  fn assert_filter_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
+    Parser::new().apply(Any::new().filter(|_tok: &Spanned<DummyToken>| Ok(())))
   }
 
-  fn assert_filter_parse_with_ctx_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
-    Parser::with_context(()).apply(
-      Any::new()
-        .filter(|_tok: &DummyToken| Ok(())),
-    )
+  fn assert_filter_parse_with_ctx_impl<'inp>()
+  -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
+    Parser::with_context(()).apply(Any::new().filter(|_tok: &Spanned<DummyToken>| Ok(())))
   }
 
   #[test]

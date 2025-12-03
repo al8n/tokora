@@ -5,14 +5,14 @@ use crate::{
     syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
     token::{
       MissingLeadingOf, MissingSeparatorOf, MissingTrailingOf, UnexpectedLeadingOf,
-      UnexpectedRepeatedOf, UnexpectedToken, UnexpectedTrailingOf,
+      UnexpectedRepeatedOf, UnexpectedTrailingOf,
     },
   },
 };
 
 use super::*;
 
-use core::mem;
+use core::mem::{self, MaybeUninit};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
 enum State<T, S> {
@@ -30,7 +30,7 @@ impl<
   L,
   F,
   SepClassifier,
-  ElementClassifier,
+  Condition,
   O,
   Container,
   Ctx,
@@ -39,15 +39,19 @@ impl<
   Max,
   Min,
   Lang: ?Sized,
+  const PEEK: usize,
 > ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Leading, Max, Min>>,
+    SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Leading, Max, Min>>,
     Container,
   >
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
-  ElementClassifier: Check<L::Token, Action<'inp, <L::Token as Token<'inp>>::Kind>>,
+  Condition: FnMut(
+    &[MaybeRef<'_, CachedToken<'inp, L>>],
+    &mut Ctx::Emitter,
+  ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -72,10 +76,10 @@ where
     let mut lexer_errs_id = None;
 
     loop {
-      // peek one token
-      let peeked = inp.peek_one();
+      let mut buf = [const { MaybeUninit::uninit() }; PEEK];
+      let (output, emitter) = inp.peek_with_emitter(&mut buf);
 
-      match peeked {
+      match output.first() {
         None => {
           return parser
             .handle_end(state, inp, &ckp, num_elems, container)
@@ -106,122 +110,46 @@ where
               }
               continue;
             }
-            Lexed::Token(tok) => {
-              match parser.classifier.check(tok) {
-                SeqSepAction::End => {
-                  return parser
-                    .handle_end(state, inp, &ckp, num_elems, container)
-                    .map(|_| mem::take(container));
+            Lexed::Token(tok) if parser.sep.check(tok) => {
+              let sep_tok = inp
+                .next()
+                .expect("peeked token already confirmed there must be a token");
+              match state {
+                // happy path, we found a separator after an element
+                State::Element => {
+                  // Change the current state to Separator.
+                  state = State::Separator(sep_tok.map_data(|t| t.unwrap_token()));
                 }
-                SeqSepAction::Skip => {
-                  inp.consume_one();
-                  continue;
-                }
-                SeqSepAction::Unexpected(exp) => {
-                  let unexpected_tok = inp
-                    .next()
-                    .expect("peeked token already confirmed there must be a token");
-                  let (span, token) = unexpected_tok.into_components();
-                  let err = match exp {
-                    Some(expected) => UnexpectedToken::with_expected(span, expected)
-                      .with_found(token.unwrap_token()),
-                    None => UnexpectedToken::new(span).with_found(token.unwrap_token()),
-                  };
+                // First token is a separator, we found another leading separator
+                State::Leading(tok) => {
+                  // whatever the leading spec is, multiple leading separators are not allowed
+                  // we should start a leading separator error batch and emit the newly found leading separator
+                  // to the batch
+                  match leading_spec {
+                    SepFixSpec::Deny(_) => {
+                      // we are not allowed to have multiple leading separators.
+                      let (tok_span, tok_token) = tok.into_components();
+                      let (sep_span, sep_tok) = sep_tok.into_components();
 
-                  inp.emitter().emit_unexpected_token(err)?;
+                      // we are not allowed to have multiple leading separators.
+                      // try to emit leading separator error via the emitter
+                      <Ctx::Emitter as BatchEmitter<
+                        '_,
+                        L,
+                        UnexpectedLeadingOf<'_, SepClassifier, L, Lang>,
+                        Lang,
+                      >>::create_batch_with_error(
+                        inp.emitter(),
+                        "leading separators".into(),
+                        Spanned::new(
+                          tok_span.clone(),
+                          UnexpectedLeadingOf::<'_, SepClassifier, L, Lang>::leading_of(
+                            tok_span.clone(),
+                            tok_token,
+                          ),
+                        ),
+                      )?;
 
-                  continue;
-                }
-                SeqSepAction::Separator => {
-                  let sep_tok = inp
-                    .next()
-                    .expect("peeked token already confirmed there must be a token");
-                  match state {
-                    // happy path, we found a separator after an element
-                    State::Element => {
-                      // Change the current state to Separator.
-                      state = State::Separator(sep_tok.map_data(|t| t.unwrap_token()));
-                    }
-                    // First token is a separator, we found another leading separator
-                    State::Leading(tok) => {
-                      // whatever the leading spec is, multiple leading separators are not allowed
-                      // we should start a leading separator error batch and emit the newly found leading separator
-                      // to the batch
-                      match leading_spec {
-                        SepFixSpec::Deny(_) => {
-                          // we are not allowed to have multiple leading separators.
-                          let (tok_span, tok_token) = tok.into_components();
-                          let (sep_span, sep_tok) = sep_tok.into_components();
-
-                          // we are not allowed to have multiple leading separators.
-                          // try to emit leading separator error via the emitter
-                          <Ctx::Emitter as BatchEmitter<
-                            '_,
-                            L,
-                            UnexpectedLeadingOf<'_, SepClassifier, L, Lang>,
-                            Lang,
-                          >>::create_batch_with_error(
-                            inp.emitter(),
-                            "leading separators".into(),
-                            Spanned::new(
-                              tok_span.clone(),
-                              UnexpectedLeadingOf::<'_, SepClassifier, L, Lang>::leading_of(
-                                tok_span.clone(),
-                                tok_token,
-                              ),
-                            ),
-                          )?;
-
-                          <Ctx::Emitter as BatchEmitter<
-                            '_,
-                            L,
-                            UnexpectedLeadingOf<'_, SepClassifier, L, Lang>,
-                            Lang,
-                          >>::emit_to_batch(
-                            inp.emitter(),
-                            &tok_span,
-                            Spanned::new(
-                              sep_span.clone(),
-                              UnexpectedLeadingOf::<'_, SepClassifier, L, Lang>::leading_of(
-                                sep_span.clone(),
-                                sep_tok.unwrap_token(),
-                              ),
-                            ),
-                          )?;
-
-                          // store the first leading sep span as this will be used to identify the batch later
-                          state = State::Leadings(tok_span);
-                        }
-                        SepFixSpec::Allow(_) | SepFixSpec::Require(_) => {
-                          let (sep_span, sep_tok) = sep_tok.into_components();
-
-                          // we are not allowed to have multiple leading separators.
-                          // try to emit leading separator error via the emitter
-                          <Ctx::Emitter as BatchEmitter<
-                            '_,
-                            L,
-                            UnexpectedLeadingOf<'_, SepClassifier, L, Lang>,
-                            Lang,
-                          >>::create_batch_with_error(
-                            inp.emitter(),
-                            "leading separators".into(),
-                            Spanned::new(
-                              sep_span.clone(),
-                              UnexpectedLeadingOf::<'_, SepClassifier, L, Lang>::leading_of(
-                                sep_span.clone(),
-                                sep_tok.unwrap_token(),
-                              ),
-                            ),
-                          )?;
-
-                          // store the first leading sep span as this will be used to identify the batch later
-                          state = State::Leadings(sep_span);
-                        }
-                      }
-                    }
-                    State::Leadings(span) => {
-                      // we already have multiple leading separators, just emit the newly found leading separator
-                      let sep_span = sep_tok.span_ref().clone();
                       <Ctx::Emitter as BatchEmitter<
                         '_,
                         L,
@@ -229,99 +157,156 @@ where
                         Lang,
                       >>::emit_to_batch(
                         inp.emitter(),
-                        &span,
+                        &tok_span,
                         Spanned::new(
                           sep_span.clone(),
                           UnexpectedLeadingOf::<'_, SepClassifier, L, Lang>::leading_of(
                             sep_span.clone(),
-                            sep_tok.into_data().unwrap_token(),
+                            sep_tok.unwrap_token(),
                           ),
                         ),
                       )?;
 
-                      // no need to change state, still in leadings
-                      state = State::Leadings(span);
+                      // store the first leading sep span as this will be used to identify the batch later
+                      state = State::Leadings(tok_span);
                     }
-                    // first token is a separator
-                    State::Start => {
-                      // we do not need to check leading spec here, as we cached the leading separator token,
-                      // the check will be done when we find the first element or reach the end of input
+                    SepFixSpec::Allow(_) | SepFixSpec::Require(_) => {
+                      let (sep_span, sep_tok) = sep_tok.into_components();
 
-                      state = State::Leading(sep_tok.map_data(|t| t.unwrap_token()));
-                    }
-                    // we are in separator state, so the next token should be an element,
-                    // so repeated separator case, let's construct a repeated separator error,
-                    // and emit it via the emitter, and let the emitter decide whether to return early
-                    State::Separator(tok) => {
-                      // one more repeated separator
-                      let (tok_span, tok_token) = tok.into_components();
-                      let (sep_span, sep_token) = sep_tok.into_components();
-
-                      // create a batch for repeated separator errors if not already created
+                      // we are not allowed to have multiple leading separators.
+                      // try to emit leading separator error via the emitter
                       <Ctx::Emitter as BatchEmitter<
                         '_,
                         L,
-                        UnexpectedRepeatedOf<'_, SepClassifier, L, Lang>,
+                        UnexpectedLeadingOf<'_, SepClassifier, L, Lang>,
                         Lang,
                       >>::create_batch_with_error(
                         inp.emitter(),
-                        "repeated separator".into(),
-                        Spanned::new(
-                          tok_span.clone(),
-                          UnexpectedRepeatedOf::<'_, SepClassifier, L, Lang>::repeated_of(
-                            tok_span.clone(),
-                            tok_token.clone(),
-                          ),
-                        ),
-                      )?;
-
-                      <Ctx::Emitter as BatchEmitter<
-                        '_,
-                        L,
-                        UnexpectedRepeatedOf<'_, SepClassifier, L, Lang>,
-                        Lang,
-                      >>::emit_to_batch(
-                        inp.emitter(),
-                        &tok_span,
+                        "leading separators".into(),
                         Spanned::new(
                           sep_span.clone(),
-                          UnexpectedRepeatedOf::<'_, SepClassifier, L, Lang>::repeated_of(
-                            sep_span,
-                            sep_token.unwrap_token(),
-                          ),
-                        ),
-                      )?;
-
-                      // change state to RepeatedSeparator, store the span as the id for the batch
-                      state = State::RepeatedSeparator(tok_span);
-                    }
-                    // we are in repeated separator state,
-                    // so just extend the repeated separator span
-                    State::RepeatedSeparator(span) => {
-                      let (sep_span, sep_token) = sep_tok.into_components();
-                      <Ctx::Emitter as BatchEmitter<
-                        '_,
-                        L,
-                        UnexpectedRepeatedOf<'_, SepClassifier, L, Lang>,
-                        Lang,
-                      >>::emit_to_batch(
-                        inp.emitter(),
-                        &span,
-                        Spanned::new(
-                          sep_span.clone(),
-                          UnexpectedRepeatedOf::<'_, SepClassifier, L, Lang>::repeated_of(
+                          UnexpectedLeadingOf::<'_, SepClassifier, L, Lang>::leading_of(
                             sep_span.clone(),
-                            sep_token.unwrap_token(),
+                            sep_tok.unwrap_token(),
                           ),
                         ),
                       )?;
-                      // no need to change state, still in RepeatedSeparator
-                      state = State::RepeatedSeparator(span);
+
+                      // store the first leading sep span as this will be used to identify the batch later
+                      state = State::Leadings(sep_span);
                     }
                   }
                 }
-                SeqSepAction::Continue => {
-                  // if the next token belongs to an element, check the current state
+                State::Leadings(span) => {
+                  // we already have multiple leading separators, just emit the newly found leading separator
+                  let sep_span = sep_tok.span_ref().clone();
+                  <Ctx::Emitter as BatchEmitter<
+                    '_,
+                    L,
+                    UnexpectedLeadingOf<'_, SepClassifier, L, Lang>,
+                    Lang,
+                  >>::emit_to_batch(
+                    inp.emitter(),
+                    &span,
+                    Spanned::new(
+                      sep_span.clone(),
+                      UnexpectedLeadingOf::<'_, SepClassifier, L, Lang>::leading_of(
+                        sep_span.clone(),
+                        sep_tok.into_data().unwrap_token(),
+                      ),
+                    ),
+                  )?;
+
+                  // no need to change state, still in leadings
+                  state = State::Leadings(span);
+                }
+                // first token is a separator
+                State::Start => {
+                  // we do not need to check leading spec here, as we cached the leading separator token,
+                  // the check will be done when we find the first element or reach the end of input
+
+                  state = State::Leading(sep_tok.map_data(|t| t.unwrap_token()));
+                }
+                // we are in separator state, so the next token should be an element,
+                // so repeated separator case, let's construct a repeated separator error,
+                // and emit it via the emitter, and let the emitter decide whether to return early
+                State::Separator(tok) => {
+                  // one more repeated separator
+                  let (tok_span, tok_token) = tok.into_components();
+                  let (sep_span, sep_token) = sep_tok.into_components();
+
+                  // create a batch for repeated separator errors if not already created
+                  <Ctx::Emitter as BatchEmitter<
+                    '_,
+                    L,
+                    UnexpectedRepeatedOf<'_, SepClassifier, L, Lang>,
+                    Lang,
+                  >>::create_batch_with_error(
+                    inp.emitter(),
+                    "repeated separator".into(),
+                    Spanned::new(
+                      tok_span.clone(),
+                      UnexpectedRepeatedOf::<'_, SepClassifier, L, Lang>::repeated_of(
+                        tok_span.clone(),
+                        tok_token.clone(),
+                      ),
+                    ),
+                  )?;
+
+                  <Ctx::Emitter as BatchEmitter<
+                    '_,
+                    L,
+                    UnexpectedRepeatedOf<'_, SepClassifier, L, Lang>,
+                    Lang,
+                  >>::emit_to_batch(
+                    inp.emitter(),
+                    &tok_span,
+                    Spanned::new(
+                      sep_span.clone(),
+                      UnexpectedRepeatedOf::<'_, SepClassifier, L, Lang>::repeated_of(
+                        sep_span,
+                        sep_token.unwrap_token(),
+                      ),
+                    ),
+                  )?;
+
+                  // change state to RepeatedSeparator, store the span as the id for the batch
+                  state = State::RepeatedSeparator(tok_span);
+                }
+                // we are in repeated separator state,
+                // so just extend the repeated separator span
+                State::RepeatedSeparator(span) => {
+                  let (sep_span, sep_token) = sep_tok.into_components();
+                  <Ctx::Emitter as BatchEmitter<
+                    '_,
+                    L,
+                    UnexpectedRepeatedOf<'_, SepClassifier, L, Lang>,
+                    Lang,
+                  >>::emit_to_batch(
+                    inp.emitter(),
+                    &span,
+                    Spanned::new(
+                      sep_span.clone(),
+                      UnexpectedRepeatedOf::<'_, SepClassifier, L, Lang>::repeated_of(
+                        sep_span.clone(),
+                        sep_token.unwrap_token(),
+                      ),
+                    ),
+                  )?;
+                  // no need to change state, still in RepeatedSeparator
+                  state = State::RepeatedSeparator(span);
+                }
+              }
+            }
+            Lexed::Token(_) => {
+              match (parser.condition)(output, emitter)? {
+                Action::End => {
+                  return parser
+                    .handle_end(state, inp, &ckp, num_elems, container)
+                    .map(|_| mem::take(container));
+                }
+                Action::Continue => {
+                  // if the peeked token belongs to an element, check the current state
                   match state {
                     State::Separator(_) => {
                       // parse the next element
@@ -476,8 +461,8 @@ where
   }
 }
 
-impl<'inp, F, SepClassifier, ElementClassifier, O, Trailing, Leading, Max, Min>
-  SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Leading, Max, Min>>
+impl<'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: usize>
+  SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Leading, Max, Min>>
 {
   fn handle_end<'closure, L, Ctx, Lang, Container>(
     &mut self,
@@ -492,7 +477,10 @@ impl<'inp, F, SepClassifier, ElementClassifier, O, Trailing, Leading, Max, Min>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     F: ParseInput<'inp, L, O, Ctx, Lang>,
-    ElementClassifier: Check<L::Token, Action<'inp, <L::Token as Token<'inp>>::Kind>>,
+    Condition: FnMut(
+      &PeekBuf<'inp, '_, L>,
+      &mut Ctx::Emitter,
+    ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     SepClassifier: Check<L::Token>,
     Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
     Container: crate::container::Container<O>,
@@ -648,7 +636,7 @@ impl<'inp, F, SepClassifier, ElementClassifier, O, Trailing, Leading, Max, Min>
           match tok {
             Err(_) => {}
             Ok(tok) => {
-              if self.classifier.check(&tok) == SeqSepAction::Separator {
+              if self.sep.check(&tok) {
                 <Ctx::Emitter as BatchEmitter<
                   '_,
                   L,

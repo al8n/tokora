@@ -2,53 +2,11 @@ use core::marker::PhantomData;
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
-use crate::{Check, Token, punct::*, utils::Expected};
+use crate::{Check, punct::*};
 
 use super::*;
 
 mod parser_input;
-
-/// A marker type representing the maximum number of elements allowed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Maximum(pub usize);
-
-impl Maximum {
-  /// The maximum possible value for `Maximum`.
-  pub const MAX: Self = Self::new(usize::MAX);
-
-  /// Creates a new `Maximum`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(n: usize) -> Self {
-    Self(n)
-  }
-
-  /// Returns the maximum number of elements allowed.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn get(&self) -> usize {
-    self.0
-  }
-}
-
-/// A marker type representing the minimum number of elements required.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Minimum(usize);
-
-impl Minimum {
-  /// The minimum possible value for `Minimum`.
-  pub const MIN: Self = Self::new(0);
-
-  /// Creates a new `Minimum`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(n: usize) -> Self {
-    Self(n)
-  }
-
-  /// Returns the minimum number of elements required.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn get(&self) -> usize {
-    self.0
-  }
-}
 
 /// Leading-separator markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -68,98 +26,44 @@ pub struct Require(());
 pub type SeqSepOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
   With<With<Trailing, Leading>, With<Max, Min>>;
 
-/// A hint used during parsing sequences with separators.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
-enum SeqSepAction<'a, Kind> {
-  /// Indicates the start of the sequence, hint to stop.
-  End,
-  /// Indicates a separator was found, hint to parse another element.
-  Separator,
-  /// Indicates a token belongs to an element was found, hint to continue parsing.
-  Continue,
-  /// Indicates that we should skip the token, useful for trivial tokens like whitespace, comments, etc.
-  Skip,
-  /// Indicates this is an unexpected token, but this token should not terminate the parsing.
-  Unexpected(Option<Expected<'a, Kind>>),
-}
-
-impl<'a, Kind> From<Action<'a, Kind>> for SeqSepAction<'a, Kind> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(action: Action<'a, Kind>) -> Self {
-    match action {
-      Action::End => Self::End,
-      Action::Continue => Self::Continue,
-      Action::Skip => Self::Skip,
-      Action::Unexpected(expected) => Self::Unexpected(expected),
-    }
-  }
-}
-
-struct SeqSepClassifier<Sep, Element> {
-  sep: Sep,
-  element: Element,
-}
-
-impl<Sep, Element> SeqSepClassifier<Sep, Element> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(sep: Sep, element: Element) -> Self {
-    Self { sep, element }
-  }
-}
-
-impl<'a, Sep, Element, T> Check<T, SeqSepAction<'a, T::Kind>> for SeqSepClassifier<Sep, Element>
-where
-  T: Token<'a>,
-  Sep: Check<T>,
-  Element: Check<T, Action<'a, T::Kind>>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check(&self, target: &T) -> SeqSepAction<'a, T::Kind> {
-    if self.sep.check(target) {
-      return SeqSepAction::Separator;
-    }
-
-    SeqSepAction::from(self.element.check(target))
-  }
-}
-
 /// A parser that parses a sequence of elements separated by a specific separator.
-pub struct SeqSep<F, SepClassifier, ElementClassifier, O, Config = SeqSepOptions> {
+pub struct SeqSep<F, SepClassifier, Condition, O, const PEEK: usize, Config = SeqSepOptions> {
   f: F,
-  classifier: SeqSepClassifier<SepClassifier, ElementClassifier>,
+  sep: SepClassifier,
+  condition: Condition,
   config: Config,
-  _m: PhantomData<(O, Config)>,
+  _m: PhantomData<O>,
 }
 
-impl<F, SepClassifier, ElementClassifier, O> SeqSep<F, SepClassifier, ElementClassifier, O> {
+impl<F, SepClassifier, Condition, O, const PEEK: usize>
+  SeqSep<F, SepClassifier, Condition, O, PEEK>
+{
   /// Creates a new `SeqSep` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(
-    f: F,
-    sep_classifier: SepClassifier,
-    element_classifier: ElementClassifier,
-  ) -> Self {
-    Self::with_container(f, sep_classifier, element_classifier)
+  pub const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
+    Self::new_in(f, sep_classifier, condition)
   }
 
   /// Creates a new `SeqSep` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  const fn with_container(
-    f: F,
-    sep_classifier: SepClassifier,
-    element_classifier: ElementClassifier,
-  ) -> Self {
+  const fn new_in(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
+    assert!(
+      PEEK > 0,
+      "the maximum size of peek buf must be greater than zero"
+    );
+
     Self {
       f,
-      classifier: SeqSepClassifier::new(sep_classifier, element_classifier),
+      sep: sep_classifier,
+      condition,
       config: SeqSepOptions::new(With::new((), ()), With::new((), ())),
       _m: PhantomData,
     }
   }
 }
 
-impl<F, SepClassifier, ElementClassifier, O, Options>
-  SeqSep<F, SepClassifier, ElementClassifier, O, Options>
+impl<F, SepClassifier, Condition, O, Options, const PEEK: usize>
+  SeqSep<F, SepClassifier, Condition, O, PEEK, Options>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -177,20 +81,21 @@ impl<F, SepClassifier, ElementClassifier, O, Options>
   }
 }
 
-impl<F, SepClassifier, ElementClassifier, O, Trailing, Leading, Max, Min>
-  SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Leading, Max, Min>>
+impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: usize>
+  SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Leading, Max, Min>>
 {
   /// Allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_trailing(
     self,
-  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Allow, Leading, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Allow, Leading, Max, Min>>
   where
     Trailing: Apply<Allow>,
   {
     SeqSep {
       f: self.f,
-      classifier: self.classifier,
+      sep: self.sep,
+      condition: self.condition,
       config: SeqSepOptions::new(
         With::new(Allow(()), self.config.primary.secondary),
         self.config.secondary,
@@ -203,13 +108,14 @@ impl<F, SepClassifier, ElementClassifier, O, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_trailing(
     self,
-  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Require, Leading, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Require, Leading, Max, Min>>
   where
     Trailing: Apply<Require>,
   {
     SeqSep {
       f: self.f,
-      classifier: self.classifier,
+      sep: self.sep,
+      condition: self.condition,
       config: SeqSepOptions::new(
         With::new(Require(()), self.config.primary.secondary),
         self.config.secondary,
@@ -222,13 +128,14 @@ impl<F, SepClassifier, ElementClassifier, O, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_leading(
     self,
-  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Allow, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Allow, Max, Min>>
   where
     Leading: Apply<Allow>,
   {
     SeqSep {
       f: self.f,
-      classifier: self.classifier,
+      sep: self.sep,
+      condition: self.condition,
       config: SeqSepOptions::new(
         With::new(self.config.primary.primary, Allow(())),
         self.config.secondary,
@@ -241,13 +148,14 @@ impl<F, SepClassifier, ElementClassifier, O, Trailing, Leading, Max, Min>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_leading(
     self,
-  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Require, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Require, Max, Min>>
   where
     Leading: Apply<Require>,
   {
     SeqSep {
       f: self.f,
-      classifier: self.classifier,
+      sep: self.sep,
+      condition: self.condition,
       config: SeqSepOptions::new(
         With::new(self.config.primary.primary, Require(())),
         self.config.secondary,
@@ -261,13 +169,14 @@ impl<F, SepClassifier, ElementClassifier, O, Trailing, Leading, Max, Min>
   pub fn at_least(
     self,
     n: Min::Options,
-  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Leading, Max, Minimum>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Leading, Max, Minimum>>
   where
     Min: Apply<Minimum>,
   {
     SeqSep {
       f: self.f,
-      classifier: self.classifier,
+      sep: self.sep,
+      condition: self.condition,
       config: SeqSepOptions::new(
         self.config.primary,
         With::new(
@@ -284,13 +193,14 @@ impl<F, SepClassifier, ElementClassifier, O, Trailing, Leading, Max, Min>
   pub fn at_most(
     self,
     n: Max::Options,
-  ) -> SeqSep<F, SepClassifier, ElementClassifier, O, SeqSepOptions<Trailing, Leading, Maximum, Min>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Leading, Maximum, Min>>
   where
     Max: Apply<Maximum>,
   {
     SeqSep {
       f: self.f,
-      classifier: self.classifier,
+      sep: self.sep,
+      condition: self.condition,
       config: SeqSepOptions::new(
         self.config.primary,
         With::new(
@@ -350,43 +260,51 @@ macro_rules! sep_by {
   ),+$(,)?) => {
     paste::paste! {
       $(
-        impl<F, ElementClassifier, O> SeqSep<F, $sep, ElementClassifier, O> {
+        impl<F, Condition, O, const PEEK: usize> SeqSep<F, $sep, Condition, O, PEEK> {
           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< $sep:snake >]<'inp, L>(f: F, element_classifier: ElementClassifier) -> Self
+          pub const fn [< $sep:snake >]<'inp, L, Ctx>(f: F, condition: Condition) -> Self
           where
             L: Lexer<'inp>,
+            Ctx: ParseContext<'inp, L, ()>,
             $sep: Check<L::Token>,
-            ElementClassifier: Check<L::Token, Action<'inp, <L::Token as Token<'inp>>::Kind>>,
+            Condition: FnMut(
+              &[MaybeRef<'_, CachedToken<'inp, L>>],
+              &mut Ctx::Emitter,
+            ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
           {
-            Self::with_container(f, <$sep>::PHANTOM, element_classifier)
+            Self::new_in(f, <$sep>::PHANTOM, condition)
           }
         }
 
-        impl<F, ElementClassifier, O, Lang> SeqSep<F, $sep<(), (), Lang>, ElementClassifier, O> {
+        impl<F, Condition, O, const PEEK: usize, Lang> SeqSep<F, $sep<(), (), Lang>, Condition, O, PEEK> {
           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser of a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< $sep:snake _of >]<'inp, L>(f: F, element_classifier: ElementClassifier) -> Self
+          pub const fn [< $sep:snake _of >]<'inp, L, Ctx>(f: F, condition: Condition) -> Self
           where
             L: Lexer<'inp>,
             $sep<(), (), Lang>: Check<L::Token>,
-            ElementClassifier: Check<L::Token, Action<'inp, <L::Token as Token<'inp>>::Kind>>,
+            Ctx: ParseContext<'inp, L, Lang>,
+            Condition: FnMut(
+              &[MaybeRef<'_, CachedToken<'inp, L>>],
+              &mut Ctx::Emitter,
+            ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
           {
-            Self::with_container(f, <$sep>::PHANTOM.change_language_const(), element_classifier)
+            Self::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
           }
         }
 
         #[cfg(test)]
         const _: () = {
-          use crate::{DummyLexer, DummyToken};
+          use crate::DummyLexer;
 
           fn __assert_parse_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-            Parser::with_parser(SeqSep::comma::<DummyLexer>(Any::new(), |_tok: &DummyToken| Action::Continue)
+            Parser::with_parser(SeqSep::<_, _, _, _, 1>::comma::<DummyLexer, ()>(Any::new(), |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(Action::Continue))
             .collect::<()>())
           }
 
           fn __assert_parse_with_ctx_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-            Parser::with_parser_and_context(SeqSep::comma::<DummyLexer>(Any::new(), |_tok: &DummyToken| Action::Continue)
+            Parser::with_parser_and_context(SeqSep::<_, _, _, _, 1>::comma::<DummyLexer, ()>(Any::new(), |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(Action::Continue))
             .collect::<()>(), ())
           }
         };
@@ -432,42 +350,6 @@ impl Apply<Require> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn apply(self, _: Self::Options) -> Require {
     Require(())
-  }
-}
-
-impl Apply<Maximum> for () {
-  type Options = usize;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> Maximum {
-    Maximum(options)
-  }
-}
-
-impl Apply<Minimum> for () {
-  type Options = usize;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> Minimum {
-    Minimum(options)
-  }
-}
-
-impl Apply<Maximum> for Maximum {
-  type Options = usize;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> Maximum {
-    Maximum(options)
-  }
-}
-
-impl Apply<Minimum> for Minimum {
-  type Options = usize;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> Minimum {
-    Minimum(options)
   }
 }
 
@@ -543,42 +425,6 @@ impl LeadingSpec for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn leading(&self) -> SepFixSpec {
     SepFixSpec::Deny(Deny(()))
-  }
-}
-
-trait MinSpec {
-  fn minimum(&self) -> usize;
-}
-
-impl MinSpec for Minimum {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn minimum(&self) -> usize {
-    self.0
-  }
-}
-
-impl MinSpec for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn minimum(&self) -> usize {
-    0
-  }
-}
-
-trait MaxSpec {
-  fn maximum(&self) -> usize;
-}
-
-impl MaxSpec for Maximum {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn maximum(&self) -> usize {
-    self.0
-  }
-}
-
-impl MaxSpec for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn maximum(&self) -> usize {
-    usize::MAX
   }
 }
 

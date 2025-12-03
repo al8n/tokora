@@ -22,7 +22,7 @@ impl<P, H, T, const N: usize> PeekThen<P, H, T, N> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseInput<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &[MaybeRef<'_, CachedToken<'_, L>>],
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -37,7 +37,7 @@ impl<P, H, T, const N: usize> PeekThen<P, H, T, N> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &[MaybeRef<'_, CachedToken<'_, L>>],
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -57,7 +57,7 @@ impl<P, H, T, const N: usize> PeekThen<P, H, T, N> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseInput<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &[MaybeRef<'_, CachedToken<'_, L>>],
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -72,7 +72,7 @@ impl<P, H, T, const N: usize> PeekThen<P, H, T, N> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      &mut [MaybeRef<'_, CachedToken<'_, L>>],
+      &[MaybeRef<'_, CachedToken<'_, L>>],
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -90,7 +90,7 @@ impl<'inp, P, H, L, O, Ctx, Lang, const N: usize> ParseInput<'inp, L, O, Ctx, La
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   H: FnMut(
-    &mut [MaybeRef<'_, CachedToken<'_, L>>],
+    &[MaybeRef<'_, CachedToken<'_, L>>],
     &mut Ctx::Emitter,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
@@ -113,7 +113,7 @@ impl<'inp, P, H, L, O, Ctx, Lang, const N: usize> ParseInput<'inp, L, Option<O>,
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   H: FnMut(
-    &mut [MaybeRef<'_, CachedToken<'_, L>>],
+    &[MaybeRef<'_, CachedToken<'_, L>>],
     &mut Ctx::Emitter,
   ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,

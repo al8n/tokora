@@ -52,21 +52,10 @@ impl<P, F> Validate<P, F> {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, ()>,
-    P: ParseInput<
-      'inp,
-      L,
-      O,
-      Ctx,
-      (),
-    >,
-    F: FnMut(
-      &O,
-    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
+    P: ParseInput<'inp, L, O, Ctx, ()>,
+    F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
-    Self {
-      parser,
-      validator,
-    }
+    Self { parser, validator }
   }
 
   /// Creates a new `Validate` combinator for the specified language.
@@ -76,36 +65,17 @@ impl<P, F> Validate<P, F> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Lang: ?Sized,
-    P: ParseInput<
-      'inp,
-      L,
-      O,
-      Ctx,
-      Lang,
-    >,
-    F: FnMut(
-      &O,
-    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
-    Self {
-      parser,
-      validator,
-    }
+    Self { parser, validator }
   }
 }
 
 impl<'inp, P, F, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for Validate<P, F>
 where
-  P: ParseInput<
-    'inp,
-    L,
-    O,
-    Ctx,
-    Lang,
-  >,
-  F: FnMut(
-    &O,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
@@ -115,7 +85,10 @@ where
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    self.parser.parse_input(input).and_then(|output| (self.validator)(&output).map(|_| output))
+    self
+      .parser
+      .parse_input(input)
+      .and_then(|output| (self.validator)(&output).map(|_| output))
   }
 }
 
@@ -126,17 +99,12 @@ mod tests {
   use super::*;
 
   fn assert_validate_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
-    Parser::new().apply(
-      Any::new()
-        .validate(|_tok: &DummyToken| Ok(())),
-    )
+    Parser::new().apply(Any::new().validate(|_tok: &Spanned<DummyToken>| Ok(())))
   }
 
-  fn assert_validate_parse_with_ctx_impl<'inp>() -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
-    Parser::with_context(()).apply(
-      Any::new()
-        .validate(|_tok: &DummyToken| Ok(())),
-    )
+  fn assert_validate_parse_with_ctx_impl<'inp>()
+  -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
+    Parser::with_context(()).apply(Any::new().validate(|_tok: &Spanned<DummyToken>| Ok(())))
   }
 
   #[test]

@@ -54,16 +54,8 @@ impl<P, F, O> FilterMap<P, F, O> {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, ()>,
-    P: ParseInput<
-      'inp,
-      L,
-      O,
-      Ctx,
-      (),
-    >,
-    F: FnMut(
-      O,
-    ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
+    P: ParseInput<'inp, L, O, Ctx, ()>,
+    F: FnMut(O) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
     Self::of(parser, filter)
   }
@@ -75,16 +67,8 @@ impl<P, F, O> FilterMap<P, F, O> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Lang: ?Sized,
-    P: ParseInput<
-      'inp,
-      L,
-      O,
-      Ctx,
-      Lang,
-    >,
-    F: FnMut(
-      O,
-    ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    F: FnMut(O) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     Self {
       parser,
@@ -118,17 +102,11 @@ mod tests {
   use super::*;
 
   fn assert_filter_map_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-    Parser::new().apply(
-      Any::new()
-        .filter_map(|_tok: DummyToken| Ok(())),
-    )
+    Parser::new().apply(Any::new().filter_map(|_tok: Spanned<DummyToken>| Ok(())))
   }
 
   fn assert_filter_map_parse_with_ctx_impl<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-    Parser::with_context(()).apply(
-      Any::new()
-        .filter_map(|_tok: DummyToken| Ok(())),
-    )
+    Parser::with_context(()).apply(Any::new().filter_map(|_tok: Spanned<DummyToken>| Ok(())))
   }
 
   #[test]
