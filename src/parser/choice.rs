@@ -14,6 +14,44 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>;
+
+  /// Creates a `PeekThenChoice` combinator that peeks at most `N` tokens first from the input before parsing.
+  ///
+  /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
+  /// parsing is stopped and return the error from the handler.
+  fn peek_then_choice<H, const N: usize>(self, condition: H) -> PeekThenChoice<Self, H, L::Token, N>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    H: FnMut(
+      &PeekBuf<'inp, '_, L>,
+      &mut Ctx::Emitter,
+    ) -> Result<Self::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    PeekThenChoice::of(self, condition)
+  }
+
+  /// Creates a `PeekThenChoice` combinator that peeks at most `N` tokens first from the input before parsing.
+  ///
+  /// If the condition handler `H` returns `Ok(Some(id))`, the inner choice parser is applied with the given id.
+  /// If the handler returns `Ok(None)`, returns `None` without parsing.
+  /// Otherwise, the error is propagated.
+  fn peek_then_choice_or_not<H, const N: usize>(
+    self,
+    condition: H,
+  ) -> OrNot<PeekThenChoice<Self, H, L::Token, N>>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    H: FnMut(
+      &PeekBuf<'inp, '_, L>,
+      &mut Ctx::Emitter,
+    ) -> Result<Option<Self::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    PeekThenChoice::or_not_of(self, condition)
+  }
 }
 
 macro_rules! tuple_choice {

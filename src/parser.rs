@@ -244,7 +244,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     C: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
+      &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
@@ -264,49 +264,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     C: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
+      &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     PeekThen::or_not_of(self, condition)
   }
 
-  /// Creates a `PeekThenChoice` combinator that peeks at most `N` tokens first from the input before parsing.
-  ///
-  /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
-  /// parsing is stopped and return the error from the handler.
-  fn peek_then_choice<H, const N: usize>(self, condition: H) -> PeekThenChoice<Self, H, L::Token, N>
-  where
-    Self: Sized + ParseChoice<'inp, L, O, Ctx, Lang>,
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    H: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
-      &mut Ctx::Emitter,
-    ) -> Result<Self::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
-  {
-    PeekThenChoice::of(self, condition)
-  }
-
-  /// Creates a `PeekThenChoice` combinator that peeks at most `N` tokens first from the input before parsing.
-  ///
-  /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
-  /// parsing is stopped and return the error from the handler.
-  fn peek_then_choice_or_not<H, const N: usize>(
-    self,
-    condition: H,
-  ) -> OrNot<PeekThenChoice<Self, H, L::Token, N>>
-  where
-    Self: Sized + ParseChoice<'inp, L, O, Ctx, Lang>,
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    H: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
-      &mut Ctx::Emitter,
-    ) -> Result<Option<Self::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
-  {
-    PeekThenChoice::or_not_of(self, condition)
-  }
 
   /// Map the output of this parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]

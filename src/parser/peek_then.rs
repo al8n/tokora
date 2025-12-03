@@ -1,9 +1,5 @@
 use core::mem::MaybeUninit;
 
-use mayber::MaybeRef;
-
-use crate::CachedToken;
-
 use super::*;
 
 /// a
@@ -11,6 +7,15 @@ pub struct PeekThen<P, H, T, const N: usize> {
   parser: P,
   handler: H,
   _token: PhantomData<T>,
+}
+
+impl<P, H, T, const N: usize> Apply<OrNot<Self>> for PeekThen<P, H, T, N> {
+  type Options = ();
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn apply(self, _: Self::Options) -> OrNot<Self> {
+    OrNot::new(self)
+  }
 }
 
 impl<P, H, T, const N: usize> PeekThen<P, H, T, N> {
@@ -22,7 +27,7 @@ impl<P, H, T, const N: usize> PeekThen<P, H, T, N> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseInput<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
+      &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -37,7 +42,7 @@ impl<P, H, T, const N: usize> PeekThen<P, H, T, N> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
+      &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -57,7 +62,7 @@ impl<P, H, T, const N: usize> PeekThen<P, H, T, N> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseInput<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
+      &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -72,7 +77,7 @@ impl<P, H, T, const N: usize> PeekThen<P, H, T, N> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
+      &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -90,7 +95,7 @@ impl<'inp, P, H, L, O, Ctx, Lang, const N: usize> ParseInput<'inp, L, O, Ctx, La
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   H: FnMut(
-    &[MaybeRef<'_, CachedToken<'_, L>>],
+    &PeekBuf<'inp, '_, L>,
     &mut Ctx::Emitter,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
@@ -113,7 +118,7 @@ impl<'inp, P, H, L, O, Ctx, Lang, const N: usize> ParseInput<'inp, L, Option<O>,
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   H: FnMut(
-    &[MaybeRef<'_, CachedToken<'_, L>>],
+    &PeekBuf<'inp, '_, L>,
     &mut Ctx::Emitter,
   ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
@@ -138,5 +143,23 @@ where
         self.0.parser.parse_input(inp).map(Some)
       }
     })
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use crate::{DummyLexer, DummyToken};
+
+  use super::*;
+
+  fn assert_peek_then_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Option<Spanned<DummyToken>>, ()> {
+    Parser::new().apply(
+      Any::new().peek_then_or_not::<_, 2>(|_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(true))
+    )
+  }
+
+  #[test]
+  fn assert_parse_impl() {
+    let _ = assert_peek_then_parse_impl();
   }
 }

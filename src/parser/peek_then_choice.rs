@@ -1,9 +1,5 @@
 use core::mem::MaybeUninit;
 
-use mayber::MaybeRef;
-
-use crate::CachedToken;
-
 use super::*;
 
 /// a
@@ -22,7 +18,7 @@ impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseChoice<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
+      &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -37,7 +33,7 @@ impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseChoice<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
+      &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -57,7 +53,7 @@ impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseChoice<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
+      &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -72,7 +68,7 @@ impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseChoice<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      &[MaybeRef<'_, CachedToken<'_, L>>],
+      &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -90,7 +86,7 @@ impl<'inp, P, H, L, O, Ctx, Lang, const N: usize> ParseInput<'inp, L, O, Ctx, La
 where
   P: ParseChoice<'inp, L, O, Ctx, Lang>,
   H: FnMut(
-    &[MaybeRef<'_, CachedToken<'_, L>>],
+    &PeekBuf<'inp, '_, L>,
     &mut Ctx::Emitter,
   ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
@@ -116,7 +112,7 @@ impl<'inp, P, H, L, O, Ctx, Lang, const N: usize> ParseInput<'inp, L, Option<O>,
 where
   P: ParseChoice<'inp, L, O, Ctx, Lang>,
   H: FnMut(
-    &[MaybeRef<'_, CachedToken<'_, L>>],
+    &PeekBuf<'inp, '_, L>,
     &mut Ctx::Emitter,
   ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
@@ -142,5 +138,25 @@ where
       Some(id) => self.0.parser.parse_choice(inp, &id).map(Some),
       None => Ok(None),
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use crate::{DummyLexer, DummyToken};
+
+  use super::*;
+
+  fn assert_peek_then_choice_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
+    Parser::new().apply(
+      (Any::new(), Any::new()).peek_then_choice::<_, 2>(
+        |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(deranged::RangedU8::<0, 1>::new(0).unwrap())
+      )
+    )
+  }
+
+  #[test]
+  fn assert_parse_impl() {
+    let _ = assert_peek_then_choice_parse_impl();
   }
 }
