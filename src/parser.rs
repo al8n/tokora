@@ -28,7 +28,7 @@
 
 #![allow(clippy::type_complexity)]
 
-use core::{hash, marker::PhantomData};
+use core::marker::PhantomData;
 
 use crate::{
   CachedToken, Check, Emitter, Lexed, Lexer, Source, Token,
@@ -41,17 +41,19 @@ use crate::{
   },
 };
 
-use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
+use derive_more::{IsVariant, TryUnwrap, Unwrap};
+use mayber::MaybeRef;
 
 pub use any::*;
 pub use choice::*;
 pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
+pub use delim::*;
+pub use delim_seq::*;
 pub use expect::*;
 pub use filter::*;
 pub use filter_map::*;
 pub use map::*;
-use mayber::MaybeRef;
 pub use or_not::*;
 pub use peek_then::*;
 pub use peek_then_choice::*;
@@ -64,6 +66,8 @@ mod any;
 mod choice;
 mod collect;
 mod ctx;
+mod delim;
+mod delim_seq;
 mod expect;
 mod filter;
 mod filter_map;
@@ -76,83 +80,8 @@ mod sep;
 mod then;
 mod validate;
 
-/// The result type returned by parsers.
-pub type ParseResult<'inp, O, L, E> = Result<O, ParseError<'inp, L, E>>;
-
 /// A buffer of peeked tokens.
 pub type PeekBuf<'a, 'r, L> = [MaybeRef<'r, CachedToken<'a, L>>];
-
-/// An error type returned by parsers.
-#[derive(Debug, Clone, From, IsVariant, Unwrap, TryUnwrap)]
-#[unwrap(ref, ref_mut)]
-#[try_unwrap(ref, ref_mut)]
-pub enum ParseError<'inp, L, E>
-where
-  L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-{
-  /// Parser error encountered during parsing.
-  #[from(skip)]
-  Parser(E::Error),
-  /// Lexer error encountered during lexing.
-  #[from(skip)]
-  Lexer(<L::Token as Token<'inp>>::Error),
-  /// End of input reached unexpectedly.
-  End(UnexpectedEot<L::Span>),
-}
-
-impl<'inp, L, E> PartialEq for ParseError<'inp, L, E>
-where
-  L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  E::Error: PartialEq,
-  <L::Token as Token<'inp>>::Error: PartialEq,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn eq(&self, other: &Self) -> bool {
-    match (self, other) {
-      (Self::Parser(a), Self::Parser(b)) => a == b,
-      (Self::Lexer(a), Self::Lexer(b)) => a == b,
-      (Self::End(a), Self::End(b)) => a == b,
-      _ => false,
-    }
-  }
-}
-
-impl<'inp, L, E> Eq for ParseError<'inp, L, E>
-where
-  L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  E::Error: Eq,
-  <L::Token as Token<'inp>>::Error: Eq,
-{
-}
-
-impl<'inp, L, E> hash::Hash for ParseError<'inp, L, E>
-where
-  L: Lexer<'inp>,
-  E: Emitter<'inp, L>,
-  E::Error: hash::Hash,
-  <L::Token as Token<'inp>>::Error: hash::Hash,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-    match self {
-      Self::Parser(v) => {
-        0u8.hash(state);
-        v.hash(state);
-      }
-      Self::Lexer(v) => {
-        1u8.hash(state);
-        v.hash(state);
-      }
-      Self::End(v) => {
-        2u8.hash(state);
-        v.hash(state);
-      }
-    }
-  }
-}
 
 /// Core trait implemented by every parser combinator.
 ///
@@ -211,7 +140,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
       &PeekBuf<'inp, '_, L>,
       &mut Ctx::Emitter,
     )
-      -> Result<RepeatedAction, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+      -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     Repeated::new(self, condition)
   }
@@ -228,7 +157,11 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     L: Lexer<'inp>,
-    Condition: Check<L::Token, Action>,
+    Condition: FnMut(
+      &PeekBuf<'inp, '_, L>,
+      &mut Ctx::Emitter,
+    )
+      -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     SepClassifier: Check<L::Token>,
   {
     SeqSep::new(self, sep_classifier, condition)

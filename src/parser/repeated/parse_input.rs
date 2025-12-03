@@ -16,7 +16,7 @@ where
   Condition: FnMut(
     &PeekBuf<'inp, '_, L>,
     &mut Ctx::Emitter,
-  ) -> Result<RepeatedAction, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   Ctx::Emitter: RepeatedEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
@@ -43,7 +43,7 @@ where
       match (self.parser.condition)(output, emitter) {
         Err(err) => return Err(err),
         Ok(action) => match action {
-          RepeatedAction::End => {
+          Action::End => {
             if min > nums {
               let span = inp.span_since(ckp.cursor());
               inp.emitter().emit_too_few(TooFew::of(span, nums, min))?;
@@ -56,7 +56,7 @@ where
 
             return Ok(core::mem::take(&mut self.container));
           }
-          RepeatedAction::Continue => {
+          Action::Continue => {
             if self
               .container
               .push(self.parser.f.parse_input(inp)?)

@@ -4,15 +4,6 @@ use super::*;
 
 mod parse_input;
 
-/// An action returned by the element classifier to control the repetition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RepeatedAction {
-  /// Indicates that parsing should end.
-  End,
-  /// Indicates that parsing should continue.
-  Continue,
-}
-
 /// A type-safe alias for configuring `Repeated` parsers.
 ///
 /// Canonical configuration layout: `With<With<Trailing, Leading>, With<Maximum, Minimum>>`.
