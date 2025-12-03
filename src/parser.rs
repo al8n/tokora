@@ -48,6 +48,8 @@ pub use choice::*;
 pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
 pub use expect::*;
+pub use filter::*;
+pub use filter_map::*;
 pub use map::*;
 use mayber::MaybeRef;
 pub use or_not::*;
@@ -55,18 +57,22 @@ pub use peek_then::*;
 pub use peek_then_choice::*;
 pub use sep::{SepFixSpec, SeqSep, SeqSepOptions};
 pub use then::*;
+pub use validate::*;
 
 mod any;
 mod choice;
 mod collect;
 mod ctx;
 mod expect;
+mod filter;
+mod filter_map;
 mod map;
 mod or_not;
 mod peek_then;
 mod peek_then_choice;
 mod sep;
 mod then;
+mod validate;
 
 /// The result type returned by parsers.
 pub type ParseResult<'inp, O, L, E> = Result<O, ParseError<'inp, L, E>>;
@@ -267,6 +273,51 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     F: FnMut(O) -> U,
   {
     Map::new(self, f)
+  }
+
+  /// Filter the output of this parser using a validation function.
+  ///
+  /// The parser must produce a `Spanned<O>` value. The validator receives
+  /// the data and span, and returns `Ok(())` if valid or an error otherwise.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn filter<F>(self, validator: F) -> Filter<Self, F>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    Filter::of(self, validator)
+  }
+
+  /// Filter and map the output of this parser using a validation/transformation function.
+  ///
+  /// The parser must produce a `Spanned<O>` value. The mapper receives
+  /// the data and span, and returns `Ok(new_value)` or an error.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn filter_map<U, F>(self, mapper: F) -> FilterMap<Self, F, O>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    F: FnMut(O) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    FilterMap::of(self, mapper)
+  }
+
+  /// Validate the output of this parser with full location context.
+  ///
+  /// The parser must produce a `Located<O>` value. The validator receives
+  /// the data, span, and slice, and returns `Ok(())` if valid or an error otherwise.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn validate<F>(self, validator: F) -> Validate<Self, F>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    Validate::of(self, validator)
   }
 
   /// Sequence this parser with another, ignoring the output of the second.
