@@ -1,10 +1,12 @@
-use core::{mem::{ManuallyDrop, MaybeUninit}, ops::{Deref, DerefMut}};
+use core::{
+  mem::{ManuallyDrop, MaybeUninit},
+  ops::{Deref, DerefMut},
+};
 
 use generic_arraydeque::{ArrayLength, array::GenericArray};
 use mayber::{Maybe::Owned, MaybeRef};
 
 use super::*;
-
 
 /// A peeked buffer of tokens from the lexer.
 pub struct Peeked<'p, 'inp, L: Lexer<'inp>, N: ArrayLength> {
@@ -46,9 +48,7 @@ impl<'p, 'inp, L: Lexer<'inp>, N: ArrayLength> Peeked<'p, 'inp, L, N> {
 
   /// Returns a slice to the initialized portion of the buffer.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn as_slice(
-    &self,
-  ) -> &[MaybeRef<'p, CachedToken<'inp, L>>] {
+  pub fn as_slice(&self) -> &[MaybeRef<'p, CachedToken<'inp, L>>] {
     // SAFETY: We only read initialized elements up to `self.filled`.
     unsafe {
       core::slice::from_raw_parts(
@@ -60,9 +60,7 @@ impl<'p, 'inp, L: Lexer<'inp>, N: ArrayLength> Peeked<'p, 'inp, L, N> {
 
   /// Returns a mutable slice to the initialized portion of the buffer.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn as_mut_slice(
-    &mut self,
-  ) -> &mut [MaybeRef<'p, CachedToken<'inp, L>>] {
+  pub fn as_mut_slice(&mut self) -> &mut [MaybeRef<'p, CachedToken<'inp, L>>] {
     // SAFETY: We only read initialized elements up to `self.filled`.
     unsafe {
       core::slice::from_raw_parts_mut(

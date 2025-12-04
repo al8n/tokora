@@ -616,9 +616,7 @@ where
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  pub fn peek<'p, N>(
-    &'p mut self,
-  ) -> Peeked<'p, 'inp, L, N>
+  pub fn peek<'p, N>(&'p mut self) -> Peeked<'p, 'inp, L, N>
   where
     N: ArrayLength,
   {
@@ -629,9 +627,7 @@ where
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  pub fn peek_with_emitter<'p, N>(
-    &'p mut self,
-  ) -> (Peeked<'p, 'inp, L, N>, &'p mut E)
+  pub fn peek_with_emitter<'p, N>(&'p mut self) -> (Peeked<'p, 'inp, L, N>, &'p mut E)
   where
     N: ArrayLength,
   {
@@ -640,11 +636,12 @@ where
     let len = filled.len();
 
     // SAFETY: We just filled `len` elements in the buffer.
-    unsafe { peeked.set_len(len); }
+    unsafe {
+      peeked.set_len(len);
+    }
 
     (peeked, emitter)
   }
-
 
   /// Try to peeks tokens to fill the provided buffer, if not enough tokens are cached, lex more tokens to fill the buffer.
   ///

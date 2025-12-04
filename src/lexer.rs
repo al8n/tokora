@@ -412,6 +412,8 @@ const _: () = {
     }
   }
 
+  impl OperatorToken<'_> for DummyToken {}
+
   impl<'inp> Lexer<'inp> for DummyLexer {
     type State = ();
 

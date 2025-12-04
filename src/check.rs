@@ -68,4 +68,5 @@ check_punct!(
   Dollar::PunctuatorToken::is_dollar,
   Hash::PunctuatorToken::is_hash,
   At::PunctuatorToken::is_at,
+  DoubleColon::OperatorToken::is_double_colon,
 );

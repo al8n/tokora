@@ -28,13 +28,17 @@
 
 #![allow(clippy::type_complexity)]
 
-use core::{marker::PhantomData, mem::MaybeUninit, num::NonZeroUsize};
+use core::{marker::PhantomData, mem::MaybeUninit};
 
 use crate::{
-  CachedToken, Check, Emitter, Lexed, Lexer, Peeked, Source, Token, emitter::Fatal, error::{UnexpectedEot, token::UnexpectedToken}, lexer::{Input, InputRef}, utils::{
+  CachedToken, Check, Emitter, Lexed, Lexer, Peeked, Source, Token,
+  emitter::Fatal,
+  error::{UnexpectedEot, token::UnexpectedToken},
+  lexer::{Input, InputRef},
+  utils::{
     Expected, Located, Sliced, Spanned,
     marker::{PhantomLocated, PhantomSliced, PhantomSpan},
-  }
+  },
 };
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
@@ -45,8 +49,8 @@ pub use any::*;
 pub use choice::*;
 pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
-pub use delim::*;
-pub use delim_seq::*;
+// pub use delim::*;
+// pub use delim_seq::*;
 pub use expect::*;
 pub use filter::*;
 pub use filter_map::*;
@@ -223,15 +227,16 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `C` returns `Ok(())`, the inner parser is applied, otherwise,
   /// parsing is stopped and return the error from the handler.
-  fn peek_then<C, const N: usize>(self, condition: C) -> PeekThen<Self, C, L::Token, N>
+  fn peek_then<C, Window>(self, condition: C) -> PeekThen<Self, C, L::Token, Window>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     C: FnMut(
-      &PeekBuf<'inp, '_, L>,
+      Peeked<'_, 'inp, L, Window::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Window: Capacity,
   {
     PeekThen::of(self, condition)
   }
@@ -240,18 +245,16 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `C` returns `Ok(())`, the inner parser is applied, otherwise,
   /// parsing is stopped and return the error from the handler.
-  fn peek_then_or_not<C, const N: usize>(
-    self,
-    condition: C,
-  ) -> OrNot<PeekThen<Self, C, L::Token, N>>
+  fn peek_then_or_not<C, Window>(self, condition: C) -> OrNot<PeekThen<Self, C, L::Token, Window>>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     C: FnMut(
-      &PeekBuf<'inp, '_, L>,
+      Peeked<'_, 'inp, L, Window::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Window: Capacity,
   {
     PeekThen::or_not_of(self, condition)
   }
@@ -792,14 +795,7 @@ pub enum Action {
   /// Indicates a token belongs to an element was found, hint to continue parsing.
   #[unwrap(ignore)]
   #[try_unwrap(ignore)]
-  Continue,
-  // /// Indicates that we should skip the token, useful for trivial tokens like whitespace, comments, etc.
-  // #[unwrap(ignore)]
-  // #[try_unwrap(ignore)]
-  // Skip,
-  // /// Indicates this is an unexpected token, but this token should not terminate the parsing,
-  // /// the unexpected token will be emitted to the emitter.
-  // Unexpected(Option<Expected<'a, Kind>>),
+  Continue, 
 }
 
 impl Apply<Maximum> for () {

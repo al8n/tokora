@@ -20,7 +20,7 @@ macro_rules! punctuator {
         $(#[$attr])*
         #[doc = "The `" $punct "` punctuator"]
         #[derive(::core::fmt::Debug, ::core::clone::Clone, ::core::marker::Copy, ::core::cmp::PartialEq, ::core::cmp::Eq, ::core::hash::Hash)]
-        pub struct $name<S = (), C = (), Lang = ()> {
+        pub struct $name<S = (), C = (), Lang: ?::core::marker::Sized = ()> {
           span: S,
           source: C,
           _lang: ::core::marker::PhantomData<Lang>,
@@ -60,16 +60,16 @@ macro_rules! punctuator {
           }
         }
 
-        impl<S, C, Lang> $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $name<S, C, Lang> {
           #[doc = "Changes the language type of the `" $punct "` punctuator."]
           #[inline]
-          pub fn change_language<N>(self) -> $name<S, C, N> {
+          pub fn change_language<N: ?::core::marker::Sized>(self) -> $name<S, C, N> {
             $name { span: self.span, source: self.source, _lang: ::core::marker::PhantomData }
           }
 
           #[doc = "Changes the language type of the `" $punct "` punctuator."]
           #[inline]
-          pub const fn change_language_const<N>(self) -> $name<S, C, N>
+          pub const fn change_language_const<N: ?::core::marker::Sized>(self) -> $name<S, C, N>
           where
             S: ::core::marker::Copy,
             C: ::core::marker::Copy,
@@ -96,63 +96,63 @@ macro_rules! punctuator {
           }
         }
 
-        impl<S, C, Lang> ::core::cmp::PartialEq<::core::primitive::str> for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> ::core::cmp::PartialEq<::core::primitive::str> for $name<S, C, Lang> {
           #[inline]
           fn eq(&self, other: &::core::primitive::str) -> bool {
             self.as_str().eq(other)
           }
         }
 
-        impl<S, C, Lang> ::core::cmp::PartialOrd<::core::primitive::str> for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> ::core::cmp::PartialOrd<::core::primitive::str> for $name<S, C, Lang> {
           #[inline]
           fn partial_cmp(&self, other: &::core::primitive::str) -> ::core::option::Option<::core::cmp::Ordering> {
             self.as_str().partial_cmp(other)
           }
         }
 
-        impl<S, C, Lang> ::core::cmp::PartialEq<$name<S, C, Lang>> for ::core::primitive::str {
+        impl<S, C, Lang: ?::core::marker::Sized> ::core::cmp::PartialEq<$name<S, C, Lang>> for ::core::primitive::str {
           #[inline]
           fn eq(&self, other: &$name<S, C, Lang>) -> bool {
             self.eq(other.as_str())
           }
         }
 
-        impl<S, C, Lang> ::core::cmp::PartialOrd<$name<S, C, Lang>> for ::core::primitive::str {
+        impl<S, C, Lang: ?::core::marker::Sized> ::core::cmp::PartialOrd<$name<S, C, Lang>> for ::core::primitive::str {
           #[inline]
           fn partial_cmp(&self, other: &$name<S, C, Lang>) -> ::core::option::Option<::core::cmp::Ordering> {
             self.partial_cmp(other.as_str())
           }
         }
 
-        impl<S, C, Lang> ::core::borrow::Borrow<::core::primitive::str> for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> ::core::borrow::Borrow<::core::primitive::str> for $name<S, C, Lang> {
           #[inline]
           fn borrow(&self) -> &::core::primitive::str {
             self.as_str()
           }
         }
 
-        impl<S, C, Lang> ::core::convert::AsRef<::core::primitive::str> for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> ::core::convert::AsRef<::core::primitive::str> for $name<S, C, Lang> {
           #[inline]
           fn as_ref(&self) -> &::core::primitive::str {
             self.as_str()
           }
         }
 
-        impl<S, C, Lang> $crate::__private::utils::AsSpan<S> for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::AsSpan<S> for $name<S, C, Lang> {
           #[inline]
           fn as_span(&self) -> &S {
             self.span()
           }
         }
 
-        impl<S, C, Lang> $crate::__private::utils::IntoSpan<S> for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::IntoSpan<S> for $name<S, C, Lang> {
           #[inline]
           fn into_span(self) -> S {
             self.span
           }
         }
 
-        impl<S, C, Lang> $crate::__private::utils::IntoComponents for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::IntoComponents for $name<S, C, Lang> {
           type Components = (S, C);
 
           #[inline]
@@ -161,21 +161,21 @@ macro_rules! punctuator {
           }
         }
 
-        impl<S, C, Lang> ::core::fmt::Display for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> ::core::fmt::Display for $name<S, C, Lang> {
           #[cfg_attr(not(tarpaulin), inline(always))]
           fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             ::core::fmt::Display::fmt($punct, f)
           }
         }
 
-        impl<S, C, Lang> $crate::__private::utils::human_display::DisplayHuman for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::human_display::DisplayHuman for $name<S, C, Lang> {
           #[inline]
           fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             ::core::fmt::Display::fmt(self, f)
           }
         }
 
-        impl<S, C, Lang> $crate::__private::utils::sdl_display::DisplayCompact for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::sdl_display::DisplayCompact for $name<S, C, Lang> {
           type Options = ();
 
           #[inline]
@@ -184,7 +184,7 @@ macro_rules! punctuator {
           }
         }
 
-        impl<S, C, Lang> $crate::__private::utils::sdl_display::DisplayPretty for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::sdl_display::DisplayPretty for $name<S, C, Lang> {
           type Options = ();
 
           #[inline]

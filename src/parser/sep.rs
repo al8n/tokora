@@ -263,31 +263,33 @@ macro_rules! sep_by {
   ),+$(,)?) => {
     paste::paste! {
       $(
-        impl<F, Condition, O, Window: Capacity> SeqSep<F, $sep, Condition, O, Window> {
+        impl<F, Condition, O> SeqSep<F, $sep, Condition, O, ()> {
           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< $sep:snake >]<'inp, L, Ctx>(f: F, condition: Condition) -> Self
+          pub const fn [< $sep:snake >]<'inp, L, Window, Ctx>(f: F, condition: Condition) -> SeqSep<F, $sep, Condition, O, Window>
           where
             L: Lexer<'inp>,
             Ctx: ParseContext<'inp, L, ()>,
             $sep: Check<L::Token>,
-            Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY>,
+            Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY, ()>,
+            Window: Capacity,
           {
-            Self::new_in(f, <$sep>::PHANTOM, condition)
+            SeqSep::new_in(f, <$sep>::PHANTOM, condition)
           }
         }
 
-        impl<F, Condition, O, Window: Capacity, Lang> SeqSep<F, $sep<(), (), Lang>, Condition, O, Window> {
+        impl<F, Condition, O, Lang: ?Sized> SeqSep<F, $sep<(), (), Lang>, Condition, O, ()> {
           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser of a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< $sep:snake _of >]<'inp, L, Ctx>(f: F, condition: Condition) -> Self
+          pub const fn [< $sep:snake _of >]<'inp, L, Window, Ctx>(f: F, condition: Condition) -> SeqSep<F, $sep, Condition, O, Window>
           where
             L: Lexer<'inp>,
             $sep<(), (), Lang>: Check<L::Token>,
             Ctx: ParseContext<'inp, L, Lang>,
-            Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY>,
+            Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY, Lang>,
+            Window: Capacity,
           {
-            Self::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
+            SeqSep::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
           }
         }
 
@@ -297,13 +299,21 @@ macro_rules! sep_by {
           use generic_arraydeque::typenum::U1;
 
           fn __assert_parse_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-            Parser::with_parser(SeqSep::<_, _, _, _, U1>::comma::<DummyLexer, ()>(Any::new(), |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(Action::Continue))
-            .collect::<()>())
+            Parser::with_parser(
+              SeqSep::[< $sep:snake >]::<_, U1, ()>(
+                Any::new(),
+                |_toks: Peeked<'_, '_, _, _>, _: &mut Fatal<()>| Ok(Action::Continue),
+              )
+              .collect::<()>(),
+            )
           }
 
           fn __assert_parse_with_ctx_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-            Parser::with_parser_and_context(SeqSep::<_, _, _, _, U1>::comma::<DummyLexer, ()>(Any::new(), |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(Action::Continue))
-            .collect::<()>(), ())
+            Parser::with_parser_and_context(SeqSep::[< $sep:snake >]::<_, U1, ()>(
+                Any::new(),
+                |_toks: Peeked<'_, '_, _, _>, _: &mut Fatal<()>| Ok(Action::Continue),
+              )
+              .collect::<()>(), ())
           }
         };
       )*

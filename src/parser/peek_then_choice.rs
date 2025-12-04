@@ -1,15 +1,14 @@
-use core::mem::MaybeUninit;
-
 use super::*;
 
 /// a
-pub struct PeekThenChoice<P, H, T, const N: usize> {
+pub struct PeekThenChoice<P, H, T, Window: Capacity> {
   parser: P,
   handler: H,
   _token: PhantomData<T>,
+  _capacity: PhantomData<Window>,
 }
 
-impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
+impl<P, H, T, Window: Capacity> PeekThenChoice<P, H, T, Window> {
   /// Creates a new `PeekThenChoice` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new<'inp, L, O, Ctx>(parser: P, condition: H) -> Self
@@ -18,7 +17,7 @@ impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseChoice<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      &PeekBuf<'inp, '_, L>,
+      Peeked<'_, 'inp, L, Window::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -33,7 +32,7 @@ impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseChoice<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      &PeekBuf<'inp, '_, L>,
+      Peeked<'_, 'inp, L, Window::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -42,6 +41,7 @@ impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
       parser,
       handler: condition,
       _token: PhantomData,
+      _capacity: PhantomData,
     }
   }
 
@@ -53,7 +53,7 @@ impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseChoice<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      &PeekBuf<'inp, '_, L>,
+      Peeked<'_, 'inp, L, Window::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -68,7 +68,7 @@ impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseChoice<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      &PeekBuf<'inp, '_, L>,
+      Peeked<'_, 'inp, L, Window::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -77,16 +77,17 @@ impl<P, H, T, const N: usize> PeekThenChoice<P, H, T, N> {
       parser,
       handler: condition,
       _token: PhantomData,
+      _capacity: PhantomData,
     })
   }
 }
 
-impl<'inp, P, H, L, O, Ctx, Lang, const N: usize> ParseInput<'inp, L, O, Ctx, Lang>
-  for PeekThenChoice<P, H, L::Token, N>
+impl<'inp, P, H, L, O, Ctx, Lang, Window: Capacity> ParseInput<'inp, L, O, Ctx, Lang>
+  for PeekThenChoice<P, H, L::Token, Window>
 where
   P: ParseChoice<'inp, L, O, Ctx, Lang>,
   H: FnMut(
-    &PeekBuf<'inp, '_, L>,
+    Peeked<'_, 'inp, L, Window::CAPACITY>,
     &mut Ctx::Emitter,
   ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
@@ -98,21 +99,20 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let mut buf = [const { MaybeUninit::uninit() }; N];
     let id = {
-      let (output, emitter) = inp.peek_with_emitter(&mut buf);
+      let (output, emitter) = inp.peek_with_emitter::<Window::CAPACITY>();
       (self.handler)(output, emitter)?
     };
     self.parser.parse_choice(inp, &id)
   }
 }
 
-impl<'inp, P, H, L, O, Ctx, Lang, const N: usize> ParseInput<'inp, L, Option<O>, Ctx, Lang>
-  for or_not::OrNot<PeekThenChoice<P, H, L::Token, N>>
+impl<'inp, P, H, L, O, Ctx, Lang, Window: Capacity> ParseInput<'inp, L, Option<O>, Ctx, Lang>
+  for or_not::OrNot<PeekThenChoice<P, H, L::Token, Window>>
 where
   P: ParseChoice<'inp, L, O, Ctx, Lang>,
   H: FnMut(
-    &PeekBuf<'inp, '_, L>,
+    Peeked<'_, 'inp, L, Window::CAPACITY>,
     &mut Ctx::Emitter,
   ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
@@ -124,9 +124,8 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
   ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let mut buf = [const { MaybeUninit::uninit() }; N];
     let id = {
-      let (output, emitter) = inp.peek_with_emitter(&mut buf);
+      let (output, emitter) = inp.peek_with_emitter::<Window::CAPACITY>();
 
       if output.is_empty() {
         return Ok(None);
@@ -143,15 +142,18 @@ where
 
 #[cfg(test)]
 mod tests {
+  use generic_arraydeque::typenum::U2;
+
   use crate::{DummyLexer, DummyToken};
 
   use super::*;
 
   fn assert_peek_then_choice_parse_impl<'inp>()
   -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
-    Parser::new().apply((Any::new(), Any::new()).peek_then_choice::<_, 2>(
-      |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(deranged::RangedU8::<0, 1>::new(0).unwrap()),
-    ))
+    Parser::new().apply(
+      (Any::new(), Any::new())
+        .peek_then_choice::<_, U2>(|_toks, _| Ok(deranged::RangedU8::<0, 1>::new(0).unwrap())),
+    )
   }
 
   #[test]
