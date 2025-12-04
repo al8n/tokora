@@ -152,9 +152,10 @@ mod tests {
 
   use super::*;
 
-  fn assert_peek_then_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Option<Spanned<DummyToken>>, ()> {
+  fn assert_peek_then_parse_impl<'inp>()
+  -> impl Parse<'inp, DummyLexer, Option<Spanned<DummyToken>>, ()> {
     Parser::new().apply(
-      Any::new().peek_then_or_not::<_, 2>(|_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(true))
+      Any::new().peek_then_or_not::<_, 2>(|_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(true)),
     )
   }
 

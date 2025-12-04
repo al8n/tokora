@@ -28,20 +28,17 @@
 
 #![allow(clippy::type_complexity)]
 
-use core::marker::PhantomData;
+use core::{marker::PhantomData, mem::MaybeUninit, num::NonZeroUsize};
 
 use crate::{
-  CachedToken, Check, Emitter, Lexed, Lexer, Source, Token,
-  emitter::Fatal,
-  error::{UnexpectedEot, token::UnexpectedToken},
-  lexer::{Input, InputRef},
-  utils::{
+  CachedToken, Check, Emitter, Lexed, Lexer, Peeked, Source, Token, emitter::Fatal, error::{UnexpectedEot, token::UnexpectedToken}, lexer::{Input, InputRef}, utils::{
     Expected, Located, Sliced, Spanned,
     marker::{PhantomLocated, PhantomSliced, PhantomSpan},
-  },
+  }
 };
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
+use generic_arraydeque::{ArrayLength, typenum};
 use mayber::MaybeRef;
 
 pub use any::*;
@@ -82,6 +79,70 @@ mod validate;
 
 /// A buffer of peeked tokens.
 pub type PeekBuf<'a, 'r, L> = [MaybeRef<'r, CachedToken<'a, L>>];
+
+/// A uninit buffer of peeked tokens.
+pub type UninitPeekBuf<'a, 'r, L> = [MaybeUninit<MaybeRef<'r, CachedToken<'a, L>>>];
+
+/// A trait for parsers that specify the capacity of their peek buffer.
+pub trait Capacity {
+  /// The capacity of the peek buffer.
+  type CAPACITY: ArrayLength;
+}
+
+macro_rules! peek_buf_capacity_impl_for_typenum {
+  ($($size:literal), + $(,)?) => {
+    paste::paste! {
+      $(
+        impl Capacity for typenum::[< U $size >] {
+          // const CAPACITY: NonZeroUsize = NonZeroUsize::new(<typenum::[< U $size >] as typenum::Unsigned>::USIZE).unwrap();
+          type CAPACITY = typenum::[< U $size >];
+        }
+      )*
+    }
+  };
+}
+
+seq_macro::seq!(N in 1..=32 {
+  peek_buf_capacity_impl_for_typenum! {
+    #(N,)*
+  }
+});
+
+/// Decision action for conditional parsing.
+pub trait Decision<'inp, L, E, N: ArrayLength, Lang: ?Sized = ()> {
+  /// Decide the next action based on the peeked tokens.
+  fn decide(
+    &mut self,
+    toks: Peeked<'_, 'inp, L, N>,
+    emitter: &mut E,
+  ) -> Result<Action, <E as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    E: Emitter<'inp, L, Lang>;
+}
+
+impl<'inp, F, L, E, N, Lang: ?Sized> Decision<'inp, L, E, N, Lang> for F
+where
+  F: FnMut(Peeked<'_, 'inp, L, N>, &mut E) -> Result<Action, <E as Emitter<'inp, L, Lang>>::Error>,
+  L: Lexer<'inp>,
+  E: Emitter<'inp, L, Lang>,
+  N: ArrayLength,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn decide(
+    &mut self,
+    toks: Peeked<'_, 'inp, L, N>,
+    emitter: &mut E,
+  ) -> Result<Action, <E as Emitter<'inp, L, Lang>>::Error> {
+    (self)(toks, emitter)
+  }
+}
+
+// /// Decision action for conditional parsing.
+// pub trait DecisionWindow<'inp, L, E>: Decision<'inp, L, E> {
+//   /// The capacity of the peek buffer.
+//   type Window: Capacity;
+// }
 
 /// Core trait implemented by every parser combinator.
 ///
@@ -128,41 +189,32 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Creates a `Repeated` combinator that applies this parser repeatedly
   /// until the condition handler `Condition` returns [`RepeatedAction::End`] or an fatal error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn repeated<Condition, const PEEK: usize>(
-    self,
-    condition: Condition,
-  ) -> Repeated<Self, Condition, O, PEEK>
+  fn repeated<Condition, Window>(self, condition: Condition) -> Repeated<Self, Condition, O, Window>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Condition: FnMut(
-      &PeekBuf<'inp, '_, L>,
-      &mut Ctx::Emitter,
-    )
-      -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY>,
+    Window: Capacity,
   {
     Repeated::new(self, condition)
   }
 
   /// Creates a `SeqSep` combinator that applies this parser repeatedly,
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn separated_by<SepClassifier, Condition, const PEEK: usize>(
+  fn separated_by<SepClassifier, Condition, Window>(
     self,
     sep_classifier: SepClassifier,
     condition: Condition,
-  ) -> SeqSep<Self, SepClassifier, Condition, O, PEEK>
+  ) -> SeqSep<Self, SepClassifier, Condition, O, Window>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     L: Lexer<'inp>,
-    Condition: FnMut(
-      &PeekBuf<'inp, '_, L>,
-      &mut Ctx::Emitter,
-    )
-      -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY>,
     SepClassifier: Check<L::Token>,
+    Window: Capacity,
   {
     SeqSep::new(self, sep_classifier, condition)
   }
@@ -203,7 +255,6 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   {
     PeekThen::or_not_of(self, condition)
   }
-
 
   /// Map the output of this parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]

@@ -14,6 +14,7 @@ pub use token::{
 
 // #[cfg(feature = "logos")]
 pub use self::logos::LogosLexer;
+pub use peek::Peeked;
 
 pub(crate) use input::Input;
 
@@ -31,6 +32,7 @@ mod cursor;
 mod input;
 mod input_ref;
 mod logos;
+mod peek;
 
 /// a
 pub trait IntoLexer<'inp, T: ?Sized> {

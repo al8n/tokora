@@ -1,5 +1,3 @@
-use core::mem::MaybeUninit;
-
 use crate::{
   emitter::RepeatedEmitter,
   error::syntax::{FullContainer, TooFew, TooMany},
@@ -7,16 +5,14 @@ use crate::{
 
 use super::*;
 
-impl<'inp, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, const PEEK: usize>
+impl<'inp, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, Window>
   ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<Repeated<F, Condition, O, PEEK, RepeatedOptions<Max, Min>>, Container>
+  for Collect<Repeated<F, Condition, O, Window, RepeatedOptions<Max, Min>>, Container>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: FnMut(
-    &PeekBuf<'inp, '_, L>,
-    &mut Ctx::Emitter,
-  ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY, Lang>,
+  Window: Capacity,
   Ctx::Emitter: RepeatedEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
@@ -37,10 +33,9 @@ where
     let min = self.parser.minimum();
 
     loop {
-      let mut buf = [const { MaybeUninit::uninit() }; PEEK];
-      let (output, emitter) = inp.peek_with_emitter(&mut buf);
+      let (peeked, emitter) = inp.peek_with_emitter::<Window::CAPACITY>();
 
-      match (self.parser.condition)(output, emitter) {
+      match self.parser.condition.decide(peeked, emitter) {
         Err(err) => return Err(err),
         Ok(action) => match action {
           Action::End => {

@@ -1,7 +1,7 @@
 use crate::{
   Lexer,
   error::{
-    UnclosedParen, UnexpectedEot,
+    Unclosed, Undelimited, UnexpectedEot, Unopened,
     syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
     token::{
       MissingLeadingOf, MissingSeparatorOf, MissingTrailingOf, UnexpectedLeadingOf,
@@ -260,10 +260,20 @@ where
   }
 }
 
-/// An emitter that emits unclosed parenthesis errors.
-pub trait UnclosedEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
-  /// Emits an error indicating that there are unclosed parentheses.
-  fn emit_unclosed(&mut self, err: UnclosedParen) -> Result<(), Self::Error>
+/// An emitter that emits delimiter errors
+pub trait DelimiterEmitter<'a, Delim, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
+  /// Emits an error indicating that there are unclosed.
+  fn emit_unclosed(&mut self, err: Unclosed<Delim, L::Span, Lang>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>;
+
+  /// Emits an error indicating that there are unopened.
+  fn emit_unopened(&mut self, err: Unopened<Delim, L::Span, Lang>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>;
+
+  /// Emits an error indicating that undelimited content was found.
+  fn emit_undelimited(&mut self, err: Undelimited<Delim, L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 }

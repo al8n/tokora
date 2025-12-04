@@ -147,12 +147,11 @@ mod tests {
 
   use super::*;
 
-  fn assert_peek_then_choice_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
-    Parser::new().apply(
-      (Any::new(), Any::new()).peek_then_choice::<_, 2>(
-        |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(deranged::RangedU8::<0, 1>::new(0).unwrap())
-      )
-    )
+  fn assert_peek_then_choice_parse_impl<'inp>()
+  -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
+    Parser::new().apply((Any::new(), Any::new()).peek_then_choice::<_, 2>(
+      |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(deranged::RangedU8::<0, 1>::new(0).unwrap()),
+    ))
   }
 
   #[test]

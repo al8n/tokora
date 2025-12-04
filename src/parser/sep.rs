@@ -27,16 +27,17 @@ pub type SeqSepOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
   With<With<Trailing, Leading>, With<Max, Min>>;
 
 /// A parser that parses a sequence of elements separated by a specific separator.
-pub struct SeqSep<F, SepClassifier, Condition, O, const PEEK: usize, Config = SeqSepOptions> {
+pub struct SeqSep<F, SepClassifier, Condition, O, Window, Config = SeqSepOptions> {
   f: F,
   sep: SepClassifier,
   condition: Condition,
   config: Config,
   _m: PhantomData<O>,
+  _decision_window: PhantomData<Window>,
 }
 
-impl<F, SepClassifier, Condition, O, const PEEK: usize>
-  SeqSep<F, SepClassifier, Condition, O, PEEK>
+impl<F, SepClassifier, Condition, O, Window: Capacity>
+  SeqSep<F, SepClassifier, Condition, O, Window>
 {
   /// Creates a new `SeqSep` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -47,23 +48,19 @@ impl<F, SepClassifier, Condition, O, const PEEK: usize>
   /// Creates a new `SeqSep` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   const fn new_in(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
-    assert!(
-      PEEK > 0,
-      "the maximum size of peek buf must be greater than zero"
-    );
-
     Self {
       f,
       sep: sep_classifier,
       condition,
       config: SeqSepOptions::new(With::new((), ()), With::new((), ())),
       _m: PhantomData,
+      _decision_window: PhantomData,
     }
   }
 }
 
-impl<F, SepClassifier, Condition, O, Options, const PEEK: usize>
-  SeqSep<F, SepClassifier, Condition, O, PEEK, Options>
+impl<F, SepClassifier, Condition, O, Options, Window>
+  SeqSep<F, SepClassifier, Condition, O, Window, Options>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -81,14 +78,14 @@ impl<F, SepClassifier, Condition, O, Options, const PEEK: usize>
   }
 }
 
-impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: usize>
-  SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Leading, Max, Min>>
+impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
+  SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Leading, Max, Min>>
 {
   /// Allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_trailing(
     self,
-  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Allow, Leading, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Allow, Leading, Max, Min>>
   where
     Trailing: Apply<Allow>,
   {
@@ -101,6 +98,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
         self.config.secondary,
       ),
       _m: PhantomData,
+      _decision_window: PhantomData,
     }
   }
 
@@ -108,7 +106,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_trailing(
     self,
-  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Require, Leading, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Require, Leading, Max, Min>>
   where
     Trailing: Apply<Require>,
   {
@@ -121,6 +119,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
         self.config.secondary,
       ),
       _m: PhantomData,
+      _decision_window: PhantomData,
     }
   }
 
@@ -128,7 +127,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_leading(
     self,
-  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Allow, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Allow, Max, Min>>
   where
     Leading: Apply<Allow>,
   {
@@ -141,6 +140,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
         self.config.secondary,
       ),
       _m: PhantomData,
+      _decision_window: PhantomData,
     }
   }
 
@@ -148,7 +148,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_leading(
     self,
-  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Require, Max, Min>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Require, Max, Min>>
   where
     Leading: Apply<Require>,
   {
@@ -161,6 +161,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
         self.config.secondary,
       ),
       _m: PhantomData,
+      _decision_window: PhantomData,
     }
   }
 
@@ -169,7 +170,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
   pub fn at_least(
     self,
     n: Min::Options,
-  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Leading, Max, Minimum>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Leading, Max, Minimum>>
   where
     Min: Apply<Minimum>,
   {
@@ -185,6 +186,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
         ),
       ),
       _m: PhantomData,
+      _decision_window: PhantomData,
     }
   }
 
@@ -193,7 +195,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
   pub fn at_most(
     self,
     n: Max::Options,
-  ) -> SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Leading, Maximum, Min>>
+  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Leading, Maximum, Min>>
   where
     Max: Apply<Maximum>,
   {
@@ -209,6 +211,7 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: us
         ),
       ),
       _m: PhantomData,
+      _decision_window: PhantomData,
     }
   }
 
@@ -260,7 +263,7 @@ macro_rules! sep_by {
   ),+$(,)?) => {
     paste::paste! {
       $(
-        impl<F, Condition, O, const PEEK: usize> SeqSep<F, $sep, Condition, O, PEEK> {
+        impl<F, Condition, O, Window: Capacity> SeqSep<F, $sep, Condition, O, Window> {
           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub const fn [< $sep:snake >]<'inp, L, Ctx>(f: F, condition: Condition) -> Self
@@ -268,16 +271,13 @@ macro_rules! sep_by {
             L: Lexer<'inp>,
             Ctx: ParseContext<'inp, L, ()>,
             $sep: Check<L::Token>,
-            Condition: FnMut(
-              &[MaybeRef<'_, CachedToken<'inp, L>>],
-              &mut Ctx::Emitter,
-            ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
+            Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY>,
           {
             Self::new_in(f, <$sep>::PHANTOM, condition)
           }
         }
 
-        impl<F, Condition, O, const PEEK: usize, Lang> SeqSep<F, $sep<(), (), Lang>, Condition, O, PEEK> {
+        impl<F, Condition, O, Window: Capacity, Lang> SeqSep<F, $sep<(), (), Lang>, Condition, O, Window> {
           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser of a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub const fn [< $sep:snake _of >]<'inp, L, Ctx>(f: F, condition: Condition) -> Self
@@ -285,10 +285,7 @@ macro_rules! sep_by {
             L: Lexer<'inp>,
             $sep<(), (), Lang>: Check<L::Token>,
             Ctx: ParseContext<'inp, L, Lang>,
-            Condition: FnMut(
-              &[MaybeRef<'_, CachedToken<'inp, L>>],
-              &mut Ctx::Emitter,
-            ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+            Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY>,
           {
             Self::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
           }
@@ -297,14 +294,15 @@ macro_rules! sep_by {
         #[cfg(test)]
         const _: () = {
           use crate::DummyLexer;
+          use generic_arraydeque::typenum::U1;
 
           fn __assert_parse_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-            Parser::with_parser(SeqSep::<_, _, _, _, 1>::comma::<DummyLexer, ()>(Any::new(), |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(Action::Continue))
+            Parser::with_parser(SeqSep::<_, _, _, _, U1>::comma::<DummyLexer, ()>(Any::new(), |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(Action::Continue))
             .collect::<()>())
           }
 
           fn __assert_parse_with_ctx_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-            Parser::with_parser_and_context(SeqSep::<_, _, _, _, 1>::comma::<DummyLexer, ()>(Any::new(), |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(Action::Continue))
+            Parser::with_parser_and_context(SeqSep::<_, _, _, _, U1>::comma::<DummyLexer, ()>(Any::new(), |_toks: &PeekBuf<'inp, '_, DummyLexer>, _| Ok(Action::Continue))
             .collect::<()>(), ())
           }
         };

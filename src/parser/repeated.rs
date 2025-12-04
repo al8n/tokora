@@ -30,14 +30,15 @@ where
 }
 
 /// A parser that parses a sequence of elements separated by a specific separator.
-pub struct Repeated<F, Condition, O, const PEEK: usize, Config = RepeatedOptions> {
+pub struct Repeated<F, Condition, O, DecisionWindow, Config = RepeatedOptions> {
   f: F,
   condition: Condition,
   config: Config,
   _m: PhantomData<O>,
+  _cap: PhantomData<DecisionWindow>,
 }
 
-impl<F, Condition, O, const PEEK: usize> Repeated<F, Condition, O, PEEK> {
+impl<F, Condition, O, DecisionWindow: Capacity> Repeated<F, Condition, O, DecisionWindow> {
   /// Creates a new `Repeated` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(f: F, condition: Condition) -> Self {
@@ -47,20 +48,19 @@ impl<F, Condition, O, const PEEK: usize> Repeated<F, Condition, O, PEEK> {
   /// Creates a new `Repeated` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   const fn new_in(f: F, condition: Condition) -> Self {
-    assert!(
-      PEEK > 0,
-      "the maximum size of peek buf must be greater than zero"
-    );
     Self {
       f,
       condition,
       config: RepeatedOptions::new(PhantomData, With::new((), ())),
       _m: PhantomData,
+      _cap: PhantomData,
     }
   }
 }
 
-impl<F, Condition, O, Options, const PEEK: usize> Repeated<F, Condition, O, PEEK, Options> {
+impl<F, Condition, O, Options, DecisionWindow: Capacity>
+  Repeated<F, Condition, O, DecisionWindow, Options>
+{
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn collect<Container>(self) -> Collect<Self, Container>
@@ -77,15 +77,15 @@ impl<F, Condition, O, Options, const PEEK: usize> Repeated<F, Condition, O, PEEK
   }
 }
 
-impl<F, Condition, O, Max, Min, const PEEK: usize>
-  Repeated<F, Condition, O, PEEK, RepeatedOptions<Max, Min>>
+impl<F, Condition, O, Max, Min, DecisionWindow: Capacity>
+  Repeated<F, Condition, O, DecisionWindow, RepeatedOptions<Max, Min>>
 {
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn at_least(
     self,
     n: Min::Options,
-  ) -> Repeated<F, Condition, O, PEEK, RepeatedOptions<Max, Minimum>>
+  ) -> Repeated<F, Condition, O, DecisionWindow, RepeatedOptions<Max, Minimum>>
   where
     Min: Apply<Minimum>,
   {
@@ -100,6 +100,7 @@ impl<F, Condition, O, Max, Min, const PEEK: usize>
         ),
       ),
       _m: PhantomData,
+      _cap: PhantomData,
     }
   }
 
@@ -108,7 +109,7 @@ impl<F, Condition, O, Max, Min, const PEEK: usize>
   pub fn at_most(
     self,
     n: Max::Options,
-  ) -> Repeated<F, Condition, O, PEEK, RepeatedOptions<Maximum, Min>>
+  ) -> Repeated<F, Condition, O, DecisionWindow, RepeatedOptions<Maximum, Min>>
   where
     Max: Apply<Maximum>,
   {
@@ -123,6 +124,7 @@ impl<F, Condition, O, Max, Min, const PEEK: usize>
         ),
       ),
       _m: PhantomData,
+      _cap: PhantomData,
     }
   }
 

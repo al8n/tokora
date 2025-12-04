@@ -101,7 +101,7 @@
 //! assert_eq!(error.span(), Span::new(105, 106));
 //! ```
 
-use core::ops::AddAssign;
+use core::marker::PhantomData;
 
 use crate::{
   punct::{Angle, Brace, Bracket, Paren},
@@ -109,13 +109,13 @@ use crate::{
 };
 
 /// A unclosed bracket error
-pub type UnclosedBracket<O = usize> = Unclosed<Bracket, O>;
+pub type UnclosedBracket<S = Span, Lang = ()> = Unclosed<Bracket, S, Lang>;
 /// A unclosed parenthesis error
-pub type UnclosedParen<O = usize> = Unclosed<Paren, O>;
+pub type UnclosedParen<S = Span, Lang = ()> = Unclosed<Paren, S, Lang>;
 /// A unclosed brace error
-pub type UnclosedBrace<O = usize> = Unclosed<Brace, O>;
+pub type UnclosedBrace<S = Span, Lang = ()> = Unclosed<Brace, S, Lang>;
 /// A unclosed angle bracket error
-pub type UnclosedAngle<O = usize> = Unclosed<Angle, O>;
+pub type UnclosedAngle<S = Span, Lang = ()> = Unclosed<Angle, S, Lang>;
 
 /// A zero-copy error type representing an unclosed delimiter.
 ///
@@ -172,12 +172,13 @@ pub type UnclosedAngle<O = usize> = Unclosed<Angle, O>;
 /// }
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Unclosed<Delimiter, O = usize> {
-  span: Span<O>,
+pub struct Unclosed<Delimiter, S = Span, Lang: ?Sized = ()> {
+  span: S,
   delimiter: Delimiter,
+  _lang: PhantomData<Lang>,
 }
 
-impl<Delimiter, O> core::fmt::Display for Unclosed<Delimiter, O>
+impl<Delimiter, O, Lang: ?Sized> core::fmt::Display for Unclosed<Delimiter, O, Lang>
 where
   Delimiter: core::fmt::Display,
 {
@@ -187,17 +188,18 @@ where
   }
 }
 
-impl<Delimiter, O> core::error::Error for Unclosed<Delimiter, O>
+impl<Delimiter, O, Lang: ?Sized> core::error::Error for Unclosed<Delimiter, O, Lang>
 where
   Delimiter: core::fmt::Display + core::fmt::Debug,
   O: core::fmt::Debug,
+  Lang: core::fmt::Debug,
 {
 }
 
-impl<O> Unclosed<Paren, O> {
+impl<S> Unclosed<Paren, S> {
   /// Creates a new unclosed parenthesis error.
   ///
-  /// The span should point to the position of the opening parenthesis.
+  /// The span should cover the opening parenthesis to the end of the syntax element.
   ///
   /// ## Examples
   ///
@@ -210,15 +212,33 @@ impl<O> Unclosed<Paren, O> {
   /// assert_eq!(error.delimiter(), Paren);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn paren(span: Span<O>) -> Self {
-    Self {
-      span,
-      delimiter: Paren::PHANTOM,
-    }
+  pub const fn paren(span: S) -> Self {
+    Self::paren_of(span)
   }
 }
 
-impl<O> Unclosed<Bracket, O> {
+impl<S, Lang: ?Sized> Unclosed<Paren, S, Lang> {
+  /// Creates a new unclosed parenthesis error.
+  ///
+  /// The span should cover the opening parenthesis to the end of the syntax element.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use logosky::{error::Unclosed, utils::{Span, delimiter::Paren}};
+  ///
+  /// // Opening parenthesis at position 3
+  /// let error = Unclosed::paren(Span::new(3, 4));
+  /// assert_eq!(error.span(), Span::new(3, 4));
+  /// assert_eq!(error.delimiter(), Paren);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn paren_of(span: S) -> Self {
+    Self::of(span, Paren::PHANTOM)
+  }
+}
+
+impl<S> Unclosed<Bracket, S> {
   /// Creates a new unclosed bracket error.
   ///
   /// The span should point to the position of the opening bracket.
@@ -234,15 +254,33 @@ impl<O> Unclosed<Bracket, O> {
   /// assert_eq!(error.delimiter(), Bracket);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bracket(span: Span<O>) -> Self {
-    Self {
-      span,
-      delimiter: Bracket::PHANTOM,
-    }
+  pub const fn bracket(span: S) -> Self {
+    Self::bracket_of(span)
   }
 }
 
-impl<O> Unclosed<Brace, O> {
+impl<S, Lang: ?Sized> Unclosed<Bracket, S, Lang> {
+  /// Creates a new unclosed bracket error.
+  ///
+  /// The span should point to the position of the opening bracket.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use logosky::{error::Unclosed, utils::{Span, delimiter::Bracket}};
+  ///
+  /// // Opening bracket at position 8
+  /// let error = Unclosed::bracket(Span::new(8, 9));
+  /// assert_eq!(error.span(), Span::new(8, 9));
+  /// assert_eq!(error.delimiter(), Bracket);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn bracket_of(span: S) -> Self {
+    Self::of(span, Bracket::PHANTOM)
+  }
+}
+
+impl<S> Unclosed<Brace, S> {
   /// Creates a new unclosed brace error.
   ///
   /// The span should point to the position of the opening brace.
@@ -258,15 +296,33 @@ impl<O> Unclosed<Brace, O> {
   /// assert_eq!(error.delimiter(), Brace);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn brace(span: Span<O>) -> Self {
-    Self {
-      span,
-      delimiter: Brace::PHANTOM,
-    }
+  pub const fn brace(span: S) -> Self {
+    Self::brace_of(span)
   }
 }
 
-impl<O> Unclosed<Angle, O> {
+impl<S, Lang: ?Sized> Unclosed<Brace, S, Lang> {
+  /// Creates a new unclosed brace error.
+  ///
+  /// The span should point to the position of the opening brace.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use logosky::{error::Unclosed, utils::{Span, delimiter::Brace}};
+  ///
+  /// // Opening brace at position 12
+  /// let error = Unclosed::brace(Span::new(12, 13));
+  /// assert_eq!(error.span(), Span::new(12, 13));
+  /// assert_eq!(error.delimiter(), Brace);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn brace_of(span: S) -> Self {
+    Self::of(span, Brace::PHANTOM)
+  }
+}
+
+impl<S> Unclosed<Angle, S> {
   /// Creates a new unclosed angle bracket error.
   ///
   /// The span should point to the position of the opening angle bracket.
@@ -282,15 +338,33 @@ impl<O> Unclosed<Angle, O> {
   /// assert_eq!(error.delimiter(), Angle);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn angle(span: Span<O>) -> Self {
-    Self {
-      span,
-      delimiter: Angle::PHANTOM,
-    }
+  pub const fn angle(span: S) -> Self {
+    Self::angle_of(span)
   }
 }
 
-impl<Delimiter, O> Unclosed<Delimiter, O> {
+impl<S, Lang: ?Sized> Unclosed<Angle, S, Lang> {
+  /// Creates a new unclosed angle bracket error.
+  ///
+  /// The span should point to the position of the opening angle bracket.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use logosky::{error::Unclosed, utils::{Span, delimiter::Angle}};
+  ///
+  /// // Opening angle bracket at position 20
+  /// let error = Unclosed::angle(Span::new(20, 21));
+  /// assert_eq!(error.span(), Span::new(20, 21));
+  /// assert_eq!(error.delimiter(), Angle);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn angle_of(span: S) -> Self {
+    Self::of(span, Angle::PHANTOM)
+  }
+}
+
+impl<Delimiter, S> Unclosed<Delimiter, S> {
   /// Creates a new unclosed delimiter error.
   ///
   /// The span should point to the position of the opening delimiter.
@@ -306,8 +380,33 @@ impl<Delimiter, O> Unclosed<Delimiter, O> {
   /// assert_eq!(error.delimiter(), '{');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span<O>, delimiter: Delimiter) -> Self {
-    Self { span, delimiter }
+  pub const fn new(span: S, delimiter: Delimiter) -> Self {
+    Self::of(span, delimiter)
+  }
+}
+
+impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
+  /// Creates a new unclosed delimiter error.
+  ///
+  /// The span should point to the position of the opening delimiter.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// use logosky::{error::Unclosed, utils::Span};
+  ///
+  /// // Opening brace at position 5
+  /// let error = Unclosed::of(Span::new(5, 6), '{');
+  /// assert_eq!(error.span(), Span::new(5, 6));
+  /// assert_eq!(error.delimiter(), '{');
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of(span: S, delimiter: Delimiter) -> Self {
+    Self {
+      span,
+      delimiter,
+      _lang: PhantomData,
+    }
   }
 
   /// Returns the span of the opening delimiter.
@@ -323,23 +422,23 @@ impl<Delimiter, O> Unclosed<Delimiter, O> {
   /// assert_eq!(error.span(), Span::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> S
   where
-    O: Copy,
+    S: Copy,
   {
     self.span
   }
 
   /// Returns a reference to the span of the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> Span<&O> {
-    self.span.as_ref()
+  pub const fn span_ref(&self) -> &S {
+    &self.span
   }
 
   /// Returns a mutable reference to the span of the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> Span<&mut O> {
-    self.span.as_mut()
+  pub const fn span_mut(&mut self) -> &mut S {
+    &mut self.span
   }
 
   /// Returns a reference to the unclosed delimiter.
@@ -393,9 +492,9 @@ impl<Delimiter, O> Unclosed<Delimiter, O> {
   /// assert_eq!(error.span(), Span::new(105, 106));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bump(&mut self, offset: &O) -> &mut Self
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
   where
-    O: for<'a> AddAssign<&'a O> + Clone,
+    S: crate::Span,
   {
     self.span.bump(offset);
     self
@@ -414,7 +513,7 @@ impl<Delimiter, O> Unclosed<Delimiter, O> {
   /// assert_eq!(delimiter, '"');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span<O>, Delimiter) {
+  pub fn into_components(self) -> (S, Delimiter) {
     (self.span, self.delimiter)
   }
 }

@@ -115,15 +115,16 @@ use crate::{
   punct::{Angle, Brace, Bracket, Paren},
   utils::Span,
 };
+use core::marker::PhantomData;
 
 /// Content missing both opening `[` and closing `]`
-pub type UndelimitedBracket = Undelimited<Bracket>;
+pub type UndelimitedBracket<S = Span, Lang = ()> = Undelimited<Bracket, S, Lang>;
 /// Content missing both opening `(` and closing `)`
-pub type UndelimitedParen = Undelimited<Paren>;
+pub type UndelimitedParen<S = Span, Lang = ()> = Undelimited<Paren, S, Lang>;
 /// Content missing both opening `{` and closing `}`
-pub type UndelimitedBrace = Undelimited<Brace>;
+pub type UndelimitedBrace<S = Span, Lang = ()> = Undelimited<Brace, S, Lang>;
 /// Content missing both opening `<` and closing `>`
-pub type UndelimitedAngle = Undelimited<Angle>;
+pub type UndelimitedAngle<S = Span, Lang = ()> = Undelimited<Angle, S, Lang>;
 
 /// A zero-copy error type representing undelimited content.
 ///
@@ -180,12 +181,13 @@ pub type UndelimitedAngle = Undelimited<Angle>;
 /// }
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Undelimited<Delimiter, S = Span> {
+pub struct Undelimited<Delimiter, S = Span, Lang: ?Sized = ()> {
   span: S,
   delimiter: Delimiter,
+  _lang: PhantomData<Lang>,
 }
 
-impl<Delimiter, S> core::fmt::Display for Undelimited<Delimiter, S>
+impl<Delimiter, S, Lang: ?Sized> core::fmt::Display for Undelimited<Delimiter, S, Lang>
 where
   Delimiter: core::fmt::Display,
 {
@@ -195,10 +197,11 @@ where
   }
 }
 
-impl<Delimiter, S> core::error::Error for Undelimited<Delimiter, S>
+impl<Delimiter, S, Lang: ?Sized> core::error::Error for Undelimited<Delimiter, S, Lang>
 where
   Delimiter: core::fmt::Display + core::fmt::Debug,
   S: core::fmt::Debug,
+  Lang: core::fmt::Debug,
 {
 }
 
@@ -220,10 +223,29 @@ impl<S> Undelimited<Paren, S> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn paren(span: S) -> Self {
-    Self {
-      span,
-      delimiter: Paren::PHANTOM,
-    }
+    Self::paren_of(span)
+  }
+}
+
+impl<S, Lang: ?Sized> Undelimited<Paren, S, Lang> {
+  /// Creates a new undelimited content error for missing parentheses.
+  ///
+  /// The span should point to the position of the content that should have been
+  /// wrapped in parentheses but wasn't.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use logosky::{error::Undelimited, utils::{Span, delimiter::Paren}};
+  ///
+  /// // Undelimited content from position 3 to 7
+  /// let error = Undelimited::paren_of(Span::new(3, 7));
+  /// assert_eq!(error.span(), Span::new(3, 7));
+  /// assert_eq!(error.delimiter(), Paren);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn paren_of(span: S) -> Self {
+    Self::of(span, Paren::PHANTOM)
   }
 }
 
@@ -245,10 +267,29 @@ impl<S> Undelimited<Bracket, S> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn bracket(span: S) -> Self {
-    Self {
-      span,
-      delimiter: Bracket::PHANTOM,
-    }
+    Self::bracket_of(span)
+  }
+}
+
+impl<S, Lang: ?Sized> Undelimited<Bracket, S, Lang> {
+  /// Creates a new undelimited content error for missing brackets.
+  ///
+  /// The span should point to the position of the content that should have been
+  /// wrapped in brackets but wasn't.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use logosky::{error::Undelimited, utils::{Span, delimiter::Bracket}};
+  ///
+  /// // Undelimited content from position 8 to 15
+  /// let error = Undelimited::bracket_of(Span::new(8, 15));
+  /// assert_eq!(error.span(), Span::new(8, 15));
+  /// assert_eq!(error.delimiter(), Bracket);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn bracket_of(span: S) -> Self {
+    Self::of(span, Bracket::PHANTOM)
   }
 }
 
@@ -270,10 +311,29 @@ impl<S> Undelimited<Brace, S> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn brace(span: S) -> Self {
-    Self {
-      span,
-      delimiter: Brace::PHANTOM,
-    }
+    Self::brace_of(span)
+  }
+}
+
+impl<S, Lang: ?Sized> Undelimited<Brace, S, Lang> {
+  /// Creates a new undelimited content error for missing braces.
+  ///
+  /// The span should point to the position of the content that should have been
+  /// wrapped in braces but wasn't.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use logosky::{error::Undelimited, utils::{Span, delimiter::Brace}};
+  ///
+  /// // Undelimited content from position 12 to 20
+  /// let error = Undelimited::brace_of(Span::new(12, 20));
+  /// assert_eq!(error.span(), Span::new(12, 20));
+  /// assert_eq!(error.delimiter(), Brace);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn brace_of(span: S) -> Self {
+    Self::of(span, Brace::PHANTOM)
   }
 }
 
@@ -295,10 +355,29 @@ impl<S> Undelimited<Angle, S> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn angle(span: S) -> Self {
-    Self {
-      span,
-      delimiter: Angle::PHANTOM,
-    }
+    Self::angle_of(span)
+  }
+}
+
+impl<S, Lang: ?Sized> Undelimited<Angle, S, Lang> {
+  /// Creates a new undelimited content error for missing angle brackets.
+  ///
+  /// The span should point to the position of the content that should have been
+  /// wrapped in angle brackets but wasn't.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use logosky::{error::Undelimited, utils::{Span, delimiter::Angle}};
+  ///
+  /// // Undelimited content from position 20 to 25
+  /// let error = Undelimited::angle_of(Span::new(20, 25));
+  /// assert_eq!(error.span(), Span::new(20, 25));
+  /// assert_eq!(error.delimiter(), Angle);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn angle_of(span: S) -> Self {
+    Self::of(span, Angle::PHANTOM)
   }
 }
 
@@ -320,7 +399,33 @@ impl<Delimiter, S> Undelimited<Delimiter, S> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(span: S, delimiter: Delimiter) -> Self {
-    Self { span, delimiter }
+    Self::of(span, delimiter)
+  }
+}
+
+impl<Delimiter, S, Lang: ?Sized> Undelimited<Delimiter, S, Lang> {
+  /// Creates a new undelimited content error.
+  ///
+  /// The span should point to the position of the content that should have been
+  /// delimited but wasn't.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// use logosky::{error::Undelimited, utils::Span};
+  ///
+  /// // Undelimited content from position 5 to 10
+  /// let error = Undelimited::new(Span::new(5, 10), '{');
+  /// assert_eq!(error.span(), Span::new(5, 10));
+  /// assert_eq!(error.delimiter(), '{');
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of(span: S, delimiter: Delimiter) -> Self {
+    Self {
+      span,
+      delimiter,
+      _lang: PhantomData,
+    }
   }
 
   /// Returns the span of the undelimited content.

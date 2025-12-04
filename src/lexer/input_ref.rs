@@ -6,9 +6,10 @@ use core::{
   ops::{Range, RangeBounds},
 };
 
+use generic_arraydeque::ArrayLength;
 use mayber::MaybeRef;
 
-use crate::{emitter::Emitter, utils::Spanned};
+use crate::{emitter::Emitter, lexer::peek::Peeked, utils::Spanned};
 
 use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
 
@@ -588,7 +589,7 @@ where
   #[inline]
   pub fn peek_one(&mut self) -> Option<MaybeRef<'_, CachedToken<'inp, L>>> {
     let mut buf: [MaybeUninit<MaybeRef<'_, CachedToken<'inp, L>>>; 1] = [MaybeUninit::uninit()];
-    let feed = self.peek(&mut buf);
+    let (feed, _) = self.peek_with_emitter_inner(&mut buf);
     if feed.is_empty() {
       return None;
     }
@@ -615,18 +616,41 @@ where
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  pub fn peek<'p, 'b>(
+  pub fn peek<'p, N>(
     &'p mut self,
-    buf: &'b mut [MaybeUninit<MaybeRef<'p, CachedToken<'inp, L>>>],
-  ) -> &'b mut [MaybeRef<'p, CachedToken<'inp, L>>] {
-    self.peek_with_emitter(buf).0
+  ) -> Peeked<'p, 'inp, L, N>
+  where
+    N: ArrayLength,
+  {
+    self.peek_with_emitter().0
   }
 
   /// Try to peeks tokens to fill the provided buffer, if not enough tokens are cached, lex more tokens to fill the buffer.
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  pub fn peek_with_emitter<'p, 'b>(
+  pub fn peek_with_emitter<'p, N>(
+    &'p mut self,
+  ) -> (Peeked<'p, 'inp, L, N>, &'p mut E)
+  where
+    N: ArrayLength,
+  {
+    let mut peeked = Peeked::new();
+    let (filled, emitter) = self.peek_with_emitter_inner(peeked.as_mut_buf());
+    let len = filled.len();
+
+    // SAFETY: We just filled `len` elements in the buffer.
+    unsafe { peeked.set_len(len); }
+
+    (peeked, emitter)
+  }
+
+
+  /// Try to peeks tokens to fill the provided buffer, if not enough tokens are cached, lex more tokens to fill the buffer.
+  ///
+  /// The returned slice will contain only the initialized tokens.
+  #[inline]
+  fn peek_with_emitter_inner<'p, 'b>(
     &'p mut self,
     buf: &'b mut [MaybeUninit<MaybeRef<'p, CachedToken<'inp, L>>>],
   ) -> (&'b mut [MaybeRef<'p, CachedToken<'inp, L>>], &'p mut E) {

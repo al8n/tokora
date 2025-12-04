@@ -12,7 +12,7 @@ use crate::{
 
 use super::*;
 
-use core::mem::{self, MaybeUninit};
+use core::mem;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
 enum State<T, S> {
@@ -39,23 +39,21 @@ impl<
   Max,
   Min,
   Lang: ?Sized,
-  const PEEK: usize,
+  Window,
 > ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Leading, Max, Min>>,
+    SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Leading, Max, Min>>,
     Container,
   >
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: FnMut(
-    &[MaybeRef<'_, CachedToken<'inp, L>>],
-    &mut Ctx::Emitter,
-  ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
+  Window: Capacity,
   Trailing: super::TrailingSpec,
   Leading: super::LeadingSpec,
   Max: super::MaxSpec,
@@ -76,10 +74,12 @@ where
     let mut lexer_errs_id = None;
 
     loop {
-      let mut buf = [const { MaybeUninit::uninit() }; PEEK];
-      let (output, emitter) = inp.peek_with_emitter(&mut buf);
 
-      match output.first() {
+
+      
+      let (peeked, emitter) = inp.peek_with_emitter::<Window::CAPACITY>();
+
+      match peeked.first() {
         None => {
           return parser
             .handle_end(state, inp, &ckp, num_elems, container)
@@ -111,6 +111,8 @@ where
               continue;
             }
             Lexed::Token(tok) if parser.sep.check(tok) => {
+              drop(peeked);
+
               let sep_tok = inp
                 .next()
                 .expect("peeked token already confirmed there must be a token");
@@ -299,7 +301,7 @@ where
               }
             }
             Lexed::Token(_) => {
-              match (parser.condition)(output, emitter)? {
+              match parser.condition.decide(peeked, emitter)? {
                 Action::End => {
                   return parser
                     .handle_end(state, inp, &ckp, num_elems, container)
@@ -461,8 +463,8 @@ where
   }
 }
 
-impl<'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PEEK: usize>
-  SeqSep<F, SepClassifier, Condition, O, PEEK, SeqSepOptions<Trailing, Leading, Max, Min>>
+impl<'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
+  SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Leading, Max, Min>>
 {
   fn handle_end<'closure, L, Ctx, Lang, Container>(
     &mut self,
@@ -477,10 +479,8 @@ impl<'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, const PE
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     F: ParseInput<'inp, L, O, Ctx, Lang>,
-    Condition: FnMut(
-      &PeekBuf<'inp, '_, L>,
-      &mut Ctx::Emitter,
-    ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Window: Capacity,
+    Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY, Lang>,
     SepClassifier: Check<L::Token>,
     Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
     Container: crate::container::Container<O>,

@@ -1083,7 +1083,7 @@ impl<O> core::error::Error for TooManyDigitsInVariableUnicodeEscape<O> where
 #[non_exhaustive]
 pub enum VariableUnicodeEscapeError<Char = char, O = usize> {
   /// The opening brace was not closed: `\u{1234`.
-  Unclosed(Unclosed<Brace, O>),
+  Unclosed(Unclosed<Brace, Span<O>>),
 
   /// The braces contained **no** digits: `\u{}`.
   Empty(EmptyVariableUnicodeEscape<O>),
@@ -1249,7 +1249,7 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   #[inline]
   pub fn bump(&mut self, n: &O) -> &mut Self
   where
-    O: for<'a> AddAssign<&'a O> + Clone,
+    O: for<'a> AddAssign<&'a O> + Clone + Ord + core::hash::Hash,
   {
     match self {
       Self::Unclosed(err) => {
@@ -1290,7 +1290,7 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
     for<'a> &'a O: Add<usize, Output = O>,
   {
     match self {
-      Self::Unclosed(err) => err.span_ref().cloned(),
+      Self::Unclosed(err) => err.span_ref().clone(),
       Self::Empty(err) => err.span_ref().cloned(),
       Self::TooManyDigits(err) => err.span_ref().cloned(),
       Self::Malformed(err) => err.span(),
@@ -1990,7 +1990,7 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   #[inline]
   pub fn bump(&mut self, n: &O) -> &mut Self
   where
-    O: for<'a> AddAssign<&'a O> + Clone,
+    O: for<'a> AddAssign<&'a O> + Clone + Ord + core::hash::Hash,
   {
     match self {
       Self::Fixed(err) => {
