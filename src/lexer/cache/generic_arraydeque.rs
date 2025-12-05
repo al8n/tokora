@@ -1,14 +1,17 @@
 use core::mem::MaybeUninit;
 
-use mayber::MaybeRef;
+use mayber::Maybe;
 
-use super::{Cache, CachedToken, Checkpoint, Lexer, Span};
+use crate::{CachedToken, CachedTokenRefOf, Lexed, MaybeRefCachedTokenOf};
+
+use super::{Cache, CachedTokenOf, Checkpoint, Lexer, Span};
 
 use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 
-impl<'a, L, N> Cache<'a, L> for GenericArrayDeque<CachedToken<'a, L>, N>
+impl<'a, L, N> Cache<'a, L>
+  for GenericArrayDeque<CachedToken<Lexed<'a, L::Token>, L::State, L::Span>, N>
 where
-  L: Lexer<'a> + 'a,
+  L: Lexer<'a>,
   N: ArrayLength,
 {
   type Options = ();
@@ -44,7 +47,7 @@ where
 
     let cursor = ckp.cursor();
     // if the rewind position is before the start of the cache, clear the cache
-    if let Some(span) = self.first_span() {
+    if let Some(span) = self.front().map(|tok| tok.token().span()) {
       if cursor.as_inner() < span.start_ref() {
         self.clear();
         return;
@@ -57,7 +60,7 @@ where
     }
 
     // if the rewind position is after the end of the cache, clear the cache
-    if let Some(span) = self.last_span() {
+    if let Some(span) = self.back().map(|tok| tok.token().span()) {
       if cursor.as_inner() >= span.end_ref() {
         self.clear();
         return;
@@ -78,21 +81,21 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn push_back(
     &mut self,
-    tok: CachedToken<'a, L>,
-  ) -> Result<&CachedToken<'a, L>, CachedToken<'a, L>> {
+    tok: CachedTokenOf<'a, L>,
+  ) -> Result<CachedTokenRefOf<'_, 'a, L>, CachedTokenOf<'a, L>> {
     match self.push_back_mut(tok) {
-      Ok(tok) => Ok(tok),
+      Ok(tok) => Ok(tok.as_ref()),
       Err(tok) => Err(tok),
     }
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn pop_front(&mut self) -> Option<CachedToken<'a, L>> {
+  fn pop_front(&mut self) -> Option<CachedTokenOf<'a, L>> {
     self.pop_front()
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn pop_back(&mut self) -> Option<CachedToken<'a, L>> {
+  fn pop_back(&mut self) -> Option<CachedTokenOf<'a, L>> {
     self.pop_back()
   }
 
@@ -104,28 +107,28 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   unsafe fn peek<'p, 'b>(
     &'p self,
-    buf: &'b mut [MaybeUninit<MaybeRef<'p, CachedToken<'a, L>>>],
-  ) -> &'b mut [MaybeRef<'p, CachedToken<'a, L>>] {
+    buf: &'b mut [MaybeUninit<MaybeRefCachedTokenOf<'p, 'a, L>>],
+  ) -> &'b mut [MaybeRefCachedTokenOf<'p, 'a, L>] {
     let fill = buf.len().min(self.len());
     for (i, tok) in self.iter().take(fill).enumerate() {
-      buf[i].write(MaybeRef::Ref(tok));
+      buf[i].write(Maybe::Ref(tok.as_ref()));
     }
 
     unsafe {
       core::slice::from_raw_parts_mut(
-        buf.as_mut_ptr() as *mut MaybeRef<'p, CachedToken<'a, L>>,
+        buf.as_mut_ptr() as *mut MaybeRefCachedTokenOf<'p, 'a, L>,
         fill,
       )
     }
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn first(&self) -> Option<&CachedToken<'a, L>> {
-    self.front()
+  fn first(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
+    self.front().map(|tok| tok.as_ref())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn last(&self) -> Option<&CachedToken<'a, L>> {
-    self.back()
+  fn last(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
+    self.back().map(|tok| tok.as_ref())
   }
 }

@@ -3,18 +3,44 @@ use core::{
   ops::{Deref, DerefMut},
 };
 
-use generic_arraydeque::{ArrayLength, array::GenericArray};
+use generic_arraydeque::{array::GenericArray, typenum::U1};
 use mayber::{Maybe::Owned, MaybeRef};
+
+use crate::Window;
 
 use super::*;
 
 /// A peeked buffer of tokens from the lexer.
-pub struct Peeked<'p, 'inp, L: Lexer<'inp>, N: ArrayLength> {
-  buf: ManuallyDrop<GenericArray<MaybeUninit<MaybeRef<'p, CachedToken<'inp, L>>>, N>>,
+pub struct Peeked<'p, 'inp, L: Lexer<'inp>, W: Window> {
+  buf: ManuallyDrop<GenericArray<MaybeUninit<MaybeRefCachedTokenOf<'p, 'inp, L>>, W::CAPACITY>>,
   filled: usize,
 }
 
-impl<'p, 'inp, L: Lexer<'inp>, N: ArrayLength> Peeked<'p, 'inp, L, N> {
+impl<'p, 'inp, L: Lexer<'inp>> From<Peeked<'p, 'inp, L, U1>>
+  for Option<MaybeRefCachedTokenOf<'p, 'inp, L>>
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(peeked: Peeked<'p, 'inp, L, U1>) -> Self {
+    peeked.into_option()
+  }
+}
+
+impl<'p, 'inp, L: Lexer<'inp>> Peeked<'p, 'inp, L, U1> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) fn into_option(mut self) -> Option<MaybeRefCachedTokenOf<'p, 'inp, L>> {
+    if self.is_empty() {
+      None
+    } else {
+      // SAFETY: We checked that the buffer is not empty.
+      self.filled = 0; // Prevent double drop
+      Some(unsafe {
+        core::mem::replace(&mut self.buf[0], MaybeUninit::uninit()).assume_init_read()
+      })
+    }
+  }
+}
+
+impl<'p, 'inp, L: Lexer<'inp>, W: Window> Peeked<'p, 'inp, L, W> {
   /// Creates a new `Peeked` buffer.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(crate) const fn new() -> Self {
@@ -30,7 +56,7 @@ impl<'p, 'inp, L: Lexer<'inp>, N: ArrayLength> Peeked<'p, 'inp, L, N> {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) fn as_mut_buf(&mut self) -> &mut [MaybeUninit<MaybeRef<'p, CachedToken<'inp, L>>>] {
+  pub(super) fn as_mut_buf(&mut self) -> &mut [MaybeUninit<MaybeRefCachedTokenOf<'p, 'inp, L>>] {
     &mut self.buf
   }
 
@@ -48,11 +74,11 @@ impl<'p, 'inp, L: Lexer<'inp>, N: ArrayLength> Peeked<'p, 'inp, L, N> {
 
   /// Returns a slice to the initialized portion of the buffer.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn as_slice(&self) -> &[MaybeRef<'p, CachedToken<'inp, L>>] {
+  pub fn as_slice(&self) -> &[MaybeRef<'p, CachedTokenOf<'inp, L>>] {
     // SAFETY: We only read initialized elements up to `self.filled`.
     unsafe {
       core::slice::from_raw_parts(
-        self.buf.as_ptr() as *const MaybeRef<'p, CachedToken<'inp, L>>,
+        self.buf.as_ptr() as *const MaybeRef<'p, CachedTokenOf<'inp, L>>,
         self.filled,
       )
     }
@@ -60,19 +86,19 @@ impl<'p, 'inp, L: Lexer<'inp>, N: ArrayLength> Peeked<'p, 'inp, L, N> {
 
   /// Returns a mutable slice to the initialized portion of the buffer.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn as_mut_slice(&mut self) -> &mut [MaybeRef<'p, CachedToken<'inp, L>>] {
+  pub fn as_mut_slice(&mut self) -> &mut [MaybeRef<'p, CachedTokenOf<'inp, L>>] {
     // SAFETY: We only read initialized elements up to `self.filled`.
     unsafe {
       core::slice::from_raw_parts_mut(
-        self.buf.as_mut_ptr() as *mut MaybeRef<'p, CachedToken<'inp, L>>,
+        self.buf.as_mut_ptr() as *mut MaybeRef<'p, CachedTokenOf<'inp, L>>,
         self.filled,
       )
     }
   }
 }
 
-impl<'p, 'inp, L: Lexer<'inp>, N: ArrayLength> Deref for Peeked<'p, 'inp, L, N> {
-  type Target = [MaybeRef<'p, CachedToken<'inp, L>>];
+impl<'p, 'inp, L: Lexer<'inp>, W: Window> Deref for Peeked<'p, 'inp, L, W> {
+  type Target = [MaybeRef<'p, CachedTokenOf<'inp, L>>];
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref(&self) -> &Self::Target {
@@ -80,14 +106,14 @@ impl<'p, 'inp, L: Lexer<'inp>, N: ArrayLength> Deref for Peeked<'p, 'inp, L, N> 
   }
 }
 
-impl<'inp, L: Lexer<'inp>, N: ArrayLength> DerefMut for Peeked<'_, 'inp, L, N> {
+impl<'inp, L: Lexer<'inp>, W: Window> DerefMut for Peeked<'_, 'inp, L, W> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref_mut(&mut self) -> &mut Self::Target {
     self.as_mut_slice()
   }
 }
 
-impl<'inp, L: Lexer<'inp>, N: ArrayLength> Drop for Peeked<'_, 'inp, L, N> {
+impl<'inp, L: Lexer<'inp>, W: Window> Drop for Peeked<'_, 'inp, L, W> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn drop(&mut self) {
     for ct in self.iter_mut() {

@@ -6,10 +6,16 @@ use core::{
   ops::{Range, RangeBounds},
 };
 
-use generic_arraydeque::ArrayLength;
-use mayber::MaybeRef;
+use generic_arraydeque::typenum::U1;
+use mayber::{Maybe, MaybeRef};
 
-use crate::{emitter::Emitter, lexer::peek::Peeked, utils::Spanned};
+use crate::{
+  CachedTokenRefOf, MaybeRefCachedTokenOf, Token, Window,
+  emitter::Emitter,
+  error::token::UnexpectedToken,
+  lexer::peek::Peeked,
+  utils::{Expected, Spanned},
+};
 
 use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
 
@@ -369,12 +375,12 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn consume_until<F>(&mut self, mut f: F) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>>
   where
-    F: FnMut(&CachedToken<'inp, L>) -> bool,
+    F: FnMut(CachedTokenRefOf<'_, 'inp, L>) -> bool,
   {
     let mut last = None;
     // pop from cache if not matching
     while let Some(tok) = self.cache_mut().pop_front_if(|t| !f(t)) {
-      self.set_span_after_consume(tok.token().span_ref().into());
+      self.set_span_after_consume(tok.token().span().into());
       let (tok, state) = tok.into_components();
       *self.state = state;
       last = Some(tok);
@@ -389,7 +395,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn consume_while<F>(&mut self, mut f: F) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>>
   where
-    F: FnMut(&CachedToken<'inp, L>) -> bool,
+    F: FnMut(CachedTokenRefOf<'_, 'inp, L>) -> bool,
   {
     self.consume_until(|t| !f(t))
   }
@@ -430,20 +436,32 @@ where
   ///
   /// Returns the first valid token found, but without consuming it.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn skip_until<F>(&mut self, mut pred: F) -> Option<MaybeRef<'_, CachedToken<'inp, L>>>
+  pub fn skip_until<F>(&mut self, pred: F) -> Option<MaybeRefCachedTokenOf<'_, 'inp, L>>
   where
-    F: FnMut(&Spanned<Lexed<'inp, L::Token>, L::Span>) -> bool,
+    F: FnMut(Spanned<&Lexed<'inp, L::Token>, &L::Span>) -> bool,
+  {
+    self.skip_until_then_peek::<_, U1>(pred).into()
+  }
+
+  /// Skips tokens until a valid token is found or the end of input is reached.
+  ///
+  /// Returns the first valid token found, but without consuming it.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn skip_until_then_peek<F, W>(&mut self, mut pred: F) -> Peeked<'_, 'inp, L, W>
+  where
+    F: FnMut(Spanned<&Lexed<'inp, L::Token>, &L::Span>) -> bool,
+    W: Window,
   {
     // pop from cache if not matching
-    while let Some(tok) = self.cache_mut().pop_front_if(|t| !pred(t.token())) {
-      self.set_span_after_consume(tok.token().span_ref().into());
+    while let Some(tok) = self.cache_mut().pop_front_if(|t| !pred(t.token().copied())) {
+      self.set_span_after_consume(tok.token().span().into());
       *self.state = tok.state;
     }
 
     // as the matched token will not be consumed, we just peek it
     match !self.cache().is_empty() {
       // If the matched token is in cache, return it
-      true => self.cache().peek_one(),
+      true => self.peek::<W>(),
       // Otherwise, let's skip the input
       false => {
         let mut lexer = self.lexer();
@@ -452,15 +470,11 @@ where
 
         while let Some(lexed) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
           // if the token matches, we cache it and return it
-          if pred(&lexed) {
-            let ct = CachedToken::new(lexed, lexer.state().clone());
+          if pred(lexed.as_ref()) {
             self.set_span_after_consume(end.into());
             *self.state = state;
 
-            return match self.cache_mut().push_back(ct) {
-              Ok(tok) => Some(MaybeRef::Ref(tok)),
-              Err(ct) => Some(MaybeRef::Owned(ct)),
-            };
+            return self.peek::<W>();
           }
 
           end = lexer.span();
@@ -471,7 +485,7 @@ where
         self.set_span_after_consume(lexer.span().into());
         *self.state = lexer.into_state();
 
-        None
+        Peeked::new()
       }
     }
   }
@@ -480,40 +494,108 @@ where
   ///
   /// Returns the first token that does not match the predicate, but without consuming it.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn skip_while<F>(&mut self, mut pred: F) -> Option<MaybeRef<'_, CachedToken<'inp, L>>>
+  pub fn skip_while<F>(&mut self, mut pred: F) -> Option<MaybeRefCachedTokenOf<'_, 'inp, L>>
   where
-    F: FnMut(&Spanned<Lexed<'inp, L::Token>, L::Span>) -> bool,
+    F: FnMut(Spanned<&Lexed<'inp, L::Token>, &L::Span>) -> bool,
   {
     self.skip_until(|t| !pred(t))
   }
 
-  /// Skips error tokens until a valid token is found or the end of input is reached.
+  /// Skip past lexer errors until the next valid token or end of input (no emission).
   ///
-  /// Returns the first valid token found, but without consuming it.
-  pub fn skip_until_valid(&mut self) -> Option<MaybeRef<'_, CachedToken<'inp, L>>> {
-    self.skip_until(|t| matches!(t.data, Lexed::Token(_)))
+  /// Advances over error tokens without emitting them, stopping before the first
+  /// non-error token (if any). Returns that token without consuming it so the
+  /// caller can decide what to do next.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn skip_until_token(&mut self) -> Option<MaybeRefCachedTokenOf<'_, 'inp, L, L::Token>> {
+    unwrap_peek1_to_token(self.skip_until_then_peek(|t| matches!(t.data, Lexed::Token(_))))
   }
 
-  /// Skips tokens until the predicate returns `true`, emitting errors using the provided emitter.
+  /// Resynchronize by skipping and emitting lexer errors until a valid token or end of input.
   ///
-  /// This method advances through the token stream, skipping tokens until it finds one that
-  /// matches the predicate. Any lexer errors encountered are emitted via the provided emitter.
-  /// If a fatal error occurs during emission, the method returns immediately with that error.
+  /// Emits every lexer error encountered while advancing. Stops before the first
+  /// non-error token (if any) and returns it without consuming, allowing the caller
+  /// to resume parsing. If emission fails, returns that error immediately.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn sync_until_token(
+    &mut self,
+  ) -> Result<Option<MaybeRefCachedTokenOf<'_, 'inp, L, L::Token>>, E::Error> {
+    self.sync_until_token_then_peek().map(unwrap_peek1_to_token)
+  }
+
+  /// Resynchronize by skipping and emitting lexer errors until a valid token or end of input.
   ///
-  /// Returns the first token that matches the predicate, but without consuming it.
-  /// If no matching token is found, returns `None`.
+  /// Emits every lexer error encountered while advancing. Stops before the first
+  /// non-error token (if any) and returns it without consuming, allowing the caller
+  /// to resume parsing. If emission fails, returns that error immediately.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn sync_until_token_then_peek<'p, W>(&'p mut self) -> Result<Peeked<'p, 'inp, L, W>, E::Error>
+  where
+    W: Window,
+  {
+    self
+      .sync_until_token_then_peek_with_emitter()
+      .map(|(out, _)| out)
+  }
+
+  /// Resynchronize by skipping and emitting lexer errors until a valid token or end of input.
+  ///
+  /// Emits every lexer error encountered while advancing. Stops before the first
+  /// non-error token (if any) and returns it without consuming, allowing the caller
+  /// to resume parsing. If emission fails, returns that error immediately.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn sync_until_token_then_peek_with_emitter<'p, W>(
+    &'p mut self,
+  ) -> Result<(Peeked<'p, 'inp, L, W>, &'p mut E), E::Error>
+  where
+    W: Window,
+  {
+    self.sync_until_then_peek_with_emitter::<_, _, W>(|_, _| true, || None)
+  }
+
+  /// Skip tokens until the predicate matches, emitting lexer errors along the way.
+  ///
+  /// Advances through the stream, emitting each lexer error via the emitter. Stops
+  /// before the first token for which `pred` returns `true` and returns it (without
+  /// consuming). If emission fails, returns that error. If no matching token is
+  /// found, returns `None`.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
-  pub fn skip_errors_and_until<F>(
+  pub fn sync_until<F, Exp>(
     &mut self,
-    mut pred: F,
-  ) -> Result<Option<MaybeRef<'_, CachedToken<'inp, L>>>, E::Error>
+    pred: F,
+    exp: Exp,
+  ) -> Result<Option<MaybeRefCachedTokenOf<'_, 'inp, L>>, E::Error>
   where
     F: FnMut(Spanned<&L::Token, &L::Span>, &mut E) -> bool,
+    Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
+  {
+    self
+      .sync_until_then_peek_with_emitter::<_, _, U1>(pred, exp)
+      .map(|(out, _)| out.into())
+  }
+
+  /// Skip tokens until the predicate matches, emitting lexer errors along the way.
+  ///
+  /// Advances through the stream, emitting each lexer error via the emitter. Stops
+  /// before the first token for which `pred` returns `true` and returns it (without
+  /// consuming). If emission fails, returns that error. If no matching token is
+  /// found, returns `None`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(clippy::type_complexity)]
+  pub fn sync_until_then_peek_with_emitter<'p, F, Exp, W>(
+    &'p mut self,
+    mut pred: F,
+    mut exp: Exp,
+  ) -> Result<(Peeked<'p, 'inp, L, W>, &'p mut E), E::Error>
+  where
+    F: FnMut(Spanned<&L::Token, &L::Span>, &mut E) -> bool,
+    Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
+    W: Window,
   {
     // pop from cache if not matching
     while let Some(tok) = self.cache.pop_front_if(|t| {
-      let span = t.token().span_ref();
+      let span = t.token().span();
       match t.token().data() {
         Lexed::Token(tok) => !pred(Spanned::new(span, tok), self.emitter),
         Lexed::Error(_) => true,
@@ -526,17 +608,25 @@ where
 
       // Note: cursor/state are updated before emission. If emission fails,
       // the error token has still been consumed (no backtracking here).
-      if let Lexed::Error(e) = tok {
-        self
-          .emitter()
-          .emit_lexer_error(Spanned::new(span.clone(), e))?;
+
+      match tok {
+        Lexed::Error(e) => {
+          self
+            .emitter()
+            .emit_lexer_error(Spanned::new(span.clone(), e))?;
+        }
+        Lexed::Token(unexpected) => {
+          self.emitter().emit_unexpected_token(
+            UnexpectedToken::maybe_expected_of(span, exp()).with_found(unexpected),
+          )?;
+        }
       }
     }
 
     // as the matched token will not be consumed, we just peek it
     match !self.cache().is_empty() {
       // If the matched token is in cache, return it
-      true => Ok(self.cache().peek_one()),
+      true => Ok(self.peek_with_emitter::<W>()),
       // Otherwise, let's skip the input
       false => {
         let mut lexer = self.lexer();
@@ -561,13 +651,14 @@ where
               let tok = Spanned::new(span, tok);
               // if the token matches, we cache it and return it
               if pred(tok.as_ref(), self.emitter) {
-                let ct = CachedToken::new(tok.map_data(Lexed::Token), lexer.into_state());
                 self.set_span_after_consume(end.into());
                 *self.state = state;
-                return Ok(match self.cache_mut().push_back(ct) {
-                  Ok(tok) => Some(MaybeRef::Ref(tok)),
-                  Err(ct) => Some(MaybeRef::Owned(ct)),
-                });
+                return Ok(self.peek_with_emitter::<W>());
+              } else {
+                let (span, tok) = tok.into_components();
+                self.emitter().emit_unexpected_token(
+                  UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
+                )?;
               }
 
               end = lexer.span();
@@ -580,15 +671,15 @@ where
         self.set_span_after_consume(lexer.span().into());
         *self.state = lexer.into_state();
 
-        Ok(None)
+        Ok((Peeked::new(), self.emitter))
       }
     }
   }
 
   /// Peeks the next token without advancing the cursor.
   #[inline]
-  pub fn peek_one(&mut self) -> Option<MaybeRef<'_, CachedToken<'inp, L>>> {
-    let mut buf: [MaybeUninit<MaybeRef<'_, CachedToken<'inp, L>>>; 1] = [MaybeUninit::uninit()];
+  pub fn peek_one(&mut self) -> Option<MaybeRefCachedTokenOf<'_, 'inp, L>> {
+    let mut buf: [MaybeUninit<MaybeRefCachedTokenOf<'_, 'inp, L>>; 1] = [MaybeUninit::uninit()];
     let (feed, _) = self.peek_with_emitter_inner(&mut buf);
     if feed.is_empty() {
       return None;
@@ -598,27 +689,13 @@ where
     buf.into_iter().next().map(|m| unsafe { m.assume_init() })
   }
 
-  // /// Peeks the tokens until find
-  // pub fn peek_until(&mut self, pred: impl Fn(&Lexed<'inp, L::Token>) -> bool) -> Option<Lexed<'inp, L::Token>> {
-  //   if let Some(cached_token) = self.cache.peek() {
-  //     return Some(cached_token.data.clone());
-  //   }
-
-  //   let state = self.state.clone();
-  //   let mut lexer = logos::Lexer::<T::Logos>::with_extras(self.input, state);
-  //   lexer.bump(self.cursor);
-  //   Lexed::lex(&mut lexer).map(|tok| {
-  //     self.cache_token(lexer.span().into(), lexer.extras.clone(), tok)
-  //   })
-  // }
-
   /// Try to peeks tokens to fill the provided buffer, if not enough tokens are cached, lex more tokens to fill the buffer.
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  pub fn peek<'p, N>(&'p mut self) -> Peeked<'p, 'inp, L, N>
+  pub fn peek<'p, W>(&'p mut self) -> Peeked<'p, 'inp, L, W>
   where
-    N: ArrayLength,
+    W: Window,
   {
     self.peek_with_emitter().0
   }
@@ -627,9 +704,9 @@ where
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  pub fn peek_with_emitter<'p, N>(&'p mut self) -> (Peeked<'p, 'inp, L, N>, &'p mut E)
+  pub fn peek_with_emitter<'p, W>(&'p mut self) -> (Peeked<'p, 'inp, L, W>, &'p mut E)
   where
-    N: ArrayLength,
+    W: Window,
   {
     let mut peeked = Peeked::new();
     let (filled, emitter) = self.peek_with_emitter_inner(peeked.as_mut_buf());
@@ -649,8 +726,8 @@ where
   #[inline]
   fn peek_with_emitter_inner<'p, 'b>(
     &'p mut self,
-    buf: &'b mut [MaybeUninit<MaybeRef<'p, CachedToken<'inp, L>>>],
-  ) -> (&'b mut [MaybeRef<'p, CachedToken<'inp, L>>], &'p mut E) {
+    buf: &'b mut [MaybeUninit<MaybeRefCachedTokenOf<'p, 'inp, L>>],
+  ) -> (&'b mut [MaybeRefCachedTokenOf<'p, 'inp, L>], &'p mut E) {
     let buf_len = buf.len();
     let mut in_cache = self.cache().len();
     let mut want = buf_len.saturating_sub(in_cache);
@@ -677,7 +754,7 @@ where
           Err(ct) => {
             // Cache full: write overflow tokens directly to buffer
             // Position: buf[buf_len - want] is the next unfilled slot
-            buf[buf_len - want].write(MaybeRef::Owned(ct));
+            buf[buf_len - want].write(Maybe::Owned(ct));
           }
         }
         want -= 1;
@@ -697,7 +774,7 @@ where
 
     unsafe {
       let out = core::slice::from_raw_parts_mut(
-        buf.as_mut_ptr() as *mut MaybeRef<'p, CachedToken<'_, L>>,
+        buf.as_mut_ptr() as *mut MaybeRefCachedTokenOf<'p, 'inp, L>,
         total,
       );
       (out, self.emitter)
@@ -837,4 +914,19 @@ where
     MaybeRef::Ref(r) => r.clone(),
     MaybeRef::Owned(o) => o,
   }
+}
+
+#[cfg_attr(not(tarpaulin), inline(always))]
+fn unwrap_peek1_to_token<'a, 'inp, L>(
+  peeked: Peeked<'a, 'inp, L, U1>,
+) -> Option<MaybeRefCachedTokenOf<'a, 'inp, L, L::Token>>
+where
+  L: Lexer<'inp>,
+{
+  let tok = peeked.into_option()?;
+
+  Some(match tok {
+    Maybe::Ref(r) => Maybe::Ref(r.map_token(|t| t.unwrap_token_ref())),
+    Maybe::Owned(o) => Maybe::Owned(o.map_token(|t| t.unwrap_token())),
+  })
 }

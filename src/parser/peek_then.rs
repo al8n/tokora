@@ -17,7 +17,7 @@ impl<P, H, T, Window> Apply<OrNot<Self>> for PeekThen<P, H, T, Window> {
   }
 }
 
-impl<P, H, T, Window: Capacity> PeekThen<P, H, T, Window> {
+impl<P, H, T, W: Window> PeekThen<P, H, T, W> {
   /// Creates a new `PeekThen` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new<'inp, L, O, Ctx>(parser: P, condition: H) -> Self
@@ -26,7 +26,7 @@ impl<P, H, T, Window: Capacity> PeekThen<P, H, T, Window> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseInput<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      Peeked<'_, 'inp, L, Window::CAPACITY>,
+      Peeked<'_, 'inp, L, W::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -41,7 +41,7 @@ impl<P, H, T, Window: Capacity> PeekThen<P, H, T, Window> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      Peeked<'_, 'inp, L, Window::CAPACITY>,
+      Peeked<'_, 'inp, L, W::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -62,7 +62,7 @@ impl<P, H, T, Window: Capacity> PeekThen<P, H, T, Window> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseInput<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      Peeked<'_, 'inp, L, Window::CAPACITY>,
+      Peeked<'_, 'inp, L, W::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -77,7 +77,7 @@ impl<P, H, T, Window: Capacity> PeekThen<P, H, T, Window> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      Peeked<'_, 'inp, L, Window::CAPACITY>,
+      Peeked<'_, 'inp, L, W::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -91,45 +91,47 @@ impl<P, H, T, Window: Capacity> PeekThen<P, H, T, Window> {
   }
 }
 
-impl<'inp, P, H, L, O, Ctx, Lang, N: ArrayLength> ParseInput<'inp, L, O, Ctx, Lang>
-  for PeekThen<P, H, L::Token, N>
+impl<'inp, P, H, L, O, Ctx, Lang, W> ParseInput<'inp, L, O, Ctx, Lang>
+  for PeekThen<P, H, L::Token, W>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   H: FnMut(
-    Peeked<'_, 'inp, L, N>,
+    Peeked<'_, 'inp, L, W>,
     &mut Ctx::Emitter,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let (output, emitter) = inp.peek_with_emitter::<N>();
+    let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
     (self.handler)(output, emitter).and_then(|_| self.parser.parse_input(inp))
   }
 }
 
-impl<'inp, P, H, L, O, Ctx, Lang, N: ArrayLength> ParseInput<'inp, L, Option<O>, Ctx, Lang>
-  for or_not::OrNot<PeekThen<P, H, L::Token, N>>
+impl<'inp, P, H, L, O, Ctx, Lang, W> ParseInput<'inp, L, Option<O>, Ctx, Lang>
+  for or_not::OrNot<PeekThen<P, H, L::Token, W>>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   H: FnMut(
-    Peeked<'_, 'inp, L, N>,
+    Peeked<'_, 'inp, L, W>,
     &mut Ctx::Emitter,
   ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  W: Window,
 {
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, <Ctx>::Emitter, <Ctx>::Cache, Lang>,
   ) -> Result<Option<O>, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let (output, emitter) = inp.peek_with_emitter::<N>();
+    let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
 
     if output.is_empty() {
       return Ok(None);

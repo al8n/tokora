@@ -19,16 +19,13 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
   /// parsing is stopped and return the error from the handler.
-  fn peek_then_choice<H, Window: Capacity>(
-    self,
-    condition: H,
-  ) -> PeekThenChoice<Self, H, L::Token, Window>
+  fn peek_then_choice<H, W: Window>(self, condition: H) -> PeekThenChoice<Self, H, L::Token, W>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     H: FnMut(
-      Peeked<'_, 'inp, L, Window::CAPACITY>,
+      Peeked<'_, 'inp, L, W::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<Self::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
@@ -40,16 +37,16 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// If the condition handler `H` returns `Ok(Some(id))`, the inner choice parser is applied with the given id.
   /// If the handler returns `Ok(None)`, returns `None` without parsing.
   /// Otherwise, the error is propagated.
-  fn peek_then_choice_or_not<H, Window: Capacity>(
+  fn peek_then_choice_or_not<H, W: Window>(
     self,
     condition: H,
-  ) -> OrNot<PeekThenChoice<Self, H, L::Token, Window>>
+  ) -> OrNot<PeekThenChoice<Self, H, L::Token, W>>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     H: FnMut(
-      Peeked<'_, 'inp, L, Window::CAPACITY>,
+      Peeked<'_, 'inp, L, W::CAPACITY>,
       &mut Ctx::Emitter,
     ) -> Result<Option<Self::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {

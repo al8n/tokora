@@ -39,7 +39,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    InputContext::new(Fatal::of(), DefaultCache::new())
+    InputContext::new(Fatal::of(), DefaultCache::<'inp, L>::new())
   }
 }
 

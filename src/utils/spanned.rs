@@ -211,6 +211,31 @@ impl<D, S> IntoComponents for Spanned<D, S> {
   }
 }
 
+impl<D, S> Spanned<&D, &S> {
+  /// Returns a copied version of the spanned value.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn copied(&self) -> Spanned<D, S>
+  where
+    D: Copy,
+    S: Copy,
+  {
+    Spanned {
+      span: *self.span,
+      data: *self.data,
+    }
+  }
+
+  /// Returns a cloned version of the spanned value.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn cloned(&self) -> Spanned<D, S>
+  where
+    D: Clone,
+    S: Clone,
+  {
+    self.map(Clone::clone, Clone::clone)
+  }
+}
+
 impl<D, S> Spanned<D, S> {
   /// Create a new spanned value.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -364,6 +389,31 @@ impl<D, S> Spanned<D, S> {
     Spanned {
       span: self.span,
       data: f(self.data),
+    }
+  }
+
+  /// Map the span to a new value, preserving the data.
+  #[inline]
+  pub fn map_span<F, T>(self, f: F) -> Spanned<D, T>
+  where
+    F: FnOnce(S) -> T,
+  {
+    Spanned {
+      span: f(self.span),
+      data: self.data,
+    }
+  }
+
+  /// Map both the span and data to new values.
+  #[inline]
+  pub fn map<F, G, U, T>(self, f: F, g: G) -> Spanned<U, T>
+  where
+    F: FnOnce(S) -> T,
+    G: FnOnce(D) -> U,
+  {
+    Spanned {
+      span: f(self.span),
+      data: g(self.data),
     }
   }
 }

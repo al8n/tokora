@@ -5,14 +5,14 @@ use crate::{
 
 use super::*;
 
-impl<'inp, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, Window>
+impl<'inp, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<Repeated<F, Condition, O, Window, RepeatedOptions<Max, Min>>, Container>
+  for Collect<Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, Container>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY, Lang>,
-  Window: Capacity,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  W: Window,
   Ctx::Emitter: RepeatedEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
@@ -33,7 +33,7 @@ where
     let min = self.parser.minimum();
 
     loop {
-      let (peeked, emitter) = inp.peek_with_emitter::<Window::CAPACITY>();
+      let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
 
       match self.parser.condition.decide(peeked, emitter) {
         Err(err) => return Err(err),

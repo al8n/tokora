@@ -30,15 +30,15 @@ where
 }
 
 /// A parser that parses a sequence of elements separated by a specific separator.
-pub struct Repeated<F, Condition, O, DecisionWindow, Config = RepeatedOptions> {
+pub struct Repeated<F, Condition, O, W, Config = RepeatedOptions> {
   f: F,
   condition: Condition,
   config: Config,
   _m: PhantomData<O>,
-  _cap: PhantomData<DecisionWindow>,
+  _cap: PhantomData<W>,
 }
 
-impl<F, Condition, O, DecisionWindow: Capacity> Repeated<F, Condition, O, DecisionWindow> {
+impl<F, Condition, O, W: Window> Repeated<F, Condition, O, W> {
   /// Creates a new `Repeated` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(f: F, condition: Condition) -> Self {
@@ -58,9 +58,7 @@ impl<F, Condition, O, DecisionWindow: Capacity> Repeated<F, Condition, O, Decisi
   }
 }
 
-impl<F, Condition, O, Options, DecisionWindow: Capacity>
-  Repeated<F, Condition, O, DecisionWindow, Options>
-{
+impl<F, Condition, O, Options, W: Window> Repeated<F, Condition, O, W, Options> {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn collect<Container>(self) -> Collect<Self, Container>
@@ -77,15 +75,13 @@ impl<F, Condition, O, Options, DecisionWindow: Capacity>
   }
 }
 
-impl<F, Condition, O, Max, Min, DecisionWindow: Capacity>
-  Repeated<F, Condition, O, DecisionWindow, RepeatedOptions<Max, Min>>
-{
+impl<F, Condition, O, Max, Min, W: Window> Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>> {
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn at_least(
     self,
     n: Min::Options,
-  ) -> Repeated<F, Condition, O, DecisionWindow, RepeatedOptions<Max, Minimum>>
+  ) -> Repeated<F, Condition, O, W, RepeatedOptions<Max, Minimum>>
   where
     Min: Apply<Minimum>,
   {
@@ -109,7 +105,7 @@ impl<F, Condition, O, Max, Min, DecisionWindow: Capacity>
   pub fn at_most(
     self,
     n: Max::Options,
-  ) -> Repeated<F, Condition, O, DecisionWindow, RepeatedOptions<Maximum, Min>>
+  ) -> Repeated<F, Condition, O, W, RepeatedOptions<Maximum, Min>>
   where
     Max: Apply<Maximum>,
   {

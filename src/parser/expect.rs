@@ -77,7 +77,7 @@ where
         Lexed::Token(tok) => match self.is.check(&tok) {
           Ok(()) => Ok(Spanned::new(span, tok)),
           Err(expected) => Err(
-            UnexpectedToken::with_expected(span, expected)
+            UnexpectedToken::with_expected_of(span, expected)
               .with_found(tok)
               .into(),
           ),
@@ -118,7 +118,7 @@ where
             tok,
           )),
           Err(expected) => Err(
-            UnexpectedToken::with_expected(span, expected)
+            UnexpectedToken::with_expected_of(span, expected)
               .with_found(tok)
               .into(),
           ),
@@ -165,7 +165,7 @@ where
             tok,
           )),
           Err(expected) => Err(
-            UnexpectedToken::with_expected(span, expected)
+            UnexpectedToken::with_expected_of(span, expected)
               .with_found(tok)
               .into(),
           ),

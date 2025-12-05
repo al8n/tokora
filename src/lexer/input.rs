@@ -193,7 +193,7 @@ where
       state,
       cursor: L::Offset::default(),
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
-      cache: DefaultCache::default(),
+      cache: DefaultCache::<'inp, L>::default(),
     }
   }
 }

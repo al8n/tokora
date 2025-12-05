@@ -165,28 +165,14 @@ impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Repeated<Da
   }
 }
 
-impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new_in(
-    span: S,
-    found: Option<T>,
-    expected: Option<Expected<'a, Kind>>,
-  ) -> Self {
-    Self {
-      span,
-      found,
-      expected,
-      _lang: PhantomData,
-    }
-  }
-
+impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
   /// Creates a new unexpected token error.
   ///
   /// This error indicates that an unexpected token was encountered,
   /// without specifying what token was found or expected.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(span: S) -> Self {
-    Self::new_in(span, None, None)
+    Self::of(span)
   }
 
   /// Creates an unexpected token error without a found token.
@@ -209,7 +195,101 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_expected(span: S, expected: Expected<'a, Kind>) -> Self {
+    Self::with_expected_of(span, expected)
+  }
+
+  /// Creates an unexpected token error without a found token.
+  ///
+  /// This is useful when the parser reaches the end of input unexpectedly.
+  /// The error will indicate "unexpected end of input" in its display message.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  ///
+  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::maybe_expected_of(
+  ///     Span::new(100, 101),
+  ///     Some(Expected::one("}"))
+  /// );
+  /// assert!(error.found().is_none());
+  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn maybe_expected(span: S, expected: Option<Expected<'a, Kind>>) -> Self {
+    Self::maybe_expected_of(span, expected)
+  }
+}
+
+impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) const fn new_in(
+    span: S,
+    found: Option<T>,
+    expected: Option<Expected<'a, Kind>>,
+  ) -> Self {
+    Self {
+      span,
+      found,
+      expected,
+      _lang: PhantomData,
+    }
+  }
+
+  /// Creates a new unexpected token error.
+  ///
+  /// This error indicates that an unexpected token was encountered,
+  /// without specifying what token was found or expected.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of(span: S) -> Self {
+    Self::new_in(span, None, None)
+  }
+
+  /// Creates an unexpected token error without a found token.
+  ///
+  /// This is useful when the parser reaches the end of input unexpectedly.
+  /// The error will indicate "unexpected end of input" in its display message.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  ///
+  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::new(
+  ///     Span::new(100, 101),
+  ///     Expected::one("}")
+  /// );
+  /// assert!(error.found().is_none());
+  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn with_expected_of(span: S, expected: Expected<'a, Kind>) -> Self {
     Self::new_in(span, None, Some(expected))
+  }
+
+  /// Creates an unexpected token error without a found token.
+  ///
+  /// This is useful when the parser reaches the end of input unexpectedly.
+  /// The error will indicate "unexpected end of input" in its display message.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  ///
+  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::maybe_expected_of(
+  ///     Span::new(100, 101),
+  ///     Some(Expected::one("}"))
+  /// );
+  /// assert!(error.found().is_none());
+  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn maybe_expected_of(span: S, expected: Option<Expected<'a, Kind>>) -> Self {
+    Self::new_in(span, None, expected)
   }
 
   /// Creates a new unexpected token error with a single expected token.
@@ -231,7 +311,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn expected_one(span: S, expected: Kind) -> Self {
-    Self::with_expected(span, Expected::one(expected))
+    Self::with_expected_of(span, Expected::one(expected))
   }
 
   /// Creates a new unexpected token error with a single expected token.
@@ -279,7 +359,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn expected_one_of(span: S, expected: &'static [Kind]) -> Self {
-    Self::with_expected(span, Expected::one_of(expected))
+    Self::with_expected_of(span, Expected::one_of(expected))
   }
 
   /// Creates a new unexpected token error with multiple expected tokens.

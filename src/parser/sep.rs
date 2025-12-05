@@ -36,9 +36,7 @@ pub struct SeqSep<F, SepClassifier, Condition, O, Window, Config = SeqSepOptions
   _decision_window: PhantomData<Window>,
 }
 
-impl<F, SepClassifier, Condition, O, Window: Capacity>
-  SeqSep<F, SepClassifier, Condition, O, Window>
-{
+impl<F, SepClassifier, Condition, O, W: Window> SeqSep<F, SepClassifier, Condition, O, W> {
   /// Creates a new `SeqSep` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
@@ -266,13 +264,13 @@ macro_rules! sep_by {
         impl<F, Condition, O> SeqSep<F, $sep, Condition, O, ()> {
           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< $sep:snake >]<'inp, L, Window, Ctx>(f: F, condition: Condition) -> SeqSep<F, $sep, Condition, O, Window>
+          pub const fn [< $sep:snake >]<'inp, L, W, Ctx>(f: F, condition: Condition) -> SeqSep<F, $sep, Condition, O, W>
           where
             L: Lexer<'inp>,
             Ctx: ParseContext<'inp, L, ()>,
             $sep: Check<L::Token>,
-            Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY, ()>,
-            Window: Capacity,
+            Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY, ()>,
+            W: Window,
           {
             SeqSep::new_in(f, <$sep>::PHANTOM, condition)
           }
@@ -281,13 +279,13 @@ macro_rules! sep_by {
         impl<F, Condition, O, Lang: ?Sized> SeqSep<F, $sep<(), (), Lang>, Condition, O, ()> {
           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser of a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< $sep:snake _of >]<'inp, L, Window, Ctx>(f: F, condition: Condition) -> SeqSep<F, $sep, Condition, O, Window>
+          pub const fn [< $sep:snake _of >]<'inp, L, W, Ctx>(f: F, condition: Condition) -> SeqSep<F, $sep, Condition, O, W>
           where
             L: Lexer<'inp>,
             $sep<(), (), Lang>: Check<L::Token>,
             Ctx: ParseContext<'inp, L, Lang>,
-            Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY, Lang>,
-            Window: Capacity,
+            Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY, Lang>,
+            W: Window,
           {
             SeqSep::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
           }

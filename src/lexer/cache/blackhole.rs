@@ -1,8 +1,9 @@
 use core::mem::MaybeUninit;
 
-use mayber::MaybeRef;
-
-use super::{super::BlackHole, Cache, CachedToken, Checkpoint, Lexer};
+use super::{
+  super::BlackHole, Cache, CachedTokenOf, CachedTokenRefOf, Checkpoint, Lexer,
+  MaybeRefCachedTokenOf,
+};
 
 macro_rules! blackhole {
   ($ty:ty) => {
@@ -41,18 +42,18 @@ macro_rules! blackhole {
       #[cfg_attr(not(tarpaulin), inline(always))]
       fn push_back(
         &mut self,
-        tok: CachedToken<'a, L>,
-      ) -> Result<&CachedToken<'a, L>, CachedToken<'a, L>> {
+        tok: CachedTokenOf<'a, L>,
+      ) -> Result<CachedTokenRefOf<'_, 'a, L>, CachedTokenOf<'a, L>> {
         Err(tok)
       }
 
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn pop_front(&mut self) -> Option<CachedToken<'a, L>> {
+      fn pop_front(&mut self) -> Option<CachedTokenOf<'a, L>> {
         None
       }
 
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn pop_back(&mut self) -> Option<CachedToken<'a, L>> {
+      fn pop_back(&mut self) -> Option<CachedTokenOf<'a, L>> {
         None
       }
 
@@ -62,24 +63,24 @@ macro_rules! blackhole {
       #[cfg_attr(not(tarpaulin), inline(always))]
       unsafe fn peek(
         &self,
-        buf: &mut [MaybeUninit<MaybeRef<'_, CachedToken<'a, L>>>],
-      ) -> &mut [MaybeRef<'_, CachedToken<'a, L>>] {
+        buf: &mut [MaybeUninit<MaybeRefCachedTokenOf<'_, 'a, L>>],
+      ) -> &mut [MaybeRefCachedTokenOf<'_, 'a, L>] {
         // SAFETY: We never initialize any element in the buffer, so the returned slice is always empty.
         unsafe {
           core::slice::from_raw_parts_mut(
-            buf.as_mut_ptr() as *mut MaybeRef<'_, CachedToken<'a, L>>,
+            buf.as_mut_ptr() as *mut MaybeRefCachedTokenOf<'_, 'a, L>,
             0,
           )
         }
       }
 
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn first(&self) -> Option<&CachedToken<'a, L>> {
+      fn first(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
         None
       }
 
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn last(&self) -> Option<&CachedToken<'a, L>> {
+      fn last(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
         None
       }
     }

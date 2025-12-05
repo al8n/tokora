@@ -39,21 +39,21 @@ impl<
   Max,
   Min,
   Lang: ?Sized,
-  Window,
+  W,
 > ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Leading, Max, Min>>,
+    SeqSep<F, SepClassifier, Condition, O, W, SeqSepOptions<Trailing, Leading, Max, Min>>,
     Container,
   >
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY, Lang>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
-  Window: Capacity,
+  W: Window,
   Trailing: super::TrailingSpec,
   Leading: super::LeadingSpec,
   Max: super::MaxSpec,
@@ -74,7 +74,7 @@ where
     let mut lexer_errs_id = None;
 
     loop {
-      let (peeked, emitter) = inp.peek_with_emitter::<Window::CAPACITY>();
+      let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
 
       let peek_span = match peeked.first() {
         None => {
@@ -85,7 +85,7 @@ where
         }
         Some(tok) => {
           let tok = tok.as_ref();
-          let peek_span = tok.token().span_ref();
+          let peek_span = tok.token().span();
           match tok.token().data() {
             Lexed::Error(_) => {
               drop(peeked);
@@ -465,8 +465,8 @@ where
   }
 }
 
-impl<'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
-  SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Leading, Max, Min>>
+impl<'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
+  SeqSep<F, SepClassifier, Condition, O, W, SeqSepOptions<Trailing, Leading, Max, Min>>
 {
   fn handle_end<'closure, L, Ctx, Lang, Container>(
     &mut self,
@@ -481,8 +481,8 @@ impl<'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     F: ParseInput<'inp, L, O, Ctx, Lang>,
-    Window: Capacity,
-    Condition: Decision<'inp, L, Ctx::Emitter, Window::CAPACITY, Lang>,
+    W: Window,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     SepClassifier: Check<L::Token>,
     Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
     Container: crate::container::Container<O>,

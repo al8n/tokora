@@ -1,3 +1,5 @@
+use std::convert::identity;
+
 use crate::{emitter::DelimiterEmitter, error::Unclosed};
 
 use super::*;
@@ -5,37 +7,50 @@ use super::*;
 /// A parser that parses a construct delimited by left and right tokens.
 ///
 /// See also: [`DelimSepSeq`]
-pub struct Delimiter<P, Open, Close, Delim, Window> {
+pub struct Delimited<P, Condition, O, Open, Close, Delim, Window> {
   parser: P,
   left_classifier: Open,
   right_classifier: Close,
   delimiter: Delim,
+  condition: Condition,
+  _m: PhantomData<O>,
   _window: PhantomData<Window>,
 }
 
-impl<P, Open, Close, Delim, Window> Delimiter<P, Open, Close, Delim, Window> {
+impl<P, Condition, O, Open, Close, Delim, Window>
+  Delimited<P, Condition, O, Open, Close, Delim, Window>
+{
   /// Creates a new `Delim` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(parser: P, left: Open, right: Close, delim: Delim) -> Self {
+  pub const fn new(
+    parser: P,
+    condition: Condition,
+    left: Open,
+    right: Close,
+    delim: Delim,
+  ) -> Self {
     Self {
       parser,
       left_classifier: left,
       right_classifier: right,
       delimiter: delim,
+      condition,
+      _m: PhantomData,
       _window: PhantomData,
     }
   }
 }
 
-impl<'inp, L, P, Open, Close, O, Ctx, Delim, Window, Lang: ?Sized> ParseInput<'inp, L, O, Ctx, Lang>
-  for Delimiter<P, Open, Close, Delim, Window>
+impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
+  ParseInput<'inp, L, O, Ctx, Lang> for Delimited<P, Condition, With<With<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>>, O>, Open, Close, Delim, W>
 where
   L: Lexer<'inp>,
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
   Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
   Delim: Clone,
-  Window: Capacity,
+  W: Window,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: DelimiterEmitter<'inp, Delim, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
@@ -50,58 +65,71 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let output = inp.peek::<Window::CAPACITY>();
-    if output.is_empty() {
-      return Err(UnexpectedEot::eot_of(inp.cursor().into_inner()).into());
-    }
+    // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
+    let ckp = inp.save();
+    let first = inp.sync_until_token()?;
 
-    let mut iter = output.iter();
-    let first = iter.next();
-    let second = iter.next();
+    let state = match first {
+      // End of input reached
+      None => return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into()),
+      Some(maybe_tok) => {
+        let ct = maybe_tok.as_maybe_ref().map(identity, |t| t.as_ref());
 
-    match (first, second) {
-      (None, _) => Err(UnexpectedEot::eot_of(inp.cursor().into_inner()).into()),
-      (Some(first), None) => {
-        let ct = first.as_ref();
-        let (spanned, tok) = ct.token().as_ref().into_components();
+        let tok = ct.token().copied().into_data();
+        match self.left_classifier.check(tok) {
+          Err(knd) => {
+            let (span, tok) = maybe_tok
+              .map(|t| t.into_token().cloned(), |t| t.into_token())
+              .into_inner()
+              .into_components();
 
-        match tok {
-          Lexed::Error(err) => {
-            let nxt = inp
-              .next()
-              .expect("peek gurantees there is a next token")
-              .map_data(|t| t.unwrap_error());
-            inp.emitter().emit_lexer_error(nxt)?;
-
-            Err(UnexpectedEot::eot_of(inp.cursor().into_inner()).into())
+            Err(
+              UnexpectedToken::<_, _, _, Lang>::with_expected_of(
+                span,
+                Expected::one(knd),
+              )
+              .with_found(tok),
+            )
           }
-          Lexed::Token(tok) => match self.left_classifier.check(tok) {
-            Err(knd) => {
-              inp.emitter().emit_unexpected_token(
-                UnexpectedToken::with_expected(spanned.clone(), Expected::one(knd))
-                  .with_found(tok.clone())
-                  .into(),
-              )?;
-              Err(UnexpectedEot::eot_of(inp.cursor().into_inner()).into())
-            }
-            Ok(_) => {
-              let (span, nxt) = inp
-                .next()
-                .expect("peek gurantees there is a next token")
-                .map_data(|t| t.unwrap_token())
-                .into_components();
-              inp
-                .emitter()
-                .emit_unclosed(Unclosed::of(span, self.delimiter.clone()))?;
-              Err(UnexpectedEot::eot_of(inp.cursor().into_inner()).into())
-            }
-          },
+          Ok(_) => {
+            let tok = maybe_tok
+              .map(|t| t.into_token().cloned(), |t| t.into_token())
+              .into_inner();
+            // Skip the opening delimiter
+            inp.skip_one();
+            Ok(tok)
+          }
         }
       }
-      (Some(first), Some(second)) => {
-        let buf = [(); generic_arraydeque::typenum::U10::USIZE];
-        Ok(())
+    };
+
+    // we already handled the first token above
+    let (open, (peeked, emitter)) = match state {
+      Ok(left) => (Some(left), inp.sync_until_token_then_peek_with_emitter()?),
+      Err(err) => {
+        inp.emitter().emit_unexpected_token(err)?;
+        (None, inp.sync_until_token_then_peek_with_emitter()?)
       }
+    };
+
+    let elem = match self.condition.decide(peeked, emitter)? {
+      Action::End => todo!(),
+      Action::Continue => self.parser.parse_input(inp)?,
+    };
+
+    let close = inp.sync_until_token()?;
+    match (open, close) {
+      (None, None) => todo!(),
+      (None, Some(_)) => todo!(),
+      (Some(_), None) => {
+        let span = inp.span_since(ckp.cursor());
+        inp.emitter().emit_unclosed(Unclosed::of(
+          span,
+          self.delimiter.clone(),
+        ))?;
+        Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into())
+      },
+      (Some(open), Some(close)) => todo!(),
     }
   }
 }
