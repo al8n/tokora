@@ -505,7 +505,8 @@ where
   ///
   /// Advances over error tokens without emitting them, stopping before the first
   /// non-error token (if any). Returns that token without consuming it so the
-  /// caller can decide what to do next.
+  /// caller can decide what to do next. Any cached errors are discarded; use
+  /// `sync_until*` to emit them.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn skip_until_token(&mut self) -> Option<MaybeRefCachedTokenOf<'_, 'inp, L, L::Token>> {
     unwrap_peek1_to_token(self.skip_until_then_peek(|t| matches!(t.data, Lexed::Token(_))))
@@ -516,6 +517,7 @@ where
   /// Emits every lexer error encountered while advancing. Stops before the first
   /// non-error token (if any) and returns it without consuming, allowing the caller
   /// to resume parsing. If emission fails, returns that error immediately.
+  /// Non-matching non-error tokens are skipped but also reported via `emit_unexpected_token`.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn sync_until_token(
     &mut self,
@@ -528,6 +530,7 @@ where
   /// Emits every lexer error encountered while advancing. Stops before the first
   /// non-error token (if any) and returns it without consuming, allowing the caller
   /// to resume parsing. If emission fails, returns that error immediately.
+  /// Non-matching non-error tokens are skipped but also reported via `emit_unexpected_token`.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn sync_until_token_then_peek<'p, W>(&'p mut self) -> Result<Peeked<'p, 'inp, L, W>, E::Error>
   where
@@ -543,6 +546,7 @@ where
   /// Emits every lexer error encountered while advancing. Stops before the first
   /// non-error token (if any) and returns it without consuming, allowing the caller
   /// to resume parsing. If emission fails, returns that error immediately.
+  /// Non-matching non-error tokens are skipped but also reported via `emit_unexpected_token`.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn sync_until_token_then_peek_with_emitter<'p, W>(
     &'p mut self,
@@ -557,8 +561,9 @@ where
   ///
   /// Advances through the stream, emitting each lexer error via the emitter. Stops
   /// before the first token for which `pred` returns `true` and returns it (without
-  /// consuming). If emission fails, returns that error. If no matching token is
-  /// found, returns `None`.
+  /// consuming). Non-matching non-error tokens are skipped but also reported via
+  /// `emit_unexpected_token`. If emission fails, returns that error. If no matching
+  /// token is found, returns `None`.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_until<F, Exp>(
@@ -579,8 +584,9 @@ where
   ///
   /// Advances through the stream, emitting each lexer error via the emitter. Stops
   /// before the first token for which `pred` returns `true` and returns it (without
-  /// consuming). If emission fails, returns that error. If no matching token is
-  /// found, returns `None`.
+  /// consuming). Non-matching non-error tokens are skipped but also reported via
+  /// `emit_unexpected_token`. If emission fails, returns that error. If no matching
+  /// token is found, returns `None`.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_until_then_peek_with_emitter<'p, F, Exp, W>(
@@ -832,7 +838,7 @@ where
   ///
   /// Returns `Ok(Some(token))` for valid tokens, `Ok(None)` at end of input, or
   /// `Err(error)` if a fatal error occurred.
-  pub fn next_valid(&mut self) -> Result<Option<Spanned<L::Token, L::Span>>, E::Error> {
+  pub fn next_token(&mut self) -> Result<Option<Spanned<L::Token, L::Span>>, E::Error> {
     // First, consume from cache if available
     while let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();
@@ -892,17 +898,6 @@ where
       *self.state = lexer.state().clone();
     })
   }
-
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub(crate) fn next_at(&mut self, cursor: &mut usize) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>> {
-  //   let state = self.state.clone();
-  //   let mut lexer = logos::Lexer::<T::Logos>::with_extras(self.input, state);
-  //   lexer.bump(*cursor);
-  //   Lexed::lex_spanned(&mut lexer).inspect(|_| {
-  //     *cursor = lexer.span().end;
-  //     self.state = lexer.extras.clone();
-  //   })
-  // }
 }
 
 #[cfg_attr(not(tarpaulin), inline(always))]

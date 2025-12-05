@@ -77,13 +77,27 @@ impl<F, SepClassifier, Condition, O, Options, Window>
 }
 
 impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
-  SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Trailing, Leading, Max, Min>>
+  SeparatedBy<
+    F,
+    SepClassifier,
+    Condition,
+    O,
+    Window,
+    SeparatedByOptions<Trailing, Leading, Max, Min>,
+  >
 {
   /// Allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_trailing(
     self,
-  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Allow, Leading, Max, Min>>
+  ) -> SeparatedBy<
+    F,
+    SepClassifier,
+    Condition,
+    O,
+    Window,
+    SeparatedByOptions<Allow, Leading, Max, Min>,
+  >
   where
     Trailing: Apply<Allow>,
   {
@@ -104,7 +118,14 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_trailing(
     self,
-  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Require, Leading, Max, Min>>
+  ) -> SeparatedBy<
+    F,
+    SepClassifier,
+    Condition,
+    O,
+    Window,
+    SeparatedByOptions<Require, Leading, Max, Min>,
+  >
   where
     Trailing: Apply<Require>,
   {
@@ -125,7 +146,14 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_leading(
     self,
-  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Trailing, Allow, Max, Min>>
+  ) -> SeparatedBy<
+    F,
+    SepClassifier,
+    Condition,
+    O,
+    Window,
+    SeparatedByOptions<Trailing, Allow, Max, Min>,
+  >
   where
     Leading: Apply<Allow>,
   {
@@ -146,7 +174,14 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_leading(
     self,
-  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Trailing, Require, Max, Min>>
+  ) -> SeparatedBy<
+    F,
+    SepClassifier,
+    Condition,
+    O,
+    Window,
+    SeparatedByOptions<Trailing, Require, Max, Min>,
+  >
   where
     Leading: Apply<Require>,
   {
@@ -168,7 +203,14 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   pub fn at_least(
     self,
     n: Min::Options,
-  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Trailing, Leading, Max, Minimum>>
+  ) -> SeparatedBy<
+    F,
+    SepClassifier,
+    Condition,
+    O,
+    Window,
+    SeparatedByOptions<Trailing, Leading, Max, Minimum>,
+  >
   where
     Min: Apply<Minimum>,
   {
@@ -193,7 +235,14 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   pub fn at_most(
     self,
     n: Max::Options,
-  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Trailing, Leading, Maximum, Min>>
+  ) -> SeparatedBy<
+    F,
+    SepClassifier,
+    Condition,
+    O,
+    Window,
+    SeparatedByOptions<Trailing, Leading, Maximum, Min>,
+  >
   where
     Max: Apply<Maximum>,
   {

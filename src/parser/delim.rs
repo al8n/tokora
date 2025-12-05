@@ -16,9 +16,7 @@ pub struct Delimited<P, Condition, Open, Close, Delim, O, W, Config = RepeatedOp
   _window: PhantomData<W>,
 }
 
-impl<P, Condition, Open, Close, Delim, O, W>
-  Delimited<P, Condition, Open, Close, Delim, O, W>
-{
+impl<P, Condition, Open, Close, Delim, O, W> Delimited<P, Condition, Open, Close, Delim, O, W> {
   /// Creates a new `Delim` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(
@@ -39,7 +37,9 @@ impl<P, Condition, Open, Close, Delim, O, W>
   }
 }
 
-impl<P, Condition, Open, Close, Delim, O, W, Options> Delimited<P, Condition, Open, Close, Delim, O, W, Options> {
+impl<P, Condition, Open, Close, Delim, O, W, Options>
+  Delimited<P, Condition, Open, Close, Delim, O, W, Options>
+{
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn collect<Container>(self) -> Collect<Self, Container>
@@ -56,7 +56,9 @@ impl<P, Condition, Open, Close, Delim, O, W, Options> Delimited<P, Condition, Op
   }
 }
 
-impl<F, Condition, Open, Close, Delim, O, Max, Min, W> Delimited<F, Condition, Open, Close, Delim, O, W, RepeatedOptions<Max, Min>> {
+impl<F, Condition, Open, Close, Delim, O, Max, Min, W>
+  Delimited<F, Condition, Open, Close, Delim, O, W, RepeatedOptions<Max, Min>>
+{
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn at_least(
@@ -115,7 +117,6 @@ impl<F, Condition, Open, Close, Delim, O, Max, Min, W> Delimited<F, Condition, O
     Max::maximum(&self.parser.config.secondary.primary)
   }
 }
-
 
 // impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Max, Min, Lang: ?Sized>
 //   ParseInput<'inp, L, O, Ctx, Lang> for Delimited<P, Condition, Open, Close, Delim, With<With<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>>, O>, W, RepeatedOptions<Max, Min>>
