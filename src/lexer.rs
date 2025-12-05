@@ -267,6 +267,8 @@ impl<T, State, Span> CachedToken<T, State, Span> {
     self.token
   }
 
+  /// Returns a reference to the cached token.
+  #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn as_ref(&self) -> CachedToken<&T, &State, &Span> {
     CachedToken {
       token: self.token.as_ref(),

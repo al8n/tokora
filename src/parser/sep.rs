@@ -20,14 +20,14 @@ pub struct Allow(());
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Require(());
 
-/// A type-safe alias for configuring `SeqSep` parsers.
+/// A type-safe alias for configuring `SeparatedBy` parsers.
 ///
 /// Canonical configuration layout: `With<With<Trailing, Leading>, With<Maximum, Minimum>>`.
-pub type SeqSepOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
+pub type SeparatedByOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
   With<With<Trailing, Leading>, With<Max, Min>>;
 
 /// A parser that parses a sequence of elements separated by a specific separator.
-pub struct SeqSep<F, SepClassifier, Condition, O, Window, Config = SeqSepOptions> {
+pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, Config = SeparatedByOptions> {
   f: F,
   sep: SepClassifier,
   condition: Condition,
@@ -36,21 +36,21 @@ pub struct SeqSep<F, SepClassifier, Condition, O, Window, Config = SeqSepOptions
   _decision_window: PhantomData<Window>,
 }
 
-impl<F, SepClassifier, Condition, O, W: Window> SeqSep<F, SepClassifier, Condition, O, W> {
-  /// Creates a new `SeqSep` parser.
+impl<F, SepClassifier, Condition, O, W: Window> SeparatedBy<F, SepClassifier, Condition, O, W> {
+  /// Creates a new `SeparatedBy` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
     Self::new_in(f, sep_classifier, condition)
   }
 
-  /// Creates a new `SeqSep` parser with the given container.
+  /// Creates a new `SeparatedBy` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   const fn new_in(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
     Self {
       f,
       sep: sep_classifier,
       condition,
-      config: SeqSepOptions::new(With::new((), ()), With::new((), ())),
+      config: SeparatedByOptions::new(With::new((), ()), With::new((), ())),
       _m: PhantomData,
       _decision_window: PhantomData,
     }
@@ -58,7 +58,7 @@ impl<F, SepClassifier, Condition, O, W: Window> SeqSep<F, SepClassifier, Conditi
 }
 
 impl<F, SepClassifier, Condition, O, Options, Window>
-  SeqSep<F, SepClassifier, Condition, O, Window, Options>
+  SeparatedBy<F, SepClassifier, Condition, O, Window, Options>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -77,21 +77,21 @@ impl<F, SepClassifier, Condition, O, Options, Window>
 }
 
 impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
-  SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Leading, Max, Min>>
+  SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Trailing, Leading, Max, Min>>
 {
   /// Allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_trailing(
     self,
-  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Allow, Leading, Max, Min>>
+  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Allow, Leading, Max, Min>>
   where
     Trailing: Apply<Allow>,
   {
-    SeqSep {
+    SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeqSepOptions::new(
+      config: SeparatedByOptions::new(
         With::new(Allow(()), self.config.primary.secondary),
         self.config.secondary,
       ),
@@ -104,15 +104,15 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_trailing(
     self,
-  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Require, Leading, Max, Min>>
+  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Require, Leading, Max, Min>>
   where
     Trailing: Apply<Require>,
   {
-    SeqSep {
+    SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeqSepOptions::new(
+      config: SeparatedByOptions::new(
         With::new(Require(()), self.config.primary.secondary),
         self.config.secondary,
       ),
@@ -125,15 +125,15 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn allow_leading(
     self,
-  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Allow, Max, Min>>
+  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Trailing, Allow, Max, Min>>
   where
     Leading: Apply<Allow>,
   {
-    SeqSep {
+    SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeqSepOptions::new(
+      config: SeparatedByOptions::new(
         With::new(self.config.primary.primary, Allow(())),
         self.config.secondary,
       ),
@@ -146,15 +146,15 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_leading(
     self,
-  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Require, Max, Min>>
+  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Trailing, Require, Max, Min>>
   where
     Leading: Apply<Require>,
   {
-    SeqSep {
+    SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeqSepOptions::new(
+      config: SeparatedByOptions::new(
         With::new(self.config.primary.primary, Require(())),
         self.config.secondary,
       ),
@@ -168,15 +168,15 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   pub fn at_least(
     self,
     n: Min::Options,
-  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Leading, Max, Minimum>>
+  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Trailing, Leading, Max, Minimum>>
   where
     Min: Apply<Minimum>,
   {
-    SeqSep {
+    SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeqSepOptions::new(
+      config: SeparatedByOptions::new(
         self.config.primary,
         With::new(
           self.config.secondary.primary,
@@ -193,15 +193,15 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   pub fn at_most(
     self,
     n: Max::Options,
-  ) -> SeqSep<F, SepClassifier, Condition, O, Window, SeqSepOptions<Trailing, Leading, Maximum, Min>>
+  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, SeparatedByOptions<Trailing, Leading, Maximum, Min>>
   where
     Max: Apply<Maximum>,
   {
-    SeqSep {
+    SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeqSepOptions::new(
+      config: SeparatedByOptions::new(
         self.config.primary,
         With::new(
           Max::apply(self.config.secondary.primary, n),
@@ -261,10 +261,10 @@ macro_rules! sep_by {
   ),+$(,)?) => {
     paste::paste! {
       $(
-        impl<F, Condition, O> SeqSep<F, $sep, Condition, O, ()> {
+        impl<F, Condition, O> SeparatedBy<F, $sep, Condition, O, ()> {
           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< $sep:snake >]<'inp, L, W, Ctx>(f: F, condition: Condition) -> SeqSep<F, $sep, Condition, O, W>
+          pub const fn [< $sep:snake >]<'inp, L, W, Ctx>(f: F, condition: Condition) -> SeparatedBy<F, $sep, Condition, O, W>
           where
             L: Lexer<'inp>,
             Ctx: ParseContext<'inp, L, ()>,
@@ -272,14 +272,14 @@ macro_rules! sep_by {
             Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY, ()>,
             W: Window,
           {
-            SeqSep::new_in(f, <$sep>::PHANTOM, condition)
+            SeparatedBy::new_in(f, <$sep>::PHANTOM, condition)
           }
         }
 
-        impl<F, Condition, O, Lang: ?Sized> SeqSep<F, $sep<(), (), Lang>, Condition, O, ()> {
+        impl<F, Condition, O, Lang: ?Sized> SeparatedBy<F, $sep<(), (), Lang>, Condition, O, ()> {
           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser of a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< $sep:snake _of >]<'inp, L, W, Ctx>(f: F, condition: Condition) -> SeqSep<F, $sep, Condition, O, W>
+          pub const fn [< $sep:snake _of >]<'inp, L, W, Ctx>(f: F, condition: Condition) -> SeparatedBy<F, $sep, Condition, O, W>
           where
             L: Lexer<'inp>,
             $sep<(), (), Lang>: Check<L::Token>,
@@ -287,7 +287,7 @@ macro_rules! sep_by {
             Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY, Lang>,
             W: Window,
           {
-            SeqSep::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
+            SeparatedBy::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
           }
         }
 
@@ -298,7 +298,7 @@ macro_rules! sep_by {
 
           fn __assert_parse_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
             Parser::with_parser(
-              SeqSep::[< $sep:snake >]::<_, U1, ()>(
+              SeparatedBy::[< $sep:snake >]::<_, U1, ()>(
                 Any::new(),
                 |_toks: Peeked<'_, '_, _, _>, _: &mut Fatal<()>| Ok(Action::Continue),
               )
@@ -307,7 +307,7 @@ macro_rules! sep_by {
           }
 
           fn __assert_parse_with_ctx_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-            Parser::with_parser_and_context(SeqSep::[< $sep:snake >]::<_, U1, ()>(
+            Parser::with_parser_and_context(SeparatedBy::[< $sep:snake >]::<_, U1, ()>(
                 Any::new(),
                 |_toks: Peeked<'_, '_, _, _>, _: &mut Fatal<()>| Ok(Action::Continue),
               )
@@ -434,7 +434,7 @@ impl LeadingSpec for () {
   }
 }
 
-impl<T, L, MAX, MIN> MaxSpec for SeqSepOptions<T, L, MAX, MIN>
+impl<T, L, MAX, MIN> MaxSpec for SeparatedByOptions<T, L, MAX, MIN>
 where
   MAX: MaxSpec,
 {
@@ -444,7 +444,7 @@ where
   }
 }
 
-impl<T, L, MAX, MIN> MinSpec for SeqSepOptions<T, L, MAX, MIN>
+impl<T, L, MAX, MIN> MinSpec for SeparatedByOptions<T, L, MAX, MIN>
 where
   MIN: MinSpec,
 {
@@ -454,7 +454,7 @@ where
   }
 }
 
-impl<T, L, MAX, MIN> TrailingSpec for SeqSepOptions<T, L, MAX, MIN>
+impl<T, L, MAX, MIN> TrailingSpec for SeparatedByOptions<T, L, MAX, MIN>
 where
   T: TrailingSpec,
 {
@@ -464,7 +464,7 @@ where
   }
 }
 
-impl<T, L, MAX, MIN> LeadingSpec for SeqSepOptions<T, L, MAX, MIN>
+impl<T, L, MAX, MIN> LeadingSpec for SeparatedByOptions<T, L, MAX, MIN>
 where
   L: LeadingSpec,
 {

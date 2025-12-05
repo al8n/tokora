@@ -42,7 +42,7 @@ impl<
   W,
 > ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    SeqSep<F, SepClassifier, Condition, O, W, SeqSepOptions<Trailing, Leading, Max, Min>>,
+    SeparatedBy<F, SepClassifier, Condition, O, W, SeparatedByOptions<Trailing, Leading, Max, Min>>,
     Container,
   >
 where
@@ -466,7 +466,7 @@ where
 }
 
 impl<'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
-  SeqSep<F, SepClassifier, Condition, O, W, SeqSepOptions<Trailing, Leading, Max, Min>>
+  SeparatedBy<F, SepClassifier, Condition, O, W, SeparatedByOptions<Trailing, Leading, Max, Min>>
 {
   fn handle_end<'closure, L, Ctx, Lang, Container>(
     &mut self,

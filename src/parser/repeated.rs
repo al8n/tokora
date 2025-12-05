@@ -33,12 +33,12 @@ where
 pub struct Repeated<F, Condition, O, W, Config = RepeatedOptions> {
   f: F,
   condition: Condition,
-  config: Config,
+  pub(super) config: Config,
   _m: PhantomData<O>,
   _cap: PhantomData<W>,
 }
 
-impl<F, Condition, O, W: Window> Repeated<F, Condition, O, W> {
+impl<F, Condition, O, W> Repeated<F, Condition, O, W> {
   /// Creates a new `Repeated` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(f: F, condition: Condition) -> Self {
@@ -58,7 +58,7 @@ impl<F, Condition, O, W: Window> Repeated<F, Condition, O, W> {
   }
 }
 
-impl<F, Condition, O, Options, W: Window> Repeated<F, Condition, O, W, Options> {
+impl<F, Condition, O, Options, W> Repeated<F, Condition, O, W, Options> {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn collect<Container>(self) -> Collect<Self, Container>
@@ -75,7 +75,7 @@ impl<F, Condition, O, Options, W: Window> Repeated<F, Condition, O, W, Options> 
   }
 }
 
-impl<F, Condition, O, Max, Min, W: Window> Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>> {
+impl<F, Condition, O, Max, Min, W> Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>> {
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn at_least(

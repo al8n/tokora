@@ -49,7 +49,7 @@ pub use any::*;
 pub use choice::*;
 pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
-// pub use delim::*;
+pub use delim::*;
 // pub use delim_seq::*;
 pub use expect::*;
 pub use filter::*;
@@ -59,7 +59,7 @@ pub use or_not::*;
 pub use peek_then::*;
 pub use peek_then_choice::*;
 pub use repeated::*;
-pub use sep::{SepFixSpec, SeqSep, SeqSepOptions};
+pub use sep::{SepFixSpec, SeparatedBy, SeparatedByOptions};
 pub use then::*;
 pub use validate::*;
 
@@ -198,13 +198,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Repeated::new(self, condition)
   }
 
-  /// Creates a `SeqSep` combinator that applies this parser repeatedly,
+  /// Creates a `SeparatedBy` combinator that applies this parser repeatedly,
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn separated_by<SepClassifier, Condition, W>(
     self,
     sep_classifier: SepClassifier,
     condition: Condition,
-  ) -> SeqSep<Self, SepClassifier, Condition, O, W>
+  ) -> SeparatedBy<Self, SepClassifier, Condition, O, W>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -214,7 +214,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     SepClassifier: Check<L::Token>,
     W: Window,
   {
-    SeqSep::new(self, sep_classifier, condition)
+    SeparatedBy::new(self, sep_classifier, condition)
   }
 
   /// Creates a `PeekThen` combinator that peeks at most `N` tokens first from the input before parsing.
