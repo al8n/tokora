@@ -73,6 +73,17 @@ impl<F, Condition, O, Options, W> Repeated<F, Condition, O, W, Options> {
   pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container> {
     Collect::new(self, container)
   }
+
+  /// Creates a new `Delimited` parser with the given delimiters and separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn delimited_by<Open, Close, Delim>(
+    self,
+    left: Open,
+    right: Close,
+    delim: Delim,
+  ) -> Delimited<F, Condition, Open, Close, Delim, O, W, Options> {
+    Delimited::new_in(self, left, right, delim)
+  }
 }
 
 impl<F, Condition, O, Max, Min, W> Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>> {

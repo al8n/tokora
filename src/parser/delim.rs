@@ -16,27 +16,6 @@ pub struct Delimited<P, Condition, Open, Close, Delim, O, W, Config = RepeatedOp
   _window: PhantomData<W>,
 }
 
-impl<P, Condition, Open, Close, Delim, O, W> Delimited<P, Condition, Open, Close, Delim, O, W> {
-  /// Creates a new `Delim` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(
-    parser: P,
-    condition: Condition,
-    left: Open,
-    right: Close,
-    delim: Delim,
-  ) -> Self {
-    Self {
-      parser: Repeated::new(parser, condition),
-      left_classifier: left,
-      right_classifier: right,
-      delimiter: delim,
-      _m: PhantomData,
-      _window: PhantomData,
-    }
-  }
-}
-
 impl<P, Condition, Open, Close, Delim, O, W, Options>
   Delimited<P, Condition, Open, Close, Delim, O, W, Options>
 {
@@ -54,49 +33,28 @@ impl<P, Condition, Open, Close, Delim, O, W, Options>
   pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container> {
     Collect::new(self, container)
   }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) const fn new_in(
+    parser: Repeated<P, Condition, O, W, Options>,
+    left: Open,
+    right: Close,
+    delim: Delim,
+  ) -> Self {
+    Self {
+      parser,
+      left_classifier: left,
+      right_classifier: right,
+      delimiter: delim,
+      _m: PhantomData,
+      _window: PhantomData,
+    }
+  }
 }
 
 impl<F, Condition, Open, Close, Delim, O, Max, Min, W>
   Delimited<F, Condition, Open, Close, Delim, O, W, RepeatedOptions<Max, Min>>
 {
-  /// Sets the minimum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_least(
-    self,
-    n: Min::Options,
-  ) -> Delimited<F, Condition, Open, Close, Delim, O, W, RepeatedOptions<Max, Minimum>>
-  where
-    Min: Apply<Minimum>,
-  {
-    Delimited {
-      parser: self.parser.at_least(n),
-      left_classifier: self.left_classifier,
-      right_classifier: self.right_classifier,
-      delimiter: self.delimiter,
-      _m: PhantomData,
-      _window: PhantomData,
-    }
-  }
-
-  /// Sets the maximum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_most(
-    self,
-    n: Max::Options,
-  ) -> Delimited<F, Condition, Open, Close, Delim, O, W, RepeatedOptions<Maximum, Min>>
-  where
-    Max: Apply<Maximum>,
-  {
-    Delimited {
-      parser: self.parser.at_most(n),
-      left_classifier: self.left_classifier,
-      right_classifier: self.right_classifier,
-      delimiter: self.delimiter,
-      _m: PhantomData,
-      _window: PhantomData,
-    }
-  }
-
   /// Returns the minimum number of elements required.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(private_bounds)]

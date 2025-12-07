@@ -50,7 +50,7 @@ pub use choice::*;
 pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
 pub use delim::*;
-// pub use delim_seq::*;
+pub use delim_seq::*;
 pub use expect::*;
 pub use filter::*;
 pub use filter_map::*;

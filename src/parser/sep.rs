@@ -74,6 +74,27 @@ impl<F, SepClassifier, Condition, O, Options, Window>
   pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container> {
     Collect::new(self, container)
   }
+
+  /// Creates a new `DelimitedSeparatedBy` parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn delimited_by<Open, Close, Delim>(
+    self,
+    left: Open,
+    right: Close,
+    delim: Delim,
+  ) -> DelimitedSeparatedBy<
+    F,
+    SepClassifier,
+    Condition,
+    Open,
+    Close,
+    Delim,
+    O,
+    Window,
+    Options,
+  > {
+    DelimitedSeparatedBy::new_in(self, left, right, delim)
+  }
 }
 
 impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
@@ -419,7 +440,7 @@ pub enum SepFixSpec {
   Require(Require),
 }
 
-trait LeadingSpec {
+pub(super) trait LeadingSpec {
   fn leading(&self) -> SepFixSpec;
 }
 
@@ -444,7 +465,7 @@ impl LeadingSpec for Require {
   }
 }
 
-trait TrailingSpec {
+pub(super) trait TrailingSpec {
   fn trailing(&self) -> SepFixSpec;
 }
 
