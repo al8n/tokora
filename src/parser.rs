@@ -143,6 +143,7 @@ where
   F: FnMut(Peeked<'_, 'inp, L, W>, &mut E) -> Result<Action, <E as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   E: Emitter<'inp, L, Lang>,
+  W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn decide(
@@ -242,7 +243,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     C: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     W: Window,
@@ -260,7 +261,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     C: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     W: Window,

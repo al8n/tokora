@@ -186,15 +186,18 @@ where
     loop {
       let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
 
-      let peek_span = match peeked.first() {
+      let peek_span = match peeked.front() {
         None => {
           drop(peeked);
           return parser.handle_end(state, inp, &ckp, num_elems, container);
         }
         Some(tok) => {
-          let tok = tok.as_ref();
-          let peek_span = tok.token().span();
-          match tok.token().data() {
+          let tok = tok
+            .as_maybe_ref()
+            .map(|t| t.token().copied(), |t| t.token())
+            .into_inner();
+          let peek_span = tok.span();
+          match tok.data() {
             Lexed::Error(_) => {
               drop(peeked);
 

@@ -31,7 +31,7 @@ where
 
 /// A parser that parses a sequence of elements separated by a specific separator.
 pub struct Repeated<F, Condition, O, W, Config = RepeatedOptions> {
-  f: F,
+  pub(super) f: F,
   pub(super) condition: Condition,
   pub(super) config: Config,
   _m: PhantomData<O>,

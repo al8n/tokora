@@ -26,7 +26,7 @@ impl<P, H, T, W: Window> PeekThen<P, H, T, W> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseInput<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -41,7 +41,7 @@ impl<P, H, T, W: Window> PeekThen<P, H, T, W> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -62,7 +62,7 @@ impl<P, H, T, W: Window> PeekThen<P, H, T, W> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseInput<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -77,7 +77,7 @@ impl<P, H, T, W: Window> PeekThen<P, H, T, W> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,

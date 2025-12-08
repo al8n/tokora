@@ -68,12 +68,12 @@ pub trait DelimiterContainer<Open, Close, T>: Container<T> {
   fn close(&self) -> Option<&Close>;
 
   /// Pushes an opening delimiter into the container.
-  /// 
+  ///
   /// Returns `Some(open)` if the container is full and cannot accept more opening delimiters.
   fn push_open(&mut self, open: Open) -> Option<Open>;
 
   /// Pushes a closing delimiter into the container.
-  /// 
+  ///
   /// Returns `Some(close)` if the container is full and cannot accept more closing delimiters.
   fn push_close(&mut self, close: Close) -> Option<Close>;
 }
@@ -106,7 +106,7 @@ where
 /// Trait for container types that support separators.
 pub trait SeparatorsContainer<Separator, T>: Container<T> {
   /// Pushes a separator into the container.
-  /// 
+  ///
   /// Returns `Some(separator)` if the container is full and cannot accept more separators.
   fn push_separator(&mut self, sep: Separator) -> Option<Separator>;
 }

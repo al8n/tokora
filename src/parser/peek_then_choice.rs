@@ -17,7 +17,7 @@ impl<P, H, T, W: Window> PeekThenChoice<P, H, T, W> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseChoice<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -32,7 +32,7 @@ impl<P, H, T, W: Window> PeekThenChoice<P, H, T, W> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseChoice<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,
@@ -53,7 +53,7 @@ impl<P, H, T, W: Window> PeekThenChoice<P, H, T, W> {
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseChoice<'inp, L, O, Ctx, ()>,
     H: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
   {
@@ -68,7 +68,7 @@ impl<P, H, T, W: Window> PeekThenChoice<P, H, T, W> {
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseChoice<'inp, L, O, Ctx, Lang>,
     H: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Lang: ?Sized,

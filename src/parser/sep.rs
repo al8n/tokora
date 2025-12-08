@@ -329,7 +329,7 @@ macro_rules! sep_by {
             L: Lexer<'inp>,
             Ctx: ParseContext<'inp, L, ()>,
             $sep: Check<L::Token>,
-            Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY, ()>,
+            Condition: Decision<'inp, L, Ctx::Emitter, W, ()>,
             W: Window,
           {
             SeparatedBy::new_in(f, <$sep>::PHANTOM, condition)
@@ -344,7 +344,7 @@ macro_rules! sep_by {
             L: Lexer<'inp>,
             $sep<(), (), Lang>: Check<L::Token>,
             Ctx: ParseContext<'inp, L, Lang>,
-            Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY, Lang>,
+            Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
             W: Window,
           {
             SeparatedBy::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
@@ -358,18 +358,18 @@ macro_rules! sep_by {
 
           fn __assert_parse_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
             Parser::with_parser(
-              SeparatedBy::[< $sep:snake >]::<_, U1, ()>(
+              SeparatedBy::[< $sep:snake >]::<DummyLexer, U1, ()>(
                 Any::new(),
-                |_toks: Peeked<'_, '_, _, _>, _: &mut Fatal<()>| Ok(Action::Continue),
+                |_toks: Peeked<'_, '_, DummyLexer, U1>, _: &mut Fatal<()>| Ok(Action::Continue),
               )
               .collect::<()>(),
             )
           }
 
           fn __assert_parse_with_ctx_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-            Parser::with_parser_and_context(SeparatedBy::[< $sep:snake >]::<_, U1, ()>(
+            Parser::with_parser_and_context(SeparatedBy::[< $sep:snake >]::<DummyLexer, U1, ()>(
                 Any::new(),
-                |_toks: Peeked<'_, '_, _, _>, _: &mut Fatal<()>| Ok(Action::Continue),
+                |_toks: Peeked<'_, '_, DummyLexer, U1>, _: &mut Fatal<()>| Ok(Action::Continue),
               )
               .collect::<()>(), ())
           }

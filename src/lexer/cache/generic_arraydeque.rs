@@ -106,8 +106,7 @@ where
   fn peek<'p, W>(
     &'p self,
     buf: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
-  )
-  where
+  ) where
     W: crate::Window,
   {
     let fill = buf.remaining_capacity().min(self.len());

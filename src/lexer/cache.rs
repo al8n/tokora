@@ -235,7 +235,8 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
   fn peek<'p, W>(
     &'p self,
     buf: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
-  ) where W: Window;
+  ) where
+    W: Window;
 
   /// Pushes multiple tokens into the cache at once.
   ///

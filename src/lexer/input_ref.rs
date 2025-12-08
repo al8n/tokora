@@ -2,7 +2,7 @@
 
 use core::{
   marker::PhantomData,
-  mem::{MaybeUninit, ManuallyDrop},
+  mem::ManuallyDrop,
   ops::{Range, RangeBounds},
 };
 
@@ -440,7 +440,7 @@ where
   where
     F: FnMut(Spanned<&Lexed<'inp, L::Token>, &L::Span>) -> bool,
   {
-    self.skip_until_then_peek::<_, U1>(pred).into()
+    self.skip_until_then_peek::<_, U1>(pred).pop_front()
   }
 
   /// Skips tokens until a valid token is found or the end of input is reached.
@@ -485,7 +485,7 @@ where
         self.set_span_after_consume(lexer.span().into());
         *self.state = lexer.into_state();
 
-        Peeked::new()
+        GenericArrayDeque::new()
       }
     }
   }
@@ -509,7 +509,15 @@ where
   /// `sync_until*` to emit them.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn skip_until_token(&mut self) -> Option<MaybeRefCachedTokenOf<'_, 'inp, L, L::Token>> {
-    unwrap_peek1_to_token(self.skip_until_then_peek(|t| matches!(t.data, Lexed::Token(_))))
+    self
+      .skip_until_then_peek::<_, U1>(|t| matches!(t.data, Lexed::Token(_)))
+      .pop_front()
+      .map(|t| {
+        t.map(
+          |t| t.map_token(|t| t.unwrap_token_ref()),
+          |t| t.map_token(|t| t.unwrap_token()),
+        )
+      })
   }
 
   /// Resynchronize by skipping and emitting lexer errors until a valid token or end of input.
@@ -522,7 +530,14 @@ where
   pub fn sync_until_token(
     &mut self,
   ) -> Result<Option<MaybeRefCachedTokenOf<'_, 'inp, L, L::Token>>, E::Error> {
-    self.sync_until_token_then_peek().map(unwrap_peek1_to_token)
+    self.sync_until_token_then_peek::<U1>().map(|mut val| {
+      val.pop_front().map(|t| {
+        t.map(
+          |t| t.map_token(|t| t.unwrap_token_ref()),
+          |t| t.map_token(|t| t.unwrap_token()),
+        )
+      })
+    })
   }
 
   /// Resynchronize by skipping and emitting lexer errors until a valid token or end of input.
@@ -537,7 +552,7 @@ where
     W: Window,
   {
     self
-      .sync_until_token_then_peek_with_emitter()
+      .sync_until_token_then_peek_with_emitter::<W>()
       .map(|(out, _)| out)
   }
 
@@ -577,7 +592,7 @@ where
   {
     self
       .sync_until_then_peek_with_emitter::<_, _, U1>(pred, exp)
-      .map(|(out, _)| out.into())
+      .map(|(mut out, _)| out.pop_front())
   }
 
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
@@ -677,7 +692,7 @@ where
         self.set_span_after_consume(lexer.span().into());
         *self.state = lexer.into_state();
 
-        Ok((Peeked::new(), self.emitter))
+        Ok((GenericArrayDeque::new(), self.emitter))
       }
     }
   }
@@ -685,14 +700,9 @@ where
   /// Peeks the next token without advancing the cursor.
   #[inline]
   pub fn peek_one(&mut self) -> Option<MaybeRefCachedTokenOf<'_, 'inp, L>> {
-    let mut buf: [MaybeUninit<MaybeRefCachedTokenOf<'_, 'inp, L>>; 1] = [MaybeUninit::uninit()];
-    let (feed, _) = self.peek_with_emitter_inner(&mut buf);
-    if feed.is_empty() {
-      return None;
-    }
-
-    // SAFETY: We just checked that the buffer is not empty, so the first element is initialized.
-    buf.into_iter().next().map(|m| unsafe { m.assume_init() })
+    let mut buf = GenericArrayDeque::<_, U1>::new();
+    self.peek_with_emitter_inner::<U1>(&mut buf);
+    buf.pop_front()
   }
 
   /// Try to peeks tokens to fill the provided buffer, if not enough tokens are cached, lex more tokens to fill the buffer.
@@ -703,7 +713,7 @@ where
   where
     W: Window,
   {
-    self.peek_with_emitter().0
+    self.peek_with_emitter::<W>().0
   }
 
   /// Try to peeks tokens to fill the provided buffer, if not enough tokens are cached, lex more tokens to fill the buffer.
@@ -714,14 +724,8 @@ where
   where
     W: Window,
   {
-    let mut peeked = Peeked::new();
-    let (filled, emitter) = self.peek_with_emitter_inner(peeked.as_mut_buf());
-    let len = filled.len();
-
-    // SAFETY: We just filled `len` elements in the buffer.
-    unsafe {
-      peeked.set_len(len);
-    }
+    let mut peeked = GenericArrayDeque::new();
+    let emitter = self.peek_with_emitter_inner::<W>(&mut peeked);
 
     (peeked, emitter)
   }
@@ -730,10 +734,7 @@ where
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  fn peek_with_emitter_inner<'p, W>(
-    &'p mut self,
-    buf: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'inp, L>, W::CAPACITY>,
-  ) -> &'p mut E
+  fn peek_with_emitter_inner<'p, W>(&'p mut self, buf: &mut Peeked<'p, 'inp, L, W>) -> &'p mut E
   where
     W: Window,
   {
@@ -784,7 +785,9 @@ where
 
     for i in 0..yielded {
       // SAFETY: We just wrote `yielded` elements into `overflowed`, so the first `yielded` elements are initialized.
-      unsafe { buf.push_back(overflowed[i].assume_init_read()); }
+      unsafe {
+        buf.push_back(overflowed[i].assume_init_read());
+      }
     }
 
     self.emitter
@@ -912,19 +915,4 @@ where
     MaybeRef::Ref(r) => r.clone(),
     MaybeRef::Owned(o) => o,
   }
-}
-
-#[cfg_attr(not(tarpaulin), inline(always))]
-fn unwrap_peek1_to_token<'a, 'inp, L>(
-  peeked: Peeked<'a, 'inp, L, U1>,
-) -> Option<MaybeRefCachedTokenOf<'a, 'inp, L, L::Token>>
-where
-  L: Lexer<'inp>,
-{
-  let tok = peeked.into_option()?;
-
-  Some(match tok {
-    Maybe::Ref(r) => Maybe::Ref(r.map_token(|t| t.unwrap_token_ref())),
-    Maybe::Owned(o) => Maybe::Owned(o.map_token(|t| t.unwrap_token())),
-  })
 }

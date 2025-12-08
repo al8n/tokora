@@ -1,6 +1,6 @@
 use super::{
-  super::BlackHole, Cache, CachedTokenOf, CachedTokenRefOf, Checkpoint, Lexer,
-  MaybeRefCachedTokenOf, GenericArrayDeque,
+  super::BlackHole, Cache, CachedTokenOf, CachedTokenRefOf, Checkpoint, GenericArrayDeque, Lexer,
+  MaybeRefCachedTokenOf,
 };
 
 macro_rules! blackhole {
@@ -62,10 +62,10 @@ macro_rules! blackhole {
       fn peek<'p, W>(
         &'p self,
         _: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
-      )
-      where
+      ) where
         W: crate::Window,
-      {}
+      {
+      }
 
       #[cfg_attr(not(tarpaulin), inline(always))]
       fn first(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {

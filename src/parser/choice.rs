@@ -25,7 +25,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     H: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<Self::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
@@ -46,7 +46,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     H: FnMut(
-      Peeked<'_, 'inp, L, W::CAPACITY>,
+      Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<Option<Self::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
