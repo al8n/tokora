@@ -1,3 +1,5 @@
+use generic_arraydeque::{ArrayLength, GenericArrayDeque};
+
 /// Trait for container types used in parsers.
 pub trait Container<T> {
   /// Push an item into the container.
@@ -57,6 +59,68 @@ where
   }
 }
 
+/// Trait for container types that support delimiters.
+pub trait DelimiterContainer<Open, Close, T>: Container<T> {
+  /// Returns the opening delimiter of the container, if any.
+  fn open(&self) -> Option<&Open>;
+
+  /// Returns the closing delimiter of the container, if any.
+  fn close(&self) -> Option<&Close>;
+
+  /// Pushes an opening delimiter into the container.
+  /// 
+  /// Returns `Some(open)` if the container is full and cannot accept more opening delimiters.
+  fn push_open(&mut self, open: Open) -> Option<Open>;
+
+  /// Pushes a closing delimiter into the container.
+  /// 
+  /// Returns `Some(close)` if the container is full and cannot accept more closing delimiters.
+  fn push_close(&mut self, close: Close) -> Option<Close>;
+}
+
+impl<T, U, Open, Close> DelimiterContainer<Open, Close, T> for &mut U
+where
+  U: DelimiterContainer<Open, Close, T>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn open(&self) -> Option<&Open> {
+    U::open(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn close(&self) -> Option<&Close> {
+    U::close(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_open(&mut self, open: Open) -> Option<Open> {
+    U::push_open(self, open)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_close(&mut self, close: Close) -> Option<Close> {
+    U::push_close(self, close)
+  }
+}
+
+/// Trait for container types that support separators.
+pub trait SeparatorsContainer<Separator, T>: Container<T> {
+  /// Pushes a separator into the container.
+  /// 
+  /// Returns `Some(separator)` if the container is full and cannot accept more separators.
+  fn push_separator(&mut self, sep: Separator) -> Option<Separator>;
+}
+
+impl<T, U, Separator> SeparatorsContainer<Separator, T> for &mut U
+where
+  U: SeparatorsContainer<Separator, T>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_separator(&mut self, sep: Separator) -> Option<Separator> {
+    U::push_separator(self, sep)
+  }
+}
+
 macro_rules! blackhole {
   ($ty:ty) => {
     impl<T> Container<T> for $ty {
@@ -83,6 +147,35 @@ macro_rules! blackhole {
       #[cfg_attr(not(tarpaulin), inline(always))]
       fn capacity() -> usize {
         usize::MAX
+      }
+    }
+
+    impl<T, Open, Close> DelimiterContainer<Open, Close, T> for $ty {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn open(&self) -> Option<&Open> {
+        None
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn close(&self) -> Option<&Close> {
+        None
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push_open(&mut self, _: Open) -> Option<Open> {
+        None
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push_close(&mut self, _: Close) -> Option<Close> {
+        None
+      }
+    }
+
+    impl<T, Separator> SeparatorsContainer<Separator, T> for $ty {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push_separator(&mut self, _: Separator) -> Option<Separator> {
+        None
       }
     }
   };
@@ -125,33 +218,97 @@ impl<T> Container<T> for Option<T> {
   }
 }
 
-impl<T, N> Container<T> for generic_arraydeque::GenericArrayDeque<T, N>
+impl<T, Open, Close> DelimiterContainer<Open, Close, T> for Option<T> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn open(&self) -> Option<&Open> {
+    None
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn close(&self) -> Option<&Close> {
+    None
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_open(&mut self, _: Open) -> Option<Open> {
+    None
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_close(&mut self, _: Close) -> Option<Close> {
+    None
+  }
+}
+
+impl<T, Separator> SeparatorsContainer<Separator, T> for Option<T> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_separator(&mut self, _: Separator) -> Option<Separator> {
+    None
+  }
+}
+
+impl<T, N> Container<T> for GenericArrayDeque<T, N>
 where
-  N: generic_arraydeque::ArrayLength,
+  N: ArrayLength,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn push(&mut self, item: T) -> Option<T> {
-    generic_arraydeque::GenericArrayDeque::push_back(self, item)
+    GenericArrayDeque::push_back(self, item)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn first(&self) -> Option<&T> {
-    generic_arraydeque::GenericArrayDeque::front(self)
+    GenericArrayDeque::front(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn last(&self) -> Option<&T> {
-    generic_arraydeque::GenericArrayDeque::back(self)
+    GenericArrayDeque::back(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
-    generic_arraydeque::GenericArrayDeque::len(self)
+    GenericArrayDeque::len(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn capacity() -> usize {
     N::to_usize()
+  }
+}
+
+impl<T, Open, Close, N> DelimiterContainer<Open, Close, T> for GenericArrayDeque<T, N>
+where
+  N: ArrayLength,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn open(&self) -> Option<&Open> {
+    None
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn close(&self) -> Option<&Close> {
+    None
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_open(&mut self, _: Open) -> Option<Open> {
+    None
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_close(&mut self, _: Close) -> Option<Close> {
+    None
+  }
+}
+
+impl<T, Separator, N> SeparatorsContainer<Separator, T> for GenericArrayDeque<T, N>
+where
+  N: ArrayLength,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_separator(&mut self, _: Separator) -> Option<Separator> {
+    None
   }
 }
 
@@ -187,6 +344,35 @@ const _: () = {
     }
   }
 
+  impl<Open, Close, T> DelimiterContainer<Open, Close, T> for Vec<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn open(&self) -> Option<&Open> {
+      None
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn close(&self) -> Option<&Close> {
+      None
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push_open(&mut self, _: Open) -> Option<Open> {
+      None
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push_close(&mut self, _: Close) -> Option<Close> {
+      None
+    }
+  }
+
+  impl<Separator, T> SeparatorsContainer<Separator, T> for Vec<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push_separator(&mut self, _: Separator) -> Option<Separator> {
+      None
+    }
+  }
+
   impl<T> Container<T> for VecDeque<T> {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn push(&mut self, item: T) -> Option<T> {
@@ -212,6 +398,35 @@ const _: () = {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn capacity() -> usize {
       usize::MAX
+    }
+  }
+
+  impl<Open, Close, T> DelimiterContainer<Open, Close, T> for VecDeque<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn open(&self) -> Option<&Open> {
+      None
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn close(&self) -> Option<&Close> {
+      None
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push_open(&mut self, _: Open) -> Option<Open> {
+      None
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push_close(&mut self, _: Close) -> Option<Close> {
+      None
+    }
+  }
+
+  impl<Separator, T> SeparatorsContainer<Separator, T> for VecDeque<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push_separator(&mut self, _: Separator) -> Option<Separator> {
+      None
     }
   }
 
@@ -247,6 +462,41 @@ const _: () = {
       #[cfg_attr(not(tarpaulin), inline(always))]
       fn capacity() -> usize {
         usize::MAX
+      }
+    }
+
+    impl<Open, Close, A, T> DelimiterContainer<Open, Close, T> for SmallVec<A>
+    where
+      A: smallvec::Array<Item = T>,
+    {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn open(&self) -> Option<&Open> {
+        None
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn close(&self) -> Option<&Close> {
+        None
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push_open(&mut self, _: Open) -> Option<Open> {
+        None
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push_close(&mut self, _: Close) -> Option<Close> {
+        None
+      }
+    }
+
+    impl<Separator, A, T> SeparatorsContainer<Separator, T> for SmallVec<A>
+    where
+      A: smallvec::Array<Item = T>,
+    {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push_separator(&mut self, _: Separator) -> Option<Separator> {
+        None
       }
     }
   };

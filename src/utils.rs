@@ -1,3 +1,4 @@
+pub use delimited::*;
 pub use escaped::*;
 pub use expected::*;
 pub use generic_arraydeque::GenericArrayDeque;
@@ -5,7 +6,7 @@ pub use lexeme::*;
 pub use located::*;
 pub use message::Message;
 pub use positioned_char::*;
-pub use sourced::*;
+pub use sliced::*;
 pub use span::*;
 pub use spanned::*;
 pub use to_equivalent::*;
@@ -43,13 +44,14 @@ pub mod container;
 /// Marker types used in various utilities.
 pub mod marker;
 
+mod delimited;
 mod escaped;
 mod expected;
 mod lexeme;
 mod located;
 mod message;
 mod positioned_char;
-mod sourced;
+mod sliced;
 mod span;
 mod spanned;
 mod to_equivalent;

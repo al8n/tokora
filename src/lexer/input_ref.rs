@@ -2,11 +2,11 @@
 
 use core::{
   marker::PhantomData,
-  mem::MaybeUninit,
+  mem::{MaybeUninit, ManuallyDrop},
   ops::{Range, RangeBounds},
 };
 
-use generic_arraydeque::typenum::U1;
+use generic_arraydeque::{GenericArrayDeque, typenum::U1};
 use mayber::{Maybe, MaybeRef};
 
 use crate::{
@@ -730,21 +730,26 @@ where
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  fn peek_with_emitter_inner<'p, 'b>(
+  fn peek_with_emitter_inner<'p, W>(
     &'p mut self,
-    buf: &'b mut [MaybeUninit<MaybeRefCachedTokenOf<'p, 'inp, L>>],
-  ) -> (&'b mut [MaybeRefCachedTokenOf<'p, 'inp, L>], &'p mut E) {
-    let buf_len = buf.len();
+    buf: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'inp, L>, W::CAPACITY>,
+  ) -> &'p mut E
+  where
+    W: Window,
+  {
+    let remaining_cap = buf.remaining_capacity();
     let mut in_cache = self.cache().len();
-    let mut want = buf_len.saturating_sub(in_cache);
-    let mut total = in_cache;
+    let mut want = remaining_cap.saturating_sub(in_cache);
 
     // If we already have enough tokens cached, just peek from cache
     if want == 0 {
-      // SAFETY: Cache guarantees peek() returns only initialized tokens up to cache.len()
-      return (unsafe { self.cache.peek(buf) }, self.emitter);
+      self.cache.peek::<W>(buf);
+      return self.emitter;
     }
 
+    let mut overflowed = ManuallyDrop::new(W::array());
+
+    let mut yielded = 0;
     // Otherwise, lex additional tokens to fill the request
     let mut lexer = self.lexer();
     while want > 0 {
@@ -758,13 +763,12 @@ where
             in_cache += 1;
           }
           Err(ct) => {
-            // Cache full: write overflow tokens directly to buffer
-            // Position: buf[buf_len - want] is the next unfilled slot
-            buf[buf_len - want].write(Maybe::Owned(ct));
+            // Cache full: write overflow tokens directly to overflow buffer
+            overflowed[yielded].write(Maybe::Owned(ct));
+            yielded += 1;
           }
         }
         want -= 1;
-        total += 1;
       } else {
         break;
       }
@@ -772,19 +776,18 @@ where
 
     // Fill buffer from cache (this covers both cached tokens and any we just added)
     // SAFETY: Cache.peek() returns slice of initialized tokens, guaranteed by trait contract
-    let output = unsafe { self.cache.peek(&mut buf[..in_cache]) };
+    self.cache.peek::<W>(buf);
     debug_assert!(
-      output.len() == in_cache,
+      buf.len() - remaining_cap == in_cache,
       "Cache peek returned unexpected number of tokens"
     );
 
-    unsafe {
-      let out = core::slice::from_raw_parts_mut(
-        buf.as_mut_ptr() as *mut MaybeRefCachedTokenOf<'p, 'inp, L>,
-        total,
-      );
-      (out, self.emitter)
+    for i in 0..yielded {
+      // SAFETY: We just wrote `yielded` elements into `overflowed`, so the first `yielded` elements are initialized.
+      unsafe { buf.push_back(overflowed[i].assume_init_read()); }
     }
+
+    self.emitter
   }
 
   /// Saves the current state of the tokenizer as a checkpoint.

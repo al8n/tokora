@@ -32,7 +32,7 @@ where
 /// A parser that parses a sequence of elements separated by a specific separator.
 pub struct Repeated<F, Condition, O, W, Config = RepeatedOptions> {
   f: F,
-  condition: Condition,
+  pub(super) condition: Condition,
   pub(super) config: Config,
   _m: PhantomData<O>,
   _cap: PhantomData<W>,
@@ -81,8 +81,8 @@ impl<F, Condition, O, Options, W> Repeated<F, Condition, O, W, Options> {
     left: Open,
     right: Close,
     delim: Delim,
-  ) -> Delimited<F, Condition, Open, Close, Delim, O, W, Options> {
-    Delimited::new_in(self, left, right, delim)
+  ) -> DelimitedBy<F, Condition, Open, Close, Delim, O, W, Options> {
+    DelimitedBy::new_in(self, left, right, delim)
   }
 }
 

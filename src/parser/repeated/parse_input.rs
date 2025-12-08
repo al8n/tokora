@@ -19,10 +19,70 @@ where
   Max: super::MaxSpec,
   Min: super::MinSpec,
 {
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    self
+      .as_mut()
+      .parse_input(inp)
+      .map(|_| core::mem::take(&mut self.container))
+  }
+}
+
+impl<'inp, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, W>
+  ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
+  for Collect<Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, Container>
+where
+  L: Lexer<'inp>,
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  W: Window,
+  Ctx::Emitter: RepeatedEmitter<'inp, O, L, Lang>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Container: Default + crate::container::Container<O>,
+  Max: super::MaxSpec,
+  Min: super::MinSpec,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    self
+      .as_mut()
+      .parse_input(inp)
+      .map(|span| Spanned::new(span, core::mem::take(&mut self.container)))
+  }
+}
+
+impl<'inp, 'c, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, W>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
+  for Collect<&'c mut Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, &'c mut Container>
+where
+  L: Lexer<'inp>,
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  W: Window,
+  Ctx::Emitter: RepeatedEmitter<'inp, O, L, Lang>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Container: crate::container::Container<O>,
+  Max: super::MaxSpec,
+  Min: super::MinSpec,
+{
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
@@ -49,7 +109,7 @@ where
               inp.emitter().emit_too_many(TooMany::of(span, nums, max))?;
             }
 
-            return Ok(core::mem::take(&mut self.container));
+            return Ok(inp.span_since(ckp.cursor()));
           }
           Action::Continue => {
             if self

@@ -1,5 +1,3 @@
-use core::mem::MaybeUninit;
-
 use mayber::Maybe;
 
 use crate::{CachedToken, CachedTokenRefOf, Lexed, MaybeRefCachedTokenOf};
@@ -105,20 +103,16 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  unsafe fn peek<'p, 'b>(
+  fn peek<'p, W>(
     &'p self,
-    buf: &'b mut [MaybeUninit<MaybeRefCachedTokenOf<'p, 'a, L>>],
-  ) -> &'b mut [MaybeRefCachedTokenOf<'p, 'a, L>] {
-    let fill = buf.len().min(self.len());
-    for (i, tok) in self.iter().take(fill).enumerate() {
-      buf[i].write(Maybe::Ref(tok.as_ref()));
-    }
-
-    unsafe {
-      core::slice::from_raw_parts_mut(
-        buf.as_mut_ptr() as *mut MaybeRefCachedTokenOf<'p, 'a, L>,
-        fill,
-      )
+    buf: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
+  )
+  where
+    W: crate::Window,
+  {
+    let fill = buf.remaining_capacity().min(self.len());
+    for tok in self.iter().take(fill) {
+      buf.push_back(Maybe::Ref(tok.as_ref()));
     }
   }
 

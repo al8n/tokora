@@ -1,6 +1,6 @@
-use core::mem::MaybeUninit;
+use ::generic_arraydeque::{GenericArrayDeque, typenum::U1};
 
-use crate::{CachedTokenOf, CachedTokenRefOf, MaybeRefCachedTokenOf};
+use crate::{CachedTokenOf, CachedTokenRefOf, MaybeRefCachedTokenOf, Window};
 
 use super::{Checkpoint, Lexer, Span};
 
@@ -203,14 +203,9 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
   where
     'a: 'c,
   {
-    let mut buf: [MaybeUninit<MaybeRefCachedTokenOf<'_, 'a, L>>; 1] = [MaybeUninit::uninit()];
-    let feed = unsafe { self.peek(&mut buf) };
-    if feed.is_empty() {
-      return None;
-    }
-
-    // SAFETY: We just checked that the buffer is not empty, so the first element is initialized.
-    buf.into_iter().next().map(|m| unsafe { m.assume_init() })
+    let mut buf = GenericArrayDeque::new();
+    self.peek::<U1>(&mut buf);
+    buf.pop_front()
   }
 
   /// Peeks at multiple cached tokens without removing them.
@@ -237,10 +232,10 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
   ///
   /// Callers must ensure the returned slice is not used beyond its lifetime.
   #[allow(clippy::mut_from_ref)]
-  unsafe fn peek<'p, 'b>(
+  fn peek<'p, W>(
     &'p self,
-    buf: &'b mut [MaybeUninit<MaybeRefCachedTokenOf<'p, 'a, L>>],
-  ) -> &'b mut [MaybeRefCachedTokenOf<'p, 'a, L>];
+    buf: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
+  ) where W: Window;
 
   /// Pushes multiple tokens into the cache at once.
   ///

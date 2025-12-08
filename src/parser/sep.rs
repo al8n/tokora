@@ -82,17 +82,7 @@ impl<F, SepClassifier, Condition, O, Options, Window>
     left: Open,
     right: Close,
     delim: Delim,
-  ) -> DelimitedSeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    Open,
-    Close,
-    Delim,
-    O,
-    Window,
-    Options,
-  > {
+  ) -> DelimitedSeparatedBy<F, SepClassifier, Condition, Open, Close, Delim, O, Window, Options> {
     DelimitedSeparatedBy::new_in(self, left, right, delim)
   }
 }

@@ -42,7 +42,7 @@ use crate::{
 };
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
-use generic_arraydeque::{ArrayLength, typenum};
+use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray, typenum};
 use mayber::MaybeRef;
 
 pub use any::*;
@@ -84,18 +84,33 @@ mod validate;
 /// A uninit buffer of peeked tokens.
 pub type UninitPeekBuf<'a, 'r, L> = [MaybeUninit<MaybeRef<'r, CachedTokenOf<'a, L>>>];
 
+mod sealed {
+  pub trait Sealed {}
+}
+
 /// A trait for parsers that specify the capacity of their peek buffer.
-pub trait Window {
+pub trait Window: sealed::Sealed {
   /// The capacity of the peek buffer.
   type CAPACITY: ArrayLength;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn array<T>() -> GenericArray<MaybeUninit<T>, Self::CAPACITY> {
+    GenericArray::uninit()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn deque<T>() -> GenericArrayDeque<MaybeUninit<T>, Self::CAPACITY> {
+    GenericArrayDeque::new()
+  }
 }
 
 macro_rules! peek_buf_capacity_impl_for_typenum {
   ($($size:literal), + $(,)?) => {
     paste::paste! {
       $(
+        impl sealed::Sealed for typenum::[< U $size >] {}
+
         impl Window for typenum::[< U $size >] {
-          // const CAPACITY: NonZeroUsize = NonZeroUsize::new(<typenum::[< U $size >] as typenum::Unsigned>::USIZE).unwrap();
           type CAPACITY = typenum::[< U $size >];
         }
       )*
@@ -163,7 +178,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     Self: Sized,
   {
-    With::new(PhantomSpan::PHANTOM, self)
+    With::new(PhantomSpan::phantom(), self)
   }
 
   /// Wraps the output of this parser in a `Sliced` with the source slice of the parsed input.
@@ -172,7 +187,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     Self: Sized,
   {
-    With::new(PhantomSliced::PHANTOM, self)
+    With::new(PhantomSliced::phantom(), self)
   }
 
   /// Wraps the output of this parser in a `Located` with the span and source slice of the parsed input.
@@ -181,7 +196,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     Self: Sized,
   {
-    With::new(PhantomLocated::PHANTOM, self)
+    With::new(PhantomLocated::phantom(), self)
   }
 
   /// Creates a `Repeated` combinator that applies this parser repeatedly

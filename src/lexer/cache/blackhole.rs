@@ -1,8 +1,6 @@
-use core::mem::MaybeUninit;
-
 use super::{
   super::BlackHole, Cache, CachedTokenOf, CachedTokenRefOf, Checkpoint, Lexer,
-  MaybeRefCachedTokenOf,
+  MaybeRefCachedTokenOf, GenericArrayDeque,
 };
 
 macro_rules! blackhole {
@@ -61,18 +59,13 @@ macro_rules! blackhole {
       fn clear(&mut self) {}
 
       #[cfg_attr(not(tarpaulin), inline(always))]
-      unsafe fn peek(
-        &self,
-        buf: &mut [MaybeUninit<MaybeRefCachedTokenOf<'_, 'a, L>>],
-      ) -> &mut [MaybeRefCachedTokenOf<'_, 'a, L>] {
-        // SAFETY: We never initialize any element in the buffer, so the returned slice is always empty.
-        unsafe {
-          core::slice::from_raw_parts_mut(
-            buf.as_mut_ptr() as *mut MaybeRefCachedTokenOf<'_, 'a, L>,
-            0,
-          )
-        }
-      }
+      fn peek<'p, W>(
+        &'p self,
+        _: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
+      )
+      where
+        W: crate::Window,
+      {}
 
       #[cfg_attr(not(tarpaulin), inline(always))]
       fn first(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {

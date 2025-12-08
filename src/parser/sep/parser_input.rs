@@ -64,6 +64,116 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    self
+      .as_mut()
+      .parse_input(inp)
+      .map(|_| mem::take(&mut self.container))
+  }
+}
+
+impl<
+  'inp,
+  L,
+  F,
+  SepClassifier,
+  Condition,
+  O,
+  Container,
+  Ctx,
+  Trailing,
+  Leading,
+  Max,
+  Min,
+  Lang: ?Sized,
+  W,
+> ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
+  for With<
+    Collect<
+      SeparatedBy<
+        F,
+        SepClassifier,
+        Condition,
+        O,
+        W,
+        SeparatedByOptions<Trailing, Leading, Max, Min>,
+      >,
+      Container,
+    >,
+    PhantomSpan,
+  >
+where
+  L: Lexer<'inp>,
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  SepClassifier: Check<L::Token>,
+  Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Container: Default + crate::container::Container<O>,
+  W: Window,
+  Trailing: super::TrailingSpec,
+  Leading: super::LeadingSpec,
+  Max: super::MaxSpec,
+  Min: super::MinSpec,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    self
+      .primary_mut()
+      .as_mut()
+      .parse_input(inp)
+      .map(|span| Spanned::new(span, mem::take(&mut self.primary.container)))
+  }
+}
+
+impl<
+  'inp,
+  'c,
+  L,
+  F,
+  SepClassifier,
+  Condition,
+  O,
+  Container,
+  Ctx,
+  Trailing,
+  Leading,
+  Max,
+  Min,
+  Lang: ?Sized,
+  W,
+> ParseInput<'inp, L, L::Span, Ctx, Lang>
+  for Collect<
+    &'c mut SeparatedBy<
+      F,
+      SepClassifier,
+      Condition,
+      O,
+      W,
+      SeparatedByOptions<Trailing, Leading, Max, Min>,
+    >,
+    &'c mut Container,
+  >
+where
+  L: Lexer<'inp>,
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  SepClassifier: Check<L::Token>,
+  Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Container: crate::container::Container<O>,
+  W: Window,
+  Trailing: super::TrailingSpec,
+  Leading: super::LeadingSpec,
+  Max: super::MaxSpec,
+  Min: super::MinSpec,
+{
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let Self { parser, container } = self;
 
     let mut state: State<L::Token, L::Span> = State::Start;
@@ -79,9 +189,7 @@ where
       let peek_span = match peeked.first() {
         None => {
           drop(peeked);
-          return parser
-            .handle_end(state, inp, &ckp, num_elems, container)
-            .map(|_| mem::take(container));
+          return parser.handle_end(state, inp, &ckp, num_elems, container);
         }
         Some(tok) => {
           let tok = tok.as_ref();
@@ -309,9 +417,7 @@ where
 
       match parser.condition.decide(peeked, emitter)? {
         Action::End => {
-          return parser
-            .handle_end(state, inp, &ckp, num_elems, container)
-            .map(|_| mem::take(container));
+          return parser.handle_end(state, inp, &ckp, num_elems, container);
         }
         Action::Continue => {
           // if the peeked token belongs to an element, check the current state

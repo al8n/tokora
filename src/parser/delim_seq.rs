@@ -79,17 +79,7 @@ impl<P, SepClassifier, Condition, Open, Close, Delim, O, Trailing, Leading, Max,
 }
 
 impl<P, SepClassifier, Condition, Open, Close, Delim, O, W, Options>
-  DelimitedSeparatedBy<
-    P,
-    SepClassifier,
-    Condition,
-    Open,
-    Close,
-    Delim,
-    O,
-    W,
-    Options,
-  >
+  DelimitedSeparatedBy<P, SepClassifier, Condition, Open, Close, Delim, O, W, Options>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]

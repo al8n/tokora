@@ -37,6 +37,12 @@ pub type PhantomSpan = super::Span<()>;
 impl PhantomSpan {
   /// A zero-sized span for phantom usage.
   pub const PHANTOM: Self = Self { start: (), end: () };
+
+  /// Returns the phantom span.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn phantom() -> Self {
+    Self::PHANTOM
+  }
 }
 
 /// A sliced value with no meaningful slice, used as a type marker.
@@ -48,6 +54,12 @@ impl PhantomSliced {
     slice: (),
     data: (),
   };
+
+  /// Returns the phantom sliced value.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn phantom() -> Self {
+    Self::PHANTOM
+  }
 }
 
 /// A located value with no meaningful source or span, used as a type marker.
@@ -60,4 +72,29 @@ impl PhantomLocated {
     span: (),
     data: (),
   };
+
+  /// Returns the phantom located value.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn phantom() -> Self {
+    Self::PHANTOM
+  }
+}
+
+/// A phantom delimited value with no meaningful delimiters, span, or data, used as a type marker.
+pub type PhantomDelimited = super::Delimited<(), (), (), ()>;
+
+impl PhantomDelimited {
+  /// A zero-sized delimited value for phantom usage.
+  pub const PHANTOM: Self = Self {
+    open: (),
+    close: (),
+    span: (),
+    data: (),
+  };
+
+  /// Returns the phantom delimited value.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn phantom() -> Self {
+    Self::PHANTOM
+  }
 }
