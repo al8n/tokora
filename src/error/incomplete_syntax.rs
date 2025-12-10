@@ -83,14 +83,14 @@
 //! }
 //!
 //! let mut error = IncompleteSyntax::<WhileLoop>::new(
-//!     logosky::utils::Span::new(10, 15),
+//!     logosky::utils::SimpleSpan::new(10, 15),
 //!     WhileComponent::Condition
 //! );
 //! assert_eq!(error.len(), 1);
 //! # }
 //! ```
 
-use crate::{syntax::Syntax, utils::Span};
+use crate::{syntax::Syntax, utils::SimpleSpan};
 use generic_arraydeque::{GenericArrayDeque, typenum::Unsigned};
 
 use core::{
@@ -169,7 +169,7 @@ use core::{
 ///
 /// // Report a missing component at a specific location
 /// let error = IncompleteSyntax::<IfStatement>::new(
-///     logosky::utils::Span::new(10, 15),
+///     logosky::utils::SimpleSpan::new(10, 15),
 ///     IfStatementComponent::Condition
 /// );
 /// assert_eq!(error.len(), 1);
@@ -212,7 +212,7 @@ use core::{
 /// #     }
 /// # }
 /// let mut error = IncompleteSyntax::<MySyntax>::new(
-///     logosky::utils::Span::new(10, 15),
+///     logosky::utils::SimpleSpan::new(10, 15),
 ///     Component::A
 /// );
 /// assert_eq!(format!("{}", error), "incomplete syntax: component A is missing");
@@ -222,7 +222,7 @@ use core::{
 /// # }
 /// ```
 #[derive(Debug, Clone)]
-pub struct IncompleteSyntax<S: Syntax, Sp = Span> {
+pub struct IncompleteSyntax<S: Syntax, Sp = SimpleSpan> {
   span: Sp,
   components: GenericArrayDeque<S::Component, S::COMPONENTS>,
 }
@@ -293,7 +293,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, Span, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use logosky::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -318,9 +318,9 @@ where
   /// #         REQUIRED
   /// #     }
   /// # }
-  /// let error = IncompleteSyntax::<MySyntax>::new(Span::new(10, 15), Component::A);
+  /// let error = IncompleteSyntax::<MySyntax>::new(SimpleSpan::new(10, 15), Component::A);
   /// assert_eq!(error.len(), 1);
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -343,7 +343,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, Span, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use logosky::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -370,12 +370,12 @@ where
   /// #     }
   /// # }
   /// let components = vec![Component::A, Component::B];
-  /// let error = IncompleteSyntax::<MySyntax>::from_iter(Span::new(10, 15), components).unwrap();
+  /// let error = IncompleteSyntax::<MySyntax>::from_iter(SimpleSpan::new(10, 15), components).unwrap();
   /// assert_eq!(error.len(), 2);
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   ///
   /// // Empty iterator returns None
-  /// let error = IncompleteSyntax::<MySyntax>::from_iter(Span::new(10, 15), std::iter::empty());
+  /// let error = IncompleteSyntax::<MySyntax>::from_iter(SimpleSpan::new(10, 15), std::iter::empty());
   /// assert!(error.is_none());
   /// # }
   /// ```
@@ -456,7 +456,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     logosky::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert_eq!(error.len(), 1);
@@ -501,7 +501,7 @@ where
   /// #     }
   /// # }
   /// let error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     logosky::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert_eq!(error.capacity(), 3);
@@ -545,7 +545,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     logosky::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(!error.is_full());
@@ -598,7 +598,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     logosky::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push(Component::B);
@@ -654,7 +654,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     logosky::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push_front(Component::B);
@@ -705,7 +705,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     logosky::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(error.try_push(Component::B).is_none()); // Success
@@ -752,7 +752,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     logosky::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(error.try_push_front(Component::B).is_none()); // Success
@@ -797,7 +797,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     logosky::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push(Component::B);
@@ -842,7 +842,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     logosky::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.as_mut_slice()[0] = Component::B;
@@ -860,7 +860,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, Span, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use logosky::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -886,7 +886,7 @@ where
   /// #         REQUIRED
   /// #     }
   /// # }
-  /// let mut error = IncompleteSyntax::<MySyntax>::new(Span::new(10, 15), Component::A);
+  /// let mut error = IncompleteSyntax::<MySyntax>::new(SimpleSpan::new(10, 15), Component::A);
   /// error.push(Component::B);
   /// let collected: Vec<_> = error.iter().collect();
   /// assert_eq!(collected, vec![&Component::A, &Component::B]);
@@ -903,7 +903,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, Span, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use logosky::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -927,8 +927,8 @@ where
   /// #         REQUIRED
   /// #     }
   /// # }
-  /// let error = IncompleteSyntax::<MySyntax>::new(Span::new(10, 15), Component::A);
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// let error = IncompleteSyntax::<MySyntax>::new(SimpleSpan::new(10, 15), Component::A);
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -960,7 +960,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, Span, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use logosky::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -984,9 +984,9 @@ where
   /// #         REQUIRED
   /// #     }
   /// # }
-  /// let mut error = IncompleteSyntax::<MySyntax>::new(Span::new(10, 15), Component::A);
+  /// let mut error = IncompleteSyntax::<MySyntax>::new(SimpleSpan::new(10, 15), Component::A);
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 20));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

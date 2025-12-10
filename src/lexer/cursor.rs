@@ -1,8 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::Span;
-
-use super::Lexer;
+use super::{Lexer, Span};
 
 /// A cursor representing a position in the input source.
 ///

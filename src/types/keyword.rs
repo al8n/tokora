@@ -14,7 +14,7 @@
 //!   owned data, or custom interned string types for memory efficiency
 //! - **Language safety**: The `Lang` parameter ensures keywords from different
 //!   languages don't mix accidentally
-//! - **Span tracking**: All keywords carry their source location for diagnostics
+//! - **SimpleSpan tracking**: All keywords carry their source location for diagnostics
 //!
 //! # Common Usage Patterns
 //!
@@ -22,12 +22,12 @@
 //!
 //! ```rust,ignore
 //! use logosky::types::Keyword;
-//! use logosky::utils::Span;
+//! use logosky::utils::SimpleSimpleSpan;
 //!
 //! // Parse keywords without allocating
 //! type YulKeyword<'a> = Keyword<&'a str, YulLang>;
 //!
-//! let ident = YulKeyword::new(Span::new(0, 3), "foo");
+//! let ident = YulKeyword::new(SimpleSpan::new(0, 3), "foo");
 //! assert_eq!(ident.source_ref(), &"foo");
 //! ```
 //!
@@ -68,7 +68,7 @@ use core::marker::PhantomData;
 
 use crate::{
   error::ErrorNode,
-  utils::{AsSpan, IntoComponents, Span},
+  utils::{AsSpan, IntoComponents, SimpleSpan},
 };
 
 /// A language identifier with span tracking.
@@ -108,11 +108,11 @@ use crate::{
 ///
 /// ```rust
 /// use logosky::types::Keyword;
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSimpleSpan;
 /// # struct MyLang;
 ///
 /// // Zero-copy identifier
-/// let span = Span::new(5, 11);
+/// let span = SimpleSpan::new(5, 11);
 /// let ident = Keyword::<&str, MyLang>::new(span, "my_var");
 ///
 /// assert_eq!(ident.span(), span);
@@ -123,9 +123,9 @@ use crate::{
 ///
 /// ```rust
 /// # use logosky::types::Keyword;
-/// # use logosky::utils::{Span, IntoComponents};
+/// # use logosky::utils::{SimpleSpan, IntoComponents};
 /// # struct MyLang;
-/// # let span = Span::new(0, 3);
+/// # let span = SimpleSpan::new(0, 3);
 /// let ident = Keyword::<&str, MyLang>::new(span, "foo");
 ///
 /// // Destructure into span and source
@@ -137,9 +137,9 @@ use crate::{
 ///
 /// ```rust
 /// # use logosky::types::Keyword;
-/// # use logosky::utils::Span;
+/// # use logosky::utils::SimpleSimpleSpan;
 /// # struct MyLang;
-/// # let span = Span::new(0, 3);
+/// # let span = SimpleSpan::new(0, 3);
 /// let mut ident = Keyword::<String, MyLang>::new(span, "original".to_string());
 ///
 /// // Update the source string
@@ -147,12 +147,12 @@ use crate::{
 /// assert_eq!(ident.source_ref(), "modified");
 ///
 /// // Update the span
-/// *ident.span_mut() = Span::new(10, 18);
-/// assert_eq!(ident.span(), Span::new(10, 18));
+/// *ident.span_mut() = SimpleSpan::new(10, 18);
+/// assert_eq!(ident.span(), SimpleSpan::new(10, 18));
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Keyword<S, Lang> {
-  span: Span,
+  span: SimpleSpan,
   ident: S,
   _lang: PhantomData<Lang>,
 }
@@ -164,15 +164,15 @@ impl<S, Lang> From<Keyword<S, Lang>> for super::Ident<S, Lang> {
   }
 }
 
-impl<S, Lang> AsSpan<Span> for Keyword<S, Lang> {
+impl<S, Lang> AsSpan<SimpleSpan> for Keyword<S, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_span(&self) -> &Span {
+  fn as_span(&self) -> &SimpleSpan {
     self.span_ref()
   }
 }
 
 impl<S, Lang> IntoComponents for Keyword<S, Lang> {
-  type Components = (Span, S);
+  type Components = (SimpleSpan, S);
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn into_components(self) -> Self::Components {
@@ -192,17 +192,17 @@ impl<S, Lang> Keyword<S, Lang> {
   ///
   /// ```rust
   /// use logosky::types::Keyword;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSimpleSpan;
   /// # struct YulLang;
   ///
-  /// let span = Span::new(10, 15);
+  /// let span = SimpleSpan::new(10, 15);
   /// let ident = Keyword::<&str, YulLang>::new(span, "count");
   ///
   /// assert_eq!(ident.span(), span);
   /// assert_eq!(ident.source_ref(), &"count");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, source: S) -> Self {
+  pub const fn new(span: SimpleSpan, source: S) -> Self {
     Self {
       span,
       ident: source,
@@ -216,14 +216,14 @@ impl<S, Lang> Keyword<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Keyword;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let ident = Keyword::<&str, MyLang>::new(Span::new(5, 10), "value");
+  /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(5, 10), "value");
   ///
-  /// assert_eq!(ident.span(), Span::new(5, 10));
+  /// assert_eq!(ident.span(), SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> SimpleSpan {
     self.span
   }
 
@@ -235,15 +235,15 @@ impl<S, Lang> Keyword<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Keyword;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let ident = Keyword::<&str, MyLang>::new(Span::new(0, 3), "foo");
+  /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
   /// let span_ref = ident.span_ref();
-  /// assert_eq!(*span_ref, Span::new(0, 3));
+  /// assert_eq!(*span_ref, SimpleSpan::new(0, 3));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &SimpleSpan {
     &self.span
   }
 
@@ -256,15 +256,15 @@ impl<S, Lang> Keyword<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Keyword;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let mut ident = Keyword::<&str, MyLang>::new(Span::new(0, 3), "foo");
+  /// let mut ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
-  /// *ident.span_mut() = Span::new(10, 13);
-  /// assert_eq!(ident.span(), Span::new(10, 13));
+  /// *ident.span_mut() = SimpleSpan::new(10, 13);
+  /// assert_eq!(ident.span(), SimpleSpan::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut SimpleSpan {
     &mut self.span
   }
 
@@ -277,9 +277,9 @@ impl<S, Lang> Keyword<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Keyword;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let mut ident = Keyword::<String, MyLang>::new(Span::new(0, 3), "foo".to_string());
+  /// let mut ident = Keyword::<String, MyLang>::new(SimpleSpan::new(0, 3), "foo".to_string());
   ///
   /// *ident.source_mut() = "bar".to_string();
   /// assert_eq!(ident.source_ref(), "bar");
@@ -298,9 +298,9 @@ impl<S, Lang> Keyword<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Keyword;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let ident = Keyword::<&str, MyLang>::new(Span::new(0, 8), "variable");
+  /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 8), "variable");
   ///
   /// assert_eq!(ident.source_ref(), &"variable");
   /// assert_eq!(ident.source_ref().len(), 8);
@@ -323,9 +323,9 @@ impl<S, Lang> Keyword<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Keyword;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let ident = Keyword::<&str, MyLang>::new(Span::new(0, 2), "id");
+  /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 2), "id");
   ///
   /// let source: &str = ident.source(); // Copy
   /// assert_eq!(source, "id");
@@ -342,7 +342,7 @@ impl<S, Lang> Keyword<S, Lang> {
 
   /// Consumes the identifier and returns the span and source string.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, S) {
+  pub fn into_components(self) -> (SimpleSpan, S) {
     (self.span, self.ident)
   }
 
@@ -372,7 +372,7 @@ where
   /// let bad_ident = Keyword::<String, YulLang>::error(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn error(span: Span) -> Self {
+  fn error(span: SimpleSpan) -> Self {
     Self::new(span, S::error(span))
   }
 
@@ -394,7 +394,7 @@ where
   /// let missing_ident = Keyword::<String, YulLang>::missing(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn missing(span: Span) -> Self {
+  fn missing(span: SimpleSpan) -> Self {
     Self::new(span, S::missing(span))
   }
 }
@@ -406,7 +406,7 @@ where
 //   use logos::{Logos, Source};
 
 //   use crate::{
-//     KeywordToken, Lexed, LogoStream, error::UnexpectedToken, syntax::Language, utils::Spanned,
+//     KeywordToken, Lexed, LogoStream, error::UnexpectedToken, syntax::Language, utils::SimpleSimpleSpanned,
 //   };
 
 //   impl<S, Lang> Keyword<S, Lang> {
@@ -504,7 +504,7 @@ where
 //       E: ParserExtra<'a, I> + 'a,
 //     {
 //       any().try_map_with(move |tok: Lexed<'_, T>, exa| match tok {
-//         Lexed::Token(Spanned { span, data: tok }) => match tok.is_keyword() {
+//         Lexed::Token(SimpleSpanned { span, data: tok }) => match tok.is_keyword() {
 //           true => Ok(Self::new(span, S::from(exa.slice()))),
 //           false => Err(UnexpectedToken::expected_one_with_found(span, tok, keyword_kind()).into()),
 //         },

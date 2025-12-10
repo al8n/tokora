@@ -1,10 +1,10 @@
-use crate::utils::{Span, human_display::DisplayHuman};
-
-use crate::lexer::Span as SpanT;
-
+use crate::{
+  lexer::Span,
+  utils::{SimpleSpan, human_display::DisplayHuman},
+};
 /// An incomplete token
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct IncompleteToken<Knowledge, S = Span> {
+pub struct IncompleteToken<Knowledge, S = SimpleSpan> {
   span: S,
   knowledge: Option<Knowledge>,
 }
@@ -37,13 +37,13 @@ impl<Knowledge, S> IncompleteToken<Knowledge, S> {
     Self { span, knowledge }
   }
 
-  /// Create a new IncompleteToken knowledge from a Span
+  /// Create a new IncompleteToken knowledge from a SimpleSpan
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(span: S) -> Self {
     Self::new_in(span, None)
   }
 
-  /// Create a new IncompleteToken knowledge from a Span and Knowledge
+  /// Create a new IncompleteToken knowledge from a SimpleSpan and Knowledge
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_knowledge(span: S, knowledge: Knowledge) -> Self {
     Self::new_in(span, Some(knowledge))
@@ -77,7 +77,7 @@ impl<Knowledge, S> IncompleteToken<Knowledge, S> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &S::Offset)
   where
-    S: SpanT,
+    S: Span,
   {
     self.span.bump(offset);
   }

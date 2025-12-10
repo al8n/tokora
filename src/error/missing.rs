@@ -1,8 +1,9 @@
 use core::{fmt, marker::PhantomData};
 
 use crate::{
+  lexer::Span,
   syntax::{Language, Syntax},
-  utils::Span,
+  utils::SimpleSpan,
 };
 
 /// Describes a missing syntax element between two anchors.
@@ -22,8 +23,8 @@ use crate::{
 ///
 /// # Anchors
 ///
-/// - **`before`**: Span of the last token confidently parsed before the missing node.
-/// - **`after` (optional)**: Span of the first token parsed after the missing node.
+/// - **`before`**: SimpleSpan of the last token confidently parsed before the missing node.
+/// - **`after` (optional)**: SimpleSpan of the first token parsed after the missing node.
 ///   When `after` is `None` the gap is assumed to be at end-of-input or before an unknown
 ///   boundary.
 ///
@@ -36,19 +37,19 @@ use crate::{
 /// use logosky::{
 ///     error::Missing,
 ///     syntax::{Language, Syntax},
-///     utils::Span,
+///     utils::SimpleSpan,
 /// };
 ///
 /// // Suppose `ParameterListSyntax` implements `Syntax<KIND = SyntaxKind::ParameterList>`
-/// let before = Span::new(10, 11); // '('
-/// let after = Span::new(12, 13);  // ')'
+/// let before = SimpleSpan::new(10, 11); // '('
+/// let after = SimpleSpan::new(12, 13);  // ')'
 /// let error = Missing::<ParameterListSyntax, MyLang>::between(before, after);
 ///
 /// assert_eq!(error.kind(), SyntaxKind::ParameterList);
-/// assert_eq!(error.span(), Span::new(11, 12)); // gap between '(' and ')'
+/// assert_eq!(error.span(), SimpleSpan::new(11, 12)); // gap between '(' and ')'
 /// ```
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Missing<T, S = Span, Lang = ()> {
+pub struct Missing<T, S = SimpleSpan, Lang = ()> {
   before: S,
   after: Option<S>,
   span: Option<S>,
@@ -158,7 +159,7 @@ impl<T, S, Lang> Missing<T, S, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
   where
-    S: crate::lexer::Span,
+    S: Span,
   {
     self.before.bump(offset);
     if let Some(after) = &mut self.after {
@@ -181,7 +182,7 @@ impl<T, S, Lang> Missing<T, S, Lang> {
 
   fn full_span(before: &S, after: &S) -> S
   where
-    S: crate::lexer::Span,
+    S: Span,
   {
     let before_start = before.start_ref();
     let before_end = before.end_ref();

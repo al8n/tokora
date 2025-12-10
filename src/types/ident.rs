@@ -14,7 +14,7 @@
 //!   owned data, or custom interned string types for memory efficiency
 //! - **Language safety**: The `Lang` parameter ensures identifiers from different
 //!   languages don't mix accidentally
-//! - **Span tracking**: All identifiers carry their source location for diagnostics
+//! - **SimpleSpan tracking**: All identifiers carry their source location for diagnostics
 //!
 //! # Common Usage Patterns
 //!
@@ -22,12 +22,12 @@
 //!
 //! ```rust,ignore
 //! use logosky::types::Ident;
-//! use logosky::utils::Span;
+//! use logosky::utils::SimpleSimpleSpan;
 //!
 //! // Parse identifiers without allocating
 //! type YulIdent<'a> = Ident<&'a str, YulLang>;
 //!
-//! let ident = YulIdent::new(Span::new(0, 3), "foo");
+//! let ident = YulIdent::new(SimpleSpan::new(0, 3), "foo");
 //! assert_eq!(ident.source_ref(), &"foo");
 //! ```
 //!
@@ -68,7 +68,7 @@ use core::marker::PhantomData;
 
 use crate::{
   error::ErrorNode,
-  utils::{AsSpan, IntoComponents, Span},
+  utils::{AsSpan, IntoComponents, SimpleSpan},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -117,11 +117,11 @@ enum Status {
 ///
 /// ```rust
 /// use logosky::types::Ident;
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSimpleSpan;
 /// # struct MyLang;
 ///
 /// // Zero-copy identifier
-/// let span = Span::new(5, 11);
+/// let span = SimpleSpan::new(5, 11);
 /// let ident = Ident::<&str, MyLang>::new(span, "my_var");
 ///
 /// assert_eq!(ident.span(), span);
@@ -132,9 +132,9 @@ enum Status {
 ///
 /// ```rust
 /// # use logosky::types::Ident;
-/// # use logosky::utils::{Span, IntoComponents};
+/// # use logosky::utils::{SimpleSpan, IntoComponents};
 /// # struct MyLang;
-/// # let span = Span::new(0, 3);
+/// # let span = SimpleSpan::new(0, 3);
 /// let ident = Ident::<&str, MyLang>::new(span, "foo");
 ///
 /// // Destructure into span and source
@@ -146,9 +146,9 @@ enum Status {
 ///
 /// ```rust
 /// # use logosky::types::Ident;
-/// # use logosky::utils::Span;
+/// # use logosky::utils::SimpleSimpleSpan;
 /// # struct MyLang;
-/// # let span = Span::new(0, 3);
+/// # let span = SimpleSpan::new(0, 3);
 /// let mut ident = Ident::<String, MyLang>::new(span, "original".to_string());
 ///
 /// // Update the source string
@@ -156,26 +156,26 @@ enum Status {
 /// assert_eq!(ident.source_ref(), "modified");
 ///
 /// // Update the span
-/// *ident.span_mut() = Span::new(10, 18);
-/// assert_eq!(ident.span(), Span::new(10, 18));
+/// *ident.span_mut() = SimpleSpan::new(10, 18);
+/// assert_eq!(ident.span(), SimpleSpan::new(10, 18));
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Ident<S, Lang> {
-  span: Span,
+  span: SimpleSpan,
   ident: S,
   status: Status,
   _lang: PhantomData<Lang>,
 }
 
-impl<S, Lang> AsSpan<Span> for Ident<S, Lang> {
+impl<S, Lang> AsSpan<SimpleSpan> for Ident<S, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_span(&self) -> &Span {
+  fn as_span(&self) -> &SimpleSpan {
     self.span_ref()
   }
 }
 
 impl<S, Lang> IntoComponents for Ident<S, Lang> {
-  type Components = (Span, S);
+  type Components = (SimpleSpan, S);
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn into_components(self) -> Self::Components {
@@ -195,22 +195,22 @@ impl<S, Lang> Ident<S, Lang> {
   ///
   /// ```rust
   /// use logosky::types::Ident;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSimpleSpan;
   /// # struct YulLang;
   ///
-  /// let span = Span::new(10, 15);
+  /// let span = SimpleSpan::new(10, 15);
   /// let ident = Ident::<&str, YulLang>::new(span, "count");
   ///
   /// assert_eq!(ident.span(), span);
   /// assert_eq!(ident.source_ref(), &"count");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, source: S) -> Self {
+  pub const fn new(span: SimpleSpan, source: S) -> Self {
     Self::with_status(span, source, Status::Valid)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  const fn with_status(span: Span, source: S, status: Status) -> Self {
+  const fn with_status(span: SimpleSpan, source: S, status: Status) -> Self {
     Self {
       span,
       ident: source,
@@ -225,14 +225,14 @@ impl<S, Lang> Ident<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Ident;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let ident = Ident::<&str, MyLang>::new(Span::new(5, 10), "value");
+  /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(5, 10), "value");
   ///
-  /// assert_eq!(ident.span(), Span::new(5, 10));
+  /// assert_eq!(ident.span(), SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> SimpleSpan {
     self.span
   }
 
@@ -244,15 +244,15 @@ impl<S, Lang> Ident<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Ident;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let ident = Ident::<&str, MyLang>::new(Span::new(0, 3), "foo");
+  /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
   /// let span_ref = ident.span_ref();
-  /// assert_eq!(*span_ref, Span::new(0, 3));
+  /// assert_eq!(*span_ref, SimpleSpan::new(0, 3));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &SimpleSpan {
     &self.span
   }
 
@@ -265,15 +265,15 @@ impl<S, Lang> Ident<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Ident;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let mut ident = Ident::<&str, MyLang>::new(Span::new(0, 3), "foo");
+  /// let mut ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
-  /// *ident.span_mut() = Span::new(10, 13);
-  /// assert_eq!(ident.span(), Span::new(10, 13));
+  /// *ident.span_mut() = SimpleSpan::new(10, 13);
+  /// assert_eq!(ident.span(), SimpleSpan::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut SimpleSpan {
     &mut self.span
   }
 
@@ -286,9 +286,9 @@ impl<S, Lang> Ident<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Ident;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let mut ident = Ident::<String, MyLang>::new(Span::new(0, 3), "foo".to_string());
+  /// let mut ident = Ident::<String, MyLang>::new(SimpleSpan::new(0, 3), "foo".to_string());
   ///
   /// *ident.source_mut() = "bar".to_string();
   /// assert_eq!(ident.source_ref(), "bar");
@@ -307,9 +307,9 @@ impl<S, Lang> Ident<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Ident;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let ident = Ident::<&str, MyLang>::new(Span::new(0, 8), "variable");
+  /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 8), "variable");
   ///
   /// assert_eq!(ident.source_ref(), &"variable");
   /// assert_eq!(ident.source_ref().len(), 8);
@@ -332,9 +332,9 @@ impl<S, Lang> Ident<S, Lang> {
   ///
   /// ```rust
   /// # use logosky::types::Ident;
-  /// # use logosky::utils::Span;
+  /// # use logosky::utils::SimpleSimpleSpan;
   /// # struct MyLang;
-  /// let ident = Ident::<&str, MyLang>::new(Span::new(0, 2), "id");
+  /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 2), "id");
   ///
   /// let source: &str = ident.source(); // Copy
   /// assert_eq!(source, "id");
@@ -393,7 +393,7 @@ where
   /// let bad_ident = Ident::<String, YulLang>::error(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn error(span: Span) -> Self {
+  fn error(span: SimpleSpan) -> Self {
     Self::with_status(span, S::error(span), Status::Error)
   }
 
@@ -415,7 +415,7 @@ where
   /// let missing_ident = Ident::<String, YulLang>::missing(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn missing(span: Span) -> Self {
+  fn missing(span: SimpleSpan) -> Self {
     Self::with_status(span, S::missing(span), Status::Missing)
   }
 }
@@ -427,7 +427,7 @@ where
 //   use logos::{Logos, Source};
 
 //   use crate::{
-//     IdentifierToken, Lexed, LogoStream, error::UnexpectedToken, syntax::Language, utils::Spanned,
+//     IdentifierToken, Lexed, LogoStream, error::UnexpectedToken, syntax::Language, utils::SimpleSimpleSpanned,
 //   };
 
 //   impl<S, Lang> Ident<S, Lang> {
@@ -525,7 +525,7 @@ where
 //       E: ParserExtra<'a, I> + 'a,
 //     {
 //       any().try_map(move |tok: Lexed<'_, T>, _| match tok {
-//         Lexed::Token(Spanned { span, data: tok }) => match tok.try_into_identifier() {
+//         Lexed::Token(SimpleSpanned { span, data: tok }) => match tok.try_into_identifier() {
 //           Ok(ident) => Ok(Ident::new(span, ident.into())),
 //           Err(tok) => Err(UnexpectedToken::expected_one_with_found(span, tok, ident_kind()).into()),
 //         },

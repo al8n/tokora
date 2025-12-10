@@ -63,7 +63,7 @@
 //!
 //! ```
 //! use logosky::error::{UnicodeEscapeError, InvalidFixedUnicodeHexDigits};
-//! use logosky::utils::{Span, PositionedChar};
+//! use logosky::utils::{SimpleSpan, PositionedChar};
 //!
 //! // Invalid hex digit 'G' at position 12
 //! let mut digits = InvalidFixedUnicodeHexDigits::<char>::from_char(12, 'G');
@@ -71,7 +71,7 @@
 //!
 //! let error = UnicodeEscapeError::<char>::malformed_fixed_unicode_escape(
 //!     digits,
-//!     Span::new(10, 16) // \uGGGG
+//!     SimpleSpan::new(10, 16) // \uGGGG
 //! );
 //! ```
 //!
@@ -79,22 +79,22 @@
 //!
 //! ```
 //! use logosky::error::UnicodeEscapeError;
-//! use logosky::utils::Span;
+//! use logosky::utils::SimpleSpan;
 //!
 //! // Empty braces: \u{}
 //! let error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
-//!     Span::new(5, 9)
+//!     SimpleSpan::new(5, 9)
 //! );
 //!
 //! // Surrogate value: \u{D800}
 //! let error = UnicodeEscapeError::<char>::surrogate_variable_unicode_escape(
-//!     Span::new(10, 18),
+//!     SimpleSpan::new(10, 18),
 //!     0xD800
 //! );
 //!
 //! // Overflow: \u{110000}
 //! let error = UnicodeEscapeError::<char>::overflow_variable_unicode_escape(
-//!     Span::new(20, 30),
+//!     SimpleSpan::new(20, 30),
 //!     0x110000
 //! );
 //! ```
@@ -104,7 +104,7 @@ use core::ops::{Add, AddAssign};
 use crate::{
   error::{Unclosed, UnexpectedLexeme},
   punct::Brace,
-  utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman},
+  utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::DisplayHuman},
 };
 use derive_more::{Display, From, IsVariant, TryUnwrap, Unwrap};
 
@@ -168,7 +168,7 @@ pub type InvalidFixedUnicodeHexDigits<Char = char, O = usize> =
 ///
 /// ```
 /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-/// use logosky::utils::{Span, PositionedChar};
+/// use logosky::utils::{SimpleSpan, PositionedChar};
 ///
 /// // Create error for malformed escape like \uGHIJ
 /// let digits = InvalidFixedUnicodeHexDigits::from_array([
@@ -180,15 +180,15 @@ pub type InvalidFixedUnicodeHexDigits<Char = char, O = usize> =
 ///
 /// let error = MalformedFixedUnicodeEscape::new(
 ///     digits,
-///     Span::new(10, 16) // \uGHIJ
+///     SimpleSpan::new(10, 16) // \uGHIJ
 /// );
 ///
-/// assert_eq!(error.span(), Span::new(10, 16));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 16));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MalformedFixedUnicodeEscape<Char = char, O = usize> {
   digits: InvalidFixedUnicodeHexDigits<Char, O>,
-  span: Span<O>,
+  span: SimpleSpan<O>,
 }
 
 impl<Char, O> core::fmt::Display for MalformedFixedUnicodeEscape<Char, O>
@@ -220,15 +220,15 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   ///
   /// ```
   /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::{Span, PositionedChar};
+  /// use logosky::utils::{SimpleSpan, PositionedChar};
   ///
   /// let digits = InvalidFixedUnicodeHexDigits::from(
   ///     PositionedChar::with_position('Z', 12)
   /// );
-  /// let error = MalformedFixedUnicodeEscape::new(digits, Span::new(10, 14));
+  /// let error = MalformedFixedUnicodeEscape::new(digits, SimpleSpan::new(10, 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(digits: InvalidFixedUnicodeHexDigits<Char, O>, span: Span<O>) -> Self {
+  pub const fn new(digits: InvalidFixedUnicodeHexDigits<Char, O>, span: SimpleSpan<O>) -> Self {
     Self { digits, span }
   }
 
@@ -241,10 +241,10 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   // ///
   // /// ```
   // /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  // /// use logosky::utils::Span;
+  // /// use logosky::utils::SimpleSpan;
   // ///
   // /// let digits = InvalidFixedUnicodeHexDigits::<char>::from_char(12, 'G');
-  // /// let error = MalformedFixedUnicodeEscape::new(digits, Span::new(10, 14));
+  // /// let error = MalformedFixedUnicodeEscape::new(digits, SimpleSpan::new(10, 14));
   // /// assert!(error.is_incomplete()); // Only 4 chars, not 6
   // /// ```
   // #[cfg_attr(not(tarpaulin), inline(always))]
@@ -258,12 +258,12 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   ///
   /// ```
   /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::{Span, PositionedChar};
+  /// use logosky::utils::{SimpleSpan, PositionedChar};
   ///
   /// let digits = InvalidFixedUnicodeHexDigits::from(
   ///     PositionedChar::with_position('G', 12)
   /// );
-  /// let error = MalformedFixedUnicodeEscape::new(digits, Span::new(10, 14));
+  /// let error = MalformedFixedUnicodeEscape::new(digits, SimpleSpan::new(10, 14));
   /// assert_eq!(error.digits().len(), 1);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -281,12 +281,12 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   ///
   /// ```
   /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::{Span, PositionedChar};
+  /// use logosky::utils::{SimpleSpan, PositionedChar};
   ///
   /// let digits = InvalidFixedUnicodeHexDigits::from(
   ///     PositionedChar::with_position('G', 12)
   /// );
-  /// let error = MalformedFixedUnicodeEscape::new(digits, Span::new(10, 14));
+  /// let error = MalformedFixedUnicodeEscape::new(digits, SimpleSpan::new(10, 14));
   /// assert_eq!(error.digits_ref().len(), 1);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -306,16 +306,16 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   ///
   /// ```
   /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = MalformedFixedUnicodeEscape::new(
   ///     InvalidFixedUnicodeHexDigits::<char>::from_char(12, 'G'),
-  ///     Span::new(10, 16)
+  ///     SimpleSpan::new(10, 16)
   /// );
-  /// assert_eq!(error.span(), Span::new(10, 16));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 16));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -324,13 +324,13 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
 
   /// Returns a reference to the span of the malformed unicode escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> Span<&O> {
+  pub const fn span_ref(&self) -> SimpleSpan<&O> {
     self.span.as_ref()
   }
 
   /// Returns a mutable reference to the span of the malformed unicode escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> Span<&mut O> {
+  pub const fn span_mut(&mut self) -> SimpleSpan<&mut O> {
     self.span.as_mut()
   }
 
@@ -343,14 +343,14 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   ///
   /// ```
   /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::{Span, PositionedChar};
+  /// use logosky::utils::{SimpleSpan, PositionedChar};
   ///
   /// let mut error = MalformedFixedUnicodeEscape::new(
   ///     InvalidFixedUnicodeHexDigits::from(PositionedChar::with_position('G', 12)),
-  ///     Span::new(10, 16)
+  ///     SimpleSpan::new(10, 16)
   /// );
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 21));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 21));
   /// ```
   #[inline]
   pub fn bump(&mut self, n: &O) -> &mut Self
@@ -407,12 +407,12 @@ pub enum InvalidUnicodeScalarKind {
 ///
 /// ```
 /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
 /// // Surrogate value error: \u{D800}
 /// let error = InvalidUnicodeScalarValue::new(
 ///     0xD800,
-///     Span::new(10, 18),
+///     SimpleSpan::new(10, 18),
 ///     InvalidUnicodeScalarKind::Surrogate
 /// );
 /// assert_eq!(error.codepoint(), 0xD800);
@@ -421,7 +421,7 @@ pub enum InvalidUnicodeScalarKind {
 /// // Overflow error: \u{110000}
 /// let error = InvalidUnicodeScalarValue::new(
 ///     0x110000,
-///     Span::new(20, 30),
+///     SimpleSpan::new(20, 30),
 ///     InvalidUnicodeScalarKind::Overflow
 /// );
 /// assert_eq!(error.codepoint(), 0x110000);
@@ -430,7 +430,7 @@ pub enum InvalidUnicodeScalarKind {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct InvalidUnicodeScalarValue<O = usize> {
   value: u32,
-  span: Span<O>,
+  span: SimpleSpan<O>,
   kind: InvalidUnicodeScalarKind,
 }
 
@@ -468,16 +468,16 @@ impl<O> InvalidUnicodeScalarValue<O> {
   ///
   /// ```
   /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = InvalidUnicodeScalarValue::new(
   ///     0xD800,
-  ///     Span::new(10, 18),
+  ///     SimpleSpan::new(10, 18),
   ///     InvalidUnicodeScalarKind::Surrogate
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(value: u32, span: Span<O>, kind: InvalidUnicodeScalarKind) -> Self {
+  pub const fn new(value: u32, span: SimpleSpan<O>, kind: InvalidUnicodeScalarKind) -> Self {
     Self { value, span, kind }
   }
 
@@ -487,11 +487,11 @@ impl<O> InvalidUnicodeScalarValue<O> {
   ///
   /// ```
   /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = InvalidUnicodeScalarValue::new(
   ///     0xD800,
-  ///     Span::new(10, 18),
+  ///     SimpleSpan::new(10, 18),
   ///     InvalidUnicodeScalarKind::Surrogate
   /// );
   /// assert_eq!(error.codepoint(), 0xD800);
@@ -507,17 +507,17 @@ impl<O> InvalidUnicodeScalarValue<O> {
   ///
   /// ```
   /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = InvalidUnicodeScalarValue::new(
   ///     0x110000,
-  ///     Span::new(5, 15),
+  ///     SimpleSpan::new(5, 15),
   ///     InvalidUnicodeScalarKind::Overflow
   /// );
-  /// assert_eq!(error.span(), Span::new(5, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -526,13 +526,13 @@ impl<O> InvalidUnicodeScalarValue<O> {
 
   /// Returns a reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> Span<&O> {
+  pub const fn span_ref(&self) -> SimpleSpan<&O> {
     self.span.as_ref()
   }
 
   /// Returns a mutable reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> Span<&mut O> {
+  pub const fn span_mut(&mut self) -> SimpleSpan<&mut O> {
     self.span.as_mut()
   }
 
@@ -545,15 +545,15 @@ impl<O> InvalidUnicodeScalarValue<O> {
   ///
   /// ```
   /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let mut error = InvalidUnicodeScalarValue::new(
   ///     0xD800,
-  ///     Span::new(10, 18),
+  ///     SimpleSpan::new(10, 18),
   ///     InvalidUnicodeScalarKind::Surrogate
   /// );
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 23));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 23));
   /// ```
   #[inline]
   pub fn bump(&mut self, n: &O) -> &mut Self
@@ -570,11 +570,11 @@ impl<O> InvalidUnicodeScalarValue<O> {
   ///
   /// ```
   /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = InvalidUnicodeScalarValue::new(
   ///     0xD800,
-  ///     Span::new(10, 18),
+  ///     SimpleSpan::new(10, 18),
   ///     InvalidUnicodeScalarKind::Surrogate
   /// );
   /// assert_eq!(error.kind(), InvalidUnicodeScalarKind::Surrogate);
@@ -596,16 +596,16 @@ impl<O> InvalidUnicodeScalarValue<O> {
 ///
 /// ```
 /// use logosky::error::EmptyVariableUnicodeEscape;
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
 /// // Error for: \u{}
-/// let error = EmptyVariableUnicodeEscape::new(Span::new(10, 14));
-/// assert_eq!(error.span(), Span::new(10, 14));
+/// let error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 14));
 /// assert_eq!(format!("{}", error), "empty variable-length unicode escape at 10..14");
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Display)]
 #[display("empty variable-length unicode escape at {_0}")]
-pub struct EmptyVariableUnicodeEscape<O = usize>(Span<O>);
+pub struct EmptyVariableUnicodeEscape<O = usize>(SimpleSpan<O>);
 
 impl<O> EmptyVariableUnicodeEscape<O> {
   /// Creates a new empty variable-length unicode escape error.
@@ -614,13 +614,13 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::EmptyVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = EmptyVariableUnicodeEscape::new(Span::new(5, 9));
-  /// assert_eq!(error.span(), Span::new(5, 9));
+  /// let error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(5, 9));
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 9));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span<O>) -> Self {
+  pub const fn new(span: SimpleSpan<O>) -> Self {
     Self(span)
   }
 
@@ -630,13 +630,13 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::EmptyVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = EmptyVariableUnicodeEscape::new(Span::new(10, 14));
-  /// assert_eq!(error.span(), Span::new(10, 14));
+  /// let error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -649,13 +649,13 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::EmptyVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = EmptyVariableUnicodeEscape::new(Span::new(10, 14));
-  /// assert_eq!(error.span_ref(), Span::new(&10, &14));
+  /// let error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
+  /// assert_eq!(error.span_ref(), SimpleSpan::new(&10, &14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> Span<&O> {
+  pub const fn span_ref(&self) -> SimpleSpan<&O> {
     self.0.as_ref()
   }
 
@@ -665,13 +665,13 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::EmptyVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = EmptyVariableUnicodeEscape::new(Span::new(10, 14));
-  /// assert_eq!(error.span_mut(), Span::new(&mut 10, &mut 14));
+  /// let error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
+  /// assert_eq!(error.span_mut(), SimpleSpan::new(&mut 10, &mut 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> Span<&mut O> {
+  pub const fn span_mut(&mut self) -> SimpleSpan<&mut O> {
     self.0.as_mut()
   }
 
@@ -684,11 +684,11 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::EmptyVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut error = EmptyVariableUnicodeEscape::new(Span::new(10, 14));
+  /// let mut error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 19));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 19));
   /// ```
   #[inline]
   pub fn bump(&mut self, n: &O) -> &mut Self
@@ -824,13 +824,13 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   ///
   /// ```
   /// use logosky::error::MalformedVariableUnicodeSequence;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error: MalformedVariableUnicodeSequence<char> =
-  ///     MalformedVariableUnicodeSequence::from_range(Span::new(10, 15));
+  ///     MalformedVariableUnicodeSequence::from_range(SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_range(span: Span<O>) -> Self {
+  pub const fn from_range(span: SimpleSpan<O>) -> Self {
     Self(Lexeme::Range(span))
   }
 
@@ -840,13 +840,13 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   ///
   /// ```
   /// use logosky::error::MalformedVariableUnicodeSequence;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = MalformedVariableUnicodeSequence::from_char(10, 'G');
-  /// assert_eq!(error.span(), Span::new(10, 11));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span<O>
+  pub fn span(&self) -> SimpleSpan<O>
   where
     Char: CharLen,
     O: Clone + Ord,
@@ -890,11 +890,11 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   ///
   /// ```
   /// use logosky::error::MalformedVariableUnicodeSequence;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let mut error = MalformedVariableUnicodeSequence::from_char(10, 'G');
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 16));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 16));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, n: &O) -> &mut Self
@@ -915,11 +915,11 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
 ///
 /// ```
 /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
 /// // Error for: \u{1234567} (7 digits, limit is 6)
 /// let error = TooManyDigitsInVariableUnicodeEscape::new(
-///     Span::new(10, 21),
+///     SimpleSpan::new(10, 21),
 ///     7
 /// );
 /// assert_eq!(error.count(), 7);
@@ -930,7 +930,7 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Display)]
 #[display("too many digits ({_1}) in variable-length unicode escape at {_0}")]
-pub struct TooManyDigitsInVariableUnicodeEscape<O = usize>(Span<O>, usize);
+pub struct TooManyDigitsInVariableUnicodeEscape<O = usize>(SimpleSpan<O>, usize);
 
 impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   /// Creates a new too many digits in variable-length unicode escape error.
@@ -939,13 +939,13 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = TooManyDigitsInVariableUnicodeEscape::new(Span::new(5, 15), 8);
+  /// let error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(5, 15), 8);
   /// assert_eq!(error.count(), 8);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span<O>, count: usize) -> Self {
+  pub const fn new(span: SimpleSpan<O>, count: usize) -> Self {
     Self(span, count)
   }
 
@@ -955,13 +955,13 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = TooManyDigitsInVariableUnicodeEscape::new(Span::new(10, 20), 7);
-  /// assert_eq!(error.span(), Span::new(10, 20));
+  /// let error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -974,13 +974,13 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = TooManyDigitsInVariableUnicodeEscape::new(Span::new(10, 20), 7);
-  /// assert_eq!(error.span(), Span::new(10, 20));
+  /// let error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> Span<&O> {
+  pub const fn span_ref(&self) -> SimpleSpan<&O> {
     self.0.as_ref()
   }
 
@@ -990,13 +990,13 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = TooManyDigitsInVariableUnicodeEscape::new(Span::new(10, 20), 7);
-  /// assert_eq!(error.span(), Span::new(10, 20));
+  /// let error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> Span<&mut O> {
+  pub const fn span_mut(&mut self) -> SimpleSpan<&mut O> {
     self.0.as_mut()
   }
 
@@ -1006,9 +1006,9 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = TooManyDigitsInVariableUnicodeEscape::new(Span::new(10, 20), 7);
+  /// let error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
   /// assert_eq!(error.count(), 7);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -1025,11 +1025,11 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut error = TooManyDigitsInVariableUnicodeEscape::new(Span::new(10, 20), 7);
+  /// let mut error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 25));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, n: &O) -> &mut Self
@@ -1063,18 +1063,18 @@ impl<O> core::error::Error for TooManyDigitsInVariableUnicodeEscape<O> where
 ///
 /// ```
 /// use logosky::error::VariableUnicodeEscapeError;
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
 /// // Empty braces
-/// let error = VariableUnicodeEscapeError::<char>::empty(Span::new(10, 14));
+/// let error = VariableUnicodeEscapeError::<char>::empty(SimpleSpan::new(10, 14));
 /// assert!(error.is_empty());
 ///
 /// // Too many digits
-/// let error = VariableUnicodeEscapeError::<char>::too_many_digits(Span::new(5, 16), 7);
+/// let error = VariableUnicodeEscapeError::<char>::too_many_digits(SimpleSpan::new(5, 16), 7);
 /// assert!(error.is_too_many_digits());
 ///
 /// // Surrogate value
-/// let error = VariableUnicodeEscapeError::<char>::surrogate(Span::new(10, 18), 0xD800);
+/// let error = VariableUnicodeEscapeError::<char>::surrogate(SimpleSpan::new(10, 18), 0xD800);
 /// assert!(error.is_invalid_scalar());
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, IsVariant, TryUnwrap, Unwrap)]
@@ -1083,7 +1083,7 @@ impl<O> core::error::Error for TooManyDigitsInVariableUnicodeEscape<O> where
 #[non_exhaustive]
 pub enum VariableUnicodeEscapeError<Char = char, O = usize> {
   /// The opening brace was not closed: `\u{1234`.
-  Unclosed(Unclosed<Brace, Span<O>>),
+  Unclosed(Unclosed<Brace, SimpleSpan<O>>),
 
   /// The braces contained **no** digits: `\u{}`.
   Empty(EmptyVariableUnicodeEscape<O>),
@@ -1143,14 +1143,14 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
-  ///     VariableUnicodeEscapeError::empty(Span::new(10, 14));
+  ///     VariableUnicodeEscapeError::empty(SimpleSpan::new(10, 14));
   /// assert!(error.is_empty());
   /// ```
   #[inline]
-  pub const fn empty(span: Span<O>) -> Self {
+  pub const fn empty(span: SimpleSpan<O>) -> Self {
     Self::Empty(EmptyVariableUnicodeEscape::new(span))
   }
 
@@ -1160,14 +1160,14 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
-  ///     VariableUnicodeEscapeError::too_many_digits(Span::new(5, 15), 7);
+  ///     VariableUnicodeEscapeError::too_many_digits(SimpleSpan::new(5, 15), 7);
   /// assert!(error.is_too_many_digits());
   /// ```
   #[inline]
-  pub const fn too_many_digits(span: Span<O>, count: usize) -> Self {
+  pub const fn too_many_digits(span: SimpleSpan<O>, count: usize) -> Self {
     Self::TooManyDigits(TooManyDigitsInVariableUnicodeEscape::new(span, count))
   }
 
@@ -1177,14 +1177,14 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
-  ///     VariableUnicodeEscapeError::unclosed(Span::new(10, 15));
+  ///     VariableUnicodeEscapeError::unclosed(SimpleSpan::new(10, 15));
   /// assert!(error.is_unclosed());
   /// ```
   #[inline]
-  pub const fn unclosed(span: Span<O>) -> Self {
+  pub const fn unclosed(span: SimpleSpan<O>) -> Self {
     Self::Unclosed(Unclosed::new(span, Brace::PHANTOM))
   }
 
@@ -1194,14 +1194,14 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
-  ///     VariableUnicodeEscapeError::overflow(Span::new(10, 20), 0x110000);
+  ///     VariableUnicodeEscapeError::overflow(SimpleSpan::new(10, 20), 0x110000);
   /// assert!(error.is_invalid_scalar());
   /// ```
   #[inline]
-  pub const fn overflow(span: Span<O>, codepoint: u32) -> Self {
+  pub const fn overflow(span: SimpleSpan<O>, codepoint: u32) -> Self {
     Self::InvalidScalar(InvalidUnicodeScalarValue::new(
       codepoint,
       span,
@@ -1215,14 +1215,14 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
-  ///     VariableUnicodeEscapeError::surrogate(Span::new(10, 18), 0xD800);
+  ///     VariableUnicodeEscapeError::surrogate(SimpleSpan::new(10, 18), 0xD800);
   /// assert!(error.is_invalid_scalar());
   /// ```
   #[inline]
-  pub const fn surrogate(span: Span<O>, codepoint: u32) -> Self {
+  pub const fn surrogate(span: SimpleSpan<O>, codepoint: u32) -> Self {
     Self::InvalidScalar(InvalidUnicodeScalarValue::new(
       codepoint,
       span,
@@ -1239,10 +1239,10 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let mut error: VariableUnicodeEscapeError<char> =
-  ///     VariableUnicodeEscapeError::empty(Span::new(10, 14));
+  ///     VariableUnicodeEscapeError::empty(SimpleSpan::new(10, 14));
   /// error.bump(5);
   /// // Now the span would be adjusted by 5
   /// ```
@@ -1277,13 +1277,13 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
-  ///    VariableUnicodeEscapeError::empty(Span::new(10, 14));
-  /// assert_eq!(error.span(), Span::new(10, 14));
+  ///    VariableUnicodeEscapeError::empty(SimpleSpan::new(10, 14));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
   /// ```
-  pub fn span(&self) -> Span<O>
+  pub fn span(&self) -> SimpleSpan<O>
   where
     Char: CharLen,
     O: Clone + Ord,
@@ -1341,16 +1341,16 @@ pub enum UnpairedSurrogateHint {
 ///
 /// ```
 /// use logosky::error::IncompleteFixedUnicodeEscape;
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
 /// // Incomplete: \u00A (only 3 hex digits)
 /// let error = IncompleteFixedUnicodeEscape::new(
-///     Span::new(10, 13)
+///     SimpleSpan::new(10, 13)
 /// );
-/// assert_eq!(error.span(), Span::new(10, 13));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 13));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct IncompleteFixedUnicodeEscape<O = usize>(Span<O>);
+pub struct IncompleteFixedUnicodeEscape<O = usize>(SimpleSpan<O>);
 
 impl<O> core::fmt::Display for IncompleteFixedUnicodeEscape<O>
 where
@@ -1377,12 +1377,12 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::IncompleteFixedUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = IncompleteFixedUnicodeEscape::new(Span::new(10, 12));
+  /// let error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 12));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span<O>) -> Self {
+  pub const fn new(span: SimpleSpan<O>) -> Self {
     Self(span)
   }
 
@@ -1392,13 +1392,13 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::IncompleteFixedUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = IncompleteFixedUnicodeEscape::new(Span::new(10, 13));
-  /// assert_eq!(error.span(), Span::new(10, 13));
+  /// let error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 13));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -1411,13 +1411,13 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::IncompleteFixedUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = IncompleteFixedUnicodeEscape::new(Span::new(10, 13));
-  /// assert_eq!(error.span_ref(), Span::new(&10, &13));
+  /// let error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 13));
+  /// assert_eq!(error.span_ref(), SimpleSpan::new(&10, &13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> Span<&O> {
+  pub const fn span_ref(&self) -> SimpleSpan<&O> {
     self.0.as_ref()
   }
 
@@ -1427,13 +1427,13 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::IncompleteFixedUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = IncompleteFixedUnicodeEscape::new(Span::new(10, 13));
-  /// assert_eq!(error.span_mut(), Span::new(&mut 10, &mut 13));
+  /// let error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 13));
+  /// assert_eq!(error.span_mut(), SimpleSpan::new(&mut 10, &mut 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> Span<&mut O> {
+  pub const fn span_mut(&mut self) -> SimpleSpan<&mut O> {
     self.0.as_mut()
   }
 
@@ -1446,11 +1446,11 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   ///
   /// ```
   /// use logosky::error::IncompleteFixedUnicodeEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut error = IncompleteFixedUnicodeEscape::new(Span::new(10, 12));
+  /// let mut error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 12));
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 17));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 17));
   /// ```
   #[inline]
   pub fn bump(&mut self, n: &O) -> &mut Self
@@ -1481,16 +1481,16 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
 ///
 /// ```
 /// use logosky::error::{FixedUnicodeEscapeError, IncompleteFixedUnicodeEscape};
-/// use logosky::utils::{Lexeme, Span};
+/// use logosky::utils::{Lexeme, SimpleSpan};
 ///
 /// // Incomplete escape: \uAB (only 2 hex digits)
 /// let error: FixedUnicodeEscapeError =
-///     FixedUnicodeEscapeError::Incomplete(IncompleteFixedUnicodeEscape::new(Span::new(10, 14)));
+///     FixedUnicodeEscapeError::Incomplete(IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 14)));
 /// assert!(error.is_incomplete());
 ///
 /// // Unpaired high surrogate: \uD800
 /// let error = FixedUnicodeEscapeError::<char>::unpaired_high_surrogate(
-///     Lexeme::Range(Span::new(5, 11))
+///     Lexeme::Range(SimpleSpan::new(5, 11))
 /// );
 /// assert!(error.is_unpaired_surrogate());
 /// ```
@@ -1566,10 +1566,10 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::FixedUnicodeEscapeError;
-  /// use logosky::utils::{Lexeme, Span};
+  /// use logosky::utils::{Lexeme, SimpleSpan};
   ///
   /// let error = FixedUnicodeEscapeError::<char>::unpaired_high_surrogate(
-  ///     Lexeme::Range(Span::new(10, 16))
+  ///     Lexeme::Range(SimpleSpan::new(10, 16))
   /// );
   /// assert!(error.is_unpaired_surrogate());
   /// ```
@@ -1584,10 +1584,10 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::FixedUnicodeEscapeError;
-  /// use logosky::utils::{Lexeme, Span};
+  /// use logosky::utils::{Lexeme, SimpleSpan};
   ///
   /// let error = FixedUnicodeEscapeError::<char>::unpaired_low_surrogate(
-  ///     Lexeme::Range(Span::new(10, 16))
+  ///     Lexeme::Range(SimpleSpan::new(10, 16))
   /// );
   /// assert!(error.is_unpaired_surrogate());
   /// ```
@@ -1605,10 +1605,10 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::{FixedUnicodeEscapeError, IncompleteFixedUnicodeEscape};
-  /// use logosky::utils::{Lexeme, Span};
+  /// use logosky::utils::{Lexeme, SimpleSpan};
   ///
   /// let mut error: FixedUnicodeEscapeError =
-  ///     FixedUnicodeEscapeError::Incomplete(IncompleteFixedUnicodeEscape::new(Span::new(10, 14)));
+  ///     FixedUnicodeEscapeError::Incomplete(IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 14)));
   /// error.bump(5);
   /// // The span is now adjusted
   /// ```
@@ -1637,15 +1637,15 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::{FixedUnicodeEscapeError, IncompleteFixedUnicodeEscape};
-  /// use logosky::utils::{Lexeme, Span};
+  /// use logosky::utils::{Lexeme, SimpleSpan};
   ///
   /// let error: FixedUnicodeEscapeError =
-  ///    FixedUnicodeEscapeError::Incomplete(IncompleteFixedUnicodeEscape::new(Span::new(
+  ///    FixedUnicodeEscapeError::Incomplete(IncompleteFixedUnicodeEscape::new(SimpleSpan::new(
   ///       10, 14)));
-  /// assert_eq!(error.span(), Span::new(10, 14));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span<O>
+  pub fn span(&self) -> SimpleSpan<O>
   where
     Char: CharLen,
     O: Clone + Ord,
@@ -1675,17 +1675,17 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
 ///
 /// ```
 /// use logosky::error::UnicodeEscapeError;
-/// use logosky::utils::{Lexeme, Span};
+/// use logosky::utils::{Lexeme, SimpleSpan};
 ///
 /// // Incomplete fixed-width escape: \uAB
 /// let error = UnicodeEscapeError::<char>::incomplete_fixed_unicode_escape(
-///     Span::new(10, 14)
+///     SimpleSpan::new(10, 14)
 /// );
 /// assert!(error.is_fixed());
 ///
 /// // Unpaired high surrogate: \uD800
 /// let error = UnicodeEscapeError::<char>::unpaired_high_surrogate(
-///     Lexeme::Range(Span::new(5, 11))
+///     Lexeme::Range(SimpleSpan::new(5, 11))
 /// );
 /// assert!(error.is_fixed());
 /// ```
@@ -1694,24 +1694,24 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
 ///
 /// ```
 /// use logosky::error::UnicodeEscapeError;
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
 /// // Empty braces: \u{}
 /// let error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
-///     Span::new(10, 14)
+///     SimpleSpan::new(10, 14)
 /// );
 /// assert!(error.is_variable());
 ///
 /// // Too many digits: \u{1234567}
 /// let error = UnicodeEscapeError::<char>::too_many_digits_in_variable_unicode_escape(
-///     Span::new(5, 16),
+///     SimpleSpan::new(5, 16),
 ///     7
 /// );
 /// assert!(error.is_variable());
 ///
 /// // Surrogate value: \u{D800}
 /// let error = UnicodeEscapeError::<char>::surrogate_variable_unicode_escape(
-///     Span::new(10, 18),
+///     SimpleSpan::new(10, 18),
 ///     0xD800
 /// );
 /// assert!(error.is_variable());
@@ -1762,10 +1762,10 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::{Lexeme, Span};
+  /// use logosky::utils::{Lexeme, SimpleSpan};
   ///
   /// let error = UnicodeEscapeError::<char>::unpaired_high_surrogate(
-  ///     Lexeme::Range(Span::new(10, 16))
+  ///     Lexeme::Range(SimpleSpan::new(10, 16))
   /// );
   /// assert!(error.is_fixed());
   /// ```
@@ -1780,10 +1780,10 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::{Lexeme, Span};
+  /// use logosky::utils::{Lexeme, SimpleSpan};
   ///
   /// let error = UnicodeEscapeError::<char>::unpaired_low_surrogate(
-  ///     Lexeme::Range(Span::new(10, 16))
+  ///     Lexeme::Range(SimpleSpan::new(10, 16))
   /// );
   /// assert!(error.is_fixed());
   /// ```
@@ -1798,15 +1798,15 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::incomplete_fixed_unicode_escape(
-  ///     Span::new(10, 14)
+  ///     SimpleSpan::new(10, 14)
   /// );
   /// assert!(error.is_fixed());
   /// ```
   #[inline]
-  pub const fn incomplete_fixed_unicode_escape(span: Span<O>) -> Self {
+  pub const fn incomplete_fixed_unicode_escape(span: SimpleSpan<O>) -> Self {
     Self::Fixed(FixedUnicodeEscapeError::Incomplete(
       IncompleteFixedUnicodeEscape::new(span),
     ))
@@ -1818,21 +1818,21 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::{UnicodeEscapeError, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::{Span, PositionedChar};
+  /// use logosky::utils::{SimpleSpan, PositionedChar};
   ///
   /// let digits = InvalidFixedUnicodeHexDigits::from(
   ///     PositionedChar::with_position('G', 12)
   /// );
   /// let error = UnicodeEscapeError::malformed_fixed_unicode_escape(
   ///     digits,
-  ///     Span::new(10, 16)
+  ///     SimpleSpan::new(10, 16)
   /// );
   /// assert!(error.is_fixed());
   /// ```
   #[inline]
   pub const fn malformed_fixed_unicode_escape(
     digits: InvalidFixedUnicodeHexDigits<Char, O>,
-    span: Span<O>,
+    span: SimpleSpan<O>,
   ) -> Self {
     Self::Fixed(FixedUnicodeEscapeError::Malformed(
       MalformedFixedUnicodeEscape::new(digits, span),
@@ -1845,15 +1845,15 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
-  ///     Span::new(10, 14)
+  ///     SimpleSpan::new(10, 14)
   /// );
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn empty_variable_unicode_escape(span: Span<O>) -> Self {
+  pub const fn empty_variable_unicode_escape(span: SimpleSpan<O>) -> Self {
     Self::Variable(VariableUnicodeEscapeError::empty(span))
   }
 
@@ -1863,16 +1863,19 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::too_many_digits_in_variable_unicode_escape(
-  ///     Span::new(5, 16),
+  ///     SimpleSpan::new(5, 16),
   ///     7
   /// );
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn too_many_digits_in_variable_unicode_escape(span: Span<O>, count: usize) -> Self {
+  pub const fn too_many_digits_in_variable_unicode_escape(
+    span: SimpleSpan<O>,
+    count: usize,
+  ) -> Self {
     Self::Variable(VariableUnicodeEscapeError::too_many_digits(span, count))
   }
 
@@ -1882,15 +1885,15 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::unclosed_variable_unicode_escape(
-  ///     Span::new(10, 15)
+  ///     SimpleSpan::new(10, 15)
   /// );
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn unclosed_variable_unicode_escape(span: Span<O>) -> Self {
+  pub const fn unclosed_variable_unicode_escape(span: SimpleSpan<O>) -> Self {
     Self::Variable(VariableUnicodeEscapeError::unclosed(span))
   }
 
@@ -1900,16 +1903,16 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::surrogate_variable_unicode_escape(
-  ///     Span::new(10, 18),
+  ///     SimpleSpan::new(10, 18),
   ///     0xD800
   /// );
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn surrogate_variable_unicode_escape(span: Span<O>, codepoint: u32) -> Self {
+  pub const fn surrogate_variable_unicode_escape(span: SimpleSpan<O>, codepoint: u32) -> Self {
     Self::Variable(VariableUnicodeEscapeError::surrogate(span, codepoint))
   }
 
@@ -1919,16 +1922,16 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::overflow_variable_unicode_escape(
-  ///     Span::new(10, 20),
+  ///     SimpleSpan::new(10, 20),
   ///     0x110000
   /// );
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn overflow_variable_unicode_escape(span: Span<O>, codepoint: u32) -> Self {
+  pub const fn overflow_variable_unicode_escape(span: SimpleSpan<O>, codepoint: u32) -> Self {
     Self::Variable(VariableUnicodeEscapeError::overflow(span, codepoint))
   }
 
@@ -1955,16 +1958,16 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error: UnicodeEscapeError =
   ///     UnicodeEscapeError::<char>::invalid_variable_unicode_escape_sequence(
-  ///         Span::new(10, 15)
+  ///         SimpleSpan::new(10, 15)
   ///     );
   /// assert!(error.is_variable());
   /// ```
   #[inline]
-  pub const fn invalid_variable_unicode_escape_sequence(span: Span<O>) -> Self {
+  pub const fn invalid_variable_unicode_escape_sequence(span: SimpleSpan<O>) -> Self {
     Self::Variable(VariableUnicodeEscapeError::Malformed(
       MalformedVariableUnicodeSequence::from_range(span),
     ))
@@ -1979,10 +1982,10 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let mut error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
-  ///     Span::new(10, 14)
+  ///     SimpleSpan::new(10, 14)
   /// );
   /// error.bump(5);
   /// // The span is now adjusted by 5
@@ -2011,15 +2014,15 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// use logosky::error::UnicodeEscapeError;
   ///
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
-  ///    Span::new(10, 14)
+  ///    SimpleSpan::new(10, 14)
   /// );
-  /// assert_eq!(error.span(), Span::new(10, 14));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
   /// ```
   #[inline]
-  pub fn span(&self) -> Span<O>
+  pub fn span(&self) -> SimpleSpan<O>
   where
     Char: CharLen,
     O: Clone + Ord,

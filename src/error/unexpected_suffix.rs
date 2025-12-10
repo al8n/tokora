@@ -1,11 +1,11 @@
 use core::ops::{Add, AddAssign};
 
-use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman};
+use crate::utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::DisplayHuman};
 
 /// An error indicating that an unexpected suffix was found after a valid token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnexpectedSuffix<Char, Knowledge, O = usize> {
-  token: Span<O>,
+  token: SimpleSpan<O>,
   suffix: Lexeme<Char, O>,
   knowledge: Option<Knowledge>,
 }
@@ -19,15 +19,15 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
-  ///     Span::new(0, 5),
+  ///     SimpleSpan::new(0, 5),
   ///     Lexeme::Char(PositionedChar::with_position('x', 5))
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn new(token: Span<O>, suffix: Lexeme<Char, O>) -> Self
+  pub fn new(token: SimpleSpan<O>, suffix: Lexeme<Char, O>) -> Self
   where
     O: Ord,
   {
@@ -51,16 +51,16 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, PositionedChar}, error::UnexpectedSuffix};
+  /// use logosky::{utils::{SimpleSpan, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::from_char(
-  ///    Span::new(0, 5),
+  ///    SimpleSpan::new(0, 5),
   ///    5,
   ///   'x'
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_char(token: Span<O>, pos: O, ch: Char) -> Self
+  pub fn from_char(token: SimpleSpan<O>, pos: O, ch: Char) -> Self
   where
     O: Ord,
   {
@@ -75,15 +75,15 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, PositionedChar}, error::UnexpectedSuffix};
+  /// use logosky::{utils::{SimpleSpan, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::from_positioned_char(
-  ///    Span::new(0, 5),
+  ///    SimpleSpan::new(0, 5),
   ///    PositionedChar::with_position('x', 5)
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_positioned_char(token: Span<O>, ch: PositionedChar<Char, O>) -> Self
+  pub fn from_positioned_char(token: SimpleSpan<O>, ch: PositionedChar<Char, O>) -> Self
   where
     O: Ord,
   {
@@ -115,15 +115,15 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme}, error::UnexpectedSuffix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::from_suffix(
-  ///   Span::new(0, 5),
-  ///   Span::new(5, 10)
+  ///   SimpleSpan::new(0, 5),
+  ///   SimpleSpan::new(5, 10)
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_suffix(token: Span<O>, span: Span<O>) -> Self
+  pub fn from_suffix(token: SimpleSpan<O>, span: SimpleSpan<O>) -> Self
   where
     O: Ord,
   {
@@ -135,16 +135,16 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
-  ///   Span::new(0, 5),
+  ///   SimpleSpan::new(0, 5),
   ///   Lexeme::Char(PositionedChar::with_position('x', 5))
   /// );
-  /// assert_eq!(error.span(), Span::new(0, 6));
+  /// assert_eq!(error.span(), SimpleSpan::new(0, 6));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span<O>
+  pub fn span(&self) -> SimpleSpan<O>
   where
     Char: CharLen,
     for<'a> &'a O: Add<usize, Output = O>,
@@ -157,7 +157,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
       }
       Lexeme::Range(span) => span.end_ref().clone(),
     };
-    Span::new(start.clone(), end)
+    SimpleSpan::new(start.clone(), end)
   }
 
   /// Returns the span of the valid token before the unexpected suffix.
@@ -165,16 +165,16 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
-  ///     Span::new(0, 5),
+  ///     SimpleSpan::new(0, 5),
   ///     Lexeme::Char(PositionedChar::with_position('x', 5))
   /// );
-  /// assert_eq!(error.token(), Span::new(0, 5));
+  /// assert_eq!(error.token(), SimpleSpan::new(0, 5));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn token(&self) -> Span<O>
+  pub const fn token(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -186,16 +186,16 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
-  ///     Span::new(0, 5),
+  ///     SimpleSpan::new(0, 5),
   ///     Lexeme::Char(PositionedChar::with_position('x', 5))
   /// );
-  /// assert_eq!(error.token_ref(), Span::new(&0, &5));
+  /// assert_eq!(error.token_ref(), SimpleSpan::new(&0, &5));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn token_ref(&self) -> Span<&O> {
+  pub const fn token_ref(&self) -> SimpleSpan<&O> {
     self.token.as_ref()
   }
 
@@ -204,10 +204,10 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
-  ///    Span::new(0, 5),
+  ///    SimpleSpan::new(0, 5),
   ///   Lexeme::Char(PositionedChar::with_position('x', 5))
   /// );
   ///
@@ -226,21 +226,21 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
-  ///   Span::new(0, 5),
+  ///   SimpleSpan::new(0, 5),
   ///   Lexeme::Char(PositionedChar::with_position('x', 5))
   /// );
   /// let (token, suffix) = error.into_components();
-  /// assert_eq!(token, Span::new(0, 5));
+  /// assert_eq!(token, SimpleSpan::new(0, 5));
   /// assert_eq!(
   ///   suffix,
   ///   Lexeme::Char(PositionedChar::with_position('x', 5))
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span<O>, Lexeme<Char, O>) {
+  pub fn into_components(self) -> (SimpleSpan<O>, Lexeme<Char, O>) {
     (self.token, self.suffix)
   }
 
@@ -252,14 +252,14 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let mut error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
-  ///   Span::new(0, 5),
+  ///   SimpleSpan::new(0, 5),
   ///   Lexeme::Char(PositionedChar::with_position('x', 5))
   /// );
   /// error.bump(10);
-  /// assert_eq!(error.token(), Span::new(10, 15));
+  /// assert_eq!(error.token(), SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &O) -> &mut Self

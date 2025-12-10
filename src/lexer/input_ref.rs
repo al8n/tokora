@@ -10,10 +10,10 @@ use generic_arraydeque::{GenericArrayDeque, typenum::U1};
 use mayber::{Maybe, MaybeRef};
 
 use crate::{
-  CachedTokenRefOf, MaybeRefCachedTokenOf, Token, Window,
+  Token, Window,
   emitter::Emitter,
   error::token::UnexpectedToken,
-  lexer::peek::Peeked,
+  lexer::{CachedTokenRefOf, MaybeRefCachedTokenOf, peek::Peeked},
   utils::{Expected, Spanned},
 };
 

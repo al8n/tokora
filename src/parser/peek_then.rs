@@ -151,7 +151,7 @@ where
 mod tests {
   use generic_arraydeque::typenum::U2;
 
-  use crate::{DummyLexer, DummyToken};
+  use crate::lexer::{DummyLexer, DummyToken};
 
   use super::*;
 

@@ -20,9 +20,12 @@ std = [
   "bytes?/default",
   "hipstr?/default",
   "bstr?/default",
+  "logos?/default",
 ]
 
 unstable = ["generic-arraydeque/unstable"]
+
+logos = ["dep:logos"]
 
 rowan = ["dep:rowan", "std"]
 
@@ -49,7 +52,7 @@ derive_more = { version = "2", default-features = false, features = [
   "is_variant",
 ] }
 generic-arraydeque = { version = "0.1", default-features = false, features = ["unstable"] }
-logos = { version = "0.15", default-features = false, features = [
+logos = { version = "0.15", default-features = false, optional = true, features = [
   "export_derive",
 ] }
 paste = "1"
@@ -69,7 +72,7 @@ smallvec = { version = "1", default-features = false, optional = true, features 
 ] }
 
 [dev-dependencies]
-criterion = "0.7"
+criterion = "0.8"
 tempfile = "3"
 
 [[example]]

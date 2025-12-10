@@ -2,9 +2,9 @@ use core::ops::{AddAssign, Range};
 
 /// A lightweight span representing a range of positions in source input.
 ///
-/// `Span` is a simple but powerful type that tracks where in the source code a particular
+/// `SimpleSpan` is a simple but powerful type that tracks where in the source code a particular
 /// element came from. It stores just two byte offsets: the start and end positions.
-/// While similar to [`Range<usize>`], `Span` provides additional methods tailored for
+/// While similar to [`Range<usize>`], `SimpleSpan` provides additional methods tailored for
 /// working with source locations in parsers and compilers.
 ///
 /// # Use Cases
@@ -17,21 +17,21 @@ use core::ops::{AddAssign, Range};
 ///
 /// # Design
 ///
-/// `Span` is designed to be:
+/// `SimpleSpan` is designed to be:
 /// - **Copy**: Can be freely copied without allocation (just two `usize` values)
 /// - **Comparable**: Supports equality and ordering for span-based algorithms
 /// - **Hashable**: Can be used as map/set keys for span-indexed data structures
-/// - **Chumsky-compatible**: Implements `chumsky::span::Span` for parser integration
+/// - **Chumsky-compatible**: Implements `chumsky::span::SimpleSpan` for parser integration
 ///
 /// # Examples
 ///
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
 /// // Create a span covering characters 10-20
-/// let span = Span::new(10, 20);
+/// let span = SimpleSpan::new(10, 20);
 ///
 /// assert_eq!(span.start(), 10);
 /// assert_eq!(span.end(), 20);
@@ -42,20 +42,20 @@ use core::ops::{AddAssign, Range};
 /// ## Safe Creation
 ///
 /// ```rust
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
 /// // try_new returns None for invalid spans
-/// assert!(Span::try_new(10, 5).is_none());  // end < start
-/// assert!(Span::try_new(10, 10).is_some()); // empty span is valid
-/// assert!(Span::try_new(10, 20).is_some()); // normal span
+/// assert!(SimpleSpan::try_new(10, 5).is_none());  // end < start
+/// assert!(SimpleSpan::try_new(10, 10).is_some()); // empty span is valid
+/// assert!(SimpleSpan::try_new(10, 20).is_some()); // normal span
 /// ```
 ///
-/// ## Span Manipulation
+/// ## SimpleSpan Manipulation
 ///
 /// ```rust
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
-/// let mut span = Span::new(10, 20);
+/// let mut span = SimpleSpan::new(10, 20);
 ///
 /// // Move the start forward
 /// span.bump_start(5);
@@ -74,9 +74,9 @@ use core::ops::{AddAssign, Range};
 /// ## Builder-Style Methods
 ///
 /// ```rust
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
-/// let span = Span::new(0, 10)
+/// let span = SimpleSpan::new(0, 10)
 ///     .with_start(5)
 ///     .with_end(15);
 ///
@@ -87,9 +87,9 @@ use core::ops::{AddAssign, Range};
 /// ## Error Reporting Example
 ///
 /// ```rust,ignore
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
-/// fn report_error(message: &str, span: Span, source: &str) {
+/// fn report_error(message: &str, span: SimpleSpan, source: &str) {
 ///     let line_start = source[..span.start()].rfind('\n')
 ///         .map(|pos| pos + 1)
 ///         .unwrap_or(0);
@@ -107,12 +107,12 @@ use core::ops::{AddAssign, Range};
 /// }
 /// ```
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
-pub struct Span<Offset = usize> {
+pub struct SimpleSpan<Offset = usize> {
   pub(crate) start: Offset,
   pub(crate) end: Offset,
 }
 
-impl<O> core::fmt::Display for Span<O>
+impl<O> core::fmt::Display for SimpleSpan<O>
 where
   O: core::fmt::Display,
 {
@@ -122,21 +122,21 @@ where
   }
 }
 
-impl<O> Span<&O>
+impl<O> SimpleSpan<&O>
 where
   O: Clone,
 {
   /// Clone the span into owned offsets.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn cloned(self) -> Span<O> {
-    Span {
+  pub fn cloned(self) -> SimpleSpan<O> {
+    SimpleSpan {
       start: self.start.clone(),
       end: self.end.clone(),
     }
   }
 }
 
-impl Span {
+impl SimpleSpan {
   /// Create a new span.
   ///
   /// ## Panics
@@ -169,11 +169,11 @@ impl Span {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_start(3);
-  /// assert_eq!(span, Span::new(8, 15));
+  /// assert_eq!(span, SimpleSpan::new(8, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn bump_start_const(&mut self, n: usize) -> &mut Self {
@@ -190,11 +190,11 @@ impl Span {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_end(5);
-  /// assert_eq!(span, Span::new(5, 20));
+  /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn bump_end_const(&mut self, n: usize) -> &mut Self {
@@ -207,11 +207,11 @@ impl Span {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump(10);
-  /// assert_eq!(span, Span::new(15, 25));
+  /// assert_eq!(span, SimpleSpan::new(15, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn bump_const(&mut self, n: usize) -> &mut Self {
@@ -225,11 +225,11 @@ impl Span {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_start(10);
-  /// assert_eq!(span, Span::new(10, 15));
+  /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn set_start_const(&mut self, start: usize) -> &mut Self {
@@ -242,11 +242,11 @@ impl Span {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_end(20);
-  /// assert_eq!(span, Span::new(5, 20));
+  /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn set_end_const(&mut self, end: usize) -> &mut Self {
@@ -259,10 +259,10 @@ impl Span {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15).with_start(10);
-  /// assert_eq!(span, Span::new(10, 15));
+  /// let span = SimpleSpan::new(5, 15).with_start(10);
+  /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_start_const(mut self, start: usize) -> Self {
@@ -275,10 +275,10 @@ impl Span {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15).with_end(20);
-  /// assert_eq!(span, Span::new(5, 20));
+  /// let span = SimpleSpan::new(5, 15).with_end(20);
+  /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_end_const(mut self, end: usize) -> Self {
@@ -287,22 +287,22 @@ impl Span {
   }
 }
 
-impl<O> Span<O> {
+impl<O> SimpleSpan<O> {
   /// Convert to a span of references.
   ///
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15);
+  /// let span = SimpleSpan::new(5, 15);
   /// let span_ref = span.as_ref();
   /// assert_eq!(*span_ref.start, 5);
   /// assert_eq!(*span_ref.end, 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_ref(&self) -> Span<&O> {
-    Span {
+  pub const fn as_ref(&self) -> SimpleSpan<&O> {
+    SimpleSpan {
       start: &self.start,
       end: &self.end,
     }
@@ -313,17 +313,17 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// let span_mut = span.as_mut();
   /// *span_mut.start = 10;
   /// *span_mut.end = 20;
-  /// assert_eq!(span, Span::new(10, 20));
+  /// assert_eq!(span, SimpleSpan::new(10, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_mut(&mut self) -> Span<&mut O> {
-    Span {
+  pub const fn as_mut(&mut self) -> SimpleSpan<&mut O> {
+    SimpleSpan {
       start: &mut self.start,
       end: &mut self.end,
     }
@@ -367,11 +367,11 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_start(3);
-  /// assert_eq!(span, Span::new(8, 15));
+  /// assert_eq!(span, SimpleSpan::new(8, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump_start(&mut self, n: O) -> &mut Self
@@ -391,11 +391,11 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_end(5);
-  /// assert_eq!(span, Span::new(5, 20));
+  /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump_end(&mut self, n: O) -> &mut Self
@@ -411,11 +411,11 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump(10);
-  /// assert_eq!(span, Span::new(15, 25));
+  /// assert_eq!(span, SimpleSpan::new(15, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, n: &O) -> &mut Self
@@ -432,11 +432,11 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_start(10);
-  /// assert_eq!(span, Span::new(10, 15));
+  /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn set_start(&mut self, start: O) -> &mut Self {
@@ -449,11 +449,11 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_end(20);
-  /// assert_eq!(span, Span::new(5, 20));
+  /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn set_end(&mut self, end: O) -> &mut Self {
@@ -466,10 +466,10 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15).with_start(10);
-  /// assert_eq!(span, Span::new(10, 15));
+  /// let span = SimpleSpan::new(5, 15).with_start(10);
+  /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn with_start(mut self, start: O) -> Self {
@@ -482,10 +482,10 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15).with_end(20);
-  /// assert_eq!(span, Span::new(5, 20));
+  /// let span = SimpleSpan::new(5, 15).with_end(20);
+  /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn with_end(mut self, end: O) -> Self {
@@ -498,9 +498,9 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15);
+  /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.start(), 5);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -516,9 +516,9 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15);
+  /// let span = SimpleSpan::new(5, 15);
   ///
   /// assert_eq!(*span.start_ref(), 5);
   /// ```
@@ -532,9 +532,9 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// *span.start_mut() = 10;
   /// assert_eq!(span.start(), 10);
   /// ```
@@ -548,9 +548,9 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15);
+  /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.end(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -566,9 +566,9 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15);
+  /// let span = SimpleSpan::new(5, 15);
   ///
   /// assert_eq!(*span.end_ref(), 15);
   /// ```
@@ -582,9 +582,9 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut span = Span::new(5, 15);
+  /// let mut span = SimpleSpan::new(5, 15);
   /// *span.end_mut() = 20;
   /// assert_eq!(span.end(), 20);
   /// ```
@@ -598,9 +598,9 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15);
+  /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.len(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -616,12 +616,12 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let empty = Span::new(5, 5);
+  /// let empty = SimpleSpan::new(5, 5);
   /// assert!(empty.is_empty());
   ///
-  /// let not_empty = Span::new(5, 15);
+  /// let not_empty = SimpleSpan::new(5, 15);
   /// assert!(!not_empty.is_empty());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -637,9 +637,9 @@ impl<O> Span<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let span = Span::new(5, 15);
+  /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.range(), 5..15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -648,7 +648,7 @@ impl<O> Span<O> {
   }
 }
 
-impl<O> From<Range<O>> for Span<O>
+impl<O> From<Range<O>> for SimpleSpan<O>
 where
   O: Ord,
 {
@@ -658,14 +658,14 @@ where
   }
 }
 
-impl<O> From<Span<O>> for Range<O> {
+impl<O> From<SimpleSpan<O>> for Range<O> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(span: Span<O>) -> Self {
+  fn from(span: SimpleSpan<O>) -> Self {
     span.start..span.end
   }
 }
 
-impl<O> From<(O, O)> for Span<O>
+impl<O> From<(O, O)> for SimpleSpan<O>
 where
   O: Ord,
 {
@@ -675,9 +675,9 @@ where
   }
 }
 
-impl<O> From<Span<O>> for (O, O) {
+impl<O> From<SimpleSpan<O>> for (O, O) {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(span: Span<O>) -> Self {
+  fn from(span: SimpleSpan<O>) -> Self {
     (span.start, span.end)
   }
 }

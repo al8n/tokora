@@ -32,7 +32,7 @@ impl<T: ?Sized> Clone for Ignored<T> {
 impl<T: ?Sized> Copy for Ignored<T> {}
 
 /// A span with no meaningful offsets, used as a type marker.
-pub type PhantomSpan = super::Span<()>;
+pub type PhantomSpan = super::SimpleSpan<()>;
 
 impl PhantomSpan {
   /// A zero-sized span for phantom usage.

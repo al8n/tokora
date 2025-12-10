@@ -367,7 +367,7 @@ macro_rules! sep_by {
 
         #[cfg(test)]
         const _: () = {
-          use crate::DummyLexer;
+          use crate::lexer::DummyLexer;
           use generic_arraydeque::typenum::U1;
 
           fn __assert_parse_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {

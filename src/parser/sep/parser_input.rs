@@ -1,5 +1,5 @@
 use crate::{
-  Check, Checkpoint, Span,
+  Check,
   emitter::{BatchEmitter, RepeatedEmitter, SeparatedByEmitter},
   error::{
     syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
@@ -8,6 +8,7 @@ use crate::{
       UnexpectedRepeatedOf, UnexpectedTrailingOf,
     },
   },
+  lexer::{Checkpoint, Span},
 };
 
 use super::*;

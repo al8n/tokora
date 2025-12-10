@@ -2,7 +2,7 @@ use core::ops::Add;
 
 use super::CharLen;
 
-use crate::utils::Span;
+use crate::utils::SimpleSpan;
 
 /// A character paired with its byte position in the source input.
 ///
@@ -90,12 +90,6 @@ pub struct PositionedChar<Char, Offset = usize> {
 }
 
 impl<Char, Offset> PositionedChar<Char, Offset> {
-  // /// Create a new positioned character with position 0.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn new(char: Char) -> Self {
-  //   Self::with_position(char, 0)
-  // }
-
   /// Create a new positioned character with the given position.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_position(char: Char, position: Offset) -> Self {
@@ -196,7 +190,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// assert_eq!(pc.span(), Span::new(42, 43));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span<Offset>
+  pub fn span(&self) -> SimpleSpan<Offset>
   where
     Char: CharLen,
     Offset: Clone + Ord,
@@ -204,7 +198,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   {
     let start = self.position_ref();
     let end = start + self.char_ref().char_len();
-    Span::new(start.clone(), end)
+    SimpleSpan::new(start.clone(), end)
   }
 
   /// Set the position, returning a mutable reference of the positioned character.

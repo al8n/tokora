@@ -1,6 +1,6 @@
 use core::ops::{Add, AddAssign};
 
-use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman};
+use crate::utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::DisplayHuman};
 
 /// A zero-copy error structure combining an unrecognized lexeme with diagnostic knowledge.
 ///
@@ -16,7 +16,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// # Design Philosophy
 ///
 /// This type stores:
-/// - The **lexeme** of the unrecognized fragment ([`Char`](Lexeme::Char) or [`Span`](Lexeme::Range))
+/// - The **lexeme** of the unrecognized fragment ([`Char`](Lexeme::Char) or [`SimpleSpan`](Lexeme::Range))
 /// - **Knowledge** providing context about valid options or diagnostic information (any type you choose)
 ///
 /// The knowledge is left generic and unconstrained so you can carry:
@@ -56,7 +56,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// ## With Token Kind Knowledge
 ///
 /// ```rust,ignore
-/// use logosky::{utils::Span, error::UnknownLexeme};
+/// use logosky::{utils::SimpleSpan, error::UnknownLexeme};
 ///
 /// #[derive(Debug, Clone)]
 /// enum ValidTokens {
@@ -65,7 +65,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// }
 ///
 /// let error = UnknownLexeme::from_range(
-///     Span::new(10, 15),
+///     SimpleSpan::new(10, 15),
 ///     ValidTokens::Multiple(vec![TokenKind::Identifier, TokenKind::Keyword])
 /// );
 ///
@@ -163,17 +163,17 @@ impl<Char, O> UnknownLexeme<Char, crate::utils::knowledge::Characters, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, knowledge::Characters}, error::UnknownLexeme};
+  /// use logosky::{utils::{SimpleSpan, knowledge::Characters}, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::<char, Characters>::unknown_characters(
-  ///     Span::new(7, 9)     
+  ///     SimpleSpan::new(7, 9)     
   /// );
   ///
   /// assert!(!error.is_char());
   /// assert_eq!(error.unwrap_range().start(), 7);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn unknown_characters(span: Span<O>) -> Self {
+  pub const fn unknown_characters(span: SimpleSpan<O>) -> Self {
     Self::new(Lexeme::Range(span), sealed::Sealed::INIT)
   }
 
@@ -259,22 +259,22 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
 
   /// Constructs an error from a byte span and diagnostic knowledge (const version).
   ///
-  /// Use this in const contexts where `Into<Span>` conversions aren't available.
+  /// Use this in const contexts where `Into<SimpleSpan>` conversions aren't available.
   ///
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::Span, error::UnknownLexeme};
+  /// use logosky::{utils::SimpleSpan, error::UnknownLexeme};
   ///
   /// let error: UnknownLexeme<char, _> = UnknownLexeme::from_range_const(
-  ///     Span::new(10, 15),
+  ///     SimpleSpan::new(10, 15),
   ///     "valid: semicolon"
   /// );
   ///
   /// assert!(error.is_range());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_range_const(span: Span<O>, knowledge: Knowledge) -> Self {
+  pub const fn from_range_const(span: SimpleSpan<O>, knowledge: Knowledge) -> Self {
     Self::new(Lexeme::Range(span), knowledge)
   }
 
@@ -291,7 +291,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// assert_eq!(error.unwrap_range().start(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_range(span: impl Into<Span<O>>, knowledge: Knowledge) -> Self {
+  pub fn from_range(span: impl Into<SimpleSpan<O>>, knowledge: Knowledge) -> Self {
     Self::new(Lexeme::Range(span.into()), knowledge)
   }
 
@@ -453,7 +453,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// assert_eq!(span.end(), 8); // '€' is 3 bytes
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> Span<O>
+  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> SimpleSpan<O>
   where
     O: Clone + Ord,
     for<'a> &'a O: Add<usize, Output = O>,
@@ -468,17 +468,17 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::{PositionedChar, Span}, error::UnknownLexeme};
+  /// use logosky::{utils::{PositionedChar, SimpleSpan}, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 10),
   ///     "digit"
   /// );
   ///
-  /// assert_eq!(error.span(), Span::new(10, 11));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span<O>
+  pub fn span(&self) -> SimpleSpan<O>
   where
     Char: CharLen,
     O: Clone + Ord,

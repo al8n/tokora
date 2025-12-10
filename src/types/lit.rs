@@ -51,7 +51,7 @@
 //!
 //! ```rust,ignore
 //! use logosky::types::{Lit, LitDecimal, LitString};
-//! use logosky::utils::Span;
+//! use logosky::utils::SimpleSpan;
 //!
 //! // Parse literals without allocating
 //! type YulLit<'a> = Lit<&'a str, YulLang>;
@@ -121,7 +121,7 @@ macro_rules! define_literal {
       ///
       /// ```rust
       #[doc = "use logosky::types::" $name ";"]
-      /// use logosky::utils::Span;
+      /// use logosky::utils::SimpleSpan;
       /// # struct MyLang;
       ///
       #[doc = "let lit = " $name "::<&str, MyLang>::new("]
@@ -142,7 +142,7 @@ macro_rules! define_literal {
       #[doc = "let bad_lit = " $name "::<String, YulLang>::error(span);"]
       /// ```
       #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-      pub struct $name<D, S = $crate::__private::utils::Span, Lang = ()> {
+      pub struct $name<D, S = $crate::__private::utils::SimpleSpan, Lang = ()> {
         span: S,
         data: D,
         _lang: PhantomData<Lang>,

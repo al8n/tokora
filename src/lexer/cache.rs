@@ -1,6 +1,9 @@
 use ::generic_arraydeque::{GenericArrayDeque, typenum::U1};
 
-use crate::{CachedTokenOf, CachedTokenRefOf, MaybeRefCachedTokenOf, Window};
+use crate::{
+  Window,
+  lexer::{CachedTokenOf, CachedTokenRefOf, MaybeRefCachedTokenOf},
+};
 
 use super::{Checkpoint, Lexer, Span};
 

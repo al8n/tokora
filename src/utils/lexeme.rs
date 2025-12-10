@@ -2,7 +2,7 @@ use core::ops::{Add, AddAssign};
 
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
-use super::{CharLen, PositionedChar, Span};
+use super::{CharLen, PositionedChar, SimpleSpan};
 
 /// A compact, zero-copy description of a lexeme in source code.
 ///
@@ -104,7 +104,7 @@ pub enum Lexeme<Char = char, O = usize> {
   ///
   /// Use this variant when the unexpected lexeme spans multiple characters
   /// or when you want to represent a multi-byte token.
-  Range(Span<O>),
+  Range(SimpleSpan<O>),
 }
 
 impl<Char, O> core::fmt::Display for Lexeme<Char, O>
@@ -150,7 +150,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// assert!(l.is_range());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_range(range: impl Into<Span<O>>) -> Self {
+  pub fn from_range(range: impl Into<SimpleSpan<O>>) -> Self {
     Self::Range(range.into())
   }
 
@@ -167,7 +167,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// assert!(l.is_range());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_range_const(span: Span<O>) -> Self {
+  pub const fn from_range_const(span: SimpleSpan<O>) -> Self {
     Self::Range(span)
   }
 
@@ -289,7 +289,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// assert_eq!(span.end(), 13);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> Span<O>
+  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> SimpleSpan<O>
   where
     O: Clone + Ord,
     for<'a> &'a O: Add<usize, Output = O>,
@@ -298,7 +298,7 @@ impl<Char, O> Lexeme<Char, O> {
       Self::Char(pc) => {
         let start = pc.position_ref();
         let end = start + len_of(pc.char_ref());
-        Span::new(start.clone(), end)
+        SimpleSpan::new(start.clone(), end)
       }
       Self::Range(r) => r.clone(),
     }
@@ -324,7 +324,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// assert_eq!(span_lexeme.span(), Span::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span<O>
+  pub fn span(&self) -> SimpleSpan<O>
   where
     Char: CharLen,
     O: Clone + Ord,

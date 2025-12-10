@@ -274,7 +274,7 @@ where
 
 #[cfg(test)]
 const _: () = {
-  use crate::{BlackHole, DummyLexer};
+  use crate::lexer::{BlackHole, DummyLexer};
 
   struct DummySep;
 

@@ -168,7 +168,7 @@ where
 
 #[cfg(test)]
 mod tests {
-  use crate::{DummyLexer, DummyToken};
+  use crate::lexer::{DummyLexer, DummyToken};
 
   use super::*;
 

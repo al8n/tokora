@@ -1,4 +1,4 @@
-use super::{IntoComponents, Sliced, Span, Spanned};
+use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 
 /// A value with complete location information: both which source and where in that source.
 ///
@@ -236,7 +236,7 @@ use super::{IntoComponents, Sliced, Span, Spanned};
 /// let located = Located::new(sliced.into_slice(), Span::new(0, 5), "value");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
-pub struct Located<D, Sp = Span, Sl = ()> {
+pub struct Located<D, Sp = SimpleSpan, Sl = ()> {
   /// The slice identifier indicating which source this data came from.
   pub(crate) slice: Sl,
   /// The span indicating where in the source this data is located.

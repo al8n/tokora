@@ -1,7 +1,7 @@
 use logos::{Lexer, Logos};
 
 use crate::{
-  State,
+  lexer::State,
   utils::{recursion_tracker::RecursionLimiter, token_tracker::TokenLimiter},
 };
 

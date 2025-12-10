@@ -79,7 +79,7 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 use crate::{
   error::ErrorNode,
   syntax::{Language, Syntax},
-  utils::{AsSpan, Span},
+  utils::{AsSpan, SimpleSpan},
 };
 
 pub use ident::*;
@@ -95,21 +95,21 @@ mod lit;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, IsVariant, TryUnwrap, Unwrap)]
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
-pub enum Recoverable<T> {
+pub enum Recoverable<T, S = SimpleSpan> {
   /// A valid parse node.
   Node(T),
   /// An error node with associated span.
-  Error(Span),
+  Error(S),
   /// A missing node with associated span.
-  Missing(Span),
+  Missing(S),
 }
 
-impl<T> AsSpan<Span> for Recoverable<T>
+impl<T, S> AsSpan<S> for Recoverable<T, S>
 where
-  T: AsSpan<Span>,
+  T: AsSpan<S>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_span(&self) -> &Span {
+  fn as_span(&self) -> &S {
     match self {
       Self::Node(node) => node.as_span(),
       Self::Error(span) | Self::Missing(span) => span,
@@ -117,7 +117,7 @@ where
   }
 }
 
-impl<T> Syntax for Recoverable<T>
+impl<T, S> Syntax for Recoverable<T, S>
 where
   T: Syntax,
 {
@@ -143,12 +143,12 @@ where
 
 impl<T> ErrorNode for Recoverable<T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn error(span: Span) -> Self {
+  fn error(span: SimpleSpan) -> Self {
     Self::Error(span)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn missing(span: Span) -> Self {
+  fn missing(span: SimpleSpan) -> Self {
     Self::Missing(span)
   }
 }

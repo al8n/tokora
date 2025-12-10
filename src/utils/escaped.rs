@@ -32,7 +32,7 @@
 //! ## Generic Escape Representation
 //!
 //! Use [`EscapedLexeme`] for a unified representation that can hold either type:
-//! - Wraps a [`Lexeme`] (Char or Span)
+//! - Wraps a [`Lexeme`] (Char or SimpleSpan)
 //! - Includes the full span of the escape sequence
 //!
 //! # Examples
@@ -40,39 +40,39 @@
 //! ## Representing a Simple Escape
 //!
 //! ```
-//! use logosky::utils::{SingleCharEscape, PositionedChar, Span};
+//! use logosky::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
 //!
 //! // For the escape sequence `\n` at position 10-12:
 //! let escape = SingleCharEscape::from_positioned_char(
-//!     Span::new(10, 12),                      // Covers both '\' and 'n'
+//!     SimpleSpan::new(10, 12),                      // Covers both '\' and 'n'
 //!     PositionedChar::with_position('n', 11), // The 'n' at position 11
 //! );
 //!
 //! assert_eq!(escape.char(), 'n');
 //! assert_eq!(escape.position(), 11);
-//! assert_eq!(escape.span(), Span::new(10, 12));
+//! assert_eq!(escape.span(), SimpleSpan::new(10, 12));
 //! ```
 //!
 //! ## Representing a Hex Escape
 //!
 //! ```
-//! use logosky::utils::{MultiCharEscape, Span};
+//! use logosky::utils::{MultiCharEscape, SimpleSpan};
 //!
 //! // For the escape sequence `\xFF` at position 5-9:
 //! let escape = MultiCharEscape::new(
-//!     Span::new(6, 9),  // Just "xFF" (after the backslash)
-//!     Span::new(5, 9)   // Full escape including '\x'
+//!     SimpleSpan::new(6, 9),  // Just "xFF" (after the backslash)
+//!     SimpleSpan::new(5, 9)   // Full escape including '\x'
 //! );
 //!
-//! assert_eq!(escape.content(), Span::new(6, 9));
-//! assert_eq!(escape.span(), Span::new(5, 9));
+//! assert_eq!(escape.content(), SimpleSpan::new(6, 9));
+//! assert_eq!(escape.span(), SimpleSpan::new(5, 9));
 //! ```
 
 use core::ops::AddAssign;
 
 use crate::utils::{Lexeme, human_display::DisplayHuman};
 
-use super::{PositionedChar, Span};
+use super::{PositionedChar, SimpleSpan};
 
 /// A single-character escape sequence representation.
 ///
@@ -96,21 +96,21 @@ use super::{PositionedChar, Span};
 /// # Examples
 ///
 /// ```
-/// use logosky::utils::{SingleCharEscape, PositionedChar, Span};
+/// use logosky::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
 ///
 /// // Escape sequence `\n` at positions 10-12
 /// let newline = SingleCharEscape::from_positioned_char(
-///     Span::new(10, 12),
+///     SimpleSpan::new(10, 12),
 ///     PositionedChar::with_position('n', 11),
 /// );
 ///
 /// assert_eq!(newline.char(), 'n');
 /// assert_eq!(newline.position(), 11);
-/// assert_eq!(newline.span(), Span::new(10, 12));
+/// assert_eq!(newline.span(), SimpleSpan::new(10, 12));
 ///
 /// // Escape sequence `\t` at positions 20-22
 /// let tab = SingleCharEscape::from_positioned_char(
-///     Span::new(20, 22),
+///     SimpleSpan::new(20, 22),
 ///     PositionedChar::with_position('t', 21),
 /// );
 ///
@@ -119,7 +119,7 @@ use super::{PositionedChar, Span};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SingleCharEscape<Char = char, O = usize> {
   character: PositionedChar<Char, O>,
-  span: Span<O>,
+  span: SimpleSpan<O>,
 }
 
 impl<Char, O> core::fmt::Display for SingleCharEscape<Char, O>
@@ -138,17 +138,17 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{SingleCharEscape, PositionedChar, Span};
+  /// use logosky::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
   ///
   /// let escape = SingleCharEscape::from_char(
-  ///     Span::new(14, 16),
+  ///     SimpleSpan::new(14, 16),
   ///     15,
   ///    'r'
   /// );
   /// assert_eq!(escape.char(), 'r');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_char(span: Span<O>, pos: O, ch: Char) -> Self {
+  pub fn from_char(span: SimpleSpan<O>, pos: O, ch: Char) -> Self {
     Self::from_positioned_char(span, PositionedChar::with_position(ch, pos))
   }
 
@@ -157,16 +157,19 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{SingleCharEscape, PositionedChar, Span};
+  /// use logosky::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
   ///
   /// let escape = SingleCharEscape::from_positioned_char(
-  ///     Span::new(14, 16),
+  ///     SimpleSpan::new(14, 16),
   ///     PositionedChar::with_position('r', 15),
   /// );
   /// assert_eq!(escape.char(), 'r');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_positioned_char(span: Span<O>, character: PositionedChar<Char, O>) -> Self {
+  pub const fn from_positioned_char(
+    span: SimpleSpan<O>,
+    character: PositionedChar<Char, O>,
+  ) -> Self {
     Self { character, span }
   }
 
@@ -177,10 +180,10 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{SingleCharEscape, PositionedChar, Span};
+  /// use logosky::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
   ///
   /// let escape = SingleCharEscape::from_positioned_char(
-  ///     Span::new(4, 6),
+  ///     SimpleSpan::new(4, 6),
   ///     PositionedChar::with_position('n', 5),
   /// );
   /// assert_eq!(escape.char(), 'n');
@@ -198,10 +201,10 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{SingleCharEscape, PositionedChar, Span};
+  /// use logosky::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
   ///
   /// let escape = SingleCharEscape::from_positioned_char(
-  ///     Span::new(9, 11),
+  ///     SimpleSpan::new(9, 11),
   ///     PositionedChar::with_position('t', 10),
   /// );
   /// assert_eq!(*escape.char_ref(), 't');
@@ -221,11 +224,11 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{SingleCharEscape, PositionedChar, Span};
+  /// use logosky::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
   ///
   /// // Escape `\n` at positions 10-12: '\' at 10, 'n' at 11
   /// let escape = SingleCharEscape::from_positioned_char(
-  ///     Span::new(10, 12),
+  ///     SimpleSpan::new(10, 12),
   ///     PositionedChar::with_position('n', 11),
   /// );
   /// assert_eq!(escape.position(), 11); // Position of 'n', not '\'
@@ -243,11 +246,11 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{SingleCharEscape, PositionedChar, Span};
+  /// use logosky::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
   ///
   /// // Escape `\n` at positions 10-12: '\' at 10, 'n' at 11
   /// let escape = SingleCharEscape::from_positioned_char(
-  ///     Span::new(10, 12),
+  ///     SimpleSpan::new(10, 12),
   ///     PositionedChar::with_position('n', 11),
   /// );
   /// assert_eq!(escape.position_ref(), &11); // Position of 'n', not '\'
@@ -264,16 +267,16 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{SingleCharEscape, PositionedChar, Span};
+  /// use logosky::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
   ///
   /// let escape = SingleCharEscape::from_positioned_char(
-  ///     Span::new(4, 6),
+  ///     SimpleSpan::new(4, 6),
   ///     PositionedChar::with_position('r', 5),
   /// );
-  /// assert_eq!(escape.span(), Span::new(4, 6)); // Covers both '\' and 'r'
+  /// assert_eq!(escape.span(), SimpleSpan::new(4, 6)); // Covers both '\' and 'r'
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -282,13 +285,13 @@ impl<Char, O> SingleCharEscape<Char, O> {
 
   /// Returns a reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> Span<&O> {
+  pub const fn span_ref(&self) -> SimpleSpan<&O> {
     self.span.as_ref()
   }
 
   /// Returns a mutable reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> Span<&mut O> {
+  pub const fn span_mut(&mut self) -> SimpleSpan<&mut O> {
     self.span.as_mut()
   }
 
@@ -300,17 +303,17 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{SingleCharEscape, PositionedChar, Span};
+  /// use logosky::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
   ///
   /// let mut escape = SingleCharEscape::from_positioned_char(
-  ///     Span::new(10, 12),
+  ///     SimpleSpan::new(10, 12),
   ///     PositionedChar::with_position('n', 11),
   /// );
   ///
   /// escape.bump(5);
   ///
   /// assert_eq!(escape.position(), 16);      // Was 11, now 16
-  /// assert_eq!(escape.span(), Span::new(15, 17)); // Was 10-12, now 15-17
+  /// assert_eq!(escape.span(), SimpleSpan::new(15, 17)); // Was 10-12, now 15-17
   /// ```
   #[inline]
   pub fn bump(&mut self, offset: &O) -> &mut Self
@@ -341,27 +344,27 @@ impl<Char, O> SingleCharEscape<Char, O> {
 /// # Examples
 ///
 /// ```
-/// use logosky::utils::{MultiCharEscape, Span};
+/// use logosky::utils::{MultiCharEscape, SimpleSpan};
 ///
 /// // Hex escape `\xFF` at positions 5-9
 /// let hex = MultiCharEscape::new(
-///     Span::new(6, 9),  // Just "xFF"
-///     Span::new(5, 9)   // Full escape including backslash
+///     SimpleSpan::new(6, 9),  // Just "xFF"
+///     SimpleSpan::new(5, 9)   // Full escape including backslash
 /// );
 ///
-/// assert_eq!(hex.content(), Span::new(6, 9));
-/// assert_eq!(hex.span(), Span::new(5, 9));
+/// assert_eq!(hex.content(), SimpleSpan::new(6, 9));
+/// assert_eq!(hex.span(), SimpleSpan::new(5, 9));
 ///
 /// // Unicode escape `\u1234` at positions 10-16
 /// let unicode = MultiCharEscape::new(
-///     Span::new(11, 16), // Just "u1234"
-///     Span::new(10, 16)  // Full escape
+///     SimpleSpan::new(11, 16), // Just "u1234"
+///     SimpleSpan::new(10, 16)  // Full escape
 /// );
 ///
-/// assert_eq!(unicode.content(), Span::new(11, 16));
+/// assert_eq!(unicode.content(), SimpleSpan::new(11, 16));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct MultiCharEscape<S = Span> {
+pub struct MultiCharEscape<S = SimpleSpan> {
   content: S,
   span: S,
 }
@@ -380,17 +383,17 @@ impl<S> MultiCharEscape<S> {
   ///
   /// ## Parameters
   ///
-  /// - `content`: Span of the characters after the backslash
+  /// - `content`: SimpleSpan of the characters after the backslash
   /// - `span`: Full span including the backslash
   ///
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{MultiCharEscape, Span};
+  /// use logosky::utils::{MultiCharEscape, SimpleSpan};
   ///
   /// let escape = MultiCharEscape::new(
-  ///     Span::new(6, 9),  // "xFF"
-  ///     Span::new(5, 9)   // "\xFF"
+  ///     SimpleSpan::new(6, 9),  // "xFF"
+  ///     SimpleSpan::new(5, 9)   // "\xFF"
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -405,13 +408,13 @@ impl<S> MultiCharEscape<S> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{MultiCharEscape, Span};
+  /// use logosky::utils::{MultiCharEscape, SimpleSpan};
   ///
   /// let escape = MultiCharEscape::new(
-  ///     Span::new(6, 9),
-  ///     Span::new(5, 9)
+  ///     SimpleSpan::new(6, 9),
+  ///     SimpleSpan::new(5, 9)
   /// );
-  /// assert_eq!(escape.content(), Span::new(6, 9));
+  /// assert_eq!(escape.content(), SimpleSpan::new(6, 9));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn content(&self) -> S
@@ -440,13 +443,13 @@ impl<S> MultiCharEscape<S> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{MultiCharEscape, Span};
+  /// use logosky::utils::{MultiCharEscape, SimpleSpan};
   ///
   /// let escape = MultiCharEscape::new(
-  ///     Span::new(6, 9),
-  ///     Span::new(5, 9)
+  ///     SimpleSpan::new(6, 9),
+  ///     SimpleSpan::new(5, 9)
   /// );
-  /// assert_eq!(escape.span(), Span::new(5, 9)); // Full `\xFF`
+  /// assert_eq!(escape.span(), SimpleSpan::new(5, 9)); // Full `\xFF`
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span(&self) -> S
@@ -476,17 +479,17 @@ impl<S> MultiCharEscape<S> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{MultiCharEscape, Span};
+  /// use logosky::utils::{MultiCharEscape, SimpleSpan};
   ///
   /// let mut escape = MultiCharEscape::new(
-  ///     Span::new(6, 9),
-  ///     Span::new(5, 9)
+  ///     SimpleSpan::new(6, 9),
+  ///     SimpleSpan::new(5, 9)
   /// );
   ///
   /// escape.bump(10);
   ///
-  /// assert_eq!(escape.content(), Span::new(16, 19));
-  /// assert_eq!(escape.span(), Span::new(15, 19));
+  /// assert_eq!(escape.content(), SimpleSpan::new(16, 19));
+  /// assert_eq!(escape.span(), SimpleSpan::new(15, 19));
   /// ```
   #[inline]
   pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
@@ -524,33 +527,33 @@ impl<S> MultiCharEscape<S> {
 /// ## Creating from a Single Character
 ///
 /// ```
-/// use logosky::utils::{EscapedLexeme, PositionedChar, Span};
+/// use logosky::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
 ///
 /// let escape = EscapedLexeme::from_positioned_char(
-///     Span::new(10, 12),                       // Full span `\n`
+///     SimpleSpan::new(10, 12),                       // Full span `\n`
 ///     PositionedChar::with_position('n', 11)   // Just the 'n'
 /// );
 ///
-/// assert_eq!(escape.span(), Span::new(10, 12));
+/// assert_eq!(escape.span(), SimpleSpan::new(10, 12));
 /// assert!(escape.lexeme_ref().is_char());
 /// ```
 ///
 /// ## Creating from a Sequence
 ///
 /// ```
-/// use logosky::utils::{EscapedLexeme, Span};
+/// use logosky::utils::{EscapedLexeme, SimpleSpan};
 ///
 /// let escape: EscapedLexeme = EscapedLexeme::from_sequence(
-///     Span::new(5, 9),   // Full span `\xFF`
-///     Span::new(6, 9)    // Just "xFF"
+///     SimpleSpan::new(5, 9),   // Full span `\xFF`
+///     SimpleSpan::new(6, 9)    // Just "xFF"
 /// );
 ///
-/// assert_eq!(escape.span(), Span::new(5, 9));
+/// assert_eq!(escape.span(), SimpleSpan::new(5, 9));
 /// assert!(escape.lexeme_ref().is_range());
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct EscapedLexeme<Char = char, O = usize> {
-  span: Span<O>,
+  span: SimpleSpan<O>,
   lexeme: Lexeme<Char, O>,
 }
 
@@ -578,13 +581,13 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{EscapedLexeme, Lexeme, PositionedChar, Span};
+  /// use logosky::utils::{EscapedLexeme, Lexeme, PositionedChar, SimpleSpan};
   ///
   /// let lexeme = Lexeme::from(PositionedChar::with_position('n', 11));
-  /// let escape = EscapedLexeme::new(Span::new(10, 12), lexeme);
+  /// let escape = EscapedLexeme::new(SimpleSpan::new(10, 12), lexeme);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span<O>, lexeme: Lexeme<Char, O>) -> Self {
+  pub const fn new(span: SimpleSpan<O>, lexeme: Lexeme<Char, O>) -> Self {
     Self { span, lexeme }
   }
 
@@ -595,17 +598,17 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{EscapedLexeme, PositionedChar, Span};
+  /// use logosky::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
   ///
   /// let escape = EscapedLexeme::from_positioned_char(
-  ///     Span::new(10, 12),
+  ///     SimpleSpan::new(10, 12),
   ///     PositionedChar::with_position('t', 11)
   /// );
   ///
   /// assert!(escape.lexeme_ref().is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_positioned_char(span: Span<O>, ch: PositionedChar<Char, O>) -> Self {
+  pub const fn from_positioned_char(span: SimpleSpan<O>, ch: PositionedChar<Char, O>) -> Self {
     Self::new(span, Lexeme::Char(ch))
   }
 
@@ -616,10 +619,10 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{EscapedLexeme, PositionedChar, Span};
+  /// use logosky::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
   ///
   /// let escape = EscapedLexeme::from_char(
-  ///     Span::new(10, 12),
+  ///     SimpleSpan::new(10, 12),
   ///     11,
   ///    't'
   /// );
@@ -627,7 +630,7 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// assert!(escape.lexeme_ref().is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_char(span: Span<O>, pos: O, ch: Char) -> Self {
+  pub const fn from_char(span: SimpleSpan<O>, pos: O, ch: Char) -> Self {
     Self::from_positioned_char(span, PositionedChar::with_position(ch, pos))
   }
 
@@ -638,17 +641,17 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{EscapedLexeme, Span};
+  /// use logosky::utils::{EscapedLexeme, SimpleSpan};
   ///
   /// let escape: EscapedLexeme = EscapedLexeme::from_sequence(
-  ///     Span::new(5, 9),   // Full `\xFF`
-  ///     Span::new(6, 9)    // Just "xFF"
+  ///     SimpleSpan::new(5, 9),   // Full `\xFF`
+  ///     SimpleSpan::new(6, 9)    // Just "xFF"
   /// );
   ///
   /// assert!(escape.lexeme_ref().is_range());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_sequence(span: Span<O>, content: Span<O>) -> Self {
+  pub const fn from_sequence(span: SimpleSpan<O>, content: SimpleSpan<O>) -> Self {
     Self::new(span, Lexeme::Range(content))
   }
 
@@ -657,16 +660,16 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{EscapedLexeme, PositionedChar, Span};
+  /// use logosky::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
   ///
   /// let escape = EscapedLexeme::from_positioned_char(
-  ///     Span::new(10, 12),
+  ///     SimpleSpan::new(10, 12),
   ///     PositionedChar::with_position('n', 11)
   /// );
-  /// assert_eq!(escape.span(), Span::new(10, 12));
+  /// assert_eq!(escape.span(), SimpleSpan::new(10, 12));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -675,13 +678,13 @@ impl<Char, O> EscapedLexeme<Char, O> {
 
   /// Returns a reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> Span<&O> {
+  pub const fn span_ref(&self) -> SimpleSpan<&O> {
     self.span.as_ref()
   }
 
   /// Returns a mutable reference to the span.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> Span<&mut O> {
+  pub const fn span_mut(&mut self) -> SimpleSpan<&mut O> {
     self.span.as_mut()
   }
 
@@ -690,10 +693,10 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{EscapedLexeme, PositionedChar, Span};
+  /// use logosky::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
   ///
   /// let escape = EscapedLexeme::from_positioned_char(
-  ///     Span::new(10, 12),
+  ///     SimpleSpan::new(10, 12),
   ///     PositionedChar::with_position('n', 11)
   /// );
   ///
@@ -714,10 +717,10 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{EscapedLexeme, PositionedChar, Span};
+  /// use logosky::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
   ///
   /// let escape = EscapedLexeme::from_positioned_char(
-  ///     Span::new(10, 12),
+  ///     SimpleSpan::new(10, 12),
   ///     PositionedChar::with_position('n', 11)
   /// );
   /// assert!(escape.lexeme_ref().is_char());
@@ -741,15 +744,15 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::{EscapedLexeme, PositionedChar, Span};
+  /// use logosky::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
   ///
   /// let mut escape = EscapedLexeme::from_positioned_char(
-  ///     Span::new(10, 12),
+  ///     SimpleSpan::new(10, 12),
   ///     PositionedChar::with_position('n', 11)
   /// );
   ///
   /// escape.bump(5);
-  /// assert_eq!(escape.span(), Span::new(15, 17));
+  /// assert_eq!(escape.span(), SimpleSpan::new(15, 17));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &O) -> &mut Self

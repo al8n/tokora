@@ -21,24 +21,27 @@
 //! # Example
 //!
 //! ```
-//! use logosky::{utils::Span, error::UnexpectedIdentifier};
+//! use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
 //!
 //! // Parser expected "async" but found "sync"
 //! let error = UnexpectedIdentifier::expected_one(
-//!     Span::new(0, 4),
+//!     SimpleSpan::new(0, 4),
 //!     "sync",
 //!     "async"
 //! );
 //!
 //! assert_eq!(error.found(), &"sync");
-//! assert_eq!(error.span(), Span::new(0, 4));
+//! assert_eq!(error.span(), SimpleSpan::new(0, 4));
 //! assert_eq!(
 //!     format!("{}", error),
 //!     "unexpected 'sync', expected 'async' identifier"
 //! );
 //! ```
 
-use crate::utils::{Expected, Span};
+use crate::{
+  lexer::Span,
+  utils::{Expected, SimpleSpan},
+};
 
 /// An error representing an unexpected identifier encountered during parsing.
 ///
@@ -53,21 +56,21 @@ use crate::utils::{Expected, Span};
 /// # Examples
 ///
 /// ```
-/// use logosky::{utils::{Expected, Span}, error::UnexpectedIdentifier};
+/// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
 ///
 /// // Error when expecting a specific identifier
 /// let error = UnexpectedIdentifier::expected_one(
-///     Span::new(10, 16),
+///     SimpleSpan::new(10, 16),
 ///     "return",
 ///     "fn"
 /// );
 /// assert_eq!(error.found(), &"return");
-/// assert_eq!(error.span(), Span::new(10, 16));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 16));
 /// assert_eq!(format!("{}", error), "unexpected 'return', expected 'fn' identifier");
 ///
 /// // Error when expecting one of multiple identifier
 /// let error = UnexpectedIdentifier::expected_one_of(
-///     Span::new(0, 5),
+///     SimpleSpan::new(0, 5),
 ///     "class",
 ///     &["struct", "enum", "trait"]
 /// );
@@ -77,7 +80,7 @@ use crate::utils::{Expected, Span};
 /// );
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedIdentifier<'a, F, S = Span> {
+pub struct UnexpectedIdentifier<'a, F, S = SimpleSpan> {
   span: S,
   found: F,
   expected: Expected<'a, &'a str>,
@@ -92,15 +95,15 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedIdentifier};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::new(
-  ///     Span::new(5, 8),
+  ///     SimpleSpan::new(5, 8),
   ///     "let",
   ///     Expected::one("const")
   /// );
   /// assert_eq!(error.found(), &"let");
-  /// assert_eq!(error.span(), Span::new(5, 8));
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 8));
   /// assert_eq!(format!("{}", error), "unexpected 'let', expected 'const' identifier");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -119,10 +122,10 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::UnexpectedIdentifier};
+  /// use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
-  ///     Span::new(0, 3),
+  ///     SimpleSpan::new(0, 3),
   ///     "var",
   ///     "let"
   /// );
@@ -141,10 +144,10 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::UnexpectedIdentifier};
+  /// use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one_of(
-  ///     Span::new(10, 18),
+  ///     SimpleSpan::new(10, 18),
   ///     "function",
   ///     &["fn", "async", "const"]
   /// );
@@ -164,14 +167,14 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::UnexpectedIdentifier};
+  /// use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
-  ///     Span::new(20, 26),
+  ///     SimpleSpan::new(20, 26),
   ///     "import",
   ///     "use"
   /// );
-  /// assert_eq!(error.span(), Span::new(20, 26));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 26));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span(&self) -> S
@@ -186,10 +189,10 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::UnexpectedIdentifier};
+  /// use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
-  ///     Span::new(0, 6),
+  ///     SimpleSpan::new(0, 6),
   ///     "import",
   ///     "use"
   /// );
@@ -205,10 +208,10 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedIdentifier};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
-  ///     Span::new(5, 11),
+  ///     SimpleSpan::new(5, 11),
   ///     "export",
   ///     "pub"
   /// );
@@ -230,20 +233,20 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::UnexpectedIdentifier};
+  /// use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let mut error = UnexpectedIdentifier::expected_one(
-  ///     Span::new(10, 13),
+  ///     SimpleSpan::new(10, 13),
   ///     "var",
   ///     "let"
   /// );
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 18));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 18));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
   where
-    S: crate::lexer::Span,
+    S: Span,
   {
     self.span.bump(offset);
     self

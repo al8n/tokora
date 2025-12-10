@@ -1,10 +1,10 @@
 use core::marker::PhantomData;
 
-use crate::utils::Span;
+use crate::utils::SimpleSpan;
 
 /// An error indicating too many elements were found.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct FullContainer<O: ?Sized, S = Span, Lang: ?Sized = ()> {
+pub struct FullContainer<O: ?Sized, S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,
   nums: usize,
   limit: usize,

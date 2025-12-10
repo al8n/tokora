@@ -31,10 +31,10 @@
 use core::{marker::PhantomData, mem::MaybeUninit};
 
 use crate::{
-  CachedTokenOf, Check, Emitter, Lexed, Lexer, Peeked, Source, Token,
+  Check, Emitter, Lexed, Lexer, Source, Token,
   emitter::Fatal,
   error::{UnexpectedEot, token::UnexpectedToken},
-  lexer::{Input, InputRef},
+  lexer::{CachedTokenOf, Input, InputRef, Peeked},
   utils::{
     Expected, Located, Sliced, Spanned,
     marker::{PhantomLocated, PhantomSliced, PhantomSpan},

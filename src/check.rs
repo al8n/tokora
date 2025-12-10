@@ -60,7 +60,7 @@ check_punct!(
   Equal::PunctuatorToken::is_equal,
   FatArrow::OperatorToken::is_fat_arrow,
   Arrow::OperatorToken::is_arrow,
-  Trivia::TriviaToken::is_trivia,
+  Trivia::Token::is_trivia,
   Tilde::PunctuatorToken::is_tilde,
   Percent::PunctuatorToken::is_percent,
   Slash::PunctuatorToken::is_slash,

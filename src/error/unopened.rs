@@ -9,7 +9,7 @@
 //! quotes, etc.), it's common to encounter situations where a closing delimiter is found
 //! but the corresponding opening delimiter is missing. This error type captures both:
 //!
-//! - **Where** the closing delimiter was found (via [`Span`])
+//! - **Where** the closing delimiter was found (via [`SimpleSpan`])
 //! - **What** closing delimiter was left unopened (via the generic `Delimiter` parameter)
 //!
 //! # Unopened vs Unclosed vs Unterminated
@@ -38,13 +38,13 @@
 //! ## Basic Usage with Character Delimiters
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::Span};
+//! use logosky::{error::Unopened, utils::SimpleSpan};
 //!
 //! // Closing parenthesis at position 10, never opened
 //! // Example: "a + b * c)" where the ')' has no matching '('
-//! let error = Unopened::new(Span::new(10, 11), ')');
+//! let error = Unopened::new(SimpleSpan::new(10, 11), ')');
 //!
-//! assert_eq!(error.span(), Span::new(10, 11));
+//! assert_eq!(error.span(), SimpleSpan::new(10, 11));
 //! assert_eq!(error.delimiter(), ')');
 //! assert_eq!(error.to_string(), "unopened delimiter ')'");
 //! ```
@@ -52,7 +52,7 @@
 //! ## Custom Delimiter Enum
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::Span};
+//! use logosky::{error::Unopened, utils::SimpleSpan};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,18 +76,18 @@
 //!     }
 //! }
 //!
-//! let error = Unopened::new(Span::new(5, 6), Delimiter::BlockComment);
+//! let error = Unopened::new(SimpleSpan::new(5, 6), Delimiter::BlockComment);
 //! assert_eq!(error.to_string(), "unopened delimiter '/*'");
 //! ```
 //!
 //! ## Tracking Nested Delimiters
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::Span};
+//! use logosky::{error::Unopened, utils::SimpleSpan};
 //!
 //! // When parsing: "{ foo: bar, baz ] }"
 //! // The ']' at position 16 was never opened
-//! let error = Unopened::new(Span::new(16, 17), ']');
+//! let error = Unopened::new(SimpleSpan::new(16, 17), ']');
 //!
 //! // Error reporting can show:
 //! // "error at 16..17: unopened delimiter ']'"
@@ -96,29 +96,30 @@
 //! ## Position Adjustment
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::Span};
+//! use logosky::{error::Unopened, utils::SimpleSpan};
 //!
 //! // Error from a nested parsing context
-//! let mut error = Unopened::new(Span::new(5, 6), '}');
+//! let mut error = Unopened::new(SimpleSpan::new(5, 6), '}');
 //!
 //! // Adjust to absolute position in the larger document
 //! error.bump(100);
-//! assert_eq!(error.span(), Span::new(105, 106));
+//! assert_eq!(error.span(), SimpleSpan::new(105, 106));
 //! ```
 use crate::{
+  lexer::Span,
   punct::{Angle, Brace, Bracket, Paren},
-  utils::Span,
+  utils::SimpleSpan,
 };
 use core::marker::PhantomData;
 
 /// An unopened bracket error (closing `]` without opening `[`)
-pub type UnopenedBracket<S = Span, Lang = ()> = Unopened<Bracket, S, Lang>;
+pub type UnopenedBracket<S = SimpleSpan, Lang = ()> = Unopened<Bracket, S, Lang>;
 /// An unopened parenthesis error (closing `)` without opening `(`)
-pub type UnopenedParen<S = Span, Lang = ()> = Unopened<Paren, S, Lang>;
+pub type UnopenedParen<S = SimpleSpan, Lang = ()> = Unopened<Paren, S, Lang>;
 /// An unopened brace error (closing `}` without opening `{`)
-pub type UnopenedBrace<S = Span, Lang = ()> = Unopened<Brace, S, Lang>;
+pub type UnopenedBrace<S = SimpleSpan, Lang = ()> = Unopened<Brace, S, Lang>;
 /// An unopened angle bracket error (closing `>` without opening `<`)
-pub type UnopenedAngle<S = Span, Lang = ()> = Unopened<Angle, S, Lang>;
+pub type UnopenedAngle<S = SimpleSpan, Lang = ()> = Unopened<Angle, S, Lang>;
 
 /// A zero-copy error type representing an unopened delimiter.
 ///
@@ -149,11 +150,11 @@ pub type UnopenedAngle<S = Span, Lang = ()> = Unopened<Angle, S, Lang>;
 /// ## Detecting Unopened Parentheses
 ///
 /// ```rust
-/// use logosky::{error::Unopened, utils::Span};
+/// use logosky::{error::Unopened, utils::SimpleSpan};
 ///
 /// // Parse error: 1 + 2)
 /// //                   ^--- unopened closing delimiter
-/// let error = Unopened::new(Span::new(5, 6), ')');
+/// let error = Unopened::new(SimpleSpan::new(5, 6), ')');
 ///
 /// println!("Error: {} at position {}", error, error.span().start());
 /// // Output: "Error: unopened delimiter ')' at position 5"
@@ -162,12 +163,12 @@ pub type UnopenedAngle<S = Span, Lang = ()> = Unopened<Angle, S, Lang>;
 /// ## Tracking Multiple Unopened Delimiters
 ///
 /// ```rust
-/// use logosky::{error::Unopened, utils::Span};
+/// use logosky::{error::Unopened, utils::SimpleSpan};
 ///
 /// let errors = vec![
-///     Unopened::new(Span::new(5, 6), '}'),
-///     Unopened::new(Span::new(10, 11), ']'),
-///     Unopened::new(Span::new(15, 16), ')'),
+///     Unopened::new(SimpleSpan::new(5, 6), '}'),
+///     Unopened::new(SimpleSpan::new(10, 11), ']'),
+///     Unopened::new(SimpleSpan::new(15, 16), ')'),
 /// ];
 ///
 /// for error in errors {
@@ -175,7 +176,7 @@ pub type UnopenedAngle<S = Span, Lang = ()> = Unopened<Angle, S, Lang>;
 /// }
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Unopened<Delimiter, S = Span, Lang: ?Sized = ()> {
+pub struct Unopened<Delimiter, S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,
   delimiter: Delimiter,
   _m: PhantomData<Lang>,
@@ -207,11 +208,11 @@ impl<S> Unopened<Paren, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Paren}};
+  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Paren}};
   ///
   /// // Closing parenthesis at position 3, never opened
-  /// let error = Unopened::paren(Span::new(3, 4));
-  /// assert_eq!(error.span(), Span::new(3, 4));
+  /// let error = Unopened::paren(SimpleSpan::new(3, 4));
+  /// assert_eq!(error.span(), SimpleSpan::new(3, 4));
   /// assert_eq!(error.delimiter(), Paren);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -228,11 +229,11 @@ impl<S, Lang: ?Sized> Unopened<Paren, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Paren}};
+  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Paren}};
   ///
   /// // Closing parenthesis at position 3, never opened
-  /// let error = Unopened::paren(Span::new(3, 4));
-  /// assert_eq!(error.span(), Span::new(3, 4));
+  /// let error = Unopened::paren(SimpleSpan::new(3, 4));
+  /// assert_eq!(error.span(), SimpleSpan::new(3, 4));
   /// assert_eq!(error.delimiter(), Paren);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -249,11 +250,11 @@ impl<S> Unopened<Bracket, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Bracket}};
+  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Bracket}};
   ///
   /// // Closing bracket at position 8, never opened
-  /// let error = Unopened::bracket(Span::new(8, 9));
-  /// assert_eq!(error.span(), Span::new(8, 9));
+  /// let error = Unopened::bracket(SimpleSpan::new(8, 9));
+  /// assert_eq!(error.span(), SimpleSpan::new(8, 9));
   /// assert_eq!(error.delimiter(), Bracket);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -270,11 +271,11 @@ impl<S, Lang: ?Sized> Unopened<Bracket, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Bracket}};
+  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Bracket}};
   ///
   /// // Closing bracket at position 8, never opened
-  /// let error = Unopened::bracket(Span::new(8, 9));
-  /// assert_eq!(error.span(), Span::new(8, 9));
+  /// let error = Unopened::bracket(SimpleSpan::new(8, 9));
+  /// assert_eq!(error.span(), SimpleSpan::new(8, 9));
   /// assert_eq!(error.delimiter(), Bracket);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -291,11 +292,11 @@ impl<S> Unopened<Brace, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Brace}};
+  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Brace}};
   ///
   /// // Closing brace at position 12, never opened
-  /// let error = Unopened::brace(Span::new(12, 13));
-  /// assert_eq!(error.span(), Span::new(12, 13));
+  /// let error = Unopened::brace(SimpleSpan::new(12, 13));
+  /// assert_eq!(error.span(), SimpleSpan::new(12, 13));
   /// assert_eq!(error.delimiter(), Brace);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -312,11 +313,11 @@ impl<S, Lang: ?Sized> Unopened<Brace, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Brace}};
+  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Brace}};
   ///
   /// // Closing brace at position 12, never opened
-  /// let error = Unopened::brace(Span::new(12, 13));
-  /// assert_eq!(error.span(), Span::new(12, 13));
+  /// let error = Unopened::brace(SimpleSpan::new(12, 13));
+  /// assert_eq!(error.span(), SimpleSpan::new(12, 13));
   /// assert_eq!(error.delimiter(), Brace);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -333,11 +334,11 @@ impl<S> Unopened<Angle, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Angle}};
+  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Angle}};
   ///
   /// // Closing angle bracket at position 20, never opened
-  /// let error = Unopened::angle(Span::new(20, 21));
-  /// assert_eq!(error.span(), Span::new(20, 21));
+  /// let error = Unopened::angle(SimpleSpan::new(20, 21));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 21));
   /// assert_eq!(error.delimiter(), Angle);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -354,11 +355,11 @@ impl<S, Lang: ?Sized> Unopened<Angle, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Angle}};
+  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Angle}};
   ///
   /// // Closing angle bracket at position 20, never opened
-  /// let error = Unopened::angle(Span::new(20, 21));
-  /// assert_eq!(error.span(), Span::new(20, 21));
+  /// let error = Unopened::angle(SimpleSpan::new(20, 21));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 21));
   /// assert_eq!(error.delimiter(), Angle);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -375,11 +376,11 @@ impl<Delimiter, S> Unopened<Delimiter, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use logosky::{error::Unopened, utils::SimpleSpan};
   ///
   /// // Closing brace at position 5, never opened
-  /// let error = Unopened::new(Span::new(5, 6), '}');
-  /// assert_eq!(error.span(), Span::new(5, 6));
+  /// let error = Unopened::new(SimpleSpan::new(5, 6), '}');
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 6));
   /// assert_eq!(error.delimiter(), '}');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -396,11 +397,11 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use logosky::{error::Unopened, utils::SimpleSpan};
   ///
   /// // Closing brace at position 5, never opened
-  /// let error = Unopened::new(Span::new(5, 6), '}');
-  /// assert_eq!(error.span(), Span::new(5, 6));
+  /// let error = Unopened::new(SimpleSpan::new(5, 6), '}');
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 6));
   /// assert_eq!(error.delimiter(), '}');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -419,10 +420,10 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use logosky::{error::Unopened, utils::SimpleSpan};
   ///
-  /// let error = Unopened::new(Span::new(10, 11), ')');
-  /// assert_eq!(error.span(), Span::new(10, 11));
+  /// let error = Unopened::new(SimpleSpan::new(10, 11), ')');
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span(&self) -> S
@@ -449,9 +450,9 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use logosky::{error::Unopened, utils::SimpleSpan};
   ///
-  /// let error = Unopened::new(Span::new(5, 6), '}');
+  /// let error = Unopened::new(SimpleSpan::new(5, 6), '}');
   /// assert_eq!(error.delimiter_ref(), &'}');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -466,9 +467,9 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use logosky::{error::Unopened, utils::SimpleSpan};
   ///
-  /// let error = Unopened::new(Span::new(5, 6), ']');
+  /// let error = Unopened::new(SimpleSpan::new(5, 6), ']');
   /// assert_eq!(error.delimiter(), ']');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -488,16 +489,16 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use logosky::{error::Unopened, utils::SimpleSpan};
   ///
-  /// let mut error = Unopened::new(Span::new(5, 6), ')');
+  /// let mut error = Unopened::new(SimpleSpan::new(5, 6), ')');
   /// error.bump(100);
-  /// assert_eq!(error.span(), Span::new(105, 106));
+  /// assert_eq!(error.span(), SimpleSpan::new(105, 106));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
   where
-    S: crate::Span,
+    S: Span,
   {
     self.span.bump(offset);
     self
@@ -508,11 +509,11 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use logosky::{error::Unopened, utils::SimpleSpan};
   ///
-  /// let error = Unopened::new(Span::new(10, 11), '"');
+  /// let error = Unopened::new(SimpleSpan::new(10, 11), '"');
   /// let (span, delimiter) = error.into_components();
-  /// assert_eq!(span, Span::new(10, 11));
+  /// assert_eq!(span, SimpleSpan::new(10, 11));
   /// assert_eq!(delimiter, '"');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

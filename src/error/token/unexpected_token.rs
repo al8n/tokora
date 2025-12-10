@@ -20,11 +20,11 @@
 //! When the parser reaches the end of input unexpectedly, use constructors without a found token:
 //!
 //! ```
-//! use logosky::{utils::Span, error::UnexpectedToken};
+//! use logosky::{utils::SimpleSpan, error::UnexpectedToken};
 //!
 //! // Simple end-of-input error
 //! let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
-//!     Span::new(100, 100),
+//!     SimpleSpan::new(100, 100),
 //!     "}"
 //! );
 //! assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
@@ -35,10 +35,10 @@
 //! When a specific token was found but something else was expected:
 //!
 //! ```
-//! use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+//! use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
 //!
 //! let error = UnexpectedToken::expected_one_with_found(
-//!     Span::new(10, 15),
+//!     SimpleSpan::new(10, 15),
 //!     "else",
 //!     "if"
 //! );
@@ -49,7 +49,7 @@ use core::marker::PhantomData;
 
 use crate::{
   error::token::{Leading, Repeated, Trailing},
-  utils::{Expected, Span},
+  utils::{Expected, SimpleSpan},
 };
 
 pub use unexpected_leading::*;
@@ -74,20 +74,20 @@ mod unexpected_trailing;
 /// # Examples
 ///
 /// ```
-/// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+/// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
 ///
 /// // Error when expecting a specific token but got something else
 /// let error = UnexpectedToken::expected_one_with_found(
-///     Span::new(10, 15),
+///     SimpleSpan::new(10, 15),
 ///     "}",
 ///     "{"
 /// );
-/// assert_eq!(error.span(), Span::new(10, 15));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 15));
 /// assert_eq!(format!("{}", error), "unexpected token '}', expected '{'");
 ///
 /// // Error when expecting one of multiple tokens
 /// let error = UnexpectedToken::expected_one_of_with_found(
-///     Span::new(0, 10),
+///     SimpleSpan::new(0, 10),
 ///     "identifier",
 ///     &["if", "while", "for"]
 /// );
@@ -98,13 +98,13 @@ mod unexpected_trailing;
 ///
 /// // Error when reaching end of input unexpectedly
 /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
-///     Span::new(100, 100),
+///     SimpleSpan::new(100, 100),
 ///     "}"
 /// );
 /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
 /// ```
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedToken<'a, T, Kind, S = Span, Lang: ?Sized = ()> {
+pub struct UnexpectedToken<'a, T, Kind, S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,
   found: Option<T>,
   expected: Option<Expected<'a, Kind>>,
@@ -183,14 +183,14 @@ impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::new(
-  ///     Span::new(100, 101),
+  ///     SimpleSpan::new(100, 101),
   ///     Expected::one("}")
   /// );
   /// assert!(error.found().is_none());
-  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -206,14 +206,14 @@ impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::maybe_expected_of(
-  ///     Span::new(100, 101),
+  ///     SimpleSpan::new(100, 101),
   ///     Some(Expected::one("}"))
   /// );
   /// assert!(error.found().is_none());
-  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -254,14 +254,14 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::new(
-  ///     Span::new(100, 101),
+  ///     SimpleSpan::new(100, 101),
   ///     Expected::one("}")
   /// );
   /// assert!(error.found().is_none());
-  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -277,14 +277,14 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::maybe_expected_of(
-  ///     Span::new(100, 101),
+  ///     SimpleSpan::new(100, 101),
   ///     Some(Expected::one("}"))
   /// );
   /// assert!(error.found().is_none());
-  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -300,10 +300,10 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::UnexpectedToken};
+  /// use logosky::{utils::SimpleSpan, error::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
-  ///     Span::new(50, 51),
+  ///     SimpleSpan::new(50, 51),
   ///     ";"
   /// );
   /// assert!(error.found().is_none());
@@ -322,10 +322,10 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::UnexpectedToken};
+  /// use logosky::{utils::SimpleSpan, error::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_with_found(
-  ///     Span::new(50, 51),
+  ///     SimpleSpan::new(50, 51),
   ///     ":",
   ///     ";"
   /// );
@@ -345,10 +345,10 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::UnexpectedToken};
+  /// use logosky::{utils::SimpleSpan, error::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_of(
-  ///     Span::new(25, 26),
+  ///     SimpleSpan::new(25, 26),
   ///     &["+", "-", "*", "/"]
   /// );
   /// assert!(error.found().is_none());
@@ -370,10 +370,10 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::UnexpectedToken};
+  /// use logosky::{utils::SimpleSpan, error::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_of_with_found(
-  ///     Span::new(25, 26),
+  ///     SimpleSpan::new(25, 26),
   ///     ":",
   ///     &["+", "-", "*", "/"]
   /// );
@@ -397,11 +397,11 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// // With a found token
   /// let error = UnexpectedToken::expected_one(
-  ///     Span::new(10, 14),
+  ///     SimpleSpan::new(10, 14),
   ///     "if"
   /// ).maybe_found(Some("else"));
   /// assert_eq!(error.found(), Some(&"else"));
@@ -409,7 +409,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   ///
   /// // Without a found token (end of input)
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
-  ///     Span::new(50, 50),
+  ///     SimpleSpan::new(50, 50),
   ///     "if"
   /// ).maybe_found(None);
   /// assert_eq!(error.found(), None);
@@ -430,11 +430,11 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// // With a found token
   /// let error = UnexpectedToken::expected_one(
-  ///     Span::new(10, 14),
+  ///     SimpleSpan::new(10, 14),
   ///     "if"
   /// ).maybe_found_const(Some("else"));
   /// assert_eq!(error.found(), Some(&"else"));
@@ -442,7 +442,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   ///
   /// // Without a found token (end of input)
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
-  ///     Span::new(50, 50),
+  ///     SimpleSpan::new(50, 50),
   ///     "if"
   /// ).maybe_found_const(None);
   /// assert_eq!(error.found(), None);
@@ -465,10 +465,10 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one(
-  ///     Span::new(5, 10),
+  ///     SimpleSpan::new(5, 10),
   ///     "fn"
   /// ).with_found("class");
   /// assert_eq!(error.found(), Some(&"class"));
@@ -488,10 +488,10 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one(
-  ///     Span::new(5, 10),
+  ///     SimpleSpan::new(5, 10),
   ///     "fn"
   /// ).with_found_const("class");
   /// assert_eq!(error.found(), Some(&"class"));
@@ -511,14 +511,14 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
-  ///     Span::new(10, 15),
+  ///     SimpleSpan::new(10, 15),
   ///     "identifier",
   ///     "number"
   /// );
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span(&self) -> S
@@ -533,14 +533,14 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
-  ///     Span::new(10, 15),
+  ///     SimpleSpan::new(10, 15),
   ///     "identifier",
   ///     "number"
   /// );
-  /// assert_eq!(error.span_ref(), &Span::new(10, 15));
+  /// assert_eq!(error.span_ref(), &SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span_ref(&self) -> &S {
@@ -552,15 +552,15 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let mut error = UnexpectedToken::expected_one_with_found(
-  ///    Span::new(10, 15),
+  ///    SimpleSpan::new(10, 15),
   ///   "identifier",
   ///   "number"
   /// );
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 20));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span_mut(&mut self) -> &mut S {
@@ -574,17 +574,17 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
-  ///     Span::new(0, 10),
+  ///     SimpleSpan::new(0, 10),
   ///     "identifier",
   ///     "number"
   /// );
   /// assert_eq!(error.found(), Some(&"identifier"));
   ///
   /// let eof_error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
-  ///     Span::new(100, 100),
+  ///     SimpleSpan::new(100, 100),
   ///     "}"
   /// );
   /// assert_eq!(eof_error.found(), None);
@@ -599,10 +599,10 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
-  ///     Span::new(5, 6),
+  ///     SimpleSpan::new(5, 6),
   ///     "}",
   ///     "{"
   /// );
@@ -624,15 +624,15 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let mut error = UnexpectedToken::expected_one_with_found(
-  ///     Span::new(10, 15),
+  ///     SimpleSpan::new(10, 15),
   ///     "}",
   ///     "{"
   /// );
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 20));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &S::Offset)
@@ -651,10 +651,10 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   ///
   /// ```
   /// # #[cfg(feature = "std")] {
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
-  ///    Span::new(0, 5),
+  ///    SimpleSpan::new(0, 5),
   ///   "identifier",
   ///   "number"
   /// );
@@ -684,15 +684,15 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::UnexpectedToken};
+  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
-  ///     Span::new(5, 6),
+  ///     SimpleSpan::new(5, 6),
   ///     "}",
   ///     "{"
   /// );
   /// let (span, found, expected) = error.into_components();
-  /// assert_eq!(span, Span::new(5, 6));
+  /// assert_eq!(span, SimpleSpan::new(5, 6));
   /// assert_eq!(found, Some("}"));
   /// assert_eq!(expected, Expected::one("{"));
   /// ```

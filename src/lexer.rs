@@ -1,25 +1,27 @@
 use core::{convert::Infallible, fmt, hash::Hash, ops::AddAssign};
 
+use mayber::Maybe;
+
 pub use cache::*;
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
 
 pub use input::InputContext;
 pub use input_ref::InputRef;
-use mayber::Maybe;
 pub use source::Source;
 pub use token::{
   DelimiterToken, IdentifierToken, KeywordToken, Lexed, LitToken, Logos, OperatorToken,
-  PunctuatorToken, Token, TriviaToken,
+  PunctuatorToken, Token,
 };
 
-// #[cfg(feature = "logos")]
+#[cfg(feature = "logos")]
 pub use self::logos::LogosLexer;
+
 pub use peek::Peeked;
 
 pub(crate) use input::Input;
 
-use crate::utils::Spanned;
+use crate::utils::{SimpleSpan, Spanned};
 
 /// The token related structures and traits
 pub mod token;
@@ -65,7 +67,7 @@ pub trait Lexer<'inp>: 'inp {
   /// The state of the lexer.
   type State: State;
   /// The source type of the lexer.
-  type Source: super::Source<Self::Offset> + ?Sized;
+  type Source: source::Source<Self::Offset> + ?Sized;
   /// The token type produced by the lexer.
   type Token: Token<'inp>;
 
@@ -382,7 +384,7 @@ impl Span for core::ops::Range<usize> {
   }
 }
 
-impl<O> Span for crate::utils::Span<O>
+impl<O> Span for SimpleSpan<O>
 where
   O: Ord + Clone + Hash + for<'a> AddAssign<&'a O>,
 {
@@ -390,7 +392,7 @@ where
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn new(start: Self::Offset, end: Self::Offset) -> Self {
-    crate::utils::Span::new(start, end)
+    SimpleSpan::new(start, end)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -460,17 +462,16 @@ const _: () = {
     fn kind(&self) -> Self::Kind {
       *self
     }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn is_trivia(&self) -> bool {
+      true
+    }
   }
 
   impl PunctuatorToken<'_> for DummyToken {}
 
   impl LitToken<'_> for DummyToken {}
-
-  impl TriviaToken<'_> for DummyToken {
-    fn is_trivia(&self) -> bool {
-      true
-    }
-  }
 
   impl OperatorToken<'_> for DummyToken {}
 
@@ -481,7 +482,7 @@ const _: () = {
 
     type Token = DummyToken;
 
-    type Span = crate::utils::Span;
+    type Span = SimpleSpan;
 
     type Offset = usize;
 

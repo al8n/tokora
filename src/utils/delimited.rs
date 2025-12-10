@@ -1,4 +1,4 @@
-use super::{AsSpan, IntoComponents, IntoSpan, Span};
+use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
 
 /// A value delimited by opening and closing markers with source location tracking.
 ///
@@ -20,9 +20,9 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 /// Thanks to `Deref`, you can call methods on the wrapped value directly:
 ///
 /// ```rust
-/// use logosky::utils::{Span, Delimited};
+/// use logosky::utils::{SimpleSpan, Delimited};
 ///
-/// let delimited = Delimited::new('(', ')', "hello", Span::new(0, 7));
+/// let delimited = Delimited::new('(', ')', "hello", SimpleSpan::new(0, 7));
 ///
 /// // Can call str methods directly
 /// assert_eq!(delimited.len(), 5);
@@ -36,7 +36,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 /// ## Parsing Parenthesized Expressions
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Span, Delimited};
+/// use logosky::utils::{SimpleSpan, Delimited};
 ///
 /// enum Expr {
 ///     Number(i64),
@@ -45,7 +45,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 ///
 /// // Track both the delimiters and the expression inside
 /// let inner = Expr::Number(42);
-/// let parens = Delimited::new('(', ')', inner, Span::new(10, 14));
+/// let parens = Delimited::new('(', ')', inner, SimpleSpan::new(10, 14));
 ///
 /// assert_eq!(parens.open(), '(');
 /// assert_eq!(parens.close(), ')');
@@ -54,11 +54,11 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 /// ## String Literals with Quote Tracking
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Span, Delimited};
+/// use logosky::utils::{SimpleSpan, Delimited};
 ///
 /// // Track which quote style was used
-/// let single_quoted = Delimited::new('\'', '\'', "hello", Span::new(0, 7));
-/// let double_quoted = Delimited::new('"', '"', "world", Span::new(10, 17));
+/// let single_quoted = Delimited::new('\'', '\'', "hello", SimpleSpan::new(0, 7));
+/// let double_quoted = Delimited::new('"', '"', "world", SimpleSpan::new(10, 17));
 ///
 /// // Later code can check quote style for semantic differences
 /// match single_quoted.open() {
@@ -71,7 +71,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 /// ## Generic Bracket Types
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Span, Delimited};
+/// use logosky::utils::{SimpleSpan, Delimited};
 ///
 /// #[derive(Debug, Clone, Copy)]
 /// enum BracketType {
@@ -86,16 +86,16 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 ///     BracketType::Square,
 ///     BracketType::Square,
 ///     vec![expr1, expr2, expr3],
-///     Span::new(0, 20),
+///     SimpleSpan::new(0, 20),
 /// );
 /// ```
 ///
 /// ## Mapping Values While Preserving Delimiters
 ///
 /// ```rust
-/// use logosky::utils::{Span, Delimited};
+/// use logosky::utils::{SimpleSpan, Delimited};
 ///
-/// let delimited_str = Delimited::new('"', '"', "42", Span::new(0, 4));
+/// let delimited_str = Delimited::new('"', '"', "42", SimpleSpan::new(0, 4));
 ///
 /// // Parse the string, keeping the same delimiters and span
 /// let parsed: Delimited<char, char, i32> = delimited_str.map_data(|s| s.parse().unwrap());
@@ -140,9 +140,9 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::{Span, Delimited};
+/// use logosky::utils::{SimpleSpan, Delimited};
 ///
-/// let delimited = Delimited::new('(', ')', "content", Span::new(0, 9));
+/// let delimited = Delimited::new('(', ')', "content", SimpleSpan::new(0, 9));
 ///
 /// assert_eq!(delimited.open(), '(');
 /// assert_eq!(delimited.close(), ')');
@@ -153,12 +153,12 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 /// ## Destructuring
 ///
 /// ```rust
-/// use logosky::utils::{Span, Delimited};
+/// use logosky::utils::{SimpleSpan, Delimited};
 ///
-/// let delimited = Delimited::new('[', ']', 42, Span::new(5, 8));
+/// let delimited = Delimited::new('[', ']', 42, SimpleSpan::new(5, 8));
 ///
 /// let (span, open, close, value) = delimited.into_components();
-/// assert_eq!(span, Span::new(5, 8));
+/// assert_eq!(span, SimpleSpan::new(5, 8));
 /// assert_eq!(open, '[');
 /// assert_eq!(close, ']');
 /// assert_eq!(value, 42);
@@ -167,9 +167,9 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 /// ## Mutable Access
 ///
 /// ```rust
-/// use logosky::utils::{Span, Delimited};
+/// use logosky::utils::{SimpleSpan, Delimited};
 ///
-/// let mut delimited = Delimited::new('(', ')', 10, Span::new(0, 3));
+/// let mut delimited = Delimited::new('(', ')', 10, SimpleSpan::new(0, 3));
 ///
 /// // Modify the data
 /// *delimited += 5;
@@ -182,7 +182,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 /// assert_eq!(delimited.close(), ']');
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
-pub struct Delimited<Open, Close, Data, S = Span> {
+pub struct Delimited<Open, Close, Data, S = SimpleSpan> {
   /// The opening delimiter.
   pub(super) open: Open,
 
@@ -314,9 +314,9 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let delimited = Delimited::new('(', ')', "data", Span::new(0, 6));
+  /// let delimited = Delimited::new('(', ')', "data", SimpleSpan::new(0, 6));
   /// assert_eq!(delimited.open(), '(');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -332,9 +332,9 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let delimited = Delimited::new(String::from("("), String::from(")"), "data", Span::new(0, 6));
+  /// let delimited = Delimited::new(String::from("("), String::from(")"), "data", SimpleSpan::new(0, 6));
   /// assert_eq!(delimited.open_ref(), &"(");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -347,9 +347,9 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let mut delimited = Delimited::new('(', ')', "data", Span::new(0, 6));
+  /// let mut delimited = Delimited::new('(', ')', "data", SimpleSpan::new(0, 6));
   /// *delimited.open_mut() = '[';
   /// assert_eq!(delimited.open(), '[');
   /// ```
@@ -363,9 +363,9 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let delimited = Delimited::new('(', ')', "data", Span::new(0, 6));
+  /// let delimited = Delimited::new('(', ')', "data", SimpleSpan::new(0, 6));
   /// assert_eq!(delimited.close(), ')');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -381,9 +381,9 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let delimited = Delimited::new(String::from("("), String::from(")"), "data", Span::new(0, 6));
+  /// let delimited = Delimited::new(String::from("("), String::from(")"), "data", SimpleSpan::new(0, 6));
   /// assert_eq!(delimited.close_ref(), &")");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -396,9 +396,9 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let mut delimited = Delimited::new('(', ')', "data", Span::new(0, 6));
+  /// let mut delimited = Delimited::new('(', ')', "data", SimpleSpan::new(0, 6));
   /// *delimited.close_mut() = ']';
   /// assert_eq!(delimited.close(), ']');
   /// ```
@@ -412,10 +412,10 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let delimited = Delimited::new('(', ')', "data", Span::new(5, 10));
-  /// assert_eq!(delimited.span(), Span::new(5, 10));
+  /// let delimited = Delimited::new('(', ')', "data", SimpleSpan::new(5, 10));
+  /// assert_eq!(delimited.span(), SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span(&self) -> S
@@ -430,10 +430,10 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let delimited = Delimited::new('(', ')', "data", Span::new(5, 10));
-  /// assert_eq!(delimited.span_ref(), &Span::new(5, 10));
+  /// let delimited = Delimited::new('(', ')', "data", SimpleSpan::new(5, 10));
+  /// assert_eq!(delimited.span_ref(), &SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span_ref(&self) -> &S {
@@ -445,9 +445,9 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let mut delimited = Delimited::new('(', ')', "data", Span::new(5, 10));
+  /// let mut delimited = Delimited::new('(', ')', "data", SimpleSpan::new(5, 10));
   /// delimited.span_mut().set_end(15);
   /// assert_eq!(delimited.span().end(), 15);
   /// ```
@@ -461,9 +461,9 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let delimited = Delimited::new('(', ')', 42, Span::new(0, 4));
+  /// let delimited = Delimited::new('(', ')', 42, SimpleSpan::new(0, 4));
   /// assert_eq!(*delimited.data(), 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -476,9 +476,9 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let mut delimited = Delimited::new('(', ')', 42, Span::new(0, 4));
+  /// let mut delimited = Delimited::new('(', ')', 42, SimpleSpan::new(0, 4));
   /// *delimited.data_mut() = 100;
   /// assert_eq!(*delimited.data(), 100);
   /// ```
@@ -492,10 +492,10 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let delimited = Delimited::new('(', ')', String::from("hello"), Span::new(0, 7));
-  /// let borrowed: Delimited<&char, &char, &String, &Span> = delimited.as_ref();
+  /// let delimited = Delimited::new('(', ')', String::from("hello"), SimpleSpan::new(0, 7));
+  /// let borrowed: Delimited<&char, &char, &String, &SimpleSpan> = delimited.as_ref();
   /// assert_eq!(borrowed.data(), &"hello");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -513,10 +513,10 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Delimited};
+  /// use logosky::utils::{SimpleSpan, Delimited};
   ///
-  /// let mut delimited = Delimited::new('(', ')', String::from("hello"), Span::new(0, 7));
-  /// let borrowed: Delimited<&mut char, &mut char, &mut String, &mut Span> = delimited.as_mut();
+  /// let mut delimited = Delimited::new('(', ')', String::from("hello"), SimpleSpan::new(0, 7));
+  /// let borrowed: Delimited<&mut char, &mut char, &mut String, &mut SimpleSpan> = delimited.as_mut();
   /// borrowed.data.push_str(" world");
   /// assert_eq!(delimited.data(), &"hello world");
   /// ```

@@ -199,7 +199,7 @@ where
 
 #[cfg(test)]
 const _: () = {
-  use crate::DummyLexer;
+  use crate::lexer::DummyLexer;
 
   struct DummySep;
 

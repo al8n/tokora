@@ -347,113 +347,7 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   /// }
   /// ```
   fn kind(&self) -> Self::Kind;
-}
 
-/// A token trait for tokens that preserve all source information during lexing, including trivia.
-///
-/// This trait extends [`Token`] to support "lossless" lexing, where formatting information
-/// like whitespace and comments (collectively called "trivia") is preserved alongside
-/// semantic tokens. This is essential for tools that need to:
-///
-/// - **Format or pretty-print code** while preserving original formatting
-/// - **Implement linters** that analyze comments or whitespace
-/// - **Build language servers** that provide accurate code navigation
-/// - **Create refactoring tools** that maintain code style
-///
-/// # Trivia Tokens
-///
-/// Trivia tokens are lexical elements that don't affect the semantic meaning of the code
-/// but are important for formatting and presentation. Common examples include:
-///
-/// - Whitespace (spaces, tabs, newlines)
-/// - Comments (line comments, block comments, doc comments)
-/// - Formatting tokens specific to your language
-///
-/// # Working with Trivia
-///
-/// The [`LogoStream`](crate::LogoStream) trait provides utilities for handling trivia:
-///
-/// - [`skip_trivias()`](crate::LogoStream::skip_trivias) - Skip over trivia tokens during parsing
-/// - [`collect_trivias()`](crate::LogoStream::collect_trivias) - Collect trivia into a container
-///
-/// ## Example
-///
-/// ```rust
-/// use logosky::{Token, TriviaToken};
-/// use logos::Logos;
-///
-/// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
-/// enum MyTokens {
-///     #[regex(r"[ \t\n\r]+")]
-///     Whitespace,
-///     #[regex(r"//[^\n]*")]
-///     LineComment,
-///     #[regex(r"/\*([^*]|\*[^/])*\*/")]
-///     BlockComment,
-///     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
-///     Identifier,
-///     #[regex(r"[0-9]+")]
-///     Number,
-/// }
-///
-/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// enum MyTokenKind {
-///     Whitespace,
-///     LineComment,
-///     BlockComment,
-///     Identifier,
-///     Number,
-/// }
-///
-/// #[derive(Debug, Clone, PartialEq)]
-/// struct MyToken {
-///     kind: MyTokenKind,
-/// }
-///
-/// impl Token<'_> for MyToken {
-///     type Char = char;
-///     type Kind = MyTokenKind;
-///     type Logos = MyTokens;
-///
-///     fn kind(&self) -> Self::Kind {
-///         self.kind
-///     }
-/// }
-///
-/// impl From<MyTokens> for MyToken {
-///     fn from(logos: MyTokens) -> Self {
-///         let kind = match logos {
-///             MyTokens::Whitespace => MyTokenKind::Whitespace,
-///             MyTokens::LineComment => MyTokenKind::LineComment,
-///             MyTokens::BlockComment => MyTokenKind::BlockComment,
-///             MyTokens::Identifier => MyTokenKind::Identifier,
-///             MyTokens::Number => MyTokenKind::Number,
-///         };
-///         MyToken { kind }
-///     }
-/// }
-///
-/// impl TriviaToken<'_> for MyToken {
-///     fn is_trivia(&self) -> bool {
-///         // Mark whitespace and comments as trivia
-///         matches!(
-///             self.kind,
-///             MyTokenKind::Whitespace
-///                 | MyTokenKind::LineComment
-///                 | MyTokenKind::BlockComment
-///         )
-///     }
-/// }
-/// ```
-///
-/// # Design Rationale
-///
-/// Separating [`TriviaToken`] from [`Token`] allows for:
-///
-/// - **Flexibility**: Not all parsers need to track trivia; simple parsers can use just [`Token`]
-/// - **Performance**: Parsers that skip trivia can do so efficiently without allocating
-/// - **Type safety**: The type system ensures trivia-handling methods are only available when appropriate
-pub trait TriviaToken<'a>: Token<'a> {
   /// Returns `true` if this token represents trivia (whitespace, comments, etc.).
   ///
   /// Trivia tokens are lexical elements that don't affect the semantic meaning of code
@@ -468,7 +362,7 @@ pub trait TriviaToken<'a>: Token<'a> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{Token, TriviaToken};
+  /// use logosky::Token;
   /// use logos::Logos;
   ///
   /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -497,8 +391,15 @@ pub trait TriviaToken<'a>: Token<'a> {
   ///     type Char = char;
   ///     type Kind = TokenKind;
   ///     type Logos = MyTokens;
+  ///
+  ///     #[inline(always)]
   ///     fn kind(&self) -> Self::Kind {
   ///         self.kind
+  ///     }
+  ///
+  ///     #[inline(always)]
+  ///     fn is_trivia(&self) -> bool {
+  ///         matches!(self.kind, TokenKind::Whitespace | TokenKind::Comment)
   ///     }
   /// }
   ///
@@ -510,12 +411,6 @@ pub trait TriviaToken<'a>: Token<'a> {
   ///             MyTokens::Number => TokenKind::Number,
   ///         };
   ///         MyToken { kind }
-  ///     }
-  /// }
-  ///
-  /// impl TriviaToken<'_> for MyToken {
-  ///     fn is_trivia(&self) -> bool {
-  ///         matches!(self.kind, TokenKind::Whitespace | TokenKind::Comment)
   ///     }
   /// }
   /// ```

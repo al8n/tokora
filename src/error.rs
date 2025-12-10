@@ -22,7 +22,7 @@ pub use unterminated::*;
 
 use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 
-use crate::utils::Span;
+use crate::utils::SimpleSpan;
 
 mod errors;
 
@@ -257,7 +257,7 @@ mod unicode_escape;
 /// - [`via_parser`](crate::chumsky::recovery::via_parser): Recovery combinator
 /// - [`or_else`](crate::chumsky::Parser::or_else): Fallback for failed parsing
 /// - [`DelimitedByBrace`](crate::chumsky::delimited::DelimitedByBrace): Delimited parser with recovery
-pub trait ErrorNode<S = Span> {
+pub trait ErrorNode<S = SimpleSpan> {
   /// Creates a placeholder node for **malformed content**.
   ///
   /// Use this when the parser encounters **invalid syntax that is present but wrong**.
@@ -343,24 +343,24 @@ pub trait ErrorNode<S = Span> {
 
 impl ErrorNode for &str {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn error(_span: Span) -> Self {
+  fn error(_span: SimpleSpan) -> Self {
     "<error>"
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn missing(_span: Span) -> Self {
+  fn missing(_span: SimpleSpan) -> Self {
     "<missing>"
   }
 }
 
 impl ErrorNode for &[u8] {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn error(_span: Span) -> Self {
+  fn error(_span: SimpleSpan) -> Self {
     b"<error>"
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn missing(_span: Span) -> Self {
+  fn missing(_span: SimpleSpan) -> Self {
     b"<missing>"
   }
 }
@@ -369,12 +369,12 @@ impl ErrorNode for &[u8] {
 #[cfg_attr(docsrs, doc(cfg(feature = "bytes")))]
 impl ErrorNode for bytes::Bytes {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn error(_span: Span) -> Self {
+  fn error(_span: SimpleSpan) -> Self {
     bytes::Bytes::from_static(b"<error>")
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn missing(_span: Span) -> Self {
+  fn missing(_span: SimpleSpan) -> Self {
     bytes::Bytes::from_static(b"<missing>")
   }
 }
@@ -386,24 +386,24 @@ const _: () = {
 
   impl ErrorNode for HipStr<'_> {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn error(_span: Span) -> Self {
+    fn error(_span: SimpleSpan) -> Self {
       HipStr::borrowed("<error>")
     }
 
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn missing(_span: Span) -> Self {
+    fn missing(_span: SimpleSpan) -> Self {
       HipStr::borrowed("<missing>")
     }
   }
 
   impl ErrorNode for HipByt<'_> {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn error(_span: Span) -> Self {
+    fn error(_span: SimpleSpan) -> Self {
       HipByt::borrowed(b"<error>")
     }
 
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn missing(_span: Span) -> Self {
+    fn missing(_span: SimpleSpan) -> Self {
       HipByt::borrowed(b"<missing>")
     }
   }

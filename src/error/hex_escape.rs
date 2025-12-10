@@ -40,11 +40,11 @@
 //!
 //! ```
 //! use logosky::error::HexEscapeError;
-//! use logosky::utils::{Lexeme, Span};
+//! use logosky::utils::{Lexeme, SimpleSpan};
 //!
 //! // Incomplete: \xA (only 1 digit)
 //! let error = HexEscapeError::<char>::incomplete(
-//!     Span::new(10, 13) // \xA
+//!     SimpleSpan::new(10, 13) // \xA
 //! );
 //! assert!(error.is_incomplete());
 //! ```
@@ -53,7 +53,7 @@
 //!
 //! ```
 //! use logosky::error::{HexEscapeError, InvalidHexDigits};
-//! use logosky::utils::{Span, PositionedChar};
+//! use logosky::utils::{SimpleSpan, PositionedChar};
 //!
 //! // Invalid hex digit 'G' at position 12
 //! let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -61,7 +61,7 @@
 //!
 //! let error = HexEscapeError::malformed(
 //!     digits,
-//!     Span::new(10, 14) // \xGG
+//!     SimpleSpan::new(10, 14) // \xGG
 //! );
 //! assert!(error.is_malformed());
 //! ```
@@ -70,7 +70,7 @@ use core::ops::AddAssign;
 
 use crate::{
   error::InvalidHexDigits,
-  utils::{Span, human_display::DisplayHuman},
+  utils::{SimpleSpan, human_display::DisplayHuman},
 };
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
@@ -86,16 +86,16 @@ pub type InvalidHexEscapeDigits<Char, Offset> = InvalidHexDigits<Char, 2, Offset
 ///
 /// ```
 /// use logosky::error::IncompleteHexEscape;
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
 /// // Incomplete: \xA (only 1 hex digit)
 /// let error = IncompleteHexEscape::new(
-///     Span::new(10, 13)
+///     SimpleSpan::new(10, 13)
 /// );
-/// assert_eq!(error.span(), Span::new(10, 13));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 13));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct IncompleteHexEscape<O = usize>(Span<O>);
+pub struct IncompleteHexEscape<O = usize>(SimpleSpan<O>);
 
 impl<O> core::fmt::Display for IncompleteHexEscape<O>
 where
@@ -119,12 +119,12 @@ impl<O> IncompleteHexEscape<O> {
   ///
   /// ```
   /// use logosky::error::IncompleteHexEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = IncompleteHexEscape::new(Span::new(10, 12));
+  /// let error = IncompleteHexEscape::new(SimpleSpan::new(10, 12));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span<O>) -> Self {
+  pub const fn new(span: SimpleSpan<O>) -> Self {
     Self(span)
   }
 
@@ -134,13 +134,13 @@ impl<O> IncompleteHexEscape<O> {
   ///
   /// ```
   /// use logosky::error::IncompleteHexEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = IncompleteHexEscape::new(Span::new(10, 13));
-  /// assert_eq!(error.span(), Span::new(10, 13));
+  /// let error = IncompleteHexEscape::new(SimpleSpan::new(10, 13));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -153,13 +153,13 @@ impl<O> IncompleteHexEscape<O> {
   ///
   /// ```
   /// use logosky::error::IncompleteHexEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = IncompleteHexEscape::new(Span::new(10, 13));
-  /// assert_eq!(error.span_ref(), Span::new(&10, &13));
+  /// let error = IncompleteHexEscape::new(SimpleSpan::new(10, 13));
+  /// assert_eq!(error.span_ref(), SimpleSpan::new(&10, &13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> Span<&O> {
+  pub const fn span_ref(&self) -> SimpleSpan<&O> {
     self.0.as_ref()
   }
 
@@ -172,11 +172,11 @@ impl<O> IncompleteHexEscape<O> {
   ///
   /// ```
   /// use logosky::error::IncompleteHexEscape;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let mut error = IncompleteHexEscape::new(Span::new(10, 12));
+  /// let mut error = IncompleteHexEscape::new(SimpleSpan::new(10, 12));
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 17));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 17));
   /// ```
   #[inline]
   pub fn bump(&mut self, n: &O) -> &mut Self
@@ -202,7 +202,7 @@ impl<O> IncompleteHexEscape<O> {
 ///
 /// ```
 /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-/// use logosky::utils::{Span, PositionedChar};
+/// use logosky::utils::{SimpleSpan, PositionedChar};
 ///
 /// // Create error for malformed escape like \xGH
 /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -210,16 +210,16 @@ impl<O> IncompleteHexEscape<O> {
 ///
 /// let error = MalformedHexEscape::new(
 ///     digits,
-///     Span::new(10, 14) // \xGH
+///     SimpleSpan::new(10, 14) // \xGH
 /// );
 ///
-/// assert_eq!(error.span(), Span::new(10, 14));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 14));
 /// assert!(!error.is_incomplete()); // Only 4 chars total, expected 4 (\xXX)
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MalformedHexEscape<Char = char, O = usize> {
   digits: InvalidHexEscapeDigits<Char, O>,
-  span: Span<O>,
+  span: SimpleSpan<O>,
 }
 
 impl<Char, O> core::fmt::Display for MalformedHexEscape<Char, O>
@@ -251,13 +251,13 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// ```
   /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::{Span, PositionedChar};
+  /// use logosky::utils::{SimpleSpan, PositionedChar};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('Z', 12));
-  /// let error = MalformedHexEscape::new(digits, Span::new(10, 13));
+  /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(digits: InvalidHexEscapeDigits<Char, O>, span: Span<O>) -> Self {
+  pub const fn new(digits: InvalidHexEscapeDigits<Char, O>, span: SimpleSpan<O>) -> Self {
     Self { digits, span }
   }
 
@@ -270,10 +270,10 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   // ///
   // /// ```
   // /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  // /// use logosky::utils::Span;
+  // /// use logosky::utils::SimpleSpan;
   // ///
   // /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
-  // /// let error = MalformedHexEscape::new(digits, Span::new(10, 13));
+  // /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
   // /// assert!(error.is_incomplete()); // Only 3 chars, not 4
   // /// ```
   // #[cfg_attr(not(tarpaulin), inline(always))]
@@ -288,10 +288,10 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// ```
   /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::{Span, PositionedChar};
+  /// use logosky::utils::{SimpleSpan, PositionedChar};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
-  /// let error = MalformedHexEscape::new(digits, Span::new(10, 13));
+  /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
   /// assert_eq!(error.digits().len(), 1);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -309,10 +309,10 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// ```
   /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::{Span, PositionedChar};
+  /// use logosky::utils::{SimpleSpan, PositionedChar};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
-  /// let error = MalformedHexEscape::new(digits, Span::new(10, 13));
+  /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
   /// assert_eq!(error.digits_ref().len(), 1);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -332,16 +332,16 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// ```
   /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::{Span, PositionedChar};
+  /// use logosky::utils::{SimpleSpan, PositionedChar};
   ///
   /// let error = MalformedHexEscape::new(
   ///     InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12)),
-  ///     Span::new(10, 14)
+  ///     SimpleSpan::new(10, 14)
   /// );
-  /// assert_eq!(error.span(), Span::new(10, 14));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -350,13 +350,13 @@ impl<Char, O> MalformedHexEscape<Char, O> {
 
   /// Returns a reference to the span of the malformed hex escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> Span<&O> {
+  pub const fn span_ref(&self) -> SimpleSpan<&O> {
     self.span.as_ref()
   }
 
   /// Returns a mutable reference to the span of the malformed hex escape.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> Span<&mut O> {
+  pub const fn span_mut(&mut self) -> SimpleSpan<&mut O> {
     self.span.as_mut()
   }
 
@@ -369,12 +369,12 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// ```
   /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::{Span, PositionedChar};
+  /// use logosky::utils::{SimpleSpan, PositionedChar};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
-  /// let mut error = MalformedHexEscape::new(digits, Span::new(10, 14));
+  /// let mut error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 14));
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 19));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 19));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, n: &O) -> &mut Self
@@ -403,11 +403,11 @@ impl<Char, O> MalformedHexEscape<Char, O> {
 ///
 /// ```
 /// use logosky::error::HexEscapeError;
-/// use logosky::utils::Span;
+/// use logosky::utils::SimpleSpan;
 ///
 /// // Incomplete: \xA (only 1 digit)
 /// let error = HexEscapeError::<char>::incomplete(
-///     Span::new(10, 13)
+///     SimpleSpan::new(10, 13)
 /// );
 /// assert!(error.is_incomplete());
 /// ```
@@ -416,13 +416,13 @@ impl<Char, O> MalformedHexEscape<Char, O> {
 ///
 /// ```
 /// use logosky::error::{HexEscapeError, InvalidHexDigits};
-/// use logosky::utils::{Span, PositionedChar};
+/// use logosky::utils::{SimpleSpan, PositionedChar};
 ///
 /// // Invalid hex: \xGG
 /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
 /// digits.push(PositionedChar::with_position('G', 13));
 ///
-/// let error = HexEscapeError::malformed(digits, Span::new(10, 14));
+/// let error = HexEscapeError::malformed(digits, SimpleSpan::new(10, 14));
 /// assert!(error.is_malformed());
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, IsVariant, TryUnwrap, Unwrap)]
@@ -480,15 +480,15 @@ impl<Char, O> HexEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::HexEscapeError;
-  /// use logosky::utils::{Lexeme, Span};
+  /// use logosky::utils::{Lexeme, SimpleSpan};
   ///
   /// let error = HexEscapeError::<char>::incomplete(
-  ///     Span::new(10, 12)
+  ///     SimpleSpan::new(10, 12)
   /// );
   /// assert!(error.is_incomplete());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn incomplete(span: Span<O>) -> Self {
+  pub const fn incomplete(span: SimpleSpan<O>) -> Self {
     Self::Incomplete(IncompleteHexEscape::new(span))
   }
 
@@ -498,14 +498,14 @@ impl<Char, O> HexEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::{HexEscapeError, InvalidHexDigits};
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
-  /// let error = HexEscapeError::malformed(digits, Span::new(10, 13));
+  /// let error = HexEscapeError::malformed(digits, SimpleSpan::new(10, 13));
   /// assert!(error.is_malformed());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn malformed(digits: InvalidHexEscapeDigits<Char, O>, span: Span<O>) -> Self {
+  pub const fn malformed(digits: InvalidHexEscapeDigits<Char, O>, span: SimpleSpan<O>) -> Self {
     Self::Malformed(MalformedHexEscape::new(digits, span))
   }
 
@@ -518,13 +518,13 @@ impl<Char, O> HexEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::HexEscapeError;
-  /// use logosky::utils::Span;
+  /// use logosky::utils::SimpleSpan;
   ///
-  /// let error = HexEscapeError::<char>::incomplete(Span::new(10, 12));
-  /// assert_eq!(error.span(), Span::new(10, 12));
+  /// let error = HexEscapeError::<char>::incomplete(SimpleSpan::new(10, 12));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 12));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span<O>
+  pub const fn span(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -543,10 +543,10 @@ impl<Char, O> HexEscapeError<Char, O> {
   ///
   /// ```
   /// use logosky::error::HexEscapeError;
-  /// use logosky::utils::{Lexeme, Span};
+  /// use logosky::utils::{Lexeme, SimpleSpan};
   ///
   /// let mut error = HexEscapeError::<char>::incomplete(
-  ///     Span::new(10, 12)
+  ///     SimpleSpan::new(10, 12)
   /// );
   /// error.bump(5);
   /// // The span is now adjusted

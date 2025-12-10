@@ -1,8 +1,8 @@
 use core::marker::PhantomData;
 
-use crate::{IntoLexer, utils::Span};
+use crate::utils::SimpleSpan;
 
-use super::{Lexer, Source, State, Token};
+use super::{IntoLexer, Lexer, Source, State, Token};
 
 /// a
 #[repr(transparent)]
@@ -41,8 +41,7 @@ where
   type State = L::Extras;
   type Source = L::Source;
   type Token = T;
-  // type Cursor = usize;
-  type Span = Span;
+  type Span = SimpleSpan;
   type Offset = usize;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -90,7 +89,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn span(&self) -> Span {
+  fn span(&self) -> SimpleSpan {
     self.inner.span().into()
   }
 

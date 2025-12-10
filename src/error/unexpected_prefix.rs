@@ -1,11 +1,11 @@
 use core::ops::{Add, AddAssign};
 
-use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman};
+use crate::utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::DisplayHuman};
 
 /// An error indicating that an unexpected prefix was found after a valid token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnexpectedPrefix<Char, Knowledge, O = usize> {
-  token: Span<O>,
+  token: SimpleSpan<O>,
   prefix: Lexeme<Char, O>,
   knowledge: Option<Knowledge>,
 }
@@ -19,16 +19,16 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, knowledge::IntLiteral}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{SimpleSpan, knowledge::IntLiteral}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, IntLiteral> = UnexpectedPrefix::leading_zero(
-  ///   Span::new(1, 5),
+  ///   SimpleSpan::new(1, 5),
   ///   0,
   ///   '0'
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn leading_zero(token: Span<O>, pos: O, ch: Char) -> Self
+  pub fn leading_zero(token: SimpleSpan<O>, pos: O, ch: Char) -> Self
   where
     Knowledge: DenyLeadingZero,
     Char: CharLen,
@@ -46,15 +46,15 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, knowledge::IntLiteral}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{SimpleSpan, knowledge::IntLiteral}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, IntLiteral> = UnexpectedPrefix::leading_zeros(
-  ///   Span::new(6, 10),
-  ///   Span::new(0, 6)
+  ///   SimpleSpan::new(6, 10),
+  ///   SimpleSpan::new(0, 6)
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn leading_zeros(token: Span<O>, span: Span<O>) -> Self
+  pub fn leading_zeros(token: SimpleSpan<O>, span: SimpleSpan<O>) -> Self
   where
     Knowledge: DenyLeadingZero,
     Char: CharLen,
@@ -74,15 +74,15 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
-  ///     Span::new(1, 5),
+  ///     SimpleSpan::new(1, 5),
   ///     Lexeme::Char(PositionedChar::with_position('x', 0))
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn new(token: Span<O>, prefix: Lexeme<Char, O>) -> Self
+  pub fn new(token: SimpleSpan<O>, prefix: Lexeme<Char, O>) -> Self
   where
     Char: CharLen,
     O: Clone + Ord,
@@ -108,16 +108,16 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{PositionedChar, Span}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{PositionedChar, SimpleSpan}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::from_char(
-  ///    Span::new(1, 5),
+  ///    SimpleSpan::new(1, 5),
   ///    0,
   ///   'x'
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_char(token: Span<O>, pos: O, ch: Char) -> Self
+  pub fn from_char(token: SimpleSpan<O>, pos: O, ch: Char) -> Self
   where
     Char: CharLen,
     O: Clone + Ord,
@@ -134,15 +134,15 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{PositionedChar, Span}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{PositionedChar, SimpleSpan}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::from_positioned_char(
-  ///    Span::new(1, 5),
+  ///    SimpleSpan::new(1, 5),
   ///    PositionedChar::with_position('x', 0)
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_positioned_char(token: Span<O>, ch: PositionedChar<Char, O>) -> Self
+  pub fn from_positioned_char(token: SimpleSpan<O>, ch: PositionedChar<Char, O>) -> Self
   where
     Char: CharLen,
     O: Clone + Ord,
@@ -176,15 +176,15 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::from_prefix(
-  ///   Span::new(6, 10),
-  ///   Span::new(0, 6)
+  ///   SimpleSpan::new(6, 10),
+  ///   SimpleSpan::new(0, 6)
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_prefix(token: Span<O>, span: Span<O>) -> Self
+  pub fn from_prefix(token: SimpleSpan<O>, span: SimpleSpan<O>) -> Self
   where
     Char: CharLen,
     O: Clone + Ord,
@@ -198,16 +198,16 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
-  ///   Span::new(1, 5),
+  ///   SimpleSpan::new(1, 5),
   ///   Lexeme::Char(PositionedChar::with_position('x', 0))
   /// );
-  /// assert_eq!(error.span(), Span::new(0, 5));
+  /// assert_eq!(error.span(), SimpleSpan::new(0, 5));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span<O>
+  pub fn span(&self) -> SimpleSpan<O>
   where
     Char: CharLen,
     O: Clone + Ord,
@@ -217,7 +217,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
       Lexeme::Char(positioned_char) => positioned_char.position_ref().clone(),
       Lexeme::Range(span) => span.start_ref().clone(),
     };
-    Span::new(start, end.clone())
+    SimpleSpan::new(start, end.clone())
   }
 
   /// Returns the span of the valid token before the unexpected prefix.
@@ -225,16 +225,16 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
-  ///     Span::new(1, 5),
+  ///     SimpleSpan::new(1, 5),
   ///     Lexeme::Char(PositionedChar::with_position('x', 0))
   /// );
-  /// assert_eq!(error.token(), Span::new(1, 5));
+  /// assert_eq!(error.token(), SimpleSpan::new(1, 5));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn token(&self) -> Span<O>
+  pub const fn token(&self) -> SimpleSpan<O>
   where
     O: Copy,
   {
@@ -246,10 +246,10 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
-  ///    Span::new(1, 5),
+  ///    SimpleSpan::new(1, 5),
   ///   Lexeme::Char(PositionedChar::with_position('x', 0))
   /// );
   ///
@@ -268,21 +268,21 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
-  ///   Span::new(1, 5),
+  ///   SimpleSpan::new(1, 5),
   ///   Lexeme::Char(PositionedChar::with_position('x', 0))
   /// );
   /// let (token, prefix) = error.into_components();
-  /// assert_eq!(token, Span::new(1, 5));
+  /// assert_eq!(token, SimpleSpan::new(1, 5));
   /// assert_eq!(
   ///   prefix,
   ///   Lexeme::Char(PositionedChar::with_position('x', 0))
   /// );
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span<O>, Lexeme<Char, O>) {
+  pub fn into_components(self) -> (SimpleSpan<O>, Lexeme<Char, O>) {
     (self.token, self.prefix)
   }
 
@@ -294,14 +294,14 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let mut error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
-  ///   Span::new(1, 5),
+  ///   SimpleSpan::new(1, 5),
   ///   Lexeme::Char(PositionedChar::with_position('x', 0))
   /// );
   /// error.bump(10);
-  /// assert_eq!(error.token(), Span::new(11, 15));
+  /// assert_eq!(error.token(), SimpleSpan::new(11, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &O) -> &mut Self

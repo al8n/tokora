@@ -1,4 +1,4 @@
-use super::{AsSpan, IntoComponents, IntoSpan, Span};
+use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
 
 /// A value paired with its source location span.
 ///
@@ -134,7 +134,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, Span};
 /// assert_eq!(spanned.span().end(), 5);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
-pub struct Spanned<D, S = Span> {
+pub struct Spanned<D, S = SimpleSpan> {
   /// The source location span of the data.
   ///
   /// This indicates where in the source input this value came from,

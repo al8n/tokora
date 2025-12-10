@@ -6,7 +6,11 @@
 
 use core::marker::PhantomData;
 
-use crate::{BlackHole, Cache, DefaultCache, Emitter, InputContext, Lexer, emitter::Fatal};
+use crate::{
+  Cache, Emitter, Lexer,
+  emitter::Fatal,
+  lexer::{BlackHole, DefaultCache, InputContext},
+};
 
 /// A context that provides emitter and cache configuration for parsing.
 pub trait ParseContext<'inp, L, Lang: ?Sized = ()> {
@@ -166,7 +170,7 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::DummyLexer;
+  use crate::lexer::DummyLexer;
 
   #[test]
   fn test_default_context() {

@@ -1,6 +1,6 @@
 use mayber::Maybe;
 
-use crate::{CachedToken, CachedTokenRefOf, Lexed, MaybeRefCachedTokenOf};
+use crate::lexer::{CachedToken, CachedTokenRefOf, Lexed, MaybeRefCachedTokenOf};
 
 use super::{Cache, CachedTokenOf, Checkpoint, Lexer, Span};
 

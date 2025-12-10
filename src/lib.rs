@@ -11,23 +11,26 @@ extern crate alloc as std;
 #[cfg(feature = "std")]
 extern crate std;
 
+#[cfg(feature = "logos")]
+#[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
 pub use logos;
 
-pub use check::*;
+pub use check::Check;
 pub use emitter::Emitter;
-pub use lexer::*;
-pub use parser::*;
-pub use require::*;
-
-mod check;
-mod lexer;
-mod parser;
-mod require;
+pub use lexer::{Cache, Lexed, Lexer, Source, State, Token};
+pub use parser::{Parse, ParseChoice, ParseContext, ParseInput, Parser, Window};
+pub use require::Require;
 
 /// Concrete Syntax Tree (CST) representations and utilities.
 #[cfg(feature = "rowan")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
 pub mod cst;
+
+/// Lexers and token definitions.
+pub mod lexer;
+
+/// Parsers and combinators.
+pub mod parser;
 
 /// Common types for any programming language.
 pub mod types;
@@ -47,10 +50,12 @@ pub mod emitter;
 /// Common error types for lexers and parsers.
 pub mod error;
 
-mod keyword;
-
 /// Common punctuation tokens.
 pub mod punct;
+
+mod check;
+mod keyword;
+mod require;
 
 #[doc(hidden)]
 pub mod __private {
