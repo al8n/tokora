@@ -28,12 +28,12 @@ pub type SeparatedByOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
 
 /// A parser that parses a sequence of elements separated by a specific separator.
 pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, Config = SeparatedByOptions> {
-  f: F,
-  sep: SepClassifier,
-  condition: Condition,
-  config: Config,
-  _m: PhantomData<O>,
-  _decision_window: PhantomData<Window>,
+  pub(super) f: F,
+  pub(super) sep: SepClassifier,
+  pub(super) condition: Condition,
+  pub(super) config: Config,
+  pub(super) _m: PhantomData<O>,
+  pub(super) _decision_window: PhantomData<Window>,
 }
 
 impl<F, SepClassifier, Condition, O, W: Window> SeparatedBy<F, SepClassifier, Condition, O, W> {
@@ -60,6 +60,20 @@ impl<F, SepClassifier, Condition, O, W: Window> SeparatedBy<F, SepClassifier, Co
 impl<F, SepClassifier, Condition, O, Options, Window>
   SeparatedBy<F, SepClassifier, Condition, O, Window, Options>
 {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) const fn as_mut(
+    &mut self,
+  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, &mut Options> {
+    SeparatedBy {
+      f: &mut self.f,
+      sep: &mut self.sep,
+      condition: &mut self.condition,
+      config: &mut self.config,
+      _m: PhantomData,
+      _decision_window: PhantomData,
+    }
+  }
+
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn collect<Container>(self) -> Collect<Self, Container>
@@ -434,6 +448,13 @@ pub(super) trait LeadingSpec {
   fn leading(&self) -> SepFixSpec;
 }
 
+impl<T: LeadingSpec> LeadingSpec for &mut T {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn leading(&self) -> SepFixSpec {
+    (**self).leading()
+  }
+}
+
 impl LeadingSpec for Deny {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn leading(&self) -> SepFixSpec {
@@ -457,6 +478,13 @@ impl LeadingSpec for Require {
 
 pub(super) trait TrailingSpec {
   fn trailing(&self) -> SepFixSpec;
+}
+
+impl<T: TrailingSpec> TrailingSpec for &mut T {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn trailing(&self) -> SepFixSpec {
+    (**self).trailing()
+  }
 }
 
 impl TrailingSpec for Deny {
@@ -532,4 +560,15 @@ where
   fn leading(&self) -> SepFixSpec {
     L::leading(&self.primary.secondary)
   }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
+pub(super) enum State<T, S> {
+  Start,
+  Element,
+  Leading(Spanned<T, S>),
+  /// the span is the start of the
+  Leadings(S),
+  Separator(Spanned<T, S>),
+  RepeatedSeparator(S),
 }

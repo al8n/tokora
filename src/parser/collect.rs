@@ -19,4 +19,28 @@ impl<P, Container> Collect<P, Container> {
       container: &mut self.container,
     }
   }
+
+  /// Maps the inner parser to a new parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn map_parser<F, P2>(self, f: F) -> Collect<P2, Container>
+  where
+    F: FnOnce(P) -> P2,
+  {
+    Collect {
+      parser: f(self.parser),
+      container: self.container,
+    }
+  }
+
+  /// Maps the inner container to a new container.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn map_container<F, C2>(self, f: F) -> Collect<P, C2>
+  where
+    F: FnOnce(Container) -> C2,
+  {
+    Collect {
+      parser: self.parser,
+      container: f(self.container),
+    }
+  }
 }

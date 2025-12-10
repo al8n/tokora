@@ -93,11 +93,13 @@ pub trait Window: sealed::Sealed {
   /// The capacity of the peek buffer.
   type CAPACITY: ArrayLength;
 
+  /// Create an uninitialized array of the specified capacity.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn array<T>() -> GenericArray<MaybeUninit<T>, Self::CAPACITY> {
     GenericArray::uninit()
   }
 
+  /// Create a deque of the specified capacity.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deque<T>() -> GenericArrayDeque<MaybeUninit<T>, Self::CAPACITY> {
     GenericArrayDeque::new()
@@ -791,6 +793,30 @@ impl<P, S> With<P, S> {
   pub const fn secondary_mut(&mut self) -> &mut S {
     &mut self.secondary
   }
+
+  /// Maps the primary value using the given function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn map_primary<U, F>(self, f: F) -> With<U, S>
+  where
+    F: FnOnce(P) -> U,
+  {
+    With {
+      primary: f(self.primary),
+      secondary: self.secondary,
+    }
+  }
+
+  /// Maps the secondary value using the given function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn map_secondary<U, F>(self, f: F) -> With<P, U>
+  where
+    F: FnOnce(S) -> U,
+  {
+    With {
+      primary: self.primary,
+      secondary: f(self.secondary),
+    }
+  }
 }
 
 /// A hint used during parsing.
@@ -890,6 +916,13 @@ trait MinSpec {
   fn minimum(&self) -> usize;
 }
 
+impl<T: MinSpec> MinSpec for &mut T {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn minimum(&self) -> usize {
+    (**self).minimum()
+  }
+}
+
 impl MinSpec for Minimum {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn minimum(&self) -> usize {
@@ -906,6 +939,13 @@ impl MinSpec for () {
 
 trait MaxSpec {
   fn maximum(&self) -> usize;
+}
+
+impl<T: MaxSpec> MaxSpec for &mut T {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn maximum(&self) -> usize {
+    (**self).maximum()
+  }
 }
 
 impl MaxSpec for Maximum {

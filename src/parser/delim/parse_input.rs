@@ -23,15 +23,13 @@ where
   Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
   Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
   Delim: Clone,
-  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<<L::Token as Token<'inp>>::Error>
-    + From<UnexpectedEot<L::Offset, Lang>>,
   L: Lexer<'inp>,
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
   Ctx::Emitter: DelimiterEmitter<'inp, Delim, L, Lang> + RepeatedEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container:
     Default + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>,
   Max: super::MaxSpec,
@@ -102,7 +100,7 @@ where
     loop {
       let (mut peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
 
-      if let Some(front) = peeked.pop_front() {
+      if let Some(front) = peeked.front() {
         let tok = front
           .as_maybe_ref()
           .map(
@@ -113,6 +111,7 @@ where
 
         // find the ending delimiter
         if self.parser.right_classifier.check(tok).is_ok() {
+          let front = peeked.pop_front().expect("just checked there is a front");
           drop(peeked);
           let close = match front {
             Ref(_) => inp
