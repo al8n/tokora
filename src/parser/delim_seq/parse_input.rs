@@ -29,6 +29,74 @@ impl<
   Min,
   Lang: ?Sized,
   W,
+> ParseInput<'inp, L, Container, Ctx, Lang>
+  for Collect<
+    DelimitedSeparatedBy<
+      P,
+      SepClassifier,
+      Condition,
+      Open,
+      Close,
+      Delim,
+      O,
+      W,
+      SeparatedByOptions<Trailing, Leading, Max, Min>,
+    >,
+    Container,
+  >
+where
+  L: Lexer<'inp>,
+  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  Delim: Clone,
+  Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
+  Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  SepClassifier: Check<L::Token>,
+  Ctx::Emitter:
+    SeparatedByEmitter<'inp, O, SepClassifier, L, Lang> + DelimiterEmitter<'inp, Delim, L, Lang>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+  Container: Default
+    + crate::container::Container<O>
+    + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>
+    + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  W: Window,
+  Trailing: super::TrailingSpec,
+  Leading: super::LeadingSpec,
+  Max: super::MaxSpec,
+  Min: super::MinSpec,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    self.derive(inp).map(|s| s.into_data())
+  }
+}
+
+impl<
+  'inp,
+  L,
+  P,
+  SepClassifier,
+  Condition,
+  O,
+  Container,
+  Ctx,
+  Open,
+  Close,
+  Delim,
+  Trailing,
+  Leading,
+  Max,
+  Min,
+  Lang: ?Sized,
+  W,
 > ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
@@ -69,10 +137,74 @@ where
   Max: super::MaxSpec,
   Min: super::MinSpec,
 {
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
   ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    self.primary.derive(inp)
+  }
+}
+
+impl<
+  'inp,
+  P,
+  SepClassifier,
+  Condition,
+  O,
+  Container,
+  Open,
+  Close,
+  Delim,
+  Trailing,
+  Leading,
+  Max,
+  Min,
+  W,
+>
+  Collect<
+    DelimitedSeparatedBy<
+      P,
+      SepClassifier,
+      Condition,
+      Open,
+      Close,
+      Delim,
+      O,
+      W,
+      SeparatedByOptions<Trailing, Leading, Max, Min>,
+    >,
+    Container,
+  >
+{
+  fn derive<L, Ctx, Lang>(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    Lang: ?Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Ctx::Emitter:
+      SeparatedByEmitter<'inp, O, SepClassifier, L, Lang> + DelimiterEmitter<'inp, Delim, L, Lang>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    Delim: Clone,
+    Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
+    Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+    SepClassifier: Check<L::Token>,
+    Container: Default
+      + crate::container::Container<O>
+      + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>
+      + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+    W: Window,
+    Trailing: super::TrailingSpec,
+    Leading: super::LeadingSpec,
+    Max: super::MaxSpec,
+    Min: super::MinSpec,
+  {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let ckp = inp.save();
     let first = inp.sync_until_token()?;
@@ -84,7 +216,7 @@ where
         let ct = maybe_tok.as_maybe_ref().map(identity, |t| t.as_ref());
 
         let tok = ct.token().copied().into_data();
-        match self.primary_mut().parser.left_classifier.check(tok) {
+        match self.parser.left_classifier.check(tok) {
           Err(knd) => {
             let (span, tok) = maybe_tok
               .map(|t| t.into_token().cloned(), |t| t.into_token())
@@ -116,7 +248,7 @@ where
     let has_open = match state {
       Ok(left) => {
         left_span = Some(left.span_ref().clone());
-        self.primary_mut().container.push_open(left);
+        self.container.push_open(left);
         true
       }
       Err(err) => {
@@ -126,9 +258,9 @@ where
     };
 
     let mut state: State<L::Token, L::Span> = State::Start;
-    let leading_spec = self.primary().parser.leading();
-    let mut parser = self.primary.parser.parser.as_mut();
-    let container = &mut self.primary.container;
+    let leading_spec = self.parser.leading();
+    let mut parser = self.parser.parser.as_mut();
+    let container = &mut self.container;
     let mut num_elems = 0;
 
     let elems_start = inp.cursor().clone();
@@ -161,7 +293,7 @@ where
 
               continue;
             }
-            t => match self.primary.parser.right_classifier.check(t) {
+            t => match self.parser.right_classifier.check(t) {
               Ok(_) => {
                 let tok = tok.cloned();
                 drop(peeked);
@@ -207,13 +339,7 @@ where
           )
           .into_inner();
 
-        if self
-          .primary()
-          .parser
-          .right_classifier
-          .check(t.data())
-          .is_ok()
-        {
+        if self.parser.right_classifier.check(t.data()).is_ok() {
           inp.next().map(|t| t.map_data(|t| t.unwrap_token()))
         } else {
           None
@@ -225,24 +351,20 @@ where
         let span = inp.span_since(ckp.cursor());
         inp
           .emitter()
-          .emit_unclosed(Unclosed::of(span, self.primary().parser.delimiter.clone()))?;
+          .emit_unclosed(Unclosed::of(span, self.parser.delimiter.clone()))?;
       }
       // no open and close delimiters
       None => {
         let span = inp.span_since(ckp.cursor());
-        inp.emitter().emit_undelimited(Undelimited::of(
-          span,
-          self.primary().parser.delimiter.clone(),
-        ))?;
+        inp
+          .emitter()
+          .emit_undelimited(Undelimited::of(span, self.parser.delimiter.clone()))?;
       }
       Some(right) => {
-        let _ = self.primary.container.push_close(right);
+        let _ = self.container.push_close(right);
       }
     }
 
-    Ok(Spanned::new(
-      elems_span,
-      mem::take(&mut self.primary_mut().container),
-    ))
+    Ok(Spanned::new(elems_span, mem::take(&mut self.container)))
   }
 }
