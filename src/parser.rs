@@ -34,7 +34,7 @@ use crate::{
   Check, Emitter, Lexed, Lexer, Source, Token,
   emitter::Fatal,
   error::{UnexpectedEot, token::UnexpectedToken},
-  lexer::{CachedTokenOf, Input, InputRef, Peeked},
+  lexer::{Input, InputRef, Peeked},
   utils::{
     Expected, Located, Sliced, Spanned,
     marker::{PhantomLocated, PhantomSliced, PhantomSpan},
@@ -43,7 +43,6 @@ use crate::{
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray, typenum};
-use mayber::MaybeRef;
 
 pub use any::*;
 pub use choice::*;
@@ -80,9 +79,6 @@ mod repeated;
 mod sep;
 mod then;
 mod validate;
-
-/// A uninit buffer of peeked tokens.
-pub type UninitPeekBuf<'a, 'r, L> = [MaybeUninit<MaybeRef<'r, CachedTokenOf<'a, L>>>];
 
 mod sealed {
   pub trait Sealed {}
@@ -832,6 +828,10 @@ pub enum Action {
   #[unwrap(ignore)]
   #[try_unwrap(ignore)]
   Continue,
+  /// Indicates the parser should backtrack without consuming further input.
+  #[unwrap(ignore)]
+  #[try_unwrap(ignore)]
+  Backtrack,
 }
 
 impl Apply<Maximum> for () {
@@ -960,4 +960,14 @@ impl MaxSpec for () {
   fn maximum(&self) -> usize {
     usize::MAX
   }
+}
+
+/// The result of a parsing attempt.
+pub enum ParseResult<O, E> {
+  /// No output, no error, no consumption; the input was rewound to its original state.
+  Rewind,
+  /// Successful parse with output `O` and no emitted errors.
+  Ok(O),
+  /// Fatal parse failure with error `E`; caller should stop or propagate.
+  Err(E),
 }
