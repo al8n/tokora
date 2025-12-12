@@ -21,28 +21,37 @@ use super::*;
 ///     .map(|tok| tok.kind());
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Map<A, U, F> {
-  parser: A,
-  map_fn: F,
-  _m: PhantomData<U>,
+pub struct Map<F, G, L, Ctx, O, O2, Lang: ?Sized = ()> {
+  parser: F,
+  map_fn: G,
+  _o: PhantomData<O>,
+  _o2: PhantomData<O2>,
+  _l: PhantomData<L>,
+  _ctx: PhantomData<Ctx>,
+  _lang: PhantomData<Lang>,
 }
 
-impl<A, F, U> Map<A, U, F> {
+impl<F, G, L, Ctx, O, O2, Lang: ?Sized> Map<F, G, L, Ctx, O, O2, Lang> {
   /// Creates a new `Map` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(parser: A, map_fn: F) -> Self {
+  pub(super) const fn new(parser: F, map_fn: G) -> Self {
     Self {
       parser,
       map_fn,
-      _m: PhantomData,
+      _o: PhantomData,
+      _o2: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
+      _lang: PhantomData,
     }
   }
 }
 
-impl<'inp, A, F, L, O, U, Ctx, Lang> ParseInput<'inp, L, U, Ctx, Lang> for Map<A, O, F>
+impl<'inp, F, G, L, O, U, Ctx, Lang> ParseInput<'inp, L, U, Ctx, Lang>
+  for Map<F, G, L, Ctx, O, U, Lang>
 where
-  A: ParseInput<'inp, L, O, Ctx, Lang>,
-  F: FnMut(O) -> U,
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  G: FnMut(O) -> U,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {

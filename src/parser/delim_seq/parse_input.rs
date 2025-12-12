@@ -57,7 +57,6 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default
-    + crate::container::Container<O>
     + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>
     + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,

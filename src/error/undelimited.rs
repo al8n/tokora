@@ -537,3 +537,8 @@ impl<Delimiter, S, Lang: ?Sized> Undelimited<Delimiter, S, Lang> {
     (self.span, self.delimiter)
   }
 }
+
+impl<Delimiter, S, Lang: ?Sized> From<Undelimited<Delimiter, S, Lang>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: Undelimited<Delimiter, S, Lang>) -> Self {}
+}

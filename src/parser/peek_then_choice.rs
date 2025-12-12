@@ -2,32 +2,19 @@ use super::*;
 
 /// a
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct PeekThenChoice<P, H, T, W> {
+pub struct PeekThenChoice<P, H, L, Ctx, W, Lang: ?Sized = ()> {
   parser: P,
   handler: H,
-  _token: PhantomData<T>,
   _capacity: PhantomData<W>,
+  _ctx: PhantomData<Ctx>,
+  _l: PhantomData<L>,
+  _lang: PhantomData<Lang>,
 }
 
-impl<P, H, T, W: Window> PeekThenChoice<P, H, T, W> {
-  /// Creates a new `PeekThenChoice` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new<'inp, L, O, Ctx>(parser: P, condition: H) -> Self
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, ()>,
-    P: ParseChoice<'inp, L, O, Ctx, ()>,
-    H: FnMut(
-      Peeked<'_, 'inp, L, W>,
-      &mut Ctx::Emitter,
-    ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
-  {
-    Self::of(parser, condition)
-  }
-
+impl<P, H, L, Ctx, W: Window, Lang: ?Sized> PeekThenChoice<P, H, L, Ctx, W, Lang> {
   /// Creates a new `PeekThenChoice` combinator for the specified language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn of<'inp, L, O, Ctx, Lang>(parser: P, condition: H) -> Self
+  pub(super) const fn of<'inp, O>(parser: P, condition: H) -> Self
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
@@ -36,34 +23,20 @@ impl<P, H, T, W: Window> PeekThenChoice<P, H, T, W> {
       Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
-    Lang: ?Sized,
   {
     Self {
       parser,
       handler: condition,
-      _token: PhantomData,
       _capacity: PhantomData,
+      _ctx: PhantomData,
+      _l: PhantomData,
+      _lang: PhantomData,
     }
-  }
-
-  /// Creates a new `PeekThenChoice` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn or_not<'inp, L, O, Ctx>(parser: P, condition: H) -> OrNot<Self>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, ()>,
-    P: ParseChoice<'inp, L, O, Ctx, ()>,
-    H: FnMut(
-      Peeked<'_, 'inp, L, W>,
-      &mut Ctx::Emitter,
-    ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
-  {
-    Self::or_not_of(parser, condition)
   }
 
   /// Creates a new `PeekThenChoice` combinator for the specified language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn or_not_of<'inp, L, O, Ctx, Lang>(parser: P, condition: H) -> OrNot<Self>
+  pub(super) const fn or_not_of<'inp, O>(parser: P, condition: H) -> OrNot<Self>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
@@ -72,19 +45,20 @@ impl<P, H, T, W: Window> PeekThenChoice<P, H, T, W> {
       Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
-    Lang: ?Sized,
   {
     OrNot::new(Self {
       parser,
       handler: condition,
-      _token: PhantomData,
       _capacity: PhantomData,
+      _ctx: PhantomData,
+      _l: PhantomData,
+      _lang: PhantomData,
     })
   }
 }
 
 impl<'inp, P, H, L, O, Ctx, Lang, W: Window> ParseInput<'inp, L, O, Ctx, Lang>
-  for PeekThenChoice<P, H, L::Token, W>
+  for PeekThenChoice<P, H, L, Ctx, W>
 where
   P: ParseChoice<'inp, L, O, Ctx, Lang>,
   H: FnMut(
@@ -109,7 +83,7 @@ where
 }
 
 impl<'inp, P, H, L, O, Ctx, Lang, W: Window> ParseInput<'inp, L, Option<O>, Ctx, Lang>
-  for OrNot<PeekThenChoice<P, H, L::Token, W>>
+  for OrNot<PeekThenChoice<P, H, L, Ctx, W>>
 where
   P: ParseChoice<'inp, L, O, Ctx, Lang>,
   H: FnMut(

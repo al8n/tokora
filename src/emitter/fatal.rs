@@ -279,6 +279,39 @@ where
   }
 }
 
+impl<'inp, L, Delim, E, Lang: ?Sized> DelimiterEmitter<'inp, Delim, L, Lang> for Fatal<E, Lang>
+where
+  L: Lexer<'inp>,
+  E: From<Unclosed<Delim, L::Span, Lang>>
+    + From<Unopened<Delim, L::Span, Lang>>
+    + From<Undelimited<Delim, L::Span, Lang>>,
+  Fatal<E, Lang>: Emitter<'inp, L, Lang, Error = E>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_unclosed(&mut self, err: Unclosed<Delim, L::Span, Lang>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'inp>,
+  {
+    Err(err.into())
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_unopened(&mut self, err: Unopened<Delim, L::Span, Lang>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'inp>,
+  {
+    Err(err.into())
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_undelimited(&mut self, err: Undelimited<Delim, L::Span, Lang>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'inp>,
+  {
+    Err(err.into())
+  }
+}
+
 #[cfg(test)]
 const _: () = {
   use crate::lexer::{BlackHole, DummyLexer};

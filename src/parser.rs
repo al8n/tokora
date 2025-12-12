@@ -192,6 +192,10 @@ pub use then::*;
 pub use todo::*;
 pub use validate::*;
 
+// #[cfg(any(feature = "std", feature = "alloc"))]
+// #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+// pub use recursive::*;
+
 mod any;
 mod choice;
 mod collect;
@@ -214,6 +218,9 @@ mod sep;
 mod then;
 mod todo;
 mod validate;
+
+#[cfg(any(feature = "std", feature = "alloc"))]
+mod recursive;
 
 mod sealed {
   pub trait Sealed {}
@@ -405,7 +412,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Map the output of this parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn map<U, F>(self, f: F) -> Map<Self, O, F>
+  fn map<U, F>(self, f: F) -> Map<Self, F, L, Ctx, O, U, Lang>
   where
     Self: Sized,
     F: FnMut(O) -> U,

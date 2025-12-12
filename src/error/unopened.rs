@@ -521,3 +521,8 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
     (self.span, self.delimiter)
   }
 }
+
+impl<Delimiter, S, Lang: ?Sized> From<Unopened<Delimiter, S, Lang>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: Unopened<Delimiter, S, Lang>) -> Self {}
+}

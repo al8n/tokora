@@ -1,8 +1,17 @@
-use derive_more::Display;
-use logos::*;
-use tokit::{Any, Parse, Token as TokenT};
+use deranged::RangedU8;
+use derive_more::{Display, Unwrap};
+use generic_arraydeque::typenum::U1;
+use logos::Logos;
+use tokit::{
+  Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser, Token as TokenT,
+  emitter::{DelimiterEmitter, Fatal, SeparatedByEmitter},
+  lexer::{InputRef, Peeked, PunctuatorToken},
+  parser::{Action, Collect, Expect, Map, PeekThenChoice, SeparatedBy},
+  punct::Comma,
+  utils::{Expected, delimiter::Delimiter},
+};
 
-#[derive(Debug, Logos, Clone)]
+#[derive(Debug, Logos, Clone, Unwrap)]
 #[logos(skip r"[ \t\r\n\f]+")]
 enum Token {
   #[token("false", |_| false)]
@@ -35,6 +44,53 @@ enum Token {
 
   #[regex(r#""([^"\\\x00-\x1F]|\\(["\\bnfrt/]|u[a-fA-F0-9]{4}))*""#, |lex| lex.slice().to_owned())]
   String(String),
+}
+
+impl Token {
+  #[inline]
+  fn is_value_start(&self) -> bool {
+    matches!(
+      self,
+      Token::Bool(_)
+        | Token::Null
+        | Token::Number(_)
+        | Token::String(_)
+        | Token::BraceOpen
+        | Token::BracketOpen
+    )
+  }
+}
+
+impl PunctuatorToken<'_> for Token {
+  #[inline]
+  fn is_comma(&self) -> bool {
+    matches!(self, Token::Comma)
+  }
+
+  #[inline]
+  fn is_colon(&self) -> bool {
+    matches!(self, Token::Colon)
+  }
+
+  #[inline]
+  fn is_open_brace(&self) -> bool {
+    matches!(self, Token::BraceOpen)
+  }
+
+  #[inline]
+  fn is_close_brace(&self) -> bool {
+    matches!(self, Token::BraceClose)
+  }
+
+  #[inline]
+  fn is_open_bracket(&self) -> bool {
+    matches!(self, Token::BracketOpen)
+  }
+
+  #[inline]
+  fn is_close_bracket(&self) -> bool {
+    matches!(self, Token::BracketClose)
+  }
 }
 
 #[derive(Debug, Display, PartialEq, Eq, Clone, Copy, Hash)]
@@ -84,12 +140,18 @@ impl TokenT<'_> for Token {
 
   type Error = ();
 
+  #[inline]
   fn kind(&self) -> Self::Kind {
     TokenKind::from(self)
   }
+
+  #[inline]
+  fn is_trivia(&self) -> bool {
+    false
+  }
 }
 
-type JsonLexer<'a> = tokit::LogosLexer<'a, Token, Token>;
+type JsonLexer<'a> = tokit::lexer::LogosLexer<'a, Token, Token>;
 
 // Example of using map combinator to extract token values
 #[derive(Debug, Clone)]
@@ -98,62 +160,305 @@ enum JsonValue {
   Bool(bool),
   Number(f64),
   String(String),
+  List(Vec<JsonValue>),
+  Object(Vec<(String, JsonValue)>),
+}
+
+impl JsonValue {
+  fn decide<'inp, E>(
+    mut peeked: Peeked<'_, 'inp, JsonLexer<'inp>, U1>,
+    _: &mut E,
+  ) -> Result<Action, E::Error>
+  where
+    E: Emitter<'inp, JsonLexer<'inp>>,
+  {
+    Ok(match peeked.pop_front() {
+      None => Action::Stop,
+      Some(tok) => {
+        let tok = tok
+          .as_maybe_ref()
+          .map(|t| t.token().copied(), |t| t.token())
+          .into_inner();
+        match tok.data() {
+          Lexed::Token(tok) if tok.is_value_start() => Action::Continue,
+          _ => Action::Stop,
+        }
+      }
+    })
+  }
+}
+
+fn open_brace<'inp>(t: &Token) -> Result<(), TokenKind> {
+  if matches!(t, Token::BraceOpen) {
+    Ok(())
+  } else {
+    Err(TokenKind::BraceOpen)
+  }
+}
+
+fn open_bracket<'inp>(t: &Token) -> Result<(), TokenKind> {
+  if matches!(t, Token::BracketOpen) {
+    Ok(())
+  } else {
+    Err(TokenKind::BracketOpen)
+  }
+}
+
+fn close_brace<'inp>(t: &Token) -> Result<(), TokenKind> {
+  if matches!(t, Token::BraceClose) {
+    Ok(())
+  } else {
+    Err(TokenKind::BraceClose)
+  }
+}
+
+fn close_bracket<'inp>(t: &Token) -> Result<(), TokenKind> {
+  if matches!(t, Token::BracketClose) {
+    Ok(())
+  } else {
+    Err(TokenKind::BracketClose)
+  }
+}
+
+fn expect_colon<'inp>(t: &Token) -> Result<(), Expected<'inp, TokenKind>> {
+  if matches!(t, Token::Colon) {
+    Ok(())
+  } else {
+    Err(Expected::one(TokenKind::Colon))
+  }
+}
+
+fn boolean<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+) -> Result<bool, ()>
+where
+  Ctx: ParseContext<'inp, JsonLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = ()>,
+{
+  Expect::<_, Ctx>::new(|t: &Token| {
+    if matches!(t, Token::Bool(_)) {
+      Ok(())
+    } else {
+      Err(Expected::one(TokenKind::Bool))
+    }
+  })
+  .map(Token::unwrap_bool)
+  .parse_input(inp)
+}
+
+fn null<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+) -> Result<(), ()>
+where
+  Ctx: ParseContext<'inp, JsonLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = ()>,
+{
+  Expect::<_, Ctx>::new(|t: &Token| {
+    if matches!(t, Token::Null) {
+      Ok(())
+    } else {
+      Err(Expected::one(TokenKind::Null))
+    }
+  })
+  .ignored()
+  .parse_input(inp)
+}
+
+fn number<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+) -> Result<f64, ()>
+where
+  Ctx: ParseContext<'inp, JsonLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = ()>,
+{
+  Expect::<_, Ctx>::new(|t: &Token| {
+    if matches!(t, Token::Number(_)) {
+      Ok(())
+    } else {
+      Err(Expected::one(TokenKind::Number))
+    }
+  })
+  .map(Token::unwrap_number)
+  .parse_input(inp)
+}
+
+fn string<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+) -> Result<String, ()>
+where
+  Ctx: ParseContext<'inp, JsonLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = ()>,
+{
+  Expect::<_, Ctx>::new(|t: &Token| {
+    if matches!(t, Token::String(_)) {
+      Ok(())
+    } else {
+      Err(Expected::one(TokenKind::String))
+    }
+  })
+  .map(Token::unwrap_string)
+  .parse_input(inp)
+}
+
+fn list<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+) -> Result<Vec<JsonValue>, ()>
+where
+  Ctx: ParseContext<'inp, JsonLexer<'inp>>,
+  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue, Comma, JsonLexer<'inp>, Error = ()>
+    + SeparatedByEmitter<'inp, (String, JsonValue), Comma, JsonLexer<'inp>, Error = ()>
+    + DelimiterEmitter<'inp, Delimiter, JsonLexer<'inp>, Error = ()>,
+{
+  let mut p = SeparatedBy::comma::<'inp, JsonLexer<'inp>, U1, Ctx>(
+    json_value::<Ctx>,
+    JsonValue::decide::<Ctx::Emitter>,
+  )
+  .delimited_by(open_bracket, close_bracket, Delimiter::Bracket)
+  .collect();
+
+  <Collect<_, Vec<_>> as ParseInput<'inp, JsonLexer<'inp>, Vec<JsonValue>, Ctx, ()>>::parse_input(
+    &mut p, inp,
+  )
+}
+
+fn field<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+) -> Result<(String, JsonValue), ()>
+where
+  Ctx: ParseContext<'inp, JsonLexer<'inp>>,
+  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue, Comma, JsonLexer<'inp>, Error = ()>
+    + SeparatedByEmitter<'inp, (String, JsonValue), Comma, JsonLexer<'inp>, Error = ()>
+    + DelimiterEmitter<'inp, Delimiter, JsonLexer<'inp>, Error = ()>,
+{
+  string::<Ctx>
+    .then_ignore(Expect::<_, Ctx>::new(expect_colon))
+    .then(json_value::<Ctx>)
+    .parse_input(inp)
+}
+
+fn object<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+) -> Result<Vec<(String, JsonValue)>, ()>
+where
+  Ctx: ParseContext<'inp, JsonLexer<'inp>>,
+  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue, Comma, JsonLexer<'inp>, Error = ()>
+    + SeparatedByEmitter<'inp, (String, JsonValue), Comma, JsonLexer<'inp>, Error = ()>
+    + DelimiterEmitter<'inp, Delimiter, JsonLexer<'inp>, Error = ()>,
+{
+  let mut p = SeparatedBy::comma::<'inp, JsonLexer<'inp>, U1, Ctx>(
+    field::<Ctx>,
+    JsonValue::decide::<Ctx::Emitter>,
+  )
+  .delimited_by(open_brace, close_brace, Delimiter::Brace)
+  .collect();
+  <Collect<_, Vec<_>> as ParseInput<'inp, JsonLexer<'inp>, Vec<(String, JsonValue)>, Ctx, ()>>::parse_input(&mut p, inp)
+}
+
+fn json_value<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+) -> Result<JsonValue, ()>
+where
+  Ctx: ParseContext<'inp, JsonLexer<'inp>>,
+  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue, Comma, JsonLexer<'inp>, Error = ()>
+    + SeparatedByEmitter<'inp, (String, JsonValue), Comma, JsonLexer<'inp>, Error = ()>
+    + DelimiterEmitter<'inp, Delimiter, JsonLexer<'inp>, Error = ()>,
+{
+  let mut p = (
+    boolean::<Ctx>.map(JsonValue::Bool),
+    null::<Ctx>.map(|_| JsonValue::Null),
+    number::<Ctx>.map(JsonValue::Number),
+    string::<Ctx>.map(JsonValue::String),
+    list::<Ctx>.map(JsonValue::List),
+    object::<Ctx>.map(JsonValue::Object),
+  )
+    .peek_then_choice::<_, U1>(
+      |mut peeked: Peeked<'_, 'inp, JsonLexer<'inp>, U1>, _emitter| match peeked.pop_front() {
+        None => Err(()),
+        Some(tok) => {
+          let tok = tok
+            .as_maybe_ref()
+            .map(|t| t.token().copied(), |t| t.token())
+            .into_inner();
+          match tok.data() {
+            Lexed::Token(tok) => match tok {
+              Token::Bool(_) => Ok(RangedU8::new(0).unwrap()),
+              Token::Null => Ok(RangedU8::new(1).unwrap()),
+              Token::Number(_) => Ok(RangedU8::new(2).unwrap()),
+              Token::String(_) => Ok(RangedU8::new(3).unwrap()),
+              Token::BracketOpen => Ok(RangedU8::new(4).unwrap()),
+              Token::BraceOpen => Ok(RangedU8::new(5).unwrap()),
+              _ => Err(()),
+            },
+            Lexed::Error(_) => Err(()),
+          }
+        }
+      },
+    );
+  p.parse_input(inp)
+  // <PeekThenChoice<_, _, _, Ctx, U1> as ParseInput<'inp, JsonLexer<'inp>, JsonValue, Ctx, ()>>::parse_input(&mut p, inp)
 }
 
 fn main() {
-  println!("Parser Combinator Examples\n");
-  println!("===========================\n");
+  // use tokit::parser::{FatalContext, Parser};
 
-  // Example 1: Using map() to transform parser output
-  // Parse any token and extract just its kind
-  println!("Example 1: Using map() to extract token kind");
-  let kind_parser = Any::parser::<'_, JsonLexer<'_>, ()>()
-    .map(|result: Result<Token, ()>| result.map(|tok| tok.kind()));
+  // let src = r#"{"key": "value", "number": 42}"#;
+  // let parser = Parser::with_parser_and_context(parser::<FatalContext<JsonLexer>>());
+  // let result = parser.parse(src);
+  // println!("{:?}", result);
 
-  let src = "true";
-  let result = kind_parser.parse(src);
-  println!("  Input: \"{}\"", src);
-  println!("  Result: {:?}\n", result);
+  // println!("Parser Combinator Examples\n");
+  // println!("===========================\n");
 
-  // Example 2: Using map_ok() to transform only successful results
-  // Parse a number token and extract its value
-  println!("Example 2: Using map_ok() to extract number value");
-  let number_parser = Any::parser::<'_, JsonLexer<'_>, ()>().map_ok(|tok: Token| match tok {
-    Token::Number(n) => Some(n),
-    _ => None,
-  });
+  // // Example 1: Using map() to transform parser output
+  // // Parse any token and extract just its kind
+  // println!("Example 1: Using map() to extract token kind");
+  // let kind_parser = Any::parser::<'_, JsonLexer<'_>, ()>()
+  //   .map(|result: Result<Token, ()>| result.map(|tok| tok.kind()));
 
-  let src = "42.5";
-  let result = number_parser.parse(src);
-  println!("  Input: \"{}\"", src);
-  println!("  Result: {:?}\n", result);
+  // let src = "true";
+  // let result = kind_parser.parse(src);
+  // println!("  Input: \"{}\"", src);
+  // println!("  Result: {:?}\n", result);
 
-  // Example 3: Chaining map operations
-  // Parse any token and convert it to a JsonValue
-  println!("Example 3: Using map_ok() to convert tokens to JsonValue");
-  let value_parser = Any::parser::<'_, JsonLexer<'_>, ()>().map_ok(|tok: Token| match tok {
-    Token::Null => JsonValue::Null,
-    Token::Bool(b) => JsonValue::Bool(b),
-    Token::Number(n) => JsonValue::Number(n),
-    Token::String(s) => JsonValue::String(s),
-    _ => JsonValue::Null,
-  });
+  // // Example 2: Using map_ok() to transform only successful results
+  // // Parse a number token and extract its value
+  // println!("Example 2: Using map_ok() to extract number value");
+  // let number_parser = Any::parser::<'_, JsonLexer<'_>, ()>().map_ok(|tok: Token| match tok {
+  //   Token::Number(n) => Some(n),
+  //   _ => None,
+  // });
 
-  let src = r#""hello""#;
-  let result = value_parser.parse(src);
-  println!("  Input: {}", src);
-  println!("  Result: {:?}\n", result);
+  // let src = "42.5";
+  // let result = number_parser.parse(src);
+  // println!("  Input: \"{}\"", src);
+  // println!("  Result: {:?}\n", result);
 
-  // Example 4: Chaining multiple map operations
-  println!("Example 4: Chaining multiple transformations");
-  let chained_parser = Any::parser::<'_, JsonLexer<'_>, ()>()
-    .map_ok(|tok: Token| tok.kind())
-    .map(|result: Result<TokenKind, ()>| result.map(|kind| format!("Parsed: {}", kind)));
+  // // Example 3: Chaining map operations
+  // // Parse any token and convert it to a JsonValue
+  // println!("Example 3: Using map_ok() to convert tokens to JsonValue");
+  // let value_parser = Any::parser::<'_, JsonLexer<'_>, ()>().map_ok(|tok: Token| match tok {
+  //   Token::Null => JsonValue::Null,
+  //   Token::Bool(b) => JsonValue::Bool(b),
+  //   Token::Number(n) => JsonValue::Number(n),
+  //   Token::String(s) => JsonValue::String(s),
+  //   _ => JsonValue::Null,
+  // });
 
-  let src = "null";
-  let result = chained_parser.parse(src);
-  println!("  Input: \"{}\"", src);
-  println!("  Result: {:?}\n", result);
+  // let src = r#""hello""#;
+  // let result = value_parser.parse(src);
+  // println!("  Input: {}", src);
+  // println!("  Result: {:?}\n", result);
 
-  println!("All examples completed successfully!");
+  // // Example 4: Chaining multiple map operations
+  // println!("Example 4: Chaining multiple transformations");
+  // let chained_parser = Any::parser::<'_, JsonLexer<'_>, ()>()
+  //   .map_ok(|tok: Token| tok.kind())
+  //   .map(|result: Result<TokenKind, ()>| result.map(|kind| format!("Parsed: {}", kind)));
+
+  // let src = "null";
+  // let result = chained_parser.parse(src);
+  // println!("  Input: \"{}\"", src);
+  // println!("  Result: {:?}\n", result);
+
+  // println!("All examples completed successfully!");
 }

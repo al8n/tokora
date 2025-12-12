@@ -19,7 +19,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
   /// parsing is stopped and return the error from the handler.
-  fn peek_then_choice<H, W: Window>(self, condition: H) -> PeekThenChoice<Self, H, L::Token, W>
+  fn peek_then_choice<H, W: Window>(self, condition: H) -> PeekThenChoice<Self, H, L, Ctx, W, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -40,7 +40,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn peek_then_choice_or_not<H, W: Window>(
     self,
     condition: H,
-  ) -> OrNot<PeekThenChoice<Self, H, L::Token, W>>
+  ) -> OrNot<PeekThenChoice<Self, H, L, Ctx, W, Lang>>
   where
     Self: Sized,
     L: Lexer<'inp>,
