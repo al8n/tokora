@@ -60,6 +60,7 @@ mod require;
 #[doc(hidden)]
 pub mod __private {
   pub use super::{check::Check, error, lexer::*, require::Require, syntax, utils};
+  #[cfg(feature = "logos")]
   pub use logos;
   pub use paste;
 

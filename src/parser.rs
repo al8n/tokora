@@ -1,30 +1,155 @@
-//! Parser combinators with flexible emitter and cache configuration.
+//! Blazing fast parser combinators with deterministic parsing and zero-copy streaming.
 //!
-//! This module provides a type-safe parser combinator framework with:
+//! This module provides a unique parser combinator framework that combines:
 //!
-//! - **Flexible configuration**: Configure error emitters and caches independently
-//! - **Type-level state tracking**: The type system ensures correct configurations
-//! - **Zero-cost abstractions**: All configuration resolved at compile time
+//! 1. **Parse-While-Lexing Architecture**: Zero-copy streaming - tokens consumed directly from
+//!    the lexer without buffering, eliminating allocation overhead
+//! 2. **Deterministic LALR-Style Parsing**: Explicit lookahead with compile-time buffer capacity, no hidden backtracking
+//! 3. **Flexible Error Handling**: Same parser adapts for fail-fast runtime ([`Fatal`](crate::emitter::Fatal))
+//!    or greedy compiler diagnostics (via custom [`Emitter`](crate::Emitter))
+//!
+//! # Architecture
+//!
+//! Unlike traditional parser combinators that buffer all tokens and rely on implicit backtracking:
+//!
+//! **Traditional (Two-Phase)**:
+//! ```text
+//! Source → Lexer → [Vec<Token>] → Parser
+//!                   ↑ Extra allocation!
+//! ```
+//!
+//! **Tokit (Streaming)**:
+//! ```text
+//! Source → Lexer ←→ Parser
+//!          ↑________↓
+//!     Zero-copy, on-demand
+//! ```
+//!
+//! Parsers pull tokens on-demand from the lexer. Only a small lookahead window (1-32 tokens)
+//! is buffered on the stack for deterministic decisions.
+//!
+//! # Core Concepts
+//!
+//! ## Parse-While-Lexing
+//!
+//! Tokens flow directly from lexer to parser without intermediate buffering:
+//! - **Zero extra allocations**: No `Vec<Token>` buffer
+//! - **Lower memory**: Only lookahead window buffered on stack
+//! - **Better cache locality**: Tokens processed immediately after lexing
+//!
+//! ## Deterministic Parsing (No Hidden Backtracking)
+//!
+//! Unlike traditional parser combinators with implicit backtracking, Tokit uses
+//! **explicit lookahead-based decisions**:
+//!
+//! ```ignore
+//! // Traditional: Hidden backtracking
+//! let parser = try_parser1.or(try_parser2).or(try_parser3);
+//!
+//! // Tokit: Explicit lookahead, deterministic
+//! let parser = any().peek_then::<_, typenum::U2>(|peeked, _| {
+//!     match peeked.front() {
+//!         Some(Token::If) => Ok(Action::Continue),  // Deterministic!
+//!         _ => Ok(Action::Stop),
+//!     }
+//! });
+//! ```
+//!
+//! The [`Window`] trait provides compile-time fixed lookahead capacity (`typenum::U1` to `typenum::U32`),
+//! enabling LALR-style deterministic table parsing.
+//!
+//! ## Flexible Error Handling via Emitter
+//!
+//! The [`Emitter`](crate::Emitter) trait decouples parsing logic from error handling strategy:
+//!
+//! ```ignore
+//! // Fail-fast for runtime/REPL (stop on first error)
+//! let parser = Parser::with_context(FatalContext::new());
+//! let result = parser.parse(source);  // Uses Fatal emitter
+//!
+//! // Custom greedy emitter for compiler diagnostics (collect all errors)
+//! struct DiagnosticEmitter { errors: Vec<Error> }
+//! impl Emitter for DiagnosticEmitter { /* collect errors */ }
+//! ```
+//!
+//! **Same parser code, different behavior** - just swap the `Emitter` type.
 //!
 //! # Quick Start
 //!
 //! ```ignore
-//! use tokit::parser::any;
+//! use tokit::{Any, Parse, Parser, parser::FatalContext};
 //!
-//! // Parse with defaults
-//! let result = any::<MyLexer, ()>().parse(source);
+//! // 1. Parse any token
+//! let parser = Any::parser::<'_, MyLexer<'_>, ()>();
+//! let result = parser.parse(source);
 //!
-//! // Configure emitter
-//! let result = any::<MyLexer, ()>()
-//!     .with_emitter(MyEmitter::new())
-//!     .parse(source);
+//! // 2. Chain combinators
+//! let parser = Any::parser::<'_, MyLexer<'_>, ()>()
+//!     .map(|tok| tok.kind())
+//!     .filter(|kind| matches!(kind, TokenKind::Number));
 //!
-//! // Full configuration
-//! let result = any::<MyLexer, ()>()
-//!     .with_emitter(MyEmitter::new())
-//!     .with_cache::<MyCache>(cache_opts)
-//!     .parse(source);
+//! // 3. Explicit lookahead (deterministic choice)
+//! let parser = Any::parser::<'_, MyLexer<'_>, ()>()
+//!     .peek_then::<_, typenum::U1>(|peeked, _| {
+//!         match peeked.get(0) {
+//!             Some(tok) if tok.is_keyword("if") => Ok(Action::Continue),
+//!             _ => Ok(Action::Stop),
+//!         }
+//!     });
 //! ```
+//!
+//! # Available Combinators
+//!
+//! ## Basic Parsers
+//!
+//! - [`any`] - Accept any single token
+//! - [`expect`] - Expect specific token, emit error if not found
+//! - [`empty`] - No-op parser
+//! - [`todo`] - Placeholder for incomplete implementations
+//!
+//! ## Sequencing
+//!
+//! - [`then`] - Sequential composition: parse `p1` then `p2`
+//! - [`then_ignore`] - Parse both, keep only first result
+//! - [`ignore_then`] - Parse both, keep only second result
+//!
+//! ## Repetition & Collections
+//!
+//! - [`repeated`] - Repeat until condition returns `Action::Stop`
+//! - [`separated_by`](SeparatedBy) - Parse elements separated by delimiter
+//! - [`delim`] - Parse delimited content (e.g., parentheses)
+//! - [`delim_seq`] - Parse delimited, separated sequences
+//!
+//! ## Lookahead & Conditional (Deterministic)
+//!
+//! - [`peek_then`](PeekThen) - Peek ahead with fixed window, make deterministic decision
+//! - [`peek_then_choice`](PeekThenChoice) - Choose between alternatives based on lookahead
+//! - [`or_not`](OrNot) - Optional parsing
+//!
+//! ## Transformation
+//!
+//! - [`map`](Map) - Transform output
+//! - [`filter`](Filter) - Filter with validation
+//! - [`filter_map`](FilterMap) - Filter and transform
+//! - [`validate`](Validate) - Validate with full location context
+//!
+//! ## Error Recovery
+//!
+//! - [`recover`](Recover) - Try parser, use recovery on error
+//! - [`padded`](Padded) - Skip trivia (whitespace/comments) before and after
+//!
+//! # Performance Characteristics
+//!
+//! - **Memory**: O(1) - only small lookahead window on stack, no token buffering
+//! - **Parsing**: O(n) - single-pass, deterministic, no backtracking
+//! - **Lookahead**: O(1) - fixed compile-time capacity (1-32 tokens)
+//!
+//! # Design Priorities
+//!
+//! 1. **Performance**: Parse-while-lexing (zero-copy), no hidden allocations
+//! 2. **Predictability**: No hidden backtracking, deterministic decisions
+//! 3. **Composability**: Small parsers combine into complex grammars
+//! 4. **Versatility**: Same parser for runtime (fail-fast) or compiler (greedy) via `Emitter`
 
 #![allow(clippy::type_complexity)]
 

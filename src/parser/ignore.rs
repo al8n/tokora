@@ -1,6 +1,5 @@
 use super::*;
 
-
 /// A parser that ignores any output.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Ignore<P, O> {
@@ -12,11 +11,14 @@ impl<P, O> Ignore<P, O> {
   /// Creates a parser that ignores any output.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new(parser: P) -> Self {
-    Self { parser, _output: PhantomData }
+    Self {
+      parser,
+      _output: PhantomData,
+    }
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, () , Ctx, Lang> for Ignore<P, O>
+impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, (), Ctx, Lang> for Ignore<P, O>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   L: Lexer<'inp>,

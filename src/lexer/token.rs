@@ -2,6 +2,8 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use crate::utils::{Spanned, cmp::Equivalent};
 
+#[cfg(feature = "logos")]
+#[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
 pub use logos::Logos;
 
 /// The result of lexing a single token: either a successful token or an error.

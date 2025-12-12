@@ -2,26 +2,26 @@ use core::{convert::Infallible, fmt, hash::Hash, ops::AddAssign};
 
 use mayber::Maybe;
 
-pub use cache::*;
-pub use checkpoint::Checkpoint;
-pub use cursor::Cursor;
-
-pub use input::InputContext;
-pub use input_ref::InputRef;
-pub use source::Source;
-pub use token::{
-  DelimiterToken, IdentifierToken, KeywordToken, Lexed, LitToken, Logos, OperatorToken,
-  PunctuatorToken, Token,
-};
-
-#[cfg(feature = "logos")]
-pub use self::logos::LogosLexer;
-
-pub use peek::Peeked;
+use crate::utils::{SimpleSpan, Spanned};
 
 pub(crate) use input::Input;
 
-use crate::utils::{SimpleSpan, Spanned};
+#[cfg(feature = "logos")]
+pub use self::logos::LogosLexer;
+pub use cache::*;
+pub use checkpoint::Checkpoint;
+pub use cursor::Cursor;
+pub use input::InputContext;
+pub use input_ref::InputRef;
+pub use source::Source;
+#[cfg(feature = "logos")]
+pub use token::Logos;
+pub use token::{
+  DelimiterToken, IdentifierToken, KeywordToken, Lexed, LitToken, OperatorToken, PunctuatorToken,
+  Token,
+};
+
+pub use peek::Peeked;
 
 /// The token related structures and traits
 pub mod token;
@@ -34,15 +34,18 @@ mod checkpoint;
 mod cursor;
 mod input;
 mod input_ref;
+
+#[cfg(feature = "logos")]
 mod logos;
+
 mod peek;
 
-/// a
+/// A trait to convert a type into a lexer.
 pub trait IntoLexer<'inp, T: ?Sized> {
-  /// a
+  /// The lexer type.
   type Lexer;
 
-  /// a
+  /// Converts `self` into a lexer.
   fn into_lexer(self) -> Self::Lexer
   where
     Self: 'inp,
@@ -103,9 +106,6 @@ pub trait Lexer<'inp>: 'inp {
 
   /// Get the range for the current token in `Source`.
   fn span(&self) -> Self::Span;
-
-  // /// Returns the offset in the source for the given cursor.
-  // fn offset(&self, cursor: &Self::Cursor) -> Self::Offset;
 
   /// Returns the slice of the current token in the source.
   fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'inp>;

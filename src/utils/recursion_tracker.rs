@@ -1,5 +1,3 @@
-use logos::{Lexer, Logos};
-
 use crate::State;
 
 /// Error returned when recursion depth exceeds the configured limit.
@@ -319,30 +317,65 @@ impl RecursionTracker for RecursionLimiter {
   }
 }
 
-impl<'a, T> RecursionTracker for Lexer<'a, T>
-where
-  T: Logos<'a>,
-  T::Extras: RecursionTracker,
-{
-  type Error = <T::Extras as RecursionTracker>::Error;
+#[cfg(feature = "logos")]
+const _: () = {
+  use crate::{Token, lexer::LogosLexer};
+  use logos::{Lexer, Logos};
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase(&mut self) {
-    self.extras.increase();
+  impl<'a, T> RecursionTracker for Lexer<'a, T>
+  where
+    T: Logos<'a>,
+    T::Extras: RecursionTracker,
+  {
+    type Error = <T::Extras as RecursionTracker>::Error;
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase(&mut self) {
+      self.extras.increase();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn decrease(&mut self) {
+      self.extras.decrease();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn check(&self) -> Result<(), Self::Error> {
+      self.extras.check()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_and_check(&mut self) -> Result<(), Self::Error> {
+      self.extras.increase_and_check()
+    }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn decrease(&mut self) {
-    self.extras.decrease();
-  }
+  impl<'a, T, L> RecursionTracker for LogosLexer<'a, T, L>
+  where
+    T: From<L> + Token<'a>,
+    L: Logos<'a>,
+    L::Extras: RecursionTracker,
+  {
+    type Error = <L::Extras as RecursionTracker>::Error;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check(&self) -> Result<(), Self::Error> {
-    self.extras.check()
-  }
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase(&mut self) {
+      self.inner_mut().increase();
+    }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase_and_check(&mut self) -> Result<(), Self::Error> {
-    self.extras.increase_and_check()
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn decrease(&mut self) {
+      self.inner_mut().decrease();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn check(&self) -> Result<(), Self::Error> {
+      self.inner().check()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_and_check(&mut self) -> Result<(), Self::Error> {
+      self.inner_mut().increase_and_check()
+    }
   }
-}
+};

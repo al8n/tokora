@@ -1,5 +1,3 @@
-use logos::{Lexer, Logos};
-
 use crate::{
   lexer::State,
   utils::{recursion_tracker::RecursionLimiter, token_tracker::TokenLimiter},
@@ -644,57 +642,120 @@ impl Tracker for Limiter {
   }
 }
 
-impl<'a, T> Tracker for Lexer<'a, T>
-where
-  T: Logos<'a>,
-  T::Extras: Tracker,
-{
-  type Error = <T::Extras as Tracker>::Error;
+#[cfg(feature = "logos")]
+const _: () = {
+  use logos::{Lexer, Logos};
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase_token(&mut self) {
-    self.extras.increase_token();
+  use crate::{Token, lexer::LogosLexer};
+
+  impl<'a, T> Tracker for Lexer<'a, T>
+  where
+    T: Logos<'a>,
+    T::Extras: Tracker,
+  {
+    type Error = <T::Extras as Tracker>::Error;
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_token(&mut self) {
+      self.extras.increase_token();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_recursion(&mut self) {
+      self.extras.increase_recursion();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn decrease_recursion(&mut self) {
+      self.extras.decrease_recursion();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn check(&self) -> Result<(), Self::Error> {
+      self.extras.check()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_token_and_check(&mut self) -> Result<(), Self::Error> {
+      self.extras.increase_token_and_check()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_both(&mut self) {
+      self.extras.increase_both();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_both_and_check(&mut self) -> Result<(), Self::Error> {
+      self.extras.increase_both_and_check()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_token_and_decrease_recursion(&mut self) {
+      self.extras.increase_token_and_decrease_recursion();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_token_and_decrease_recursion_and_check(&mut self) -> Result<(), Self::Error> {
+      self
+        .extras
+        .increase_token_and_decrease_recursion_and_check()
+    }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase_recursion(&mut self) {
-    self.extras.increase_recursion();
-  }
+  impl<'a, T, L> Tracker for LogosLexer<'a, T, L>
+  where
+    T: From<L> + Token<'a>,
+    L: Logos<'a>,
+    L::Extras: Tracker,
+  {
+    type Error = <L::Extras as Tracker>::Error;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn decrease_recursion(&mut self) {
-    self.extras.decrease_recursion();
-  }
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_token(&mut self) {
+      self.inner_mut().increase_token();
+    }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check(&self) -> Result<(), Self::Error> {
-    self.extras.check()
-  }
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_recursion(&mut self) {
+      self.inner_mut().increase_recursion();
+    }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase_token_and_check(&mut self) -> Result<(), Self::Error> {
-    self.extras.increase_token_and_check()
-  }
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn decrease_recursion(&mut self) {
+      self.inner_mut().decrease_recursion();
+    }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase_both(&mut self) {
-    self.extras.increase_both();
-  }
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn check(&self) -> Result<(), Self::Error> {
+      self.inner().check()
+    }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase_both_and_check(&mut self) -> Result<(), Self::Error> {
-    self.extras.increase_both_and_check()
-  }
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_token_and_check(&mut self) -> Result<(), Self::Error> {
+      self.inner_mut().increase_token_and_check()
+    }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase_token_and_decrease_recursion(&mut self) {
-    self.extras.increase_token_and_decrease_recursion();
-  }
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_both(&mut self) {
+      self.inner_mut().increase_both();
+    }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase_token_and_decrease_recursion_and_check(&mut self) -> Result<(), Self::Error> {
-    self
-      .extras
-      .increase_token_and_decrease_recursion_and_check()
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_both_and_check(&mut self) -> Result<(), Self::Error> {
+      self.inner_mut().increase_both_and_check()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_token_and_decrease_recursion(&mut self) {
+      self.inner_mut().increase_token_and_decrease_recursion();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_token_and_decrease_recursion_and_check(&mut self) -> Result<(), Self::Error> {
+      self
+        .inner_mut()
+        .increase_token_and_decrease_recursion_and_check()
+    }
   }
-}
+};

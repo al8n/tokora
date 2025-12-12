@@ -4,7 +4,7 @@ use crate::utils::SimpleSpan;
 
 use super::{IntoLexer, Lexer, Source, State, Token};
 
-/// a
+/// A lexer implementation for [`logos`]-based lexers.
 #[repr(transparent)]
 pub struct LogosLexer<'inp, T, L: logos::Logos<'inp>> {
   inner: logos::Lexer<'inp, L>,
@@ -30,9 +30,32 @@ where
   }
 }
 
+impl<'inp, T, L> LogosLexer<'inp, T, L>
+where
+  L: logos::Logos<'inp>,
+{
+  /// Consumes the lexer and returns the inner `logos::Lexer`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_inner(self) -> logos::Lexer<'inp, L> {
+    self.inner
+  }
+
+  /// Returns a reference to the inner `logos::Lexer`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn inner(&self) -> &logos::Lexer<'inp, L> {
+    &self.inner
+  }
+
+  /// Returns a reference to the inner `logos::Lexer`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn inner_mut(&mut self) -> &mut logos::Lexer<'inp, L> {
+    &mut self.inner
+  }
+}
+
 impl<'inp, T, L> Lexer<'inp> for LogosLexer<'inp, T, L>
 where
-  T: From<L> + Token<'inp> + 'inp,
+  T: From<L> + Token<'inp>,
   T::Error: From<L::Error> + From<<L::Extras as State>::Error>,
   L: logos::Logos<'inp> + 'inp,
   L::Extras: State,
@@ -99,9 +122,9 @@ where
     T: Token<'inp>,
   {
     match self.inner.next() {
-      Some(Ok(tok)) => match <Self as Lexer<'_>>::check(self) {
-        Ok(()) => Some(Ok(T::from(tok))),
-        Err(err) => Some(Err(err)),
+      Some(Ok(tok)) => match self.check() {
+        Ok(_) => Some(Ok(T::from(tok))),
+        Err(e) => Some(Err(e)),
       },
       Some(Err(err)) => Some(Err(err.into())),
       None => None,
