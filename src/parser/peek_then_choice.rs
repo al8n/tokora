@@ -1,6 +1,7 @@
 use super::*;
 
 /// a
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PeekThenChoice<P, H, T, W> {
   parser: P,
   handler: H,
@@ -108,7 +109,7 @@ where
 }
 
 impl<'inp, P, H, L, O, Ctx, Lang, W: Window> ParseInput<'inp, L, Option<O>, Ctx, Lang>
-  for or_not::OrNot<PeekThenChoice<P, H, L::Token, W>>
+  for OrNot<PeekThenChoice<P, H, L::Token, W>>
 where
   P: ParseChoice<'inp, L, O, Ctx, Lang>,
   H: FnMut(

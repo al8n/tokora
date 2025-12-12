@@ -4,42 +4,10 @@ use super::*;
 
 mod parse_input;
 
-// struct DecisionWithClose<'a, D, Close>(With<&'a mut D, &'a mut Close>);
-
-// impl<'inp, D, Close, L, E, W, Lang> Decision<'inp, L, E, W, Lang>
-//   for DecisionWithClose<'_, D, Close>
-// where
-//   L: Lexer<'inp>,
-//   D: Decision<'inp, L, E, W, Lang>,
-//   Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-//   W: Window,
-//   Lang: ?Sized,
-// {
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   fn decide(&mut self, toks: Peeked<'_, 'inp, L, W>, emitter: &mut E) -> Result<Action, E::Error>
-//   where
-//     E: Emitter<'inp, L, Lang>,
-//   {
-//     if let Some(t) = toks.front() {
-//       let t = t
-//         .as_maybe_ref()
-//         .map(|t| t.token().copied(), |t| t.token())
-//         .into_inner();
-
-//       if let Lexed::Token(t) = t.data() {
-//         if self.0.secondary().check(t).is_ok() {
-//           return Ok(Action::End);
-//         }
-//       }
-//     }
-
-//     self.0.primary_mut().decide(toks, emitter)
-//   }
-// }
-
 /// A parser that parses a construct delimited by left and right tokens.
 ///
 /// See also: [`DelimSepSeq`]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DelimitedSeparatedBy<
   P,
   SepClassifier,

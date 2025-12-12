@@ -1,4 +1,5 @@
 /// A parser that collects results into a container.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Collect<P, Container> {
   pub(crate) parser: P,
   pub(crate) container: Container,

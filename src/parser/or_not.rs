@@ -1,4 +1,5 @@
 /// A parser that applies its inner parser if a peeked condition is false.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct OrNot<P>(pub(super) P);
 
 impl<P> OrNot<P> {

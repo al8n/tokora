@@ -41,6 +41,7 @@ use super::*;
 ///             .map_err(|_| InvalidNumberError::new(*span))
 ///     });
 /// ```
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FilterMap<P, F, O> {
   parser: P,
   mapper: F,

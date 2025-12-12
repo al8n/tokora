@@ -1,6 +1,7 @@
 use super::*;
 
 /// a
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PeekThen<P, D, T, Window> {
   parser: P,
   handler: D,

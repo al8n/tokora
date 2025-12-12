@@ -5,6 +5,7 @@ mod parse_input;
 /// A parser that parses a construct delimited by left and right tokens.
 ///
 /// See also: [`DelimSepSeq`]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DelimitedBy<P, Condition, Open, Close, Delim, O, W, Config = RepeatedOptions> {
   parser: Repeated<P, Condition, O, W, Config>,
   left_classifier: Open,

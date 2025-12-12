@@ -30,6 +30,7 @@ where
 }
 
 /// A parser that parses a sequence of elements separated by a specific separator.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Repeated<F, Condition, O, W, Config = RepeatedOptions> {
   pub(super) f: F,
   pub(super) condition: Condition,

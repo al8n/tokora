@@ -1,5 +1,6 @@
 use crate::{
   Check,
+  container::SeparatorsContainer,
   emitter::{BatchEmitter, RepeatedEmitter, SeparatedByEmitter},
   error::{
     syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
@@ -42,7 +43,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: Default + crate::container::Container<O>,
+  Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
   Trailing: super::TrailingSpec,
   Leading: super::LeadingSpec,
@@ -99,7 +100,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: Default + crate::container::Container<O>,
+  Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
   Trailing: super::TrailingSpec,
   Leading: super::LeadingSpec,
@@ -155,7 +156,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: crate::container::Container<O>,
+  Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
   Trailing: super::TrailingSpec,
   Leading: super::LeadingSpec,
@@ -230,7 +231,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: crate::container::Container<O>,
+  Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
   Trailing: super::TrailingSpec,
   Leading: super::LeadingSpec,
@@ -415,7 +416,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     SepClassifier: Check<L::Token>,
     Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
-    Container: crate::container::Container<O>,
+    Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
     Trailing: super::TrailingSpec,
     Leading: super::LeadingSpec,
     Max: super::MaxSpec,
@@ -423,9 +424,10 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     Lang: ?Sized,
   {
     match state {
-      State::Separator(_) => {
+      State::Separator(sep) => {
         // parse the next element
         let element = self.f.parse_input(inp)?;
+        container.push_separator(sep);
         if push(num_elems, container, element).is_some() {
           let span = inp.span_since(ckp.cursor());
           inp.emitter().emit_full_container(FullContainer::of(

@@ -40,6 +40,7 @@ use super::*;
 ///         }
 ///     });
 /// ```
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Filter<P, F> {
   parser: P,
   filter: F,

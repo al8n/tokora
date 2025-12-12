@@ -27,6 +27,7 @@ use super::*;
 ///         }
 ///     });
 /// ```
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Then<F, T> {
   parser: F,
   then: T,
@@ -77,6 +78,7 @@ where
 /// let parser = Expect::parser(is_brace_open)
 ///     .ignore_then(parse_object_content());
 /// ```
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct IgnoreThen<F, G, O1> {
   first: F,
   second: G,
@@ -131,6 +133,7 @@ where
 /// let parser = parse_object_content()
 ///     .then_ignore(Expect::parser(is_brace_close));
 /// ```
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ThenIgnore<F, G, O2> {
   first: F,
   second: G,

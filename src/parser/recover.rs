@@ -1,6 +1,7 @@
 use super::*;
 
 /// A parser that attempts to recover from a fatal error using a recovery parser.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Recover<P, R> {
   parser: P,
   recoverer: R,
@@ -39,6 +40,7 @@ where
 }
 
 /// A parser that attempts to recover from a fatal error using a recovery parser.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct InplaceRecover<P, R> {
   parser: P,
   recoverer: R,

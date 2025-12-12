@@ -20,6 +20,7 @@ use super::*;
 /// let parser = Any::parser()
 ///     .map(|tok| tok.kind());
 /// ```
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Map<A, U, F> {
   parser: A,
   map_fn: F,

@@ -40,6 +40,7 @@ use super::*;
 ///         }
 ///     });
 /// ```
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Validate<P, F> {
   parser: P,
   validator: F,
