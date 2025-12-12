@@ -3,13 +3,13 @@
 
 // use chumsky::prelude::*;
 // use logos::Logos;
-// use logosky::{
+// use tokit::{
 //   Token, TokenExt, TriviaToken as _,
 //   chumsky::LogoStream,
 //   utils::{Span, Spanned},
 // };
 
-// type Tokenizer<'a> = logosky::Tokenizer<'a, CalcToken>;
+// type Tokenizer<'a> = tokit::Tokenizer<'a, CalcToken>;
 
 // // A more complete example: a simple calculator language
 // #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,8 +130,8 @@
 // {
 //   recursive(|expr| {
 //     let number = any()
-//       .try_map(|tok: logosky::Lexed<'_, CalcToken>, span| match tok {
-//         logosky::Lexed::Token(t) if t.kind() == CalcTokenKind::Number => {
+//       .try_map(|tok: tokit::Lexed<'_, CalcToken>, span| match tok {
+//         tokit::Lexed::Token(t) if t.kind() == CalcTokenKind::Number => {
 //           Ok(Spanned::new(span, Expr::Number(0)))
 //         }
 //         _ => Err(EmptyErr::default()),
@@ -141,14 +141,14 @@
 //     let atom = number
 //       .or(
 //         any()
-//           .try_map(|tok: logosky::Lexed<'_, CalcToken>, _| match tok {
-//             logosky::Lexed::Token(t) if t.kind() == CalcTokenKind::LParen => Ok(()),
+//           .try_map(|tok: tokit::Lexed<'_, CalcToken>, _| match tok {
+//             tokit::Lexed::Token(t) if t.kind() == CalcTokenKind::LParen => Ok(()),
 //             _ => Err(EmptyErr::default()),
 //           })
 //           .ignore_then(expr.clone())
 //           .then_ignore(
-//             any().try_map(|tok: logosky::Lexed<'_, CalcToken>, _| match tok {
-//               logosky::Lexed::Token(t) if t.kind() == CalcTokenKind::RParen => Ok(()),
+//             any().try_map(|tok: tokit::Lexed<'_, CalcToken>, _| match tok {
+//               tokit::Lexed::Token(t) if t.kind() == CalcTokenKind::RParen => Ok(()),
 //               _ => Err(EmptyErr::default()),
 //             }),
 //           ),
@@ -157,9 +157,9 @@
 
 //     let factor = atom.clone().foldl(
 //       any()
-//         .try_map(|tok: logosky::Lexed<'_, CalcToken>, _| match tok {
-//           logosky::Lexed::Token(t) if t.kind() == CalcTokenKind::Multiply => Ok(BinaryOp::Mul),
-//           logosky::Lexed::Token(t) if t.kind() == CalcTokenKind::Divide => Ok(BinaryOp::Div),
+//         .try_map(|tok: tokit::Lexed<'_, CalcToken>, _| match tok {
+//           tokit::Lexed::Token(t) if t.kind() == CalcTokenKind::Multiply => Ok(BinaryOp::Mul),
+//           tokit::Lexed::Token(t) if t.kind() == CalcTokenKind::Divide => Ok(BinaryOp::Div),
 //           _ => Err(EmptyErr::default()),
 //         })
 //         .then(atom)
@@ -179,9 +179,9 @@
 
 //     factor.clone().foldl(
 //       any()
-//         .try_map(|tok: logosky::Lexed<'_, CalcToken>, _| match tok {
-//           logosky::Lexed::Token(t) if t.kind() == CalcTokenKind::Plus => Ok(BinaryOp::Add),
-//           logosky::Lexed::Token(t) if t.kind() == CalcTokenKind::Minus => Ok(BinaryOp::Sub),
+//         .try_map(|tok: tokit::Lexed<'_, CalcToken>, _| match tok {
+//           tokit::Lexed::Token(t) if t.kind() == CalcTokenKind::Plus => Ok(BinaryOp::Add),
+//           tokit::Lexed::Token(t) if t.kind() == CalcTokenKind::Minus => Ok(BinaryOp::Sub),
 //           _ => Err(EmptyErr::default()),
 //         })
 //         .then(factor)
@@ -454,7 +454,7 @@
 // #[test]
 // fn test_bytes_source() {
 //   use bytes::Bytes;
-//   use logosky::source::CustomSource;
+//   use tokit::source::CustomSource;
 
 //   #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
 //   #[logos(skip r"[ \t\n\r]+")]
@@ -500,7 +500,7 @@
 //   }
 
 //   let input: CustomSource<Bytes> = bytes::Bytes::from_static(b"1 + 2").into();
-//   let mut lexer = logosky::Tokenizer::<ByteToken>::new(&input);
+//   let mut lexer = tokit::Tokenizer::<ByteToken>::new(&input);
 //   let mut token_count = 0;
 //   while let Some(token) = lexer.iter().next() {
 //     if token.is_token() {
@@ -564,7 +564,7 @@
 // fn test_stateful_lexing() {
 //   let input = "hello world foo bar";
 //   let state = CounterState { count: 0 };
-//   let stream = logosky::Tokenizer::<StatefulToken>::with_state(input, state);
+//   let stream = tokit::Tokenizer::<StatefulToken>::with_state(input, state);
 
 //   // The stream should work with stateful lexers
 //   assert_eq!(stream.input(), input);
@@ -622,7 +622,7 @@
 //   }
 // }
 
-// impl logosky::TriviaToken<'_> for TriviaToken {
+// impl tokit::TriviaToken<'_> for TriviaToken {
 //   fn is_trivia(&self) -> bool {
 //     matches!(
 //       self.kind,
@@ -646,7 +646,7 @@
 //   }
 // }
 
-// type TriviaStream<'a> = logosky::Tokenizer<'a, TriviaToken>;
+// type TriviaStream<'a> = tokit::Tokenizer<'a, TriviaToken>;
 
 // #[test]
 // fn test_skip_trivias_basic() {
@@ -657,8 +657,8 @@
 
 //   // Create a parser that skips trivia then parses a number
 //   let parser = TriviaStream::skip_trivias::<extra::Err<EmptyErr>>().ignore_then(any().try_map(
-//     |tok: logosky::Lexed<'_, TriviaToken>, _| match tok {
-//       logosky::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
+//     |tok: tokit::Lexed<'_, TriviaToken>, _| match tok {
+//       tokit::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
 //       _ => Err(EmptyErr::default()),
 //     },
 //   ));
@@ -678,8 +678,8 @@
 //   let stream = TriviaStream::new(input);
 
 //   let parser = TriviaStream::skip_trivias::<extra::Err<EmptyErr>>().ignore_then(any().try_map(
-//     |tok: logosky::Lexed<'_, TriviaToken>, _| match tok {
-//       logosky::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
+//     |tok: tokit::Lexed<'_, TriviaToken>, _| match tok {
+//       tokit::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
 //       _ => Err(EmptyErr::default()),
 //     },
 //   ));
@@ -697,8 +697,8 @@
 
 //   // Parser should work even when there's no trivia to skip
 //   let parser = TriviaStream::skip_trivias::<extra::Err<EmptyErr>>().ignore_then(any().try_map(
-//     |tok: logosky::Lexed<'_, TriviaToken>, _| match tok {
-//       logosky::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
+//     |tok: tokit::Lexed<'_, TriviaToken>, _| match tok {
+//       tokit::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
 //       _ => Err(EmptyErr::default()),
 //     },
 //   ));
@@ -717,8 +717,8 @@
 //   // Collect trivia tokens into a Vec
 //   let parser = TriviaStream::collect_trivias::<Vec<Spanned<TriviaToken>>, extra::Err<EmptyErr>>()
 //     .then_ignore(
-//       any().try_map(|tok: logosky::Lexed<'_, TriviaToken>, _| match tok {
-//         logosky::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
+//       any().try_map(|tok: tokit::Lexed<'_, TriviaToken>, _| match tok {
+//         tokit::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
 //         _ => Err(EmptyErr::default()),
 //       }),
 //     );
@@ -797,8 +797,8 @@
 //   // When there's no trivia, should return empty container
 //   let parser = TriviaStream::collect_trivias::<Vec<Spanned<TriviaToken>>, extra::Err<EmptyErr>>()
 //     .then_ignore(
-//       any().try_map(|tok: logosky::Lexed<'_, TriviaToken>, _| match tok {
-//         logosky::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
+//       any().try_map(|tok: tokit::Lexed<'_, TriviaToken>, _| match tok {
+//         tokit::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
 //         _ => Err(EmptyErr::default()),
 //       }),
 //     );
@@ -819,13 +819,13 @@
 //   let stream = TriviaStream::new(input);
 
 //   // Parse: number, skip trivia, plus, skip trivia, number
-//   let number_parser = any().try_map(|tok: logosky::Lexed<'_, TriviaToken>, _| match tok {
-//     logosky::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
+//   let number_parser = any().try_map(|tok: tokit::Lexed<'_, TriviaToken>, _| match tok {
+//     tokit::Lexed::Token(t) if t.kind() == TriviaTokenKind::Number => Ok(()),
 //     _ => Err(EmptyErr::default()),
 //   });
 
-//   let plus_parser = any().try_map(|tok: logosky::Lexed<'_, TriviaToken>, _| match tok {
-//     logosky::Lexed::Token(t) if t.kind() == TriviaTokenKind::Plus => Ok(()),
+//   let plus_parser = any().try_map(|tok: tokit::Lexed<'_, TriviaToken>, _| match tok {
+//     tokit::Lexed::Token(t) if t.kind() == TriviaTokenKind::Plus => Ok(()),
 //     _ => Err(EmptyErr::default()),
 //   });
 

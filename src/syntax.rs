@@ -17,7 +17,7 @@
 //!
 //! ```rust
 //! # {
-//! use logosky::{utils::{typenum::{self, U3}, GenericArrayDeque, Span}, syntax::Syntax, error::IncompleteSyntax};
+//! use tokit::{utils::{typenum::{self, U3}, GenericArrayDeque, Span}, syntax::Syntax, error::IncompleteSyntax};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -49,7 +49,7 @@
 //!     type REQUIRED = U3;
 //!
 //!     fn possible_components() -> &'static GenericArrayDeque<Self::Component, U3> {
-//!         static COMPONENTS: GenericArrayDeque<WhileComponent, logosky::utils::typenum::U3> = {
+//!         static COMPONENTS: GenericArrayDeque<WhileComponent, tokit::utils::typenum::U3> = {
 //!             let mut deque = GenericArrayDeque::new();
 //!             deque.push_back(WhileComponent::WhileKeyword);
 //!             deque.push_back(WhileComponent::Condition);
@@ -60,7 +60,7 @@
 //!     }
 //!
 //!     fn required_components() -> &'static GenericArrayDeque<Self::Component, Self::REQUIRED> {
-//!         static REQUIRED: GenericArrayDeque<WhileComponent, logosky::utils::typenum::U3> = {
+//!         static REQUIRED: GenericArrayDeque<WhileComponent, tokit::utils::typenum::U3> = {
 //!             let mut deque = GenericArrayDeque::new();
 //!             deque.push_back(WhileComponent::WhileKeyword);
 //!             deque.push_back(WhileComponent::Condition);
@@ -97,7 +97,7 @@ use core::{
 ///
 /// ```rust
 /// # {
-/// use logosky::{utils::{typenum, GenericArrayDeque}, syntax::{Syntax, Language}};
+/// use tokit::{utils::{typenum, GenericArrayDeque}, syntax::{Syntax, Language}};
 /// use typenum::U5;
 /// use core::fmt;
 ///
@@ -317,7 +317,7 @@ pub trait Syntax {
 ///
 /// ```rust
 /// # {
-/// use logosky::{utils::{GenericArrayDeque, typenum::U2, Span}, syntax::{Syntax, AstNode, Language}, error::IncompleteSyntax};
+/// use tokit::{utils::{GenericArrayDeque, typenum::U2, Span}, syntax::{Syntax, AstNode, Language}, error::IncompleteSyntax};
 /// use core::fmt;
 ///
 /// // Define a language
@@ -393,7 +393,7 @@ pub trait Syntax {
 /// ## Generic Parser with AstNode
 ///
 /// ```rust,ignore
-/// use logosky::{
+/// use tokit::{
 ///     chumsky::{Parser, extra::ParserExtra},
 ///     syntax::AstNode,
 ///     error::IncompleteSyntax,

@@ -51,7 +51,7 @@ impl<'de: 'a, 'a> ToEquivalent<&'a [u8]> for &'de [u8] {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::utils::IntoEquivalent;
+/// use tokit::utils::IntoEquivalent;
 ///
 /// let bytes: &[u8] = b"hello";
 /// let str_ref: &str = "world";
@@ -66,7 +66,7 @@ pub trait IntoEquivalent<T>: sealed::Sealed<T> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::IntoEquivalent;
+  /// use tokit::utils::IntoEquivalent;
   ///
   /// let data: &[u8] = b"test";
   /// let result: &[u8] = data.into_equivalent();

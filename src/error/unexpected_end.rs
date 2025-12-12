@@ -17,7 +17,7 @@ use crate::utils::Message;
 /// # Example
 ///
 /// ```rust
-/// use logosky::{error::UnexpectedEnd, utils::Span};
+/// use tokit::{error::UnexpectedEnd, utils::Span};
 ///
 /// let error = UnexpectedEnd::eof(Span::new(100, 101));
 /// assert_eq!(error.to_string(), "unexpected end of file, expected byte");
@@ -39,7 +39,7 @@ pub struct FileHint;
 /// # Example
 ///
 /// ```rust
-/// use logosky::{error::UnexpectedEnd, utils::Span};
+/// use tokit::{error::UnexpectedEnd, utils::Span};
 ///
 /// let error = UnexpectedEnd::eot(Span::new(100, 101));
 /// assert_eq!(error.to_string(), "unexpected end of token stream, expected token");
@@ -61,7 +61,7 @@ pub struct TokenHint;
 /// # Example
 ///
 /// ```rust
-/// use logosky::{error::UnexpectedEnd, utils::Span};
+/// use tokit::{error::UnexpectedEnd, utils::Span};
 ///
 /// let error = UnexpectedEnd::eos(Span::new(100, 101));
 /// assert_eq!(error.to_string(), "unexpected end of string, expected character");
@@ -110,7 +110,7 @@ pub struct CharacterHint;
 /// ## Using Convenience Constructors
 ///
 /// ```rust
-/// use logosky::{error::{UnexpectedEnd, UnexpectedEof, UnexpectedEot}, utils::Span};
+/// use tokit::{error::{UnexpectedEnd, UnexpectedEof, UnexpectedEot}, utils::Span};
 ///
 /// // Unexpected end of file at position 100
 /// let eof = UnexpectedEnd::eof(Span::new(100, 101));
@@ -126,7 +126,7 @@ pub struct CharacterHint;
 /// ## Custom Names and Hints
 ///
 /// ```rust,ignore
-/// use logosky::utils::UnexpectedEnd;
+/// use tokit::utils::UnexpectedEnd;
 /// use std::borrow::Cow;
 ///
 /// // Custom hint type for SQL parsing
@@ -153,7 +153,7 @@ pub struct CharacterHint;
 /// ## Transforming Hints
 ///
 /// ```rust,ignore
-/// use logosky::error::{UnexpectedEnd, FileHint};
+/// use tokit::error::{UnexpectedEnd, FileHint};
 ///
 /// let file_error: UnexpectedEnd<FileHint> = UnexpectedEnd::EOF;
 ///
@@ -169,7 +169,7 @@ pub struct CharacterHint;
 /// ## Error Handling
 ///
 /// ```rust,ignore
-/// use logosky::error::UnexpectedEof;
+/// use tokit::error::UnexpectedEof;
 /// use std::error::Error;
 ///
 /// fn parse_config(input: &str) -> Result<Config, Box<dyn Error>> {
@@ -217,7 +217,7 @@ impl<O> UnexpectedEnd<FileHint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::Span};
   ///
   /// let error = UnexpectedEnd::eof(Span::new(100, 101));
   /// assert_eq!(error.span(), Span::new(100, 101));
@@ -235,7 +235,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<FileHint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::Span};
   ///
   /// let error = UnexpectedEnd::eof(Span::new(100, 101));
   /// assert_eq!(error.span(), Span::new(100, 101));
@@ -253,7 +253,7 @@ impl<O> UnexpectedEnd<TokenHint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::Span};
   ///
   /// let error = UnexpectedEnd::eot(Span::new(50, 51));
   /// assert_eq!(error.span(), Span::new(50, 51));
@@ -275,7 +275,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<TokenHint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::Span};
   ///
   /// let error = UnexpectedEnd::eot(Span::new(50, 51));
   /// assert_eq!(error.span(), Span::new(50, 51));
@@ -297,7 +297,7 @@ impl<O> UnexpectedEnd<CharacterHint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::Span};
   ///
   /// let error = UnexpectedEnd::eos(Span::new(25, 25));
   /// assert_eq!(error.span(), Span::new(25, 25));
@@ -315,7 +315,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<CharacterHint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::Span};
   ///
   /// let error = UnexpectedEnd::eos(Span::new(25, 25));
   /// assert_eq!(error.span(), Span::new(25, 25));
@@ -333,7 +333,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::Span};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::Span};
   ///
   /// let error = UnexpectedEnd::new(Span::new(10, 10), FileHint);
   /// assert_eq!(error.name(), None);
@@ -351,7 +351,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// ```rust
   ///
   /// # #[cfg(feature = "std")] {
-  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
   /// let error = UnexpectedEnd::maybe_name(Span::new(10, 10), Some(Message::from_static("string")), FileHint);
   /// assert_eq!(error.name(), Some("string"));
@@ -369,7 +369,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   ///
   /// ```rust
   /// # #[cfg(feature = "std")] {
-  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
   /// let error = UnexpectedEnd::with_name(Span::new(20, 20), Message::from_static("block"), FileHint);
   /// assert_eq!(error.name(), Some("block"));
@@ -386,7 +386,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::{UnexpectedEnd, TokenHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, TokenHint}, utils::Span};
   ///
   /// let error = UnexpectedEnd::with_hint(Span::new(15, 15), TokenHint);
   /// assert_eq!(error.name(), None);
@@ -404,7 +404,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::Span};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::Span};
   ///
   /// let error = UnexpectedEnd::new(Span::new(10, 10), FileHint);
   /// assert_eq!(error.name(), None);
@@ -422,7 +422,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ```rust
   ///
   /// # #[cfg(feature = "std")] {
-  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
   /// let error = UnexpectedEnd::maybe_name(Span::new(10, 10), Some(Message::from_static("string")), FileHint);
   /// assert_eq!(error.name(), Some("string"));
@@ -445,7 +445,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   ///
   /// ```rust
   /// # #[cfg(feature = "std")] {
-  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
   /// let error = UnexpectedEnd::with_name(Span::new(20, 20), Message::from_static("block"), FileHint);
   /// assert_eq!(error.name(), Some("block"));
@@ -462,7 +462,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::{UnexpectedEnd, TokenHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, TokenHint}, utils::Span};
   ///
   /// let error = UnexpectedEnd::with_hint(Span::new(15, 15), TokenHint);
   /// assert_eq!(error.name(), None);
@@ -483,7 +483,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::{UnexpectedEnd, FileHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint}, utils::Span};
   ///
   /// let mut error = UnexpectedEnd::new(Span::new(10, 11), FileHint);
   /// error.set_name("expression");
@@ -501,7 +501,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   ///
   /// ```rust
   /// # #[cfg(feature = "std")] {
-  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
   /// let mut error = UnexpectedEnd::with_name(Span::new(10, 11), Message::from_static("old"), FileHint);
   /// error.update_name(Some("new"));
@@ -520,7 +520,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   ///
   /// ```rust
   /// # #[cfg(feature = "std")] {
-  /// use logosky::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
   /// let mut error = UnexpectedEnd::with_name(Span::new(10, 11), Message::from_static("block"), FileHint);
   /// error.clear_name();
@@ -538,7 +538,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::Span};
   ///
   /// let error = UnexpectedEnd::eof(Span::new(100, 101));
   /// assert_eq!(error.name(), Some("file"));
@@ -556,7 +556,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::{UnexpectedEnd, FileHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint}, utils::Span};
   ///
   /// let error = UnexpectedEnd::eof(Span::new(100, 101));
   /// // FileHint is a zero-sized type
@@ -572,7 +572,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::{UnexpectedEnd, FileHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint}, utils::Span};
   ///
   /// let mut error = UnexpectedEnd::eof(Span::new(100, 101));
   /// let old_hint = error.replace_hint(FileHint);
@@ -588,7 +588,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::Span};
   ///
   /// let file_error = UnexpectedEnd::eof(Span::new(100, 101));
   /// let token_error = file_error.map_hint(|_| TokenHint);
@@ -613,7 +613,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::Span};
   ///
   /// let file_error = UnexpectedEnd::eof(Span::new(100, 101));
   /// let token_error = file_error.reconstruct(Some("block"), |_| TokenHint);
@@ -637,7 +637,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::Span};
   ///
   /// let file_error = UnexpectedEnd::eof(Span::new(100, 101));
   /// let token_error = file_error.reconstruct_with_name("expression", |_| TokenHint);
@@ -662,7 +662,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   ///
   /// ```rust
   /// # #[cfg(feature = "std")] {
-  /// use logosky::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::{Message, Span}};
+  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::{Message, Span}};
   ///
   /// let file_error = UnexpectedEnd::with_name(Span::new(10, 10), Message::from_static("file"), FileHint);
   /// let token_error = file_error.reconstruct_without_name(|_| TokenHint);
@@ -683,7 +683,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::Span};
   ///
   /// let error = UnexpectedEnd::eof(Span::new(100, 101));
   /// assert_eq!(error.span(), Span::new(100, 101));
@@ -716,7 +716,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::Span};
   ///
   /// let mut error = UnexpectedEnd::eof(Span::new(10, 10));
   /// error.bump(5);
@@ -736,7 +736,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::Span};
   ///
   /// let error = UnexpectedEnd::eof(Span::new(100, 101));
   /// let (span, name, hint) = error.into_components();

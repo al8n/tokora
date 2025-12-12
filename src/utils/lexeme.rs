@@ -40,7 +40,7 @@ use super::{CharLen, PositionedChar, SimpleSpan};
 /// ## Single Character Lexeme
 ///
 /// ```rust
-/// use logosky::utils::{Lexeme, PositionedChar};
+/// use tokit::utils::{Lexeme, PositionedChar};
 ///
 /// let pc = PositionedChar::with_position('!', 42);
 /// let lexeme = Lexeme::from(pc);
@@ -53,7 +53,7 @@ use super::{CharLen, PositionedChar, SimpleSpan};
 /// ## Span Lexeme
 ///
 /// ```rust
-/// use logosky::utils::{Lexeme, Span};
+/// use tokit::utils::{Lexeme, Span};
 ///
 /// let span = Span::new(10, 15); // bytes 10-15
 /// let lexeme: Lexeme<char> = Lexeme::from(span);
@@ -66,7 +66,7 @@ use super::{CharLen, PositionedChar, SimpleSpan};
 /// ## Getting Span from Either Variant
 ///
 /// ```rust
-/// use logosky::utils::{Lexeme, PositionedChar};
+/// use tokit::utils::{Lexeme, PositionedChar};
 ///
 /// let lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
 ///
@@ -79,7 +79,7 @@ use super::{CharLen, PositionedChar, SimpleSpan};
 /// ## Mapping Characters
 ///
 /// ```rust
-/// use logosky::utils::{Lexeme, PositionedChar};
+/// use tokit::utils::{Lexeme, PositionedChar};
 ///
 /// let lexeme = Lexeme::from(PositionedChar::with_position('a', 10));
 /// let upper = lexeme.map(|c| c.to_ascii_uppercase());
@@ -127,7 +127,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Example
   ///
   /// ```
-  /// use logosky::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::utils::{Lexeme, PositionedChar, Span};
   ///
   /// let char_lexeme = Lexeme::from_char(5, 'x');
   /// assert_eq!(char_lexeme.start(), 5);
@@ -142,7 +142,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Example
   ///
   /// ```
-  /// use logosky::utils::{Lexeme, Span};
+  /// use tokit::utils::{Lexeme, Span};
   ///
   /// let l = Lexeme::<char>::from_range(5..10);
   /// assert_eq!(l.start(), 5);
@@ -159,7 +159,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Example
   ///
   /// ```
-  /// use logosky::utils::{Lexeme, Span};
+  /// use tokit::utils::{Lexeme, Span};
   ///
   /// let l = Lexeme::<char>::from_range_const(5, 10);
   /// assert_eq!(l.start(), 5);
@@ -176,7 +176,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::utils::{Lexeme, PositionedChar, Span};
   ///
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
   /// assert_eq!(char_lexeme.start(), 5);
@@ -200,7 +200,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::utils::{Lexeme, PositionedChar, Span};
   ///
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
   /// assert_eq!(char_lexeme.start(), 5);
@@ -221,7 +221,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::utils::{Lexeme, PositionedChar, Span};
   ///
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
   /// assert_eq!(char_lexeme.end(), 6);
@@ -250,7 +250,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar};
+  /// use tokit::utils::{Lexeme, PositionedChar};
   ///
   /// let lexeme = Lexeme::from(PositionedChar::with_position('a', 5));
   /// let upper = lexeme.map(|c| c.to_ascii_uppercase());
@@ -279,7 +279,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar};
+  /// use tokit::utils::{Lexeme, PositionedChar};
   ///
   /// let lexeme = Lexeme::from(PositionedChar::with_position('€', 10));
   ///
@@ -313,7 +313,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::utils::{Lexeme, PositionedChar, Span};
   ///
   /// // Single character
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
@@ -346,7 +346,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar};
+  /// use tokit::utils::{Lexeme, PositionedChar};
   ///
   /// let mut lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
   /// lexeme.bump(10);

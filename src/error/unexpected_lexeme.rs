@@ -51,7 +51,7 @@ pub type UnexpectedLineTerminator<Char, O = usize> = UnexpectedLexeme<Char, Line
 /// ## Basic Error with String Hint
 ///
 /// ```rust
-/// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+/// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
 ///
 /// let error = UnexpectedLexeme::from_positioned_char(
 ///     PositionedChar::with_position('!', 42),
@@ -66,7 +66,7 @@ pub type UnexpectedLineTerminator<Char, O = usize> = UnexpectedLexeme<Char, Line
 /// ## With Token Kind Hint
 ///
 /// ```rust,ignore
-/// use logosky::{error::UnexpectedLexeme, utils::SimpleSpan};
+/// use tokit::{error::UnexpectedLexeme, utils::SimpleSpan};
 ///
 /// #[derive(Debug, Clone)]
 /// enum Expected {
@@ -89,7 +89,7 @@ pub type UnexpectedLineTerminator<Char, O = usize> = UnexpectedLexeme<Char, Line
 /// ## Mapping Hints
 ///
 /// ```rust
-/// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+/// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
 ///
 /// let error = UnexpectedLexeme::from_positioned_char(
 ///     PositionedChar::with_position('x', 5),
@@ -105,7 +105,7 @@ pub type UnexpectedLineTerminator<Char, O = usize> = UnexpectedLexeme<Char, Line
 /// ## Accessing Lexeme via Deref
 ///
 /// ```rust
-/// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+/// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
 ///
 /// let error = UnexpectedLexeme::from_positioned_char(
 ///     PositionedChar::with_position('!', 10),
@@ -171,7 +171,7 @@ impl<Char, O> UnexpectedLexeme<Char, LineTerminator, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::{Lexeme, PositionedChar, knowledge::LineTerminator}};
+  /// use tokit::{error::UnexpectedLexeme, utils::{Lexeme, PositionedChar, knowledge::LineTerminator}};
   ///
   /// let error = UnexpectedLexeme::new_line(5, '\n');
   ///
@@ -187,7 +187,7 @@ impl<Char, O> UnexpectedLexeme<Char, LineTerminator, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::{Lexeme, PositionedChar, knowledge::LineTerminator}};
+  /// use tokit::{error::UnexpectedLexeme, utils::{Lexeme, PositionedChar, knowledge::LineTerminator}};
   ///
   /// let error = UnexpectedLexeme::carriage_return(5, '\r');
   ///
@@ -203,7 +203,7 @@ impl<Char, O> UnexpectedLexeme<Char, LineTerminator, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::{SimpleSpan, knowledge::LineTerminator}};
+  /// use tokit::{error::UnexpectedLexeme, utils::{SimpleSpan, knowledge::LineTerminator}};
   ///
   /// let error = UnexpectedLexeme::<char, _>::carriage_return_new_line((5..7).into());
   ///
@@ -221,7 +221,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::{Lexeme, PositionedChar}};
+  /// use tokit::{error::UnexpectedLexeme, utils::{Lexeme, PositionedChar}};
   ///
   /// let lexeme = Lexeme::from(PositionedChar::with_position('!', 5));
   /// let error = UnexpectedLexeme::new(lexeme, "identifier");
@@ -238,7 +238,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::error::UnexpectedLexeme;
+  /// use tokit::error::UnexpectedLexeme;
   ///
   /// let error = UnexpectedLexeme::from_char(
   ///     42,
@@ -259,7 +259,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('$', 42),
@@ -281,7 +281,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::SimpleSpan};
+  /// use tokit::{error::UnexpectedLexeme, utils::SimpleSpan};
   ///
   /// let error: UnexpectedLexeme<char, _> = UnexpectedLexeme::from_range_const(
   ///     SimpleSpan::new(10, 15),
@@ -300,7 +300,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::error::UnexpectedLexeme;
+  /// use tokit::error::UnexpectedLexeme;
   ///
   /// let error: UnexpectedLexeme<char, _> = UnexpectedLexeme::from_range(10..15, "closing brace");
   ///
@@ -317,7 +317,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -336,7 +336,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -355,7 +355,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let mut error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -375,7 +375,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let mut error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -395,7 +395,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 10),
@@ -416,7 +416,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 10),
@@ -436,7 +436,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 10),
@@ -458,7 +458,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('€', 5),
@@ -485,7 +485,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::{PositionedChar, SimpleSpan}};
+  /// use tokit::{error::UnexpectedLexeme, utils::{PositionedChar, SimpleSpan}};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 10),
@@ -509,7 +509,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('a', 5),
@@ -536,7 +536,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 5),
@@ -562,7 +562,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('a', 5),
@@ -596,7 +596,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{error::UnexpectedLexeme, utils::PositionedChar};
+  /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
   ///
   /// let mut error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),

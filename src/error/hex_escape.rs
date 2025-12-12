@@ -39,8 +39,8 @@
 //! ## Detecting Incomplete Hex Escapes
 //!
 //! ```
-//! use logosky::error::HexEscapeError;
-//! use logosky::utils::{Lexeme, SimpleSpan};
+//! use tokit::error::HexEscapeError;
+//! use tokit::utils::{Lexeme, SimpleSpan};
 //!
 //! // Incomplete: \xA (only 1 digit)
 //! let error = HexEscapeError::<char>::incomplete(
@@ -52,8 +52,8 @@
 //! ## Detecting Malformed Hex Escapes
 //!
 //! ```
-//! use logosky::error::{HexEscapeError, InvalidHexDigits};
-//! use logosky::utils::{SimpleSpan, PositionedChar};
+//! use tokit::error::{HexEscapeError, InvalidHexDigits};
+//! use tokit::utils::{SimpleSpan, PositionedChar};
 //!
 //! // Invalid hex digit 'G' at position 12
 //! let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -85,8 +85,8 @@ pub type InvalidHexEscapeDigits<Char, Offset> = InvalidHexDigits<Char, 2, Offset
 /// # Examples
 ///
 /// ```
-/// use logosky::error::IncompleteHexEscape;
-/// use logosky::utils::SimpleSpan;
+/// use tokit::error::IncompleteHexEscape;
+/// use tokit::utils::SimpleSpan;
 ///
 /// // Incomplete: \xA (only 1 hex digit)
 /// let error = IncompleteHexEscape::new(
@@ -118,8 +118,8 @@ impl<O> IncompleteHexEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::IncompleteHexEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::IncompleteHexEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = IncompleteHexEscape::new(SimpleSpan::new(10, 12));
   /// ```
@@ -133,8 +133,8 @@ impl<O> IncompleteHexEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::IncompleteHexEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::IncompleteHexEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = IncompleteHexEscape::new(SimpleSpan::new(10, 13));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 13));
@@ -152,8 +152,8 @@ impl<O> IncompleteHexEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::IncompleteHexEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::IncompleteHexEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = IncompleteHexEscape::new(SimpleSpan::new(10, 13));
   /// assert_eq!(error.span_ref(), SimpleSpan::new(&10, &13));
@@ -171,8 +171,8 @@ impl<O> IncompleteHexEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::IncompleteHexEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::IncompleteHexEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = IncompleteHexEscape::new(SimpleSpan::new(10, 12));
   /// error.bump(5);
@@ -201,8 +201,8 @@ impl<O> IncompleteHexEscape<O> {
 /// # Examples
 ///
 /// ```
-/// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-/// use logosky::utils::{SimpleSpan, PositionedChar};
+/// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
+/// use tokit::utils::{SimpleSpan, PositionedChar};
 ///
 /// // Create error for malformed escape like \xGH
 /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -250,8 +250,8 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
+  /// use tokit::utils::{SimpleSpan, PositionedChar};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('Z', 12));
   /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
@@ -269,8 +269,8 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   // /// ## Examples
   // ///
   // /// ```
-  // /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  // /// use logosky::utils::SimpleSpan;
+  // /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
+  // /// use tokit::utils::SimpleSpan;
   // ///
   // /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
   // /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
@@ -287,8 +287,8 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
+  /// use tokit::utils::{SimpleSpan, PositionedChar};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
   /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
@@ -308,8 +308,8 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
+  /// use tokit::utils::{SimpleSpan, PositionedChar};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
   /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
@@ -331,8 +331,8 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
+  /// use tokit::utils::{SimpleSpan, PositionedChar};
   ///
   /// let error = MalformedHexEscape::new(
   ///     InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12)),
@@ -368,8 +368,8 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use logosky::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
+  /// use tokit::utils::{SimpleSpan, PositionedChar};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
   /// let mut error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 14));
@@ -402,8 +402,8 @@ impl<Char, O> MalformedHexEscape<Char, O> {
 /// ## Incomplete Escape
 ///
 /// ```
-/// use logosky::error::HexEscapeError;
-/// use logosky::utils::SimpleSpan;
+/// use tokit::error::HexEscapeError;
+/// use tokit::utils::SimpleSpan;
 ///
 /// // Incomplete: \xA (only 1 digit)
 /// let error = HexEscapeError::<char>::incomplete(
@@ -415,8 +415,8 @@ impl<Char, O> MalformedHexEscape<Char, O> {
 /// ## Malformed Escape
 ///
 /// ```
-/// use logosky::error::{HexEscapeError, InvalidHexDigits};
-/// use logosky::utils::{SimpleSpan, PositionedChar};
+/// use tokit::error::{HexEscapeError, InvalidHexDigits};
+/// use tokit::utils::{SimpleSpan, PositionedChar};
 ///
 /// // Invalid hex: \xGG
 /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -479,8 +479,8 @@ impl<Char, O> HexEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::HexEscapeError;
-  /// use logosky::utils::{Lexeme, SimpleSpan};
+  /// use tokit::error::HexEscapeError;
+  /// use tokit::utils::{Lexeme, SimpleSpan};
   ///
   /// let error = HexEscapeError::<char>::incomplete(
   ///     SimpleSpan::new(10, 12)
@@ -497,8 +497,8 @@ impl<Char, O> HexEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{HexEscapeError, InvalidHexDigits};
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::{HexEscapeError, InvalidHexDigits};
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
   /// let error = HexEscapeError::malformed(digits, SimpleSpan::new(10, 13));
@@ -517,8 +517,8 @@ impl<Char, O> HexEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::HexEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::HexEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = HexEscapeError::<char>::incomplete(SimpleSpan::new(10, 12));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 12));
@@ -542,8 +542,8 @@ impl<Char, O> HexEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::HexEscapeError;
-  /// use logosky::utils::{Lexeme, SimpleSpan};
+  /// use tokit::error::HexEscapeError;
+  /// use tokit::utils::{Lexeme, SimpleSpan};
   ///
   /// let mut error = HexEscapeError::<char>::incomplete(
   ///     SimpleSpan::new(10, 12)

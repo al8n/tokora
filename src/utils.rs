@@ -387,7 +387,7 @@ impl IsAsciiChar for hipstr::HipStr<'_> {
 /// ## Automatic Length Detection
 ///
 /// ```rust
-/// use logosky::utils::{Lexeme, PositionedChar};
+/// use tokit::utils::{Lexeme, PositionedChar};
 ///
 /// // ASCII character (1 byte)
 /// let ascii = Lexeme::from(PositionedChar::with_position('a', 10));
@@ -403,7 +403,7 @@ impl IsAsciiChar for hipstr::HipStr<'_> {
 /// ## With Custom Length Function
 ///
 /// ```rust
-/// use logosky::utils::{Lexeme, PositionedChar};
+/// use tokit::utils::{Lexeme, PositionedChar};
 ///
 /// // For types that don't implement CharLen, use span_with
 /// struct CustomChar(char);
@@ -421,7 +421,7 @@ pub trait CharLen: sealed::Sealed {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar};
+  /// use tokit::utils::{Lexeme, PositionedChar};
   ///
   /// // The trait is used internally by span()
   /// let ascii = Lexeme::from(PositionedChar::with_position('A', 0));

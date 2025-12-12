@@ -38,7 +38,7 @@
 //! ## Basic Usage with Character Delimiters
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::SimpleSpan};
+//! use tokit::{error::Unopened, utils::SimpleSpan};
 //!
 //! // Closing parenthesis at position 10, never opened
 //! // Example: "a + b * c)" where the ')' has no matching '('
@@ -52,7 +52,7 @@
 //! ## Custom Delimiter Enum
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::SimpleSpan};
+//! use tokit::{error::Unopened, utils::SimpleSpan};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,7 +83,7 @@
 //! ## Tracking Nested Delimiters
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::SimpleSpan};
+//! use tokit::{error::Unopened, utils::SimpleSpan};
 //!
 //! // When parsing: "{ foo: bar, baz ] }"
 //! // The ']' at position 16 was never opened
@@ -96,7 +96,7 @@
 //! ## Position Adjustment
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::SimpleSpan};
+//! use tokit::{error::Unopened, utils::SimpleSpan};
 //!
 //! // Error from a nested parsing context
 //! let mut error = Unopened::new(SimpleSpan::new(5, 6), '}');
@@ -150,7 +150,7 @@ pub type UnopenedAngle<S = SimpleSpan, Lang = ()> = Unopened<Angle, S, Lang>;
 /// ## Detecting Unopened Parentheses
 ///
 /// ```rust
-/// use logosky::{error::Unopened, utils::SimpleSpan};
+/// use tokit::{error::Unopened, utils::SimpleSpan};
 ///
 /// // Parse error: 1 + 2)
 /// //                   ^--- unopened closing delimiter
@@ -163,7 +163,7 @@ pub type UnopenedAngle<S = SimpleSpan, Lang = ()> = Unopened<Angle, S, Lang>;
 /// ## Tracking Multiple Unopened Delimiters
 ///
 /// ```rust
-/// use logosky::{error::Unopened, utils::SimpleSpan};
+/// use tokit::{error::Unopened, utils::SimpleSpan};
 ///
 /// let errors = vec![
 ///     Unopened::new(SimpleSpan::new(5, 6), '}'),
@@ -208,7 +208,7 @@ impl<S> Unopened<Paren, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Paren}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Paren}};
   ///
   /// // Closing parenthesis at position 3, never opened
   /// let error = Unopened::paren(SimpleSpan::new(3, 4));
@@ -229,7 +229,7 @@ impl<S, Lang: ?Sized> Unopened<Paren, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Paren}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Paren}};
   ///
   /// // Closing parenthesis at position 3, never opened
   /// let error = Unopened::paren(SimpleSpan::new(3, 4));
@@ -250,7 +250,7 @@ impl<S> Unopened<Bracket, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Bracket}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Bracket}};
   ///
   /// // Closing bracket at position 8, never opened
   /// let error = Unopened::bracket(SimpleSpan::new(8, 9));
@@ -271,7 +271,7 @@ impl<S, Lang: ?Sized> Unopened<Bracket, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Bracket}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Bracket}};
   ///
   /// // Closing bracket at position 8, never opened
   /// let error = Unopened::bracket(SimpleSpan::new(8, 9));
@@ -292,7 +292,7 @@ impl<S> Unopened<Brace, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Brace}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Brace}};
   ///
   /// // Closing brace at position 12, never opened
   /// let error = Unopened::brace(SimpleSpan::new(12, 13));
@@ -313,7 +313,7 @@ impl<S, Lang: ?Sized> Unopened<Brace, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Brace}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Brace}};
   ///
   /// // Closing brace at position 12, never opened
   /// let error = Unopened::brace(SimpleSpan::new(12, 13));
@@ -334,7 +334,7 @@ impl<S> Unopened<Angle, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Angle}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Angle}};
   ///
   /// // Closing angle bracket at position 20, never opened
   /// let error = Unopened::angle(SimpleSpan::new(20, 21));
@@ -355,7 +355,7 @@ impl<S, Lang: ?Sized> Unopened<Angle, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{SimpleSpan, delimiter::Angle}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Angle}};
   ///
   /// // Closing angle bracket at position 20, never opened
   /// let error = Unopened::angle(SimpleSpan::new(20, 21));
@@ -376,7 +376,7 @@ impl<Delimiter, S> Unopened<Delimiter, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::SimpleSpan};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
   /// // Closing brace at position 5, never opened
   /// let error = Unopened::new(SimpleSpan::new(5, 6), '}');
@@ -397,7 +397,7 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::SimpleSpan};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
   /// // Closing brace at position 5, never opened
   /// let error = Unopened::new(SimpleSpan::new(5, 6), '}');
@@ -420,7 +420,7 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::SimpleSpan};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
   /// let error = Unopened::new(SimpleSpan::new(10, 11), ')');
   /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
@@ -450,7 +450,7 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::SimpleSpan};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
   /// let error = Unopened::new(SimpleSpan::new(5, 6), '}');
   /// assert_eq!(error.delimiter_ref(), &'}');
@@ -467,7 +467,7 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::SimpleSpan};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
   /// let error = Unopened::new(SimpleSpan::new(5, 6), ']');
   /// assert_eq!(error.delimiter(), ']');
@@ -489,7 +489,7 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::SimpleSpan};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
   /// let mut error = Unopened::new(SimpleSpan::new(5, 6), ')');
   /// error.bump(100);
@@ -509,7 +509,7 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::SimpleSpan};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
   /// let error = Unopened::new(SimpleSpan::new(10, 11), '"');
   /// let (span, delimiter) = error.into_components();

@@ -136,7 +136,7 @@ pub trait Lexer<'inp>: 'inp {
 /// # Example
 ///
 /// ```rust,ignore
-/// use logosky::Lexable;
+/// use tokit::Lexable;
 ///
 /// struct Document {
 ///     tokens: Vec<Token>,

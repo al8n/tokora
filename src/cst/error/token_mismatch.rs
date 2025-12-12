@@ -33,7 +33,7 @@ use rowan::SyntaxToken;
 /// ## Basic Error Handling
 ///
 /// ```rust,ignore
-/// use logosky::cst::{CstToken, error};
+/// use tokit::cst::{CstToken, error};
 ///
 /// let result = Colon::try_cast_token(syntax_token);
 ///
@@ -55,7 +55,7 @@ use rowan::SyntaxToken;
 /// ## Recovering from Errors and Retrying
 ///
 /// ```rust,ignore
-/// use logosky::cst::error::CstTokenMismatch;
+/// use tokit::cst::error::CstTokenMismatch;
 ///
 /// // Try to cast to a comma first
 /// let result = Comma::try_cast_token(syntax_token);
@@ -78,7 +78,7 @@ use rowan::SyntaxToken;
 /// ## Safe Casting with Validation
 ///
 /// ```rust,ignore
-/// use logosky::cst::{CstToken, SyntaxTreeElement};
+/// use tokit::cst::{CstToken, SyntaxTreeElement};
 ///
 /// // Check before casting to avoid errors
 /// let token = if Comma::can_cast(syntax_token.kind()) {
@@ -95,7 +95,7 @@ use rowan::SyntaxToken;
 /// ## Using in Error Propagation
 ///
 /// ```rust,ignore
-/// use logosky::cst::{CstToken, error};
+/// use tokit::cst::{CstToken, error};
 ///
 /// fn parse_punctuation(
 ///     token: SyntaxToken<MyLanguage>
@@ -148,7 +148,7 @@ impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::error::CstTokenMismatch;
+  /// use tokit::cst::error::CstTokenMismatch;
   ///
   /// // Typically used in try_cast_token implementations
   /// impl CstToken for Comma {
@@ -181,7 +181,7 @@ impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstToken;
+  /// use tokit::cst::CstToken;
   ///
   /// if let Err(mismatch) = Comma::try_cast_token(token) {
   ///     println!("Expected kind: {:?}", mismatch.expected());
@@ -192,7 +192,7 @@ impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
   /// ## Using for Error Messages
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstToken;
+  /// use tokit::cst::CstToken;
   ///
   /// match Colon::try_cast_token(token) {
   ///     Ok(colon) => { /* ... */ }
@@ -222,7 +222,7 @@ impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstToken;
+  /// use tokit::cst::CstToken;
   ///
   /// if let Err(mismatch) = Semicolon::try_cast_token(token) {
   ///     let found = mismatch.found();
@@ -235,7 +235,7 @@ impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
   /// ## Inspecting Token Context
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstToken;
+  /// use tokit::cst::CstToken;
   ///
   /// match RBrace::try_cast_token(token) {
   ///     Ok(brace) => { /* ... */ }
@@ -273,7 +273,7 @@ impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
   /// ## Fallback Casting
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstToken;
+  /// use tokit::cst::CstToken;
   ///
   /// // Try to cast to a comma first, then try semicolon
   /// let result = Comma::try_cast_token(syntax_token);
@@ -290,7 +290,7 @@ impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
   /// ## Custom Error Handling
   ///
   /// ```rust,ignore
-  /// use logosky::cst::error::CstTokenMismatch;
+  /// use tokit::cst::error::CstTokenMismatch;
   ///
   /// let result = Colon::try_cast_token(token);
   ///
@@ -310,7 +310,7 @@ impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
   /// ## Retry Logic
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstToken;
+  /// use tokit::cst::CstToken;
   ///
   /// enum Punctuation {
   ///     Comma(Comma),

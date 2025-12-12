@@ -62,8 +62,8 @@
 //! ## Detecting Malformed Fixed-Width Escapes
 //!
 //! ```
-//! use logosky::error::{UnicodeEscapeError, InvalidFixedUnicodeHexDigits};
-//! use logosky::utils::{SimpleSpan, PositionedChar};
+//! use tokit::error::{UnicodeEscapeError, InvalidFixedUnicodeHexDigits};
+//! use tokit::utils::{SimpleSpan, PositionedChar};
 //!
 //! // Invalid hex digit 'G' at position 12
 //! let mut digits = InvalidFixedUnicodeHexDigits::<char>::from_char(12, 'G');
@@ -78,8 +78,8 @@
 //! ## Detecting Variable-Length Escape Errors
 //!
 //! ```
-//! use logosky::error::UnicodeEscapeError;
-//! use logosky::utils::SimpleSpan;
+//! use tokit::error::UnicodeEscapeError;
+//! use tokit::utils::SimpleSpan;
 //!
 //! // Empty braces: \u{}
 //! let error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
@@ -128,8 +128,8 @@ use derive_more::{Display, From, IsVariant, TryUnwrap, Unwrap};
 /// # Examples
 ///
 /// ```
-/// use logosky::error::InvalidFixedUnicodeHexDigits;
-/// use logosky::utils::PositionedChar;
+/// use tokit::error::InvalidFixedUnicodeHexDigits;
+/// use tokit::utils::PositionedChar;
 ///
 /// // Create from a single invalid character
 /// let digit = InvalidFixedUnicodeHexDigits::from(
@@ -167,8 +167,8 @@ pub type InvalidFixedUnicodeHexDigits<Char = char, O = usize> =
 /// # Examples
 ///
 /// ```
-/// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-/// use logosky::utils::{SimpleSpan, PositionedChar};
+/// use tokit::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
+/// use tokit::utils::{SimpleSpan, PositionedChar};
 ///
 /// // Create error for malformed escape like \uGHIJ
 /// let digits = InvalidFixedUnicodeHexDigits::from_array([
@@ -219,8 +219,8 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
+  /// use tokit::utils::{SimpleSpan, PositionedChar};
   ///
   /// let digits = InvalidFixedUnicodeHexDigits::from(
   ///     PositionedChar::with_position('Z', 12)
@@ -240,8 +240,8 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   // /// ## Examples
   // ///
   // /// ```
-  // /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  // /// use logosky::utils::SimpleSpan;
+  // /// use tokit::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
+  // /// use tokit::utils::SimpleSpan;
   // ///
   // /// let digits = InvalidFixedUnicodeHexDigits::<char>::from_char(12, 'G');
   // /// let error = MalformedFixedUnicodeEscape::new(digits, SimpleSpan::new(10, 14));
@@ -257,8 +257,8 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
+  /// use tokit::utils::{SimpleSpan, PositionedChar};
   ///
   /// let digits = InvalidFixedUnicodeHexDigits::from(
   ///     PositionedChar::with_position('G', 12)
@@ -280,8 +280,8 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
+  /// use tokit::utils::{SimpleSpan, PositionedChar};
   ///
   /// let digits = InvalidFixedUnicodeHexDigits::from(
   ///     PositionedChar::with_position('G', 12)
@@ -305,8 +305,8 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = MalformedFixedUnicodeEscape::new(
   ///     InvalidFixedUnicodeHexDigits::<char>::from_char(12, 'G'),
@@ -342,8 +342,8 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
+  /// use tokit::utils::{SimpleSpan, PositionedChar};
   ///
   /// let mut error = MalformedFixedUnicodeEscape::new(
   ///     InvalidFixedUnicodeHexDigits::from(PositionedChar::with_position('G', 12)),
@@ -371,7 +371,7 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
 /// # Examples
 ///
 /// ```
-/// use logosky::error::InvalidUnicodeScalarKind;
+/// use tokit::error::InvalidUnicodeScalarKind;
 ///
 /// // Surrogate values (0xD800..=0xDFFF) are reserved for UTF-16 encoding
 /// let kind = InvalidUnicodeScalarKind::Surrogate;
@@ -406,8 +406,8 @@ pub enum InvalidUnicodeScalarKind {
 /// # Examples
 ///
 /// ```
-/// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-/// use logosky::utils::SimpleSpan;
+/// use tokit::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
+/// use tokit::utils::SimpleSpan;
 ///
 /// // Surrogate value error: \u{D800}
 /// let error = InvalidUnicodeScalarValue::new(
@@ -467,8 +467,8 @@ impl<O> InvalidUnicodeScalarValue<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = InvalidUnicodeScalarValue::new(
   ///     0xD800,
@@ -486,8 +486,8 @@ impl<O> InvalidUnicodeScalarValue<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = InvalidUnicodeScalarValue::new(
   ///     0xD800,
@@ -506,8 +506,8 @@ impl<O> InvalidUnicodeScalarValue<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = InvalidUnicodeScalarValue::new(
   ///     0x110000,
@@ -544,8 +544,8 @@ impl<O> InvalidUnicodeScalarValue<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = InvalidUnicodeScalarValue::new(
   ///     0xD800,
@@ -569,8 +569,8 @@ impl<O> InvalidUnicodeScalarValue<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::{InvalidUnicodeScalarValue, InvalidUnicodeScalarKind};
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = InvalidUnicodeScalarValue::new(
   ///     0xD800,
@@ -595,8 +595,8 @@ impl<O> InvalidUnicodeScalarValue<O> {
 /// # Examples
 ///
 /// ```
-/// use logosky::error::EmptyVariableUnicodeEscape;
-/// use logosky::utils::SimpleSpan;
+/// use tokit::error::EmptyVariableUnicodeEscape;
+/// use tokit::utils::SimpleSpan;
 ///
 /// // Error for: \u{}
 /// let error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
@@ -613,8 +613,8 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::EmptyVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::EmptyVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(5, 9));
   /// assert_eq!(error.span(), SimpleSpan::new(5, 9));
@@ -629,8 +629,8 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::EmptyVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::EmptyVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
@@ -648,8 +648,8 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::EmptyVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::EmptyVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
   /// assert_eq!(error.span_ref(), SimpleSpan::new(&10, &14));
@@ -664,8 +664,8 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::EmptyVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::EmptyVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
   /// assert_eq!(error.span_mut(), SimpleSpan::new(&mut 10, &mut 14));
@@ -683,8 +683,8 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::EmptyVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::EmptyVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
   /// error.bump(5);
@@ -718,8 +718,8 @@ impl<O> core::error::Error for EmptyVariableUnicodeEscape<O> where
 /// # Examples
 ///
 /// ```
-/// use logosky::error::MalformedVariableUnicodeSequence;
-/// use logosky::utils::{Lexeme, PositionedChar};
+/// use tokit::error::MalformedVariableUnicodeSequence;
+/// use tokit::utils::{Lexeme, PositionedChar};
 ///
 /// // Error for: \u{GGGG}
 /// let error = MalformedVariableUnicodeSequence::<char>::from_char(12, 'G');
@@ -771,8 +771,8 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::MalformedVariableUnicodeSequence;
-  /// use logosky::utils::{Lexeme, PositionedChar};
+  /// use tokit::error::MalformedVariableUnicodeSequence;
+  /// use tokit::utils::{Lexeme, PositionedChar};
   ///
   /// let lexeme = Lexeme::from(PositionedChar::with_position('Z', 15));
   /// let error = MalformedVariableUnicodeSequence::new(lexeme);
@@ -787,7 +787,7 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::MalformedVariableUnicodeSequence;
+  /// use tokit::error::MalformedVariableUnicodeSequence;
   ///
   /// let error = MalformedVariableUnicodeSequence::from_char(42, 'X');
   /// assert_eq!(
@@ -805,7 +805,7 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::{error::MalformedVariableUnicodeSequence, utils::PositionedChar};
+  /// use tokit::{error::MalformedVariableUnicodeSequence, utils::PositionedChar};
   ///
   /// let error = MalformedVariableUnicodeSequence::from_positioned_char(PositionedChar::with_position('X', 42));
   /// assert_eq!(
@@ -823,8 +823,8 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::MalformedVariableUnicodeSequence;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::MalformedVariableUnicodeSequence;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error: MalformedVariableUnicodeSequence<char> =
   ///     MalformedVariableUnicodeSequence::from_range(SimpleSpan::new(10, 15));
@@ -839,8 +839,8 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::MalformedVariableUnicodeSequence;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::MalformedVariableUnicodeSequence;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = MalformedVariableUnicodeSequence::from_char(10, 'G');
   /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
@@ -860,8 +860,8 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::MalformedVariableUnicodeSequence;
-  /// use logosky::utils::Lexeme;
+  /// use tokit::error::MalformedVariableUnicodeSequence;
+  /// use tokit::utils::Lexeme;
   ///
   /// let error = MalformedVariableUnicodeSequence::from_char(10, 'G');
   /// assert!(error.lexeme().is_char());
@@ -889,8 +889,8 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::MalformedVariableUnicodeSequence;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::MalformedVariableUnicodeSequence;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = MalformedVariableUnicodeSequence::from_char(10, 'G');
   /// error.bump(5);
@@ -914,8 +914,8 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
 /// # Examples
 ///
 /// ```
-/// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-/// use logosky::utils::SimpleSpan;
+/// use tokit::error::TooManyDigitsInVariableUnicodeEscape;
+/// use tokit::utils::SimpleSpan;
 ///
 /// // Error for: \u{1234567} (7 digits, limit is 6)
 /// let error = TooManyDigitsInVariableUnicodeEscape::new(
@@ -938,8 +938,8 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::TooManyDigitsInVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(5, 15), 8);
   /// assert_eq!(error.count(), 8);
@@ -954,8 +954,8 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::TooManyDigitsInVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
   /// assert_eq!(error.span(), SimpleSpan::new(10, 20));
@@ -973,8 +973,8 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::TooManyDigitsInVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
   /// assert_eq!(error.span(), SimpleSpan::new(10, 20));
@@ -989,8 +989,8 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::TooManyDigitsInVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
   /// assert_eq!(error.span(), SimpleSpan::new(10, 20));
@@ -1005,8 +1005,8 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::TooManyDigitsInVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
   /// assert_eq!(error.count(), 7);
@@ -1024,8 +1024,8 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::TooManyDigitsInVariableUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::TooManyDigitsInVariableUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
   /// error.bump(5);
@@ -1062,8 +1062,8 @@ impl<O> core::error::Error for TooManyDigitsInVariableUnicodeEscape<O> where
 /// # Examples
 ///
 /// ```
-/// use logosky::error::VariableUnicodeEscapeError;
-/// use logosky::utils::SimpleSpan;
+/// use tokit::error::VariableUnicodeEscapeError;
+/// use tokit::utils::SimpleSpan;
 ///
 /// // Empty braces
 /// let error = VariableUnicodeEscapeError::<char>::empty(SimpleSpan::new(10, 14));
@@ -1142,8 +1142,8 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::VariableUnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
   ///     VariableUnicodeEscapeError::empty(SimpleSpan::new(10, 14));
@@ -1159,8 +1159,8 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::VariableUnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
   ///     VariableUnicodeEscapeError::too_many_digits(SimpleSpan::new(5, 15), 7);
@@ -1176,8 +1176,8 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::VariableUnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
   ///     VariableUnicodeEscapeError::unclosed(SimpleSpan::new(10, 15));
@@ -1193,8 +1193,8 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::VariableUnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
   ///     VariableUnicodeEscapeError::overflow(SimpleSpan::new(10, 20), 0x110000);
@@ -1214,8 +1214,8 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::VariableUnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
   ///     VariableUnicodeEscapeError::surrogate(SimpleSpan::new(10, 18), 0xD800);
@@ -1238,8 +1238,8 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::VariableUnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error: VariableUnicodeEscapeError<char> =
   ///     VariableUnicodeEscapeError::empty(SimpleSpan::new(10, 14));
@@ -1276,8 +1276,8 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::VariableUnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::VariableUnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error: VariableUnicodeEscapeError<char> =
   ///    VariableUnicodeEscapeError::empty(SimpleSpan::new(10, 14));
@@ -1307,7 +1307,7 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
 /// # Examples
 ///
 /// ```
-/// use logosky::error::UnpairedSurrogateHint;
+/// use tokit::error::UnpairedSurrogateHint;
 ///
 /// let hint = UnpairedSurrogateHint::High;
 /// assert_eq!(format!("{}", hint), "high surrogate");
@@ -1340,8 +1340,8 @@ pub enum UnpairedSurrogateHint {
 /// # Examples
 ///
 /// ```
-/// use logosky::error::IncompleteFixedUnicodeEscape;
-/// use logosky::utils::SimpleSpan;
+/// use tokit::error::IncompleteFixedUnicodeEscape;
+/// use tokit::utils::SimpleSpan;
 ///
 /// // Incomplete: \u00A (only 3 hex digits)
 /// let error = IncompleteFixedUnicodeEscape::new(
@@ -1376,8 +1376,8 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::IncompleteFixedUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::IncompleteFixedUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 12));
   /// ```
@@ -1391,8 +1391,8 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::IncompleteFixedUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::IncompleteFixedUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 13));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 13));
@@ -1410,8 +1410,8 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::IncompleteFixedUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::IncompleteFixedUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 13));
   /// assert_eq!(error.span_ref(), SimpleSpan::new(&10, &13));
@@ -1426,8 +1426,8 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::IncompleteFixedUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::IncompleteFixedUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 13));
   /// assert_eq!(error.span_mut(), SimpleSpan::new(&mut 10, &mut 13));
@@ -1445,8 +1445,8 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::IncompleteFixedUnicodeEscape;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::IncompleteFixedUnicodeEscape;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 12));
   /// error.bump(5);
@@ -1480,8 +1480,8 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
 /// # Examples
 ///
 /// ```
-/// use logosky::error::{FixedUnicodeEscapeError, IncompleteFixedUnicodeEscape};
-/// use logosky::utils::{Lexeme, SimpleSpan};
+/// use tokit::error::{FixedUnicodeEscapeError, IncompleteFixedUnicodeEscape};
+/// use tokit::utils::{Lexeme, SimpleSpan};
 ///
 /// // Incomplete escape: \uAB (only 2 hex digits)
 /// let error: FixedUnicodeEscapeError =
@@ -1565,8 +1565,8 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::FixedUnicodeEscapeError;
-  /// use logosky::utils::{Lexeme, SimpleSpan};
+  /// use tokit::error::FixedUnicodeEscapeError;
+  /// use tokit::utils::{Lexeme, SimpleSpan};
   ///
   /// let error = FixedUnicodeEscapeError::<char>::unpaired_high_surrogate(
   ///     Lexeme::Range(SimpleSpan::new(10, 16))
@@ -1583,8 +1583,8 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::FixedUnicodeEscapeError;
-  /// use logosky::utils::{Lexeme, SimpleSpan};
+  /// use tokit::error::FixedUnicodeEscapeError;
+  /// use tokit::utils::{Lexeme, SimpleSpan};
   ///
   /// let error = FixedUnicodeEscapeError::<char>::unpaired_low_surrogate(
   ///     Lexeme::Range(SimpleSpan::new(10, 16))
@@ -1604,8 +1604,8 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{FixedUnicodeEscapeError, IncompleteFixedUnicodeEscape};
-  /// use logosky::utils::{Lexeme, SimpleSpan};
+  /// use tokit::error::{FixedUnicodeEscapeError, IncompleteFixedUnicodeEscape};
+  /// use tokit::utils::{Lexeme, SimpleSpan};
   ///
   /// let mut error: FixedUnicodeEscapeError =
   ///     FixedUnicodeEscapeError::Incomplete(IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 14)));
@@ -1636,8 +1636,8 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{FixedUnicodeEscapeError, IncompleteFixedUnicodeEscape};
-  /// use logosky::utils::{Lexeme, SimpleSpan};
+  /// use tokit::error::{FixedUnicodeEscapeError, IncompleteFixedUnicodeEscape};
+  /// use tokit::utils::{Lexeme, SimpleSpan};
   ///
   /// let error: FixedUnicodeEscapeError =
   ///    FixedUnicodeEscapeError::Incomplete(IncompleteFixedUnicodeEscape::new(SimpleSpan::new(
@@ -1674,8 +1674,8 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
 /// ## Fixed-Width Escape Errors
 ///
 /// ```
-/// use logosky::error::UnicodeEscapeError;
-/// use logosky::utils::{Lexeme, SimpleSpan};
+/// use tokit::error::UnicodeEscapeError;
+/// use tokit::utils::{Lexeme, SimpleSpan};
 ///
 /// // Incomplete fixed-width escape: \uAB
 /// let error = UnicodeEscapeError::<char>::incomplete_fixed_unicode_escape(
@@ -1693,8 +1693,8 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
 /// ## Variable-Length Escape Errors
 ///
 /// ```
-/// use logosky::error::UnicodeEscapeError;
-/// use logosky::utils::SimpleSpan;
+/// use tokit::error::UnicodeEscapeError;
+/// use tokit::utils::SimpleSpan;
 ///
 /// // Empty braces: \u{}
 /// let error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
@@ -1761,8 +1761,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::{Lexeme, SimpleSpan};
+  /// use tokit::error::UnicodeEscapeError;
+  /// use tokit::utils::{Lexeme, SimpleSpan};
   ///
   /// let error = UnicodeEscapeError::<char>::unpaired_high_surrogate(
   ///     Lexeme::Range(SimpleSpan::new(10, 16))
@@ -1779,8 +1779,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::{Lexeme, SimpleSpan};
+  /// use tokit::error::UnicodeEscapeError;
+  /// use tokit::utils::{Lexeme, SimpleSpan};
   ///
   /// let error = UnicodeEscapeError::<char>::unpaired_low_surrogate(
   ///     Lexeme::Range(SimpleSpan::new(10, 16))
@@ -1797,8 +1797,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::UnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::incomplete_fixed_unicode_escape(
   ///     SimpleSpan::new(10, 14)
@@ -1817,8 +1817,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::{UnicodeEscapeError, InvalidFixedUnicodeHexDigits};
-  /// use logosky::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::error::{UnicodeEscapeError, InvalidFixedUnicodeHexDigits};
+  /// use tokit::utils::{SimpleSpan, PositionedChar};
   ///
   /// let digits = InvalidFixedUnicodeHexDigits::from(
   ///     PositionedChar::with_position('G', 12)
@@ -1844,8 +1844,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::UnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
   ///     SimpleSpan::new(10, 14)
@@ -1862,8 +1862,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::UnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::too_many_digits_in_variable_unicode_escape(
   ///     SimpleSpan::new(5, 16),
@@ -1884,8 +1884,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::UnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::unclosed_variable_unicode_escape(
   ///     SimpleSpan::new(10, 15)
@@ -1902,8 +1902,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::UnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::surrogate_variable_unicode_escape(
   ///     SimpleSpan::new(10, 18),
@@ -1921,8 +1921,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::UnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::overflow_variable_unicode_escape(
   ///     SimpleSpan::new(10, 20),
@@ -1940,7 +1940,7 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
+  /// use tokit::error::UnicodeEscapeError;
   ///
   /// let error = UnicodeEscapeError::<char>::invalid_variable_unicode_escape_char(12, 'G');
   /// assert!(error.is_variable());
@@ -1957,8 +1957,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::UnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error: UnicodeEscapeError =
   ///     UnicodeEscapeError::<char>::invalid_variable_unicode_escape_sequence(
@@ -1981,8 +1981,8 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::UnicodeEscapeError;
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::error::UnicodeEscapeError;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
   ///     SimpleSpan::new(10, 14)
@@ -2012,9 +2012,9 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   ///
   /// ```
   ///
-  /// use logosky::error::UnicodeEscapeError;
+  /// use tokit::error::UnicodeEscapeError;
   ///
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
   ///    SimpleSpan::new(10, 14)

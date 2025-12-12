@@ -56,8 +56,8 @@
 //! # Example: Building a Simple Expression AST
 //!
 //! ```rust,ignore
-//! use logosky::types::Ident;
-//! use logosky::utils::Span;
+//! use tokit::types::Ident;
+//! use tokit::utils::Span;
 //!
 //! // Define your language marker
 //! struct MyLang;

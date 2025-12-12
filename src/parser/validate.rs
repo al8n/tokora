@@ -18,7 +18,7 @@ use super::*;
 /// # Examples
 ///
 /// ```ignore
-/// use logosky::parser::{any, ParseInput};
+/// use tokit::parser::{any, ParseInput};
 ///
 /// // Parse an identifier and validate it's not a reserved keyword
 /// let parser = parse_identifier()

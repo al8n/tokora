@@ -10,7 +10,7 @@ use rowan::SyntaxNode;
 /// # Examples
 ///
 /// ```rust,ignore
-/// use logosky::cst::{CstNode, error};
+/// use tokit::cst::{CstNode, error};
 ///
 /// let result = IdentifierNode::try_cast_node(syntax_node);
 ///
@@ -31,7 +31,7 @@ use rowan::SyntaxNode;
 /// ## Recovering from Errors
 ///
 /// ```rust,ignore
-/// use logosky::cst::error::CstNodeMismatch;
+/// use tokit::cst::error::CstNodeMismatch;
 ///
 /// let result = Expression::try_cast_node(syntax_node);
 ///
@@ -79,7 +79,7 @@ impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::error::CstNodeMismatch;
+  /// use tokit::cst::error::CstNodeMismatch;
   ///
   /// let error = CstNodeMismatch::new(
   ///     SyntaxKind::Identifier,
@@ -99,7 +99,7 @@ impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::Node;
+  /// use tokit::cst::Node;
   ///
   /// if let Err(mismatch) = IdentifierNode::try_cast_node(node) {
   ///     println!("Expected kind: {:?}", mismatch.expected());
@@ -118,7 +118,7 @@ impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstNode;
+  /// use tokit::cst::CstNode;
   ///
   /// if let Err(mismatch) = IdentifierNode::try_cast_node(node) {
   ///     println!("Found kind: {:?}", mismatch.found().kind());
@@ -138,7 +138,7 @@ impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstNode;
+  /// use tokit::cst::CstNode;
   ///
   /// let result = IdentifierNode::try_cast_node(syntax_node);
   ///

@@ -9,7 +9,7 @@
 //! # Quick Start
 //!
 //! ```ignore
-//! use logosky::parser::any;
+//! use tokit::parser::any;
 //!
 //! // Parse with defaults
 //! let result = any::<MyLexer, ()>().parse(source);

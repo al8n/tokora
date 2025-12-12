@@ -19,7 +19,7 @@
 //!
 //! ```rust
 //! # {
-//! use logosky::error::InvalidHexDigits;
+//! use tokit::error::InvalidHexDigits;
 //!
 //! // For hex escapes (\xXX) - max 2 digits
 //! let mut hex_digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(10, 'G');
@@ -51,8 +51,8 @@ use crate::utils::{PositionedChar, human_display::DisplayHuman};
 /// ## For Hex Escapes (N=2)
 ///
 /// ```
-/// use logosky::error::InvalidHexDigits;
-/// use logosky::utils::PositionedChar;
+/// use tokit::error::InvalidHexDigits;
+/// use tokit::utils::PositionedChar;
 ///
 /// // Hex escapes need max 2 digits
 /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -63,8 +63,8 @@ use crate::utils::{PositionedChar, human_display::DisplayHuman};
 /// ## For Unicode Escapes (N=4)
 ///
 /// ```
-/// use logosky::error::InvalidHexDigits;
-/// use logosky::utils::PositionedChar;
+/// use tokit::error::InvalidHexDigits;
+/// use tokit::utils::PositionedChar;
 ///
 /// // Unicode escapes need max 4 digits
 /// let mut digits: InvalidHexDigits<char, 4> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -138,7 +138,7 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::{error::InvalidHexDigits, utils::PositionedChar};
+  /// use tokit::{error::InvalidHexDigits, utils::PositionedChar};
   ///
   /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('Z', 12));
   /// ```
@@ -160,7 +160,7 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
+  /// use tokit::error::InvalidHexDigits;
   ///
   /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'Z');
   /// ```
@@ -174,7 +174,7 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::{error::InvalidHexDigits, utils::PositionedChar};
+  /// use tokit::{error::InvalidHexDigits, utils::PositionedChar};
   ///
   /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_array([
   ///   PositionedChar::with_position('G', 10),
@@ -193,8 +193,8 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let chars = vec![
   ///     PositionedChar::with_position('G', 10),
@@ -220,8 +220,8 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 10));
   /// assert!(digits.push(PositionedChar::with_position('H', 11)));
@@ -239,8 +239,8 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(10, 'G');
   /// assert!(digits.push_char(11, 'H'));
@@ -258,8 +258,8 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from(
   ///     PositionedChar::with_position('Z', 5)
@@ -277,8 +277,8 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(10, 'G');
   /// assert!(!digits.is_full());
@@ -298,8 +298,8 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from(
   ///     PositionedChar::with_position('G', 10)

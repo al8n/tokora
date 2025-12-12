@@ -21,7 +21,7 @@
 //! # Example
 //!
 //! ```
-//! use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
+//! use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
 //!
 //! // Parser expected "async" but found "sync"
 //! let error = UnexpectedIdentifier::expected_one(
@@ -56,7 +56,7 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
+/// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
 ///
 /// // Error when expecting a specific identifier
 /// let error = UnexpectedIdentifier::expected_one(
@@ -95,7 +95,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::new(
   ///     SimpleSpan::new(5, 8),
@@ -122,7 +122,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
   ///     SimpleSpan::new(0, 3),
@@ -144,7 +144,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one_of(
   ///     SimpleSpan::new(10, 18),
@@ -167,7 +167,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
   ///     SimpleSpan::new(20, 26),
@@ -189,7 +189,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
   ///     SimpleSpan::new(0, 6),
@@ -208,7 +208,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
   ///     SimpleSpan::new(5, 11),
@@ -233,7 +233,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedIdentifier};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let mut error = UnexpectedIdentifier::expected_one(
   ///     SimpleSpan::new(10, 13),

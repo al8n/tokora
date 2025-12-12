@@ -34,7 +34,7 @@ pub use logos::Logos;
 /// ## Basic Usage
 ///
 /// ```rust,ignore
-/// use logosky::{Lexed, TokenExt};
+/// use tokit::{Lexed, TokenExt};
 ///
 /// let mut lexer = logos::Lexer::<MyTokens>::new(input);
 ///
@@ -206,7 +206,7 @@ impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, T::Error> {
 /// ## Basic Implementation
 ///
 /// ```rust,ignore
-/// use logosky::Token;
+/// use tokit::Token;
 /// use logos::Logos;
 ///
 /// // The Logos enum (raw lexer output)
@@ -288,7 +288,7 @@ impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, T::Error> {
 /// ## Working with Bytes
 ///
 /// ```rust,ignore
-/// use logosky::Token;
+/// use tokit::Token;
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy)]
@@ -362,7 +362,7 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::Token;
+  /// use tokit::Token;
   /// use logos::Logos;
   ///
   /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -452,7 +452,7 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, PunctuatorToken, utils::cmp::Equivalent};
+/// use tokit::{Token, PunctuatorToken, utils::cmp::Equivalent};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -871,7 +871,7 @@ where
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, LitToken};
+/// use tokit::{Token, LitToken};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1079,7 +1079,7 @@ pub trait LitToken<'a>: Token<'a> {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, IdentifierToken};
+/// use tokit::{Token, IdentifierToken};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1181,7 +1181,7 @@ pub trait IdentifierToken<'a, S>: Token<'a> {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, KeywordToken, utils::cmp::Equivalent};
+/// use tokit::{Token, KeywordToken, utils::cmp::Equivalent};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1290,7 +1290,7 @@ pub trait KeywordToken<'a>: Token<'a> {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, OperatorToken, utils::cmp::Equivalent};
+/// use tokit::{Token, OperatorToken, utils::cmp::Equivalent};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1664,7 +1664,7 @@ pub trait OperatorToken<'a>: Token<'a> {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, DelimiterToken, utils::cmp::Equivalent};
+/// use tokit::{Token, DelimiterToken, utils::cmp::Equivalent};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]

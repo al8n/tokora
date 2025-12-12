@@ -20,7 +20,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
 /// Thanks to `Deref`, you can call methods on the wrapped value directly:
 ///
 /// ```rust
-/// use logosky::utils::{Span, Spanned};
+/// use tokit::utils::{Span, Spanned};
 ///
 /// let spanned_str = Spanned::new(Span::new(0, 5), "hello");
 ///
@@ -35,7 +35,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
 /// ## Mapping Values While Preserving Spans
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Span, Spanned};
+/// use tokit::utils::{Span, Spanned};
 ///
 /// let spanned_num = Spanned::new(Span::new(10, 12), "42");
 ///
@@ -52,7 +52,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
 /// ## Building AST Nodes with Locations
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Span, Spanned};
+/// use tokit::utils::{Span, Spanned};
 ///
 /// enum Expr {
 ///     Number(i64),
@@ -96,7 +96,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::{Span, Spanned};
+/// use tokit::utils::{Span, Spanned};
 ///
 /// let span = Span::new(10, 15);
 /// let spanned = Spanned::new(span, "hello");
@@ -109,7 +109,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
 /// ## Destructuring
 ///
 /// ```rust
-/// use logosky::utils::{Span, Spanned};
+/// use tokit::utils::{Span, Spanned};
 ///
 /// let spanned = Spanned::new(Span::new(0, 5), 42);
 ///
@@ -121,7 +121,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
 /// ## Mutable Access
 ///
 /// ```rust
-/// use logosky::utils::{Span, Spanned};
+/// use tokit::utils::{Span, Spanned};
 ///
 /// let mut spanned = Spanned::new(Span::new(0, 1), 10);
 ///
@@ -248,7 +248,7 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Spanned};
+  /// use tokit::utils::{Span, Spanned};
   ///
   /// let spanned = Spanned::new(Span::new(5, 10), "data");
   /// assert_eq!(spanned.span(), Span::new(5, 10));
@@ -266,7 +266,7 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Spanned};
+  /// use tokit::utils::{Span, Spanned};
   ///
   /// let spanned = Spanned::new(Span::new(5, 10), "data");
   /// assert_eq!(spanned.span_ref(), &Span::new(5, 10));
@@ -281,7 +281,7 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Spanned};
+  /// use tokit::utils::{Span, Spanned};
   ///
   /// let mut spanned = Spanned::new(Span::new(5, 10), "data");
   /// spanned.span_mut().set_end(15);
@@ -297,7 +297,7 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Spanned};
+  /// use tokit::utils::{Span, Spanned};
   ///
   /// let spanned = Spanned::new(Span::new(5, 10), 42);
   /// assert_eq!(*spanned.data(), 42);
@@ -312,7 +312,7 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Spanned};
+  /// use tokit::utils::{Span, Spanned};
   ///
   /// let mut spanned = Spanned::new(Span::new(5, 10), 42);
   /// *spanned.data_mut() = 100;
@@ -328,7 +328,7 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Spanned};
+  /// use tokit::utils::{Span, Spanned};
   ///
   /// let spanned = Spanned::new(Span::new(5, 10), String::from("hello"));
   /// let borrowed: Spanned<&String> = spanned.as_ref();
@@ -347,7 +347,7 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Span, Spanned};
+  /// use tokit::utils::{Span, Spanned};
   ///
   /// let mut spanned = Spanned::new(Span::new(5, 10), String::from("hello"));
   /// let borrowed: Spanned<&mut String> = spanned.as_mut();

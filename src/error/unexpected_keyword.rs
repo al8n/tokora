@@ -21,7 +21,7 @@
 //! # Example
 //!
 //! ```
-//! use logosky::{utils::SimpleSpan, error::UnexpectedKeyword};
+//! use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
 //!
 //! // Parser expected "async" but found "sync"
 //! let error = UnexpectedKeyword::expected_one(
@@ -56,7 +56,7 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedKeyword};
+/// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedKeyword};
 ///
 /// // Error when expecting a specific keyword
 /// let error = UnexpectedKeyword::expected_one(
@@ -95,7 +95,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedKeyword};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::new(
   ///     SimpleSpan::new(5, 8),
@@ -122,7 +122,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(0, 3),
@@ -144,7 +144,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one_of(
   ///     SimpleSpan::new(10, 18),
@@ -167,7 +167,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(20, 26),
@@ -189,7 +189,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(20, 26),
@@ -208,7 +208,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(0, 6),
@@ -227,7 +227,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, SimpleSpan}, error::UnexpectedKeyword};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(5, 11),
@@ -252,7 +252,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let mut error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(10, 13),

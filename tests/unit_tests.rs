@@ -1,13 +1,13 @@
 // #![cfg(all(feature = "chumsky", any(feature = "std", feature = "alloc")))]
 
 // use logos::Logos;
-// use logosky::{
+// use tokit::{
 //   Token, TokenExt,
 //   chumsky::Parseable,
 //   utils::{AsSpan, IntoSpan, Span, Spanned},
 // };
 
-// type Tokenizer<'a> = logosky::Tokenizer<'a, SimpleToken>;
+// type Tokenizer<'a> = tokit::Tokenizer<'a, SimpleToken>;
 
 // // Define a simple token type for testing
 // #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -234,7 +234,7 @@
 
 // mod lexer_tests {
 //   use super::*;
-//   use logosky::Lexed;
+//   use tokit::Lexed;
 
 //   #[test]
 //   fn test_simple_lexing() {
@@ -321,7 +321,7 @@
 
 // mod is_ascii_char_tests {
 //   use ascii::AsciiChar;
-//   use logosky::utils::IsAsciiChar;
+//   use tokit::utils::IsAsciiChar;
 
 //   #[test]
 //   fn test_char_is_ascii_char() {
@@ -399,7 +399,7 @@
 //       E: chumsky::extra::ParserExtra<'a, Tokenizer<'a>, Error = Error> + 'a,
 //     {
 //       any()
-//         .filter(|tok: &logosky::Lexed<'_, SimpleToken>| {
+//         .filter(|tok: &tokit::Lexed<'_, SimpleToken>| {
 //           tok.is_token() && tok.unwrap_token_ref().kind() == SimpleTokenKind::Number
 //         })
 //         .map(|_| Number(0))

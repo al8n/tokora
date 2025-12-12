@@ -21,8 +21,8 @@
 //! ## Zero-Copy Parsing
 //!
 //! ```rust,ignore
-//! use logosky::types::Ident;
-//! use logosky::utils::SimpleSimpleSpan;
+//! use tokit::types::Ident;
+//! use tokit::utils::SimpleSimpleSpan;
 //!
 //! // Parse identifiers without allocating
 //! type YulIdent<'a> = Ident<&'a str, YulLang>;
@@ -55,7 +55,7 @@
 //! allowing creation of placeholder identifiers during error recovery:
 //!
 //! ```rust,ignore
-//! use logosky::error::ErrorNode;
+//! use tokit::error::ErrorNode;
 //!
 //! // Create placeholder for malformed identifier
 //! let bad_ident = Ident::<String, YulLang>::error(span);
@@ -116,8 +116,8 @@ enum Status {
 /// ## Creating Identifiers
 ///
 /// ```rust
-/// use logosky::types::Ident;
-/// use logosky::utils::SimpleSimpleSpan;
+/// use tokit::types::Ident;
+/// use tokit::utils::SimpleSimpleSpan;
 /// # struct MyLang;
 ///
 /// // Zero-copy identifier
@@ -131,8 +131,8 @@ enum Status {
 /// ## Extracting Components
 ///
 /// ```rust
-/// # use logosky::types::Ident;
-/// # use logosky::utils::{SimpleSpan, IntoComponents};
+/// # use tokit::types::Ident;
+/// # use tokit::utils::{SimpleSpan, IntoComponents};
 /// # struct MyLang;
 /// # let span = SimpleSpan::new(0, 3);
 /// let ident = Ident::<&str, MyLang>::new(span, "foo");
@@ -145,8 +145,8 @@ enum Status {
 /// ## Mutable Access
 ///
 /// ```rust
-/// # use logosky::types::Ident;
-/// # use logosky::utils::SimpleSimpleSpan;
+/// # use tokit::types::Ident;
+/// # use tokit::utils::SimpleSimpleSpan;
 /// # struct MyLang;
 /// # let span = SimpleSpan::new(0, 3);
 /// let mut ident = Ident::<String, MyLang>::new(span, "original".to_string());
@@ -194,8 +194,8 @@ impl<S, Lang> Ident<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::types::Ident;
-  /// use logosky::utils::SimpleSimpleSpan;
+  /// use tokit::types::Ident;
+  /// use tokit::utils::SimpleSimpleSpan;
   /// # struct YulLang;
   ///
   /// let span = SimpleSpan::new(10, 15);
@@ -224,8 +224,8 @@ impl<S, Lang> Ident<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Ident;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Ident;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(5, 10), "value");
   ///
@@ -243,8 +243,8 @@ impl<S, Lang> Ident<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Ident;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Ident;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
@@ -264,8 +264,8 @@ impl<S, Lang> Ident<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Ident;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Ident;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let mut ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
@@ -285,8 +285,8 @@ impl<S, Lang> Ident<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Ident;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Ident;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let mut ident = Ident::<String, MyLang>::new(SimpleSpan::new(0, 3), "foo".to_string());
   ///
@@ -306,8 +306,8 @@ impl<S, Lang> Ident<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Ident;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Ident;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 8), "variable");
   ///
@@ -331,8 +331,8 @@ impl<S, Lang> Ident<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Ident;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Ident;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 2), "id");
   ///
@@ -386,8 +386,8 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::types::Ident;
-  /// use logosky::error::ErrorNode;
+  /// use tokit::types::Ident;
+  /// use tokit::error::ErrorNode;
   ///
   /// // Parser found "123abc" where an identifier was expected
   /// let bad_ident = Ident::<String, YulLang>::error(span);
@@ -406,8 +406,8 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::types::Ident;
-  /// use logosky::error::ErrorNode;
+  /// use tokit::types::Ident;
+  /// use tokit::error::ErrorNode;
   ///
   /// // Parser expected identifier after "let" but found "="
   /// // Correct: let name = 5;
@@ -465,8 +465,8 @@ where
 //     /// ## Basic Usage
 //     ///
 //     /// ```rust,ignore
-//     /// use logosky::types::Ident;
-//     /// use logosky::chumsky::Parser;
+//     /// use tokit::types::Ident;
+//     /// use tokit::chumsky::Parser;
 //     ///
 //     /// // Parser for YUL identifiers
 //     /// let ident_parser = Ident::<&str, YulLang>::parser(|| YulSyntaxKind::Ident);
@@ -479,9 +479,9 @@ where
 //     /// ## With Error Recovery
 //     ///
 //     /// ```rust,ignore
-//     /// use logosky::types::Ident;
-//     /// use logosky::error::ErrorNode;
-//     /// use logosky::chumsky::{Parser, prelude::*};
+//     /// use tokit::types::Ident;
+//     /// use tokit::error::ErrorNode;
+//     /// use tokit::chumsky::{Parser, prelude::*};
 //     ///
 //     /// // Parser with recovery for missing identifiers
 //     /// let ident_parser = Ident::<String, YulLang>::parser(|| YulSyntaxKind::Ident)

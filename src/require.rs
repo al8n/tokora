@@ -9,7 +9,7 @@
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Require, IdentifierToken};
+/// use tokit::{Require, IdentifierToken};
 ///
 /// #[derive(Debug, Clone)]
 /// pub enum Punct {

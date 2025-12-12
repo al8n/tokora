@@ -40,7 +40,7 @@ use super::PositionedChar;
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::human_display::DisplayHuman;
+/// use tokit::utils::human_display::DisplayHuman;
 ///
 /// let ascii_byte: u8 = b'A';
 /// let non_ascii_byte: u8 = 200;
@@ -52,7 +52,7 @@ use super::PositionedChar;
 /// ## Byte Slice Handling
 ///
 /// ```rust
-/// use logosky::utils::human_display::DisplayHuman;
+/// use tokit::utils::human_display::DisplayHuman;
 ///
 /// let utf8_bytes = b"hello";
 /// let invalid_utf8 = &[0xFF, 0xFE];
@@ -67,7 +67,7 @@ use super::PositionedChar;
 /// ## With Positioned Characters
 ///
 /// ```rust
-/// use logosky::utils::{PositionedChar, human_display::DisplayHuman};
+/// use tokit::utils::{PositionedChar, human_display::DisplayHuman};
 ///
 /// let pc = PositionedChar::with_position('x', 42);
 ///
@@ -78,7 +78,7 @@ use super::PositionedChar;
 /// ## Custom Implementation
 ///
 /// ```rust,ignore
-/// use logosky::utils::human_display::DisplayHuman;
+/// use tokit::utils::human_display::DisplayHuman;
 ///
 /// struct Token {
 ///     kind: TokenKind,
@@ -109,7 +109,7 @@ pub trait DisplayHuman {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::human_display::DisplayHuman;
+  /// use tokit::utils::human_display::DisplayHuman;
   ///
   /// let bytes = b"hello";
   /// println!("{}", bytes.display()); // Prints: hello
@@ -140,7 +140,7 @@ impl DisplayHuman for u8 {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::human_display::DisplayHuman;
+  /// use tokit::utils::human_display::DisplayHuman;
   ///
   /// let ascii = b'A';
   /// let non_ascii: u8 = 200;
@@ -181,7 +181,7 @@ impl<T: DisplayHuman> DisplayHuman for PositionedChar<T> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{PositionedChar, human_display::DisplayHuman};
+  /// use tokit::utils::{PositionedChar, human_display::DisplayHuman};
   ///
   /// let pc = PositionedChar::with_position('x', 100);
   /// assert_eq!(format!("{}", pc.display()), "x");
@@ -215,7 +215,7 @@ impl DisplayHuman for [char] {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::human_display::DisplayHuman;
+  /// use tokit::utils::human_display::DisplayHuman;
   ///
   /// let chars = ['h', 'e', 'l', 'l', 'o'];
   /// assert_eq!(format!("{}", chars.display()), "hello");
@@ -288,7 +288,7 @@ const _: () = {
 /// # Examples
 ///
 /// ```rust
-/// use logosky::utils::human_display::DisplayHuman;
+/// use tokit::utils::human_display::DisplayHuman;
 ///
 /// let bytes = b"Hello, world!";
 /// let display_wrapper = bytes.display();

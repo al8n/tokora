@@ -32,7 +32,7 @@
 //! # Basic Usage
 //!
 //! ```rust,ignore
-//! use logosky::cst::{SyntaxTreeBuilder, Node, Parseable};
+//! use tokit::cst::{SyntaxTreeBuilder, Node, Parseable};
 //! use rowan::Language;
 //!
 //! // 1. Define your language
@@ -78,7 +78,7 @@
 //! The [`Parseable`](crate::cst::Parseable) trait integrates CST building with Chumsky parsers:
 //!
 //! ```rust,ignore
-//! use logosky::cst::{Parseable, SyntaxTreeBuilder};
+//! use tokit::cst::{Parseable, SyntaxTreeBuilder};
 //!
 //! struct Expression;
 //!
@@ -106,7 +106,7 @@
 //! The [`Node`](crate::cst::Node) trait provides zero-cost typed wrappers around syntax nodes:
 //!
 //! ```rust,ignore
-//! use logosky::cst::Node;
+//! use tokit::cst::Node;
 //!
 //! #[derive(Debug)]
 //! struct IdentifierNode {
@@ -170,7 +170,7 @@ use crate::syntax::Syntax;
 /// # Examples
 ///
 /// ```rust,ignore
-/// use logosky::cst::SyntaxTreeBuilder;
+/// use tokit::cst::SyntaxTreeBuilder;
 ///
 /// let builder = SyntaxTreeBuilder::<MyLanguage>::new();
 ///
@@ -230,7 +230,7 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::SyntaxTreeBuilder;
+  /// use tokit::cst::SyntaxTreeBuilder;
   ///
   /// let builder = SyntaxTreeBuilder::<MyLanguage>::new();
   /// ```
@@ -251,7 +251,7 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::SyntaxTreeBuilder;
+  /// use tokit::cst::SyntaxTreeBuilder;
   ///
   /// let builder = SyntaxTreeBuilder::<MyLanguage>::new();
   /// let checkpoint = builder.checkpoint();
@@ -278,7 +278,7 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::SyntaxTreeBuilder;
+  /// use tokit::cst::SyntaxTreeBuilder;
   ///
   /// let builder = SyntaxTreeBuilder::<MyLanguage>::new();
   ///
@@ -307,7 +307,7 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::SyntaxTreeBuilder;
+  /// use tokit::cst::SyntaxTreeBuilder;
   ///
   /// let builder = SyntaxTreeBuilder::<MyLanguage>::new();
   /// let checkpoint = builder.checkpoint();
@@ -336,7 +336,7 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::SyntaxTreeBuilder;
+  /// use tokit::cst::SyntaxTreeBuilder;
   ///
   /// let builder = SyntaxTreeBuilder::<MyLanguage>::new();
   ///
@@ -365,7 +365,7 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::SyntaxTreeBuilder;
+  /// use tokit::cst::SyntaxTreeBuilder;
   ///
   /// let builder = SyntaxTreeBuilder::<MyLanguage>::new();
   ///
@@ -388,7 +388,7 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::SyntaxTreeBuilder;
+  /// use tokit::cst::SyntaxTreeBuilder;
   /// use rowan::SyntaxNode;
   ///
   /// let builder = SyntaxTreeBuilder::<MyLanguage>::new();
@@ -440,7 +440,7 @@ where
 /// ## Simple Token Implementation
 ///
 /// ```rust,ignore
-/// use logosky::cst::{CstElement, CstToken};
+/// use tokit::cst::{CstElement, CstToken};
 ///
 /// #[derive(Debug)]
 /// struct Comma {
@@ -464,7 +464,7 @@ where
 /// ## Node with Multiple Variants
 ///
 /// ```rust,ignore
-/// use logosky::cst::{CstElement, CstNode};
+/// use tokit::cst::{CstElement, CstNode};
 ///
 /// #[derive(Debug)]
 /// enum Literal {
@@ -495,7 +495,7 @@ where
 /// ## Generic Functions Using Elements
 ///
 /// ```rust,ignore
-/// use logosky::cst::CstElement;
+/// use tokit::cst::CstElement;
 ///
 /// fn element_kind<T: CstElement>(element: &T) -> String {
 ///     format!("{:?}", T::KIND)
@@ -530,7 +530,7 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
   /// ## Simple Element (Single Kind)
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstElement;
+  /// use tokit::cst::CstElement;
   ///
   /// impl CstElement for Comma {
   ///     type Language = MyLanguage;
@@ -545,7 +545,7 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
   /// ## Enum Element (Multiple Kinds)
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstElement;
+  /// use tokit::cst::CstElement;
   ///
   /// impl CstElement for BinaryOperator {
   ///     type Language = MyLanguage;
@@ -566,7 +566,7 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
   /// ## Usage in Type Checking
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstElement;
+  /// use tokit::cst::CstElement;
   ///
   /// // Check before casting
   /// if Comma::can_cast(token.kind()) {
@@ -608,7 +608,7 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
 /// ## Simple Token Implementation
 ///
 /// ```rust,ignore
-/// use logosky::cst::{CstElement, CstToken, error};
+/// use tokit::cst::{CstElement, CstToken, error};
 /// use rowan::SyntaxToken;
 ///
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -645,7 +645,7 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
 /// ## Token with Multiple Variants (Enum)
 ///
 /// ```rust,ignore
-/// use logosky::cst::{CstElement, CstToken};
+/// use tokit::cst::{CstElement, CstToken};
 ///
 /// #[derive(Debug, Clone)]
 /// enum BinaryOperator {
@@ -695,7 +695,7 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
 /// ## Using Tokens
 ///
 /// ```rust,ignore
-/// use logosky::cst::{CstToken, cast};
+/// use tokit::cst::{CstToken, cast};
 ///
 /// // Cast from untyped token
 /// let comma = Comma::try_cast_token(syntax_token)?;
@@ -710,7 +710,7 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
 /// ## Finding Tokens in Nodes
 ///
 /// ```rust,ignore
-/// use logosky::cst::cast;
+/// use tokit::cst::cast;
 ///
 /// // Find a specific token in a node
 /// let equals_token = cast::token(&assignment_node, &SyntaxKind::Equals);
@@ -734,7 +734,7 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstToken;
+  /// use tokit::cst::CstToken;
   ///
   /// // Try to cast a token
   /// match Comma::try_cast_token(syntax_token) {
@@ -757,7 +757,7 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstToken;
+  /// use tokit::cst::CstToken;
   ///
   /// let comma: Comma = ...;
   ///
@@ -780,7 +780,7 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::CstToken;
+  /// use tokit::cst::CstToken;
   ///
   /// let identifier: IdentifierToken = ...;
   /// assert_eq!(identifier.text(), "my_variable");
@@ -832,7 +832,7 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
 /// ## Basic Node Implementation
 ///
 /// ```rust,ignore
-/// use logosky::cst::{Node, error};
+/// use tokit::cst::{Node, error};
 /// use rowan::SyntaxNode;
 ///
 /// #[derive(Debug, Clone)]
@@ -867,7 +867,7 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
 /// ## Using Nodes
 ///
 /// ```rust,ignore
-/// use logosky::cst::CstNode;
+/// use tokit::cst::CstNode;
 ///
 /// // Try to cast an untyped node
 /// let identifier = IdentifierNode::try_cast_node(syntax_node)?;
@@ -882,7 +882,7 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
 /// ## Enum Nodes for Variants
 ///
 /// ```rust,ignore
-/// use logosky::cst::CstNode;
+/// use tokit::cst::CstNode;
 ///
 /// #[derive(Debug, Clone)]
 /// enum Expression {
@@ -930,7 +930,7 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::Node;
+  /// use tokit::cst::Node;
   ///
   /// let identifier = IdentifierNode::try_cast_node(syntax_node)?;
   /// ```
@@ -945,7 +945,7 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::Node;
+  /// use tokit::cst::Node;
   ///
   /// let node: IdentifierNode = ...;
   /// let parent = node.syntax().parent();
@@ -960,7 +960,7 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::Node;
+  /// use tokit::cst::Node;
   ///
   /// let identifier: IdentifierNode = ...;
   /// assert_eq!(identifier.source_string(), "my_variable");
@@ -977,7 +977,7 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::Node;
+  /// use tokit::cst::Node;
   ///
   /// let original: IdentifierNode = ...;
   /// let mut mutable = original.clone_for_update();
@@ -1000,7 +1000,7 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::Node;
+  /// use tokit::cst::Node;
   ///
   /// let original: ExpressionNode = ...;
   /// let copy = original.clone_subtree();
@@ -1027,7 +1027,7 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
 /// # Examples
 ///
 /// ```rust,ignore
-/// use logosky::cst::{Node, cast};
+/// use tokit::cst::{Node, cast};
 ///
 /// // Get all Identifier children of a function
 /// let identifiers: Vec<IdentifierNode> = cast::children(&function_node.syntax())
@@ -1071,7 +1071,7 @@ impl<N, Lang: Language> CstNodeChildren<N, Lang> {
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::cst::cast;
+  /// use tokit::cst::cast;
   ///
   /// // Get all expression children, filtered by specific kinds
   /// let binary_exprs = cast::children::<Expression>(&node)
@@ -1106,7 +1106,7 @@ where
 /// # Examples
 ///
 /// ```rust,ignore
-/// use logosky::cst::cast;
+/// use tokit::cst::cast;
 ///
 /// // Get the first identifier child
 /// let identifier = cast::child::<IdentifierNode>(&parent_node);

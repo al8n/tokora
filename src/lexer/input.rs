@@ -61,7 +61,7 @@ impl<E, C> InputContext<E, C> {
 /// ## Basic Usage
 ///
 /// ```rust,ignore
-/// use logosky::{Token, Input, TokenExt};
+/// use tokit::{Token, Input, TokenExt};
 /// use logos::Logos;
 /// use chumsky::prelude::*;
 ///

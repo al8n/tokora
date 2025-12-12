@@ -19,7 +19,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{SimpleSpan, knowledge::IntLiteral}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{SimpleSpan, knowledge::IntLiteral}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, IntLiteral> = UnexpectedPrefix::leading_zero(
   ///   SimpleSpan::new(1, 5),
@@ -46,7 +46,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{SimpleSpan, knowledge::IntLiteral}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{SimpleSpan, knowledge::IntLiteral}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, IntLiteral> = UnexpectedPrefix::leading_zeros(
   ///   SimpleSpan::new(6, 10),
@@ -74,7 +74,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///     SimpleSpan::new(1, 5),
@@ -108,7 +108,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{PositionedChar, SimpleSpan}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{PositionedChar, SimpleSpan}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::from_char(
   ///    SimpleSpan::new(1, 5),
@@ -134,7 +134,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{PositionedChar, SimpleSpan}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{PositionedChar, SimpleSpan}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::from_positioned_char(
   ///    SimpleSpan::new(1, 5),
@@ -176,7 +176,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{SimpleSpan, Lexeme}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{SimpleSpan, Lexeme}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::from_prefix(
   ///   SimpleSpan::new(6, 10),
@@ -198,7 +198,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///   SimpleSpan::new(1, 5),
@@ -225,7 +225,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///     SimpleSpan::new(1, 5),
@@ -246,7 +246,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///    SimpleSpan::new(1, 5),
@@ -268,7 +268,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///   SimpleSpan::new(1, 5),
@@ -294,7 +294,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let mut error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///   SimpleSpan::new(1, 5),

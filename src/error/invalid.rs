@@ -45,7 +45,7 @@
 //! ## Invalid Range Values
 //!
 //! ```rust
-//! use logosky::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
+//! use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
 //!
 //! // Found "256" when parsing a byte (range 0-255)
 //! let error = Invalid::int(SimpleSpan::new(10, 13));
@@ -55,7 +55,7 @@
 //! ## Invalid Context Values
 //!
 //! ```rust
-//! use logosky::{error::Invalid, utils::{SimpleSpan, knowledge::OctalLiteral}};
+//! use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::OctalLiteral}};
 //!
 //! // Found "0777" in strict mode where leading zeros aren't allowed
 //! let error = Invalid::octal(SimpleSpan::new(5, 9));
@@ -65,7 +65,7 @@
 //! ## Generic Invalid Value
 //!
 //! ```rust
-//! use logosky::{error::Invalid, utils::SimpleSpan};
+//! use tokit::{error::Invalid, utils::SimpleSpan};
 //!
 //! // Invalid with no specific knowledge
 //! let error: Invalid<()> = Invalid::new(SimpleSpan::new(20, 25));
@@ -75,7 +75,7 @@
 //! ## With Custom Knowledge
 //!
 //! ```rust
-//! use logosky::{error::Invalid, utils::{SimpleSpan, knowledge::HexLiteral}};
+//! use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::HexLiteral}};
 //!
 //! // Found valid hex syntax but value out of range
 //! let error = Invalid::with_knowledge(SimpleSpan::new(15, 20), HexLiteral::default());
@@ -172,7 +172,7 @@ pub type InvalidHexFloatLiteral = Invalid<HexFloatLiteral>;
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::{error::Invalid, utils::SimpleSpan};
+/// use tokit::{error::Invalid, utils::SimpleSpan};
 ///
 /// // Invalid value at position 10-13
 /// let error: Invalid<()> = Invalid::new(SimpleSpan::new(10, 13));
@@ -183,7 +183,7 @@ pub type InvalidHexFloatLiteral = Invalid<HexFloatLiteral>;
 /// ## With Knowledge Context
 ///
 /// ```rust
-/// use logosky::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
+/// use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
 ///
 /// // Found "256" when expecting u8 (0-255)
 /// let error = Invalid::int(SimpleSpan::new(5, 8));
@@ -226,7 +226,7 @@ impl<S> Invalid<BooleanLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::BooleanLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::BooleanLiteral};
   ///
   /// let error = Invalid::boolean(SimpleSpan::new(10, 14));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
@@ -244,7 +244,7 @@ impl<S> Invalid<NullLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::NullLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::NullLiteral};
   ///
   /// let error = Invalid::null(SimpleSpan::new(20, 24));
   /// assert_eq!(error.span(), SimpleSpan::new(20, 24));
@@ -262,7 +262,7 @@ impl<S> Invalid<EnumLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::EnumLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::EnumLiteral};
   ///
   /// let error = Invalid::enumeration(SimpleSpan::new(30, 40));
   /// assert_eq!(error.span(), SimpleSpan::new(30, 40));
@@ -280,7 +280,7 @@ impl<S> Invalid<EnumValueLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::EnumValueLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::EnumValueLiteral};
   ///
   /// let error = Invalid::enum_value(SimpleSpan::new(45, 49));
   /// assert_eq!(error.span(), SimpleSpan::new(45, 49));
@@ -298,7 +298,7 @@ impl<S> Invalid<DecimalLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::DecimalLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::DecimalLiteral};
   ///
   /// let error = Invalid::decimal(SimpleSpan::new(150, 160));
   /// assert_eq!(error.span(), SimpleSpan::new(150, 160));
@@ -316,7 +316,7 @@ impl<S> Invalid<OctalLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::OctalLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::OctalLiteral};
   ///
   /// let error = Invalid::octal(SimpleSpan::new(50, 60));
   /// assert_eq!(error.span(), SimpleSpan::new(50, 60));
@@ -334,7 +334,7 @@ impl<S> Invalid<StringLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::StringLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::StringLiteral};
   ///
   /// let error = Invalid::string(SimpleSpan::new(70, 80));
   /// assert_eq!(error.span(), SimpleSpan::new(70, 80));
@@ -352,7 +352,7 @@ impl<S> Invalid<HexLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::HexLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::HexLiteral};
   ///
   /// let error = Invalid::hex(SimpleSpan::new(90, 100));
   /// assert_eq!(error.span(), SimpleSpan::new(90, 100));
@@ -370,7 +370,7 @@ impl<S> Invalid<IntLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::IntLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::IntLiteral};
   ///
   /// let error = Invalid::int(SimpleSpan::new(105, 110));
   /// assert_eq!(error.span(), SimpleSpan::new(105, 110));
@@ -388,7 +388,7 @@ impl<S> Invalid<BinaryLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::BinaryLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::BinaryLiteral};
   ///
   /// let error = Invalid::binary(SimpleSpan::new(115, 120));
   /// assert_eq!(error.span(), SimpleSpan::new(115, 120));
@@ -406,7 +406,7 @@ impl<S> Invalid<FloatLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::FloatLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::FloatLiteral};
   ///
   /// let error = Invalid::float(SimpleSpan::new(125, 130));
   /// assert_eq!(error.span(), SimpleSpan::new(125, 130));
@@ -424,7 +424,7 @@ impl<S> Invalid<HexFloatLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan, utils::knowledge::HexFloatLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::HexFloatLiteral};
   ///
   /// let error = Invalid::hex_float(SimpleSpan::new(135, 140));
   /// assert_eq!(error.span(), SimpleSpan::new(135, 140));
@@ -445,7 +445,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
   /// // Found an invalid value at position 10-13, no specific context
   /// let error: Invalid<()> = Invalid::new(SimpleSpan::new(10, 13));
@@ -470,7 +470,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
+  /// use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
   ///
   /// // Found "256" when parsing u8 (valid range 0-255)
   /// let error = Invalid::with_knowledge(SimpleSpan::new(5, 8), IntLiteral::default());
@@ -493,7 +493,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
   /// let error: Invalid<()> = Invalid::new(SimpleSpan::new(10, 15));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
@@ -511,7 +511,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
   /// let error: Invalid<()> = Invalid::new(SimpleSpan::new(10, 15));
   /// assert_eq!(error.span_ref(), &SimpleSpan::new(10, 15));
@@ -526,7 +526,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
   /// let mut error: Invalid<()> = Invalid::new(SimpleSpan::new(10, 15));
   /// *error.span_mut() = SimpleSpan::new(20, 25);
@@ -545,7 +545,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
+  /// use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
   ///
   /// let error = Invalid::int(SimpleSpan::new(5, 8));
   /// assert_eq!(error.knowledge(), Some(&IntLiteral::default()));
@@ -566,7 +566,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
+  /// use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
   ///
   /// let error = Invalid::int(SimpleSpan::new(10, 15));
   /// let (span, knowledge) = error.into_components();
@@ -587,7 +587,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
   /// let mut error: Invalid<()> = Invalid::new(SimpleSpan::new(5, 10));
   /// error.bump(100);
@@ -597,7 +597,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// ## Method Chaining
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::SimpleSpan};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
   /// let mut error: Invalid<()> = Invalid::new(SimpleSpan::new(5, 10));
   /// error.bump(100).bump(50);

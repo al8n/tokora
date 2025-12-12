@@ -28,7 +28,7 @@
 //!
 //! ```rust
 //! # {
-//! use logosky::{
+//! use tokit::{
 //!     utils::{typenum::U3, GenericArrayDeque},
 //!     syntax::Syntax,
 //!     error::IncompleteSyntax
@@ -83,7 +83,7 @@
 //! }
 //!
 //! let mut error = IncompleteSyntax::<WhileLoop>::new(
-//!     logosky::utils::SimpleSpan::new(10, 15),
+//!     tokit::utils::SimpleSpan::new(10, 15),
 //!     WhileComponent::Condition
 //! );
 //! assert_eq!(error.len(), 1);
@@ -116,7 +116,7 @@ use core::{
 ///
 /// ```rust
 /// # {
-/// use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+/// use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
 /// use typenum::U3;
 /// use core::fmt;
 ///
@@ -169,7 +169,7 @@ use core::{
 ///
 /// // Report a missing component at a specific location
 /// let error = IncompleteSyntax::<IfStatement>::new(
-///     logosky::utils::SimpleSpan::new(10, 15),
+///     tokit::utils::SimpleSpan::new(10, 15),
 ///     IfStatementComponent::Condition
 /// );
 /// assert_eq!(error.len(), 1);
@@ -185,7 +185,7 @@ use core::{
 ///
 /// ```rust
 /// # {
-/// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+/// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
 /// # use typenum::U2;
 /// # use core::fmt;
 /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -212,7 +212,7 @@ use core::{
 /// #     }
 /// # }
 /// let mut error = IncompleteSyntax::<MySyntax>::new(
-///     logosky::utils::SimpleSpan::new(10, 15),
+///     tokit::utils::SimpleSpan::new(10, 15),
 ///     Component::A
 /// );
 /// assert_eq!(format!("{}", error), "incomplete syntax: component A is missing");
@@ -293,7 +293,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -343,7 +343,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -429,7 +429,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -456,7 +456,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::SimpleSpan::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert_eq!(error.len(), 1);
@@ -476,7 +476,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U3;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -501,7 +501,7 @@ where
   /// #     }
   /// # }
   /// let error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::SimpleSpan::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert_eq!(error.capacity(), 3);
@@ -518,7 +518,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -545,7 +545,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::SimpleSpan::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(!error.is_full());
@@ -571,7 +571,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -598,7 +598,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::SimpleSpan::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push(Component::B);
@@ -627,7 +627,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -654,7 +654,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::SimpleSpan::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push_front(Component::B);
@@ -680,7 +680,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -705,7 +705,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::SimpleSpan::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(error.try_push(Component::B).is_none()); // Success
@@ -727,7 +727,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -752,7 +752,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::SimpleSpan::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(error.try_push_front(Component::B).is_none()); // Success
@@ -770,7 +770,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -797,7 +797,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::SimpleSpan::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push(Component::B);
@@ -815,7 +815,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -842,7 +842,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::SimpleSpan::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.as_mut_slice()[0] = Component::B;
@@ -860,7 +860,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -903,7 +903,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -960,7 +960,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]

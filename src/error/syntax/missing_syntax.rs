@@ -20,7 +20,7 @@
 //! When the parser reaches the end of input missingly, use constructors without a found token:
 //!
 //! ```
-//! use logosky::{utils::Span, error::MissingSyntax};
+//! use tokit::{utils::Span, error::MissingSyntax};
 //!
 //! // Simple end-of-input error
 //! let error: MissingSyntax<&str, &str> = MissingSyntax::expected_one(
@@ -35,7 +35,7 @@
 //! When a specific token was found but something else was expected:
 //!
 //! ```
-//! use logosky::{utils::{Expected, Span}, error::MissingSyntax};
+//! use tokit::{utils::{Expected, Span}, error::MissingSyntax};
 //!
 //! let error = MissingSyntax::expected_one_with_found(
 //!     Span::new(10, 15),
@@ -67,7 +67,7 @@ pub type MissingSyntaxOf<'inp, Syntax, L, Lang = ()> =
 /// # Examples
 ///
 /// ```
-/// use logosky::{utils::{Expected, Span}, error::MissingSyntax};
+/// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
 ///
 /// // Error when expecting a specific token but got something else
 /// let error = MissingSyntax::expected_one_with_found(
@@ -149,7 +149,7 @@ impl<Syntax, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingSyntax};
+  /// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
   ///
   /// let error = MissingSyntax::new(
   ///     10,
@@ -169,7 +169,7 @@ impl<Syntax, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingSyntax};
+  /// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
   ///
   /// let error = MissingSyntax::new(
   ///     10,
@@ -186,7 +186,7 @@ impl<Syntax, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingSyntax};
+  /// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
   ///
   /// let error = MissingSyntax::new(
   ///     10,
@@ -218,7 +218,7 @@ impl<Syntax, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingSyntax};
+  /// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
   ///
   /// let mut error = MissingSyntax::expected_one_with_found(
   ///     Span::new(10, 15),
@@ -244,7 +244,7 @@ impl<Syntax, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingSyntax};
+  /// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
   ///
   /// let error = MissingSyntax::expected_one_with_found(
   ///     Span::new(5, 6),

@@ -1,6 +1,6 @@
 use derive_more::Display;
 use logos::*;
-use logosky::{Any, Parse, Token as TokenT};
+use tokit::{Any, Parse, Token as TokenT};
 
 #[derive(Debug, Logos, Clone)]
 #[logos(skip r"[ \t\r\n\f]+")]
@@ -89,7 +89,7 @@ impl TokenT<'_> for Token {
   }
 }
 
-type JsonLexer<'a> = logosky::LogosLexer<'a, Token, Token>;
+type JsonLexer<'a> = tokit::LogosLexer<'a, Token, Token>;
 
 // Example of using map combinator to extract token values
 #[derive(Debug, Clone)]

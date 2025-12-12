@@ -2,7 +2,7 @@
 ///
 /// # Examples
 /// ```rust
-/// use logosky::keyword;
+/// use tokit::keyword;
 ///
 /// keyword! {
 ///   (MyKeyword, "MY_KEYWORD", "my_keyword"),

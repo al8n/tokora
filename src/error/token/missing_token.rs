@@ -20,7 +20,7 @@
 //! When the parser reaches the end of input missingly, use constructors without a found token:
 //!
 //! ```
-//! use logosky::{utils::Span, error::MissingToken};
+//! use tokit::{utils::Span, error::MissingToken};
 //!
 //! // Simple end-of-input error
 //! let error: MissingToken<&str, &str> = MissingToken::expected_one(
@@ -35,7 +35,7 @@
 //! When a specific token was found but something else was expected:
 //!
 //! ```
-//! use logosky::{utils::{Expected, Span}, error::MissingToken};
+//! use tokit::{utils::{Expected, Span}, error::MissingToken};
 //!
 //! let error = MissingToken::expected_one_with_found(
 //!     Span::new(10, 15),
@@ -81,7 +81,7 @@ pub type MissingSeparatorOf<'inp, Sep, L, Lang = ()> = MissingToken<
 /// # Examples
 ///
 /// ```
-/// use logosky::{utils::{Expected, Span}, error::MissingToken};
+/// use tokit::{utils::{Expected, Span}, error::MissingToken};
 ///
 /// // Error when expecting a specific token but got something else
 /// let error = MissingToken::expected_one_with_found(
@@ -235,7 +235,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::new(
   ///     Span::new(100, 101),
@@ -258,7 +258,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::MissingToken};
+  /// use tokit::{utils::Span, error::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::expected_one(
   ///     Span::new(50, 51),
@@ -280,7 +280,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::MissingToken};
+  /// use tokit::{utils::Span, error::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::expected_one_with_found(
   ///     Span::new(50, 51),
@@ -303,7 +303,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::MissingToken};
+  /// use tokit::{utils::Span, error::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::expected_one_of(
   ///     Span::new(25, 26),
@@ -328,7 +328,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::Span, error::MissingToken};
+  /// use tokit::{utils::Span, error::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::expected_one_of_with_found(
   ///     Span::new(25, 26),
@@ -351,7 +351,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
   ///     Span::new(10, 15),
@@ -373,7 +373,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
   ///     10,
@@ -392,7 +392,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
   ///     10,
@@ -423,7 +423,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
   ///     Span::new(5, 6),
@@ -448,7 +448,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
   ///
   /// let mut error = MissingToken::expected_one_with_found(
   ///     Span::new(10, 15),
@@ -475,7 +475,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   ///
   /// ```
   /// # #[cfg(feature = "std")] {
-  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
   ///    Span::new(0, 5),
@@ -508,7 +508,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
   ///     Span::new(5, 6),

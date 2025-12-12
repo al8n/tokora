@@ -27,7 +27,7 @@
 /// ## Basic String/Bytes Comparison
 ///
 /// ```rust
-/// use logosky::utils::cmp::Equivalent;
+/// use tokit::utils::cmp::Equivalent;
 ///
 /// let text = "hello";
 /// let bytes = b"hello";
@@ -39,7 +39,7 @@
 /// ## Different String Types
 ///
 /// ```rust,ignore
-/// use logosky::utils::cmp::Equivalent;
+/// use tokit::utils::cmp::Equivalent;
 /// use bytes::Bytes;
 ///
 /// let static_str = "hello";
@@ -52,7 +52,7 @@
 /// ## Case-Insensitive Comparison (Custom Implementation)
 ///
 /// ```rust,ignore
-/// use logosky::utils::cmp::Equivalent;
+/// use tokit::utils::cmp::Equivalent;
 ///
 /// struct CaseInsensitive<'a>(&'a str);
 ///
@@ -82,7 +82,7 @@ pub trait Equivalent<T: ?Sized> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::utils::cmp::Equivalent;
+  /// use tokit::utils::cmp::Equivalent;
   ///
   /// assert!("hello".equivalent(b"hello"));
   /// assert!(b"world".equivalent("world"));

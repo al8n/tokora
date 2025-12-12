@@ -43,7 +43,7 @@
 //! ## Basic Usage with Character Delimiters
 //!
 //! ```rust
-//! use logosky::{error::Undelimited, utils::SimpleSpan};
+//! use tokit::{error::Undelimited, utils::SimpleSpan};
 //!
 //! // Expected string literal with quotes, but found undelimited content
 //! // Example: hello instead of "hello"
@@ -57,7 +57,7 @@
 //! ## Custom Delimiter Enum
 //!
 //! ```rust
-//! use logosky::{error::Undelimited, utils::SimpleSpan};
+//! use tokit::{error::Undelimited, utils::SimpleSpan};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,7 +88,7 @@
 //! ## Undelimited Content in Parsing
 //!
 //! ```rust
-//! use logosky::{error::Undelimited, utils::SimpleSpan};
+//! use tokit::{error::Undelimited, utils::SimpleSpan};
 //!
 //! // When parsing a configuration file expecting bracketed arrays
 //! // but finding: items = foo, bar, baz (missing the brackets)
@@ -101,7 +101,7 @@
 //! ## Position Adjustment
 //!
 //! ```rust
-//! use logosky::{error::Undelimited, utils::SimpleSpan};
+//! use tokit::{error::Undelimited, utils::SimpleSpan};
 //!
 //! // Error from a nested parsing context
 //! let mut error = Undelimited::new(SimpleSpan::new(5, 6), '}');
@@ -156,7 +156,7 @@ pub type UndelimitedAngle<S = SimpleSpan, Lang = ()> = Undelimited<Angle, S, Lan
 /// ## Detecting Undelimited Content
 ///
 /// ```rust
-/// use logosky::{error::Undelimited, utils::SimpleSpan};
+/// use tokit::{error::Undelimited, utils::SimpleSpan};
 ///
 /// // Parse error: expected string literal "hello" but found hello
 /// //              ^^^^^--- undelimited content
@@ -169,7 +169,7 @@ pub type UndelimitedAngle<S = SimpleSpan, Lang = ()> = Undelimited<Angle, S, Lan
 /// ## Tracking Multiple Undelimited Regions
 ///
 /// ```rust
-/// use logosky::{error::Undelimited, utils::SimpleSpan};
+/// use tokit::{error::Undelimited, utils::SimpleSpan};
 ///
 /// let errors = vec![
 ///     Undelimited::new(SimpleSpan::new(5, 10), '{'),   // Missing braces
@@ -215,7 +215,7 @@ impl<S> Undelimited<Paren, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{SimpleSpan, delimiter::Paren}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Paren}};
   ///
   /// // Undelimited content from position 3 to 7
   /// let error = Undelimited::paren(SimpleSpan::new(3, 7));
@@ -237,7 +237,7 @@ impl<S, Lang: ?Sized> Undelimited<Paren, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{SimpleSpan, delimiter::Paren}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Paren}};
   ///
   /// // Undelimited content from position 3 to 7
   /// let error = Undelimited::paren_of(SimpleSpan::new(3, 7));
@@ -259,7 +259,7 @@ impl<S> Undelimited<Bracket, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{SimpleSpan, delimiter::Bracket}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Bracket}};
   ///
   /// // Undelimited content from position 8 to 15
   /// let error = Undelimited::bracket(SimpleSpan::new(8, 15));
@@ -281,7 +281,7 @@ impl<S, Lang: ?Sized> Undelimited<Bracket, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{SimpleSpan, delimiter::Bracket}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Bracket}};
   ///
   /// // Undelimited content from position 8 to 15
   /// let error = Undelimited::bracket_of(SimpleSpan::new(8, 15));
@@ -303,7 +303,7 @@ impl<S> Undelimited<Brace, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{SimpleSpan, delimiter::Brace}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Brace}};
   ///
   /// // Undelimited content from position 12 to 20
   /// let error = Undelimited::brace(SimpleSpan::new(12, 20));
@@ -325,7 +325,7 @@ impl<S, Lang: ?Sized> Undelimited<Brace, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{SimpleSpan, delimiter::Brace}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Brace}};
   ///
   /// // Undelimited content from position 12 to 20
   /// let error = Undelimited::brace_of(SimpleSpan::new(12, 20));
@@ -347,7 +347,7 @@ impl<S> Undelimited<Angle, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{SimpleSpan, delimiter::Angle}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Angle}};
   ///
   /// // Undelimited content from position 20 to 25
   /// let error = Undelimited::angle(SimpleSpan::new(20, 25));
@@ -369,7 +369,7 @@ impl<S, Lang: ?Sized> Undelimited<Angle, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{SimpleSpan, delimiter::Angle}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Angle}};
   ///
   /// // Undelimited content from position 20 to 25
   /// let error = Undelimited::angle_of(SimpleSpan::new(20, 25));
@@ -391,7 +391,7 @@ impl<Delimiter, S> Undelimited<Delimiter, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::SimpleSpan};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
   /// // Undelimited content from position 5 to 10
   /// let error = Undelimited::new(SimpleSpan::new(5, 10), '{');
@@ -413,7 +413,7 @@ impl<Delimiter, S, Lang: ?Sized> Undelimited<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::SimpleSpan};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
   /// // Undelimited content from position 5 to 10
   /// let error = Undelimited::new(SimpleSpan::new(5, 10), '{');
@@ -436,7 +436,7 @@ impl<Delimiter, S, Lang: ?Sized> Undelimited<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::SimpleSpan};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
   /// let error = Undelimited::new(SimpleSpan::new(10, 15), '"');
   /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
@@ -466,7 +466,7 @@ impl<Delimiter, S, Lang: ?Sized> Undelimited<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::SimpleSpan};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
   /// let error = Undelimited::new(SimpleSpan::new(5, 10), '{');
   /// assert_eq!(error.delimiter_ref(), &'{');
@@ -483,7 +483,7 @@ impl<Delimiter, S, Lang: ?Sized> Undelimited<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::SimpleSpan};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
   /// let error = Undelimited::new(SimpleSpan::new(5, 10), '[');
   /// assert_eq!(error.delimiter(), '[');
@@ -505,7 +505,7 @@ impl<Delimiter, S, Lang: ?Sized> Undelimited<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::SimpleSpan};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
   /// let mut error = Undelimited::new(SimpleSpan::new(5, 10), '(');
   /// error.bump(100);
@@ -525,7 +525,7 @@ impl<Delimiter, S, Lang: ?Sized> Undelimited<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::SimpleSpan};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
   /// let error = Undelimited::new(SimpleSpan::new(10, 15), '"');
   /// let (span, delimiter) = error.into_components();

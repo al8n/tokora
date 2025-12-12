@@ -1,15 +1,15 @@
 [package]
-name = "logosky"
-version = "0.3.0"
+name = "tokit"
+version = "0.0.0"
 edition = "2024"
-repository = "https://github.com/al8n/logosky"
-homepage = "https://github.com/al8n/logosky"
-documentation = "https://docs.rs/logosky"
-description = "A seamless integration layer between Logos lexer and Chumsky parser combinator, providing zero-copy Tokenizer adapter and Parseable trait for building robust parsers"
+repository = "https://github.com/al8n/tokit"
+homepage = "https://github.com/al8n/tokit"
+documentation = "https://docs.rs/tokit"
+description = "Blazing fast parser combinators: parse-while-lexing (zero-copy), deterministic LALR-style parsing, no backtracking. Flexible emitters for fail-fast runtime or greedy compiler diagnostics"
 license = "MIT OR Apache-2.0"
 rust-version = "1.87"
 categories = ["parsing", "text-processing", "no-std"]
-keywords = ["lexer", "parser", "logos", "chumsky", "combinator"]
+keywords = ["parser", "combinator", "token", "logos", "error-recovery"]
 
 [features]
 default = ["std"]
@@ -76,14 +76,20 @@ criterion = "0.8"
 tempfile = "3"
 
 [[example]]
-name = "simple_calculator"
-path = "examples/simple_calculator.rs"
-required-features = ["std"]
+name = "json"
+path = "examples/json.rs"
+required-features = ["std", "logos"]
 
-[[example]]
-name = "custom_parser"
-path = "examples/custom_parser.rs"
-required-features = ["std"]
+# Note: These examples are being updated for v0.3.0 API
+# [[example]]
+# name = "simple_calculator"
+# path = "examples/simple_calculator.rs"
+# required-features = ["std"]
+
+# [[example]]
+# name = "custom_parser"
+# path = "examples/custom_parser.rs"
+# required-features = ["std"]
 
 [profile.bench]
 opt-level = 3

@@ -11,7 +11,7 @@ use crate::State;
 /// # Example
 ///
 /// ```rust
-/// use logosky::utils::token_tracker::{TokenLimiter, TokenLimitExceeded};
+/// use tokit::utils::token_tracker::{TokenLimiter, TokenLimitExceeded};
 ///
 /// let mut limiter = TokenLimiter::with_limitation(1000);
 ///
@@ -39,7 +39,7 @@ impl TokenLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::with_limitation(10);
   /// for _ in 0..15 {
@@ -60,7 +60,7 @@ impl TokenLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::with_limitation(10);
   /// for _ in 0..15 {
@@ -108,7 +108,7 @@ impl TokenLimitExceeded {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::token_tracker::TokenLimiter;
+/// use tokit::utils::token_tracker::TokenLimiter;
 ///
 /// let mut limiter = TokenLimiter::with_limitation(1000);
 ///
@@ -122,7 +122,7 @@ impl TokenLimitExceeded {
 /// ## Checking Limits
 ///
 /// ```rust
-/// use logosky::utils::token_tracker::TokenLimiter;
+/// use tokit::utils::token_tracker::TokenLimiter;
 ///
 /// let mut limiter = TokenLimiter::with_limitation(5);
 ///
@@ -139,7 +139,7 @@ impl TokenLimitExceeded {
 ///
 /// ```rust,ignore
 /// use logos::Logos;
-/// use logosky::utils::token_tracker::TokenLimiter;
+/// use tokit::utils::token_tracker::TokenLimiter;
 ///
 /// #[derive(Default)]
 /// struct LexerState {
@@ -166,7 +166,7 @@ impl TokenLimitExceeded {
 /// ## DoS Protection Pattern
 ///
 /// ```rust,ignore
-/// use logosky::utils::token_tracker::TokenLimiter;
+/// use tokit::utils::token_tracker::TokenLimiter;
 ///
 /// fn parse_untrusted_input(input: &str, max_tokens: usize) -> Result<AST, Error> {
 ///     let mut limiter = TokenLimiter::with_limitation(max_tokens);
@@ -203,7 +203,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let limiter = TokenLimiter::new();
   /// assert_eq!(limiter.limitation(), usize::MAX);
@@ -222,7 +222,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let limiter = TokenLimiter::with_limitation(1000);
   /// assert_eq!(limiter.limitation(), 1000);
@@ -237,7 +237,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::new();
   /// limiter.increase();
@@ -256,7 +256,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::new();
   /// assert_eq!(limiter.tokens(), 0);
@@ -274,7 +274,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let limiter = TokenLimiter::with_limitation(500);
   /// assert_eq!(limiter.limitation(), 500);
@@ -292,7 +292,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::new();
   /// limiter.increase_token();
@@ -311,7 +311,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::with_limitation(3);
   ///

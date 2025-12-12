@@ -36,7 +36,7 @@
 //! ## GraphQL Spread Operator
 //!
 //! ```rust
-//! use logosky::{error::Unterminated, utils::SimpleSpan};
+//! use tokit::{error::Unterminated, utils::SimpleSpan};
 //!
 //! // In GraphQL, '...' is the spread operator
 //! // If we find only '.' or '..' at EOF, it's unterminated
@@ -50,7 +50,7 @@
 //! ## Custom Knowledge Enum
 //!
 //! ```rust
-//! use logosky::{error::Unterminated, utils::SimpleSpan};
+//! use tokit::{error::Unterminated, utils::SimpleSpan};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,7 +80,7 @@
 //! ## Incomplete Multi-Character Operators
 //!
 //! ```rust
-//! use logosky::{error::Unterminated, utils::SimpleSpan};
+//! use tokit::{error::Unterminated, utils::SimpleSpan};
 //!
 //! // Source: "if x < "
 //! //           pos: 5^
@@ -91,7 +91,7 @@
 //! ## Position Adjustment
 //!
 //! ```rust
-//! use logosky::{error::Unterminated, utils::SimpleSpan};
+//! use tokit::{error::Unterminated, utils::SimpleSpan};
 //!
 //! // Error from a nested parsing context
 //! let mut error = Unterminated::new(SimpleSpan::new(5, 7), "string escape sequence");
@@ -133,7 +133,7 @@ use crate::{lexer::Span, utils::SimpleSpan};
 /// ## Detecting Incomplete Operators
 ///
 /// ```rust
-/// use logosky::{error::Unterminated, utils::SimpleSpan};
+/// use tokit::{error::Unterminated, utils::SimpleSpan};
 ///
 /// // Found '&' at position 10, expected '&&'
 /// let error = Unterminated::new(SimpleSpan::new(10, 11), "logical AND operator");
@@ -145,7 +145,7 @@ use crate::{lexer::Span, utils::SimpleSpan};
 /// ## Tracking Multiple Unterminated Sequences
 ///
 /// ```rust
-/// use logosky::{error::Unterminated, utils::SimpleSpan};
+/// use tokit::{error::Unterminated, utils::SimpleSpan};
 ///
 /// let errors = vec![
 ///     Unterminated::new(SimpleSpan::new(5, 7), "spread operator"),    // .. instead of ...
@@ -188,7 +188,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
   /// // Found '..' instead of '...' at positions 5-7
   /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
@@ -207,7 +207,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
   /// let error = Unterminated::new(SimpleSpan::new(10, 11), "logical AND");
   /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
@@ -237,7 +237,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
   /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// assert_eq!(error.knowledge_ref(), &"spread operator");
@@ -254,7 +254,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
   /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// assert_eq!(error.knowledge(), "spread operator");
@@ -276,7 +276,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
   /// let mut error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// error.bump(100);
@@ -296,7 +296,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
   /// let error = Unterminated::new(SimpleSpan::new(10, 12), "escape sequence");
   /// let (span, knowledge) = error.into_components();

@@ -30,7 +30,7 @@ use crate::utils::SimpleSpan;
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::PositionedChar;
+/// use tokit::utils::PositionedChar;
 ///
 /// let ch = PositionedChar::with_position('x', 42);
 ///
@@ -41,7 +41,7 @@ use crate::utils::SimpleSpan;
 /// ## Character-by-Character Processing
 ///
 /// ```rust,ignore
-/// use logosky::utils::PositionedChar;
+/// use tokit::utils::PositionedChar;
 ///
 /// fn process_input(input: &str) -> Vec<PositionedChar<char>> {
 ///     input.char_indices()
@@ -57,7 +57,7 @@ use crate::utils::SimpleSpan;
 /// ## Error Reporting
 ///
 /// ```rust,ignore
-/// use logosky::utils::PositionedChar;
+/// use tokit::utils::PositionedChar;
 ///
 /// fn report_unexpected(pc: PositionedChar<char>, input: &str) {
 ///     let line_start = input[..pc.position()]
@@ -75,7 +75,7 @@ use crate::utils::SimpleSpan;
 /// ## Mapping Characters
 ///
 /// ```rust
-/// use logosky::utils::PositionedChar;
+/// use tokit::utils::PositionedChar;
 ///
 /// let lowercase = PositionedChar::with_position('a', 10);
 /// let uppercase = lowercase.map(|c| c.to_ascii_uppercase());
@@ -101,7 +101,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 10);
   /// assert_eq!(pc.char(), 'x');
@@ -119,7 +119,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 10);
   /// assert_eq!(pc.char_ref(), &'x');
@@ -134,7 +134,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut pc = PositionedChar::with_position('a', 10);
   /// *pc.char_mut() = 'b';
@@ -150,7 +150,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 42);
   /// assert_eq!(pc.position(), 42);
@@ -165,7 +165,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 42);
   /// assert_eq!(pc.position(), 42);
@@ -183,7 +183,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{PositionedChar, Span};
+  /// use tokit::utils::{PositionedChar, Span};
   ///
   ///
   /// let pc = PositionedChar::with_position('x', 42);
@@ -206,7 +206,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut pc = PositionedChar::with_position('x', 10);
   /// pc.set_position(20);
@@ -223,7 +223,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut pc = PositionedChar::with_position('x', 10);
   /// pc.bump_position(5);
@@ -243,7 +243,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 10);
   /// let pc_ref = pc.as_ref();
@@ -263,7 +263,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut pc = PositionedChar::with_position('a', 10);
   /// {
@@ -285,7 +285,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('a', 10);
   /// let upper = pc.map(|c| c.to_ascii_uppercase());
@@ -308,7 +308,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 42);
   /// let (ch, pos) = pc.into_components();

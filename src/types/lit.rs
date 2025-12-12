@@ -50,8 +50,8 @@
 //! ## Zero-Copy Parsing
 //!
 //! ```rust,ignore
-//! use logosky::types::{Lit, LitDecimal, LitString};
-//! use logosky::utils::SimpleSpan;
+//! use tokit::types::{Lit, LitDecimal, LitString};
+//! use tokit::utils::SimpleSpan;
 //!
 //! // Parse literals without allocating
 //! type YulLit<'a> = Lit<&'a str, YulLang>;
@@ -77,8 +77,8 @@
 //! All literal types implement [`ErrorNode`] when `S: ErrorNode`:
 //!
 //! ```rust,ignore
-//! use logosky::types::LitDecimal;
-//! use logosky::error::ErrorNode;
+//! use tokit::types::LitDecimal;
+//! use tokit::error::ErrorNode;
 //!
 //! // Create placeholder for malformed literal
 //! let bad_lit = LitDecimal::<String, YulLang>::error(span);
@@ -120,8 +120,8 @@ macro_rules! define_literal {
       /// ## Creating Literals
       ///
       /// ```rust
-      #[doc = "use logosky::types::" $name ";"]
-      /// use logosky::utils::SimpleSpan;
+      #[doc = "use tokit::types::" $name ";"]
+      /// use tokit::utils::SimpleSpan;
       /// # struct MyLang;
       ///
       #[doc = "let lit = " $name "::<&str, MyLang>::new("]
@@ -135,8 +135,8 @@ macro_rules! define_literal {
       /// ## With Error Recovery
       ///
       /// ```rust,ignore
-      #[doc = "use logosky::types::" $name ";"]
-      /// use logosky::error::ErrorNode;
+      #[doc = "use tokit::types::" $name ";"]
+      /// use tokit::error::ErrorNode;
       ///
       #[doc = "// " $example_desc]
       #[doc = "let bad_lit = " $name "::<String, YulLang>::error(span);"]

@@ -21,7 +21,7 @@ use super::*;
 /// # Examples
 ///
 /// ```ignore
-/// use logosky::parser::{any, ParseInput};
+/// use tokit::parser::{any, ParseInput};
 ///
 /// // Parse a token and extract its text, failing if empty
 /// let parser = any::<MyLexer>()

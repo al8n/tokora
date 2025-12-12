@@ -1,6 +1,6 @@
 // #![cfg(feature = "chumsky")]
 
-// //! A simple calculator that demonstrates basic usage of logosky.
+// //! A simple calculator that demonstrates basic usage of tokit.
 // //!
 // //! This example shows how to:
 // //! - Define tokens using Logos
@@ -13,7 +13,7 @@
 
 // use chumsky::prelude::*;
 // use logos::Logos;
-// use logosky::{Lexed, Token, Tokenizer, chumsky::LogoStream, utils::Spanned};
+// use tokit::{Lexed, Token, Tokenizer, chumsky::LogoStream, utils::Spanned};
 
 // // Step 1: Define the tokens using Logos
 // #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,17 +103,17 @@
 // #[derive(Debug, Clone, PartialEq)]
 // enum CalcError {
 //   UnexpectedToken {
-//     span: logosky::utils::Span,
+//     span: tokit::utils::Span,
 //     found: Option<CalcTokenKind>,
 //     expected: Vec<CalcTokenKind>,
 //   },
 //   InvalidNumber {
-//     span: logosky::utils::Span,
+//     span: tokit::utils::Span,
 //     value: String,
 //     message: String,
 //   },
 //   Custom {
-//     span: logosky::utils::Span,
+//     span: tokit::utils::Span,
 //     message: String,
 //   },
 // }
@@ -172,7 +172,7 @@
 
 // impl<'a, I, L> chumsky::error::LabelError<'a, I, L> for CalcError
 // where
-//   I: chumsky::input::Input<'a, Span = logosky::utils::Span>,
+//   I: chumsky::input::Input<'a, Span = tokit::utils::Span>,
 // {
 //   fn expected_found<E>(
 //     _expected: E,
@@ -192,7 +192,7 @@
 // }
 
 // impl<'a, I> chumsky::error::Error<'a, I> for CalcError where
-//   I: chumsky::input::Input<'a, Span = logosky::utils::Span>
+//   I: chumsky::input::Input<'a, Span = tokit::utils::Span>
 // {
 // }
 
@@ -362,7 +362,7 @@
 //         .then(atom)
 //         .repeated(),
 //       |left, (op, right)| {
-//         let span = logosky::utils::Span::new(left.span.start(), right.span.end());
+//         let span = tokit::utils::Span::new(left.span.start(), right.span.end());
 //         Spanned::new(
 //           span,
 //           Expr::BinaryOp {
@@ -394,7 +394,7 @@
 //         .then(factor)
 //         .repeated(),
 //       |left, (op, right)| {
-//         let span = logosky::utils::Span::new(left.span.start(), right.span.end());
+//         let span = tokit::utils::Span::new(left.span.start(), right.span.end());
 //         Spanned::new(
 //           span,
 //           Expr::BinaryOp {
@@ -423,7 +423,7 @@
 //   ];
 
 //   println!("Simple Calculator Example\n");
-//   println!("This demonstrates how to use logosky to build a parser.");
+//   println!("This demonstrates how to use tokit to build a parser.");
 //   println!("We'll parse and evaluate some arithmetic expressions:\n");
 
 //   for expr_str in expressions {

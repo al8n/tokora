@@ -21,8 +21,8 @@
 //! ## Zero-Copy Parsing
 //!
 //! ```rust,ignore
-//! use logosky::types::Keyword;
-//! use logosky::utils::SimpleSimpleSpan;
+//! use tokit::types::Keyword;
+//! use tokit::utils::SimpleSimpleSpan;
 //!
 //! // Parse keywords without allocating
 //! type YulKeyword<'a> = Keyword<&'a str, YulLang>;
@@ -55,7 +55,7 @@
 //! allowing creation of placeholder keywords during error recovery:
 //!
 //! ```rust,ignore
-//! use logosky::error::ErrorNode;
+//! use tokit::error::ErrorNode;
 //!
 //! // Create placeholder for malformed identifier
 //! let bad_ident = Keyword::<String, YulLang>::error(span);
@@ -107,8 +107,8 @@ use crate::{
 /// ## Creating Keywordifiers
 ///
 /// ```rust
-/// use logosky::types::Keyword;
-/// use logosky::utils::SimpleSimpleSpan;
+/// use tokit::types::Keyword;
+/// use tokit::utils::SimpleSimpleSpan;
 /// # struct MyLang;
 ///
 /// // Zero-copy identifier
@@ -122,8 +122,8 @@ use crate::{
 /// ## Extracting Components
 ///
 /// ```rust
-/// # use logosky::types::Keyword;
-/// # use logosky::utils::{SimpleSpan, IntoComponents};
+/// # use tokit::types::Keyword;
+/// # use tokit::utils::{SimpleSpan, IntoComponents};
 /// # struct MyLang;
 /// # let span = SimpleSpan::new(0, 3);
 /// let ident = Keyword::<&str, MyLang>::new(span, "foo");
@@ -136,8 +136,8 @@ use crate::{
 /// ## Mutable Access
 ///
 /// ```rust
-/// # use logosky::types::Keyword;
-/// # use logosky::utils::SimpleSimpleSpan;
+/// # use tokit::types::Keyword;
+/// # use tokit::utils::SimpleSimpleSpan;
 /// # struct MyLang;
 /// # let span = SimpleSpan::new(0, 3);
 /// let mut ident = Keyword::<String, MyLang>::new(span, "original".to_string());
@@ -191,8 +191,8 @@ impl<S, Lang> Keyword<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::types::Keyword;
-  /// use logosky::utils::SimpleSimpleSpan;
+  /// use tokit::types::Keyword;
+  /// use tokit::utils::SimpleSimpleSpan;
   /// # struct YulLang;
   ///
   /// let span = SimpleSpan::new(10, 15);
@@ -215,8 +215,8 @@ impl<S, Lang> Keyword<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Keyword;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Keyword;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(5, 10), "value");
   ///
@@ -234,8 +234,8 @@ impl<S, Lang> Keyword<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Keyword;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Keyword;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
@@ -255,8 +255,8 @@ impl<S, Lang> Keyword<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Keyword;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Keyword;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let mut ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
@@ -276,8 +276,8 @@ impl<S, Lang> Keyword<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Keyword;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Keyword;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let mut ident = Keyword::<String, MyLang>::new(SimpleSpan::new(0, 3), "foo".to_string());
   ///
@@ -297,8 +297,8 @@ impl<S, Lang> Keyword<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Keyword;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Keyword;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 8), "variable");
   ///
@@ -322,8 +322,8 @@ impl<S, Lang> Keyword<S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// # use logosky::types::Keyword;
-  /// # use logosky::utils::SimpleSimpleSpan;
+  /// # use tokit::types::Keyword;
+  /// # use tokit::utils::SimpleSimpleSpan;
   /// # struct MyLang;
   /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 2), "id");
   ///
@@ -365,8 +365,8 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::types::Keyword;
-  /// use logosky::error::ErrorNode;
+  /// use tokit::types::Keyword;
+  /// use tokit::error::ErrorNode;
   ///
   /// // Parser found "123abc" where an identifier was expected
   /// let bad_ident = Keyword::<String, YulLang>::error(span);
@@ -385,8 +385,8 @@ where
   /// # Examples
   ///
   /// ```rust,ignore
-  /// use logosky::types::Keyword;
-  /// use logosky::error::ErrorNode;
+  /// use tokit::types::Keyword;
+  /// use tokit::error::ErrorNode;
   ///
   /// // Parser expected identifier after "let" but found "="
   /// // Correct: let name = 5;
@@ -444,8 +444,8 @@ where
 //     /// ## Basic Usage
 //     ///
 //     /// ```rust,ignore
-//     /// use logosky::types::Keyword;
-//     /// use logosky::chumsky::Parser;
+//     /// use tokit::types::Keyword;
+//     /// use tokit::chumsky::Parser;
 //     ///
 //     /// // Parser for YUL keywords
 //     /// let ident_parser = Keyword::<&str, YulLang>::parser(|| YulSyntaxKind::Keyword);
@@ -458,9 +458,9 @@ where
 //     /// ## With Error Recovery
 //     ///
 //     /// ```rust,ignore
-//     /// use logosky::types::Keyword;
-//     /// use logosky::error::ErrorNode;
-//     /// use logosky::chumsky::{Parser, prelude::*};
+//     /// use tokit::types::Keyword;
+//     /// use tokit::error::ErrorNode;
+//     /// use tokit::chumsky::{Parser, prelude::*};
 //     ///
 //     /// // Parser with recovery for missing keywords
 //     /// let ident_parser = Keyword::<String, YulLang>::parser(|| YulSyntaxKind::Keyword)

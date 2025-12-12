@@ -41,7 +41,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::D
 /// ## Basic Error with String Knowledge
 ///
 /// ```rust
-/// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+/// use tokit::{utils::PositionedChar, error::UnknownLexeme};
 ///
 /// let error = UnknownLexeme::from_positioned_char(
 ///     PositionedChar::with_position('£', 42),
@@ -56,7 +56,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::D
 /// ## With Token Kind Knowledge
 ///
 /// ```rust,ignore
-/// use logosky::{utils::SimpleSpan, error::UnknownLexeme};
+/// use tokit::{utils::SimpleSpan, error::UnknownLexeme};
 ///
 /// #[derive(Debug, Clone)]
 /// enum ValidTokens {
@@ -79,7 +79,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::D
 /// ## Mapping Knowledges
 ///
 /// ```rust
-/// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+/// use tokit::{utils::PositionedChar, error::UnknownLexeme};
 ///
 /// let error = UnknownLexeme::from_positioned_char(
 ///     PositionedChar::with_position('@', 5),
@@ -95,7 +95,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::D
 /// ## Accessing Lexeme via Deref
 ///
 /// ```rust
-/// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+/// use tokit::{utils::PositionedChar, error::UnknownLexeme};
 ///
 /// let error = UnknownLexeme::from_positioned_char(
 ///     PositionedChar::with_position('!', 10),
@@ -163,7 +163,7 @@ impl<Char, O> UnknownLexeme<Char, crate::utils::knowledge::Characters, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{utils::{SimpleSpan, knowledge::Characters}, error::UnknownLexeme};
+  /// use tokit::{utils::{SimpleSpan, knowledge::Characters}, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::<char, Characters>::unknown_characters(
   ///     SimpleSpan::new(7, 9)     
@@ -184,7 +184,7 @@ impl<Char, O> UnknownLexeme<Char, crate::utils::knowledge::Characters, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::unknown_character(
   ///     7, '#'
@@ -205,7 +205,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::{Lexeme, PositionedChar}, error::UnknownLexeme};
+  /// use tokit::{utils::{Lexeme, PositionedChar}, error::UnknownLexeme};
   ///
   /// let lexeme = Lexeme::from(PositionedChar::with_position('§', 5));
   /// let error = UnknownLexeme::new(lexeme, "valid: identifier");
@@ -222,7 +222,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('$', 42),
@@ -242,7 +242,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('$', 42),
@@ -264,7 +264,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::SimpleSpan, error::UnknownLexeme};
+  /// use tokit::{utils::SimpleSpan, error::UnknownLexeme};
   ///
   /// let error: UnknownLexeme<char, _> = UnknownLexeme::from_range_const(
   ///     SimpleSpan::new(10, 15),
@@ -283,7 +283,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::error::UnknownLexeme;
+  /// use tokit::error::UnknownLexeme;
   ///
   /// let error: UnknownLexeme<char, _> = UnknownLexeme::from_range(10..15, "valid: closing brace");
   ///
@@ -300,7 +300,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -319,7 +319,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -338,7 +338,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let mut error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -358,7 +358,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let mut error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -378,7 +378,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 10),
@@ -399,7 +399,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 10),
@@ -419,7 +419,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 10),
@@ -441,7 +441,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('€', 5),
@@ -468,7 +468,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::{PositionedChar, SimpleSpan}, error::UnknownLexeme};
+  /// use tokit::{utils::{PositionedChar, SimpleSpan}, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 10),
@@ -492,7 +492,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('a', 5),
@@ -519,7 +519,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 5),
@@ -545,7 +545,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('a', 5),
@@ -583,7 +583,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let mut error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),

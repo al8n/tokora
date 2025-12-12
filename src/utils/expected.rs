@@ -13,7 +13,7 @@ use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 /// # Examples
 ///
 /// ```
-/// use logosky::utils::Expected;
+/// use tokit::utils::Expected;
 ///
 /// // A single expected token
 /// let single = Expected::One("identifier");
@@ -42,7 +42,7 @@ impl<'a, T> Expected<'a, T> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::utils::Expected;
+  /// use tokit::utils::Expected;
   ///
   /// let expected = Expected::one("identifier");
   /// if let Expected::One(value) = expected {
@@ -61,7 +61,7 @@ impl<'a, T> Expected<'a, T> {
   /// # Examples
   ///
   /// ```
-  /// use logosky::utils::Expected;
+  /// use tokit::utils::Expected;
   ///
   /// let expected = Expected::one_of(&["if", "while", "for"]);
   /// if let Expected::OneOf(values) = expected {

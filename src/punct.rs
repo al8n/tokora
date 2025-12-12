@@ -2,7 +2,7 @@
 ///
 /// # Examples
 /// ```rust
-/// use logosky::punctuator;
+/// use tokit::punctuator;
 ///
 /// punctuator! {
 ///   (LAngle, "L_ANGLE", "<"),

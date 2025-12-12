@@ -21,7 +21,7 @@ use super::IntoComponents;
 /// Thanks to `Deref`, you can call methods on the wrapped value directly:
 ///
 /// ```rust
-/// use logosky::utils::Sliced;
+/// use tokit::utils::Sliced;
 ///
 /// let sliced_str = Sliced::new("main.rs", "hello world");
 ///
@@ -36,7 +36,7 @@ use super::IntoComponents;
 /// ## Tracking File Origins
 ///
 /// ```rust,ignore
-/// use logosky::utils::Sliced;
+/// use tokit::utils::Sliced;
 /// use std::path::PathBuf;
 ///
 /// // Parse configuration from different slices
@@ -59,7 +59,7 @@ use super::IntoComponents;
 /// ## Multi-File Compilation
 ///
 /// ```rust,ignore
-/// use logosky::utils::Sliced;
+/// use tokit::utils::Sliced;
 ///
 /// struct Module {
 ///     name: String,
@@ -86,7 +86,7 @@ use super::IntoComponents;
 /// ## Mapping Values While Preserving Source
 ///
 /// ```rust
-/// use logosky::utils::Sliced;
+/// use tokit::utils::Sliced;
 ///
 /// let sliced_str = Sliced::new("input.txt", "42");
 ///
@@ -100,7 +100,7 @@ use super::IntoComponents;
 /// ## Building AST with File Context
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Sliced, Spanned, Span};
+/// use tokit::utils::{Sliced, Spanned, Span};
 /// use std::path::PathBuf;
 ///
 /// // Combine Sliced and Spanned for complete location tracking
@@ -148,7 +148,7 @@ use super::IntoComponents;
 /// ## Incremental Compilation
 ///
 /// ```rust,ignore
-/// use logosky::utils::Sliced;
+/// use tokit::utils::Sliced;
 /// use std::collections::HashMap;
 /// use std::time::SystemTime;
 ///
@@ -191,7 +191,7 @@ use super::IntoComponents;
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::Sliced;
+/// use tokit::utils::Sliced;
 ///
 /// let sliced = Sliced::new("config.toml", "debug = true");
 ///
@@ -203,7 +203,7 @@ use super::IntoComponents;
 /// ## Destructuring
 ///
 /// ```rust
-/// use logosky::utils::Sliced;
+/// use tokit::utils::Sliced;
 ///
 /// let sliced = Sliced::new("file.txt", 42);
 ///
@@ -215,7 +215,7 @@ use super::IntoComponents;
 /// ## Mutable Access
 ///
 /// ```rust
-/// use logosky::utils::Sliced;
+/// use tokit::utils::Sliced;
 ///
 /// let mut sliced = Sliced::new("input", 10);
 ///
@@ -296,7 +296,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Sliced;
+  /// use tokit::utils::Sliced;
   ///
   /// let sliced = Sliced::new("file.rs", "data");
   /// assert_eq!(sliced.slice(), "file.rs");
@@ -314,7 +314,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Sliced;
+  /// use tokit::utils::Sliced;
   ///
   /// let sliced = Sliced::new("config.toml", "data");
   /// assert_eq!(sliced.slice_ref(), &"config.toml");
@@ -329,7 +329,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Sliced;
+  /// use tokit::utils::Sliced;
   ///
   /// let mut sliced = Sliced::new("old.txt", "data");
   /// *sliced.slice_mut() = "new.txt";
@@ -345,7 +345,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Sliced;
+  /// use tokit::utils::Sliced;
   ///
   /// let sliced = Sliced::new("file.txt", 42);
   /// assert_eq!(*sliced.data(), 42);
@@ -360,7 +360,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Sliced;
+  /// use tokit::utils::Sliced;
   ///
   /// let mut sliced = Sliced::new("file.txt", 42);
   /// *sliced.data_mut() = 100;
@@ -376,7 +376,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Sliced;
+  /// use tokit::utils::Sliced;
   ///
   /// let sliced = Sliced::new(String::from("file.txt"), String::from("hello"));
   /// let borrowed: Sliced<&String, &String> = sliced.as_ref();
@@ -395,7 +395,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::Sliced;
+  /// use tokit::utils::Sliced;
   ///
   /// let mut sliced = Sliced::new(String::from("file.txt"), String::from("hello"));
   /// let borrowed: Sliced<&mut String, &mut String> = sliced.as_mut();

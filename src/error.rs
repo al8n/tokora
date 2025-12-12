@@ -116,7 +116,7 @@ mod unicode_escape;
 /// ## Basic Implementation
 ///
 /// ```rust
-/// use logosky::{error::ErrorNode, utils::Span};
+/// use tokit::{error::ErrorNode, utils::Span};
 ///
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct Identifier(String);
@@ -280,7 +280,7 @@ pub trait ErrorNode<S = SimpleSpan> {
   /// # Implementation
   ///
   /// ```rust
-  /// use logosky::{error::ErrorNode, utils::Span};
+  /// use tokit::{error::ErrorNode, utils::Span};
   ///
   /// struct Identifier(String);
   ///
@@ -321,7 +321,7 @@ pub trait ErrorNode<S = SimpleSpan> {
   /// # Implementation
   ///
   /// ```rust
-  /// use logosky::{error::ErrorNode, utils::Span};
+  /// use tokit::{error::ErrorNode, utils::Span};
   ///
   /// struct FunctionName(String);
   ///

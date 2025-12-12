@@ -34,7 +34,7 @@ use crate::{
 /// # Examples
 ///
 /// ```rust,ignore
-/// use logosky::{
+/// use tokit::{
 ///     error::Missing,
 ///     syntax::{Language, Syntax},
 ///     utils::SimpleSpan,

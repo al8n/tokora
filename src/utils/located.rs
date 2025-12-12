@@ -22,7 +22,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// Thanks to `Deref`, you can call methods on the wrapped value directly:
 ///
 /// ```rust
-/// use logosky::utils::{Located, Span};
+/// use tokit::utils::{Located, Span};
 ///
 /// let located = Located::new("main.rs", Span::new(10, 15), "hello");
 ///
@@ -38,7 +38,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// ## Multi-File Error Reporting
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Located, Span};
+/// use tokit::utils::{Located, Span};
 /// use std::path::PathBuf;
 ///
 /// fn report_error<T>(loc: &Located<T, Span, PathBuf>, message: &str)
@@ -59,7 +59,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// ## Building Complete AST Nodes
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Located, Span};
+/// use tokit::utils::{Located, Span};
 /// use std::path::PathBuf;
 ///
 /// type Loc<T> = Located<T, Span, PathBuf>;
@@ -86,7 +86,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// ## Cross-File Reference Checking
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Located, Span};
+/// use tokit::utils::{Located, Span};
 ///
 /// fn check_reference(
 ///     reference: &Located<String, Span, String>,
@@ -109,7 +109,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// ## Mapping Values While Preserving Full Location
 ///
 /// ```rust
-/// use logosky::utils::{Located, Span};
+/// use tokit::utils::{Located, Span};
 ///
 /// let located_str = Located::new("input.txt", Span::new(5, 7), "42");
 ///
@@ -124,7 +124,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// ## IDE Integration
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Located, Span};
+/// use tokit::utils::{Located, Span};
 /// use std::path::PathBuf;
 ///
 /// struct Diagnostic {
@@ -150,7 +150,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// ## Incremental Compilation with Position Tracking
 ///
 /// ```rust,ignore
-/// use logosky::utils::{Located, Span};
+/// use tokit::utils::{Located, Span};
 /// use std::collections::HashMap;
 ///
 /// struct Definition {
@@ -179,7 +179,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::{Located, Span};
+/// use tokit::utils::{Located, Span};
 ///
 /// let located = Located::new("file.rs", Span::new(0, 5), "hello");
 ///
@@ -192,7 +192,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// ## Destructuring
 ///
 /// ```rust
-/// use logosky::utils::{Located, Span};
+/// use tokit::utils::{Located, Span};
 ///
 /// let located = Located::new("main.rs", Span::new(10, 20), 42);
 ///
@@ -205,7 +205,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// ## Mutable Access
 ///
 /// ```rust
-/// use logosky::utils::{Located, Span};
+/// use tokit::utils::{Located, Span};
 ///
 /// let mut located = Located::new("input", Span::new(0, 2), 10);
 ///
@@ -225,7 +225,7 @@ use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
 /// ## Conversion from Spanned or Sliced
 ///
 /// ```rust
-/// use logosky::utils::{Located, Span, Spanned, Sliced};
+/// use tokit::utils::{Located, Span, Spanned, Sliced};
 ///
 /// // From Spanned by adding slice info
 /// let spanned = Spanned::new(Span::new(5, 10), "data");
@@ -294,7 +294,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let located = Located::new("file.rs", Span::new(10, 15), "hello");
   /// assert_eq!(located.slice(), "file.rs");
@@ -311,7 +311,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let located = Located::new("main.rs", Span::new(0, 5), "data");
   /// assert_eq!(located.slice(), "main.rs");
@@ -329,7 +329,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let located = Located::new("config.toml", Span::new(5, 10), "data");
   /// assert_eq!(located.slice_ref(), &"config.toml");
@@ -344,7 +344,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let mut located = Located::new("old.txt", Span::new(0, 3), "data");
   /// *located.slice_mut() = "new.txt";
@@ -360,7 +360,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let located = Located::new("file.rs", Span::new(5, 10), "data");
   /// assert_eq!(located.span(), Span::new(5, 10));
@@ -378,7 +378,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let located = Located::new("file.rs", Span::new(5, 10), "data");
   /// assert_eq!(located.span_ref(), &Span::new(5, 10));
@@ -393,7 +393,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let mut located = Located::new("file.rs", Span::new(0, 5), "data");
   /// located.span_mut().set_end(10);
@@ -409,7 +409,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let located = Located::new("file.txt", Span::new(0, 2), 42);
   /// assert_eq!(*located.data(), 42);
@@ -424,7 +424,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let mut located = Located::new("file.txt", Span::new(0, 2), 42);
   /// *located.data_mut() = 100;
@@ -440,7 +440,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let located = Located::new(
   ///     String::from("file.txt"),
@@ -464,7 +464,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{Located, Span};
+  /// use tokit::utils::{Located, Span};
   ///
   /// let mut located = Located::new(
   ///     String::from("file.txt"),

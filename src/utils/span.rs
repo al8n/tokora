@@ -28,7 +28,7 @@ use core::ops::{AddAssign, Range};
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::SimpleSpan;
+/// use tokit::utils::SimpleSpan;
 ///
 /// // Create a span covering characters 10-20
 /// let span = SimpleSpan::new(10, 20);
@@ -42,7 +42,7 @@ use core::ops::{AddAssign, Range};
 /// ## Safe Creation
 ///
 /// ```rust
-/// use logosky::utils::SimpleSpan;
+/// use tokit::utils::SimpleSpan;
 ///
 /// // try_new returns None for invalid spans
 /// assert!(SimpleSpan::try_new(10, 5).is_none());  // end < start
@@ -53,7 +53,7 @@ use core::ops::{AddAssign, Range};
 /// ## SimpleSpan Manipulation
 ///
 /// ```rust
-/// use logosky::utils::SimpleSpan;
+/// use tokit::utils::SimpleSpan;
 ///
 /// let mut span = SimpleSpan::new(10, 20);
 ///
@@ -74,7 +74,7 @@ use core::ops::{AddAssign, Range};
 /// ## Builder-Style Methods
 ///
 /// ```rust
-/// use logosky::utils::SimpleSpan;
+/// use tokit::utils::SimpleSpan;
 ///
 /// let span = SimpleSpan::new(0, 10)
 ///     .with_start(5)
@@ -87,7 +87,7 @@ use core::ops::{AddAssign, Range};
 /// ## Error Reporting Example
 ///
 /// ```rust,ignore
-/// use logosky::utils::SimpleSpan;
+/// use tokit::utils::SimpleSpan;
 ///
 /// fn report_error(message: &str, span: SimpleSpan, source: &str) {
 ///     let line_start = source[..span.start()].rfind('\n')
@@ -169,7 +169,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_start(3);
@@ -190,7 +190,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_end(5);
@@ -207,7 +207,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump(10);
@@ -225,7 +225,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_start(10);
@@ -242,7 +242,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_end(20);
@@ -259,7 +259,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15).with_start(10);
   /// assert_eq!(span, SimpleSpan::new(10, 15));
@@ -275,7 +275,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15).with_end(20);
   /// assert_eq!(span, SimpleSpan::new(5, 20));
@@ -293,7 +293,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   /// let span_ref = span.as_ref();
@@ -313,7 +313,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// let span_mut = span.as_mut();
@@ -367,7 +367,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_start(3);
@@ -391,7 +391,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_end(5);
@@ -411,7 +411,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump(10);
@@ -432,7 +432,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_start(10);
@@ -449,7 +449,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_end(20);
@@ -466,7 +466,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15).with_start(10);
   /// assert_eq!(span, SimpleSpan::new(10, 15));
@@ -482,7 +482,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15).with_end(20);
   /// assert_eq!(span, SimpleSpan::new(5, 20));
@@ -498,7 +498,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.start(), 5);
@@ -516,7 +516,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   ///
@@ -532,7 +532,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// *span.start_mut() = 10;
@@ -548,7 +548,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.end(), 15);
@@ -566,7 +566,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   ///
@@ -582,7 +582,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// *span.end_mut() = 20;
@@ -598,7 +598,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.len(), 10);
@@ -616,7 +616,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let empty = SimpleSpan::new(5, 5);
   /// assert!(empty.is_empty());
@@ -637,7 +637,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::SimpleSpan;
+  /// use tokit::utils::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.range(), 5..15);

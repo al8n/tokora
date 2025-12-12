@@ -13,13 +13,13 @@
 
 // use chumsky::prelude::*;
 // use logos::Logos;
-// use logosky::{
+// use tokit::{
 //   Lexed, Token,
 //   chumsky::Parseable,
 //   utils::{Span, Spanned},
 // };
 
-// type Tokenizer<'a> = logosky::Tokenizer<'a, ConfigToken<'a>>;
+// type Tokenizer<'a> = tokit::Tokenizer<'a, ConfigToken<'a>>;
 
 // // Define tokens for a simple configuration language
 // #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,17 +94,17 @@
 // #[derive(Debug, Clone, PartialEq)]
 // enum ConfigError {
 //   UnexpectedToken {
-//     span: logosky::utils::Span,
+//     span: tokit::utils::Span,
 //     found: Option<ConfigTokenKind>,
 //     expected: Vec<ConfigTokenKind>,
 //   },
 //   InvalidNumber {
-//     span: logosky::utils::Span,
+//     span: tokit::utils::Span,
 //     value: String,
 //     message: String,
 //   },
 //   Custom {
-//     span: logosky::utils::Span,
+//     span: tokit::utils::Span,
 //     message: String,
 //   },
 // }
@@ -163,7 +163,7 @@
 
 // impl<'a, I, L> chumsky::error::LabelError<'a, I, L> for ConfigError
 // where
-//   I: chumsky::input::Input<'a, Span = logosky::utils::Span>,
+//   I: chumsky::input::Input<'a, Span = tokit::utils::Span>,
 // {
 //   fn expected_found<E>(
 //     _expected: E,
@@ -183,7 +183,7 @@
 // }
 
 // impl<'a, I> chumsky::error::Error<'a, I> for ConfigError where
-//   I: chumsky::input::Input<'a, Span = logosky::utils::Span>
+//   I: chumsky::input::Input<'a, Span = tokit::utils::Span>
 // {
 // }
 
