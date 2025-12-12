@@ -54,6 +54,7 @@ pub use empty::*;
 pub use expect::*;
 pub use filter::*;
 pub use filter_map::*;
+pub use ignore::*;
 pub use map::*;
 pub use or_not::*;
 pub use padded::*;
@@ -76,6 +77,7 @@ mod empty;
 mod expect;
 mod filter;
 mod filter_map;
+mod ignore;
 mod map;
 mod or_not;
 mod padded;
@@ -196,6 +198,15 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Self: Sized,
   {
     With::new(PhantomLocated::phantom(), self)
+  }
+
+  /// Ignores the output of this parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn ignored(self) -> Ignore<Self, O>
+  where
+    Self: Sized,
+  {
+    Ignore::new(self)
   }
 
   /// Creates a `Repeated` combinator that applies this parser repeatedly
