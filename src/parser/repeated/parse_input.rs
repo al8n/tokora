@@ -98,7 +98,7 @@ where
       match self.parser.condition.decide(peeked, emitter) {
         Err(err) => return Err(err),
         Ok(action) => match action {
-          Action::End => {
+          Action::Stop => {
             if min > nums {
               let span = inp.span_since(ckp.cursor());
               inp.emitter().emit_too_few(TooFew::of(span, nums, min))?;

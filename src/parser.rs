@@ -50,16 +50,20 @@ pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
 pub use delim::*;
 pub use delim_seq::*;
+pub use empty::*;
 pub use expect::*;
 pub use filter::*;
 pub use filter_map::*;
 pub use map::*;
 pub use or_not::*;
+pub use padded::*;
 pub use peek_then::*;
 pub use peek_then_choice::*;
+pub use recover::*;
 pub use repeated::*;
 pub use sep::{SepFixSpec, SeparatedBy, SeparatedByOptions};
 pub use then::*;
+pub use todo::*;
 pub use validate::*;
 
 mod any;
@@ -68,16 +72,20 @@ mod collect;
 mod ctx;
 mod delim;
 mod delim_seq;
+mod empty;
 mod expect;
 mod filter;
 mod filter_map;
 mod map;
 mod or_not;
+mod padded;
 mod peek_then;
 mod peek_then_choice;
+mod recover;
 mod repeated;
 mod sep;
 mod then;
+mod todo;
 mod validate;
 
 mod sealed {
@@ -125,11 +133,7 @@ seq_macro::seq!(N in 1..=32 {
 /// Decision action for conditional parsing.
 pub trait Decision<'inp, L, E, W, Lang: ?Sized = ()> {
   /// Decide the next action based on the peeked tokens.
-  fn decide(
-    &mut self,
-    toks: Peeked<'_, 'inp, L, W>,
-    emitter: &mut E,
-  ) -> Result<Action, <E as Emitter<'inp, L, Lang>>::Error>
+  fn decide(&mut self, toks: Peeked<'_, 'inp, L, W>, emitter: &mut E) -> Result<Action, E::Error>
   where
     L: Lexer<'inp>,
     E: Emitter<'inp, L, Lang>,
@@ -138,17 +142,13 @@ pub trait Decision<'inp, L, E, W, Lang: ?Sized = ()> {
 
 impl<'inp, F, L, E, W, Lang: ?Sized> Decision<'inp, L, E, W, Lang> for F
 where
-  F: FnMut(Peeked<'_, 'inp, L, W>, &mut E) -> Result<Action, <E as Emitter<'inp, L, Lang>>::Error>,
+  F: FnMut(Peeked<'_, 'inp, L, W>, &mut E) -> Result<Action, E::Error>,
   L: Lexer<'inp>,
   E: Emitter<'inp, L, Lang>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn decide(
-    &mut self,
-    toks: Peeked<'_, 'inp, L, W>,
-    emitter: &mut E,
-  ) -> Result<Action, <E as Emitter<'inp, L, Lang>>::Error>
+  fn decide(&mut self, toks: Peeked<'_, 'inp, L, W>, emitter: &mut E) -> Result<Action, E::Error>
   where
     W: Window,
   {
@@ -245,24 +245,24 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     W: Window,
+    PeekThen<Self, C, L::Token, W>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     PeekThen::of(self, condition)
   }
 
   /// Creates a `PeekThen` combinator that peeks at most `N` tokens first from the input before parsing.
   ///
-  /// If the condition handler `C` returns `Ok(())`, the inner parser is applied, otherwise,
-  /// parsing is stopped and return the error from the handler.
+  /// If the condition handler `C` returns `Ok(Action::Continue)`, the inner parser is applied,
+  /// otherwise returns `None`.
+  #[doc(alias = "or_not")]
   fn peek_then_or_not<C, W>(self, condition: C) -> OrNot<PeekThen<Self, C, L::Token, W>>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    C: FnMut(
-      Peeked<'_, 'inp, L, W>,
-      &mut Ctx::Emitter,
-    ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    C: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
+    OrNot<PeekThen<Self, C, L::Token, W>>: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
   {
     PeekThen::or_not_of(self, condition)
   }
@@ -352,6 +352,37 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     G: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     IgnoreThen::new(self, second)
+  }
+
+  /// Recover from errors produced by this parser using the given recovery parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn recover<R>(self, recovery: R) -> Recover<Self, R>
+  where
+    Self: Sized,
+    R: ParseInput<'inp, L, O, Ctx, Lang>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    Recover::new(self, recovery)
+  }
+
+  /// Recover in-place from errors produced by this parser using the given recovery parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn inplace_recover<R>(self, recovery: R) -> InplaceRecover<Self, R>
+  where
+    Self: Sized,
+    R: ParseInput<'inp, L, O, Ctx, Lang>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    InplaceRecover::new(self, recovery)
+  }
+
+  /// Creates a parser that accepts any token with optional padding.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn padded(self) -> Padded<Self>
+  where
+    Self: Sized,
+  {
+    Padded::new(self)
   }
 }
 
@@ -820,18 +851,14 @@ impl<P, S> With<P, S> {
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
 pub enum Action {
-  /// Indicates the token belongs to another syntactic element, hint to end parsing.
+  /// Indicates the token belongs to another syntactic element, hint to stop parsing.
   #[unwrap(ignore)]
   #[try_unwrap(ignore)]
-  End,
+  Stop,
   /// Indicates a token belongs to an element was found, hint to continue parsing.
   #[unwrap(ignore)]
   #[try_unwrap(ignore)]
   Continue,
-  /// Indicates the parser should backtrack without consuming further input.
-  #[unwrap(ignore)]
-  #[try_unwrap(ignore)]
-  Backtrack,
 }
 
 impl Apply<Maximum> for () {

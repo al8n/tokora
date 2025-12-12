@@ -99,12 +99,20 @@ mod tests {
   use super::*;
 
   fn assert_validate_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
-    Parser::new().apply(Any::new().validate(|_tok: &Spanned<DummyToken>| Ok(())))
+    Parser::new().apply(
+      Any::new()
+        .spanned()
+        .validate(|_tok: &Spanned<DummyToken>| Ok(())),
+    )
   }
 
   fn assert_validate_parse_with_ctx_impl<'inp>()
   -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
-    Parser::with_context(()).apply(Any::new().validate(|_tok: &Spanned<DummyToken>| Ok(())))
+    Parser::with_context(()).apply(
+      Any::new()
+        .spanned()
+        .validate(|_tok: &Spanned<DummyToken>| Ok(())),
+    )
   }
 
   #[test]

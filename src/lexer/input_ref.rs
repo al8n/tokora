@@ -832,7 +832,9 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn go(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     self.cache_mut().rewind(&checkpoint);
-    self.set_span(checkpoint.cursor().span().into());
+    let cur = checkpoint.cursor();
+    self.emitter().rewind(cur);
+    self.set_span(cur.span().into());
     *self.state = checkpoint.state;
   }
 

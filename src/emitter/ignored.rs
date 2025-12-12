@@ -36,6 +36,13 @@ where
   {
     Ok(())
   }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn rewind(&mut self, _: &Cursor<'a, '_, L>)
+  where
+    L: Lexer<'a>,
+  {
+  }
 }
 
 impl<'a, O, L, Lang: ?Sized> RepeatedEmitter<'a, O, L, Lang> for Ignored

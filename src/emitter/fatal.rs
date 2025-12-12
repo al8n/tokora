@@ -88,6 +88,13 @@ where
   {
     Err(err.into())
   }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn rewind(&mut self, _: &Cursor<'a, '_, L>)
+  where
+    L: Lexer<'a>,
+  {
+  }
 }
 
 impl<'a, O, L, E, Lang: ?Sized> RepeatedEmitter<'a, O, L, Lang> for Fatal<E, Lang>

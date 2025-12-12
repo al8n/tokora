@@ -21,6 +21,12 @@ impl<Classifier, Ctx> Expect<Classifier, Ctx> {
     Self::of(classifier)
   }
 
+  /// Creates a parser that yields specific token with its span
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn spanned(classifier: Classifier) -> With<Self, PhantomSpan> {
+    Self::spanned_of(classifier)
+  }
+
   /// Creates a parser that yields specific token with its source
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn sliced(classifier: Classifier) -> With<Self, PhantomSliced> {
@@ -45,6 +51,12 @@ impl<Classifier, Ctx, Lang> Expect<Classifier, Ctx, Lang> {
     }
   }
 
+  /// Creates a parser that yields specific token with its span.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn spanned_of(classifier: Classifier) -> With<Self, PhantomSpan> {
+    With::new(Self::of(classifier), PhantomSpan::PHANTOM)
+  }
+
   /// Creates a parser that yields specific token with its source.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn sliced_of(classifier: Classifier) -> With<Self, PhantomSliced> {
@@ -58,8 +70,40 @@ impl<Classifier, Ctx, Lang> Expect<Classifier, Ctx, Lang> {
   }
 }
 
-impl<'inp, L, Ctx, Lang, Classifier> ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang>
+impl<'inp, L, Ctx, Lang, Classifier> ParseInput<'inp, L, L::Token, Ctx, Lang>
   for Expect<Classifier, Ctx, Lang>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<<L::Token as Token<'inp>>::Error>
+    + From<UnexpectedEot<L::Offset, Lang>>,
+  Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<L::Token, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    match inp.next() {
+      Some(Spanned { span, data: tok }) => match tok {
+        Lexed::Token(tok) => match self.is.check(&tok) {
+          Ok(()) => Ok(tok),
+          Err(expected) => Err(
+            UnexpectedToken::with_expected_of(span, expected)
+              .with_found(tok)
+              .into(),
+          ),
+        },
+        Lexed::Error(err) => Err(From::from(err)),
+      },
+      None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
+    }
+  }
+}
+
+impl<'inp, L, Ctx, Lang, Classifier> ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang>
+  for With<Expect<Classifier, Ctx, Lang>, PhantomSpan>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -75,7 +119,7 @@ where
   ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     match inp.next() {
       Some(Spanned { span, data: tok }) => match tok {
-        Lexed::Token(tok) => match self.is.check(&tok) {
+        Lexed::Token(tok) => match self.primary.is.check(&tok) {
           Ok(()) => Ok(Spanned::new(span, tok)),
           Err(expected) => Err(
             UnexpectedToken::with_expected_of(span, expected)
@@ -92,7 +136,7 @@ where
 
 impl<'inp, L, Ctx, Lang, Classifier>
   ParseInput<'inp, L, Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang>
-  for Expect<Classifier, Ctx, Lang>
+  for With<Expect<Classifier, Ctx, Lang>, PhantomSliced>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -111,7 +155,7 @@ where
   > {
     match inp.next() {
       Some(Spanned { span, data: tok }) => match tok {
-        Lexed::Token(tok) => match self.is.check(&tok) {
+        Lexed::Token(tok) => match self.primary.is.check(&tok) {
           Ok(()) => Ok(Sliced::new(
             inp
               .slice()
@@ -138,7 +182,7 @@ impl<'inp, L, Ctx, Lang, Classifier>
     Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     Ctx,
     Lang,
-  > for Expect<Classifier, Ctx, Lang>
+  > for With<Expect<Classifier, Ctx, Lang>, PhantomLocated>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -157,7 +201,7 @@ where
   > {
     match inp.next() {
       Some(Spanned { span, data: tok }) => match tok {
-        Lexed::Token(tok) => match self.is.check(&tok) {
+        Lexed::Token(tok) => match self.primary.is.check(&tok) {
           Ok(()) => Ok(Located::new(
             inp
               .slice()
@@ -184,12 +228,11 @@ mod tests {
 
   use super::*;
 
-  fn assert_expect_parse_impl_with_ctx<'inp>()
-  -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
+  fn assert_expect_parse_impl_with_ctx<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
     Parser::with_context(()).apply(Expect::new(|_tok: &DummyToken| Ok(())))
   }
 
-  fn assert_expect_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
+  fn assert_expect_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
     Parser::new().apply(Expect::new(|_tok: &DummyToken| Ok(())))
   }
 

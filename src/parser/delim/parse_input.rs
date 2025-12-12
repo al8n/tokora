@@ -140,7 +140,7 @@ where
         Err(err) => return Err(err),
         Ok(action) => match action {
           // missing ending delimiter
-          Action::End => {
+          Action::Stop => {
             if has_open {
               let span = inp.span_since(ckp.cursor());
               inp

@@ -148,8 +148,7 @@ mod tests {
 
   use super::*;
 
-  fn assert_peek_then_choice_parse_impl<'inp>()
-  -> impl Parse<'inp, DummyLexer, Spanned<DummyToken>, ()> {
+  fn assert_peek_then_choice_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
     Parser::new().apply(
       (Any::new(), Any::new())
         .peek_then_choice::<_, U2>(|_toks, _| Ok(deranged::RangedU8::<0, 1>::new(0).unwrap())),

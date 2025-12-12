@@ -78,6 +78,14 @@ where
   {
     Ok(())
   }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>)
+  where
+    L: Lexer<'a>,
+  {
+    let _ = cursor;
+  }
 }
 
 impl<'a, O, L, E, Lang: ?Sized> RepeatedEmitter<'a, O, L, Lang> for Silent<E, Lang>

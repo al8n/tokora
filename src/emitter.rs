@@ -8,6 +8,7 @@ use crate::{
       UnexpectedRepeatedOf, UnexpectedToken, UnexpectedTrailingOf,
     },
   },
+  lexer::Cursor,
   utils::{Message, Spanned},
 };
 
@@ -123,6 +124,11 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
+
+  /// Rewinds the emitter state to the specified cursor.
+  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>)
+  where
+    L: Lexer<'a>;
 }
 
 impl<'a, L, U, Lang: ?Sized> Emitter<'a, L, Lang> for &mut U
@@ -159,6 +165,14 @@ where
     L: Lexer<'a>,
   {
     (**self).emit_error(err)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>)
+  where
+    L: Lexer<'a>,
+  {
+    (**self).rewind(cursor)
   }
 }
 

@@ -1,14 +1,14 @@
 use super::*;
 
 /// a
-pub struct PeekThen<P, H, T, Window> {
+pub struct PeekThen<P, D, T, Window> {
   parser: P,
-  handler: H,
+  handler: D,
   _token: PhantomData<T>,
   _capacity: PhantomData<Window>,
 }
 
-impl<P, H, T, Window> Apply<OrNot<Self>> for PeekThen<P, H, T, Window> {
+impl<P, D, T, Window> Apply<OrNot<Self>> for PeekThen<P, D, T, Window> {
   type Options = ();
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -17,15 +17,15 @@ impl<P, H, T, Window> Apply<OrNot<Self>> for PeekThen<P, H, T, Window> {
   }
 }
 
-impl<P, H, T, W: Window> PeekThen<P, H, T, W> {
+impl<P, D, T, W: Window> PeekThen<P, D, T, W> {
   /// Creates a new `PeekThen` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new<'inp, L, O, Ctx>(parser: P, condition: H) -> Self
+  pub const fn new<'inp, L, O, Ctx>(parser: P, condition: D) -> Self
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseInput<'inp, L, O, Ctx, ()>,
-    H: FnMut(
+    D: FnMut(
       Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
@@ -35,12 +35,12 @@ impl<P, H, T, W: Window> PeekThen<P, H, T, W> {
 
   /// Creates a new `PeekThen` combinator for the specified language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn of<'inp, L, O, Ctx, Lang>(parser: P, condition: H) -> Self
+  pub const fn of<'inp, L, O, Ctx, Lang>(parser: P, condition: D) -> Self
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
-    H: FnMut(
+    D: FnMut(
       Peeked<'_, 'inp, L, W>,
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
@@ -56,30 +56,24 @@ impl<P, H, T, W: Window> PeekThen<P, H, T, W> {
 
   /// Creates a new `OrNot<PeekThen>` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn or_not<'inp, L, O, Ctx>(parser: P, condition: H) -> OrNot<Self>
+  pub const fn or_not<'inp, L, O, Ctx>(parser: P, condition: D) -> OrNot<Self>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, ()>,
     P: ParseInput<'inp, L, O, Ctx, ()>,
-    H: FnMut(
-      Peeked<'_, 'inp, L, W>,
-      &mut Ctx::Emitter,
-    ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, ()>>::Error>,
+    D: Decision<'inp, L, Ctx::Emitter, W, ()>,
   {
     Self::or_not_of(parser, condition)
   }
 
   /// Creates a new `OrNot<PeekThen>` combinator for the specified language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn or_not_of<'inp, L, O, Ctx, Lang>(parser: P, condition: H) -> OrNot<Self>
+  pub const fn or_not_of<'inp, L, O, Ctx, Lang>(parser: P, condition: D) -> OrNot<Self>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
-    H: FnMut(
-      Peeked<'_, 'inp, L, W>,
-      &mut Ctx::Emitter,
-    ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    D: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     Lang: ?Sized,
   {
     OrNot::new(Self {
@@ -91,11 +85,11 @@ impl<P, H, T, W: Window> PeekThen<P, H, T, W> {
   }
 }
 
-impl<'inp, P, H, L, O, Ctx, Lang, W> ParseInput<'inp, L, O, Ctx, Lang>
-  for PeekThen<P, H, L::Token, W>
+impl<'inp, P, D, L, O, Ctx, Lang, W> ParseInput<'inp, L, O, Ctx, Lang>
+  for PeekThen<P, D, L::Token, W>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
-  H: FnMut(
+  D: FnMut(
     Peeked<'_, 'inp, L, W>,
     &mut Ctx::Emitter,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
@@ -114,14 +108,11 @@ where
   }
 }
 
-impl<'inp, P, H, L, O, Ctx, Lang, W> ParseInput<'inp, L, Option<O>, Ctx, Lang>
-  for or_not::OrNot<PeekThen<P, H, L::Token, W>>
+impl<'inp, P, D, L, O, Ctx, Lang, W> ParseInput<'inp, L, Option<O>, Ctx, Lang>
+  for OrNot<PeekThen<P, D, L::Token, W>>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
-  H: FnMut(
-    Peeked<'_, 'inp, L, W>,
-    &mut Ctx::Emitter,
-  ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  D: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
@@ -129,21 +120,22 @@ where
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, <Ctx>::Emitter, <Ctx>::Cache, Lang>,
-  ) -> Result<Option<O>, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
 
     if output.is_empty() {
       return Ok(None);
     }
 
-    (self.0.handler)(output, emitter).and_then(|val| {
-      if !val {
-        Ok(None)
-      } else {
-        self.0.parser.parse_input(inp).map(Some)
-      }
-    })
+    self
+      .0
+      .handler
+      .decide(output, emitter)
+      .and_then(|val| match val {
+        Action::Continue => self.0.parser.parse_input(inp).map(Some),
+        Action::Stop => Ok(None),
+      })
   }
 }
 
@@ -155,9 +147,11 @@ mod tests {
 
   use super::*;
 
-  fn assert_peek_then_parse_impl<'inp>()
-  -> impl Parse<'inp, DummyLexer, Option<Spanned<DummyToken>>, ()> {
-    Parser::new().apply(Any::new().peek_then_or_not::<_, U2>(|_toks, _| Ok(true)))
+  fn assert_peek_then_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, Option<DummyToken>, ()> {
+    use crate::emitter::Fatal;
+    Parser::new().apply(Any::new().peek_then_or_not::<_, U2>(
+      |_toks: Peeked<'_, '_, DummyLexer, U2>, _: &mut Fatal<()>| Ok(Action::Continue),
+    ))
   }
 
   #[test]

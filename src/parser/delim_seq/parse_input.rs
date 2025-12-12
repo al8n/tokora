@@ -307,7 +307,7 @@ impl<
       };
 
       match parser.condition.decide(peeked, emitter)? {
-        Action::End => {
+        Action::Stop => {
           break (
             parser.handle_end(state, inp, &ckp, num_elems, container)?,
             None,

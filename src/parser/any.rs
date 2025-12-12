@@ -21,6 +21,12 @@ impl<L, Ctx> Any<L, Ctx> {
     Self::of()
   }
 
+  /// Creates a parser that yields any token with its span
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn spanned() -> With<Self, PhantomSpan> {
+    Self::spanned_of()
+  }
+
   /// Creates a parser that yields any token with its source
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn sliced() -> With<Self, PhantomSliced> {
@@ -45,6 +51,12 @@ impl<L, Ctx, Lang> Any<L, Ctx, Lang> {
     }
   }
 
+  /// Creates a parser that yields any token with its span.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn spanned_of() -> With<Self, PhantomSpan> {
+    With::new(Self::of(), PhantomSpan::PHANTOM)
+  }
+
   /// Creates a parser that yields any token with its source.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn sliced_of() -> With<Self, PhantomSliced> {
@@ -58,8 +70,33 @@ impl<L, Ctx, Lang> Any<L, Ctx, Lang> {
   }
 }
 
+impl<'inp, L, Ctx, Lang: ?Sized> ParseInput<'inp, L, L::Token, Ctx, Lang> for Any<L, Ctx, Lang>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+    From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+  ) -> Result<L::Token, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    match inp.next() {
+      Some(Spanned { data: tok, .. }) => match tok {
+        Lexed::Token(tok) => Ok(tok),
+        Lexed::Error(err) => Err(err.into()),
+      },
+      None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
+    }
+  }
+}
+
 impl<'inp, L, Ctx, Lang: ?Sized> ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang>
-  for Any<L, Ctx, Lang>
+  for With<Any<L, Ctx, Lang>, PhantomSpan>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -167,11 +204,11 @@ mod tests {
   use super::*;
 
   fn assert_any_parse_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
-    Parser::new().apply(Any::new().map(Spanned::into_data))
+    Parser::new().apply(Any::spanned().map(Spanned::into_data))
   }
 
   fn assert_any_parse_with_context_impl<'inp>() -> impl Parse<'inp, DummyLexer, DummyToken, ()> {
-    Parser::with_context(()).apply(Any::new().map(Spanned::into_data))
+    Parser::with_context(()).apply(Any::new().spanned().map(Spanned::into_data))
   }
 
   #[test]
