@@ -58,7 +58,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self.parser.parse_input(input).map(&mut self.map_fn)
   }

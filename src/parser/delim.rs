@@ -20,7 +20,7 @@ impl<P, Condition, Open, Close, Delim, O, W, Options>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn collect<Container>(self) -> Collect<Self, Container>
+  pub fn collect<Container>(self) -> Collect<Self, Container, (), ()>
   where
     Container: Default,
   {
@@ -29,7 +29,7 @@ impl<P, Condition, Open, Close, Delim, O, W, Options>
 
   /// Collects the parsed elements with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container> {
+  pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container, (), ()> {
     Collect::new(self, container)
   }
 

@@ -40,9 +40,14 @@ impl<
       Delim,
       O,
       W,
+      L,
+      Ctx,
       SeparatedByOptions<Trailing, Leading, Max, Min>,
+      Lang,
     >,
     Container,
+    Ctx,
+    Lang,
   >
 where
   L: Lexer<'inp>,
@@ -68,7 +73,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -108,9 +113,14 @@ impl<
         Delim,
         O,
         W,
+        L,
+        Ctx,
         SeparatedByOptions<Trailing, Leading, Max, Min>,
+        Lang,
       >,
       Container,
+      Ctx,
+      Lang
     >,
     PhantomSpan,
   >
@@ -139,7 +149,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self.primary.derive(inp)
   }
@@ -160,6 +170,9 @@ impl<
   Max,
   Min,
   W,
+  L,
+  Ctx,
+  Lang: ?Sized,
 >
   Collect<
     DelimitedSeparatedBy<
@@ -171,17 +184,21 @@ impl<
       Delim,
       O,
       W,
+      L,
+      Ctx,
       SeparatedByOptions<Trailing, Leading, Max, Min>,
+      Lang,
     >,
     Container,
+    Ctx,
+    Lang,
   >
 {
-  fn derive<L, Ctx, Lang>(
+  fn derive(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    Lang: ?Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter:
@@ -288,7 +305,7 @@ impl<
           match tok.data() {
             t if parser.sep.check(t) => {
               drop(peeked);
-              state = parser.handle_separator::<_, Ctx, Lang>(state, inp, leading_spec)?;
+              state = parser.handle_separator(state, inp, leading_spec)?;
 
               continue;
             }

@@ -7,7 +7,7 @@ use super::*;
 
 impl<'inp, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, Container>
+  for Collect<Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -22,7 +22,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -37,7 +37,7 @@ where
 
 impl<'inp, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-  for Collect<Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, Container>
+  for Collect<Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -52,7 +52,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -67,7 +67,7 @@ where
 
 impl<'inp, 'c, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
-  for Collect<&'c mut Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, &'c mut Container>
+  for Collect<&'c mut Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, &'c mut Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -81,7 +81,7 @@ where
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
-use crate::{Check, punct::*};
+// use crate::{Check, punct::*};
 
 use super::*;
 
@@ -28,25 +28,22 @@ pub type SeparatedByOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
 
 /// A parser that parses a sequence of elements separated by a specific separator.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, Config = SeparatedByOptions> {
+pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Config = SeparatedByOptions, Lang: ?Sized = ()> {
   pub(super) f: F,
   pub(super) sep: SepClassifier,
   pub(super) condition: Condition,
   pub(super) config: Config,
   pub(super) _m: PhantomData<O>,
   pub(super) _decision_window: PhantomData<Window>,
+  pub(super) _l: PhantomData<L>,
+  pub(super) _ctx: PhantomData<Ctx>,
+  pub(super) _lang: PhantomData<Lang>,
 }
 
-impl<F, SepClassifier, Condition, O, W: Window> SeparatedBy<F, SepClassifier, Condition, O, W> {
-  /// Creates a new `SeparatedBy` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
-    Self::new_in(f, sep_classifier, condition)
-  }
-
+impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, SeparatedByOptions, Lang> {
   /// Creates a new `SeparatedBy` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  const fn new_in(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
+  pub(super) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
     Self {
       f,
       sep: sep_classifier,
@@ -54,17 +51,20 @@ impl<F, SepClassifier, Condition, O, W: Window> SeparatedBy<F, SepClassifier, Co
       config: SeparatedByOptions::new(With::new((), ()), With::new((), ())),
       _m: PhantomData,
       _decision_window: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
+      _lang: PhantomData,
     }
   }
 }
 
-impl<F, SepClassifier, Condition, O, Options, Window>
-  SeparatedBy<F, SepClassifier, Condition, O, Window, Options>
+impl<F, SepClassifier, Condition, O, Options, Window, L, Ctx, Lang: ?Sized>
+  SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Options, Lang>
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn as_mut(
     &mut self,
-  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, &mut Options> {
+  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, &mut Options, Lang> {
     SeparatedBy {
       f: &mut self.f,
       sep: &mut self.sep,
@@ -72,12 +72,15 @@ impl<F, SepClassifier, Condition, O, Options, Window>
       config: &mut self.config,
       _m: PhantomData,
       _decision_window: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
+      _lang: PhantomData,
     }
   }
 
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn collect<Container>(self) -> Collect<Self, Container>
+  pub fn collect<Container>(self) -> Collect<Self, Container, Ctx, Lang>
   where
     Container: Default,
   {
@@ -86,7 +89,7 @@ impl<F, SepClassifier, Condition, O, Options, Window>
 
   /// Collects the parsed elements with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container> {
+  pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container, Ctx, Lang> {
     Collect::new(self, container)
   }
 
@@ -97,19 +100,22 @@ impl<F, SepClassifier, Condition, O, Options, Window>
     left: Open,
     right: Close,
     delim: Delim,
-  ) -> DelimitedSeparatedBy<F, SepClassifier, Condition, Open, Close, Delim, O, Window, Options> {
+  ) -> DelimitedSeparatedBy<F, SepClassifier, Condition, Open, Close, Delim, O, Window, L, Ctx, Options, Lang> {
     DelimitedSeparatedBy::new_in(self, left, right, delim)
   }
 }
 
-impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
+impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx, Lang: ?Sized>
   SeparatedBy<
     F,
     SepClassifier,
     Condition,
     O,
     Window,
+    L,
+    Ctx,
     SeparatedByOptions<Trailing, Leading, Max, Min>,
+    Lang,
   >
 {
   /// Allows trailing separators.
@@ -122,7 +128,10 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
     Condition,
     O,
     Window,
+    L,
+    Ctx,
     SeparatedByOptions<Allow, Leading, Max, Min>,
+    Lang,
   >
   where
     Trailing: Apply<Allow>,
@@ -137,6 +146,9 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
       ),
       _m: PhantomData,
       _decision_window: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
+      _lang: PhantomData,
     }
   }
 
@@ -150,7 +162,10 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
     Condition,
     O,
     Window,
+    L,
+    Ctx,
     SeparatedByOptions<Require, Leading, Max, Min>,
+    Lang,
   >
   where
     Trailing: Apply<Require>,
@@ -165,6 +180,9 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
       ),
       _m: PhantomData,
       _decision_window: PhantomData,
+      _ctx: PhantomData,
+      _l: PhantomData,
+      _lang: PhantomData,
     }
   }
 
@@ -178,7 +196,10 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
     Condition,
     O,
     Window,
+    L,
+    Ctx,
     SeparatedByOptions<Trailing, Allow, Max, Min>,
+    Lang,
   >
   where
     Leading: Apply<Allow>,
@@ -193,6 +214,9 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
       ),
       _m: PhantomData,
       _decision_window: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
+      _lang: PhantomData,
     }
   }
 
@@ -206,7 +230,10 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
     Condition,
     O,
     Window,
+    L,
+    Ctx,
     SeparatedByOptions<Trailing, Require, Max, Min>,
+    Lang,
   >
   where
     Leading: Apply<Require>,
@@ -221,6 +248,9 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
       ),
       _m: PhantomData,
       _decision_window: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
+      _lang: PhantomData,
     }
   }
 
@@ -235,7 +265,10 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
     Condition,
     O,
     Window,
+    L,
+    Ctx,
     SeparatedByOptions<Trailing, Leading, Max, Minimum>,
+    Lang,
   >
   where
     Min: Apply<Minimum>,
@@ -253,6 +286,9 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
       ),
       _m: PhantomData,
       _decision_window: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
+      _lang: PhantomData,
     }
   }
 
@@ -267,7 +303,10 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
     Condition,
     O,
     Window,
+    L,
+    Ctx,
     SeparatedByOptions<Trailing, Leading, Maximum, Min>,
+    Lang,
   >
   where
     Max: Apply<Maximum>,
@@ -285,6 +324,9 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
       ),
       _m: PhantomData,
       _decision_window: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
+      _lang: PhantomData,
     }
   }
 
@@ -329,92 +371,92 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window>
   }
 }
 
-macro_rules! sep_by {
-  ($(
-    $(#[$meta:meta])*
-    $sep:ident
-  ),+$(,)?) => {
-    paste::paste! {
-      $(
-        impl<F, Condition, O> SeparatedBy<F, $sep, Condition, O, ()> {
-          #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser."]
-          #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< $sep:snake >]<'inp, L, W, Ctx>(f: F, condition: Condition) -> SeparatedBy<F, $sep, Condition, O, W>
-          where
-            L: Lexer<'inp>,
-            Ctx: ParseContext<'inp, L, ()>,
-            $sep: Check<L::Token>,
-            Condition: Decision<'inp, L, Ctx::Emitter, W, ()>,
-            W: Window,
-          {
-            SeparatedBy::new_in(f, <$sep>::PHANTOM, condition)
-          }
-        }
+// macro_rules! sep_by {
+//   ($(
+//     $(#[$meta:meta])*
+//     $sep:ident
+//   ),+$(,)?) => {
+//     paste::paste! {
+//       $(
+//         impl<F, Condition, O> SeparatedBy<F, $sep, Condition, O, (), (), ()> {
+//           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser."]
+//           #[cfg_attr(not(tarpaulin), inline(always))]
+//           pub const fn [< $sep:snake >]<'inp, L, Ctx, W>(f: F, condition: Condition) -> SeparatedBy<F, $sep, Condition, O, W, L, Ctx>
+//           where
+//             L: Lexer<'inp>,
+//             Ctx: ParseContext<'inp, L, ()>,
+//             $sep: Check<L::Token>,
+//             Condition: Decision<'inp, L, Ctx::Emitter, W, ()>,
+//             W: Window,
+//           {
+//             SeparatedBy::new_in(f, <$sep>::PHANTOM, condition)
+//           }
+//         }
 
-        impl<F, Condition, O, Lang: ?Sized> SeparatedBy<F, $sep<(), (), Lang>, Condition, O, ()> {
-          #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser of a specific language."]
-          #[cfg_attr(not(tarpaulin), inline(always))]
-          pub const fn [< $sep:snake _of >]<'inp, L, W, Ctx>(f: F, condition: Condition) -> SeparatedBy<F, $sep, Condition, O, W>
-          where
-            L: Lexer<'inp>,
-            $sep<(), (), Lang>: Check<L::Token>,
-            Ctx: ParseContext<'inp, L, Lang>,
-            Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-            W: Window,
-          {
-            SeparatedBy::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
-          }
-        }
+//         impl<F, Condition, O, Lang: ?Sized> SeparatedBy<F, $sep<(), (), Lang>, Condition, O, ()> {
+//           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser of a specific language."]
+//           #[cfg_attr(not(tarpaulin), inline(always))]
+//           pub const fn [< $sep:snake _of >]<'inp, L, W, Ctx>(f: F, condition: Condition) -> SeparatedBy<F, $sep, Condition, O, W>
+//           where
+//             L: Lexer<'inp>,
+//             $sep<(), (), Lang>: Check<L::Token>,
+//             Ctx: ParseContext<'inp, L, Lang>,
+//             Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+//             W: Window,
+//           {
+//             SeparatedBy::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
+//           }
+//         }
 
-        #[cfg(test)]
-        const _: () = {
-          use crate::lexer::DummyLexer;
-          use generic_arraydeque::typenum::U1;
+//         #[cfg(test)]
+//         const _: () = {
+//           use crate::lexer::DummyLexer;
+//           use generic_arraydeque::typenum::U1;
 
-          fn __assert_parse_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-            Parser::with_parser(
-              SeparatedBy::[< $sep:snake >]::<DummyLexer, U1, ()>(
-                Any::new(),
-                |_toks: Peeked<'_, '_, DummyLexer, U1>, _: &mut Fatal<()>| Ok(Action::Continue),
-              )
-              .collect::<()>(),
-            )
-          }
+//           fn __assert_parse_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
+//             Parser::with_parser(
+//               SeparatedBy::[< $sep:snake >]::<DummyLexer, U1, ()>(
+//                 Any::new(),
+//                 |_toks: Peeked<'_, '_, DummyLexer, U1>, _: &mut Fatal<()>| Ok(Action::Continue),
+//               )
+//               .collect::<()>(),
+//             )
+//           }
 
-          fn __assert_parse_with_ctx_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-            Parser::with_parser_and_context(SeparatedBy::[< $sep:snake >]::<DummyLexer, U1, ()>(
-                Any::new(),
-                |_toks: Peeked<'_, '_, DummyLexer, U1>, _: &mut Fatal<()>| Ok(Action::Continue),
-              )
-              .collect::<()>(), ())
-          }
-        };
-      )*
-    }
-  };
-}
+//           fn __assert_parse_with_ctx_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
+//             Parser::with_parser_and_context(SeparatedBy::[< $sep:snake >]::<DummyLexer, U1, ()>(
+//                 Any::new(),
+//                 |_toks: Peeked<'_, '_, DummyLexer, U1>, _: &mut Fatal<()>| Ok(Action::Continue),
+//               )
+//               .collect::<()>(), ())
+//           }
+//         };
+//       )*
+//     }
+//   };
+// }
 
-sep_by!(
-  Comma,
-  Semicolon,
-  Dot,
-  Colon,
-  Pipe,
-  Ampersand,
-  Hyphen,
-  Underscore,
-  DoubleColon,
-  Arrow,
-  FatArrow,
-  Tilde,
-  Trivia,
-  Slash,
-  BackSlash,
-  Percent,
-  Dollar,
-  Hash,
-  At,
-);
+// sep_by!(
+//   Comma,
+//   Semicolon,
+//   Dot,
+//   Colon,
+//   Pipe,
+//   Ampersand,
+//   Hyphen,
+//   Underscore,
+//   DoubleColon,
+//   Arrow,
+//   FatArrow,
+//   Tilde,
+//   Trivia,
+//   Slash,
+//   BackSlash,
+//   Percent,
+//   Dollar,
+//   Hash,
+//   At,
+// );
 
 impl Apply<Allow> for () {
   type Options = ();

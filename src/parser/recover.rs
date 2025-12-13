@@ -26,7 +26,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let ckp = inp.save();
     match self.parser.parse_input(inp) {
@@ -65,7 +65,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     match self.parser.parse_input(inp) {
       Ok(output) => Ok(output),

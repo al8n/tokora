@@ -6,7 +6,7 @@ use tokit::{
   Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser, Token as TokenT,
   emitter::{DelimiterEmitter, Fatal, SeparatedByEmitter},
   lexer::{InputRef, Peeked, PunctuatorToken},
-  parser::{Action, Collect, Expect, Map, PeekThenChoice, SeparatedBy},
+  parser::{Action, Expect},
   punct::Comma,
   utils::{Expected, delimiter::Delimiter},
 };
@@ -165,12 +165,12 @@ enum JsonValue {
 }
 
 impl JsonValue {
-  fn decide<'inp, E>(
+  fn decide<'inp, Ctx>(
     mut peeked: Peeked<'_, 'inp, JsonLexer<'inp>, U1>,
-    _: &mut E,
-  ) -> Result<Action, E::Error>
+    _: &mut Ctx::Emitter,
+  ) -> Result<Action, <Ctx::Emitter as Emitter<'inp, JsonLexer<'inp>>>::Error>
   where
-    E: Emitter<'inp, JsonLexer<'inp>>,
+    Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   {
     Ok(match peeked.pop_front() {
       None => Action::Stop,
@@ -229,13 +229,13 @@ fn expect_colon<'inp>(t: &Token) -> Result<(), Expected<'inp, TokenKind>> {
 }
 
 fn boolean<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
 ) -> Result<bool, ()>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = ()>,
 {
-  Expect::<_, Ctx>::new(|t: &Token| {
+  Expect::new(|t: &Token| {
     if matches!(t, Token::Bool(_)) {
       Ok(())
     } else {
@@ -247,13 +247,13 @@ where
 }
 
 fn null<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
 ) -> Result<(), ()>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = ()>,
 {
-  Expect::<_, Ctx>::new(|t: &Token| {
+  Expect::new(|t: &Token| {
     if matches!(t, Token::Null) {
       Ok(())
     } else {
@@ -265,13 +265,13 @@ where
 }
 
 fn number<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
 ) -> Result<f64, ()>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = ()>,
 {
-  Expect::<_, Ctx>::new(|t: &Token| {
+  Expect::new(|t: &Token| {
     if matches!(t, Token::Number(_)) {
       Ok(())
     } else {
@@ -283,13 +283,13 @@ where
 }
 
 fn string<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
 ) -> Result<String, ()>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = ()>,
 {
-  Expect::<_, Ctx>::new(|t: &Token| {
+  Expect::new(|t: &Token| {
     if matches!(t, Token::String(_)) {
       Ok(())
     } else {
@@ -301,7 +301,7 @@ where
 }
 
 fn list<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
 ) -> Result<Vec<JsonValue>, ()>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
@@ -309,20 +309,15 @@ where
     + SeparatedByEmitter<'inp, (String, JsonValue), Comma, JsonLexer<'inp>, Error = ()>
     + DelimiterEmitter<'inp, Delimiter, JsonLexer<'inp>, Error = ()>,
 {
-  let mut p = SeparatedBy::comma::<'inp, JsonLexer<'inp>, U1, Ctx>(
-    json_value::<Ctx>,
-    JsonValue::decide::<Ctx::Emitter>,
-  )
-  .delimited_by(open_bracket, close_bracket, Delimiter::Bracket)
-  .collect();
-
-  <Collect<_, Vec<_>> as ParseInput<'inp, JsonLexer<'inp>, Vec<JsonValue>, Ctx, ()>>::parse_input(
-    &mut p, inp,
-  )
+  json_value
+    .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
+    .delimited_by(open_bracket, close_bracket, Delimiter::Bracket)
+    .collect()
+    .parse_input(inp)
 }
 
 fn field<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
 ) -> Result<(String, JsonValue), ()>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
@@ -330,14 +325,14 @@ where
     + SeparatedByEmitter<'inp, (String, JsonValue), Comma, JsonLexer<'inp>, Error = ()>
     + DelimiterEmitter<'inp, Delimiter, JsonLexer<'inp>, Error = ()>,
 {
-  string::<Ctx>
-    .then_ignore(Expect::<_, Ctx>::new(expect_colon))
+  string
+    .then_ignore(Expect::new(expect_colon))
     .then(json_value::<Ctx>)
     .parse_input(inp)
 }
 
 fn object<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
 ) -> Result<Vec<(String, JsonValue)>, ()>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
@@ -345,17 +340,17 @@ where
     + SeparatedByEmitter<'inp, (String, JsonValue), Comma, JsonLexer<'inp>, Error = ()>
     + DelimiterEmitter<'inp, Delimiter, JsonLexer<'inp>, Error = ()>,
 {
-  let mut p = SeparatedBy::comma::<'inp, JsonLexer<'inp>, U1, Ctx>(
-    field::<Ctx>,
-    JsonValue::decide::<Ctx::Emitter>,
-  )
-  .delimited_by(open_brace, close_brace, Delimiter::Brace)
-  .collect();
-  <Collect<_, Vec<_>> as ParseInput<'inp, JsonLexer<'inp>, Vec<(String, JsonValue)>, Ctx, ()>>::parse_input(&mut p, inp)
+  field
+    .separated_by_comma::<_, U1>(
+      JsonValue::decide::<Ctx>,
+    )
+    .delimited_by(open_brace, close_brace, Delimiter::Brace)
+    .collect()
+    .parse_input(inp)
 }
 
 fn json_value<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx::Emitter, Ctx::Cache>,
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
 ) -> Result<JsonValue, ()>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
@@ -363,13 +358,13 @@ where
     + SeparatedByEmitter<'inp, (String, JsonValue), Comma, JsonLexer<'inp>, Error = ()>
     + DelimiterEmitter<'inp, Delimiter, JsonLexer<'inp>, Error = ()>,
 {
-  let mut p = (
-    boolean::<Ctx>.map(JsonValue::Bool),
-    null::<Ctx>.map(|_| JsonValue::Null),
-    number::<Ctx>.map(JsonValue::Number),
-    string::<Ctx>.map(JsonValue::String),
-    list::<Ctx>.map(JsonValue::List),
-    object::<Ctx>.map(JsonValue::Object),
+  (
+    boolean.map(JsonValue::Bool),
+    null.map(|_| JsonValue::Null),
+    number.map(JsonValue::Number),
+    string.map(JsonValue::String),
+    list.map(JsonValue::List),
+    object.map(JsonValue::Object),
   )
     .peek_then_choice::<_, U1>(
       |mut peeked: Peeked<'_, 'inp, JsonLexer<'inp>, U1>, _emitter| match peeked.pop_front() {
@@ -393,9 +388,7 @@ where
           }
         }
       },
-    );
-  p.parse_input(inp)
-  // <PeekThenChoice<_, _, _, Ctx, U1> as ParseInput<'inp, JsonLexer<'inp>, JsonValue, Ctx, ()>>::parse_input(&mut p, inp)
+    ).parse_input(inp)
 }
 
 fn main() {

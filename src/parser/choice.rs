@@ -8,7 +8,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Parses using branch identified by `id`.
   fn parse_choice(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     id: &Self::Id,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -69,9 +69,9 @@ macro_rules! tuple_choice {
 
         fn parse_choice(
           &mut self,
-          inp: &mut InputRef<'inp, '_, L, <Ctx>::Emitter, <Ctx>::Cache, Lang>,
+          inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
           id: &Self::Id,
-        ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error> {
+        ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
           match id.get() {
             $($param => self.$param.parse_input(inp),)+
             _ => unreachable!("deranged::RangedU8 guarantees in-bounds"),
@@ -104,9 +104,9 @@ where
 
   fn parse_choice(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, <Ctx>::Emitter, <Ctx>::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     id: &Self::Id,
-  ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error> {
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self[id.get()].parse_input(inp)
   }
 }
@@ -126,7 +126,7 @@ const _: () = {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn parse_choice(
       &mut self,
-      inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+      inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
       id: &Self::Id,
     ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
       (**self).parse_choice(inp, id)

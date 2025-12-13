@@ -58,7 +58,7 @@ impl<P, H, L, Ctx, W: Window, Lang: ?Sized> PeekThenChoice<P, H, L, Ctx, W, Lang
 }
 
 impl<'inp, P, H, L, O, Ctx, Lang, W: Window> ParseInput<'inp, L, O, Ctx, Lang>
-  for PeekThenChoice<P, H, L, Ctx, W>
+  for PeekThenChoice<P, H, L, Ctx, W, Lang>
 where
   P: ParseChoice<'inp, L, O, Ctx, Lang>,
   H: FnMut(
@@ -72,7 +72,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let id = {
       let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
@@ -97,7 +97,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let id = {
       let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;

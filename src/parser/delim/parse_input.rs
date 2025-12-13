@@ -18,6 +18,8 @@ impl<'inp, L, P, Open, Close, O, Condition, Container, Ctx, Delim, W, Max, Min, 
   for Collect<
     DelimitedBy<P, Condition, Open, Close, Delim, O, W, RepeatedOptions<Max, Min>>,
     Container,
+    Ctx,
+    Lang,
   >
 where
   Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
@@ -37,7 +39,7 @@ where
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

@@ -33,8 +33,10 @@ impl<
   W,
 > ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    SeparatedBy<F, SepClassifier, Condition, O, W, SeparatedByOptions<Trailing, Leading, Max, Min>>,
+    SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, SeparatedByOptions<Trailing, Leading, Max, Min>, Lang>,
     Container,
+    Ctx,
+    Lang,
   >
 where
   L: Lexer<'inp>,
@@ -53,7 +55,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self
       .as_mut()
@@ -87,9 +89,14 @@ impl<
         Condition,
         O,
         W,
+        L,
+        Ctx,
         SeparatedByOptions<Trailing, Leading, Max, Min>,
+        Lang,
       >,
       Container,
+      Ctx,
+      Lang,
     >,
     PhantomSpan,
   >
@@ -110,7 +117,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self
       .primary_mut()
@@ -145,9 +152,14 @@ impl<
       Condition,
       O,
       W,
+      L,
+      Ctx,
       &'c mut SeparatedByOptions<Trailing, Leading, Max, Min>,
+      Lang,
     >,
     &'c mut Container,
+    Ctx,
+    Lang,
   >
 where
   L: Lexer<'inp>,
@@ -165,8 +177,8 @@ where
 {
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, <Ctx>::Emitter, <Ctx>::Cache, Lang>,
-  ) -> Result<L::Span, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
@@ -181,6 +193,7 @@ where
           ..
         },
       container,
+      ..
     } = self;
     let mut parser = SeparatedBy {
       f: &mut **f,
@@ -189,6 +202,9 @@ where
       config: &mut **config,
       _m: PhantomData,
       _decision_window: PhantomData,
+      _ctx: PhantomData,
+      _l: PhantomData,
+      _lang: PhantomData,
     }
     .collect_with(&mut *container);
 
@@ -220,9 +236,14 @@ impl<
       &'c mut Condition,
       O,
       W,
+      L,
+      Ctx,
       &'c mut SeparatedByOptions<Trailing, Leading, Max, Min>,
+      Lang,
     >,
     &'c mut Container,
+    Ctx,
+    Lang,
   >
 where
   L: Lexer<'inp>,
@@ -240,9 +261,9 @@ where
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let Self { parser, container } = self;
+    let Self { parser, container, .. } = self;
 
     let mut state: State<L::Token, L::Span> = State::Start;
     let ckp = inp.save();
@@ -294,7 +315,7 @@ where
             // }
             tok if parser.sep.check(tok) => {
               drop(peeked);
-              state = parser.handle_separator::<_, Ctx, Lang>(state, inp, leading_spec)?;
+              state = parser.handle_separator(state, inp, leading_spec)?;
 
               continue;
             }
@@ -324,20 +345,23 @@ where
   }
 }
 
-impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
+impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W, L, Ctx, Lang: ?Sized>
   SeparatedBy<
     &'c mut F,
     &'c mut SepClassifier,
     &'c mut Condition,
     O,
     W,
+    L,
+    Ctx,
     &'c mut SeparatedByOptions<Trailing, Leading, Max, Min>,
+    Lang,
   >
 {
-  pub(in crate::parser) fn handle_separator<'closure, L, Ctx, Lang>(
+  pub(in crate::parser) fn handle_separator<'closure>(
     &mut self,
     mut state: State<L::Token, L::Span>,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     leading_spec: SepFixSpec,
   ) -> Result<State<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -345,7 +369,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
-    Lang: ?Sized,
   {
     let sep_tok = inp
       .next()
@@ -361,7 +384,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
         // whatever the leading spec is, multiple leading separators are not allowed
         // we should start a leading separator error batch and emit the newly found leading separator
         // to the batch
-        state = State::Leadings(self.handle_leading_state::<_, Ctx, _>(
+        state = State::Leadings(self.handle_leading_state(
           inp,
           tok,
           sep_tok,
@@ -369,7 +392,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
         )?);
       }
       State::Leadings(span) => {
-        state = State::Leadings(self.handle_leadings_state::<_, Ctx, _>(inp, span, sep_tok)?);
+        state = State::Leadings(self.handle_leadings_state(inp, span, sep_tok)?);
       }
       // first token is a separator
       State::Start => {
@@ -383,13 +406,13 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
       State::Separator(tok) => {
         // change state to RepeatedSeparator, store the span as the id for the batch
         state =
-          State::RepeatedSeparator(self.handle_separator_state::<_, Ctx, _>(inp, tok, sep_tok)?);
+          State::RepeatedSeparator(self.handle_separator_state(inp, tok, sep_tok)?);
       }
       // we are in repeated separator state,
       // so just extend the repeated separator span
       State::RepeatedSeparator(span) => {
         state = State::RepeatedSeparator(
-          self.handle_repeated_separators_state::<_, Ctx, _>(inp, span, sep_tok)?,
+          self.handle_repeated_separators_state(inp, span, sep_tok)?,
         );
       }
     }
@@ -397,10 +420,10 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
   }
 
   #[allow(clippy::too_many_arguments)]
-  pub(in crate::parser) fn handle_continue<'closure, L, Ctx, Lang, Container>(
+  pub(in crate::parser) fn handle_continue<'closure, Container>(
     &mut self,
     mut state: State<L::Token, L::Span>,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,
     peek_span: &L::Span,
     num_elems: &mut usize,
@@ -421,7 +444,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     Leading: super::LeadingSpec,
     Max: super::MaxSpec,
     Min: super::MinSpec,
-    Lang: ?Sized,
   {
     match state {
       State::Separator(sep) => {
@@ -564,10 +586,10 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     Ok(state)
   }
 
-  pub(in crate::parser) fn handle_end<'closure, L, Ctx, Lang, Container>(
+  pub(in crate::parser) fn handle_end<'closure, Container>(
     &mut self,
     state: State<L::Token, L::Span>,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,
     num_elems: usize,
     container: &mut Container,
@@ -586,7 +608,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     Leading: super::LeadingSpec,
     Max: super::MaxSpec,
     Min: super::MinSpec,
-    Lang: ?Sized,
   {
     let minimum = self.config.minimum();
     let maximum = self.config.maximum();
@@ -765,9 +786,9 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     })
   }
 
-  pub(in crate::parser) fn handle_repeated_separators_state<'closure, L, Ctx, Lang>(
+  pub(in crate::parser) fn handle_repeated_separators_state<'closure>(
     &mut self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     repeated_separators_errs_id: L::Span,
     sep_tok: Spanned<Lexed<'inp, L::Token>, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -776,7 +797,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
-    Lang: ?Sized,
   {
     let (sep_span, sep_token) = sep_tok.into_components();
     <Ctx::Emitter as BatchEmitter<
@@ -799,9 +819,9 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     Ok(repeated_separators_errs_id)
   }
 
-  pub(in crate::parser) fn handle_leadings_state<'closure, L, Ctx, Lang>(
+  pub(in crate::parser) fn handle_leadings_state<'closure>(
     &mut self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     leading_errs_id: L::Span,
     sep_tok: Spanned<Lexed<'inp, L::Token>, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -810,7 +830,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
-    Lang: ?Sized,
   {
     // we already have multiple leading separators, just emit the newly found leading separator
     let (sep_span, sep_tok) = sep_tok.into_components();
@@ -835,9 +854,9 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     Ok(leading_errs_id)
   }
 
-  pub(in crate::parser) fn handle_leading_state<'closure, L, Ctx, Lang>(
+  pub(in crate::parser) fn handle_leading_state<'closure>(
     &mut self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     tok: Spanned<L::Token, L::Span>,
     sep_tok: Spanned<Lexed<'inp, L::Token>, L::Span>,
     leading_spec: SepFixSpec,
@@ -847,7 +866,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
-    Lang: ?Sized,
   {
     Ok(match leading_spec {
       SepFixSpec::Deny(_) => {
@@ -922,9 +940,9 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     })
   }
 
-  pub(in crate::parser) fn handle_separator_state<'closure, L, Ctx, Lang>(
+  pub(in crate::parser) fn handle_separator_state<'closure>(
     &mut self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     tok: Spanned<L::Token, L::Span>,
     sep_tok: Spanned<Lexed<'inp, L::Token>, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -933,7 +951,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
-    Lang: ?Sized,
   {
     // one more repeated separator
     let (tok_span, tok_token) = tok.into_components();

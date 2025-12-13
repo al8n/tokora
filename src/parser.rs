@@ -156,14 +156,10 @@
 use core::{marker::PhantomData, mem::MaybeUninit};
 
 use crate::{
-  Check, Emitter, Lexed, Lexer, Source, Token,
-  emitter::Fatal,
-  error::{UnexpectedEot, token::UnexpectedToken},
-  lexer::{Input, InputRef, Peeked},
-  utils::{
+  Check, Emitter, Lexed, Lexer, Source, Token, emitter::Fatal, error::{UnexpectedEot, token::UnexpectedToken}, lexer::{Input, InputRef, Peeked, PunctuatorToken}, punct::Comma, utils::{
     Expected, Located, Sliced, Spanned,
     marker::{PhantomLocated, PhantomSliced, PhantomSpan},
-  },
+  }
 };
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
@@ -299,7 +295,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Try to parse from the given input.
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -361,17 +357,33 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     self,
     sep_classifier: SepClassifier,
     condition: Condition,
-  ) -> SeparatedBy<Self, SepClassifier, Condition, O, W>
+  ) -> SeparatedBy<Self, SepClassifier, Condition, O, W, L, Ctx>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    L: Lexer<'inp>,
-    Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY>,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     SepClassifier: Check<L::Token>,
     W: Window,
   {
     SeparatedBy::new(self, sep_classifier, condition)
+  }
+
+  /// Creates a `SeparatedBy` combinator that applies this parser repeatedly,
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn separated_by_comma<Condition, W>(
+    self,
+    condition: Condition,
+  ) -> SeparatedBy<Self, Comma, Condition, O, W, L, Ctx>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    L::Token: PunctuatorToken<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+    W: Window,
+  {
+    SeparatedBy::new(self, Comma::PHANTOM, condition)
   }
 
   /// Creates a `PeekThen` combinator that peeks at most `N` tokens first from the input before parsing.
@@ -532,7 +544,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInput<'inp, L, O, Ctx, Lang> for F
 where
   F: FnMut(
-    &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -540,7 +552,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (self)(input)
   }
@@ -556,7 +568,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<O, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let cursor = inp.cursor().clone();
     self
@@ -577,7 +589,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<
     Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -605,7 +617,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<
     Located<O, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,

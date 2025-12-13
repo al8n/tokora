@@ -51,7 +51,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<(O, U), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let a = self.parser.parse_input(input)?;
     let b = self.then.parse_input(input)?;
@@ -107,7 +107,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O2, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let _ = self.first.parse_input(input)?;
     self.second.parse_input(input)
@@ -162,7 +162,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx::Emitter, Ctx::Cache, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O1, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let first_result = self.first.parse_input(input)?;
     self.second.parse_input(input).map(|_| first_result)

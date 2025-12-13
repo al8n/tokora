@@ -22,9 +22,10 @@ macro_rules! check_punct {
     $name:ident::$trait:ident::$is_fn:ident
   ),+$(,)?) => {
     $(
-      impl<T, S, C, Lang> $crate::__private::Check<T, ::core::primitive::bool> for $name<S, C, Lang>
+      impl<'inp, T, S, C, Lang> $crate::__private::Check<T, ::core::primitive::bool> for $name<S, C, Lang>
       where
-        T: for<'a> $crate::__private::$trait<'a> + ?::core::marker::Sized,
+        T: $crate::__private::$trait<'inp> + ?::core::marker::Sized + 'inp,
+        Lang: ?::core::marker::Sized,
       {
         #[cfg_attr(not(tarpaulin), inline(always))]
         fn check(&self, target: &T) -> ::core::primitive::bool {

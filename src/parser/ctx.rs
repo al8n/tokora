@@ -87,7 +87,7 @@ pub type FatalContext<'inp, L, Error, Lang = ()> =
   ParserContext<'inp, L, Fatal<Error, Lang>, DefaultCache<'inp, L>, Lang>;
 
 /// A concrete [`ParseContext`] implementation that holds an emitter and optional cache options.
-pub struct ParserContext<'inp, L, E, C, Lang: ?Sized = ()>
+pub struct ParserContext<'inp, L, E, C = DefaultCache<'inp, L>, Lang: ?Sized = ()>
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L, Lang>,

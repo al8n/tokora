@@ -1,5 +1,7 @@
 use core::marker::PhantomData;
 
+use crate::ParseContext;
+
 use super::*;
 
 /// The context for parsing input
@@ -120,22 +122,24 @@ impl<E, C> InputContext<E, C> {
 ///     alternative_parser.parse(checkpoint);
 /// }
 /// ```
-pub(crate) struct Input<'inp, L, C = DefaultCache<'inp, L>>
+pub(crate) struct Input<'inp, L, Ctx = DefaultCache<'inp, L>, Lang: ?Sized = ()>
 where
   L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
 {
   input: &'inp L::Source,
   state: L::State,
   span: L::Span,
   cursor: L::Offset,
-  cache: C,
+  cache: Ctx::Cache,
 }
 
-impl<'inp, L, C> Clone for Input<'inp, L, C>
+impl<'inp, L, Ctx, Lang: ?Sized> Clone for Input<'inp, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
   L::State: Clone,
-  C: Clone,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Ctx::Cache: Clone,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn clone(&self) -> Self {
@@ -149,12 +153,13 @@ where
   }
 }
 
-impl<'inp, L, C> core::fmt::Debug for Input<'inp, L, C>
+impl<'inp, L, Ctx, Lang: ?Sized> core::fmt::Debug for Input<'inp, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
   L::Source: core::fmt::Debug,
   L::State: core::fmt::Debug,
-  C: core::fmt::Debug,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Ctx::Cache: core::fmt::Debug,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -167,10 +172,11 @@ where
   }
 }
 
-impl<'inp, L> Input<'inp, L>
+impl<'inp, L, Ctx, Lang: ?Sized> Input<'inp, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
   L::State: Default,
+  Ctx: ParseContext<'inp, L, Lang, Cache = DefaultCache<'inp, L>>,
 {
   /// Creates a new lexer from the given input.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -180,9 +186,10 @@ where
   }
 }
 
-impl<'inp, L> Input<'inp, L>
+impl<'inp, L, Ctx, Lang: ?Sized> Input<'inp, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang, Cache = DefaultCache<'inp, L>>,
 {
   /// Creates a new lexer from the given input and state.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -198,14 +205,15 @@ where
   }
 }
 
-impl<'inp, L, C> Input<'inp, L, C>
+impl<'inp, L, Ctx, Lang: ?Sized> Input<'inp, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_state_and_cache(input: &'inp L::Source, state: L::State, cache: C) -> Self
-  where
-    C: Cache<'inp, L>,
+  pub fn with_state_and_cache(input: &'inp L::Source, state: L::State, cache: Ctx::Cache) -> Self
+  // where
+  //   C: Cache<'inp, L>,
   {
     Self {
       input,
@@ -218,10 +226,10 @@ where
 
   /// Creates a zero-copy reference adapter for this input.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_ref<'closure, E, Lang: ?Sized>(
+  pub const fn as_ref<'closure>(
     &'closure mut self,
-    emitter: &'closure mut E,
-  ) -> InputRef<'inp, 'closure, L, E, C, Lang> {
+    emitter: &'closure mut Ctx::Emitter,
+  ) -> InputRef<'inp, 'closure, L, Ctx, Lang> {
     InputRef {
       input: &self.input,
       state: &mut self.state,

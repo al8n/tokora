@@ -17,9 +17,12 @@ pub struct DelimitedSeparatedBy<
   Delim,
   O,
   W,
+  L,
+  Ctx,
   Options = SeparatedByOptions,
+  Lang: ?Sized = (),
 > {
-  parser: SeparatedBy<P, SepClassifier, Condition, O, W, Options>,
+  parser: SeparatedBy<P, SepClassifier, Condition, O, W, L, Ctx, Options, Lang>,
   left_classifier: Open,
   right_classifier: Close,
   delimiter: Delim,
@@ -27,7 +30,7 @@ pub struct DelimitedSeparatedBy<
   _window: PhantomData<W>,
 }
 
-impl<P, SepClassifier, Condition, Open, Close, Delim, O, Trailing, Leading, Max, Min, Window>
+impl<P, SepClassifier, Condition, Open, Close, Delim, O, Trailing, Leading, Max, Min, Window, L, Ctx, Lang: ?Sized>
   DelimitedSeparatedBy<
     P,
     SepClassifier,
@@ -37,7 +40,10 @@ impl<P, SepClassifier, Condition, Open, Close, Delim, O, Trailing, Leading, Max,
     Delim,
     O,
     Window,
+    L,
+    Ctx,
     SeparatedByOptions<Trailing, Leading, Max, Min>,
+    Lang,
   >
 {
   /// Returns the specification for leading separators.
@@ -81,12 +87,12 @@ impl<P, SepClassifier, Condition, Open, Close, Delim, O, Trailing, Leading, Max,
   }
 }
 
-impl<P, SepClassifier, Condition, Open, Close, Delim, O, W, Options>
-  DelimitedSeparatedBy<P, SepClassifier, Condition, Open, Close, Delim, O, W, Options>
+impl<P, SepClassifier, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lang: ?Sized>
+  DelimitedSeparatedBy<P, SepClassifier, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lang>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn collect<Container>(self) -> Collect<Self, Container>
+  pub fn collect<Container>(self) -> Collect<Self, Container, Ctx, Lang>
   where
     Container: Default,
   {
@@ -95,13 +101,13 @@ impl<P, SepClassifier, Condition, Open, Close, Delim, O, W, Options>
 
   /// Collects the parsed elements with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container> {
+  pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container, Ctx, Lang> {
     Collect::new(self, container)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new_in(
-    parser: SeparatedBy<P, SepClassifier, Condition, O, W, Options>,
+    parser: SeparatedBy<P, SepClassifier, Condition, O, W, L, Ctx, Options, Lang>,
     left: Open,
     right: Close,
     delim: Delim,

@@ -22,8 +22,8 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, <Ctx>::Emitter, <Ctx>::Cache, Lang>,
-  ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,

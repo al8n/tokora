@@ -10,11 +10,7 @@ use generic_arraydeque::{GenericArrayDeque, typenum::U1};
 use mayber::{Maybe, MaybeRef};
 
 use crate::{
-  Token, Window,
-  emitter::Emitter,
-  error::token::UnexpectedToken,
-  lexer::{CachedTokenRefOf, MaybeRefCachedTokenOf, peek::Peeked},
-  utils::{Expected, Spanned},
+  ParseContext, Token, Window, emitter::Emitter, error::token::UnexpectedToken, lexer::{CachedTokenRefOf, MaybeRefCachedTokenOf, peek::Peeked}, utils::{Expected, Spanned}
 };
 
 use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
@@ -22,21 +18,23 @@ use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
 mod iter;
 
 /// A reference to an [`Input`] instance.
-pub struct InputRef<'inp, 'closure, L, E, C, Lang: ?Sized = ()>
+pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = ()>
 where
   L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
 {
   pub(super) input: &'closure &'inp L::Source,
   pub(super) state: &'closure mut L::State,
   pub(super) span: &'closure mut L::Span,
-  pub(super) cache: &'closure mut C,
-  pub(super) emitter: &'closure mut E,
+  pub(super) cache: &'closure mut Ctx::Cache,
+  pub(super) emitter: &'closure mut Ctx::Emitter,
   pub(super) _marker: PhantomData<Lang>,
 }
 
-impl<'inp, L, E, C, Lang: ?Sized> InputRef<'inp, '_, L, E, C, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
 {
   /// Returns a reference to the tokenizer's cache.
   ///
@@ -44,11 +42,11 @@ where
   /// This can be useful for inspecting the cache state or implementing custom
   /// lookahead logic.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn cache(&self) -> &C {
+  pub const fn cache(&self) -> &Ctx::Cache {
     self.cache
   }
 
-  const fn cache_mut(&mut self) -> &mut C {
+  const fn cache_mut(&mut self) -> &mut Ctx::Cache {
     self.cache
   }
 
@@ -75,7 +73,7 @@ where
 
   /// Returns a mutable reference to the emitter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn emitter(&mut self) -> &mut E {
+  pub const fn emitter(&mut self) -> &mut Ctx::Emitter {
     self.emitter
   }
 
@@ -100,7 +98,7 @@ where
   pub fn lexer(&self) -> L
   where
     L::State: Clone,
-    C: Cache<'inp, L>,
+    // C: Cache<'inp, L>,
   {
     let mut lexer = L::with_state(self.input, self.state.clone());
     lexer.bump(
@@ -117,7 +115,7 @@ where
   pub(crate) fn lexer_at(&self, off: &L::Offset) -> L
   where
     L::State: Clone,
-    C: Cache<'inp, L>,
+    // C: Cache<'inp, L>,
   {
     let mut lexer = L::with_state(self.input, self.state.clone());
     lexer.bump(off);
@@ -144,8 +142,8 @@ where
   /// The cursor is also clamped to the input length.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn set_span_after_consume(&mut self, new: MaybeRef<'_, L::Span>)
-  where
-    C: Cache<'inp, L>,
+  // where
+  //   C: Cache<'inp, L>,
   {
     let end = self.input.len();
     let cache = self.cache().first_span();
@@ -171,12 +169,11 @@ where
   }
 }
 
-impl<'inp, 'closure, L, E, C, Lang: ?Sized> InputRef<'inp, 'closure, L, E, C, Lang>
+impl<'inp, 'closure, L, Ctx, Lang: ?Sized> InputRef<'inp, 'closure, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
   L::State: Clone,
-  C: Cache<'inp, L>,
-  E: Emitter<'inp, L, Lang>,
+  Ctx: ParseContext<'inp, L, Lang>,
 {
   /// Try parsing, returns `None` on failure (no error propagation)
   pub fn attempt<F, R>(&mut self, f: F) -> Option<R>
@@ -529,7 +526,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn sync_until_token(
     &mut self,
-  ) -> Result<Option<MaybeRefCachedTokenOf<'_, 'inp, L, L::Token>>, E::Error> {
+  ) -> Result<Option<MaybeRefCachedTokenOf<'_, 'inp, L, L::Token>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self.sync_until_token_then_peek::<U1>().map(|mut val| {
       val.pop_front().map(|t| {
         t.map(
@@ -547,7 +544,7 @@ where
   /// to resume parsing. If emission fails, returns that error immediately.
   /// Non-matching non-error tokens are skipped but also reported via `emit_unexpected_token`.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn sync_until_token_then_peek<'p, W>(&'p mut self) -> Result<Peeked<'p, 'inp, L, W>, E::Error>
+  pub fn sync_until_token_then_peek<'p, W>(&'p mut self) -> Result<Peeked<'p, 'inp, L, W>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     W: Window,
   {
@@ -565,7 +562,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn sync_until_token_then_peek_with_emitter<'p, W>(
     &'p mut self,
-  ) -> Result<(Peeked<'p, 'inp, L, W>, &'p mut E), E::Error>
+  ) -> Result<(Peeked<'p, 'inp, L, W>, &'p mut Ctx::Emitter), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     W: Window,
   {
@@ -585,9 +582,9 @@ where
     &mut self,
     pred: F,
     exp: Exp,
-  ) -> Result<Option<MaybeRefCachedTokenOf<'_, 'inp, L>>, E::Error>
+  ) -> Result<Option<MaybeRefCachedTokenOf<'_, 'inp, L>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    F: FnMut(Spanned<&L::Token, &L::Span>, &mut E) -> bool,
+    F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
     self
@@ -608,9 +605,9 @@ where
     &'p mut self,
     mut pred: F,
     mut exp: Exp,
-  ) -> Result<(Peeked<'p, 'inp, L, W>, &'p mut E), E::Error>
+  ) -> Result<(Peeked<'p, 'inp, L, W>, &'p mut Ctx::Emitter), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    F: FnMut(Spanned<&L::Token, &L::Span>, &mut E) -> bool,
+    F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
     W: Window,
   {
@@ -720,7 +717,7 @@ where
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  pub fn peek_with_emitter<'p, W>(&'p mut self) -> (Peeked<'p, 'inp, L, W>, &'p mut E)
+  pub fn peek_with_emitter<'p, W>(&'p mut self) -> (Peeked<'p, 'inp, L, W>, &'p mut Ctx::Emitter)
   where
     W: Window,
   {
@@ -734,7 +731,7 @@ where
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  fn peek_with_emitter_inner<'p, W>(&'p mut self, buf: &mut Peeked<'p, 'inp, L, W>) -> &'p mut E
+  fn peek_with_emitter_inner<'p, W>(&'p mut self, buf: &mut Peeked<'p, 'inp, L, W>) -> &'p mut Ctx::Emitter
   where
     W: Window,
   {
@@ -846,7 +843,7 @@ where
   ///
   /// Returns `Ok(Some(token))` for valid tokens, `Ok(None)` at end of input, or
   /// `Err(error)` if a fatal error occurred.
-  pub fn next_token(&mut self) -> Result<Option<Spanned<L::Token, L::Span>>, E::Error> {
+  pub fn next_token(&mut self) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     // First, consume from cache if available
     while let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();
