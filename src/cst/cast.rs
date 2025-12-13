@@ -12,7 +12,7 @@ use super::{CstNode, CstNodeChildren, Language, SyntaxNode};
 /// # Examples
 ///
 /// ```rust,ignore
-/// use logosky::cst::cast;
+/// use tokit::cst::cast;
 ///
 /// // Find the first identifier child
 /// if let Some(identifier) = cast::child::<IdentifierNode>(&function_syntax) {
@@ -39,7 +39,7 @@ pub fn child<N: CstNode<Lang>, Lang: Language>(parent: &SyntaxNode<Lang>) -> Opt
 /// # Examples
 ///
 /// ```rust,ignore
-/// use logosky::cst::cast;
+/// use tokit::cst::cast;
 ///
 /// // Get all parameters of a function
 /// let parameters: Vec<Parameter> = cast::children(&function_syntax).collect();
@@ -70,7 +70,7 @@ pub fn children<N: CstNode<Lang>, Lang: Language>(
 /// # Examples
 ///
 /// ```rust,ignore
-/// use logosky::cst::cast;
+/// use tokit::cst::cast;
 ///
 /// // Get the equals token from an assignment
 /// let equals = cast::token(&assignment_node, &SyntaxKind::Equals)?;

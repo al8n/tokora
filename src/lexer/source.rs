@@ -1,4 +1,4 @@
-pub use logos::{Source, source::Chunk};
+use core::ops::RangeBounds;
 
 #[cfg(feature = "bytes")]
 mod bytes;
@@ -9,321 +9,215 @@ mod bstr;
 #[cfg(feature = "hipstr")]
 mod hipstr;
 
-/// A transparent wrapper for custom source types to work around Logos orphan rule limitations.
-///
-/// `CustomSource` solves a specific problem when using types like [`bytes::Bytes`](::bytes::Bytes) or
-/// [`bstr::BStr`](::bstr::BStr) as lexer sources. These types implement `Deref<Target = [u8]>`, but
-/// Rust's orphan rules prevent LogoSky from implementing `logos::Source` for them directly
-/// (since both the trait and the type are defined in external crates).
-///
-/// By wrapping these types in `CustomSource`, you can use them as Logos sources without
-/// any runtime overhead - the wrapper is completely transparent thanks to `#[repr(transparent)]`.
-///
-/// # The Problem This Solves
-///
-/// Without `CustomSource`, you might encounter errors like:
-///
-/// ```text
-/// error[E0119]: conflicting implementations of trait `logos::Source`
-///   --> src/lib.rs:10:1
-///    |
-/// 10 | impl Source for bytes::Bytes { ... }
-///    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-///    |
-///    = note: conflicting implementation in crate `bytes`:
-///            - impl<T> Deref for Bytes where T: Deref<Target = [u8]>;
-/// ```
-///
-/// `CustomSource` wraps the type to create a distinct type that LogoSky *can* implement traits for.
-///
-/// # Zero-Cost Abstraction
-///
-/// This wrapper is completely free at runtime:
-/// - No memory overhead (transparent representation)
-/// - No indirection (direct access to inner value)
-/// - All methods are `#[inline(always)]`
-/// - The wrapper is optimized away by the compiler
-///
-/// # Supported Types
-///
-/// LogoSky provides implementations for:
-///
-/// - **`bytes::Bytes`** (with `bytes` feature): Zero-copy byte buffers
-/// - **`bstr::BStr`** (with `bstr` feature): Byte string slices
-/// - **`hipstr::HipStr`** (with `hipstr` feature): Inline/heap strings
-///
-/// # Examples
-///
-/// ## Using with bytes::Bytes
-///
-/// ```rust,ignore
-/// use bytes::Bytes;
-/// use logos::Logos;
-/// use logosky::source::CustomSource;
-///
-/// #[derive(Logos, Debug, Clone, Copy)]
-/// #[logos(source = CustomSource<Bytes>)]
-/// enum Token {
-///     #[regex(b"[0-9]+")]
-///     Number,
-///
-///     #[regex(b"[a-zA-Z]+")]
-///     Word,
-/// }
-///
-/// let input: CustomSource<Bytes> = Bytes::from_static(b"42 hello").into();
-/// let mut lexer = Token::lexer(&input);
-///
-/// assert!(matches!(lexer.next(), Some(Ok(Token::Number))));
-/// assert!(matches!(lexer.next(), Some(Ok(Token::Word))));
-/// ```
-///
-/// ## Zero-Cost Conversions
-///
-/// ```rust,ignore
-/// use bytes::Bytes;
-/// use logosky::source::CustomSource;
-///
-/// let bytes = Bytes::from_static(b"hello");
-///
-/// // Convert to CustomSource (zero cost)
-/// let source: CustomSource<Bytes> = bytes.into();
-///
-/// // Access the inner value (zero cost)
-/// let inner: &Bytes = source.as_inner();
-///
-/// // Get it back (zero cost)
-/// let bytes_again: Bytes = source.into_inner();
-/// ```
-///
-/// ## Using with References
-///
-/// ```rust,ignore
-/// use bytes::Bytes;
-/// use logosky::source::CustomSource;
-///
-/// let bytes = Bytes::from_static(b"data");
-///
-/// // Create CustomSource from a reference without cloning
-/// let source_ref: &CustomSource<Bytes> = CustomSource::from_ref(&bytes);
-///
-/// // Use it directly
-/// process_source(source_ref);
-/// ```
-///
-/// # API Overview
-///
-/// - **`from_ref(&S) -> &CustomSource<S>`**: Create from reference (zero-cost transmute)
-/// - **`from_mut(&mut S) -> &mut CustomSource<S>`**: Create from mutable reference
-/// - **`as_inner(&self) -> &S`**: Access inner value
-/// - **`into_inner(self) -> S`**: Extract inner value
-/// - **`From<S>`**: Convert from the wrapped type
-///
-/// # When to Use This
-///
-/// Use `CustomSource` when:
-/// - You want to use `bytes::Bytes`, `bstr::BStr`, or `hipstr::HipStr` as a Logos source
-/// - You're getting orphan rule errors about conflicting Source implementations
-/// - You need zero-copy lexing with specialized buffer types
-///
-/// You don't need `CustomSource` for:
-/// - Standard string slices (`&str`) - these work directly with Logos
-/// - Byte slices (`&[u8]`) - these also work directly
-/// - Owned strings (`String`) - use `&str` instead
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[repr(transparent)]
-pub struct CustomSource<S: ?Sized>(S);
+/// The slice type returned by lexers' sources.
+pub trait Slice<'source>: PartialEq + Eq + core::fmt::Debug {
+  /// The character type used by the lexer.
+  ///
+  /// - Use `char` for text-based lexers processing UTF-8 strings
+  /// - Use `u8` for byte-based lexers processing binary data or non-UTF-8 input
+  ///
+  /// This type must match the character type used by the Logos lexer's source.
+  type Char: Copy + core::fmt::Debug + PartialEq + Eq + core::hash::Hash;
 
-impl<S, T> AsRef<T> for CustomSource<S>
-where
-  S: AsRef<T> + ?Sized,
-  T: ?Sized,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_ref(&self) -> &T {
-    self.0.as_ref()
-  }
-}
-
-impl<S, T> AsMut<T> for CustomSource<S>
-where
-  S: AsMut<T> + ?Sized,
-  T: ?Sized,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_mut(&mut self) -> &mut T {
-    self.0.as_mut()
-  }
-}
-
-impl<S> From<S> for CustomSource<S> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(s: S) -> Self {
-    Self(s)
-  }
-}
-
-impl<S: ?Sized> CustomSource<S> {
-  /// Creates a `CustomSource` reference from a reference to the wrapped type.
-  ///
-  /// This is a zero-cost operation that reinterprets a reference to `S` as a reference
-  /// to `CustomSource<S>`. This is safe because `CustomSource` is `#[repr(transparent)]`.
-  ///
-  /// # Examples
-  ///
-  /// ```rust
-  /// # #[cfg(feature = "bytes")] {
-  /// use bytes::Bytes;
-  /// use logosky::source::CustomSource;
-  ///
-  /// let bytes = Bytes::from_static(b"hello");
-  /// let source_ref: &CustomSource<Bytes> = CustomSource::from_ref(&bytes);
-  /// # }
-  /// ```
-  ///
-  /// # Use Case
-  ///
-  /// This is particularly useful when you need to pass a borrowed value to a function
-  /// expecting `&CustomSource<S>` without cloning or moving the original value.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_ref(source: &S) -> &Self {
-    // Safety:
-    // The cast is safe because `CustomSource` is a transparent wrapper.
-    unsafe { &*(source as *const S as *const Self) }
-  }
-
-  /// Creates a mutable `CustomSource` reference from a mutable reference to the wrapped type.
-  ///
-  /// This is a zero-cost operation that reinterprets a mutable reference to `S` as a
-  /// mutable reference to `CustomSource<S>`.
-  ///
-  /// # Examples
-  ///
-  /// ```rust
-  /// # #[cfg(feature = "bytes")] {
-  /// use bytes::Bytes;
-  /// use logosky::source::CustomSource;
-  ///
-  /// let mut bytes = Bytes::from_static(b"data");
-  /// let source_mut: &mut CustomSource<Bytes> = CustomSource::from_mut(&mut bytes);
-  /// # }
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_mut(source: &mut S) -> &mut Self {
-    // Safety:
-    // The cast is safe because `CustomSource` is a transparent wrapper.
-    unsafe { &mut *(source as *mut S as *mut Self) }
-  }
-
-  /// Returns a `CustomSource` wrapping a reference to the inner value.
-  ///
-  /// This creates a new `CustomSource<&S>` that borrows the inner data.
-  ///
-  /// # Examples
-  ///
-  /// ```rust
-  /// # #[cfg(feature = "bytes")] {
-  /// use logosky::source::CustomSource;
-  /// use bytes::Bytes;
-  ///
-  /// let source = CustomSource::from(Bytes::from_static(b"hello"));
-  /// let borrowed: CustomSource<&Bytes> = source.as_ref();
-  /// # }
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_ref(&self) -> CustomSource<&S> {
-    CustomSource(&self.0)
-  }
-
-  /// Returns a `CustomSource` wrapping a mutable reference to the inner value.
-  ///
-  /// This creates a new `CustomSource<&mut S>` that mutably borrows the inner data.
-  ///
-  /// # Examples
-  ///
-  /// ```rust
-  /// # #[cfg(feature = "bytes")] {
-  /// use logosky::source::CustomSource;
-  /// use bytes::Bytes;
-  ///
-  /// let mut source = CustomSource::from(Bytes::from_static(b"hello"));
-  /// let mut_borrowed: CustomSource<&mut Bytes> = source.as_mut();
-  /// # }
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn as_mut(&mut self) -> CustomSource<&mut S> {
-    CustomSource(&mut self.0)
-  }
-
-  /// Returns a reference to the inner wrapped value.
-  ///
-  /// This is the primary way to access the wrapped value when you need to call
-  /// methods specific to the inner type.
-  ///
-  /// # Examples
-  ///
-  /// ```rust
-  /// # #[cfg(feature = "bytes")] {
-  /// use logosky::source::CustomSource;
-  /// use bytes::Bytes;
-  ///
-  /// let source = CustomSource::from(Bytes::from_static(b"hello world"));
-  /// let inner: &Bytes = source.as_inner();
-  ///
-  /// // Can now call Bytes-specific methods
-  /// assert_eq!(inner.len(), 11);
-  /// # }
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_inner(&self) -> &S {
-    &self.0
-  }
-
-  /// Returns a mutable reference to the inner wrapped value.
-  ///
-  /// This allows you to modify the wrapped value directly.
-  ///
-  /// # Examples
-  ///
-  /// ```rust
-  /// # #[cfg(feature = "bytes")] {
-  /// use logosky::source::CustomSource;
-  /// use bytes::BytesMut;
-  ///
-  /// let mut source = CustomSource::from(BytesMut::from("hello"));
-  /// let inner: &mut BytesMut = source.as_inner_mut();
-  ///
-  /// // Modify the inner value
-  /// inner.extend_from_slice(b" world");
-  /// # }
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn as_inner_mut(&mut self) -> &mut S {
-    &mut self.0
-  }
-
-  /// Consumes the `CustomSource` and returns the wrapped value.
-  ///
-  /// This is a zero-cost operation that unwraps the inner value.
-  ///
-  /// # Examples
-  ///
-  /// ```rust
-  /// # #[cfg(feature = "bytes")] {
-  /// use logosky::source::CustomSource;
-  /// use bytes::Bytes;
-  ///
-  /// let source = CustomSource::from(Bytes::from_static(b"hello"));
-  /// let bytes: Bytes = source.into_inner();
-  ///
-  /// assert_eq!(&bytes[..], b"hello");
-  /// # }
-  /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_inner(self) -> S
+  /// An iterator over the characters in the slice.
+  type Iter<'a>: Iterator<Item = Self::Char>
   where
-    S: Sized,
+    Self: 'a;
+
+  /// An iterator over the characters in the slice with their offsets to the start of the slice.
+  type PositionedIter<'a>: Iterator<Item = (usize, Self::Char)>
+  where
+    Self: 'a;
+
+  /// Returns an iterator over the characters in the slice.
+  fn iter<'a>(&'a self) -> Self::Iter<'a>
+  where
+    Self: 'a;
+
+  /// Returns an iterator over the characters in the slice with their offsets to the start of the slice.
+  fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
+  where
+    Self: 'a;
+
+  /// Returns the length of the slice.
+  fn len(&self) -> usize;
+
+  /// Returns `true` if the slice is empty.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    self.len() == 0
+  }
+}
+
+impl<'source> Slice<'source> for &'source [u8] {
+  type Char = u8;
+
+  type Iter<'a>
+    = core::iter::Copied<core::slice::Iter<'a, u8>>
+  where
+    Self: 'a;
+
+  type PositionedIter<'a>
+    = core::iter::Enumerate<core::iter::Copied<core::slice::Iter<'a, u8>>>
+  where
+    Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn iter<'a>(&'a self) -> Self::Iter<'a>
+  where
+    Self: 'a,
   {
-    self.0
+    <[u8]>::iter(self).copied()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
+  where
+    Self: 'a,
+  {
+    <[u8]>::iter(self).copied().enumerate()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    <[u8]>::len(self)
+  }
+}
+
+impl<'source> Slice<'source> for &'source str {
+  type Char = char;
+
+  type Iter<'a>
+    = core::str::Chars<'a>
+  where
+    Self: 'a;
+
+  type PositionedIter<'a>
+    = core::str::CharIndices<'a>
+  where
+    Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn iter<'a>(&'a self) -> Self::Iter<'a>
+  where
+    Self: 'a,
+  {
+    self.chars()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
+  where
+    Self: 'a,
+  {
+    self.char_indices()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    <str>::len(self)
+  }
+}
+
+/// The source trait for lexers
+pub trait Source<Cursor> {
+  /// A type this `Source` can be sliced into.
+  type Slice<'source>: Slice<'source>
+  where
+    Self: 'source;
+
+  /// Returns `true` if the source is empty.
+  fn is_empty(&self) -> bool;
+
+  /// Length of the source
+  fn len(&self) -> Cursor;
+
+  /// Get a slice of the source at given range. This is analogous to
+  /// `slice::get(range)`.
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  where
+    R: RangeBounds<&'a Cursor>,
+    Cursor: 'a;
+
+  /// For `&str` sources attempts to find the closest `char` boundary at which source
+  /// can be sliced, starting from `index`.
+  ///
+  /// For binary sources (`&[u8]`) this should just return `index` back.
+  #[inline]
+  fn find_boundary(&self, index: Cursor) -> Cursor {
+    index
+  }
+
+  /// Check if `index` is valid for this `Source`, that is:
+  ///
+  /// + It's not larger than the byte length of the `Source`.
+  /// + (`str` only) It doesn't land in the middle of a UTF-8 code point.
+  fn is_boundary(&self, index: Cursor) -> bool;
+}
+
+impl Source<usize> for [u8] {
+  type Slice<'source>
+    = &'source [u8]
+  where
+    Self: 'source;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    <[u8]>::is_empty(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    self.len()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  where
+    R: RangeBounds<&'a usize>,
+    usize: 'a,
+  {
+    self.get((
+      range.start_bound().map(|s| **s),
+      range.end_bound().map(|s| **s),
+    ))
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_boundary(&self, index: usize) -> bool {
+    index <= self.len()
+  }
+}
+
+impl Source<usize> for str {
+  type Slice<'source>
+    = &'source str
+  where
+    Self: 'source;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    <str>::is_empty(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    <str>::len(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  where
+    R: RangeBounds<&'a usize>,
+  {
+    self.get((
+      range.start_bound().map(|s| **s),
+      range.end_bound().map(|s| **s),
+    ))
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_boundary(&self, index: usize) -> bool {
+    self.is_char_boundary(index)
   }
 }

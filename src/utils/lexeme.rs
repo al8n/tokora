@@ -1,6 +1,8 @@
+use core::ops::{Add, AddAssign};
+
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
-use super::{CharLen, PositionedChar, Span};
+use super::{CharLen, PositionedChar, SimpleSpan};
 
 /// A compact, zero-copy description of a lexeme in source code.
 ///
@@ -38,7 +40,7 @@ use super::{CharLen, PositionedChar, Span};
 /// ## Single Character Lexeme
 ///
 /// ```rust
-/// use logosky::utils::{Lexeme, PositionedChar};
+/// use tokit::utils::{Lexeme, PositionedChar};
 ///
 /// let pc = PositionedChar::with_position('!', 42);
 /// let lexeme = Lexeme::from(pc);
@@ -51,7 +53,7 @@ use super::{CharLen, PositionedChar, Span};
 /// ## Span Lexeme
 ///
 /// ```rust
-/// use logosky::utils::{Lexeme, Span};
+/// use tokit::utils::{Lexeme, Span};
 ///
 /// let span = Span::new(10, 15); // bytes 10-15
 /// let lexeme: Lexeme<char> = Lexeme::from(span);
@@ -64,7 +66,7 @@ use super::{CharLen, PositionedChar, Span};
 /// ## Getting Span from Either Variant
 ///
 /// ```rust
-/// use logosky::utils::{Lexeme, PositionedChar};
+/// use tokit::utils::{Lexeme, PositionedChar};
 ///
 /// let lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
 ///
@@ -77,7 +79,7 @@ use super::{CharLen, PositionedChar, Span};
 /// ## Mapping Characters
 ///
 /// ```rust
-/// use logosky::utils::{Lexeme, PositionedChar};
+/// use tokit::utils::{Lexeme, PositionedChar};
 ///
 /// let lexeme = Lexeme::from(PositionedChar::with_position('a', 10));
 /// let upper = lexeme.map(|c| c.to_ascii_uppercase());
@@ -88,11 +90,11 @@ use super::{CharLen, PositionedChar, Span};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap, From)]
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
-pub enum Lexeme<Char = char> {
+pub enum Lexeme<Char = char, O = usize> {
   /// A single positioned character with its byte position.
   ///
   /// Use this variant when the unexpected lexeme is exactly one character long.
-  Char(PositionedChar<Char>),
+  Char(PositionedChar<Char, O>),
 
   /// A half-open byte range `[start, end)` into the original source.
   ///
@@ -102,35 +104,36 @@ pub enum Lexeme<Char = char> {
   ///
   /// Use this variant when the unexpected lexeme spans multiple characters
   /// or when you want to represent a multi-byte token.
-  Range(Span),
+  Range(SimpleSpan<O>),
 }
 
-impl<Char> core::fmt::Display for Lexeme<Char>
+impl<Char, O> core::fmt::Display for Lexeme<Char, O>
 where
   Char: super::human_display::DisplayHuman,
+  O: core::fmt::Display,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
-      Self::Char(pc) => write!(f, "'{}' at {}", pc.char_ref().display(), pc.position()),
+      Self::Char(pc) => write!(f, "'{}' at {}", pc.char_ref().display(), pc.position_ref()),
       Self::Range(span) => write!(f, "{}", span),
     }
   }
 }
 
-impl<Char> Lexeme<Char> {
+impl<Char, O> Lexeme<Char, O> {
   /// Creates a new `Lexeme` from a `Char` and its position.
   ///
   /// ## Example
   ///
   /// ```
-  /// use logosky::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::utils::{Lexeme, PositionedChar, Span};
   ///
   /// let char_lexeme = Lexeme::from_char(5, 'x');
   /// assert_eq!(char_lexeme.start(), 5);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_char(pos: usize, ch: Char) -> Self {
+  pub const fn from_char(pos: O, ch: Char) -> Self {
     Self::Char(PositionedChar::with_position(ch, pos))
   }
 
@@ -139,7 +142,7 @@ impl<Char> Lexeme<Char> {
   /// ## Example
   ///
   /// ```
-  /// use logosky::utils::{Lexeme, Span};
+  /// use tokit::utils::{Lexeme, Span};
   ///
   /// let l = Lexeme::<char>::from_range(5..10);
   /// assert_eq!(l.start(), 5);
@@ -147,7 +150,7 @@ impl<Char> Lexeme<Char> {
   /// assert!(l.is_range());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_range(range: impl Into<Span>) -> Self {
+  pub fn from_range(range: impl Into<SimpleSpan<O>>) -> Self {
     Self::Range(range.into())
   }
 
@@ -156,7 +159,7 @@ impl<Char> Lexeme<Char> {
   /// ## Example
   ///
   /// ```
-  /// use logosky::utils::{Lexeme, Span};
+  /// use tokit::utils::{Lexeme, Span};
   ///
   /// let l = Lexeme::<char>::from_range_const(5, 10);
   /// assert_eq!(l.start(), 5);
@@ -164,8 +167,8 @@ impl<Char> Lexeme<Char> {
   /// assert!(l.is_range());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_range_const(start: usize, end: usize) -> Self {
-    Self::Range(Span::new(start, end))
+  pub const fn from_range_const(span: SimpleSpan<O>) -> Self {
+    Self::Range(span)
   }
 
   /// Returns the start position of the lexeme.
@@ -173,7 +176,7 @@ impl<Char> Lexeme<Char> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::utils::{Lexeme, PositionedChar, Span};
   ///
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
   /// assert_eq!(char_lexeme.start(), 5);
@@ -182,10 +185,34 @@ impl<Char> Lexeme<Char> {
   /// assert_eq!(span_lexeme.start(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn start(&self) -> usize {
+  pub const fn start(&self) -> O
+  where
+    O: Copy,
+  {
     match self {
       Self::Char(pc) => pc.position(),
       Self::Range(r) => r.start(),
+    }
+  }
+
+  /// Returns the start position of the lexeme.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use tokit::utils::{Lexeme, PositionedChar, Span};
+  ///
+  /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
+  /// assert_eq!(char_lexeme.start(), 5);
+  ///
+  /// let span_lexeme: Lexeme<char> = Lexeme::from(Span::new(10, 15));
+  /// assert_eq!(span_lexeme.start(), 10);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn start_ref(&self) -> &O {
+    match self {
+      Self::Char(pc) => pc.position_ref(),
+      Self::Range(r) => r.start_ref(),
     }
   }
 
@@ -194,7 +221,7 @@ impl<Char> Lexeme<Char> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::utils::{Lexeme, PositionedChar, Span};
   ///
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
   /// assert_eq!(char_lexeme.end(), 6);
@@ -203,13 +230,15 @@ impl<Char> Lexeme<Char> {
   /// assert_eq!(span_lexeme.end(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn end(&self) -> usize
+  pub fn end(&self) -> O
   where
     Char: CharLen,
+    O: Clone,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     match self {
-      Self::Char(pc) => pc.position() + pc.char_ref().char_len(),
-      Self::Range(r) => r.end(),
+      Self::Char(pc) => pc.position_ref() + pc.char_ref().char_len(),
+      Self::Range(r) => r.end_ref().clone(),
     }
   }
 
@@ -221,7 +250,7 @@ impl<Char> Lexeme<Char> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar};
+  /// use tokit::utils::{Lexeme, PositionedChar};
   ///
   /// let lexeme = Lexeme::from(PositionedChar::with_position('a', 5));
   /// let upper = lexeme.map(|c| c.to_ascii_uppercase());
@@ -229,7 +258,7 @@ impl<Char> Lexeme<Char> {
   /// assert_eq!(upper.unwrap_char().char(), 'A');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map<F, NewChar>(self, f: F) -> Lexeme<NewChar>
+  pub fn map<F, NewChar>(self, f: F) -> Lexeme<NewChar, O>
   where
     F: FnOnce(Char) -> NewChar,
   {
@@ -250,7 +279,7 @@ impl<Char> Lexeme<Char> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar};
+  /// use tokit::utils::{Lexeme, PositionedChar};
   ///
   /// let lexeme = Lexeme::from(PositionedChar::with_position('€', 10));
   ///
@@ -260,13 +289,18 @@ impl<Char> Lexeme<Char> {
   /// assert_eq!(span.end(), 13);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> Span {
+  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> SimpleSpan<O>
+  where
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
+  {
     match self {
       Self::Char(pc) => {
-        let pos = pc.position();
-        Span::from(pos..(pos + len_of(pc.char_ref())))
+        let start = pc.position_ref();
+        let end = start + len_of(pc.char_ref());
+        SimpleSpan::new(start.clone(), end)
       }
-      Self::Range(r) => *r,
+      Self::Range(r) => r.clone(),
     }
   }
 
@@ -279,7 +313,7 @@ impl<Char> Lexeme<Char> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::utils::{Lexeme, PositionedChar, Span};
   ///
   /// // Single character
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
@@ -290,13 +324,15 @@ impl<Char> Lexeme<Char> {
   /// assert_eq!(span_lexeme.span(), Span::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> SimpleSpan<O>
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     match self {
       Self::Char(pc) => pc.span(),
-      Self::Range(r) => *r,
+      Self::Range(r) => r.clone(),
     }
   }
 
@@ -310,7 +346,7 @@ impl<Char> Lexeme<Char> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::{Lexeme, PositionedChar};
+  /// use tokit::utils::{Lexeme, PositionedChar};
   ///
   /// let mut lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
   /// lexeme.bump(10);
@@ -318,16 +354,19 @@ impl<Char> Lexeme<Char> {
   /// assert_eq!(lexeme.unwrap_char().position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     match self {
       Self::Char(positioned_char) => {
-        positioned_char.bump_position(n);
+        positioned_char.position += n;
+        self
       }
       Self::Range(span) => {
         span.bump(n);
+        self
       }
     }
-
-    self
   }
 }

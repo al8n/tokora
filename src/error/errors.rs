@@ -11,7 +11,7 @@
 //! ## Basic Usage
 //!
 //! ```rust
-//! use logosky::error::Errors;
+//! use tokit::error::Errors;
 //!
 //! let mut errors = Errors::new();
 //! errors.push("First error");
@@ -24,7 +24,7 @@
 //! ## Iteration
 //!
 //! ```rust
-//! use logosky::error::Errors;
+//! use tokit::error::Errors;
 //!
 //! let mut errors = Errors::new();
 //! errors.push(1);
@@ -73,7 +73,7 @@ pub type DefaultContainer<E> = VecDeque<E>;
 /// ## Using Default Container
 ///
 /// ```rust
-/// use logosky::error::Errors;
+/// use tokit::error::Errors;
 ///
 /// let mut errors = Errors::new();
 /// errors.push("Error 1");
@@ -85,7 +85,7 @@ pub type DefaultContainer<E> = VecDeque<E>;
 /// ## Type Inference
 ///
 /// ```rust
-/// use logosky::error::Errors;
+/// use tokit::error::Errors;
 ///
 /// // Type inference works seamlessly
 /// let mut errors = Errors::new();
@@ -126,7 +126,7 @@ impl<E> Errors<E> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::error::Errors;
+  /// use tokit::error::Errors;
   ///
   /// let errors: Errors<String> = Errors::new();
   /// assert!(errors.is_empty());
@@ -147,7 +147,7 @@ impl<E> Errors<E> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::error::Errors;
+  /// use tokit::error::Errors;
   ///
   /// let errors: Errors<String> = Errors::new();
   /// assert!(errors.is_empty());
@@ -162,7 +162,7 @@ impl<E> Errors<E> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::error::Errors;
+  /// use tokit::error::Errors;
   ///
   /// let errors: Errors<String> = Errors::with_capacity(10);
   /// assert_eq!(errors.capacity(), 10);
@@ -177,7 +177,7 @@ impl<E> Errors<E> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::error::Errors;
+  /// use tokit::error::Errors;
   ///
   /// let mut errors: Errors<String> = Errors::new();
   /// errors.reserve(10);
@@ -234,7 +234,7 @@ where
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::error::Errors;
+  /// use tokit::error::Errors;
   ///
   /// let errors: Errors<String> = Errors::with_capacity(5);
   /// assert_eq!(errors.len(), 0);
@@ -369,7 +369,7 @@ impl<E, C> Errors<E, C> {
   ///
   /// ```rust
   /// # #[cfg(any(feature = "alloc", feature = "std"))] {
-  /// use logosky::error::{Errors, DefaultContainer};
+  /// use tokit::error::{Errors, DefaultContainer};
   ///
   /// let errors = Errors::<&str, DefaultContainer<_>>::from_container(["Error 1", "Error 2"].into_iter().collect());
   /// assert_eq!(errors.len(), 2);

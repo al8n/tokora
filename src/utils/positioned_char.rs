@@ -1,4 +1,8 @@
-use super::{CharLen, Span};
+use core::ops::Add;
+
+use super::CharLen;
+
+use crate::utils::SimpleSpan;
 
 /// A character paired with its byte position in the source input.
 ///
@@ -26,7 +30,7 @@ use super::{CharLen, Span};
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::PositionedChar;
+/// use tokit::utils::PositionedChar;
 ///
 /// let ch = PositionedChar::with_position('x', 42);
 ///
@@ -37,7 +41,7 @@ use super::{CharLen, Span};
 /// ## Character-by-Character Processing
 ///
 /// ```rust,ignore
-/// use logosky::utils::PositionedChar;
+/// use tokit::utils::PositionedChar;
 ///
 /// fn process_input(input: &str) -> Vec<PositionedChar<char>> {
 ///     input.char_indices()
@@ -53,7 +57,7 @@ use super::{CharLen, Span};
 /// ## Error Reporting
 ///
 /// ```rust,ignore
-/// use logosky::utils::PositionedChar;
+/// use tokit::utils::PositionedChar;
 ///
 /// fn report_unexpected(pc: PositionedChar<char>, input: &str) {
 ///     let line_start = input[..pc.position()]
@@ -71,7 +75,7 @@ use super::{CharLen, Span};
 /// ## Mapping Characters
 ///
 /// ```rust
-/// use logosky::utils::PositionedChar;
+/// use tokit::utils::PositionedChar;
 ///
 /// let lowercase = PositionedChar::with_position('a', 10);
 /// let uppercase = lowercase.map(|c| c.to_ascii_uppercase());
@@ -80,21 +84,15 @@ use super::{CharLen, Span};
 /// assert_eq!(uppercase.position(), 10); // Position preserved
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PositionedChar<Char> {
+pub struct PositionedChar<Char, Offset = usize> {
   char: Char,
-  position: usize,
+  pub(crate) position: Offset,
 }
 
-impl<Char> PositionedChar<Char> {
-  /// Create a new positioned character with position 0.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(char: Char) -> Self {
-    Self::with_position(char, 0)
-  }
-
+impl<Char, Offset> PositionedChar<Char, Offset> {
   /// Create a new positioned character with the given position.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_position(char: Char, position: usize) -> Self {
+  pub const fn with_position(char: Char, position: Offset) -> Self {
     Self { char, position }
   }
 
@@ -103,7 +101,7 @@ impl<Char> PositionedChar<Char> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 10);
   /// assert_eq!(pc.char(), 'x');
@@ -121,7 +119,7 @@ impl<Char> PositionedChar<Char> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 10);
   /// assert_eq!(pc.char_ref(), &'x');
@@ -136,7 +134,7 @@ impl<Char> PositionedChar<Char> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut pc = PositionedChar::with_position('a', 10);
   /// *pc.char_mut() = 'b';
@@ -147,18 +145,36 @@ impl<Char> PositionedChar<Char> {
     &mut self.char
   }
 
-  /// Get the position.
+  /// Get the reference of the position.
   ///
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 42);
   /// assert_eq!(pc.position(), 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn position(&self) -> usize {
+  pub const fn position_ref(&self) -> &Offset {
+    &self.position
+  }
+
+  /// Get the position.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use tokit::utils::PositionedChar;
+  ///
+  /// let pc = PositionedChar::with_position('x', 42);
+  /// assert_eq!(pc.position(), 42);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn position(&self) -> Offset
+  where
+    Offset: Copy,
+  {
     self.position
   }
 
@@ -167,20 +183,22 @@ impl<Char> PositionedChar<Char> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::{PositionedChar, Span};
+  /// use tokit::utils::{PositionedChar, Span};
   ///
   ///
   /// let pc = PositionedChar::with_position('x', 42);
   /// assert_eq!(pc.span(), Span::new(42, 43));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> SimpleSpan<Offset>
   where
     Char: CharLen,
+    Offset: Clone + Ord,
+    for<'a> &'a Offset: Add<usize, Output = Offset>,
   {
-    let start = self.position();
+    let start = self.position_ref();
     let end = start + self.char_ref().char_len();
-    Span::new(start, end)
+    SimpleSpan::new(start.clone(), end)
   }
 
   /// Set the position, returning a mutable reference of the positioned character.
@@ -188,14 +206,14 @@ impl<Char> PositionedChar<Char> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut pc = PositionedChar::with_position('x', 10);
   /// pc.set_position(20);
   /// assert_eq!(pc.position(), 20);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn set_position(&mut self, position: usize) -> &mut Self {
+  pub fn set_position(&mut self, position: Offset) -> &mut Self {
     self.position = position;
     self
   }
@@ -205,14 +223,17 @@ impl<Char> PositionedChar<Char> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut pc = PositionedChar::with_position('x', 10);
   /// pc.bump_position(5);
   /// assert_eq!(pc.position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump_position(&mut self, n: usize) -> &mut Self {
+  pub fn bump_position<'a>(&'a mut self, n: &'a Offset) -> &'a mut Self
+  where
+    Offset: core::ops::AddAssign<&'a Offset>,
+  {
     self.position += n;
     self
   }
@@ -222,7 +243,7 @@ impl<Char> PositionedChar<Char> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 10);
   /// let pc_ref = pc.as_ref();
@@ -230,10 +251,10 @@ impl<Char> PositionedChar<Char> {
   /// assert_eq!(pc_ref.position(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_ref(&self) -> PositionedChar<&Char> {
+  pub const fn as_ref(&self) -> PositionedChar<&Char, &Offset> {
     PositionedChar {
       char: &self.char,
-      position: self.position,
+      position: &self.position,
     }
   }
 
@@ -242,7 +263,7 @@ impl<Char> PositionedChar<Char> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut pc = PositionedChar::with_position('a', 10);
   /// {
@@ -252,10 +273,10 @@ impl<Char> PositionedChar<Char> {
   /// assert_eq!(pc.char(), 'b');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_mut(&mut self) -> PositionedChar<&mut Char> {
+  pub const fn as_mut(&mut self) -> PositionedChar<&mut Char, &mut Offset> {
     PositionedChar {
       char: &mut self.char,
-      position: self.position,
+      position: &mut self.position,
     }
   }
 
@@ -264,7 +285,7 @@ impl<Char> PositionedChar<Char> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('a', 10);
   /// let upper = pc.map(|c| c.to_ascii_uppercase());
@@ -272,7 +293,7 @@ impl<Char> PositionedChar<Char> {
   /// assert_eq!(upper.position(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map<NewChar, F>(self, f: F) -> PositionedChar<NewChar>
+  pub fn map<NewChar, F>(self, f: F) -> PositionedChar<NewChar, Offset>
   where
     F: FnOnce(Char) -> NewChar,
   {
@@ -287,7 +308,7 @@ impl<Char> PositionedChar<Char> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let pc = PositionedChar::with_position('x', 42);
   /// let (ch, pos) = pc.into_components();
@@ -295,12 +316,12 @@ impl<Char> PositionedChar<Char> {
   /// assert_eq!(pos, 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Char, usize) {
+  pub fn into_components(self) -> (Char, Offset) {
     (self.char, self.position)
   }
 }
 
-impl<Char: core::fmt::Display> core::fmt::Display for PositionedChar<Char> {
+impl<Char: core::fmt::Display, Offset> core::fmt::Display for PositionedChar<Char, Offset> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "{}", self.char)

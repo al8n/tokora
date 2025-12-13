@@ -48,7 +48,7 @@ impl Message {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::Message;
+  /// use tokit::utils::Message;
   ///
   /// let msg = Message::new("greeting");
   /// assert_eq!(msg.as_str(), "greeting");
@@ -65,7 +65,7 @@ impl Message {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::Message;
+  /// use tokit::utils::Message;
   ///
   /// const MSG: Message = Message::from_static("hello");
   /// assert_eq!(MSG.as_str(), "hello");
@@ -82,7 +82,7 @@ impl Message {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::Message;
+  /// use tokit::utils::Message;
   ///
   /// let msg = Message::from_static("world");
   /// assert_eq!(msg.as_str(), "world");
@@ -97,7 +97,7 @@ impl Message {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::Message;
+  /// use tokit::utils::Message;
   /// # #[cfg(any(feature = "std", feature = "alloc"))]
   /// # {
   /// use std::borrow::Cow;
@@ -116,7 +116,7 @@ impl Message {
   /// ## Examples
   ///
   /// ```
-  /// use logosky::utils::Message;
+  /// use tokit::utils::Message;
   /// # #[cfg(any(feature = "std", feature = "alloc"))]
   /// # {
   /// use std::borrow::Cow;
@@ -203,7 +203,7 @@ const _: () = {
     /// ## Examples
     ///
     /// ```
-    /// use logosky::utils::Message;
+    /// use tokit::utils::Message;
     ///
     /// let msg = Message::from_string(std::string::String::from("owned"));
     /// assert_eq!(msg.as_str(), "owned");
@@ -220,7 +220,7 @@ const _: () = {
     /// ## Examples
     ///
     /// ```
-    /// use logosky::utils::Message;
+    /// use tokit::utils::Message;
     ///
     /// let mut msg = Message::from_static("grow");
     /// msg.to_mut().push('!');

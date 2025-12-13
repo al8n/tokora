@@ -51,7 +51,7 @@ impl<'de: 'a, 'a> ToEquivalent<&'a [u8]> for &'de [u8] {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::utils::IntoEquivalent;
+/// use tokit::utils::IntoEquivalent;
 ///
 /// let bytes: &[u8] = b"hello";
 /// let str_ref: &str = "world";
@@ -66,7 +66,7 @@ pub trait IntoEquivalent<T>: sealed::Sealed<T> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::IntoEquivalent;
+  /// use tokit::utils::IntoEquivalent;
   ///
   /// let data: &[u8] = b"test";
   /// let result: &[u8] = data.into_equivalent();
@@ -91,7 +91,6 @@ impl<'de: 'a, 'a> IntoEquivalent<&'a [u8]> for &'de [u8] {
 
 #[cfg(feature = "bytes")]
 const _: () = {
-  use crate::source::CustomSource;
   use bytes::Bytes;
   use sealed::Sealed;
 
@@ -113,24 +112,6 @@ const _: () = {
     }
   }
 
-  impl Sealed<CustomSource<Bytes>> for [u8] {}
-
-  impl ToEquivalent<CustomSource<Bytes>> for [u8] {
-    #[cfg_attr(test, inline)]
-    #[cfg_attr(not(test), inline(always))]
-    fn to_equivalent(&self) -> CustomSource<Bytes> {
-      CustomSource::from(Bytes::copy_from_slice(self))
-    }
-  }
-
-  impl IntoEquivalent<CustomSource<Bytes>> for &[u8] {
-    #[cfg_attr(test, inline)]
-    #[cfg_attr(not(test), inline(always))]
-    fn into_equivalent(self) -> CustomSource<Bytes> {
-      CustomSource::from(Bytes::copy_from_slice(self))
-    }
-  }
-
   fn __assert_bytes_to_equivalent_impl() {
     fn _assert<T: ToEquivalent<Bytes> + ?Sized>() {}
 
@@ -147,7 +128,6 @@ const _: () = {
 
 #[cfg(feature = "hipstr")]
 const _: () = {
-  use crate::source::CustomSource;
   use hipstr::{HipByt, HipStr};
   use sealed::Sealed;
 
@@ -169,24 +149,6 @@ const _: () = {
     }
   }
 
-  impl Sealed<CustomSource<HipStr<'_>>> for str {}
-
-  impl<'a> ToEquivalent<CustomSource<HipStr<'a>>> for str {
-    #[cfg_attr(test, inline)]
-    #[cfg_attr(not(test), inline(always))]
-    fn to_equivalent(&self) -> CustomSource<HipStr<'a>> {
-      CustomSource::from(HipStr::from(self))
-    }
-  }
-
-  impl<'b> IntoEquivalent<CustomSource<HipStr<'b>>> for &str {
-    #[cfg_attr(test, inline)]
-    #[cfg_attr(not(test), inline(always))]
-    fn into_equivalent(self) -> CustomSource<HipStr<'b>> {
-      CustomSource::from(HipStr::from(self))
-    }
-  }
-
   impl Sealed<HipByt<'_>> for [u8] {}
 
   impl<'a> ToEquivalent<HipByt<'a>> for [u8] {
@@ -202,24 +164,6 @@ const _: () = {
     #[cfg_attr(not(test), inline(always))]
     fn into_equivalent(self) -> HipByt<'a> {
       HipByt::from(self)
-    }
-  }
-
-  impl Sealed<CustomSource<HipByt<'_>>> for [u8] {}
-
-  impl<'a> ToEquivalent<CustomSource<HipByt<'a>>> for [u8] {
-    #[cfg_attr(test, inline)]
-    #[cfg_attr(not(test), inline(always))]
-    fn to_equivalent(&self) -> CustomSource<HipByt<'a>> {
-      CustomSource::from(HipByt::from(self))
-    }
-  }
-
-  impl<'b> IntoEquivalent<CustomSource<HipByt<'b>>> for &[u8] {
-    #[cfg_attr(test, inline)]
-    #[cfg_attr(not(test), inline(always))]
-    fn into_equivalent(self) -> CustomSource<HipByt<'b>> {
-      CustomSource::from(HipByt::from(self))
     }
   }
 };

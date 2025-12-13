@@ -28,7 +28,7 @@
 //!
 //! ```rust
 //! # {
-//! use logosky::{
+//! use tokit::{
 //!     utils::{typenum::U3, GenericArrayDeque},
 //!     syntax::Syntax,
 //!     error::IncompleteSyntax
@@ -83,14 +83,14 @@
 //! }
 //!
 //! let mut error = IncompleteSyntax::<WhileLoop>::new(
-//!     logosky::utils::Span::new(10, 15),
+//!     tokit::utils::SimpleSpan::new(10, 15),
 //!     WhileComponent::Condition
 //! );
 //! assert_eq!(error.len(), 1);
 //! # }
 //! ```
 
-use crate::{syntax::Syntax, utils::Span};
+use crate::{syntax::Syntax, utils::SimpleSpan};
 use generic_arraydeque::{GenericArrayDeque, typenum::Unsigned};
 
 use core::{
@@ -116,7 +116,7 @@ use core::{
 ///
 /// ```rust
 /// # {
-/// use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+/// use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
 /// use typenum::U3;
 /// use core::fmt;
 ///
@@ -169,7 +169,7 @@ use core::{
 ///
 /// // Report a missing component at a specific location
 /// let error = IncompleteSyntax::<IfStatement>::new(
-///     logosky::utils::Span::new(10, 15),
+///     tokit::utils::SimpleSpan::new(10, 15),
 ///     IfStatementComponent::Condition
 /// );
 /// assert_eq!(error.len(), 1);
@@ -185,7 +185,7 @@ use core::{
 ///
 /// ```rust
 /// # {
-/// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+/// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
 /// # use typenum::U2;
 /// # use core::fmt;
 /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -212,7 +212,7 @@ use core::{
 /// #     }
 /// # }
 /// let mut error = IncompleteSyntax::<MySyntax>::new(
-///     logosky::utils::Span::new(10, 15),
+///     tokit::utils::SimpleSpan::new(10, 15),
 ///     Component::A
 /// );
 /// assert_eq!(format!("{}", error), "incomplete syntax: component A is missing");
@@ -222,14 +222,15 @@ use core::{
 /// # }
 /// ```
 #[derive(Debug, Clone)]
-pub struct IncompleteSyntax<S: Syntax> {
-  span: Span,
+pub struct IncompleteSyntax<S: Syntax, Sp = SimpleSpan> {
+  span: Sp,
   components: GenericArrayDeque<S::Component, S::COMPONENTS>,
 }
 
-impl<S> PartialEq for IncompleteSyntax<S>
+impl<S, Sp> PartialEq for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
+  Sp: PartialEq,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn eq(&self, other: &Self) -> bool {
@@ -237,11 +238,17 @@ where
   }
 }
 
-impl<S> Eq for IncompleteSyntax<S> where S: Syntax {}
-
-impl<S> Hash for IncompleteSyntax<S>
+impl<S, Sp> Eq for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
+  Sp: Eq,
+{
+}
+
+impl<S, Sp> Hash for IncompleteSyntax<S, Sp>
+where
+  S: Syntax,
+  Sp: Hash,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
@@ -250,7 +257,7 @@ where
   }
 }
 
-impl<S> AsRef<[S::Component]> for IncompleteSyntax<S>
+impl<S, Sp> AsRef<[S::Component]> for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
 {
@@ -260,7 +267,7 @@ where
   }
 }
 
-impl<S> AsMut<[S::Component]> for IncompleteSyntax<S>
+impl<S, Sp> AsMut<[S::Component]> for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
 {
@@ -270,7 +277,7 @@ where
   }
 }
 
-impl<S> IncompleteSyntax<S>
+impl<S, Sp> IncompleteSyntax<S, Sp>
 where
   S: Syntax,
 {
@@ -286,7 +293,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, Span, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -311,13 +318,13 @@ where
   /// #         REQUIRED
   /// #     }
   /// # }
-  /// let error = IncompleteSyntax::<MySyntax>::new(Span::new(10, 15), Component::A);
+  /// let error = IncompleteSyntax::<MySyntax>::new(SimpleSpan::new(10, 15), Component::A);
   /// assert_eq!(error.len(), 1);
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn new(span: Span, component: S::Component) -> Self {
+  pub fn new(span: Sp, component: S::Component) -> Self {
     if S::COMPONENTS::USIZE == 0 {
       panic!("IncompleteSyntax requires S::COMPONENTS to be non-zero");
     }
@@ -336,7 +343,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, Span, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -363,18 +370,18 @@ where
   /// #     }
   /// # }
   /// let components = vec![Component::A, Component::B];
-  /// let error = IncompleteSyntax::<MySyntax>::from_iter(Span::new(10, 15), components).unwrap();
+  /// let error = IncompleteSyntax::<MySyntax>::from_iter(SimpleSpan::new(10, 15), components).unwrap();
   /// assert_eq!(error.len(), 2);
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   ///
   /// // Empty iterator returns None
-  /// let error = IncompleteSyntax::<MySyntax>::from_iter(Span::new(10, 15), std::iter::empty());
+  /// let error = IncompleteSyntax::<MySyntax>::from_iter(SimpleSpan::new(10, 15), std::iter::empty());
   /// assert!(error.is_none());
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::should_implement_trait)]
-  pub fn from_iter(span: Span, iter: impl IntoIterator<Item = S::Component>) -> Option<Self> {
+  pub fn from_iter(span: Sp, iter: impl IntoIterator<Item = S::Component>) -> Option<Self> {
     let mut components = GenericArrayDeque::new();
     for component in iter {
       Self::try_push_impl(&mut components, component);
@@ -398,6 +405,22 @@ where
     }
   }
 
+  /// Helper function that tries to push a component with deduplication logic.
+  ///
+  /// Returns `None` if the component was added or already exists (success),
+  /// `Some(component)` if the buffer is full (failure).
+  #[inline(always)]
+  fn try_push_front_impl(
+    components: &mut GenericArrayDeque<S::Component, S::COMPONENTS>,
+    component: S::Component,
+  ) -> Option<S::Component> {
+    if components.contains(&component) {
+      None
+    } else {
+      components.push_front(component)
+    }
+  }
+
   /// Returns the number of missing components.
   ///
   /// The length is always at least 1.
@@ -406,7 +429,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -433,7 +456,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert_eq!(error.len(), 1);
@@ -453,7 +476,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U3;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -478,7 +501,7 @@ where
   /// #     }
   /// # }
   /// let error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert_eq!(error.capacity(), 3);
@@ -495,7 +518,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -522,7 +545,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(!error.is_full());
@@ -548,7 +571,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -575,7 +598,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push(Component::B);
@@ -591,6 +614,62 @@ where
     }
   }
 
+  /// Pushes a new missing component into the error from the front.
+  ///
+  /// If the component already exists in the error, this is a no-op (silently succeeds).
+  /// This maintains the set semantics where each component appears at most once.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the error is already full and the component is not already present.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # {
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use typenum::U2;
+  /// # use core::fmt;
+  /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+  /// # enum Component { A, B }
+  /// # impl fmt::Display for Component {
+  /// #     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+  /// #         match self { Self::A => write!(f, "A"), Self::B => write!(f, "B") }
+  /// #     }
+  /// # }
+  /// # struct MyLang;
+  /// # struct MySyntax;
+  /// # impl Syntax for MySyntax {
+  /// #     type Component = Component;
+  /// #     type COMPONENTS = U2;
+  /// #     type REQUIRED = U2;
+  /// #     type Lang = MyLang;
+  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #         COMPONENTS
+  /// #     }
+  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #         REQUIRED
+  /// #     }
+  /// # }
+  /// let mut error = IncompleteSyntax::<MySyntax>::new(
+  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     Component::A
+  /// );
+  /// error.push_front(Component::B);
+  /// // Pushing the same component again is a no-op
+  /// error.push_front(Component::A);
+  /// assert_eq!(error.len(), 2);
+  /// # }
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn push_front(&mut self, component: S::Component) {
+    if self.try_push_front(component).is_some() {
+      panic!("IncompleteSyntax buffer overflow: cannot push more components")
+    }
+  }
+
   /// Tries to push a new missing component into the error.
   ///
   /// Returns:
@@ -601,7 +680,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -626,7 +705,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(error.try_push(Component::B).is_none()); // Success
@@ -638,13 +717,60 @@ where
     Self::try_push_impl(&mut self.components, component)
   }
 
+  /// Tries to push a new missing component into the error from the front.
+  ///
+  /// Returns:
+  /// - `None` if the component was added or already exists (success)
+  /// - `Some(component)` if the buffer is full and the component is not present (failure)
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # {
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use typenum::U2;
+  /// # use core::fmt;
+  /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+  /// # enum Component { A, B, C }
+  /// # impl fmt::Display for Component {
+  /// #     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "X") }
+  /// # }
+  /// # struct MyLang;
+  /// # struct MySyntax;
+  /// # impl Syntax for MySyntax {
+  /// #     type Component = Component;
+  /// #     type COMPONENTS = U2;
+  /// #     type REQUIRED = U2;
+  /// #     type Lang = MyLang;
+  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #         COMPONENTS
+  /// #     }
+  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #         REQUIRED
+  /// #     }
+  /// # }
+  /// let mut error = IncompleteSyntax::<MySyntax>::new(
+  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     Component::A
+  /// );
+  /// assert!(error.try_push_front(Component::B).is_none()); // Success
+  /// assert_eq!(error.try_push_front(Component::C), Some(Component::C)); // Full!
+  /// # }
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn try_push_front(&mut self, component: S::Component) -> Option<S::Component> {
+    Self::try_push_front_impl(&mut self.components, component)
+  }
+
   /// Returns a slice of the missing components.
   ///
   /// # Examples
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -671,7 +797,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push(Component::B);
@@ -689,7 +815,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -716,7 +842,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     logosky::utils::Span::new(10, 15),
+  ///     tokit::utils::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.as_mut_slice()[0] = Component::B;
@@ -734,7 +860,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, Span, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -760,7 +886,7 @@ where
   /// #         REQUIRED
   /// #     }
   /// # }
-  /// let mut error = IncompleteSyntax::<MySyntax>::new(Span::new(10, 15), Component::A);
+  /// let mut error = IncompleteSyntax::<MySyntax>::new(SimpleSpan::new(10, 15), Component::A);
   /// error.push(Component::B);
   /// let collected: Vec<_> = error.iter().collect();
   /// assert_eq!(collected, vec![&Component::A, &Component::B]);
@@ -777,7 +903,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, Span, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -801,24 +927,27 @@ where
   /// #         REQUIRED
   /// #     }
   /// # }
-  /// let error = IncompleteSyntax::<MySyntax>::new(Span::new(10, 15), Component::A);
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// let error = IncompleteSyntax::<MySyntax>::new(SimpleSpan::new(10, 15), Component::A);
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> Sp
+  where
+    Sp: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the incomplete syntax.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &Sp {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the incomplete syntax.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut Sp {
     &mut self.span
   }
 
@@ -831,7 +960,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use logosky::{utils::{typenum, Span, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -855,19 +984,22 @@ where
   /// #         REQUIRED
   /// #     }
   /// # }
-  /// let mut error = IncompleteSyntax::<MySyntax>::new(Span::new(10, 15), Component::A);
+  /// let mut error = IncompleteSyntax::<MySyntax>::new(SimpleSpan::new(10, 15), Component::A);
   /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 20));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &Sp::Offset) -> &mut Self
+  where
+    Sp: crate::lexer::Span,
+  {
     self.span.bump(offset);
     self
   }
 }
 
-impl<S> Display for IncompleteSyntax<S>
+impl<S, Sp> Display for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
 {
@@ -894,4 +1026,9 @@ where
   }
 }
 
-impl<S> core::error::Error for IncompleteSyntax<S> where S: Syntax + Debug {}
+impl<S, Sp> core::error::Error for IncompleteSyntax<S, Sp>
+where
+  S: Syntax + Debug,
+  Sp: Debug,
+{
+}

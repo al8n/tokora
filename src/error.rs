@@ -5,6 +5,7 @@ pub use incomplete_token::*;
 pub use invalid::*;
 pub use invalid_hex_digits::*;
 pub use malformed::*;
+pub use missing::*;
 pub use unclosed::*;
 pub use undelimited::*;
 pub use unexpected_end::*;
@@ -13,7 +14,7 @@ pub use unexpected_keyword::*;
 pub use unexpected_lexeme::*;
 pub use unexpected_prefix::*;
 pub use unexpected_suffix::*;
-pub use unexpected_token::*;
+
 pub use unicode_escape::*;
 pub use unknown_lexeme::*;
 pub use unopened::*;
@@ -21,15 +22,25 @@ pub use unterminated::*;
 
 use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 
-use crate::utils::Span;
+use crate::utils::SimpleSpan;
 
 mod errors;
+
+/// Token-level error types.
+pub mod token;
+
+/// Lexer-level error types.
+pub mod lexer;
+
+/// Syntax-level error types.
+pub mod syntax;
 
 mod hex_escape;
 mod incomplete_syntax;
 mod incomplete_token;
 mod invalid;
 mod malformed;
+mod missing;
 mod unclosed;
 mod undelimited;
 mod unexpected_end;
@@ -38,7 +49,6 @@ mod unexpected_keyword;
 mod unexpected_lexeme;
 mod unexpected_prefix;
 mod unexpected_suffix;
-mod unexpected_token;
 mod unknown_lexeme;
 mod unopened;
 mod unterminated;
@@ -48,34 +58,356 @@ mod unicode_escape;
 
 /// Helper trait for producing placeholder AST/CST nodes during error recovery.
 ///
-/// When the parser cannot construct a valid node (e.g., due to a missing identifier), it can call
-/// [`ErrorNode::error`] to synthesize a sentinel value anchored at the offending span. Downstream
-/// passes can detect these sentinel nodes and skip or report them appropriately without changing
-/// the surrounding AST/CST structure.
+/// This trait enables parsers to create sentinel values when they encounter malformed or missing
+/// syntax, allowing parsing to continue while marking problematic regions. Downstream passes can
+/// detect these sentinel nodes and handle them appropriately (skip, report, attempt fix, etc.)
+/// without disrupting the overall AST/CST structure.
 ///
-/// ## Example
+/// # Two Flavors of Error Nodes
+///
+/// The trait provides two distinct methods for different recovery scenarios:
+///
+/// ## [`error`](Self::error) - Malformed Content
+///
+/// Use when **invalid syntax is present** that cannot be parsed correctly:
+///
+/// - **Parser found something**: Tokens exist but are malformed
+/// - **Examples**: `let x = = 5;` (double equals), `fn 123foo()` (digit in identifier)
+/// - **Semantic**: "Something is here, but it's wrong"
+/// - **Typical placeholder**: `<error>`, `<malformed>`, `Error`
+///
+/// ## [`missing`](Self::missing) - Absent Required Content
+///
+/// Use when **required syntax is completely absent**:
+///
+/// - **Parser found nothing**: Expected tokens are missing entirely
+/// - **Examples**: `let = 5;` (missing identifier), `fn ()` (missing name)
+/// - **Semantic**: "Something should be here, but it's not"
+/// - **Typical placeholder**: `<missing>`, `<absent>`, `Missing`
+///
+/// # Design Philosophy
+///
+/// This distinction helps with:
+///
+/// - **Better diagnostics**: Tools can show "malformed X" vs "missing X"
+/// - **Refactoring assistance**: IDEs can offer different quick-fixes
+/// - **Error recovery**: Different strategies for malformed vs missing syntax
+/// - **Code generation**: Generate placeholder code (`todo!()`, `???`, etc.)
+///
+/// # Integration with Recovery Parsers
+///
+/// `ErrorNode` works seamlessly with Chumsky's recovery combinators:
+///
+/// ```rust,ignore
+/// identifier_parser
+///     .recover_with(via_parser(
+///         // Malformed identifier (e.g., "123abc")
+///         just(Token::InvalidIdent)
+///             .to(Identifier::error(exa.span()))
+///     ))
+///     .or_else(|_| {
+///         // Missing identifier entirely
+///         Ok(Identifier::missing(exa.span()))
+///     })
+/// ```
+///
+/// # Examples
+///
+/// ## Basic Implementation
 ///
 /// ```rust
-/// use logosky::{error::ErrorNode, utils::Span};
+/// use tokit::{error::ErrorNode, utils::Span};
 ///
-/// #[derive(Debug, Clone)]
-/// struct FunctionName(&'static str);
+/// #[derive(Debug, Clone, PartialEq)]
+/// struct Identifier(String);
 ///
-/// impl ErrorNode for FunctionName {
+/// impl ErrorNode for Identifier {
 ///     fn error(_span: Span) -> Self {
-///         FunctionName("<error>")
+///         // Token was present but malformed (e.g., "123abc")
+///         Identifier("<error>".to_string())
+///     }
+///
+///     fn missing(_span: Span) -> Self {
+///         // Required identifier was completely absent
+///         Identifier("<missing>".to_string())
 ///     }
 /// }
 ///
-/// // During recovery:
-/// let span = Span::new(5, 10);
-/// let placeholder = FunctionName::error(span);
-/// assert_eq!(placeholder.0, "<error>");
+/// // Parser encounters "let 123 = 5;"
+/// let malformed = Identifier::error(Span::new(4, 7)); // "123" is malformed
+/// assert_eq!(malformed.0, "<error>");
+///
+/// // Parser encounters "let = 5;"
+/// let absent = Identifier::missing(Span::new(4, 4)); // Nothing where identifier expected
+/// assert_eq!(absent.0, "<missing>");
 /// ```
-pub trait ErrorNode {
-  /// Creates a placeholder node spanning the erroneous source location.
-  fn error(span: Span) -> Self;
+///
+/// ## Enum-Based Error Nodes
+///
+/// ```rust,ignore
+/// #[derive(Debug, Clone)]
+/// enum Expression {
+///     Number(i64),
+///     Identifier(String),
+///     Binary { op: Op, left: Box<Expr>, right: Box<Expr> },
+///     Error,   // Malformed expression
+///     Missing, // Missing required expression
+/// }
+///
+/// impl ErrorNode for Expression {
+///     fn error(_span: Span) -> Self {
+///         Expression::Error
+///     }
+///
+///     fn missing(_span: Span) -> Self {
+///         Expression::Missing
+///     }
+/// }
+/// ```
+///
+/// ## Span-Aware Error Nodes
+///
+/// ```rust,ignore
+/// #[derive(Debug, Clone)]
+/// struct TypeAnnotation {
+///     name: String,
+///     span: Span,
+/// }
+///
+/// impl ErrorNode for TypeAnnotation {
+///     fn error(span: Span) -> Self {
+///         // Keep span for precise error reporting
+///         TypeAnnotation {
+///             name: "<error>".to_string(),
+///             span,
+///         }
+///     }
+///
+///     fn missing(span: Span) -> Self {
+///         TypeAnnotation {
+///             name: "<missing>".to_string(),
+///             span,
+///         }
+///     }
+/// }
+/// ```
+///
+/// ## Distinguishing Errors in Diagnostics
+///
+/// ```rust,ignore
+/// fn report_errors(ast: &Program) {
+///     for node in ast.nodes() {
+///         match node {
+///             Node::Identifier(id) if id.0 == "<error>" => {
+///                 eprintln!("error: malformed identifier at {:?}", node.span());
+///                 eprintln!("help: identifiers cannot start with digits");
+///             }
+///             Node::Identifier(id) if id.0 == "<missing>" => {
+///                 eprintln!("error: expected identifier at {:?}", node.span());
+///                 eprintln!("help: insert a name here");
+///             }
+///             _ => {}
+///         }
+///     }
+/// }
+/// ```
+///
+/// # Best Practices
+///
+/// ## Use Consistent Sentinel Values
+///
+/// Choose recognizable placeholder values that:
+/// - Cannot occur in valid source code
+/// - Are easy to detect in downstream passes
+/// - Clearly indicate error vs missing
+///
+/// ## Preserve Span Information
+///
+/// Always store the span parameter if your AST nodes track positions:
+///
+/// ```rust,ignore
+/// impl ErrorNode for MyNode {
+///     fn error(span: Span) -> Self {
+///         MyNode { value: "<error>".into(), span } // ✅ Good
+///     }
+///
+///     fn missing(span: Span) -> Self {
+///         MyNode { value: "<missing>".into(), span: Span::default() } // ❌ Lost position!
+///     }
+/// }
+/// ```
+///
+/// ## Document Recovery Behavior
+///
+/// Explain how your parser uses error nodes:
+///
+/// ```rust,ignore
+/// /// Parses a function declaration.
+/// ///
+/// /// # Recovery
+/// ///
+/// /// - Malformed name (e.g., "123func"): Creates Identifier::error()
+/// /// - Missing name: Creates Identifier::missing()
+/// /// - Missing parameters: Creates Parameters::missing()
+/// fn parse_function() -> Function { ... }
+/// ```
+///
+/// # See Also
+///
+/// - [`via_parser`](crate::chumsky::recovery::via_parser): Recovery combinator
+/// - [`or_else`](crate::chumsky::Parser::or_else): Fallback for failed parsing
+/// - [`DelimitedByBrace`](crate::chumsky::delimited::DelimitedByBrace): Delimited parser with recovery
+pub trait ErrorNode<S = SimpleSpan> {
+  /// Creates a placeholder node for **malformed content**.
+  ///
+  /// Use this when the parser encounters **invalid syntax that is present but wrong**.
+  /// The span typically covers the malformed tokens that were found.
+  ///
+  /// # When to Use
+  ///
+  /// - Parser found tokens but they don't match expected syntax
+  /// - Content is present but structurally incorrect
+  /// - Something exists where it shouldn't, or in the wrong form
+  ///
+  /// # Examples
+  ///
+  /// ```text
+  /// let 123 = 5;        // "123" is malformed identifier
+  /// fn if() { }         // "if" is keyword used as name (malformed)
+  /// x + * y             // "*" without left operand (malformed binary op)
+  /// ```
+  ///
+  /// # Implementation
+  ///
+  /// ```rust
+  /// use tokit::{error::ErrorNode, utils::Span};
+  ///
+  /// struct Identifier(String);
+  ///
+  /// impl ErrorNode for Identifier {
+  ///     fn error(_span: Span) -> Self {
+  ///         Identifier("<error>".to_string())
+  ///     }
+  ///
+  ///     fn missing(_span: Span) -> Self {
+  ///         Identifier("<missing>".to_string())
+  ///     }
+  /// }
+  ///
+  /// // Parser found "123abc" as identifier
+  /// let node = Identifier::error(Span::new(0, 6));
+  /// ```
+  fn error(span: S) -> Self;
+
+  /// Creates a placeholder node for **missing required content**.
+  ///
+  /// Use this when the parser expects syntax but **finds nothing at all**.
+  /// The span typically points to where the content should have been.
+  ///
+  /// # When to Use
+  ///
+  /// - Parser expected tokens but found none
+  /// - Required syntax element is completely absent
+  /// - Gap exists where content should be
+  ///
+  /// # Examples
+  ///
+  /// ```text
+  /// let = 5;            // Missing identifier entirely
+  /// fn () { }           // Missing function name
+  /// x +                 // Missing right operand
+  /// ```
+  ///
+  /// # Implementation
+  ///
+  /// ```rust
+  /// use tokit::{error::ErrorNode, utils::Span};
+  ///
+  /// struct FunctionName(String);
+  ///
+  /// impl ErrorNode for FunctionName {
+  ///     fn error(_span: Span) -> Self {
+  ///         FunctionName("<error>".to_string())
+  ///     }
+  ///
+  ///     fn missing(_span: Span) -> Self {
+  ///         FunctionName("<missing>".to_string())
+  ///     }
+  /// }
+  ///
+  /// // Parser expected function name but found "("
+  /// let node = FunctionName::missing(Span::new(3, 3));
+  /// ```
+  fn missing(span: S) -> Self;
 }
+
+impl ErrorNode for &str {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn error(_span: SimpleSpan) -> Self {
+    "<error>"
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn missing(_span: SimpleSpan) -> Self {
+    "<missing>"
+  }
+}
+
+impl ErrorNode for &[u8] {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn error(_span: SimpleSpan) -> Self {
+    b"<error>"
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn missing(_span: SimpleSpan) -> Self {
+    b"<missing>"
+  }
+}
+
+#[cfg(feature = "bytes")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bytes")))]
+impl ErrorNode for bytes::Bytes {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn error(_span: SimpleSpan) -> Self {
+    bytes::Bytes::from_static(b"<error>")
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn missing(_span: SimpleSpan) -> Self {
+    bytes::Bytes::from_static(b"<missing>")
+  }
+}
+
+#[cfg(feature = "hipstr")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hipstr")))]
+const _: () = {
+  use hipstr::{HipByt, HipStr};
+
+  impl ErrorNode for HipStr<'_> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn error(_span: SimpleSpan) -> Self {
+      HipStr::borrowed("<error>")
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn missing(_span: SimpleSpan) -> Self {
+      HipStr::borrowed("<missing>")
+    }
+  }
+
+  impl ErrorNode for HipByt<'_> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn error(_span: SimpleSpan) -> Self {
+      HipByt::borrowed(b"<error>")
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn missing(_span: SimpleSpan) -> Self {
+      HipByt::borrowed(b"<missing>")
+    }
+  }
+};
 
 /// A container of error types
 pub trait ErrorContainer<E> {

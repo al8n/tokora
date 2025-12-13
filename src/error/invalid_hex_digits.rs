@@ -19,13 +19,15 @@
 //!
 //! ```rust
 //! # {
-//! use logosky::error::InvalidHexDigits;
+//! use tokit::error::InvalidHexDigits;
 //!
 //! // For hex escapes (\xXX) - max 2 digits
 //! let mut hex_digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(10, 'G');
 //! assert_eq!(hex_digits.len(), 1);
 //! # }
 //! ```
+
+use core::ops::AddAssign;
 
 use generic_arraydeque::{ConstArrayLength, GenericArrayDeque, IntoArrayLength, typenum::Const};
 
@@ -49,8 +51,8 @@ use crate::utils::{PositionedChar, human_display::DisplayHuman};
 /// ## For Hex Escapes (N=2)
 ///
 /// ```
-/// use logosky::error::InvalidHexDigits;
-/// use logosky::utils::PositionedChar;
+/// use tokit::error::InvalidHexDigits;
+/// use tokit::utils::PositionedChar;
 ///
 /// // Hex escapes need max 2 digits
 /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -61,8 +63,8 @@ use crate::utils::{PositionedChar, human_display::DisplayHuman};
 /// ## For Unicode Escapes (N=4)
 ///
 /// ```
-/// use logosky::error::InvalidHexDigits;
-/// use logosky::utils::PositionedChar;
+/// use tokit::error::InvalidHexDigits;
+/// use tokit::utils::PositionedChar;
 ///
 /// // Unicode escapes need max 4 digits
 /// let mut digits: InvalidHexDigits<char, 4> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -72,16 +74,17 @@ use crate::utils::{PositionedChar, human_display::DisplayHuman};
 /// assert_eq!(digits.len(), 4);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct InvalidHexDigits<Char, const N: usize>(
-  GenericArrayDeque<PositionedChar<Char>, ConstArrayLength<N>>,
+pub struct InvalidHexDigits<Char, const N: usize, O = usize>(
+  GenericArrayDeque<PositionedChar<Char, O>, ConstArrayLength<N>>,
 )
 where
   Const<N>: IntoArrayLength;
 
-impl<Char, const N: usize> core::fmt::Display for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> core::fmt::Display for InvalidHexDigits<Char, N, O>
 where
   Char: DisplayHuman,
   Const<N>: IntoArrayLength,
+  O: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let mut first = true;
@@ -93,7 +96,7 @@ where
         f,
         "'{}' at position {}",
         ch.char_ref().display(),
-        ch.position()
+        ch.position_ref()
       )?;
       first = false;
     }
@@ -101,28 +104,28 @@ where
   }
 }
 
-impl<Char, const N: usize> From<PositionedChar<Char>> for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> From<PositionedChar<Char, O>> for InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(c: PositionedChar<Char>) -> Self {
+  fn from(c: PositionedChar<Char, O>) -> Self {
     Self::from_positioned_char(c)
   }
 }
 
-impl<Char, const N: usize> From<[PositionedChar<Char>; 1]> for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> From<[PositionedChar<Char, O>; 1]> for InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(c: [PositionedChar<Char>; 1]) -> Self {
+  fn from(c: [PositionedChar<Char, O>; 1]) -> Self {
     let [c] = c;
     Self::from_positioned_char(c)
   }
 }
 
-impl<Char, const N: usize> InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {
@@ -135,12 +138,12 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::{error::InvalidHexDigits, utils::PositionedChar};
+  /// use tokit::{error::InvalidHexDigits, utils::PositionedChar};
   ///
   /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('Z', 12));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_positioned_char(ch: PositionedChar<Char>) -> Self {
+  pub fn from_positioned_char(ch: PositionedChar<Char, O>) -> Self {
     assert!(N > 0, "InvalidHexDigits capacity must be > 0");
 
     let mut vec = GenericArrayDeque::new();
@@ -157,12 +160,12 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
+  /// use tokit::error::InvalidHexDigits;
   ///
   /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'Z');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_char(pos: usize, ch: Char) -> Self {
+  pub fn from_char(pos: O, ch: Char) -> Self {
     Self::from_positioned_char(PositionedChar::with_position(ch, pos))
   }
 
@@ -171,7 +174,7 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::{error::InvalidHexDigits, utils::PositionedChar};
+  /// use tokit::{error::InvalidHexDigits, utils::PositionedChar};
   ///
   /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_array([
   ///   PositionedChar::with_position('G', 10),
@@ -179,7 +182,7 @@ where
   /// ]);
   /// assert_eq!(digits.len(), 2);
   /// ```
-  pub fn from_array(chars: [PositionedChar<Char>; N]) -> Self {
+  pub fn from_array(chars: [PositionedChar<Char, O>; N]) -> Self {
     Self(GenericArrayDeque::from_array(chars))
   }
 
@@ -190,8 +193,8 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let chars = vec![
   ///     PositionedChar::with_position('G', 10),
@@ -205,7 +208,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn try_from_iter<I>(iter: I) -> Option<Self>
   where
-    I: IntoIterator<Item = PositionedChar<Char>>,
+    I: IntoIterator<Item = PositionedChar<Char, O>>,
   {
     GenericArrayDeque::try_from_iter(iter).map(Self).ok()
   }
@@ -217,15 +220,15 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 10));
   /// assert!(digits.push(PositionedChar::with_position('H', 11)));
   /// assert!(!digits.push(PositionedChar::with_position('I', 12))); // Full!
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn push(&mut self, ch: PositionedChar<Char>) -> bool {
+  pub fn push(&mut self, ch: PositionedChar<Char, O>) -> bool {
     self.0.push_back(ch).is_none()
   }
 
@@ -236,15 +239,15 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(10, 'G');
   /// assert!(digits.push_char(11, 'H'));
   /// assert!(!digits.push_char(12, 'I')); // Full!
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn push_char(&mut self, pos: usize, ch: Char) -> bool {
+  pub fn push_char(&mut self, pos: O, ch: Char) -> bool {
     self.push(PositionedChar::with_position(ch, pos))
   }
 
@@ -255,8 +258,8 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from(
   ///     PositionedChar::with_position('Z', 5)
@@ -274,8 +277,8 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(10, 'G');
   /// assert!(!digits.is_full());
@@ -295,8 +298,8 @@ where
   /// ## Examples
   ///
   /// ```
-  /// use logosky::error::InvalidHexDigits;
-  /// use logosky::utils::PositionedChar;
+  /// use tokit::error::InvalidHexDigits;
+  /// use tokit::utils::PositionedChar;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from(
   ///     PositionedChar::with_position('G', 10)
@@ -305,7 +308,10 @@ where
   /// assert_eq!(digits[0].position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O>,
+  {
     let mut idx = 0;
     let slice = self.0.as_mut_slices().0;
     while idx < slice.len() {
@@ -316,31 +322,31 @@ where
   }
 }
 
-impl<Char, const N: usize> AsRef<[PositionedChar<Char>]> for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> AsRef<[PositionedChar<Char, O>]> for InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_ref(&self) -> &[PositionedChar<Char>] {
+  fn as_ref(&self) -> &[PositionedChar<Char, O>] {
     self
   }
 }
 
-impl<Char, const N: usize> AsMut<[PositionedChar<Char>]> for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> AsMut<[PositionedChar<Char, O>]> for InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_mut(&mut self) -> &mut [PositionedChar<Char>] {
+  fn as_mut(&mut self) -> &mut [PositionedChar<Char, O>] {
     self
   }
 }
 
-impl<Char, const N: usize> core::ops::Deref for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> core::ops::Deref for InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {
-  type Target = [PositionedChar<Char>];
+  type Target = [PositionedChar<Char, O>];
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref(&self) -> &Self::Target {
@@ -348,7 +354,7 @@ where
   }
 }
 
-impl<Char, const N: usize> core::ops::DerefMut for InvalidHexDigits<Char, N>
+impl<Char, const N: usize, O> core::ops::DerefMut for InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {

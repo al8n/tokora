@@ -46,44 +46,44 @@
 //! ## Malformed Number Literals
 //!
 //! ```rust
-//! use logosky::{error::Malformed, utils::{Span, knowledge::IntLiteral}};
+//! use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::IntLiteral}};
 //!
 //! // Found "123abc" - mixed digits and letters
-//! let error = Malformed::int(Span::new(10, 16));
+//! let error = Malformed::int(SimpleSpan::new(10, 16));
 //! assert_eq!(error.to_string(), "malformed at 10..16, did you mean int literal?");
 //! ```
 //!
 //! ## Malformed Float Literals
 //!
 //! ```rust
-//! use logosky::{error::Malformed, utils::{Span, knowledge::FloatLiteral}};
+//! use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::FloatLiteral}};
 //!
 //! // Found "12.34.56" - multiple decimal points
-//! let error = Malformed::float(Span::new(5, 13));
-//! assert_eq!(error.span(), Span::new(5, 13));
+//! let error = Malformed::float(SimpleSpan::new(5, 13));
+//! assert_eq!(error.span(), SimpleSpan::new(5, 13));
 //! ```
 //!
 //! ## Generic Malformed Token
 //!
 //! ```rust
-//! use logosky::{error::Malformed, utils::Span};
+//! use tokit::{error::Malformed, utils::SimpleSpan};
 //!
 //! // Malformed with no specific knowledge
-//! let error: Malformed<()> = Malformed::new(Span::new(20, 25));
+//! let error: Malformed<()> = Malformed::new(SimpleSpan::new(20, 25));
 //! assert_eq!(error.to_string(), "malformed at 20..25");
 //! ```
 //!
 //! ## With Custom Knowledge
 //!
 //! ```rust
-//! use logosky::{error::Malformed, utils::{Span, knowledge::HexLiteral}};
+//! use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::HexLiteral}};
 //!
 //! // Found "0x" without any digits
-//! let error = Malformed::with_knowledge(Span::new(15, 17), HexLiteral::default());
+//! let error = Malformed::with_knowledge(SimpleSpan::new(15, 17), HexLiteral::default());
 //! assert_eq!(error.knowledge().is_some(), true);
 //! ```
 
-use crate::utils::{Span, human_display::DisplayHuman, knowledge::*};
+use crate::utils::{SimpleSpan, human_display::DisplayHuman, knowledge::*};
 
 /// A malformed string literal token.
 ///
@@ -177,32 +177,33 @@ pub type MalformedHexFloatLiteral = Malformed<HexFloatLiteral>;
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::{error::Malformed, utils::Span};
+/// use tokit::{error::Malformed, utils::SimpleSpan};
 ///
 /// // Malformed token at position 10-15
-/// let error: Malformed<()> = Malformed::new(Span::new(10, 15));
-/// assert_eq!(error.span(), Span::new(10, 15));
+/// let error: Malformed<()> = Malformed::new(SimpleSpan::new(10, 15));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 15));
 /// assert_eq!(error.to_string(), "malformed at 10..15");
 /// ```
 ///
 /// ## With Knowledge Context
 ///
 /// ```rust
-/// use logosky::{error::Malformed, utils::{Span, knowledge::IntLiteral}};
+/// use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::IntLiteral}};
 ///
 /// // Found "123abc" when parsing integer
-/// let error = Malformed::int(Span::new(5, 11));
+/// let error = Malformed::int(SimpleSpan::new(5, 11));
 /// assert_eq!(error.to_string(), "malformed at 5..11, did you mean int literal?");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Malformed<Knowledge> {
-  span: Span,
+pub struct Malformed<Knowledge, S = SimpleSpan> {
+  span: S,
   knowledge: Option<Knowledge>,
 }
 
-impl<Knowledge> core::fmt::Display for Malformed<Knowledge>
+impl<Knowledge, S> core::fmt::Display for Malformed<Knowledge, S>
 where
   Knowledge: DisplayHuman,
+  S: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match &self.knowledge {
@@ -217,241 +218,243 @@ where
   }
 }
 
-impl<Knowledge> core::error::Error for Malformed<Knowledge> where
-  Knowledge: DisplayHuman + core::fmt::Debug
+impl<Knowledge, S> core::error::Error for Malformed<Knowledge, S>
+where
+  Knowledge: DisplayHuman + core::fmt::Debug,
+  S: core::fmt::Debug + core::fmt::Display,
 {
 }
 
-impl Malformed<BooleanLiteral> {
-  /// Create a new Malformed knowledge for a boolean literal from a Span
+impl<S> Malformed<BooleanLiteral, S> {
+  /// Create a new Malformed knowledge for a boolean literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::BooleanLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::BooleanLiteral};
   ///
-  /// let error = Malformed::boolean(Span::new(10, 14));
-  /// assert_eq!(error.span(), Span::new(10, 14));
+  /// let error = Malformed::boolean(SimpleSpan::new(10, 14));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
   /// assert_eq!(error.knowledge(), Some(&BooleanLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn boolean(span: Span) -> Self {
+  pub const fn boolean(span: S) -> Self {
     Self::with_knowledge(span, BooleanLiteral(()))
   }
 }
 
-impl Malformed<NullLiteral> {
-  /// Create a new Malformed knowledge for a null literal from a Span
+impl<S> Malformed<NullLiteral, S> {
+  /// Create a new Malformed knowledge for a null literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::NullLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::NullLiteral};
   ///
-  /// let error = Malformed::null(Span::new(20, 24));
-  /// assert_eq!(error.span(), Span::new(20, 24));
+  /// let error = Malformed::null(SimpleSpan::new(20, 24));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 24));
   /// assert_eq!(error.knowledge(), Some(&NullLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn null(span: Span) -> Self {
+  pub const fn null(span: S) -> Self {
     Self::with_knowledge(span, NullLiteral(()))
   }
 }
 
-impl Malformed<EnumLiteral> {
-  /// Create a new Malformed knowledge for an enum literal from a Span
+impl<S> Malformed<EnumLiteral, S> {
+  /// Create a new Malformed knowledge for an enum literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::EnumLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::EnumLiteral};
   ///
-  /// let error = Malformed::enumeration(Span::new(30, 40));
-  /// assert_eq!(error.span(), Span::new(30, 40));
+  /// let error = Malformed::enumeration(SimpleSpan::new(30, 40));
+  /// assert_eq!(error.span(), SimpleSpan::new(30, 40));
   /// assert_eq!(error.knowledge(), Some(&EnumLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn enumeration(span: Span) -> Self {
+  pub const fn enumeration(span: S) -> Self {
     Self::with_knowledge(span, EnumLiteral(()))
   }
 }
 
-impl Malformed<EnumValueLiteral> {
-  /// Create a new Malformed knowledge for an enum value literal from a Span
+impl<S> Malformed<EnumValueLiteral, S> {
+  /// Create a new Malformed knowledge for an enum value literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::EnumValueLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::EnumValueLiteral};
   ///
-  /// let error = Malformed::enum_value(Span::new(45, 49));
-  /// assert_eq!(error.span(), Span::new(45, 49));
+  /// let error = Malformed::enum_value(SimpleSpan::new(45, 49));
+  /// assert_eq!(error.span(), SimpleSpan::new(45, 49));
   /// assert_eq!(error.knowledge(), Some(&EnumValueLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn enum_value(span: Span) -> Self {
+  pub const fn enum_value(span: S) -> Self {
     Self::with_knowledge(span, EnumValueLiteral(()))
   }
 }
 
-impl Malformed<DecimalLiteral> {
-  /// Create a new Malformed knowledge for a decimal literal from a Span
+impl<S> Malformed<DecimalLiteral, S> {
+  /// Create a new Malformed knowledge for a decimal literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::DecimalLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::DecimalLiteral};
   ///
-  /// let error = Malformed::decimal(Span::new(150, 160));
-  /// assert_eq!(error.span(), Span::new(150, 160));
+  /// let error = Malformed::decimal(SimpleSpan::new(150, 160));
+  /// assert_eq!(error.span(), SimpleSpan::new(150, 160));
   /// assert_eq!(error.knowledge(), Some(&DecimalLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn decimal(span: Span) -> Self {
+  pub const fn decimal(span: S) -> Self {
     Self::with_knowledge(span, DecimalLiteral(()))
   }
 }
 
-impl Malformed<OctalLiteral> {
-  /// Create a new Malformed knowledge for an octal literal from a Span
+impl<S> Malformed<OctalLiteral, S> {
+  /// Create a new Malformed knowledge for an octal literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::OctalLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::OctalLiteral};
   ///
-  /// let error = Malformed::octal(Span::new(50, 60));
-  /// assert_eq!(error.span(), Span::new(50, 60));
+  /// let error = Malformed::octal(SimpleSpan::new(50, 60));
+  /// assert_eq!(error.span(), SimpleSpan::new(50, 60));
   /// assert_eq!(error.knowledge(), Some(&OctalLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn octal(span: Span) -> Self {
+  pub const fn octal(span: S) -> Self {
     Self::with_knowledge(span, OctalLiteral(()))
   }
 }
 
-impl Malformed<StringLiteral> {
-  /// Create a new Malformed knowledge for a string literal from a Span
+impl<S> Malformed<StringLiteral, S> {
+  /// Create a new Malformed knowledge for a string literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::StringLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::StringLiteral};
   ///
-  /// let error = Malformed::string(Span::new(70, 80));
-  /// assert_eq!(error.span(), Span::new(70, 80));
+  /// let error = Malformed::string(SimpleSpan::new(70, 80));
+  /// assert_eq!(error.span(), SimpleSpan::new(70, 80));
   /// assert_eq!(error.knowledge(), Some(&StringLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn string(span: Span) -> Self {
+  pub const fn string(span: S) -> Self {
     Self::with_knowledge(span, StringLiteral(()))
   }
 }
 
-impl Malformed<HexLiteral> {
-  /// Create a new Malformed knowledge for a hex literal from a Span
+impl<S> Malformed<HexLiteral, S> {
+  /// Create a new Malformed knowledge for a hex literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::HexLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::HexLiteral};
   ///
-  /// let error = Malformed::hex(Span::new(90, 100));
-  /// assert_eq!(error.span(), Span::new(90, 100));
+  /// let error = Malformed::hex(SimpleSpan::new(90, 100));
+  /// assert_eq!(error.span(), SimpleSpan::new(90, 100));
   /// assert_eq!(error.knowledge(), Some(&HexLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn hex(span: Span) -> Self {
+  pub const fn hex(span: S) -> Self {
     Self::with_knowledge(span, HexLiteral(()))
   }
 }
 
-impl Malformed<IntLiteral> {
-  /// Create a new Malformed knowledge for an int literal from a Span
+impl<S> Malformed<IntLiteral, S> {
+  /// Create a new Malformed knowledge for an int literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::IntLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::IntLiteral};
   ///
-  /// let error = Malformed::int(Span::new(105, 110));
-  /// assert_eq!(error.span(), Span::new(105, 110));
+  /// let error = Malformed::int(SimpleSpan::new(105, 110));
+  /// assert_eq!(error.span(), SimpleSpan::new(105, 110));
   /// assert_eq!(error.knowledge(), Some(&IntLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn int(span: Span) -> Self {
+  pub const fn int(span: S) -> Self {
     Self::with_knowledge(span, IntLiteral(()))
   }
 }
 
-impl Malformed<BinaryLiteral> {
-  /// Create a new Malformed knowledge for a binary literal from a Span
+impl<S> Malformed<BinaryLiteral, S> {
+  /// Create a new Malformed knowledge for a binary literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::BinaryLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::BinaryLiteral};
   ///
-  /// let error = Malformed::binary(Span::new(115, 120));
-  /// assert_eq!(error.span(), Span::new(115, 120));
+  /// let error = Malformed::binary(SimpleSpan::new(115, 120));
+  /// assert_eq!(error.span(), SimpleSpan::new(115, 120));
   /// assert_eq!(error.knowledge(), Some(&BinaryLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn binary(span: Span) -> Self {
+  pub const fn binary(span: S) -> Self {
     Self::with_knowledge(span, BinaryLiteral(()))
   }
 }
 
-impl Malformed<FloatLiteral> {
-  /// Create a new Malformed knowledge for a float literal from a Span
+impl<S> Malformed<FloatLiteral, S> {
+  /// Create a new Malformed knowledge for a float literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::FloatLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::FloatLiteral};
   ///
-  /// let error = Malformed::float(Span::new(125, 130));
-  /// assert_eq!(error.span(), Span::new(125, 130));
+  /// let error = Malformed::float(SimpleSpan::new(125, 130));
+  /// assert_eq!(error.span(), SimpleSpan::new(125, 130));
   /// assert_eq!(error.knowledge(), Some(&FloatLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn float(span: Span) -> Self {
+  pub const fn float(span: S) -> Self {
     Self::with_knowledge(span, FloatLiteral(()))
   }
 }
 
-impl Malformed<HexFloatLiteral> {
-  /// Create a new Malformed knowledge for a hex float literal from a Span
+impl<S> Malformed<HexFloatLiteral, S> {
+  /// Create a new Malformed knowledge for a hex float literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span, utils::knowledge::HexFloatLiteral};
+  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::HexFloatLiteral};
   ///
-  /// let error = Malformed::hex_float(Span::new(135, 140));
-  /// assert_eq!(error.span(), Span::new(135, 140));
+  /// let error = Malformed::hex_float(SimpleSpan::new(135, 140));
+  /// assert_eq!(error.span(), SimpleSpan::new(135, 140));
   /// assert_eq!(error.knowledge(), Some(&HexFloatLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn hex_float(span: Span) -> Self {
+  pub const fn hex_float(span: S) -> Self {
     Self::with_knowledge(span, HexFloatLiteral(()))
   }
 }
 
-impl<Knowledge> Malformed<Knowledge> {
+impl<Knowledge, S> Malformed<Knowledge, S> {
   /// Creates a new malformed error without specific knowledge context.
   ///
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span};
+  /// use tokit::{error::Malformed, utils::SimpleSpan};
   ///
-  /// let error: Malformed<()> = Malformed::new(Span::new(10, 15));
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// let error: Malformed<()> = Malformed::new(SimpleSpan::new(10, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// assert_eq!(error.knowledge(), None);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span) -> Self {
+  pub const fn new(span: S) -> Self {
     Self {
       span,
       knowledge: None,
@@ -463,13 +466,13 @@ impl<Knowledge> Malformed<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::{Span, knowledge::IntLiteral}};
+  /// use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::IntLiteral}};
   ///
-  /// let error = Malformed::with_knowledge(Span::new(5, 10), IntLiteral::default());
+  /// let error = Malformed::with_knowledge(SimpleSpan::new(5, 10), IntLiteral::default());
   /// assert_eq!(error.knowledge().is_some(), true);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_knowledge(span: Span, knowledge: Knowledge) -> Self {
+  pub const fn with_knowledge(span: S, knowledge: Knowledge) -> Self {
     Self {
       span,
       knowledge: Some(knowledge),
@@ -481,25 +484,28 @@ impl<Knowledge> Malformed<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span};
+  /// use tokit::{error::Malformed, utils::SimpleSpan};
   ///
-  /// let error: Malformed<()> = Malformed::new(Span::new(20, 25));
-  /// assert_eq!(error.span(), Span::new(20, 25));
+  /// let error: Malformed<()> = Malformed::new(SimpleSpan::new(20, 25));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the malformed construct.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the malformed construct.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -508,9 +514,9 @@ impl<Knowledge> Malformed<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::{Span, knowledge::FloatLiteral}};
+  /// use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::FloatLiteral}};
   ///
-  /// let error = Malformed::float(Span::new(10, 15));
+  /// let error = Malformed::float(SimpleSpan::new(10, 15));
   /// assert!(error.knowledge().is_some());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -523,15 +529,15 @@ impl<Knowledge> Malformed<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span};
+  /// use tokit::{error::Malformed, utils::SimpleSpan};
   ///
-  /// let error: Malformed<()> = Malformed::new(Span::new(15, 20));
+  /// let error: Malformed<()> = Malformed::new(SimpleSpan::new(15, 20));
   /// let (span, knowledge) = error.into_components();
-  /// assert_eq!(span, Span::new(15, 20));
+  /// assert_eq!(span, SimpleSpan::new(15, 20));
   /// assert_eq!(knowledge, None);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Option<Knowledge>) {
+  pub fn into_components(self) -> (S, Option<Knowledge>) {
     (self.span, self.knowledge)
   }
 
@@ -544,14 +550,17 @@ impl<Knowledge> Malformed<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Malformed, utils::Span};
+  /// use tokit::{error::Malformed, utils::SimpleSpan};
   ///
-  /// let mut error: Malformed<()> = Malformed::new(Span::new(10, 15));
+  /// let mut error: Malformed<()> = Malformed::new(SimpleSpan::new(10, 15));
   /// error.bump(100);
-  /// assert_eq!(error.span(), Span::new(110, 115));
+  /// assert_eq!(error.span(), SimpleSpan::new(110, 115));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
     self.span.bump(offset);
     self
   }

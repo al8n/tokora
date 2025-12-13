@@ -45,44 +45,44 @@
 //! ## Invalid Range Values
 //!
 //! ```rust
-//! use logosky::{error::Invalid, utils::{Span, knowledge::IntLiteral}};
+//! use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
 //!
 //! // Found "256" when parsing a byte (range 0-255)
-//! let error = Invalid::int(Span::new(10, 13));
+//! let error = Invalid::int(SimpleSpan::new(10, 13));
 //! assert_eq!(error.to_string(), "invalid at 10..13, did you mean int literal?");
 //! ```
 //!
 //! ## Invalid Context Values
 //!
 //! ```rust
-//! use logosky::{error::Invalid, utils::{Span, knowledge::OctalLiteral}};
+//! use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::OctalLiteral}};
 //!
 //! // Found "0777" in strict mode where leading zeros aren't allowed
-//! let error = Invalid::octal(Span::new(5, 9));
-//! assert_eq!(error.span(), Span::new(5, 9));
+//! let error = Invalid::octal(SimpleSpan::new(5, 9));
+//! assert_eq!(error.span(), SimpleSpan::new(5, 9));
 //! ```
 //!
 //! ## Generic Invalid Value
 //!
 //! ```rust
-//! use logosky::{error::Invalid, utils::Span};
+//! use tokit::{error::Invalid, utils::SimpleSpan};
 //!
 //! // Invalid with no specific knowledge
-//! let error: Invalid<()> = Invalid::new(Span::new(20, 25));
+//! let error: Invalid<()> = Invalid::new(SimpleSpan::new(20, 25));
 //! assert_eq!(error.to_string(), "invalid at 20..25");
 //! ```
 //!
 //! ## With Custom Knowledge
 //!
 //! ```rust
-//! use logosky::{error::Invalid, utils::{Span, knowledge::HexLiteral}};
+//! use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::HexLiteral}};
 //!
 //! // Found valid hex syntax but value out of range
-//! let error = Invalid::with_knowledge(Span::new(15, 20), HexLiteral::default());
+//! let error = Invalid::with_knowledge(SimpleSpan::new(15, 20), HexLiteral::default());
 //! assert_eq!(error.knowledge().is_some(), true);
 //! ```
 
-use crate::utils::{Span, human_display::DisplayHuman, knowledge::*};
+use crate::utils::{SimpleSpan, human_display::DisplayHuman, knowledge::*};
 
 /// An invalid string literal value.
 ///
@@ -172,32 +172,33 @@ pub type InvalidHexFloatLiteral = Invalid<HexFloatLiteral>;
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::{error::Invalid, utils::Span};
+/// use tokit::{error::Invalid, utils::SimpleSpan};
 ///
 /// // Invalid value at position 10-13
-/// let error: Invalid<()> = Invalid::new(Span::new(10, 13));
-/// assert_eq!(error.span(), Span::new(10, 13));
+/// let error: Invalid<()> = Invalid::new(SimpleSpan::new(10, 13));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 13));
 /// assert_eq!(error.to_string(), "invalid at 10..13");
 /// ```
 ///
 /// ## With Knowledge Context
 ///
 /// ```rust
-/// use logosky::{error::Invalid, utils::{Span, knowledge::IntLiteral}};
+/// use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
 ///
 /// // Found "256" when expecting u8 (0-255)
-/// let error = Invalid::int(Span::new(5, 8));
+/// let error = Invalid::int(SimpleSpan::new(5, 8));
 /// assert_eq!(error.to_string(), "invalid at 5..8, did you mean int literal?");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Invalid<Knowledge> {
-  span: Span,
+pub struct Invalid<Knowledge, S = SimpleSpan> {
+  span: S,
   knowledge: Option<Knowledge>,
 }
 
-impl<Knowledge> core::fmt::Display for Invalid<Knowledge>
+impl<Knowledge, S> core::fmt::Display for Invalid<Knowledge, S>
 where
   Knowledge: DisplayHuman,
+  S: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match &self.knowledge {
@@ -212,228 +213,230 @@ where
   }
 }
 
-impl<Knowledge> core::error::Error for Invalid<Knowledge> where
-  Knowledge: DisplayHuman + core::fmt::Debug
+impl<Knowledge, S> core::error::Error for Invalid<Knowledge, S>
+where
+  Knowledge: DisplayHuman + core::fmt::Debug,
+  S: core::fmt::Debug + core::fmt::Display,
 {
 }
 
-impl Invalid<BooleanLiteral> {
-  /// Create a new Invalid knowledge for a boolean literal from a Span
+impl<S> Invalid<BooleanLiteral, S> {
+  /// Create a new Invalid knowledge for a boolean literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::BooleanLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::BooleanLiteral};
   ///
-  /// let error = Invalid::boolean(Span::new(10, 14));
-  /// assert_eq!(error.span(), Span::new(10, 14));
+  /// let error = Invalid::boolean(SimpleSpan::new(10, 14));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
   /// assert_eq!(error.knowledge(), Some(&BooleanLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn boolean(span: Span) -> Self {
+  pub const fn boolean(span: S) -> Self {
     Self::with_knowledge(span, BooleanLiteral(()))
   }
 }
 
-impl Invalid<NullLiteral> {
-  /// Create a new Invalid knowledge for a null literal from a Span
+impl<S> Invalid<NullLiteral, S> {
+  /// Create a new Invalid knowledge for a null literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::NullLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::NullLiteral};
   ///
-  /// let error = Invalid::null(Span::new(20, 24));
-  /// assert_eq!(error.span(), Span::new(20, 24));
+  /// let error = Invalid::null(SimpleSpan::new(20, 24));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 24));
   /// assert_eq!(error.knowledge(), Some(&NullLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn null(span: Span) -> Self {
+  pub const fn null(span: S) -> Self {
     Self::with_knowledge(span, NullLiteral(()))
   }
 }
 
-impl Invalid<EnumLiteral> {
-  /// Create a new Invalid knowledge for an enum literal from a Span
+impl<S> Invalid<EnumLiteral, S> {
+  /// Create a new Invalid knowledge for an enum literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::EnumLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::EnumLiteral};
   ///
-  /// let error = Invalid::enumeration(Span::new(30, 40));
-  /// assert_eq!(error.span(), Span::new(30, 40));
+  /// let error = Invalid::enumeration(SimpleSpan::new(30, 40));
+  /// assert_eq!(error.span(), SimpleSpan::new(30, 40));
   /// assert_eq!(error.knowledge(), Some(&EnumLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn enumeration(span: Span) -> Self {
+  pub const fn enumeration(span: S) -> Self {
     Self::with_knowledge(span, EnumLiteral(()))
   }
 }
 
-impl Invalid<EnumValueLiteral> {
-  /// Create a new Invalid knowledge for an enum value literal from a Span
+impl<S> Invalid<EnumValueLiteral, S> {
+  /// Create a new Invalid knowledge for an enum value literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::EnumValueLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::EnumValueLiteral};
   ///
-  /// let error = Invalid::enum_value(Span::new(45, 49));
-  /// assert_eq!(error.span(), Span::new(45, 49));
+  /// let error = Invalid::enum_value(SimpleSpan::new(45, 49));
+  /// assert_eq!(error.span(), SimpleSpan::new(45, 49));
   /// assert_eq!(error.knowledge(), Some(&EnumValueLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn enum_value(span: Span) -> Self {
+  pub const fn enum_value(span: S) -> Self {
     Self::with_knowledge(span, EnumValueLiteral(()))
   }
 }
 
-impl Invalid<DecimalLiteral> {
-  /// Create a new Invalid knowledge for a decimal literal from a Span
+impl<S> Invalid<DecimalLiteral, S> {
+  /// Create a new Invalid knowledge for a decimal literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::DecimalLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::DecimalLiteral};
   ///
-  /// let error = Invalid::decimal(Span::new(150, 160));
-  /// assert_eq!(error.span(), Span::new(150, 160));
+  /// let error = Invalid::decimal(SimpleSpan::new(150, 160));
+  /// assert_eq!(error.span(), SimpleSpan::new(150, 160));
   /// assert_eq!(error.knowledge(), Some(&DecimalLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn decimal(span: Span) -> Self {
+  pub const fn decimal(span: S) -> Self {
     Self::with_knowledge(span, DecimalLiteral(()))
   }
 }
 
-impl Invalid<OctalLiteral> {
-  /// Create a new Invalid knowledge for an octal literal from a Span
+impl<S> Invalid<OctalLiteral, S> {
+  /// Create a new Invalid knowledge for an octal literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::OctalLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::OctalLiteral};
   ///
-  /// let error = Invalid::octal(Span::new(50, 60));
-  /// assert_eq!(error.span(), Span::new(50, 60));
+  /// let error = Invalid::octal(SimpleSpan::new(50, 60));
+  /// assert_eq!(error.span(), SimpleSpan::new(50, 60));
   /// assert_eq!(error.knowledge(), Some(&OctalLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn octal(span: Span) -> Self {
+  pub const fn octal(span: S) -> Self {
     Self::with_knowledge(span, OctalLiteral(()))
   }
 }
 
-impl Invalid<StringLiteral> {
-  /// Create a new Invalid knowledge for a string literal from a Span
+impl<S> Invalid<StringLiteral, S> {
+  /// Create a new Invalid knowledge for a string literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::StringLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::StringLiteral};
   ///
-  /// let error = Invalid::string(Span::new(70, 80));
-  /// assert_eq!(error.span(), Span::new(70, 80));
+  /// let error = Invalid::string(SimpleSpan::new(70, 80));
+  /// assert_eq!(error.span(), SimpleSpan::new(70, 80));
   /// assert_eq!(error.knowledge(), Some(&StringLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn string(span: Span) -> Self {
+  pub const fn string(span: S) -> Self {
     Self::with_knowledge(span, StringLiteral(()))
   }
 }
 
-impl Invalid<HexLiteral> {
-  /// Create a new Invalid knowledge for a hex literal from a Span
+impl<S> Invalid<HexLiteral, S> {
+  /// Create a new Invalid knowledge for a hex literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::HexLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::HexLiteral};
   ///
-  /// let error = Invalid::hex(Span::new(90, 100));
-  /// assert_eq!(error.span(), Span::new(90, 100));
+  /// let error = Invalid::hex(SimpleSpan::new(90, 100));
+  /// assert_eq!(error.span(), SimpleSpan::new(90, 100));
   /// assert_eq!(error.knowledge(), Some(&HexLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn hex(span: Span) -> Self {
+  pub const fn hex(span: S) -> Self {
     Self::with_knowledge(span, HexLiteral(()))
   }
 }
 
-impl Invalid<IntLiteral> {
-  /// Create a new Invalid knowledge for an int literal from a Span
+impl<S> Invalid<IntLiteral, S> {
+  /// Create a new Invalid knowledge for an int literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::IntLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::IntLiteral};
   ///
-  /// let error = Invalid::int(Span::new(105, 110));
-  /// assert_eq!(error.span(), Span::new(105, 110));
+  /// let error = Invalid::int(SimpleSpan::new(105, 110));
+  /// assert_eq!(error.span(), SimpleSpan::new(105, 110));
   /// assert_eq!(error.knowledge(), Some(&IntLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn int(span: Span) -> Self {
+  pub const fn int(span: S) -> Self {
     Self::with_knowledge(span, IntLiteral(()))
   }
 }
 
-impl Invalid<BinaryLiteral> {
-  /// Create a new Invalid knowledge for a binary literal from a Span
+impl<S> Invalid<BinaryLiteral, S> {
+  /// Create a new Invalid knowledge for a binary literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::BinaryLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::BinaryLiteral};
   ///
-  /// let error = Invalid::binary(Span::new(115, 120));
-  /// assert_eq!(error.span(), Span::new(115, 120));
+  /// let error = Invalid::binary(SimpleSpan::new(115, 120));
+  /// assert_eq!(error.span(), SimpleSpan::new(115, 120));
   /// assert_eq!(error.knowledge(), Some(&BinaryLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn binary(span: Span) -> Self {
+  pub const fn binary(span: S) -> Self {
     Self::with_knowledge(span, BinaryLiteral(()))
   }
 }
 
-impl Invalid<FloatLiteral> {
-  /// Create a new Invalid knowledge for a float literal from a Span
+impl<S> Invalid<FloatLiteral, S> {
+  /// Create a new Invalid knowledge for a float literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::FloatLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::FloatLiteral};
   ///
-  /// let error = Invalid::float(Span::new(125, 130));
-  /// assert_eq!(error.span(), Span::new(125, 130));
+  /// let error = Invalid::float(SimpleSpan::new(125, 130));
+  /// assert_eq!(error.span(), SimpleSpan::new(125, 130));
   /// assert_eq!(error.knowledge(), Some(&FloatLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn float(span: Span) -> Self {
+  pub const fn float(span: S) -> Self {
     Self::with_knowledge(span, FloatLiteral(()))
   }
 }
 
-impl Invalid<HexFloatLiteral> {
-  /// Create a new Invalid knowledge for a hex float literal from a Span
+impl<S> Invalid<HexFloatLiteral, S> {
+  /// Create a new Invalid knowledge for a hex float literal from a SimpleSpan
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span, utils::knowledge::HexFloatLiteral};
+  /// use tokit::{error::Invalid, utils::SimpleSpan, utils::knowledge::HexFloatLiteral};
   ///
-  /// let error = Invalid::hex_float(Span::new(135, 140));
-  /// assert_eq!(error.span(), Span::new(135, 140));
+  /// let error = Invalid::hex_float(SimpleSpan::new(135, 140));
+  /// assert_eq!(error.span(), SimpleSpan::new(135, 140));
   /// assert_eq!(error.knowledge(), Some(&HexFloatLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn hex_float(span: Span) -> Self {
+  pub const fn hex_float(span: S) -> Self {
     Self::with_knowledge(span, HexFloatLiteral(()))
   }
 }
 
-impl<Knowledge> Invalid<Knowledge> {
+impl<Knowledge, S> Invalid<Knowledge, S> {
   /// Creates a new invalid value error without specific knowledge context.
   ///
   /// Use this constructor when you know a value is invalid but don't have (or need)
@@ -442,16 +445,16 @@ impl<Knowledge> Invalid<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
   /// // Found an invalid value at position 10-13, no specific context
-  /// let error: Invalid<()> = Invalid::new(Span::new(10, 13));
-  /// assert_eq!(error.span(), Span::new(10, 13));
+  /// let error: Invalid<()> = Invalid::new(SimpleSpan::new(10, 13));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 13));
   /// assert_eq!(error.knowledge(), None);
   /// assert_eq!(error.to_string(), "invalid at 10..13");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span) -> Self {
+  pub const fn new(span: S) -> Self {
     Self {
       span,
       knowledge: None,
@@ -467,16 +470,16 @@ impl<Knowledge> Invalid<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::{Span, knowledge::IntLiteral}};
+  /// use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
   ///
   /// // Found "256" when parsing u8 (valid range 0-255)
-  /// let error = Invalid::with_knowledge(Span::new(5, 8), IntLiteral::default());
-  /// assert_eq!(error.span(), Span::new(5, 8));
+  /// let error = Invalid::with_knowledge(SimpleSpan::new(5, 8), IntLiteral::default());
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 8));
   /// assert_eq!(error.knowledge(), Some(&IntLiteral::default()));
   /// assert_eq!(error.to_string(), "invalid at 5..8, did you mean int literal?");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_knowledge(span: Span, knowledge: Knowledge) -> Self {
+  pub const fn with_knowledge(span: S, knowledge: Knowledge) -> Self {
     Self {
       span,
       knowledge: Some(knowledge),
@@ -490,13 +493,16 @@ impl<Knowledge> Invalid<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
-  /// let error: Invalid<()> = Invalid::new(Span::new(10, 15));
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// let error: Invalid<()> = Invalid::new(SimpleSpan::new(10, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
@@ -505,13 +511,13 @@ impl<Knowledge> Invalid<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
-  /// let error: Invalid<()> = Invalid::new(Span::new(10, 15));
-  /// assert_eq!(error.span_ref(), &Span::new(10, 15));
+  /// let error: Invalid<()> = Invalid::new(SimpleSpan::new(10, 15));
+  /// assert_eq!(error.span_ref(), &SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
@@ -520,14 +526,14 @@ impl<Knowledge> Invalid<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
-  /// let mut error: Invalid<()> = Invalid::new(Span::new(10, 15));
-  /// *error.span_mut() = Span::new(20, 25);
-  /// assert_eq!(error.span(), Span::new(20, 25));
+  /// let mut error: Invalid<()> = Invalid::new(SimpleSpan::new(10, 15));
+  /// *error.span_mut() = SimpleSpan::new(20, 25);
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -539,12 +545,12 @@ impl<Knowledge> Invalid<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::{Span, knowledge::IntLiteral}};
+  /// use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
   ///
-  /// let error = Invalid::int(Span::new(5, 8));
+  /// let error = Invalid::int(SimpleSpan::new(5, 8));
   /// assert_eq!(error.knowledge(), Some(&IntLiteral::default()));
   ///
-  /// let error_no_context: Invalid<()> = Invalid::new(Span::new(10, 15));
+  /// let error_no_context: Invalid<()> = Invalid::new(SimpleSpan::new(10, 15));
   /// assert_eq!(error_no_context.knowledge(), None);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -560,15 +566,15 @@ impl<Knowledge> Invalid<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::{Span, knowledge::IntLiteral}};
+  /// use tokit::{error::Invalid, utils::{SimpleSpan, knowledge::IntLiteral}};
   ///
-  /// let error = Invalid::int(Span::new(10, 15));
+  /// let error = Invalid::int(SimpleSpan::new(10, 15));
   /// let (span, knowledge) = error.into_components();
-  /// assert_eq!(span, Span::new(10, 15));
+  /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// assert_eq!(knowledge, Some(IntLiteral::default()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Option<Knowledge>) {
+  pub fn into_components(self) -> (S, Option<Knowledge>) {
     (self.span, self.knowledge)
   }
 
@@ -581,24 +587,27 @@ impl<Knowledge> Invalid<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
-  /// let mut error: Invalid<()> = Invalid::new(Span::new(5, 10));
+  /// let mut error: Invalid<()> = Invalid::new(SimpleSpan::new(5, 10));
   /// error.bump(100);
-  /// assert_eq!(error.span(), Span::new(105, 110));
+  /// assert_eq!(error.span(), SimpleSpan::new(105, 110));
   /// ```
   ///
   /// ## Method Chaining
   ///
   /// ```rust
-  /// use logosky::{error::Invalid, utils::Span};
+  /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
-  /// let mut error: Invalid<()> = Invalid::new(Span::new(5, 10));
+  /// let mut error: Invalid<()> = Invalid::new(SimpleSpan::new(5, 10));
   /// error.bump(100).bump(50);
-  /// assert_eq!(error.span(), Span::new(155, 160));
+  /// assert_eq!(error.span(), SimpleSpan::new(155, 160));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
     self.span.bump(offset);
     self
   }

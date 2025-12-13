@@ -7,7 +7,7 @@ use std::vec::Vec;
 /// ## Example
 ///
 /// ```rust
-/// use logosky::utils::container::OneOrMore;
+/// use tokit::utils::container::OneOrMore;
 ///
 /// let mut vec = OneOrMore::new();
 /// vec.push(42);
@@ -21,7 +21,7 @@ pub type OneOrMore<T> = SmallVec<T, 1>;
 /// ## Example
 ///
 /// ```rust
-/// use logosky::utils::container::TwoOrMore;
+/// use tokit::utils::container::TwoOrMore;
 ///
 /// let mut vec = TwoOrMore::new();
 /// vec.push(1);
@@ -36,7 +36,7 @@ pub type TwoOrMore<T> = SmallVec<T, 2>;
 /// ## Example
 ///
 /// ```rust
-/// use logosky::utils::container::FourOrMore;
+/// use tokit::utils::container::FourOrMore;
 ///
 /// let vec = FourOrMore::from_const([1, 2, 3, 4]);
 /// assert_eq!(vec.len(), 4);
@@ -51,7 +51,7 @@ pub type FourOrMore<T> = SmallVec<T, 4>;
 /// ## Example
 ///
 /// ```rust
-/// use logosky::utils::container::SmallVec;
+/// use tokit::utils::container::SmallVec;
 ///
 /// // Create a SmallVec that inlines 4 elements
 /// let mut vec = SmallVec::<i32, 4>::new();
@@ -133,18 +133,18 @@ impl<'a, T, const N: usize> core::iter::IntoIterator for &'a SmallVec<T, N> {
   }
 }
 
-#[cfg(feature = "chumsky")]
-impl<T, const N: usize> chumsky::container::Container<T> for SmallVec<T, N> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn with_capacity(n: usize) -> Self {
-    Self::with_capacity(n)
-  }
+// #[cfg(feature = "chumsky")]
+// impl<T, const N: usize> chumsky::container::Container<T> for SmallVec<T, N> {
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn with_capacity(n: usize) -> Self {
+//     Self::with_capacity(n)
+//   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn push(&mut self, item: T) {
-    self.0.push(item);
-  }
-}
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn push(&mut self, item: T) {
+//     self.0.push(item);
+//   }
+// }
 
 impl<T, const N: usize> From<Vec<T>> for SmallVec<T, N> {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -166,7 +166,7 @@ impl<T, const N: usize> SmallVec<T, N> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::container::SmallVec;
+  /// use tokit::utils::container::SmallVec;
   ///
   /// let vec = SmallVec::<i32, 4>::new();
   /// assert_eq!(vec.len(), 0);
@@ -181,7 +181,7 @@ impl<T, const N: usize> SmallVec<T, N> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::container::SmallVec;
+  /// use tokit::utils::container::SmallVec;
   ///
   /// let vec = SmallVec::<i32, 2>::with_capacity(10);
   /// assert_eq!(vec.len(), 0);
@@ -197,7 +197,7 @@ impl<T, const N: usize> SmallVec<T, N> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::utils::container::SmallVec;
+  /// use tokit::utils::container::SmallVec;
   ///
   /// let vec = SmallVec::from_const([1, 2, 3]);
   /// assert_eq!(vec.len(), 3);

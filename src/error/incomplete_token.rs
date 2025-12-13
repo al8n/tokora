@@ -1,9 +1,11 @@
-use crate::utils::{Span, human_display::DisplayHuman};
-
+use crate::{
+  lexer::Span,
+  utils::{SimpleSpan, human_display::DisplayHuman},
+};
 /// An incomplete token
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct IncompleteToken<Knowledge> {
-  span: Span,
+pub struct IncompleteToken<Knowledge, S = SimpleSpan> {
+  span: S,
   knowledge: Option<Knowledge>,
 }
 
@@ -29,27 +31,30 @@ impl<Knowledge> core::error::Error for IncompleteToken<Knowledge> where
 {
 }
 
-impl<Knowledge> IncompleteToken<Knowledge> {
+impl<Knowledge, S> IncompleteToken<Knowledge, S> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  const fn new_in(span: Span, knowledge: Option<Knowledge>) -> Self {
+  const fn new_in(span: S, knowledge: Option<Knowledge>) -> Self {
     Self { span, knowledge }
   }
 
-  /// Create a new IncompleteToken knowledge from a Span
+  /// Create a new IncompleteToken knowledge from a SimpleSpan
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span) -> Self {
+  pub const fn new(span: S) -> Self {
     Self::new_in(span, None)
   }
 
-  /// Create a new IncompleteToken knowledge from a Span and Knowledge
+  /// Create a new IncompleteToken knowledge from a SimpleSpan and Knowledge
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_knowledge(span: Span, knowledge: Knowledge) -> Self {
+  pub const fn with_knowledge(span: S, knowledge: Knowledge) -> Self {
     Self::new_in(span, Some(knowledge))
   }
 
   /// Get the span of the incomplete knowledge
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
@@ -61,7 +66,7 @@ impl<Knowledge> IncompleteToken<Knowledge> {
 
   /// Decompose the IncompleteToken knowledge into its components
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Option<Knowledge>) {
+  pub fn into_components(self) -> (S, Option<Knowledge>) {
     (self.span, self.knowledge)
   }
 
@@ -70,7 +75,10 @@ impl<Knowledge> IncompleteToken<Knowledge> {
   /// This is useful when adjusting error positions after processing or
   /// when combining spans from different contexts.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bump(&mut self, offset: usize) {
+  pub fn bump(&mut self, offset: &S::Offset)
+  where
+    S: Span,
+  {
     self.span.bump(offset);
   }
 }

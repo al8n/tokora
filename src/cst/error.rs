@@ -25,7 +25,7 @@ mod token_mismatch;
 /// # Examples
 ///
 /// ```rust,ignore
-/// use logosky::cst::{CstNode, error::SyntaxError};
+/// use tokit::cst::{CstNode, error::SyntaxError};
 /// use typenum::U2;
 ///
 /// match MyNode::try_cast_node(syntax_node) {

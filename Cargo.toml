@@ -1,18 +1,18 @@
 [package]
-name = "logosky"
-version = "0.3.0"
+name = "tokit"
+version = "0.0.0"
 edition = "2024"
-repository = "https://github.com/al8n/logosky"
-homepage = "https://github.com/al8n/logosky"
-documentation = "https://docs.rs/logosky"
-description = "A seamless integration layer between Logos lexer and Chumsky parser combinator, providing zero-copy Tokenizer adapter and Parseable trait for building robust parsers"
+repository = "https://github.com/al8n/tokit"
+homepage = "https://github.com/al8n/tokit"
+documentation = "https://docs.rs/tokit"
+description = "Blazing fast parser combinators: parse-while-lexing (zero-copy), deterministic LALR-style parsing, no backtracking. Flexible emitters for fail-fast runtime or greedy compiler diagnostics"
 license = "MIT OR Apache-2.0"
 rust-version = "1.87"
 categories = ["parsing", "text-processing", "no-std"]
-keywords = ["lexer", "parser", "logos", "chumsky", "combinator"]
+keywords = ["parser", "combinator", "token", "logos", "error-recovery"]
 
 [features]
-default = ["std", "chumsky", "stacker"]
+default = ["std"]
 alloc = ["generic-arraydeque/alloc"]
 std = [
   "generic-arraydeque/default",
@@ -20,29 +20,26 @@ std = [
   "bytes?/default",
   "hipstr?/default",
   "bstr?/default",
-  "chumsky?/default",
+  "logos?/default",
 ]
 
-chumsky = ["dep:chumsky"]
-extension = ["chumsky/extension"]
-lexical-numbers = ["chumsky/lexical-numbers"]
-memoization = ["chumsky/memoization"]
-pratt = ["chumsky/pratt"]
-regex = ["chumsky/regex"]
-stacker = ["chumsky/stacker"]
-unstable = ["chumsky/unstable", "generic-arraydeque/unstable"]
+unstable = ["generic-arraydeque/unstable"]
+
+logos = ["dep:logos"]
 
 rowan = ["dep:rowan", "std"]
 
-either = ["dep:either", "chumsky/either"]
 among = ["dep:among"]
 hipstr = ["dep:hipstr"]
-bytes = ["dep:bytes", "chumsky/bytes"]
+bytes = ["dep:bytes"]
 bstr = ["dep:bstr"]
 smallvec = ["dep:smallvec", "alloc"]
 
 [dependencies]
 ascii = { version = "1", default-features = false }
+deranged = { version = "0.5", default-features = false }
+either = { version = "1", default-features = false }
+mayber = { version = "0.1", path = "../mayber", default-features = false }
 derive_more = { version = "2", default-features = false, features = [
   "display",
   "deref",
@@ -54,14 +51,13 @@ derive_more = { version = "2", default-features = false, features = [
   "try_unwrap",
   "is_variant",
 ] }
-generic-arraydeque = { version = "0.1", default-features = false }
-logos = { version = "0.15", default-features = false, features = [
+generic-arraydeque = { version = "0.1", default-features = false, features = ["unstable"] }
+logos = { version = "0.15", default-features = false, optional = true, features = [
   "export_derive",
 ] }
 paste = "1"
+seq-macro = { version = "0.3", default-features = false }
 thiserror = { version = "2", default-features = false }
-
-chumsky = { version = "^0.11.2", default-features = false, optional = true }
 
 rowan = { version = "0.16", optional = true }
 
@@ -70,24 +66,31 @@ among = { version = "0.1", default-features = false, optional = true }
 bstr = { version = "1", default-features = false, optional = true }
 bytes = { version = "1", default-features = false, optional = true }
 hipstr = { version = "0.8", default-features = false, optional = true }
-either = { version = "1", default-features = false, optional = true }
+
 smallvec = { version = "1", default-features = false, optional = true, features = [
   "const_new",
 ] }
 
 [dev-dependencies]
-criterion = "0.7"
+criterion = "0.8"
 tempfile = "3"
+thiserror = { version = "2", default-features = false }
 
 [[example]]
-name = "simple_calculator"
-path = "examples/simple_calculator.rs"
-required-features = ["chumsky", "std"]
+name = "json"
+path = "examples/json.rs"
+required-features = ["std", "logos"]
 
-[[example]]
-name = "custom_parser"
-path = "examples/custom_parser.rs"
-required-features = ["chumsky", "std"]
+# Note: These examples are being updated for v0.3.0 API
+# [[example]]
+# name = "simple_calculator"
+# path = "examples/simple_calculator.rs"
+# required-features = ["std"]
+
+# [[example]]
+# name = "custom_parser"
+# path = "examples/custom_parser.rs"
+# required-features = ["std"]
 
 [profile.bench]
 opt-level = 3

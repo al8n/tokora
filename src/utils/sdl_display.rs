@@ -31,7 +31,7 @@ mod sealed {
 /// ## Using DisplaySDL via CompactDisplay
 ///
 /// ```rust
-/// use logosky::utils::sdl_display::{DisplayCompact, DisplaySDL};
+/// use tokit::utils::sdl_display::{DisplayCompact, DisplaySDL};
 ///
 /// struct AST {
 ///     nodes: Vec<String>,
@@ -110,7 +110,7 @@ impl<T: DisplaySDL + ?Sized> DisplaySDL for &T {
 /// ## Simple Compact Display
 ///
 /// ```rust
-/// use logosky::utils::sdl_display::DisplayCompact;
+/// use tokit::utils::sdl_display::DisplayCompact;
 ///
 /// struct Point { x: i32, y: i32 }
 ///
@@ -129,7 +129,7 @@ impl<T: DisplaySDL + ?Sized> DisplaySDL for &T {
 /// ## With Options
 ///
 /// ```rust
-/// use logosky::utils::sdl_display::DisplayCompact;
+/// use tokit::utils::sdl_display::DisplayCompact;
 ///
 /// struct Tree {
 ///     value: i32,
@@ -211,7 +211,7 @@ impl<T: DisplayCompact + ?Sized> DisplayCompact for &T {
 /// ## Simple Pretty Display
 ///
 /// ```rust
-/// use logosky::utils::sdl_display::DisplayPretty;
+/// use tokit::utils::sdl_display::DisplayPretty;
 ///
 /// struct Point { x: i32, y: i32 }
 ///
@@ -238,7 +238,7 @@ impl<T: DisplayCompact + ?Sized> DisplayCompact for &T {
 /// ## With Indentation
 ///
 /// ```rust
-/// use logosky::utils::sdl_display::DisplayPretty;
+/// use tokit::utils::sdl_display::DisplayPretty;
 ///
 /// struct Tree {
 ///     value: i32,
@@ -311,7 +311,7 @@ impl<T: DisplayPretty + ?Sized> DisplayPretty for &T {
 /// # Examples
 ///
 /// ```rust
-/// use logosky::utils::sdl_display::DisplayCompact;
+/// use tokit::utils::sdl_display::DisplayCompact;
 ///
 /// struct Data { value: i32 }
 ///
@@ -371,7 +371,7 @@ where
 /// # Examples
 ///
 /// ```rust
-/// use logosky::utils::sdl_display::DisplayPretty;
+/// use tokit::utils::sdl_display::DisplayPretty;
 ///
 /// struct Data { value: i32 }
 ///

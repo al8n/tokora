@@ -1,5 +1,3 @@
-use logos::{Lexer, Logos};
-
 use crate::State;
 
 /// Error returned when token count exceeds the configured limit.
@@ -11,7 +9,7 @@ use crate::State;
 /// # Example
 ///
 /// ```rust
-/// use logosky::utils::token_tracker::{TokenLimiter, TokenLimitExceeded};
+/// use tokit::utils::token_tracker::{TokenLimiter, TokenLimitExceeded};
 ///
 /// let mut limiter = TokenLimiter::with_limitation(1000);
 ///
@@ -39,7 +37,7 @@ impl TokenLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::with_limitation(10);
   /// for _ in 0..15 {
@@ -60,7 +58,7 @@ impl TokenLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::with_limitation(10);
   /// for _ in 0..15 {
@@ -108,7 +106,7 @@ impl TokenLimitExceeded {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::token_tracker::TokenLimiter;
+/// use tokit::utils::token_tracker::TokenLimiter;
 ///
 /// let mut limiter = TokenLimiter::with_limitation(1000);
 ///
@@ -122,7 +120,7 @@ impl TokenLimitExceeded {
 /// ## Checking Limits
 ///
 /// ```rust
-/// use logosky::utils::token_tracker::TokenLimiter;
+/// use tokit::utils::token_tracker::TokenLimiter;
 ///
 /// let mut limiter = TokenLimiter::with_limitation(5);
 ///
@@ -139,7 +137,7 @@ impl TokenLimitExceeded {
 ///
 /// ```rust,ignore
 /// use logos::Logos;
-/// use logosky::utils::token_tracker::TokenLimiter;
+/// use tokit::utils::token_tracker::TokenLimiter;
 ///
 /// #[derive(Default)]
 /// struct LexerState {
@@ -166,7 +164,7 @@ impl TokenLimitExceeded {
 /// ## DoS Protection Pattern
 ///
 /// ```rust,ignore
-/// use logosky::utils::token_tracker::TokenLimiter;
+/// use tokit::utils::token_tracker::TokenLimiter;
 ///
 /// fn parse_untrusted_input(input: &str, max_tokens: usize) -> Result<AST, Error> {
 ///     let mut limiter = TokenLimiter::with_limitation(max_tokens);
@@ -203,7 +201,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let limiter = TokenLimiter::new();
   /// assert_eq!(limiter.limitation(), usize::MAX);
@@ -222,7 +220,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let limiter = TokenLimiter::with_limitation(1000);
   /// assert_eq!(limiter.limitation(), 1000);
@@ -237,7 +235,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::new();
   /// limiter.increase();
@@ -256,7 +254,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::new();
   /// assert_eq!(limiter.tokens(), 0);
@@ -274,7 +272,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let limiter = TokenLimiter::with_limitation(500);
   /// assert_eq!(limiter.limitation(), 500);
@@ -292,7 +290,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::new();
   /// limiter.increase_token();
@@ -311,7 +309,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::token_tracker::TokenLimiter;
+  /// use tokit::utils::token_tracker::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::with_limitation(3);
   ///
@@ -337,6 +335,11 @@ impl TokenLimiter {
 
 impl State for TokenLimiter {
   type Error = TokenLimitExceeded;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn check(&self) -> Result<(), Self::Error> {
+    <Self as TokenTracker>::check(self)
+  }
 }
 
 /// A token tracker trait.
@@ -367,20 +370,46 @@ impl TokenTracker for TokenLimiter {
   }
 }
 
-impl<'a, T> TokenTracker for Lexer<'a, T>
-where
-  T: Logos<'a>,
-  T::Extras: TokenTracker,
-{
-  type Error = <T::Extras as TokenTracker>::Error;
+#[cfg(feature = "logos")]
+const _: () = {
+  use logos::{Lexer, Logos};
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase(&mut self) {
-    self.extras.increase();
+  use crate::{Token, lexer::LogosLexer};
+
+  impl<'a, T> TokenTracker for Lexer<'a, T>
+  where
+    T: Logos<'a>,
+    T::Extras: TokenTracker,
+  {
+    type Error = <T::Extras as TokenTracker>::Error;
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase(&mut self) {
+      self.extras.increase();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn check(&self) -> Result<(), Self::Error> {
+      self.extras.check()
+    }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check(&self) -> Result<(), Self::Error> {
-    self.extras.check()
+  impl<'a, T, L> TokenTracker for LogosLexer<'a, T, L>
+  where
+    T: From<L> + Token<'a>,
+    L: Logos<'a>,
+    L::Extras: TokenTracker,
+  {
+    type Error = <L::Extras as TokenTracker>::Error;
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase(&mut self) {
+      self.inner_mut().extras.increase();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn check(&self) -> Result<(), Self::Error> {
+      self.inner().extras.check()
+    }
   }
-}
+};

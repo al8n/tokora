@@ -1,4 +1,6 @@
-use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::DisplayHuman};
+use core::ops::{Add, AddAssign};
+
+use crate::utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::DisplayHuman};
 
 /// A zero-copy error structure combining an unrecognized lexeme with diagnostic knowledge.
 ///
@@ -14,7 +16,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// # Design Philosophy
 ///
 /// This type stores:
-/// - The **lexeme** of the unrecognized fragment ([`Char`](Lexeme::Char) or [`Span`](Lexeme::Range))
+/// - The **lexeme** of the unrecognized fragment ([`Char`](Lexeme::Char) or [`SimpleSpan`](Lexeme::Range))
 /// - **Knowledge** providing context about valid options or diagnostic information (any type you choose)
 ///
 /// The knowledge is left generic and unconstrained so you can carry:
@@ -39,7 +41,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// ## Basic Error with String Knowledge
 ///
 /// ```rust
-/// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+/// use tokit::{utils::PositionedChar, error::UnknownLexeme};
 ///
 /// let error = UnknownLexeme::from_positioned_char(
 ///     PositionedChar::with_position('£', 42),
@@ -54,7 +56,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// ## With Token Kind Knowledge
 ///
 /// ```rust,ignore
-/// use logosky::{utils::Span, error::UnknownLexeme};
+/// use tokit::{utils::SimpleSpan, error::UnknownLexeme};
 ///
 /// #[derive(Debug, Clone)]
 /// enum ValidTokens {
@@ -63,7 +65,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// }
 ///
 /// let error = UnknownLexeme::from_range(
-///     Span::new(10, 15),
+///     SimpleSpan::new(10, 15),
 ///     ValidTokens::Multiple(vec![TokenKind::Identifier, TokenKind::Keyword])
 /// );
 ///
@@ -77,7 +79,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// ## Mapping Knowledges
 ///
 /// ```rust
-/// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+/// use tokit::{utils::PositionedChar, error::UnknownLexeme};
 ///
 /// let error = UnknownLexeme::from_positioned_char(
 ///     PositionedChar::with_position('@', 5),
@@ -93,7 +95,7 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// ## Accessing Lexeme via Deref
 ///
 /// ```rust
-/// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+/// use tokit::{utils::PositionedChar, error::UnknownLexeme};
 ///
 /// let error = UnknownLexeme::from_positioned_char(
 ///     PositionedChar::with_position('!', 10),
@@ -106,14 +108,15 @@ use crate::utils::{CharLen, Lexeme, PositionedChar, Span, human_display::Display
 /// assert_eq!(span.start(), 10);
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnknownLexeme<Char, Knowledge> {
-  lexeme: Lexeme<Char>,
+pub struct UnknownLexeme<Char, Knowledge, O = usize> {
+  lexeme: Lexeme<Char, O>,
   knowledge: Knowledge,
 }
 
-impl<Char, Knowledge> core::fmt::Display for UnknownLexeme<Char, Knowledge>
+impl<Char, Knowledge, O> core::fmt::Display for UnknownLexeme<Char, Knowledge, O>
 where
   Char: DisplayHuman,
+  O: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self.lexeme() {
@@ -121,22 +124,23 @@ where
         f,
         "unknown character '{}' encountered at {}",
         pc.char_ref().display(),
-        pc.position(),
+        pc.position_ref(),
       ),
       Lexeme::Range(span) => write!(f, "unknown lexeme encountered at {}", span),
     }
   }
 }
 
-impl<Char, Knowledge> core::error::Error for UnknownLexeme<Char, Knowledge>
+impl<Char, Knowledge, O> core::error::Error for UnknownLexeme<Char, Knowledge, O>
 where
   Char: DisplayHuman + core::fmt::Debug,
   Knowledge: core::fmt::Debug,
+  O: core::fmt::Debug + core::fmt::Display,
 {
 }
 
-impl<Char, Knowledge> core::ops::Deref for UnknownLexeme<Char, Knowledge> {
-  type Target = Lexeme<Char>;
+impl<Char, Knowledge, O> core::ops::Deref for UnknownLexeme<Char, Knowledge, O> {
+  type Target = Lexeme<Char, O>;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref(&self) -> &Self::Target {
@@ -144,14 +148,14 @@ impl<Char, Knowledge> core::ops::Deref for UnknownLexeme<Char, Knowledge> {
   }
 }
 
-impl<Char, Knowledge> core::ops::DerefMut for UnknownLexeme<Char, Knowledge> {
+impl<Char, Knowledge, O> core::ops::DerefMut for UnknownLexeme<Char, Knowledge, O> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.lexeme
   }
 }
 
-impl<Char> UnknownLexeme<Char, crate::utils::knowledge::Characters> {
+impl<Char, O> UnknownLexeme<Char, crate::utils::knowledge::Characters, O> {
   /// Creates an `UnknownLexeme` with character knowledge.
   ///
   /// This is a convenience method for cases where no specific knowledge is provided.
@@ -159,17 +163,17 @@ impl<Char> UnknownLexeme<Char, crate::utils::knowledge::Characters> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{utils::{Span, knowledge::Characters}, error::UnknownLexeme};
+  /// use tokit::{utils::{SimpleSpan, knowledge::Characters}, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::<char, Characters>::unknown_characters(
-  ///     Span::new(7, 9)     
+  ///     SimpleSpan::new(7, 9)     
   /// );
   ///
   /// assert!(!error.is_char());
   /// assert_eq!(error.unwrap_range().start(), 7);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn unknown_characters(span: Span) -> Self {
+  pub const fn unknown_characters(span: SimpleSpan<O>) -> Self {
     Self::new(Lexeme::Range(span), sealed::Sealed::INIT)
   }
 
@@ -180,7 +184,7 @@ impl<Char> UnknownLexeme<Char, crate::utils::knowledge::Characters> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::unknown_character(
   ///     7, '#'
@@ -190,18 +194,18 @@ impl<Char> UnknownLexeme<Char, crate::utils::knowledge::Characters> {
   /// assert_eq!(error.unwrap_char().position(), 7);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn unknown_character(pos: usize, ch: Char) -> Self {
+  pub const fn unknown_character(pos: O, ch: Char) -> Self {
     Self::from_char(pos, ch, sealed::Sealed::INIT)
   }
 }
 
-impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
+impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// Creates a new `UnknownLexeme` from a lexeme and diagnostic knowledge.
   ///
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::{Lexeme, PositionedChar}, error::UnknownLexeme};
+  /// use tokit::{utils::{Lexeme, PositionedChar}, error::UnknownLexeme};
   ///
   /// let lexeme = Lexeme::from(PositionedChar::with_position('§', 5));
   /// let error = UnknownLexeme::new(lexeme, "valid: identifier");
@@ -209,7 +213,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(*error.knowledge(), "valid: identifier");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(lexeme: Lexeme<Char>, knowledge: Knowledge) -> Self {
+  pub const fn new(lexeme: Lexeme<Char, O>, knowledge: Knowledge) -> Self {
     Self { lexeme, knowledge }
   }
 
@@ -218,7 +222,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('$', 42),
@@ -229,7 +233,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(error.unwrap_char().position(), 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_char(pos: usize, ch: Char, knowledge: Knowledge) -> Self {
+  pub const fn from_char(pos: O, ch: Char, knowledge: Knowledge) -> Self {
     Self::from_positioned_char(PositionedChar::with_position(ch, pos), knowledge)
   }
 
@@ -238,7 +242,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('$', 42),
@@ -249,28 +253,28 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(error.unwrap_char().position(), 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_positioned_char(pc: PositionedChar<Char>, knowledge: Knowledge) -> Self {
+  pub const fn from_positioned_char(pc: PositionedChar<Char, O>, knowledge: Knowledge) -> Self {
     Self::new(Lexeme::Char(pc), knowledge)
   }
 
   /// Constructs an error from a byte span and diagnostic knowledge (const version).
   ///
-  /// Use this in const contexts where `Into<Span>` conversions aren't available.
+  /// Use this in const contexts where `Into<SimpleSpan>` conversions aren't available.
   ///
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::Span, error::UnknownLexeme};
+  /// use tokit::{utils::SimpleSpan, error::UnknownLexeme};
   ///
   /// let error: UnknownLexeme<char, _> = UnknownLexeme::from_range_const(
-  ///     Span::new(10, 15),
+  ///     SimpleSpan::new(10, 15),
   ///     "valid: semicolon"
   /// );
   ///
   /// assert!(error.is_range());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn from_range_const(span: Span, knowledge: Knowledge) -> Self {
+  pub const fn from_range_const(span: SimpleSpan<O>, knowledge: Knowledge) -> Self {
     Self::new(Lexeme::Range(span), knowledge)
   }
 
@@ -279,7 +283,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::error::UnknownLexeme;
+  /// use tokit::error::UnknownLexeme;
   ///
   /// let error: UnknownLexeme<char, _> = UnknownLexeme::from_range(10..15, "valid: closing brace");
   ///
@@ -287,7 +291,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(error.unwrap_range().start(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn from_range(span: impl Into<Span>, knowledge: Knowledge) -> Self {
+  pub fn from_range(span: impl Into<SimpleSpan<O>>, knowledge: Knowledge) -> Self {
     Self::new(Lexeme::Range(span.into()), knowledge)
   }
 
@@ -296,7 +300,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -306,7 +310,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert!(error.lexeme().is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme(&self) -> &Lexeme<Char> {
+  pub const fn lexeme(&self) -> &Lexeme<Char, O> {
     &self.lexeme
   }
 
@@ -315,7 +319,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -334,7 +338,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let mut error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -345,7 +349,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(error.unwrap_char().position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn lexeme_mut(&mut self) -> &mut Lexeme<Char> {
+  pub const fn lexeme_mut(&mut self) -> &mut Lexeme<Char, O> {
     &mut self.lexeme
   }
 
@@ -354,7 +358,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let mut error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -374,7 +378,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 10),
@@ -386,7 +390,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(knowledge, "identifier");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Lexeme<Char>, Knowledge) {
+  pub fn into_components(self) -> (Lexeme<Char, O>, Knowledge) {
     (self.lexeme, self.knowledge)
   }
 
@@ -395,7 +399,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 10),
@@ -406,7 +410,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert!(lexeme.is_char());
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_lexeme(self) -> Lexeme<Char> {
+  pub fn into_lexeme(self) -> Lexeme<Char, O> {
     self.lexeme
   }
 
@@ -415,7 +419,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 10),
@@ -437,7 +441,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('€', 5),
@@ -449,7 +453,11 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(span.end(), 8); // '€' is 3 bytes
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> Span {
+  pub fn span_with(&self, len_of: impl FnOnce(&Char) -> usize) -> SimpleSpan<O>
+  where
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
+  {
     self.lexeme.span_with(len_of)
   }
 
@@ -460,19 +468,21 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::{PositionedChar, Span}, error::UnknownLexeme};
+  /// use tokit::{utils::{PositionedChar, SimpleSpan}, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 10),
   ///     "digit"
   /// );
   ///
-  /// assert_eq!(error.span(), Span::new(10, 11));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn span(&self) -> Span
+  pub fn span(&self) -> SimpleSpan<O>
   where
     Char: CharLen,
+    O: Clone + Ord,
+    for<'a> &'a O: Add<usize, Output = O>,
   {
     self.lexeme.span()
   }
@@ -482,7 +492,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('a', 5),
@@ -494,7 +504,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(*upper.knowledge(), "digit");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map_char<F, NewChar>(self, f: F) -> UnknownLexeme<NewChar, Knowledge>
+  pub fn map_char<F, NewChar>(self, f: F) -> UnknownLexeme<NewChar, Knowledge, O>
   where
     F: FnMut(Char) -> NewChar,
   {
@@ -509,7 +519,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('!', 5),
@@ -520,7 +530,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(detailed.knowledge(), "unrecognized, valid: digit");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map_knowledge<F, NewKnowledge>(self, f: F) -> UnknownLexeme<Char, NewKnowledge>
+  pub fn map_knowledge<F, NewKnowledge>(self, f: F) -> UnknownLexeme<Char, NewKnowledge, O>
   where
     F: FnOnce(Knowledge) -> NewKnowledge,
   {
@@ -535,7 +545,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('a', 5),
@@ -551,7 +561,11 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(transformed.knowledge(), "unrecognized, valid: number");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map<F, NewChar, G, NewKnowledge>(self, f: F, g: G) -> UnknownLexeme<NewChar, NewKnowledge>
+  pub fn map<F, NewChar, G, NewKnowledge>(
+    self,
+    f: F,
+    g: G,
+  ) -> UnknownLexeme<NewChar, NewKnowledge, O>
   where
     F: FnMut(Char) -> NewChar,
     G: FnOnce(Knowledge) -> NewKnowledge,
@@ -569,7 +583,7 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::{utils::PositionedChar, error::UnknownLexeme};
+  /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
   ///
   /// let mut error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 5),
@@ -580,7 +594,10 @@ impl<Char, Knowledge> UnknownLexeme<Char, Knowledge> {
   /// assert_eq!(error.unwrap_char().position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, n: usize) -> &mut Self {
+  pub fn bump(&mut self, n: &O) -> &mut Self
+  where
+    O: for<'a> AddAssign<&'a O> + Clone,
+  {
     self.lexeme.bump(n);
     self
   }

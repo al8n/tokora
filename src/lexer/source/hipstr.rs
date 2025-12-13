@@ -1,107 +1,145 @@
-use core::ops::Range;
-
 use hipstr::{HipByt, HipStr};
 
-use super::CustomSource;
+use super::{Slice, Source};
 
-impl<'h> logos::Source for CustomSource<HipStr<'h>> {
-  type Slice<'a>
-    = HipStr<'h>
+impl<'source> Slice<'source> for HipStr<'source> {
+  type Char = char;
+
+  type Iter<'a>
+    = core::str::Chars<'a>
+  where
+    Self: 'a;
+
+  type PositionedIter<'a>
+    = core::str::CharIndices<'a>
   where
     Self: 'a;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn len(&self) -> usize {
-    self.0.len()
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn read<'a, Chunk>(&'a self, offset: usize) -> Option<Chunk>
+  fn iter<'a>(&'a self) -> Self::Iter<'a>
   where
-    Chunk: logos::source::Chunk<'a>,
+    Self: 'a,
   {
-    if offset + (Chunk::SIZE - 1) < self.len() {
-      Some(unsafe { Chunk::from_ptr(self.0.as_ptr().add(offset)) })
-    } else {
-      None
-    }
+    self.chars()
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  unsafe fn read_byte_unchecked(&self, offset: usize) -> u8 {
-    // The outer unsafe fn has a Safety warnings about the offset must not exceed the bounds,
-    // which is guaranteed by the outer caller.
-    unsafe { *self.0.as_bytes().get_unchecked(offset) }
+  fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
+  where
+    Self: 'a,
+  {
+    self.char_indices()
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice(&self, range: Range<usize>) -> Option<Self::Slice<'_>> {
-    if range.end <= self.len() {
-      Some(self.0.slice(range))
-    } else {
-      None
-    }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  unsafe fn slice_unchecked(&self, range: Range<usize>) -> Self::Slice<'_> {
-    // Safety: the inner unsafe has the same safety requirement as the outer one
-    unsafe { self.0.slice_unchecked(range) }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_boundary(&self, index: usize) -> bool {
-    self.0.is_boundary(index)
+  fn len(&self) -> usize {
+    <HipStr<'source>>::len(self)
   }
 }
 
-impl<'h> logos::Source for CustomSource<HipByt<'h>> {
+impl<'h> Source<usize> for HipStr<'h> {
   type Slice<'a>
-    = HipByt<'h>
+    = HipStr<'a>
   where
     Self: 'a;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    <HipStr<'h>>::is_empty(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
-    self.0.len()
+    <HipStr<'h>>::len(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn read<'a, Chunk>(&'a self, offset: usize) -> Option<Chunk>
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
-    Chunk: logos::source::Chunk<'a>,
+    R: core::ops::RangeBounds<&'a usize>,
+    usize: 'a,
   {
-    if offset + (Chunk::SIZE - 1) < self.len() {
-      Some(unsafe { Chunk::from_ptr(self.0.as_ptr().add(offset)) })
-    } else {
-      None
-    }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  unsafe fn read_byte_unchecked(&self, offset: usize) -> u8 {
-    // The outer unsafe fn has a Safety warnings about the offset must not exceed the bounds,
-    // which is guaranteed by the outer caller.
-    unsafe { *self.0.get_unchecked(offset) }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice(&self, range: Range<usize>) -> Option<Self::Slice<'_>> {
-    if range.end <= self.len() {
-      Some(self.0.slice(range))
-    } else {
-      None
-    }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  unsafe fn slice_unchecked(&self, range: Range<usize>) -> Self::Slice<'_> {
-    // Safety: the inner unsafe has the same safety requirement as the outer one
-    unsafe { self.0.slice_unchecked(range) }
+    self
+      .try_slice((
+        range.start_bound().map(|s| **s),
+        range.end_bound().map(|s| **s),
+      ))
+      .ok()
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_boundary(&self, index: usize) -> bool {
-    self.0.is_boundary(index)
+    self.is_char_boundary(index)
+  }
+}
+
+impl<'source> Slice<'source> for HipByt<'source> {
+  type Char = u8;
+
+  type Iter<'a>
+    = core::iter::Copied<core::slice::Iter<'a, u8>>
+  where
+    Self: 'a;
+
+  type PositionedIter<'a>
+    = core::iter::Enumerate<Self::Iter<'a>>
+  where
+    Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn iter<'a>(&'a self) -> Self::Iter<'a>
+  where
+    Self: 'a,
+  {
+    <[u8]>::iter(self).copied()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
+  where
+    Self: 'a,
+  {
+    self.iter().enumerate()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    <HipByt<'source>>::len(self)
+  }
+}
+
+impl Source<usize> for HipByt<'_> {
+  type Slice<'a>
+    = HipByt<'a>
+  where
+    Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    <HipByt<'_>>::is_empty(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    <HipByt<'_>>::len(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  where
+    R: core::ops::RangeBounds<&'a usize>,
+    usize: 'a,
+  {
+    self
+      .try_slice((
+        range.start_bound().map(|s| **s),
+        range.end_bound().map(|s| **s),
+      ))
+      .ok()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_boundary(&self, index: usize) -> bool {
+    <[u8]>::is_boundary(self, index)
   }
 }

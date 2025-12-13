@@ -17,7 +17,7 @@
 //!
 //! ```rust
 //! # {
-//! use logosky::{utils::{typenum::{self, U3}, GenericArrayDeque, Span}, syntax::Syntax, error::IncompleteSyntax};
+//! use tokit::{utils::{typenum::{self, U3}, GenericArrayDeque, Span}, syntax::Syntax, error::IncompleteSyntax};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -49,7 +49,7 @@
 //!     type REQUIRED = U3;
 //!
 //!     fn possible_components() -> &'static GenericArrayDeque<Self::Component, U3> {
-//!         static COMPONENTS: GenericArrayDeque<WhileComponent, logosky::utils::typenum::U3> = {
+//!         static COMPONENTS: GenericArrayDeque<WhileComponent, tokit::utils::typenum::U3> = {
 //!             let mut deque = GenericArrayDeque::new();
 //!             deque.push_back(WhileComponent::WhileKeyword);
 //!             deque.push_back(WhileComponent::Condition);
@@ -60,7 +60,7 @@
 //!     }
 //!
 //!     fn required_components() -> &'static GenericArrayDeque<Self::Component, Self::REQUIRED> {
-//!         static REQUIRED: GenericArrayDeque<WhileComponent, logosky::utils::typenum::U3> = {
+//!         static REQUIRED: GenericArrayDeque<WhileComponent, tokit::utils::typenum::U3> = {
 //!             let mut deque = GenericArrayDeque::new();
 //!             deque.push_back(WhileComponent::WhileKeyword);
 //!             deque.push_back(WhileComponent::Condition);
@@ -97,11 +97,15 @@ use core::{
 ///
 /// ```rust
 /// # {
-/// use logosky::{utils::{typenum, GenericArrayDeque}, syntax::Syntax};
+/// use tokit::{utils::{typenum, GenericArrayDeque}, syntax::{Syntax, Language}};
 /// use typenum::U5;
 /// use core::fmt;
 ///
 /// struct MyLanguage;
+///
+/// impl Language for MyLanguage {
+///   type SyntaxKind = (); // () is a placeholder
+/// }
 ///
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// enum LetStatementComponent {
@@ -128,6 +132,7 @@ use core::{
 ///
 /// impl Syntax for LetStatement {
 ///     type Lang = MyLanguage;
+///     const KIND: () = (); // () is a placeholder
 ///     type Component = LetStatementComponent;
 ///     type COMPONENTS = U5;
 ///     type REQUIRED = U5;
@@ -162,7 +167,10 @@ use core::{
 /// ```
 pub trait Syntax {
   /// The language this syntax belongs to.
-  type Lang;
+  type Lang: Language;
+
+  /// The kind of the syntax.
+  const KIND: <Self::Lang as Language>::SyntaxKind;
 
   /// The component type of this syntax.
   ///
@@ -309,12 +317,16 @@ pub trait Syntax {
 ///
 /// ```rust
 /// # {
-/// use logosky::{utils::{GenericArrayDeque, typenum::U2, Span}, syntax::{Syntax, AstNode}, error::IncompleteSyntax};
+/// use tokit::{utils::{GenericArrayDeque, typenum::U2, Span}, syntax::{Syntax, AstNode, Language}, error::IncompleteSyntax};
 /// use core::fmt;
 ///
 /// // Define a language
 /// #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// struct MyLanguage;
+///
+/// impl Language for MyLanguage {
+///     type SyntaxKind = (); // () is a placeholder
+/// }
 ///
 /// // Define syntax components
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -337,6 +349,7 @@ pub trait Syntax {
 ///
 /// impl Syntax for VariableSyntax {
 ///     type Lang = MyLanguage;
+///     const KIND: () = (); // () is a placeholder
 ///     type Component = VariableComponent;
 ///     type COMPONENTS = U2;
 ///     type REQUIRED = U2;
@@ -380,7 +393,7 @@ pub trait Syntax {
 /// ## Generic Parser with AstNode
 ///
 /// ```rust,ignore
-/// use logosky::{
+/// use tokit::{
 ///     chumsky::{Parser, extra::ParserExtra},
 ///     syntax::AstNode,
 ///     error::IncompleteSyntax,
@@ -455,8 +468,8 @@ pub trait Syntax {
 /// # See Also
 ///
 /// - [`Syntax`]: Defines the structure and components of syntax elements
-/// - [`IncompleteSyntax`]: Error type for tracking missing syntax components
-/// - [`Parseable`]: Trait for types that can be parsed
+/// - [`IncompleteSyntax`](crate::error::IncompleteSyntax): Error type for tracking missing syntax components
+/// - [`Parseable`](crate::chumsky::Parseable): Trait for types that can be parsed
 pub trait AstNode<Lang> {
   /// The syntax type associated with this AST node.
   ///

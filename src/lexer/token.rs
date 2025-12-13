@@ -1,11 +1,9 @@
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
-use logos::{Lexer, Source};
 
-use crate::utils::{Span, Spanned, cmp::Equivalent};
+use crate::utils::{Spanned, cmp::Equivalent};
 
-#[cfg(feature = "chumsky")]
-use crate::Tokenizer;
-
+#[cfg(feature = "logos")]
+#[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
 pub use logos::Logos;
 
 /// The result of lexing a single token: either a successful token or an error.
@@ -38,7 +36,7 @@ pub use logos::Logos;
 /// ## Basic Usage
 ///
 /// ```rust,ignore
-/// use logosky::{Lexed, TokenExt};
+/// use tokit::{Lexed, TokenExt};
 ///
 /// let mut lexer = logos::Lexer::<MyTokens>::new(input);
 ///
@@ -91,16 +89,13 @@ pub use logos::Logos;
 #[try_unwrap(ref, ref_mut)]
 pub enum Lexed<'a, T: Token<'a>> {
   /// A successfully recognized token with its span information.
-  ///
-  /// The token is wrapped in a [`Spanned`] that contains both the token data
-  /// and its location in the source input.
-  Token(Spanned<T>),
+  Token(T),
 
   /// A lexing error that occurred during tokenization.
   ///
   /// The error type is determined by the Logos lexer's error type. It typically
   /// contains information about what went wrong and where in the input it occurred.
-  Error(<T::Logos as Logos<'a>>::Error),
+  Error(T::Error),
 }
 
 impl<'a, T> Clone for Lexed<'a, T>
@@ -119,27 +114,36 @@ where
 impl<'a, T> Copy for Lexed<'a, T>
 where
   T: Token<'a> + Copy,
-  <T::Logos as Logos<'a>>::Error: Copy,
+  T::Error: Copy,
 {
 }
 
 impl<'a, T: Token<'a>> Lexed<'a, T> {
   /// Lexes the next token from the given lexer, returning `None` if the input is exhausted.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn lex(lexer: &mut Lexer<'a, T::Logos>) -> Option<Self> {
-    lexer.next().map(|res| {
-      let span = lexer.span();
-      res
-        .map(|tok| (crate::utils::Span::from(span), T::from(tok)))
-        .into()
-    })
+  pub fn lex<L>(lexer: &mut L) -> Option<Self>
+  where
+    L: super::Lexer<'a, Token = T>,
+  {
+    lexer.lex().map(|res| res.into())
+  }
+
+  /// Lexes the next token from the given lexer, returning `None` if the input is exhausted.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn lex_spanned<L>(lexer: &mut L) -> Option<Spanned<Self, L::Span>>
+  where
+    L: super::Lexer<'a, Token = T>,
+  {
+    lexer
+      .lex()
+      .map(|res| Spanned::new(lexer.span(), res.into()))
   }
 }
 
 impl<'a, T: 'a> core::fmt::Display for Lexed<'a, T>
 where
   T: Token<'a> + core::fmt::Display,
-  <T::Logos as Logos<'a>>::Error: core::fmt::Display,
+  T::Error: core::fmt::Display,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -150,21 +154,21 @@ where
   }
 }
 
-impl<'a, T: Token<'a>> From<Result<(Span, T), <T::Logos as Logos<'a>>::Error>> for Lexed<'a, T> {
+impl<'a, T: Token<'a>> From<Result<T, T::Error>> for Lexed<'a, T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(value: Result<(Span, T), <T::Logos as Logos<'a>>::Error>) -> Self {
+  fn from(value: Result<T, T::Error>) -> Self {
     match value {
-      Ok((span, tok)) => Self::Token(Spanned::new(span, tok)),
+      Ok(tok) => Self::Token(tok),
       Err(err) => Self::Error(err),
     }
   }
 }
 
-impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, <T::Logos as Logos<'a>>::Error> {
+impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, T::Error> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(value: Lexed<'a, T>) -> Self {
     match value {
-      Lexed::Token(tok) => Ok(tok.into_data()),
+      Lexed::Token(tok) => Ok(tok),
       Lexed::Error(err) => Err(err),
     }
   }
@@ -204,7 +208,7 @@ impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, <T::Logos as Logos<'a>>:
 /// ## Basic Implementation
 ///
 /// ```rust,ignore
-/// use logosky::Token;
+/// use tokit::Token;
 /// use logos::Logos;
 ///
 /// // The Logos enum (raw lexer output)
@@ -286,7 +290,7 @@ impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, <T::Logos as Logos<'a>>:
 /// ## Working with Bytes
 ///
 /// ```rust,ignore
-/// use logosky::Token;
+/// use tokit::Token;
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy)]
@@ -311,15 +315,7 @@ impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, <T::Logos as Logos<'a>>:
 ///     }
 /// }
 /// ```
-pub trait Token<'a>: Clone + core::fmt::Debug + From<Self::Logos> + 'a {
-  /// The character type used by the lexer.
-  ///
-  /// - Use `char` for text-based lexers processing UTF-8 strings
-  /// - Use `u8` for byte-based lexers processing binary data or non-UTF-8 input
-  ///
-  /// This type must match the character type used by the Logos lexer's source.
-  type Char: Copy + core::fmt::Debug + PartialEq + Eq + core::hash::Hash;
-
+pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   /// The token kind discriminant used to categorize tokens.
   ///
   /// This is typically an enum that represents the semantic category of each token
@@ -332,13 +328,10 @@ pub trait Token<'a>: Clone + core::fmt::Debug + From<Self::Logos> + 'a {
   /// - Must be `Debug` for error messages
   /// - Must be `PartialEq` and `Eq` for comparisons in parsers
   /// - Must be `Hash` for use in hash-based collections
-  type Kind: Copy + core::fmt::Debug + PartialEq + Eq + core::hash::Hash;
+  type Kind: Copy + core::fmt::Debug + core::fmt::Display + PartialEq + Eq + core::hash::Hash;
 
-  /// The Logos enum that this token type wraps.
-  ///
-  /// This is the raw output from the Logos lexer. The `From<Self::Logos>` trait
-  /// implementation converts from this type to the structured `Token` type.
-  type Logos: Logos<'a> + Clone;
+  /// The error type of this token.
+  type Error: Clone + core::fmt::Debug;
 
   /// Returns the kind (category) of this token.
   ///
@@ -356,113 +349,7 @@ pub trait Token<'a>: Clone + core::fmt::Debug + From<Self::Logos> + 'a {
   /// }
   /// ```
   fn kind(&self) -> Self::Kind;
-}
 
-/// A token trait for tokens that preserve all source information during lexing, including trivia.
-///
-/// This trait extends [`Token`] to support "lossless" lexing, where formatting information
-/// like whitespace and comments (collectively called "trivia") is preserved alongside
-/// semantic tokens. This is essential for tools that need to:
-///
-/// - **Format or pretty-print code** while preserving original formatting
-/// - **Implement linters** that analyze comments or whitespace
-/// - **Build language servers** that provide accurate code navigation
-/// - **Create refactoring tools** that maintain code style
-///
-/// # Trivia Tokens
-///
-/// Trivia tokens are lexical elements that don't affect the semantic meaning of the code
-/// but are important for formatting and presentation. Common examples include:
-///
-/// - Whitespace (spaces, tabs, newlines)
-/// - Comments (line comments, block comments, doc comments)
-/// - Formatting tokens specific to your language
-///
-/// # Working with Trivia
-///
-/// The [`Tokenizer`](crate::Tokenizer) trait provides utilities for handling trivia:
-///
-/// - [`skip_trivias()`](crate::Tokenizer::skip_trivias) - Skip over trivia tokens during parsing
-/// - [`collect_trivias()`](crate::Tokenizer::collect_trivias) - Collect trivia into a container
-///
-/// ## Example
-///
-/// ```rust
-/// use logosky::{Token, TriviaToken};
-/// use logos::Logos;
-///
-/// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
-/// enum MyTokens {
-///     #[regex(r"[ \t\n\r]+")]
-///     Whitespace,
-///     #[regex(r"//[^\n]*")]
-///     LineComment,
-///     #[regex(r"/\*([^*]|\*[^/])*\*/")]
-///     BlockComment,
-///     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
-///     Identifier,
-///     #[regex(r"[0-9]+")]
-///     Number,
-/// }
-///
-/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// enum MyTokenKind {
-///     Whitespace,
-///     LineComment,
-///     BlockComment,
-///     Identifier,
-///     Number,
-/// }
-///
-/// #[derive(Debug, Clone, PartialEq)]
-/// struct MyToken {
-///     kind: MyTokenKind,
-/// }
-///
-/// impl Token<'_> for MyToken {
-///     type Char = char;
-///     type Kind = MyTokenKind;
-///     type Logos = MyTokens;
-///
-///     fn kind(&self) -> Self::Kind {
-///         self.kind
-///     }
-/// }
-///
-/// impl From<MyTokens> for MyToken {
-///     fn from(logos: MyTokens) -> Self {
-///         let kind = match logos {
-///             MyTokens::Whitespace => MyTokenKind::Whitespace,
-///             MyTokens::LineComment => MyTokenKind::LineComment,
-///             MyTokens::BlockComment => MyTokenKind::BlockComment,
-///             MyTokens::Identifier => MyTokenKind::Identifier,
-///             MyTokens::Number => MyTokenKind::Number,
-///         };
-///         MyToken { kind }
-///     }
-/// }
-///
-/// impl TriviaToken<'_> for MyToken {
-///     fn is_trivia(&self) -> bool {
-///         // Mark whitespace and comments as trivia
-///         matches!(
-///             self.kind,
-///             MyTokenKind::Whitespace
-///                 | MyTokenKind::LineComment
-///                 | MyTokenKind::BlockComment
-///         )
-///     }
-/// }
-/// ```
-///
-/// # Design Rationale
-///
-/// Separating [`TriviaToken`] from [`Token`] allows for:
-///
-/// - **Flexibility**: Not all parsers need to track trivia; simple parsers can use just [`Token`]
-/// - **Performance**: Parsers that skip trivia can do so efficiently without allocating
-/// - **Type safety**: The type system ensures trivia-handling methods are only available when appropriate
-pub trait TriviaToken<'a>: Token<'a> {
   /// Returns `true` if this token represents trivia (whitespace, comments, etc.).
   ///
   /// Trivia tokens are lexical elements that don't affect the semantic meaning of code
@@ -477,7 +364,7 @@ pub trait TriviaToken<'a>: Token<'a> {
   /// ## Example
   ///
   /// ```rust
-  /// use logosky::{Token, TriviaToken};
+  /// use tokit::Token;
   /// use logos::Logos;
   ///
   /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -506,8 +393,15 @@ pub trait TriviaToken<'a>: Token<'a> {
   ///     type Char = char;
   ///     type Kind = TokenKind;
   ///     type Logos = MyTokens;
+  ///
+  ///     #[inline(always)]
   ///     fn kind(&self) -> Self::Kind {
   ///         self.kind
+  ///     }
+  ///
+  ///     #[inline(always)]
+  ///     fn is_trivia(&self) -> bool {
+  ///         matches!(self.kind, TokenKind::Whitespace | TokenKind::Comment)
   ///     }
   /// }
   ///
@@ -519,12 +413,6 @@ pub trait TriviaToken<'a>: Token<'a> {
   ///             MyTokens::Number => TokenKind::Number,
   ///         };
   ///         MyToken { kind }
-  ///     }
-  /// }
-  ///
-  /// impl TriviaToken<'_> for MyToken {
-  ///     fn is_trivia(&self) -> bool {
-  ///         matches!(self.kind, TokenKind::Whitespace | TokenKind::Comment)
   ///     }
   /// }
   /// ```
@@ -552,8 +440,8 @@ pub trait TriviaToken<'a>: Token<'a> {
 /// the ones that matter for your language, mapping them to your own token kinds. The provided
 /// predicates are:
 ///
-/// - Structural: `is_paren_open` `(`, `is_paren_close` `)`, `is_brace_open` `{`, `is_brace_close` `}`,
-///   `is_bracket_open` `[`, `is_bracket_close` `]`
+/// - Structural: `is_open_paren` `(`, `is_close_paren` `)`, `is_open_brace` `{`, `is_close_brace` `}`,
+///   `is_open_bracket` `[`, `is_close_bracket` `]`
 /// - Separators: `is_comma` `,`, `is_dot` `.`, `is_colon` `:`, `is_semicolon` `;`
 /// - Quote markers: `is_double_quote` `"`, `is_apostrophe` `'`, `is_backtick` `` ` ``
 /// - Math / operators: `is_plus` `+`, `is_minus` `-`, `is_asterisk` `*`, `is_slash` `/`,
@@ -566,7 +454,7 @@ pub trait TriviaToken<'a>: Token<'a> {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, PunctuatorToken, utils::cmp::Equivalent};
+/// use tokit::{Token, PunctuatorToken, utils::cmp::Equivalent};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -667,27 +555,62 @@ pub trait PunctuatorToken<'a>: Token<'a> {
       || self.is_minus()
       || self.is_slash()
       || self.is_backslash()
-      || self.is_angle_open()
+      || self.is_open_angle()
       || self.is_equal()
-      || self.is_angle_close()
+      || self.is_close_angle()
       || self.is_question()
       || self.is_at()
-      || self.is_bracket_open()
-      || self.is_bracket_close()
-      || self.is_brace_open()
-      || self.is_brace_close()
-      || self.is_paren_open()
-      || self.is_paren_close()
+      || self.is_open_bracket()
+      || self.is_close_bracket()
+      || self.is_open_brace()
+      || self.is_close_brace()
+      || self.is_open_paren()
+      || self.is_close_paren()
       || self.is_backtick()
       || self.is_pipe()
       || self.is_caret()
       || self.is_underscore()
       || self.is_tilde()
+      || self.is_space()
+      || self.is_tab()
+      || self.is_newline()
+      || self.is_carriage_return()
+      || self.is_crlf()
   }
 
   /// Returns `true` when the token is the dot punctuator (`.`).
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_dot(&self) -> bool {
+    false
+  }
+
+  /// Returns `true` when the token is the space punctuator (` `).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_space(&self) -> bool {
+    false
+  }
+
+  /// Returns `true` when the token is a tab punctuator (`\t`).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_tab(&self) -> bool {
+    false
+  }
+
+  /// Returns `true` when the token is the newline punctuator (`\n`).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_newline(&self) -> bool {
+    false
+  }
+
+  /// Returns `true` when the token is the carriage return punctuator (`\r`).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_carriage_return(&self) -> bool {
+    false
+  }
+
+  /// Returns `true` when the token is carriage return + newline punctuator (`\r\n`).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_crlf(&self) -> bool {
     false
   }
 
@@ -764,6 +687,8 @@ pub trait PunctuatorToken<'a>: Token<'a> {
   }
 
   /// Returns `true` when the token is the minus punctuator (`-`).
+  #[doc(alias = "is_dash")]
+  #[doc(alias = "is_hyphen")]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_minus(&self) -> bool {
     false
@@ -783,7 +708,7 @@ pub trait PunctuatorToken<'a>: Token<'a> {
 
   /// Returns `true` when the token is the angle open punctuator (`<`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_open(&self) -> bool {
+  fn is_open_angle(&self) -> bool {
     false
   }
 
@@ -795,7 +720,7 @@ pub trait PunctuatorToken<'a>: Token<'a> {
 
   /// Returns `true` when the token is the angle close punctuator (`>`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_close(&self) -> bool {
+  fn is_close_angle(&self) -> bool {
     false
   }
 
@@ -813,37 +738,37 @@ pub trait PunctuatorToken<'a>: Token<'a> {
 
   /// Returns `true` when the token is the bracket-open punctuator (`[`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_open(&self) -> bool {
+  fn is_open_bracket(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is the bracket-close punctuator (`]`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_close(&self) -> bool {
+  fn is_close_bracket(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is the brace-open punctuator (`{`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_open(&self) -> bool {
+  fn is_open_brace(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is the brace-close punctuator (`}`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_close(&self) -> bool {
+  fn is_close_brace(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is the paren-open punctuator (`(`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_open(&self) -> bool {
+  fn is_open_paren(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is the paren-close punctuator (`)`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_close(&self) -> bool {
+  fn is_close_paren(&self) -> bool {
     false
   }
 
@@ -883,43 +808,43 @@ where
   T: PunctuatorToken<'a>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_open(&self) -> bool {
-    PunctuatorToken::is_paren_open(self)
+  fn is_open_paren(&self) -> bool {
+    PunctuatorToken::is_open_paren(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_close(&self) -> bool {
-    PunctuatorToken::is_paren_close(self)
+  fn is_close_paren(&self) -> bool {
+    PunctuatorToken::is_close_paren(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_open(&self) -> bool {
-    PunctuatorToken::is_brace_open(self)
+  fn is_open_brace(&self) -> bool {
+    PunctuatorToken::is_open_brace(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_close(&self) -> bool {
-    PunctuatorToken::is_brace_close(self)
+  fn is_close_brace(&self) -> bool {
+    PunctuatorToken::is_close_brace(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_open(&self) -> bool {
-    PunctuatorToken::is_bracket_open(self)
+  fn is_open_bracket(&self) -> bool {
+    PunctuatorToken::is_open_bracket(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_close(&self) -> bool {
-    PunctuatorToken::is_bracket_close(self)
+  fn is_close_bracket(&self) -> bool {
+    PunctuatorToken::is_close_bracket(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_open(&self) -> bool {
-    PunctuatorToken::is_angle_open(self)
+  fn is_open_angle(&self) -> bool {
+    PunctuatorToken::is_open_angle(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_close(&self) -> bool {
-    PunctuatorToken::is_angle_close(self)
+  fn is_close_angle(&self) -> bool {
+    PunctuatorToken::is_close_angle(self)
   }
 }
 
@@ -948,7 +873,7 @@ where
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, LitToken};
+/// use tokit::{Token, LitToken};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1156,7 +1081,7 @@ pub trait LitToken<'a>: Token<'a> {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, IdentifierToken};
+/// use tokit::{Token, IdentifierToken};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1224,7 +1149,7 @@ pub trait LitToken<'a>: Token<'a> {
 ///     }
 /// }
 /// ```
-pub trait IdentifierToken<'a>: Token<'a> {
+pub trait IdentifierToken<'a, S>: Token<'a> {
   /// Returns `true` when the token is an identifier (user-defined name).
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_identifier(&self) -> bool {
@@ -1235,22 +1160,20 @@ pub trait IdentifierToken<'a>: Token<'a> {
   ///
   /// The default implementation defers to [`identifier`](IdentifierToken::identifier).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn matches_identifier(&self, name: &str) -> bool
+  fn matches_identifier<O>(&self, name: &O) -> bool
   where
-    str: Equivalent<<<Self::Logos as Logos<'a>>::Source as Source>::Slice<'a>>,
+    O: Equivalent<S>,
   {
     self.identifier().is_some_and(|id| name.equivalent(id))
   }
 
   /// Returns the identifier source, if this token is an identifier.
-  fn identifier(&self) -> Option<&<<Self::Logos as Logos<'a>>::Source as Source>::Slice<'a>> {
+  fn identifier(&self) -> Option<&S> {
     None
   }
 
   /// Attempts to get the identifier source, returning the `Err(Self)` if this token is not an identifier.
-  fn try_into_identifier(
-    self,
-  ) -> Result<<<Self::Logos as Logos<'a>>::Source as Source>::Slice<'a>, Self>
+  fn try_into_identifier(self) -> Result<S, Self>
   where
     Self: Sized;
 }
@@ -1260,7 +1183,7 @@ pub trait IdentifierToken<'a>: Token<'a> {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, KeywordToken, utils::cmp::Equivalent};
+/// use tokit::{Token, KeywordToken, utils::cmp::Equivalent};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1369,7 +1292,7 @@ pub trait KeywordToken<'a>: Token<'a> {
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, OperatorToken, utils::cmp::Equivalent};
+/// use tokit::{Token, OperatorToken, utils::cmp::Equivalent};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1739,13 +1662,11 @@ pub trait OperatorToken<'a>: Token<'a> {
 ///
 /// - Implementors override whichever predicates apply to their language (all default to `false`).
 /// - Aggregation helpers (`is_opening_delimiter`, `is_closing_delimiter`) combine the granular checks.
-/// - Consumers can use [`matching_delimiter`](DelimiterToken::matching_delimiter) to infer the
-///   counterpart of a delimiter for validation.
 ///
 /// ## Example
 ///
 /// ```rust
-/// use logosky::{Token, DelimiterToken, utils::cmp::Equivalent};
+/// use tokit::{Token, DelimiterToken, utils::cmp::Equivalent};
 /// use logos::Logos;
 ///
 /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1797,11 +1718,11 @@ pub trait OperatorToken<'a>: Token<'a> {
 /// }
 ///
 /// impl DelimiterToken<'_> for MyToken {
-///     fn is_paren_open(&self) -> bool {
+///     fn is_open_paren(&self) -> bool {
 ///         matches!(self.kind, MyTokenKind::ParenOpen)
 ///     }
 ///
-///     fn is_paren_close(&self) -> bool {
+///     fn is_close_paren(&self) -> bool {
 ///         matches!(self.kind, MyTokenKind::ParenClose)
 ///     }
 /// }
@@ -1816,140 +1737,63 @@ pub trait DelimiterToken<'a>: Token<'a> {
   /// Returns `true` when the token is any opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_opening_delimiter(&self) -> bool {
-    self.is_paren_open() || self.is_brace_open() || self.is_bracket_open() || self.is_angle_open()
+    self.is_open_paren() || self.is_open_brace() || self.is_open_bracket() || self.is_open_angle()
   }
 
   /// Returns `true` when the token is any closing delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_closing_delimiter(&self) -> bool {
-    self.is_paren_close()
-      || self.is_brace_close()
-      || self.is_bracket_close()
-      || self.is_angle_close()
+    self.is_close_paren()
+      || self.is_close_brace()
+      || self.is_close_bracket()
+      || self.is_close_angle()
   }
 
   /// Returns `true` when the token is a parenthesis opening delimiter (`(`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_open(&self) -> bool {
+  fn is_open_paren(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is a parenthesis closing delimiter (`)`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_paren_close(&self) -> bool {
+  fn is_close_paren(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is a brace opening delimiter (`{`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_open(&self) -> bool {
+  fn is_open_brace(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is a brace closing delimiter (`}`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_brace_close(&self) -> bool {
+  fn is_close_brace(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is a bracket opening delimiter (`[`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_open(&self) -> bool {
+  fn is_open_bracket(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is a bracket closing delimiter (`]`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_bracket_close(&self) -> bool {
+  fn is_close_bracket(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is an angle/chevron opening delimiter (`<`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_open(&self) -> bool {
+  fn is_open_angle(&self) -> bool {
     false
   }
 
   /// Returns `true` when the token is an angle/chevron closing delimiter (`>`).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_angle_close(&self) -> bool {
+  fn is_close_angle(&self) -> bool {
     false
   }
 }
-
-/// A trait for tokens that can be compared for equivalence against a reference.
-/// A helper trait for ergonomically requiring specific token shapes.
-///
-/// `Require` is intended for tiny wrappers (e.g., `Dot`, `Comma`, `ParenOpen`) that want a
-/// `try_into`-style API without consuming the token stream. Implementors typically return
-/// `Ok(output)` when the token matches the desired pattern, or `Err(Self::Err)` to hand the
-/// original token (or a custom error type) back to the caller so other logic can handle it.
-///
-/// ## Example
-///
-/// ```rust
-/// use logosky::{Require, IdentifierToken};
-///
-/// #[derive(Debug, Clone)]
-/// pub enum Punct {
-///     Dot,
-///     Comma,
-///     Other(String),
-/// }
-///
-/// #[derive(Debug, Clone)]
-/// pub struct Dot(pub Punct);
-///
-/// impl Require<Dot> for Punct {
-///     type Err = Self;
-///
-///     fn require(self) -> Result<Dot, Self::Err> {
-///         match &self {
-///             Punct::Dot => Ok(Dot(Self::Dot)),
-///             _ => Err(self),
-///         }
-///     }
-/// }
-/// ```
-pub trait Require<O> {
-  /// The error type returned when a requirement is not met.
-  type Err;
-
-  /// Attempts to extract the desired output from the token, returning `Err(Self::Err)` if not possible.
-  fn require(self) -> Result<O, Self::Err>
-  where
-    Self: Sized;
-}
-
-/// The token extension trait.
-pub trait TokenExt<'a>: Token<'a> {
-  /// Returns a lexer for the token type from the given input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[cfg(feature = "chumsky")]
-  #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-  fn lexer(input: &'a <Self::Logos as Logos<'a>>::Source) -> Tokenizer<'a, Self>
-  where
-    <Self::Logos as Logos<'a>>::Extras: Default,
-  {
-    Tokenizer::new(input)
-  }
-
-  /// Returns a lexer for the token type from the given input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[cfg(feature = "chumsky")]
-  #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-  fn lexer_with_state(
-    input: &'a <Self::Logos as Logos<'a>>::Source,
-    state: <Self::Logos as Logos<'a>>::Extras,
-  ) -> Tokenizer<'a, Self> {
-    Tokenizer::with_state(input, state)
-  }
-
-  /// Lexes the next token from the given lexer, returning `None` if the input is exhausted.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn lex(lexer: &mut Lexer<'a, Self::Logos>) -> Option<Lexed<'a, Self>> {
-    Lexed::lex(lexer)
-  }
-}
-
-impl<'a, T> TokenExt<'a> for T where T: Token<'a> {}

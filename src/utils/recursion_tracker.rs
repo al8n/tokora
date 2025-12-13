@@ -1,5 +1,3 @@
-use logos::{Lexer, Logos};
-
 use crate::State;
 
 /// Error returned when recursion depth exceeds the configured limit.
@@ -11,7 +9,7 @@ use crate::State;
 /// # Example
 ///
 /// ```rust
-/// use logosky::utils::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
+/// use tokit::utils::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
 ///
 /// let mut limiter = RecursionLimiter::with_limitation(10);
 ///
@@ -39,7 +37,7 @@ impl RecursionLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
+  /// use tokit::utils::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
   ///
   /// let mut limiter = RecursionLimiter::with_limitation(3);
   /// limiter.increase();
@@ -55,7 +53,7 @@ impl RecursionLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use logosky::utils::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
+  /// use tokit::utils::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
   ///
   /// let mut limiter = RecursionLimiter::with_limitation(3);
   /// assert_eq!(limiter.limitation(), 3);
@@ -96,7 +94,7 @@ impl RecursionLimitExceeded {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use logosky::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::utils::recursion_tracker::RecursionLimiter;
 ///
 /// let mut limiter = RecursionLimiter::new();
 ///
@@ -116,7 +114,7 @@ impl RecursionLimitExceeded {
 /// ## Custom Limit
 ///
 /// ```rust
-/// use logosky::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::utils::recursion_tracker::RecursionLimiter;
 ///
 /// // Allow deeper nesting for complex grammars
 /// let mut limiter = RecursionLimiter::with_limitation(1000);
@@ -127,7 +125,7 @@ impl RecursionLimitExceeded {
 /// ## Checking Limits
 ///
 /// ```rust
-/// use logosky::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::utils::recursion_tracker::RecursionLimiter;
 ///
 /// let mut limiter = RecursionLimiter::with_limitation(5);
 ///
@@ -143,7 +141,7 @@ impl RecursionLimitExceeded {
 /// ## Recursive Parser Example
 ///
 /// ```rust,ignore
-/// use logosky::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::utils::recursion_tracker::RecursionLimiter;
 ///
 /// fn parse_expr(input: &str, limiter: &mut RecursionLimiter) -> Result<Expr, Error> {
 ///     limiter.increase();
@@ -168,7 +166,7 @@ impl RecursionLimitExceeded {
 ///
 /// ```rust,ignore
 /// use logos::Logos;
-/// use logosky::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::utils::recursion_tracker::RecursionLimiter;
 ///
 /// #[derive(Default)]
 /// struct LexerState {
@@ -271,6 +269,11 @@ impl RecursionLimiter {
 
 impl State for RecursionLimiter {
   type Error = RecursionLimitExceeded;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn check(&self) -> Result<(), Self::Error> {
+    <Self as RecursionTracker>::check(self)
+  }
 }
 
 /// A recursion tracker trait.
@@ -314,30 +317,65 @@ impl RecursionTracker for RecursionLimiter {
   }
 }
 
-impl<'a, T> RecursionTracker for Lexer<'a, T>
-where
-  T: Logos<'a>,
-  T::Extras: RecursionTracker,
-{
-  type Error = <T::Extras as RecursionTracker>::Error;
+#[cfg(feature = "logos")]
+const _: () = {
+  use crate::{Token, lexer::LogosLexer};
+  use logos::{Lexer, Logos};
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase(&mut self) {
-    self.extras.increase();
+  impl<'a, T> RecursionTracker for Lexer<'a, T>
+  where
+    T: Logos<'a>,
+    T::Extras: RecursionTracker,
+  {
+    type Error = <T::Extras as RecursionTracker>::Error;
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase(&mut self) {
+      self.extras.increase();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn decrease(&mut self) {
+      self.extras.decrease();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn check(&self) -> Result<(), Self::Error> {
+      self.extras.check()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_and_check(&mut self) -> Result<(), Self::Error> {
+      self.extras.increase_and_check()
+    }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn decrease(&mut self) {
-    self.extras.decrease();
-  }
+  impl<'a, T, L> RecursionTracker for LogosLexer<'a, T, L>
+  where
+    T: From<L> + Token<'a>,
+    L: Logos<'a>,
+    L::Extras: RecursionTracker,
+  {
+    type Error = <L::Extras as RecursionTracker>::Error;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check(&self) -> Result<(), Self::Error> {
-    self.extras.check()
-  }
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase(&mut self) {
+      self.inner_mut().increase();
+    }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn increase_and_check(&mut self) -> Result<(), Self::Error> {
-    self.extras.increase_and_check()
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn decrease(&mut self) {
+      self.inner_mut().decrease();
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn check(&self) -> Result<(), Self::Error> {
+      self.inner().check()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn increase_and_check(&mut self) -> Result<(), Self::Error> {
+      self.inner_mut().increase_and_check()
+    }
   }
-}
+};

@@ -9,7 +9,7 @@
 //! quotes, etc.), it's common to encounter situations where content is expected to be
 //! delimited but neither the opening nor closing delimiter is present. This error type captures:
 //!
-//! - **Where** the undelimited content was found (via [`Span`])
+//! - **Where** the undelimited content was found (via [`SimpleSpan`])
 //! - **What** delimiter type was expected (via the generic `Delimiter` parameter)
 //!
 //! # Undelimited vs Unclosed vs Unopened
@@ -43,13 +43,13 @@
 //! ## Basic Usage with Character Delimiters
 //!
 //! ```rust
-//! use logosky::{error::Undelimited, utils::Span};
+//! use tokit::{error::Undelimited, utils::SimpleSpan};
 //!
 //! // Expected string literal with quotes, but found undelimited content
 //! // Example: hello instead of "hello"
-//! let error = Undelimited::new(Span::new(10, 15), '"');
+//! let error = Undelimited::new(SimpleSpan::new(10, 15), '"');
 //!
-//! assert_eq!(error.span(), Span::new(10, 15));
+//! assert_eq!(error.span(), SimpleSpan::new(10, 15));
 //! assert_eq!(error.delimiter(), '"');
 //! assert_eq!(error.to_string(), "undelimited content, expected '\"'");
 //! ```
@@ -57,7 +57,7 @@
 //! ## Custom Delimiter Enum
 //!
 //! ```rust
-//! use logosky::{error::Undelimited, utils::Span};
+//! use tokit::{error::Undelimited, utils::SimpleSpan};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,18 +81,18 @@
 //!     }
 //! }
 //!
-//! let error = Undelimited::new(Span::new(5, 10), Delimiter::BlockComment);
+//! let error = Undelimited::new(SimpleSpan::new(5, 10), Delimiter::BlockComment);
 //! assert_eq!(error.to_string(), "undelimited content, expected '/*'");
 //! ```
 //!
 //! ## Undelimited Content in Parsing
 //!
 //! ```rust
-//! use logosky::{error::Undelimited, utils::Span};
+//! use tokit::{error::Undelimited, utils::SimpleSpan};
 //!
 //! // When parsing a configuration file expecting bracketed arrays
 //! // but finding: items = foo, bar, baz (missing the brackets)
-//! let error = Undelimited::new(Span::new(9, 20), '[');
+//! let error = Undelimited::new(SimpleSpan::new(9, 20), '[');
 //!
 //! // Error reporting can show:
 //! // "error at 9..20: undelimited content, expected '['"
@@ -101,29 +101,31 @@
 //! ## Position Adjustment
 //!
 //! ```rust
-//! use logosky::{error::Undelimited, utils::Span};
+//! use tokit::{error::Undelimited, utils::SimpleSpan};
 //!
 //! // Error from a nested parsing context
-//! let mut error = Undelimited::new(Span::new(5, 6), '}');
+//! let mut error = Undelimited::new(SimpleSpan::new(5, 6), '}');
 //!
 //! // Adjust to absolute position in the larger document
 //! error.bump(100);
-//! assert_eq!(error.span(), Span::new(105, 106));
+//! assert_eq!(error.span(), SimpleSpan::new(105, 106));
 //! ```
 
-use crate::utils::{
-  Span,
-  delimiter::{Angle, Brace, Bracket, Paren},
+use crate::{
+  lexer::Span,
+  punct::{Angle, Brace, Bracket, Paren},
+  utils::SimpleSpan,
 };
+use core::marker::PhantomData;
 
 /// Content missing both opening `[` and closing `]`
-pub type UndelimitedBracket = Undelimited<Bracket>;
+pub type UndelimitedBracket<S = SimpleSpan, Lang = ()> = Undelimited<Bracket, S, Lang>;
 /// Content missing both opening `(` and closing `)`
-pub type UndelimitedParen = Undelimited<Paren>;
+pub type UndelimitedParen<S = SimpleSpan, Lang = ()> = Undelimited<Paren, S, Lang>;
 /// Content missing both opening `{` and closing `}`
-pub type UndelimitedBrace = Undelimited<Brace>;
+pub type UndelimitedBrace<S = SimpleSpan, Lang = ()> = Undelimited<Brace, S, Lang>;
 /// Content missing both opening `<` and closing `>`
-pub type UndelimitedAngle = Undelimited<Angle>;
+pub type UndelimitedAngle<S = SimpleSpan, Lang = ()> = Undelimited<Angle, S, Lang>;
 
 /// A zero-copy error type representing undelimited content.
 ///
@@ -154,11 +156,11 @@ pub type UndelimitedAngle = Undelimited<Angle>;
 /// ## Detecting Undelimited Content
 ///
 /// ```rust
-/// use logosky::{error::Undelimited, utils::Span};
+/// use tokit::{error::Undelimited, utils::SimpleSpan};
 ///
 /// // Parse error: expected string literal "hello" but found hello
 /// //              ^^^^^--- undelimited content
-/// let error = Undelimited::new(Span::new(0, 5), '"');
+/// let error = Undelimited::new(SimpleSpan::new(0, 5), '"');
 ///
 /// println!("Error: {} at position {}", error, error.span().start());
 /// // Output: "Error: undelimited content, expected '\"' at position 0"
@@ -167,12 +169,12 @@ pub type UndelimitedAngle = Undelimited<Angle>;
 /// ## Tracking Multiple Undelimited Regions
 ///
 /// ```rust
-/// use logosky::{error::Undelimited, utils::Span};
+/// use tokit::{error::Undelimited, utils::SimpleSpan};
 ///
 /// let errors = vec![
-///     Undelimited::new(Span::new(5, 10), '{'),   // Missing braces
-///     Undelimited::new(Span::new(15, 20), '['),  // Missing brackets
-///     Undelimited::new(Span::new(25, 30), '"'),  // Missing quotes
+///     Undelimited::new(SimpleSpan::new(5, 10), '{'),   // Missing braces
+///     Undelimited::new(SimpleSpan::new(15, 20), '['),  // Missing brackets
+///     Undelimited::new(SimpleSpan::new(25, 30), '"'),  // Missing quotes
 /// ];
 ///
 /// for error in errors {
@@ -180,12 +182,13 @@ pub type UndelimitedAngle = Undelimited<Angle>;
 /// }
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Undelimited<Delimiter> {
-  span: Span,
+pub struct Undelimited<Delimiter, S = SimpleSpan, Lang: ?Sized = ()> {
+  span: S,
   delimiter: Delimiter,
+  _lang: PhantomData<Lang>,
 }
 
-impl<Delimiter> core::fmt::Display for Undelimited<Delimiter>
+impl<Delimiter, S, Lang: ?Sized> core::fmt::Display for Undelimited<Delimiter, S, Lang>
 where
   Delimiter: core::fmt::Display,
 {
@@ -195,12 +198,15 @@ where
   }
 }
 
-impl<Delimiter> core::error::Error for Undelimited<Delimiter> where
-  Delimiter: core::fmt::Display + core::fmt::Debug
+impl<Delimiter, S, Lang: ?Sized> core::error::Error for Undelimited<Delimiter, S, Lang>
+where
+  Delimiter: core::fmt::Display + core::fmt::Debug,
+  S: core::fmt::Debug,
+  Lang: core::fmt::Debug,
 {
 }
 
-impl Undelimited<Paren> {
+impl<S> Undelimited<Paren, S> {
   /// Creates a new undelimited content error for missing parentheses.
   ///
   /// The span should point to the position of the content that should have been
@@ -209,23 +215,42 @@ impl Undelimited<Paren> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{Span, delimiter::Paren}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Paren}};
   ///
   /// // Undelimited content from position 3 to 7
-  /// let error = Undelimited::paren(Span::new(3, 7));
-  /// assert_eq!(error.span(), Span::new(3, 7));
+  /// let error = Undelimited::paren(SimpleSpan::new(3, 7));
+  /// assert_eq!(error.span(), SimpleSpan::new(3, 7));
   /// assert_eq!(error.delimiter(), Paren);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn paren(span: Span) -> Self {
-    Self {
-      span,
-      delimiter: Paren,
-    }
+  pub const fn paren(span: S) -> Self {
+    Self::paren_of(span)
   }
 }
 
-impl Undelimited<Bracket> {
+impl<S, Lang: ?Sized> Undelimited<Paren, S, Lang> {
+  /// Creates a new undelimited content error for missing parentheses.
+  ///
+  /// The span should point to the position of the content that should have been
+  /// wrapped in parentheses but wasn't.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Paren}};
+  ///
+  /// // Undelimited content from position 3 to 7
+  /// let error = Undelimited::paren_of(SimpleSpan::new(3, 7));
+  /// assert_eq!(error.span(), SimpleSpan::new(3, 7));
+  /// assert_eq!(error.delimiter(), Paren);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn paren_of(span: S) -> Self {
+    Self::of(span, Paren::PHANTOM)
+  }
+}
+
+impl<S> Undelimited<Bracket, S> {
   /// Creates a new undelimited content error for missing brackets.
   ///
   /// The span should point to the position of the content that should have been
@@ -234,23 +259,42 @@ impl Undelimited<Bracket> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{Span, delimiter::Bracket}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Bracket}};
   ///
   /// // Undelimited content from position 8 to 15
-  /// let error = Undelimited::bracket(Span::new(8, 15));
-  /// assert_eq!(error.span(), Span::new(8, 15));
+  /// let error = Undelimited::bracket(SimpleSpan::new(8, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(8, 15));
   /// assert_eq!(error.delimiter(), Bracket);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bracket(span: Span) -> Self {
-    Self {
-      span,
-      delimiter: Bracket,
-    }
+  pub const fn bracket(span: S) -> Self {
+    Self::bracket_of(span)
   }
 }
 
-impl Undelimited<Brace> {
+impl<S, Lang: ?Sized> Undelimited<Bracket, S, Lang> {
+  /// Creates a new undelimited content error for missing brackets.
+  ///
+  /// The span should point to the position of the content that should have been
+  /// wrapped in brackets but wasn't.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Bracket}};
+  ///
+  /// // Undelimited content from position 8 to 15
+  /// let error = Undelimited::bracket_of(SimpleSpan::new(8, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(8, 15));
+  /// assert_eq!(error.delimiter(), Bracket);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn bracket_of(span: S) -> Self {
+    Self::of(span, Bracket::PHANTOM)
+  }
+}
+
+impl<S> Undelimited<Brace, S> {
   /// Creates a new undelimited content error for missing braces.
   ///
   /// The span should point to the position of the content that should have been
@@ -259,23 +303,42 @@ impl Undelimited<Brace> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{Span, delimiter::Brace}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Brace}};
   ///
   /// // Undelimited content from position 12 to 20
-  /// let error = Undelimited::brace(Span::new(12, 20));
-  /// assert_eq!(error.span(), Span::new(12, 20));
+  /// let error = Undelimited::brace(SimpleSpan::new(12, 20));
+  /// assert_eq!(error.span(), SimpleSpan::new(12, 20));
   /// assert_eq!(error.delimiter(), Brace);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn brace(span: Span) -> Self {
-    Self {
-      span,
-      delimiter: Brace,
-    }
+  pub const fn brace(span: S) -> Self {
+    Self::brace_of(span)
   }
 }
 
-impl Undelimited<Angle> {
+impl<S, Lang: ?Sized> Undelimited<Brace, S, Lang> {
+  /// Creates a new undelimited content error for missing braces.
+  ///
+  /// The span should point to the position of the content that should have been
+  /// wrapped in braces but wasn't.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Brace}};
+  ///
+  /// // Undelimited content from position 12 to 20
+  /// let error = Undelimited::brace_of(SimpleSpan::new(12, 20));
+  /// assert_eq!(error.span(), SimpleSpan::new(12, 20));
+  /// assert_eq!(error.delimiter(), Brace);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn brace_of(span: S) -> Self {
+    Self::of(span, Brace::PHANTOM)
+  }
+}
+
+impl<S> Undelimited<Angle, S> {
   /// Creates a new undelimited content error for missing angle brackets.
   ///
   /// The span should point to the position of the content that should have been
@@ -284,23 +347,42 @@ impl Undelimited<Angle> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::{Span, delimiter::Angle}};
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Angle}};
   ///
   /// // Undelimited content from position 20 to 25
-  /// let error = Undelimited::angle(Span::new(20, 25));
-  /// assert_eq!(error.span(), Span::new(20, 25));
+  /// let error = Undelimited::angle(SimpleSpan::new(20, 25));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 25));
   /// assert_eq!(error.delimiter(), Angle);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn angle(span: Span) -> Self {
-    Self {
-      span,
-      delimiter: Angle,
-    }
+  pub const fn angle(span: S) -> Self {
+    Self::angle_of(span)
   }
 }
 
-impl<Delimiter> Undelimited<Delimiter> {
+impl<S, Lang: ?Sized> Undelimited<Angle, S, Lang> {
+  /// Creates a new undelimited content error for missing angle brackets.
+  ///
+  /// The span should point to the position of the content that should have been
+  /// wrapped in angle brackets but wasn't.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use tokit::{error::Undelimited, utils::{SimpleSpan, delimiter::Angle}};
+  ///
+  /// // Undelimited content from position 20 to 25
+  /// let error = Undelimited::angle_of(SimpleSpan::new(20, 25));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 25));
+  /// assert_eq!(error.delimiter(), Angle);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn angle_of(span: S) -> Self {
+    Self::of(span, Angle::PHANTOM)
+  }
+}
+
+impl<Delimiter, S> Undelimited<Delimiter, S> {
   /// Creates a new undelimited content error.
   ///
   /// The span should point to the position of the content that should have been
@@ -309,16 +391,42 @@ impl<Delimiter> Undelimited<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::Span};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
   /// // Undelimited content from position 5 to 10
-  /// let error = Undelimited::new(Span::new(5, 10), '{');
-  /// assert_eq!(error.span(), Span::new(5, 10));
+  /// let error = Undelimited::new(SimpleSpan::new(5, 10), '{');
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 10));
   /// assert_eq!(error.delimiter(), '{');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, delimiter: Delimiter) -> Self {
-    Self { span, delimiter }
+  pub const fn new(span: S, delimiter: Delimiter) -> Self {
+    Self::of(span, delimiter)
+  }
+}
+
+impl<Delimiter, S, Lang: ?Sized> Undelimited<Delimiter, S, Lang> {
+  /// Creates a new undelimited content error.
+  ///
+  /// The span should point to the position of the content that should have been
+  /// delimited but wasn't.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
+  ///
+  /// // Undelimited content from position 5 to 10
+  /// let error = Undelimited::new(SimpleSpan::new(5, 10), '{');
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 10));
+  /// assert_eq!(error.delimiter(), '{');
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of(span: S, delimiter: Delimiter) -> Self {
+    Self {
+      span,
+      delimiter,
+      _lang: PhantomData,
+    }
   }
 
   /// Returns the span of the undelimited content.
@@ -328,25 +436,28 @@ impl<Delimiter> Undelimited<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::Span};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
-  /// let error = Undelimited::new(Span::new(10, 15), '"');
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// let error = Undelimited::new(SimpleSpan::new(10, 15), '"');
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -355,9 +466,9 @@ impl<Delimiter> Undelimited<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::Span};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
-  /// let error = Undelimited::new(Span::new(5, 10), '{');
+  /// let error = Undelimited::new(SimpleSpan::new(5, 10), '{');
   /// assert_eq!(error.delimiter_ref(), &'{');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -372,9 +483,9 @@ impl<Delimiter> Undelimited<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::Span};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
-  /// let error = Undelimited::new(Span::new(5, 10), '[');
+  /// let error = Undelimited::new(SimpleSpan::new(5, 10), '[');
   /// assert_eq!(error.delimiter(), '[');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -394,14 +505,17 @@ impl<Delimiter> Undelimited<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::Span};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
-  /// let mut error = Undelimited::new(Span::new(5, 10), '(');
+  /// let mut error = Undelimited::new(SimpleSpan::new(5, 10), '(');
   /// error.bump(100);
-  /// assert_eq!(error.span(), Span::new(105, 110));
+  /// assert_eq!(error.span(), SimpleSpan::new(105, 110));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: Span,
+  {
     self.span.bump(offset);
     self
   }
@@ -411,15 +525,20 @@ impl<Delimiter> Undelimited<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Undelimited, utils::Span};
+  /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
-  /// let error = Undelimited::new(Span::new(10, 15), '"');
+  /// let error = Undelimited::new(SimpleSpan::new(10, 15), '"');
   /// let (span, delimiter) = error.into_components();
-  /// assert_eq!(span, Span::new(10, 15));
+  /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// assert_eq!(delimiter, '"');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Delimiter) {
+  pub fn into_components(self) -> (S, Delimiter) {
     (self.span, self.delimiter)
   }
+}
+
+impl<Delimiter, S, Lang: ?Sized> From<Undelimited<Delimiter, S, Lang>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: Undelimited<Delimiter, S, Lang>) -> Self {}
 }

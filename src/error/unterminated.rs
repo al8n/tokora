@@ -10,7 +10,7 @@
 //! encounter situations where a sequence is started but never completed. This error type
 //! captures both:
 //!
-//! - **Where** the incomplete sequence was found (via [`Span`])
+//! - **Where** the incomplete sequence was found (via [`SimpleSpan`])
 //! - **What** kind of construct was incomplete (via the generic `Knowledge` parameter)
 //!
 //! # Unclosed vs Unterminated
@@ -36,13 +36,13 @@
 //! ## GraphQL Spread Operator
 //!
 //! ```rust
-//! use logosky::{error::Unterminated, utils::Span};
+//! use tokit::{error::Unterminated, utils::SimpleSpan};
 //!
 //! // In GraphQL, '...' is the spread operator
 //! // If we find only '.' or '..' at EOF, it's unterminated
-//! let error = Unterminated::new(Span::new(10, 12), "spread operator");
+//! let error = Unterminated::new(SimpleSpan::new(10, 12), "spread operator");
 //!
-//! assert_eq!(error.span(), Span::new(10, 12));
+//! assert_eq!(error.span(), SimpleSpan::new(10, 12));
 //! assert_eq!(error.knowledge(), "spread operator");
 //! assert_eq!(error.to_string(), "unterminated spread operator");
 //! ```
@@ -50,7 +50,7 @@
 //! ## Custom Knowledge Enum
 //!
 //! ```rust
-//! use logosky::{error::Unterminated, utils::Span};
+//! use tokit::{error::Unterminated, utils::SimpleSpan};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,35 +73,35 @@
 //! }
 //!
 //! // Found only '&' when expecting '&&'
-//! let error = Unterminated::new(Span::new(5, 6), Operator::LogicalAnd);
+//! let error = Unterminated::new(SimpleSpan::new(5, 6), Operator::LogicalAnd);
 //! assert_eq!(error.to_string(), "unterminated logical AND operator '&&'");
 //! ```
 //!
 //! ## Incomplete Multi-Character Operators
 //!
 //! ```rust
-//! use logosky::{error::Unterminated, utils::Span};
+//! use tokit::{error::Unterminated, utils::SimpleSpan};
 //!
 //! // Source: "if x < "
 //! //           pos: 5^
 //! // Found '<' at EOF, could be '<', '<=', '<<', etc.
-//! let error = Unterminated::new(Span::new(5, 6), "comparison or shift operator");
+//! let error = Unterminated::new(SimpleSpan::new(5, 6), "comparison or shift operator");
 //! ```
 //!
 //! ## Position Adjustment
 //!
 //! ```rust
-//! use logosky::{error::Unterminated, utils::Span};
+//! use tokit::{error::Unterminated, utils::SimpleSpan};
 //!
 //! // Error from a nested parsing context
-//! let mut error = Unterminated::new(Span::new(5, 7), "string escape sequence");
+//! let mut error = Unterminated::new(SimpleSpan::new(5, 7), "string escape sequence");
 //!
 //! // Adjust to absolute position in the larger document
 //! error.bump(100);
-//! assert_eq!(error.span(), Span::new(105, 107));
+//! assert_eq!(error.span(), SimpleSpan::new(105, 107));
 //! ```
 
-use crate::utils::Span;
+use crate::{lexer::Span, utils::SimpleSpan};
 
 /// A zero-copy error type representing an unterminated sequence or operator.
 ///
@@ -133,10 +133,10 @@ use crate::utils::Span;
 /// ## Detecting Incomplete Operators
 ///
 /// ```rust
-/// use logosky::{error::Unterminated, utils::Span};
+/// use tokit::{error::Unterminated, utils::SimpleSpan};
 ///
 /// // Found '&' at position 10, expected '&&'
-/// let error = Unterminated::new(Span::new(10, 11), "logical AND operator");
+/// let error = Unterminated::new(SimpleSpan::new(10, 11), "logical AND operator");
 ///
 /// println!("Error: {} at position {}", error, error.span().start());
 /// // Output: "Error: unterminated logical AND operator at position 10"
@@ -145,12 +145,12 @@ use crate::utils::Span;
 /// ## Tracking Multiple Unterminated Sequences
 ///
 /// ```rust
-/// use logosky::{error::Unterminated, utils::Span};
+/// use tokit::{error::Unterminated, utils::SimpleSpan};
 ///
 /// let errors = vec![
-///     Unterminated::new(Span::new(5, 7), "spread operator"),    // .. instead of ...
-///     Unterminated::new(Span::new(10, 11), "logical OR"),       // | instead of ||
-///     Unterminated::new(Span::new(15, 16), "left shift"),       // < instead of <<
+///     Unterminated::new(SimpleSpan::new(5, 7), "spread operator"),    // .. instead of ...
+///     Unterminated::new(SimpleSpan::new(10, 11), "logical OR"),       // | instead of ||
+///     Unterminated::new(SimpleSpan::new(15, 16), "left shift"),       // < instead of <<
 /// ];
 ///
 /// for error in errors {
@@ -158,12 +158,12 @@ use crate::utils::Span;
 /// }
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Unterminated<Knowledge> {
-  span: Span,
+pub struct Unterminated<Knowledge, S = SimpleSpan> {
+  span: S,
   knowledge: Knowledge,
 }
 
-impl<Knowledge> core::fmt::Display for Unterminated<Knowledge>
+impl<Knowledge, S> core::fmt::Display for Unterminated<Knowledge, S>
 where
   Knowledge: core::fmt::Display,
 {
@@ -173,12 +173,14 @@ where
   }
 }
 
-impl<Knowledge> core::error::Error for Unterminated<Knowledge> where
-  Knowledge: core::fmt::Display + core::fmt::Debug
+impl<Knowledge, S> core::error::Error for Unterminated<Knowledge, S>
+where
+  Knowledge: core::fmt::Display + core::fmt::Debug,
+  S: core::fmt::Debug,
 {
 }
 
-impl<Knowledge> Unterminated<Knowledge> {
+impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// Creates a new unterminated sequence error.
   ///
   /// The span should point to the position of the incomplete sequence.
@@ -186,15 +188,15 @@ impl<Knowledge> Unterminated<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::Span};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
   /// // Found '..' instead of '...' at positions 5-7
-  /// let error = Unterminated::new(Span::new(5, 7), "spread operator");
-  /// assert_eq!(error.span(), Span::new(5, 7));
+  /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 7));
   /// assert_eq!(error.knowledge(), "spread operator");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, knowledge: Knowledge) -> Self {
+  pub const fn new(span: S, knowledge: Knowledge) -> Self {
     Self { span, knowledge }
   }
 
@@ -205,25 +207,28 @@ impl<Knowledge> Unterminated<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::Span};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
-  /// let error = Unterminated::new(Span::new(10, 11), "logical AND");
-  /// assert_eq!(error.span(), Span::new(10, 11));
+  /// let error = Unterminated::new(SimpleSpan::new(10, 11), "logical AND");
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the incomplete sequence.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the incomplete sequence.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -232,9 +237,9 @@ impl<Knowledge> Unterminated<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::Span};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
-  /// let error = Unterminated::new(Span::new(5, 7), "spread operator");
+  /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// assert_eq!(error.knowledge_ref(), &"spread operator");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -249,9 +254,9 @@ impl<Knowledge> Unterminated<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::Span};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
-  /// let error = Unterminated::new(Span::new(5, 7), "spread operator");
+  /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// assert_eq!(error.knowledge(), "spread operator");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -271,14 +276,17 @@ impl<Knowledge> Unterminated<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::Span};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
-  /// let mut error = Unterminated::new(Span::new(5, 7), "spread operator");
+  /// let mut error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// error.bump(100);
-  /// assert_eq!(error.span(), Span::new(105, 107));
+  /// assert_eq!(error.span(), SimpleSpan::new(105, 107));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: Span,
+  {
     self.span.bump(offset);
     self
   }
@@ -288,15 +296,15 @@ impl<Knowledge> Unterminated<Knowledge> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unterminated, utils::Span};
+  /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
-  /// let error = Unterminated::new(Span::new(10, 12), "escape sequence");
+  /// let error = Unterminated::new(SimpleSpan::new(10, 12), "escape sequence");
   /// let (span, knowledge) = error.into_components();
-  /// assert_eq!(span, Span::new(10, 12));
+  /// assert_eq!(span, SimpleSpan::new(10, 12));
   /// assert_eq!(knowledge, "escape sequence");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Knowledge) {
+  pub fn into_components(self) -> (S, Knowledge) {
     (self.span, self.knowledge)
   }
 }

@@ -1,59 +1,34 @@
-use core::ops::Range;
-
 use bstr::BStr;
 
-use super::CustomSource;
+use super::Source;
 
-impl<'a> From<&'a BStr> for &'a CustomSource<BStr> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(s: &'a BStr) -> Self {
-    CustomSource::from_ref(s)
-  }
-}
-
-impl logos::Source for CustomSource<BStr> {
+impl Source<usize> for BStr {
   type Slice<'a>
     = &'a [u8]
   where
     Self: 'a;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    <[u8]>::is_empty(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
-    self.0.len()
+    <[u8]>::len(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn read<'a, Chunk>(&'a self, offset: usize) -> Option<Chunk>
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
-    Chunk: logos::source::Chunk<'a>,
+    R: core::ops::RangeBounds<&'a usize>,
+    usize: 'a,
   {
-    if offset + (Chunk::SIZE - 1) < self.len() {
-      Some(unsafe { Chunk::from_ptr(self.0.as_ptr().add(offset)) })
-    } else {
-      None
-    }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  unsafe fn read_byte_unchecked(&self, offset: usize) -> u8 {
-    // The outer unsafe fn has a Safety warnings about the offset must not exceed the bounds,
-    // which is guaranteed by the outer caller.
-    unsafe { *self.0.get_unchecked(offset) }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice(&self, range: Range<usize>) -> Option<Self::Slice<'_>> {
-    self.0.slice(range)
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  unsafe fn slice_unchecked(&self, range: Range<usize>) -> Self::Slice<'_> {
-    // Safety: will deref to [u8] implementation
-    unsafe { self.0.slice_unchecked(range) }
+    <[u8]>::slice(self, range)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_boundary(&self, index: usize) -> bool {
-    self.0.is_boundary(index)
+    <[u8]>::is_boundary(self, index)
   }
 }

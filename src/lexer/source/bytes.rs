@@ -1,55 +1,90 @@
-use core::ops::Range;
+use core::ops::RangeBounds;
 
 use bytes::Bytes;
 
-use super::CustomSource;
+use super::{Slice, Source};
 
-impl logos::Source for CustomSource<Bytes> {
+impl Slice<'_> for Bytes {
+  type Char = u8;
+
+  type Iter<'a>
+    = core::iter::Copied<core::slice::Iter<'a, u8>>
+  where
+    Self: 'a;
+
+  type PositionedIter<'a>
+    = core::iter::Enumerate<Self::Iter<'a>>
+  where
+    Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn iter<'a>(&'a self) -> Self::Iter<'a>
+  where
+    Self: 'a,
+  {
+    <[u8]>::iter(self).copied()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
+  where
+    Self: 'a,
+  {
+    self.iter().enumerate()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    Bytes::len(self)
+  }
+}
+
+impl Source<usize> for Bytes {
   type Slice<'a>
     = Bytes
   where
     Self: 'a;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    <Bytes>::is_empty(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
-    self.0.len()
+    self.len()
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn read<'a, Chunk>(&'a self, offset: usize) -> Option<Chunk>
+  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
-    Chunk: logos::source::Chunk<'a>,
+    R: RangeBounds<&'a usize>,
   {
-    if offset + (Chunk::SIZE - 1) < self.len() {
-      Some(unsafe { Chunk::from_ptr(self.0.as_ptr().add(offset)) })
-    } else {
-      None
+    use core::ops::Bound;
+
+    let len = self.len();
+
+    let begin = match range.start_bound() {
+      Bound::Included(&&n) => n,
+      Bound::Excluded(&&n) => n.checked_add(1)?,
+      Bound::Unbounded => 0,
+    };
+
+    let end = match range.end_bound() {
+      Bound::Included(&&n) => n.checked_add(1)?,
+      Bound::Excluded(&&n) => n,
+      Bound::Unbounded => len,
+    };
+
+    if begin > end || end > len {
+      return None;
     }
-  }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  unsafe fn read_byte_unchecked(&self, offset: usize) -> u8 {
-    // The outer unsafe fn has a Safety warnings about the offset must not exceed the bounds,
-    // which is guaranteed by the outer caller.
-    unsafe { *self.0.get_unchecked(offset) }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice(&self, range: Range<usize>) -> Option<Self::Slice<'_>> {
-    if range.end <= self.len() {
-      Some(self.0.slice(range))
-    } else {
-      None
-    }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  unsafe fn slice_unchecked(&self, range: Range<usize>) -> Self::Slice<'_> {
-    self.0.slice(range)
+    Some(Bytes::slice(self, begin..end))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_boundary(&self, index: usize) -> bool {
-    self.0.is_boundary(index)
+    <[u8]>::is_boundary(self, index)
   }
 }

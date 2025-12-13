@@ -9,7 +9,7 @@
 //! quotes, etc.), it's common to encounter situations where a closing delimiter is found
 //! but the corresponding opening delimiter is missing. This error type captures both:
 //!
-//! - **Where** the closing delimiter was found (via [`Span`])
+//! - **Where** the closing delimiter was found (via [`SimpleSpan`])
 //! - **What** closing delimiter was left unopened (via the generic `Delimiter` parameter)
 //!
 //! # Unopened vs Unclosed vs Unterminated
@@ -38,13 +38,13 @@
 //! ## Basic Usage with Character Delimiters
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::Span};
+//! use tokit::{error::Unopened, utils::SimpleSpan};
 //!
 //! // Closing parenthesis at position 10, never opened
 //! // Example: "a + b * c)" where the ')' has no matching '('
-//! let error = Unopened::new(Span::new(10, 11), ')');
+//! let error = Unopened::new(SimpleSpan::new(10, 11), ')');
 //!
-//! assert_eq!(error.span(), Span::new(10, 11));
+//! assert_eq!(error.span(), SimpleSpan::new(10, 11));
 //! assert_eq!(error.delimiter(), ')');
 //! assert_eq!(error.to_string(), "unopened delimiter ')'");
 //! ```
@@ -52,7 +52,7 @@
 //! ## Custom Delimiter Enum
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::Span};
+//! use tokit::{error::Unopened, utils::SimpleSpan};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,18 +76,18 @@
 //!     }
 //! }
 //!
-//! let error = Unopened::new(Span::new(5, 6), Delimiter::BlockComment);
+//! let error = Unopened::new(SimpleSpan::new(5, 6), Delimiter::BlockComment);
 //! assert_eq!(error.to_string(), "unopened delimiter '/*'");
 //! ```
 //!
 //! ## Tracking Nested Delimiters
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::Span};
+//! use tokit::{error::Unopened, utils::SimpleSpan};
 //!
 //! // When parsing: "{ foo: bar, baz ] }"
 //! // The ']' at position 16 was never opened
-//! let error = Unopened::new(Span::new(16, 17), ']');
+//! let error = Unopened::new(SimpleSpan::new(16, 17), ']');
 //!
 //! // Error reporting can show:
 //! // "error at 16..17: unopened delimiter ']'"
@@ -96,29 +96,30 @@
 //! ## Position Adjustment
 //!
 //! ```rust
-//! use logosky::{error::Unopened, utils::Span};
+//! use tokit::{error::Unopened, utils::SimpleSpan};
 //!
 //! // Error from a nested parsing context
-//! let mut error = Unopened::new(Span::new(5, 6), '}');
+//! let mut error = Unopened::new(SimpleSpan::new(5, 6), '}');
 //!
 //! // Adjust to absolute position in the larger document
 //! error.bump(100);
-//! assert_eq!(error.span(), Span::new(105, 106));
+//! assert_eq!(error.span(), SimpleSpan::new(105, 106));
 //! ```
-
-use crate::utils::{
-  Span,
-  delimiter::{Angle, Brace, Bracket, Paren},
+use crate::{
+  lexer::Span,
+  punct::{Angle, Brace, Bracket, Paren},
+  utils::SimpleSpan,
 };
+use core::marker::PhantomData;
 
 /// An unopened bracket error (closing `]` without opening `[`)
-pub type UnopenedBracket = Unopened<Bracket>;
+pub type UnopenedBracket<S = SimpleSpan, Lang = ()> = Unopened<Bracket, S, Lang>;
 /// An unopened parenthesis error (closing `)` without opening `(`)
-pub type UnopenedParen = Unopened<Paren>;
+pub type UnopenedParen<S = SimpleSpan, Lang = ()> = Unopened<Paren, S, Lang>;
 /// An unopened brace error (closing `}` without opening `{`)
-pub type UnopenedBrace = Unopened<Brace>;
+pub type UnopenedBrace<S = SimpleSpan, Lang = ()> = Unopened<Brace, S, Lang>;
 /// An unopened angle bracket error (closing `>` without opening `<`)
-pub type UnopenedAngle = Unopened<Angle>;
+pub type UnopenedAngle<S = SimpleSpan, Lang = ()> = Unopened<Angle, S, Lang>;
 
 /// A zero-copy error type representing an unopened delimiter.
 ///
@@ -149,11 +150,11 @@ pub type UnopenedAngle = Unopened<Angle>;
 /// ## Detecting Unopened Parentheses
 ///
 /// ```rust
-/// use logosky::{error::Unopened, utils::Span};
+/// use tokit::{error::Unopened, utils::SimpleSpan};
 ///
 /// // Parse error: 1 + 2)
 /// //                   ^--- unopened closing delimiter
-/// let error = Unopened::new(Span::new(5, 6), ')');
+/// let error = Unopened::new(SimpleSpan::new(5, 6), ')');
 ///
 /// println!("Error: {} at position {}", error, error.span().start());
 /// // Output: "Error: unopened delimiter ')' at position 5"
@@ -162,12 +163,12 @@ pub type UnopenedAngle = Unopened<Angle>;
 /// ## Tracking Multiple Unopened Delimiters
 ///
 /// ```rust
-/// use logosky::{error::Unopened, utils::Span};
+/// use tokit::{error::Unopened, utils::SimpleSpan};
 ///
 /// let errors = vec![
-///     Unopened::new(Span::new(5, 6), '}'),
-///     Unopened::new(Span::new(10, 11), ']'),
-///     Unopened::new(Span::new(15, 16), ')'),
+///     Unopened::new(SimpleSpan::new(5, 6), '}'),
+///     Unopened::new(SimpleSpan::new(10, 11), ']'),
+///     Unopened::new(SimpleSpan::new(15, 16), ')'),
 /// ];
 ///
 /// for error in errors {
@@ -175,12 +176,13 @@ pub type UnopenedAngle = Unopened<Angle>;
 /// }
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Unopened<Delimiter> {
-  span: Span,
+pub struct Unopened<Delimiter, S = SimpleSpan, Lang: ?Sized = ()> {
+  span: S,
   delimiter: Delimiter,
+  _m: PhantomData<Lang>,
 }
 
-impl<Delimiter> core::fmt::Display for Unopened<Delimiter>
+impl<Delimiter, S, Lang: ?Sized> core::fmt::Display for Unopened<Delimiter, S, Lang>
 where
   Delimiter: core::fmt::Display,
 {
@@ -190,12 +192,15 @@ where
   }
 }
 
-impl<Delimiter> core::error::Error for Unopened<Delimiter> where
-  Delimiter: core::fmt::Display + core::fmt::Debug
+impl<Delimiter, S, Lang: ?Sized> core::error::Error for Unopened<Delimiter, S, Lang>
+where
+  Delimiter: core::fmt::Display + core::fmt::Debug,
+  S: core::fmt::Debug,
+  Lang: core::fmt::Debug,
 {
 }
 
-impl Unopened<Paren> {
+impl<S> Unopened<Paren, S> {
   /// Creates a new unopened parenthesis error.
   ///
   /// The span should point to the position of the closing parenthesis that was never opened.
@@ -203,23 +208,41 @@ impl Unopened<Paren> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Paren}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Paren}};
   ///
   /// // Closing parenthesis at position 3, never opened
-  /// let error = Unopened::paren(Span::new(3, 4));
-  /// assert_eq!(error.span(), Span::new(3, 4));
+  /// let error = Unopened::paren(SimpleSpan::new(3, 4));
+  /// assert_eq!(error.span(), SimpleSpan::new(3, 4));
   /// assert_eq!(error.delimiter(), Paren);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn paren(span: Span) -> Self {
-    Self {
-      span,
-      delimiter: Paren,
-    }
+  pub const fn paren(span: S) -> Self {
+    Self::paren_of(span)
   }
 }
 
-impl Unopened<Bracket> {
+impl<S, Lang: ?Sized> Unopened<Paren, S, Lang> {
+  /// Creates a new unopened parenthesis error.
+  ///
+  /// The span should point to the position of the closing parenthesis that was never opened.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Paren}};
+  ///
+  /// // Closing parenthesis at position 3, never opened
+  /// let error = Unopened::paren(SimpleSpan::new(3, 4));
+  /// assert_eq!(error.span(), SimpleSpan::new(3, 4));
+  /// assert_eq!(error.delimiter(), Paren);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn paren_of(span: S) -> Self {
+    Self::of(span, Paren::PHANTOM)
+  }
+}
+
+impl<S> Unopened<Bracket, S> {
   /// Creates a new unopened bracket error.
   ///
   /// The span should point to the position of the closing bracket that was never opened.
@@ -227,23 +250,41 @@ impl Unopened<Bracket> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Bracket}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Bracket}};
   ///
   /// // Closing bracket at position 8, never opened
-  /// let error = Unopened::bracket(Span::new(8, 9));
-  /// assert_eq!(error.span(), Span::new(8, 9));
+  /// let error = Unopened::bracket(SimpleSpan::new(8, 9));
+  /// assert_eq!(error.span(), SimpleSpan::new(8, 9));
   /// assert_eq!(error.delimiter(), Bracket);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bracket(span: Span) -> Self {
-    Self {
-      span,
-      delimiter: Bracket,
-    }
+  pub const fn bracket(span: S) -> Self {
+    Self::bracket_of(span)
   }
 }
 
-impl Unopened<Brace> {
+impl<S, Lang: ?Sized> Unopened<Bracket, S, Lang> {
+  /// Creates a new unopened bracket error.
+  ///
+  /// The span should point to the position of the closing bracket that was never opened.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Bracket}};
+  ///
+  /// // Closing bracket at position 8, never opened
+  /// let error = Unopened::bracket(SimpleSpan::new(8, 9));
+  /// assert_eq!(error.span(), SimpleSpan::new(8, 9));
+  /// assert_eq!(error.delimiter(), Bracket);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn bracket_of(span: S) -> Self {
+    Self::of(span, Bracket::PHANTOM)
+  }
+}
+
+impl<S> Unopened<Brace, S> {
   /// Creates a new unopened brace error.
   ///
   /// The span should point to the position of the closing brace that was never opened.
@@ -251,23 +292,41 @@ impl Unopened<Brace> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Brace}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Brace}};
   ///
   /// // Closing brace at position 12, never opened
-  /// let error = Unopened::brace(Span::new(12, 13));
-  /// assert_eq!(error.span(), Span::new(12, 13));
+  /// let error = Unopened::brace(SimpleSpan::new(12, 13));
+  /// assert_eq!(error.span(), SimpleSpan::new(12, 13));
   /// assert_eq!(error.delimiter(), Brace);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn brace(span: Span) -> Self {
-    Self {
-      span,
-      delimiter: Brace,
-    }
+  pub const fn brace(span: S) -> Self {
+    Self::brace_of(span)
   }
 }
 
-impl Unopened<Angle> {
+impl<S, Lang: ?Sized> Unopened<Brace, S, Lang> {
+  /// Creates a new unopened brace error.
+  ///
+  /// The span should point to the position of the closing brace that was never opened.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Brace}};
+  ///
+  /// // Closing brace at position 12, never opened
+  /// let error = Unopened::brace(SimpleSpan::new(12, 13));
+  /// assert_eq!(error.span(), SimpleSpan::new(12, 13));
+  /// assert_eq!(error.delimiter(), Brace);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn brace_of(span: S) -> Self {
+    Self::of(span, Brace::PHANTOM)
+  }
+}
+
+impl<S> Unopened<Angle, S> {
   /// Creates a new unopened angle bracket error.
   ///
   /// The span should point to the position of the closing angle bracket that was never opened.
@@ -275,23 +334,41 @@ impl Unopened<Angle> {
   /// ## Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::{Span, delimiter::Angle}};
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Angle}};
   ///
   /// // Closing angle bracket at position 20, never opened
-  /// let error = Unopened::angle(Span::new(20, 21));
-  /// assert_eq!(error.span(), Span::new(20, 21));
+  /// let error = Unopened::angle(SimpleSpan::new(20, 21));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 21));
   /// assert_eq!(error.delimiter(), Angle);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn angle(span: Span) -> Self {
-    Self {
-      span,
-      delimiter: Angle,
-    }
+  pub const fn angle(span: S) -> Self {
+    Self::of(span, Angle::PHANTOM)
   }
 }
 
-impl<Delimiter> Unopened<Delimiter> {
+impl<S, Lang: ?Sized> Unopened<Angle, S, Lang> {
+  /// Creates a new unopened angle bracket error.
+  ///
+  /// The span should point to the position of the closing angle bracket that was never opened.
+  ///
+  /// ## Examples
+  ///
+  /// ```rust
+  /// use tokit::{error::Unopened, utils::{SimpleSpan, delimiter::Angle}};
+  ///
+  /// // Closing angle bracket at position 20, never opened
+  /// let error = Unopened::angle(SimpleSpan::new(20, 21));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 21));
+  /// assert_eq!(error.delimiter(), Angle);
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn angle_of(span: S) -> Self {
+    Self::of(span, Angle::PHANTOM)
+  }
+}
+
+impl<Delimiter, S> Unopened<Delimiter, S> {
   /// Creates a new unopened delimiter error.
   ///
   /// The span should point to the position of the closing delimiter that was never opened.
@@ -299,16 +376,41 @@ impl<Delimiter> Unopened<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
   /// // Closing brace at position 5, never opened
-  /// let error = Unopened::new(Span::new(5, 6), '}');
-  /// assert_eq!(error.span(), Span::new(5, 6));
+  /// let error = Unopened::new(SimpleSpan::new(5, 6), '}');
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 6));
   /// assert_eq!(error.delimiter(), '}');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: Span, delimiter: Delimiter) -> Self {
-    Self { span, delimiter }
+  pub const fn new(span: S, delimiter: Delimiter) -> Self {
+    Self::of(span, delimiter)
+  }
+}
+
+impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
+  /// Creates a new unopened delimiter error.
+  ///
+  /// The span should point to the position of the closing delimiter that was never opened.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
+  ///
+  /// // Closing brace at position 5, never opened
+  /// let error = Unopened::new(SimpleSpan::new(5, 6), '}');
+  /// assert_eq!(error.span(), SimpleSpan::new(5, 6));
+  /// assert_eq!(error.delimiter(), '}');
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn of(span: S, delimiter: Delimiter) -> Self {
+    Self {
+      span,
+      delimiter,
+      _m: PhantomData,
+    }
   }
 
   /// Returns the span of the closing delimiter.
@@ -318,25 +420,28 @@ impl<Delimiter> Unopened<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
-  /// let error = Unopened::new(Span::new(10, 11), ')');
-  /// assert_eq!(error.span(), Span::new(10, 11));
+  /// let error = Unopened::new(SimpleSpan::new(10, 11), ')');
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> Span {
+  pub const fn span(&self) -> S
+  where
+    S: Copy,
+  {
     self.span
   }
 
   /// Returns a reference to the span of the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &Span {
+  pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut Span {
+  pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
@@ -345,9 +450,9 @@ impl<Delimiter> Unopened<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
-  /// let error = Unopened::new(Span::new(5, 6), '}');
+  /// let error = Unopened::new(SimpleSpan::new(5, 6), '}');
   /// assert_eq!(error.delimiter_ref(), &'}');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -362,9 +467,9 @@ impl<Delimiter> Unopened<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
-  /// let error = Unopened::new(Span::new(5, 6), ']');
+  /// let error = Unopened::new(SimpleSpan::new(5, 6), ']');
   /// assert_eq!(error.delimiter(), ']');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -384,14 +489,17 @@ impl<Delimiter> Unopened<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
-  /// let mut error = Unopened::new(Span::new(5, 6), ')');
+  /// let mut error = Unopened::new(SimpleSpan::new(5, 6), ')');
   /// error.bump(100);
-  /// assert_eq!(error.span(), Span::new(105, 106));
+  /// assert_eq!(error.span(), SimpleSpan::new(105, 106));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bump(&mut self, offset: usize) -> &mut Self {
+  pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
+  where
+    S: Span,
+  {
     self.span.bump(offset);
     self
   }
@@ -401,15 +509,20 @@ impl<Delimiter> Unopened<Delimiter> {
   /// # Examples
   ///
   /// ```rust
-  /// use logosky::{error::Unopened, utils::Span};
+  /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
-  /// let error = Unopened::new(Span::new(10, 11), '"');
+  /// let error = Unopened::new(SimpleSpan::new(10, 11), '"');
   /// let (span, delimiter) = error.into_components();
-  /// assert_eq!(span, Span::new(10, 11));
+  /// assert_eq!(span, SimpleSpan::new(10, 11));
   /// assert_eq!(delimiter, '"');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (Span, Delimiter) {
+  pub fn into_components(self) -> (S, Delimiter) {
     (self.span, self.delimiter)
   }
+}
+
+impl<Delimiter, S, Lang: ?Sized> From<Unopened<Delimiter, S, Lang>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: Unopened<Delimiter, S, Lang>) -> Self {}
 }
