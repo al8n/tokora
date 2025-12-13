@@ -6,9 +6,7 @@ use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
   Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser, Token as TokenT,
-  emitter::{
-    DelimiterEmitter, SeparatedByEmitter,
-  },
+  emitter::{DelimiterEmitter, SeparatedByEmitter},
   error::{
     UnclosedBrace, UnclosedBracket, Undelimited, UnexpectedEot, UnopenedBrace, UnopenedBracket,
     syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},

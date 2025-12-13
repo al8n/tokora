@@ -13,7 +13,7 @@ keywords = ["parser", "combinator", "token", "logos", "error-recovery"]
 
 [features]
 default = ["std"]
-alloc = ["generic-arraydeque/alloc"]
+alloc = ["generic-arraydeque/alloc", "mayber/alloc"]
 std = [
   "generic-arraydeque/default",
   "thiserror/default",
@@ -21,6 +21,7 @@ std = [
   "hipstr?/default",
   "bstr?/default",
   "logos?/default",
+  "mayber/default",
 ]
 
 unstable = ["generic-arraydeque/unstable"]
@@ -39,7 +40,7 @@ smallvec = ["dep:smallvec", "alloc"]
 ascii = { version = "1", default-features = false }
 deranged = { version = "0.5", default-features = false }
 either = { version = "1", default-features = false }
-mayber = { version = "0.1", path = "../mayber", default-features = false }
+mayber = { version = "0.1", default-features = false }
 derive_more = { version = "2", default-features = false, features = [
   "display",
   "deref",
