@@ -311,8 +311,11 @@ impl<
             }
             t => match self.parser.right_classifier.check(t) {
               Ok(_) => {
-                let tok = tok.cloned();
                 drop(peeked);
+
+                let Ok(Some(tok)) = inp.next_token() else {
+                  unreachable!("peeked guarantee there is a next token")
+                };
 
                 break (inp.span_since(&elems_start), Some(tok));
               }

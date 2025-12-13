@@ -609,9 +609,6 @@ where
 const SRC: &str = include_str!("sample.json");
 
 fn main() {
-  let output: JsonError<'_> = Parser::new().apply(json_value).parse(SRC).unwrap_err();
-
-  println!("{}", &SRC[7..1131]);
-
+  let output = Parser::new().apply(json_value).parse(SRC).unwrap();
   println!("{:#?}", output);
 }
