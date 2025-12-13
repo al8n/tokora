@@ -62,3 +62,21 @@ impl<O: ?Sized, S, Lang: ?Sized> From<TooFew<O, S, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: TooFew<O, S, Lang>) -> Self {}
 }
+
+impl<O: ?Sized, S, Lang> TooFew<O, S, Lang>
+where
+  Lang: ?Sized,
+{
+  /// Formats this error for display purposes.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+  where
+    S: core::fmt::Display,
+  {
+    write!(
+      f,
+      "too few elements: found {}, but minimum is {} at {}",
+      self.nums, self.limit, self.span
+    )
+  }
+}

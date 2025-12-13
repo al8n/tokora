@@ -1,7 +1,7 @@
 use crate::{
   Lexer,
   error::{
-    Unclosed, Undelimited, UnexpectedEot, Unopened,
+    Unclosed, Undelimited, Unopened,
     syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
     token::{
       MissingLeadingOf, MissingSeparatorOf, MissingTrailingOf, UnexpectedLeadingOf,
@@ -176,6 +176,46 @@ where
   }
 }
 
+/// A trait bound for generic emitter error conversion.
+pub trait FromEmitterError<'a, L, Lang: ?Sized = ()> {
+  /// Creates an emitter error from a lexer error.
+  fn from_lexer_error(err: Spanned<<L::Token as Token<'a>>::Error, L::Span>) -> Self
+  where
+    L: Lexer<'a>;
+
+  /// Creates an emitter error from an unexpected token error.
+  fn from_unexpected_token(
+    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>,
+  ) -> Self
+  where
+    L: Lexer<'a>;
+}
+
+impl<'a, T, L, Lang: ?Sized> FromEmitterError<'a, L, Lang> for T
+where
+  L: Lexer<'a>,
+  T: From<<L::Token as Token<'a>>::Error>
+    + From<UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_lexer_error(err: Spanned<<L::Token as Token<'a>>::Error, L::Span>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into_data().into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_unexpected_token(
+    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>,
+  ) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into()
+  }
+}
+
 /// An emitter that supports batching of errors for more efficient reporting.
 pub trait BatchEmitter<'a, L, Error, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   /// Creates a new empty batch for collecting errors, returning its ID.
@@ -292,6 +332,85 @@ pub trait DelimiterEmitter<'a, Delim, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang
     L: Lexer<'a>;
 }
 
+impl<'a, Delim, L, U, Lang: ?Sized> DelimiterEmitter<'a, Delim, L, Lang> for &mut U
+where
+  U: DelimiterEmitter<'a, Delim, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_unclosed(&mut self, err: Unclosed<Delim, L::Span, Lang>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    (**self).emit_unclosed(err)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_unopened(&mut self, err: Unopened<Delim, L::Span, Lang>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    (**self).emit_unopened(err)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_undelimited(&mut self, err: Undelimited<Delim, L::Span, Lang>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    (**self).emit_undelimited(err)
+  }
+}
+
+/// A trait bound for converting delimiter errors into emitter errors.
+pub trait FromDelimiterEmitterError<'a, Delim, L, Lang: ?Sized = ()> {
+  /// Creates an emitter error from an unclosed delimiter error.
+  fn from_unclosed(err: Unclosed<Delim, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>;
+
+  /// Creates an emitter error from an unopened delimiter error.
+  fn from_unopened(err: Unopened<Delim, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>;
+
+  /// Creates an emitter error from an undelimited content error.
+  fn from_undelimited(err: Undelimited<Delim, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>;
+}
+
+impl<'a, T, Delim, L, Lang: ?Sized> FromDelimiterEmitterError<'a, Delim, L, Lang> for T
+where
+  L: Lexer<'a>,
+  T: From<Unclosed<Delim, L::Span, Lang>>
+    + From<Unopened<Delim, L::Span, Lang>>
+    + From<Undelimited<Delim, L::Span, Lang>>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_unclosed(err: Unclosed<Delim, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_unopened(err: Unopened<Delim, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_undelimited(err: Undelimited<Delim, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into()
+  }
+}
+
 /// An emitter that handles errors related to repeated elements during parsing.
 pub trait RepeatedEmitter<'a, O: ?Sized, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   /// Emits an error indicating that too few elements were found.
@@ -342,13 +461,62 @@ where
   }
 }
 
+/// A trait bound for emitters that handle separated-by syntax errors.
+pub trait FromRepeatedEmitterError<'a, O: ?Sized, L, Lang: ?Sized = ()> {
+  /// Creates an emitter error from a too few elements error.
+  fn from_too_few(err: TooFew<O, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>;
+
+  /// Creates an emitter error from a too many elements error.
+  fn from_too_many(err: TooMany<O, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>;
+
+  /// Creates an emitter error from a full container error.
+  fn from_full_container(err: FullContainer<O, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>;
+}
+
+impl<'a, T, O: ?Sized, L, Lang: ?Sized> FromRepeatedEmitterError<'a, O, L, Lang> for T
+where
+  L: Lexer<'a>,
+  T: From<TooFew<O, L::Span, Lang>>
+    + From<TooMany<O, L::Span, Lang>>
+    + From<FullContainer<O, L::Span, Lang>>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_too_few(err: TooFew<O, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_too_many(err: TooMany<O, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_full_container(err: FullContainer<O, L::Span, Lang>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into()
+  }
+}
+
 /// An emitter that handles missing separator or repeated separators found during parsing.
 pub trait SeparatedByEmitter<'inp, O, Sep, L, Lang: ?Sized = ()>:
   RepeatedEmitter<'inp, O, L, Lang>
   + BatchEmitter<'inp, L, UnexpectedLeadingOf<'inp, Sep, L, Lang>, Lang>
   + BatchEmitter<'inp, L, UnexpectedTrailingOf<'inp, Sep, L, Lang>, Lang>
   + BatchEmitter<'inp, L, UnexpectedRepeatedOf<'inp, Sep, L, Lang>, Lang>
-  + BatchEmitter<'inp, L, <L::Token as Token<'inp>>::Error, Lang>
 where
   L: Lexer<'inp>,
 {
@@ -495,5 +663,121 @@ where
     L: Lexer<'inp>,
   {
     (**self).emit_unexpected_trailing_separator(err)
+  }
+}
+
+/// A trait bound for converting separated-by emitter errors into emitter errors.
+pub trait FromSeparatedByEmitterError<'inp, O, Sep, L, Lang: ?Sized = ()>:
+  FromRepeatedEmitterError<'inp, O, L, Lang>
+  + FromEmitterError<'inp, L, Lang>
+  + From<UnexpectedLeadingOf<'inp, Sep, L, Lang>>
+  + From<UnexpectedTrailingOf<'inp, Sep, L, Lang>>
+  + From<UnexpectedRepeatedOf<'inp, Sep, L, Lang>>
+where
+  L: Lexer<'inp>,
+{
+  /// Creates an emitter error from a missing separator error.
+  fn from_missing_separator(err: MissingSeparatorOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>;
+
+  /// Creates an emitter error from a missing element error.
+  fn from_missing_element(err: MissingSyntaxOf<'inp, O, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>;
+
+  /// Creates an emitter error from a missing leading separator error.
+  fn from_missing_leading_separator(err: MissingLeadingOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>;
+
+  /// Creates an emitter error from a missing trailing separator error.
+  fn from_missing_trailing_separator(err: MissingTrailingOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>;
+
+  /// Creates an emitter error from an unexpected repeated separator error.
+  fn from_unexpected_repeated_separator(err: UnexpectedRepeatedOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>;
+
+  /// Creates an emitter error from an unexpected leading separator error.
+  fn from_unexpected_leading_separator(err: UnexpectedLeadingOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>;
+
+  /// Creates an emitter error from an unexpected trailing separator error.
+  fn from_unexpected_trailing_separator(err: UnexpectedTrailingOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>;
+}
+
+impl<'inp, T, O, Sep, L, Lang: ?Sized> FromSeparatedByEmitterError<'inp, O, Sep, L, Lang> for T
+where
+  L: Lexer<'inp>,
+  T: From<MissingSeparatorOf<'inp, Sep, L, Lang>>
+    + From<MissingSyntaxOf<'inp, O, L, Lang>>
+    + From<MissingLeadingOf<'inp, Sep, L, Lang>>
+    + From<MissingTrailingOf<'inp, Sep, L, Lang>>
+    + From<UnexpectedRepeatedOf<'inp, Sep, L, Lang>>
+    + From<UnexpectedLeadingOf<'inp, Sep, L, Lang>>
+    + From<UnexpectedTrailingOf<'inp, Sep, L, Lang>>
+    + FromEmitterError<'inp, L, Lang>
+    + FromRepeatedEmitterError<'inp, O, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_missing_separator(err: MissingSeparatorOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_missing_element(err: MissingSyntaxOf<'inp, O, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_missing_leading_separator(err: MissingLeadingOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_missing_trailing_separator(err: MissingTrailingOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_unexpected_repeated_separator(err: UnexpectedRepeatedOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_unexpected_leading_separator(err: UnexpectedLeadingOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_unexpected_trailing_separator(err: UnexpectedTrailingOf<'inp, Sep, L, Lang>) -> Self
+  where
+    L: Lexer<'inp>,
+  {
+    err.into()
   }
 }

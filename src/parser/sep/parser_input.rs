@@ -33,7 +33,17 @@ impl<
   W,
 > ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, SeparatedByOptions<Trailing, Leading, Max, Min>, Lang>,
+    SeparatedBy<
+      F,
+      SepClassifier,
+      Condition,
+      O,
+      W,
+      L,
+      Ctx,
+      SeparatedByOptions<Trailing, Leading, Max, Min>,
+      Lang,
+    >,
     Container,
     Ctx,
     Lang,
@@ -263,7 +273,9 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let Self { parser, container, .. } = self;
+    let Self {
+      parser, container, ..
+    } = self;
 
     let mut state: State<L::Token, L::Span> = State::Start;
     let ckp = inp.save();
@@ -384,12 +396,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W, L
         // whatever the leading spec is, multiple leading separators are not allowed
         // we should start a leading separator error batch and emit the newly found leading separator
         // to the batch
-        state = State::Leadings(self.handle_leading_state(
-          inp,
-          tok,
-          sep_tok,
-          leading_spec,
-        )?);
+        state = State::Leadings(self.handle_leading_state(inp, tok, sep_tok, leading_spec)?);
       }
       State::Leadings(span) => {
         state = State::Leadings(self.handle_leadings_state(inp, span, sep_tok)?);
@@ -405,15 +412,13 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W, L
       // and emit it via the emitter, and let the emitter decide whether to return early
       State::Separator(tok) => {
         // change state to RepeatedSeparator, store the span as the id for the batch
-        state =
-          State::RepeatedSeparator(self.handle_separator_state(inp, tok, sep_tok)?);
+        state = State::RepeatedSeparator(self.handle_separator_state(inp, tok, sep_tok)?);
       }
       // we are in repeated separator state,
       // so just extend the repeated separator span
       State::RepeatedSeparator(span) => {
-        state = State::RepeatedSeparator(
-          self.handle_repeated_separators_state(inp, span, sep_tok)?,
-        );
+        state =
+          State::RepeatedSeparator(self.handle_repeated_separators_state(inp, span, sep_tok)?);
       }
     }
     Ok(state)

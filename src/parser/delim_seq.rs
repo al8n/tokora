@@ -30,7 +30,23 @@ pub struct DelimitedSeparatedBy<
   _window: PhantomData<W>,
 }
 
-impl<P, SepClassifier, Condition, Open, Close, Delim, O, Trailing, Leading, Max, Min, Window, L, Ctx, Lang: ?Sized>
+impl<
+  P,
+  SepClassifier,
+  Condition,
+  Open,
+  Close,
+  Delim,
+  O,
+  Trailing,
+  Leading,
+  Max,
+  Min,
+  Window,
+  L,
+  Ctx,
+  Lang: ?Sized,
+>
   DelimitedSeparatedBy<
     P,
     SepClassifier,
@@ -101,7 +117,10 @@ impl<P, SepClassifier, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lan
 
   /// Collects the parsed elements with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container, Ctx, Lang> {
+  pub const fn collect_with<Container>(
+    self,
+    container: Container,
+  ) -> Collect<Self, Container, Ctx, Lang> {
     Collect::new(self, container)
   }
 

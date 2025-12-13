@@ -266,3 +266,30 @@ impl<Syntax, O, Lang> From<MissingSyntax<Syntax, O, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: MissingSyntax<Syntax, O, Lang>) -> Self {}
 }
+
+impl<Syntax, O, Lang> MissingSyntax<Syntax, O, Lang>
+where
+  O: core::fmt::Debug,
+  Lang: ?Sized,
+{
+  /// Formats the error for debugging purposes.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn debug_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.debug_struct("MissingSyntax")
+      .field("offset", &self.offset)
+      .field("message", &self.msg)
+      .finish()
+  }
+
+  /// Formats the error for display purposes.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+  where
+    O: core::fmt::Display,
+  {
+    match &self.msg {
+      Some(msg) => write!(f, "missing syntax at offset {}: {}", self.offset, msg),
+      None => write!(f, "missing syntax at offset {}", self.offset),
+    }
+  }
+}

@@ -62,3 +62,21 @@ impl<O: ?Sized, S> From<TooMany<O, S>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: TooMany<O, S>) -> Self {}
 }
+
+impl<O: ?Sized, S, Lang> TooMany<O, S, Lang>
+where
+  Lang: ?Sized,
+{
+  /// Formats this error for display purposes.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+  where
+    S: core::fmt::Display,
+  {
+    write!(
+      f,
+      "too many elements: found {}, but maximum is {} at {}",
+      self.nums, self.limit, self.span
+    )
+  }
+}

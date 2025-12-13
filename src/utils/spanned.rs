@@ -1,3 +1,5 @@
+use crate::utils::marker::Ignored;
+
 use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
 
 /// A value paired with its source location span.
@@ -415,5 +417,17 @@ impl<D, S> Spanned<D, S> {
       span: f(self.span),
       data: g(self.data),
     }
+  }
+}
+
+impl<D, S> From<Spanned<D, S>> for () {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: Spanned<D, S>) -> Self {}
+}
+
+impl<D, S> From<Spanned<D, S>> for Ignored<()> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: Spanned<D, S>) -> Self {
+    Ignored::default()
   }
 }

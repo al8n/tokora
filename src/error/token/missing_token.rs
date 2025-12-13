@@ -530,3 +530,42 @@ impl<'a, Kind, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {}
 }
+
+impl<Kind, O, Lang: ?Sized> MissingToken<'_, Kind, O, Lang> {
+  /// Formats the error using the provided formatter in debug style.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn debug_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+  where
+    O: core::fmt::Debug,
+    Kind: core::fmt::Debug,
+  {
+    f.debug_struct("MissingToken")
+      .field("offset", &self.offset)
+      .field("expected", &self.expected)
+      .field("message", &self.message)
+      .finish()
+  }
+
+  /// Formats the error using the provided formatter in display style.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+  where
+    O: core::fmt::Display,
+    Kind: core::fmt::Display,
+  {
+    match &self.expected {
+      Some(expected) => match &self.message {
+        Some(message) => write!(
+          f,
+          "missing token at {}, expected {}, message: {}",
+          self.offset, expected, message
+        ),
+        None => write!(f, "missing token at {}, expected {}", self.offset, expected),
+      },
+      None => match &self.message {
+        Some(message) => write!(f, "missing token at {}, message: {}", self.offset, message),
+        None => write!(f, "missing token at {}", self.offset),
+      },
+    }
+  }
+}

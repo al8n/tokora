@@ -11,7 +11,7 @@ macro_rules! alias {
     paste::paste! {
       $(
         $(#[$attr])*
-        pub type [< UnexpectedRepeated $name >] <'inp, Sep, L, Lang = ()> = UnexpectedRepeatedOf<'inp, Sep, L, Lang>;
+        pub type [< UnexpectedRepeated $name >] <'inp, L, Lang = ()> = UnexpectedRepeatedOf<'inp, $name, L, Lang>;
 
         impl<T, Kind, S> UnexpectedToken<'_, T, Kind, S, Repeated<$name>> {
           #[doc = "Create a new `UnexpectedToken` error indicating a repeated `" $name "` was found."]

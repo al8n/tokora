@@ -56,18 +56,16 @@ impl<T: ?Sized, Lang: ?Sized> Fatal<T, Lang> {
 impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Fatal<E, Lang>
 where
   L: Lexer<'a>,
-  E: From<<L::Token as Token<'a>>::Error>
-    + From<UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>
-    + From<UnexpectedEot<L::Span, Lang>>,
+  E: FromEmitterError<'a, L, Lang>,
 {
   type Error = E;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_lexer_error(
     &mut self,
-    Spanned { data: err, .. }: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
+    err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
   ) -> Result<(), Self::Error> {
-    Err(err.into())
+    Err(E::from_lexer_error(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -86,7 +84,7 @@ where
   where
     L: Lexer<'a>,
   {
-    Err(err.into())
+    Err(E::from_unexpected_token(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -101,9 +99,7 @@ impl<'a, O, L, E, Lang: ?Sized> RepeatedEmitter<'a, O, L, Lang> for Fatal<E, Lan
 where
   O: ?Sized,
   L: Lexer<'a>,
-  E: From<TooFew<O, L::Span, Lang>>
-    + From<TooMany<O, L::Span, Lang>>
-    + From<FullContainer<O, L::Span, Lang>>,
+  E: FromRepeatedEmitterError<'a, O, L, Lang>,
   Fatal<E, Lang>: Emitter<'a, L, Lang, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -111,7 +107,7 @@ where
   where
     L: Lexer<'a>,
   {
-    Err(err.into())
+    Err(E::from_too_few(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -119,7 +115,7 @@ where
   where
     L: Lexer<'a>,
   {
-    Err(err.into())
+    Err(E::from_too_many(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -127,7 +123,7 @@ where
   where
     L: Lexer<'a>,
   {
-    Err(err.into())
+    Err(E::from_full_container(err))
   }
 }
 
@@ -183,22 +179,11 @@ where
 impl<'inp, L, O, Sep, E, Lang: ?Sized> SeparatedByEmitter<'inp, O, Sep, L, Lang> for Fatal<E, Lang>
 where
   L: Lexer<'inp>,
-  E: From<MissingSeparatorOf<'inp, Sep, L, Lang>>
-    + From<MissingSyntaxOf<'inp, O, L, Lang>>
-    + From<MissingLeadingOf<'inp, Sep, L, Lang>>
-    + From<MissingTrailingOf<'inp, Sep, L, Lang>>
-    + From<UnexpectedLeadingOf<'inp, Sep, L, Lang>>
-    + From<UnexpectedTrailingOf<'inp, Sep, L, Lang>>
-    + From<UnexpectedRepeatedOf<'inp, Sep, L, Lang>>
-    + From<TooFew<O, L::Span, Lang>>
-    + From<TooMany<O, L::Span, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<<L::Token as Token<'inp>>::Error>,
+  E: FromSeparatedByEmitterError<'inp, O, Sep, L, Lang>,
   Fatal<E, Lang>: Emitter<'inp, L, Lang, Error = E>
     + BatchEmitter<'inp, L, UnexpectedLeadingOf<'inp, Sep, L, Lang>>
     + BatchEmitter<'inp, L, UnexpectedTrailingOf<'inp, Sep, L, Lang>>
     + BatchEmitter<'inp, L, UnexpectedRepeatedOf<'inp, Sep, L, Lang>>
-    + BatchEmitter<'inp, L, <L::Token as Token<'inp>>::Error, Lang>
     + RepeatedEmitter<'inp, O, L, Lang, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -209,7 +194,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    Err(err.into())
+    Err(E::from_missing_separator(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -220,7 +205,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    Err(err.into())
+    Err(E::from_missing_element(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -231,7 +216,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    Err(err.into())
+    Err(E::from_missing_leading_separator(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -242,7 +227,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    Err(err.into())
+    Err(E::from_missing_trailing_separator(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -253,7 +238,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    Err(err.into())
+    Err(E::from_unexpected_repeated_separator(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -264,7 +249,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    Err(err.into())
+    Err(E::from_unexpected_leading_separator(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -275,16 +260,14 @@ where
   where
     L: Lexer<'inp>,
   {
-    Err(err.into())
+    Err(E::from_unexpected_trailing_separator(err))
   }
 }
 
 impl<'inp, L, Delim, E, Lang: ?Sized> DelimiterEmitter<'inp, Delim, L, Lang> for Fatal<E, Lang>
 where
   L: Lexer<'inp>,
-  E: From<Unclosed<Delim, L::Span, Lang>>
-    + From<Unopened<Delim, L::Span, Lang>>
-    + From<Undelimited<Delim, L::Span, Lang>>,
+  E: FromDelimiterEmitterError<'inp, Delim, L, Lang>,
   Fatal<E, Lang>: Emitter<'inp, L, Lang, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -292,7 +275,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    Err(err.into())
+    Err(E::from_unclosed(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -300,7 +283,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    Err(err.into())
+    Err(E::from_unopened(err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -308,7 +291,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    Err(err.into())
+    Err(E::from_undelimited(err))
   }
 }
 

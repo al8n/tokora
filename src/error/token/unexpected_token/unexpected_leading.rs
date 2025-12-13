@@ -11,7 +11,7 @@ macro_rules! alias {
     paste::paste! {
       $(
         $(#[$attr])*
-        pub type [< UnexpectedLeading $name >] <'inp, Sep, L, Lang = ()> = UnexpectedLeadingOf<'inp, Sep, L, Lang>;
+        pub type [< UnexpectedLeading $name >] <'inp, L, Lang = ()> = UnexpectedLeadingOf<'inp, $name, L, Lang>;
 
         impl<T, Kind, S> UnexpectedToken<'_, T, Kind, S, Leading<$name>> {
           #[doc = "Create a new `UnexpectedToken` error indicating a leading `" $name "` was found."]

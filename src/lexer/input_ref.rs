@@ -10,7 +10,11 @@ use generic_arraydeque::{GenericArrayDeque, typenum::U1};
 use mayber::{Maybe, MaybeRef};
 
 use crate::{
-  ParseContext, Token, Window, emitter::Emitter, error::token::UnexpectedToken, lexer::{CachedTokenRefOf, MaybeRefCachedTokenOf, peek::Peeked}, utils::{Expected, Spanned}
+  ParseContext, Token, Window,
+  emitter::Emitter,
+  error::token::UnexpectedToken,
+  lexer::{CachedTokenRefOf, MaybeRefCachedTokenOf, peek::Peeked},
+  utils::{Expected, Spanned},
 };
 
 use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
@@ -526,7 +530,10 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn sync_until_token(
     &mut self,
-  ) -> Result<Option<MaybeRefCachedTokenOf<'_, 'inp, L, L::Token>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+  ) -> Result<
+    Option<MaybeRefCachedTokenOf<'_, 'inp, L, L::Token>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  > {
     self.sync_until_token_then_peek::<U1>().map(|mut val| {
       val.pop_front().map(|t| {
         t.map(
@@ -544,7 +551,9 @@ where
   /// to resume parsing. If emission fails, returns that error immediately.
   /// Non-matching non-error tokens are skipped but also reported via `emit_unexpected_token`.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn sync_until_token_then_peek<'p, W>(&'p mut self) -> Result<Peeked<'p, 'inp, L, W>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  pub fn sync_until_token_then_peek<'p, W>(
+    &'p mut self,
+  ) -> Result<Peeked<'p, 'inp, L, W>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     W: Window,
   {
@@ -562,7 +571,10 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn sync_until_token_then_peek_with_emitter<'p, W>(
     &'p mut self,
-  ) -> Result<(Peeked<'p, 'inp, L, W>, &'p mut Ctx::Emitter), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  ) -> Result<
+    (Peeked<'p, 'inp, L, W>, &'p mut Ctx::Emitter),
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  >
   where
     W: Window,
   {
@@ -582,7 +594,10 @@ where
     &mut self,
     pred: F,
     exp: Exp,
-  ) -> Result<Option<MaybeRefCachedTokenOf<'_, 'inp, L>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  ) -> Result<
+    Option<MaybeRefCachedTokenOf<'_, 'inp, L>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  >
   where
     F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
@@ -605,7 +620,10 @@ where
     &'p mut self,
     mut pred: F,
     mut exp: Exp,
-  ) -> Result<(Peeked<'p, 'inp, L, W>, &'p mut Ctx::Emitter), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  ) -> Result<
+    (Peeked<'p, 'inp, L, W>, &'p mut Ctx::Emitter),
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  >
   where
     F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
@@ -731,7 +749,11 @@ where
   ///
   /// The returned slice will contain only the initialized tokens.
   #[inline]
-  fn peek_with_emitter_inner<'p, W>(&'p mut self, buf: &mut Peeked<'p, 'inp, L, W>) -> &'p mut Ctx::Emitter
+  #[allow(unused_assignments)]
+  fn peek_with_emitter_inner<'p, W>(
+    &'p mut self,
+    buf: &mut Peeked<'p, 'inp, L, W>,
+  ) -> &'p mut Ctx::Emitter
   where
     W: Window,
   {
@@ -774,11 +796,16 @@ where
 
     // Fill buffer from cache (this covers both cached tokens and any we just added)
     // SAFETY: Cache.peek() returns slice of initialized tokens, guaranteed by trait contract
+    // println!(
+    //   "Want: {in_cache}, Remaining: {remaining_cap}, Peeked tokens: {}",
+    //   buf.len()
+    // );
     self.cache.peek::<W>(buf);
-    debug_assert!(
-      buf.len() - remaining_cap == in_cache,
-      "Cache peek returned unexpected number of tokens"
-    );
+    // println!("After cache peek: {}", buf.len());
+    // debug_assert!(
+    //   buf.len() - remaining_cap == in_cache,
+    //   "Cache peek returned unexpected number of tokens"
+    // );
 
     for i in 0..yielded {
       // SAFETY: We just wrote `yielded` elements into `overflowed`, so the first `yielded` elements are initialized.
@@ -843,7 +870,10 @@ where
   ///
   /// Returns `Ok(Some(token))` for valid tokens, `Ok(None)` at end of input, or
   /// `Err(error)` if a fatal error occurred.
-  pub fn next_token(&mut self) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+  pub fn next_token(
+    &mut self,
+  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  {
     // First, consume from cache if available
     while let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();

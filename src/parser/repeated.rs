@@ -71,7 +71,10 @@ impl<F, Condition, O, Options, W> Repeated<F, Condition, O, W, Options> {
 
   /// Collects the parsed elements with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container, (), ()> {
+  pub const fn collect_with<Container>(
+    self,
+    container: Container,
+  ) -> Collect<Self, Container, (), ()> {
     Collect::new(self, container)
   }
 

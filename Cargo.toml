@@ -74,6 +74,7 @@ smallvec = { version = "1", default-features = false, optional = true, features 
 [dev-dependencies]
 criterion = "0.8"
 tempfile = "3"
+thiserror = { version = "2", default-features = false }
 
 [[example]]
 name = "json"

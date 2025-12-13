@@ -11,7 +11,7 @@ macro_rules! alias {
     paste::paste! {
       $(
         $(#[$attr])*
-        pub type [< MissingLeading $name >] <'inp, Sep, L, Lang = ()> = MissingLeadingOf<'inp, Sep, L, Lang>;
+        pub type [< MissingLeading $name >] <'inp, L, Lang = ()> = MissingLeadingOf<'inp, $name, L, Lang>;
 
         impl<Kind, O> MissingToken<'_, Kind, O, Leading<$name>> {
           #[doc = "Create a new `MissingToken` error indicating a leading `" $name "` was missing for a specific language."]

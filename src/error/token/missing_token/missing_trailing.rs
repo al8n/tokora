@@ -11,7 +11,7 @@ macro_rules! alias {
     paste::paste! {
       $(
         $(#[$attr])*
-        pub type [< MissingTrailing $name >] <'inp, Sep, L, Lang = ()> = MissingTrailingOf<'inp, Sep, L, Lang>;
+        pub type [< MissingTrailing $name >] <'inp, L, Lang = ()> = MissingTrailingOf<'inp, $name, L, Lang>;
 
         impl<Kind, O> MissingToken<'_, Kind, O, Trailing<$name>> {
           #[doc = "Create a new `MissingToken` error indicating a trailing `" $name "` was missing for a specific language."]

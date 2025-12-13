@@ -28,7 +28,17 @@ pub type SeparatedByOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
 
 /// A parser that parses a sequence of elements separated by a specific separator.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Config = SeparatedByOptions, Lang: ?Sized = ()> {
+pub struct SeparatedBy<
+  F,
+  SepClassifier,
+  Condition,
+  O,
+  Window,
+  L,
+  Ctx,
+  Config = SeparatedByOptions,
+  Lang: ?Sized = (),
+> {
   pub(super) f: F,
   pub(super) sep: SepClassifier,
   pub(super) condition: Condition,
@@ -40,7 +50,9 @@ pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Config = 
   pub(super) _lang: PhantomData<Lang>,
 }
 
-impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, SeparatedByOptions, Lang> {
+impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
+  SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, SeparatedByOptions, Lang>
+{
   /// Creates a new `SeparatedBy` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
@@ -64,7 +76,8 @@ impl<F, SepClassifier, Condition, O, Options, Window, L, Ctx, Lang: ?Sized>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn as_mut(
     &mut self,
-  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, &mut Options, Lang> {
+  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, &mut Options, Lang>
+  {
     SeparatedBy {
       f: &mut self.f,
       sep: &mut self.sep,
@@ -89,7 +102,10 @@ impl<F, SepClassifier, Condition, O, Options, Window, L, Ctx, Lang: ?Sized>
 
   /// Collects the parsed elements with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn collect_with<Container>(self, container: Container) -> Collect<Self, Container, Ctx, Lang> {
+  pub const fn collect_with<Container>(
+    self,
+    container: Container,
+  ) -> Collect<Self, Container, Ctx, Lang> {
     Collect::new(self, container)
   }
 
@@ -100,7 +116,20 @@ impl<F, SepClassifier, Condition, O, Options, Window, L, Ctx, Lang: ?Sized>
     left: Open,
     right: Close,
     delim: Delim,
-  ) -> DelimitedSeparatedBy<F, SepClassifier, Condition, Open, Close, Delim, O, Window, L, Ctx, Options, Lang> {
+  ) -> DelimitedSeparatedBy<
+    F,
+    SepClassifier,
+    Condition,
+    Open,
+    Close,
+    Delim,
+    O,
+    Window,
+    L,
+    Ctx,
+    Options,
+    Lang,
+  > {
     DelimitedSeparatedBy::new_in(self, left, right, delim)
   }
 }

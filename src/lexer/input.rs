@@ -212,7 +212,7 @@ where
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn with_state_and_cache(input: &'inp L::Source, state: L::State, cache: Ctx::Cache) -> Self
-  // where
+// where
   //   C: Cache<'inp, L>,
   {
     Self {

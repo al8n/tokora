@@ -67,7 +67,12 @@ where
 
 impl<'inp, 'c, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
-  for Collect<&'c mut Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, &'c mut Container, Ctx, Lang>
+  for Collect<
+    &'c mut Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>,
+    &'c mut Container,
+    Ctx,
+    Lang,
+  >
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,

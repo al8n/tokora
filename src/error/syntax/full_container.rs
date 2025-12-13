@@ -62,3 +62,18 @@ impl<O: ?Sized, S, Lang: ?Sized> From<FullContainer<O, S, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: FullContainer<O, S, Lang>) -> Self {}
 }
+
+impl<O: ?Sized, S, Lang> FullContainer<O, S, Lang>
+where
+  Lang: ?Sized,
+{
+  /// Formats the error message for this error.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(
+      f,
+      "found {} elements, which exceeds the maximum capacity of {}",
+      self.nums, self.limit
+    )
+  }
+}

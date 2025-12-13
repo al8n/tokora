@@ -701,3 +701,40 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
     (self.span, self.found, self.expected)
   }
 }
+
+impl<T, Kind, S, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Lang>
+where
+  S: crate::lexer::Span,
+{
+  /// Creates a debug representation of the unexpected token error.
+  pub fn debug_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+  where
+    T: core::fmt::Debug,
+    Kind: core::fmt::Debug,
+    S: core::fmt::Debug,
+  {
+    f.debug_struct("UnexpectedToken")
+      .field("span", &self.span)
+      .field("found", &self.found)
+      .field("expected", &self.expected)
+      .finish()
+  }
+
+  /// Creates a display representation of the unexpected token error.
+  pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+  where
+    T: core::fmt::Display,
+    Kind: core::fmt::Display,
+  {
+    match &self.found {
+      Some(found) => match &self.expected {
+        Some(expected) => write!(f, "unexpected token '{}', expected {}", found, expected),
+        None => write!(f, "unexpected token '{}'", found),
+      },
+      None => match &self.expected {
+        Some(expected) => write!(f, "unexpected token, expected {}", expected),
+        None => write!(f, "unexpected token"),
+      },
+    }
+  }
+}

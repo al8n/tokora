@@ -11,7 +11,7 @@ macro_rules! alias {
     paste::paste! {
       $(
         $(#[$attr])*
-        pub type [< UnexpectedTrailing $name >] <'inp, Sep, L, Lang = ()> = UnexpectedTrailingOf<'inp, Sep, L, Lang>;
+        pub type [< UnexpectedTrailing $name >] <'inp, L, Lang = ()> = UnexpectedTrailingOf<'inp, $name, L, Lang>;
 
         impl<T, Kind, S> UnexpectedToken<'_, T, Kind, S, Trailing<$name>> {
           #[doc = "Create a new `UnexpectedToken` error indicating a trailing `" $name "` was found."]

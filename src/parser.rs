@@ -156,10 +156,15 @@
 use core::{marker::PhantomData, mem::MaybeUninit};
 
 use crate::{
-  Check, Emitter, Lexed, Lexer, Source, Token, emitter::Fatal, error::{UnexpectedEot, token::UnexpectedToken}, lexer::{Input, InputRef, Peeked, PunctuatorToken}, punct::Comma, utils::{
+  Check, Emitter, Lexed, Lexer, Source, Token,
+  emitter::{Fatal, FromEmitterError},
+  error::{UnexpectedEot, token::UnexpectedToken},
+  lexer::{Input, InputRef, Peeked, PunctuatorToken},
+  punct::Comma,
+  utils::{
     Expected, Located, Sliced, Spanned,
     marker::{PhantomLocated, PhantomSliced, PhantomSpan},
-  }
+  },
 };
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
@@ -697,9 +702,7 @@ impl<F, L, O, Error, Context> core::ops::DerefMut for Parser<F, L, O, Error, Con
 impl<'inp, L, O, Error> Default for Parser<(), L, O, Error, FatalContext<'inp, L, Error>>
 where
   L: Lexer<'inp>,
-  Error: From<<L::Token as Token<'inp>>::Error>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
-    + From<UnexpectedEot<L::Span>>,
+  Error: FromEmitterError<'inp, L>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn default() -> Self {
@@ -713,9 +716,7 @@ impl Parser<(), (), (), (), ()> {
   pub const fn new<'inp, L, O, Error>() -> Parser<(), L, O, Error, FatalContext<'inp, L, Error>>
   where
     L: Lexer<'inp>,
-    Error: From<<L::Token as Token<'inp>>::Error>
-      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
-      + From<UnexpectedEot<L::Span>>,
+    Error: FromEmitterError<'inp, L>,
   {
     Self::of()
   }
@@ -725,9 +726,7 @@ impl Parser<(), (), (), (), ()> {
   pub const fn with_context<'inp, L, O, Error, Ctx>(ctx: Ctx) -> Parser<(), L, O, Error, Ctx>
   where
     L: Lexer<'inp>,
-    Error: From<<L::Token as Token<'inp>>::Error>
-      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
-      + From<UnexpectedEot<L::Span>>,
+    Error: FromEmitterError<'inp, L>,
     Ctx: ParseContext<'inp, L>,
     Ctx::Emitter: Emitter<'inp, L, Error = Error>,
   {
@@ -740,9 +739,7 @@ impl Parser<(), (), (), (), ()> {
   -> Parser<(), L, O, Error, FatalContext<'inp, L, Error, Lang>>
   where
     L: Lexer<'inp>,
-    Error: From<<L::Token as Token<'inp>>::Error>
-      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-      + From<UnexpectedEot<L::Span, Lang>>,
+    Error: FromEmitterError<'inp, L, Lang>,
     Lang: ?Sized,
   {
     Self::with_context_of(FatalContext::of(Fatal::of()))
@@ -755,9 +752,7 @@ impl Parser<(), (), (), (), ()> {
   ) -> Parser<(), L, O, Error, Ctx>
   where
     L: Lexer<'inp>,
-    Error: From<<L::Token as Token<'inp>>::Error>
-      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-      + From<UnexpectedEot<L::Span, Lang>>,
+    Error: FromEmitterError<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: Emitter<'inp, L, Lang, Error = Error>,
     Lang: ?Sized,
@@ -777,9 +772,7 @@ impl Parser<(), (), (), (), ()> {
   where
     L: Lexer<'inp>,
     F: ParseInput<'inp, L, O, FatalContext<'inp, L, Error>>,
-    Error: From<<L::Token as Token<'inp>>::Error>
-      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
-      + From<UnexpectedEot<L::Span>>,
+    Error: FromEmitterError<'inp, L>,
   {
     Self::with_parser_of(f)
   }
@@ -792,9 +785,7 @@ impl Parser<(), (), (), (), ()> {
   where
     L: Lexer<'inp>,
     F: ParseInput<'inp, L, O, FatalContext<'inp, L, Error, Lang>>,
-    Error: From<<L::Token as Token<'inp>>::Error>
-      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-      + From<UnexpectedEot<L::Span, Lang>>,
+    Error: FromEmitterError<'inp, L, Lang>,
     Lang: ?Sized,
   {
     Self::with_parser_and_context_of(f, FatalContext::of(Fatal::of()))
@@ -810,9 +801,7 @@ impl Parser<(), (), (), (), ()> {
     L: Lexer<'inp>,
     F: ParseInput<'inp, L, O, Ctx>,
     Ctx: ParseContext<'inp, L>,
-    Error: From<<L::Token as Token<'inp>>::Error>
-      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>
-      + From<UnexpectedEot<L::Span>>,
+    Error: FromEmitterError<'inp, L>,
   {
     Self::with_parser_and_context_of(f, ctx)
   }
@@ -827,9 +816,7 @@ impl Parser<(), (), (), (), ()> {
     L: Lexer<'inp>,
     F: ParseInput<'inp, L, O, Ctx>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Error: From<<L::Token as Token<'inp>>::Error>
-      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-      + From<UnexpectedEot<L::Span, Lang>>,
+    Error: FromEmitterError<'inp, L, Lang>,
     Lang: ?Sized,
   {
     Parser {
