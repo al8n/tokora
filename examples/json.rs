@@ -7,8 +7,7 @@ use logos::Logos;
 use tokit::{
   Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser, Token as TokenT,
   emitter::{
-    DelimiterEmitter, Fatal, FromDelimiterEmitterError, FromRepeatedEmitterError,
-    FromSeparatedByEmitterError, SeparatedByEmitter,
+    DelimiterEmitter, SeparatedByEmitter,
   },
   error::{
     UnclosedBrace, UnclosedBracket, Undelimited, UnexpectedEot, UnopenedBrace, UnopenedBracket,
@@ -21,7 +20,7 @@ use tokit::{
   lexer::{InputRef, Peeked, PunctuatorToken},
   parser::{Action, Expect},
   punct::{Brace, Bracket, Comma},
-  utils::{Expected, SimpleSpan, Spanned},
+  utils::{Expected, Spanned},
 };
 
 #[derive(Clone, Debug, From, PartialEq, Eq)]
@@ -332,7 +331,7 @@ type JsonLexer<'a> = tokit::lexer::LogosLexer<'a, Token<'a>, Token<'a>>;
 
 // Example of using map combinator to extract token values
 #[derive(Debug, Clone)]
-enum JsonValue<'a> {
+pub enum JsonValue<'a> {
   Null,
   Bool(bool),
   Number(f64),
