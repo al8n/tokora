@@ -6,7 +6,108 @@ use crate::{
 
 use super::*;
 
-/// A parser that accepts any token.
+/// A parser that accepts any single token from the input stream.
+///
+/// This is the most fundamental parser - it consumes one token regardless of its type.
+/// It succeeds if a token is available, and fails only on end-of-input or lexer errors.
+///
+/// `Any` comes in several variants that determine what information is captured:
+/// - **Basic**: Returns just the token value
+/// - **Spanned**: Returns token with its [`Span`] (position information)
+/// - **Sliced**: Returns token with its source text slice
+/// - **Located**: Returns token with both span and slice
+///
+/// # Type Parameters
+///
+/// - `L`: Lexer type
+/// - `Ctx`: Parse context
+/// - `Lang`: Language marker type (default `()`)
+///
+/// # Examples
+///
+/// ## Basic Token Consumption
+///
+/// ```ignore
+/// use tokit::parser::{any, ParseInput};
+///
+/// // Accept any token
+/// let parser = any::<MyLexer>();
+///
+/// // Input: Number(42)      → Ok(Number(42))
+/// // Input: Identifier("x") → Ok(Identifier("x"))
+/// // Input: (end of input)  → Err(UnexpectedEot)
+/// ```
+///
+/// ## With Span Information
+///
+/// ```ignore
+/// // Capture token with its position
+/// let parser = any::<MyLexer>().spanned();
+///
+/// // Returns: Spanned { data: Token, span: Span { start, end } }
+/// ```
+///
+/// ## With Source Text
+///
+/// ```ignore
+/// // Capture token with its source text
+/// let parser = any::<MyLexer>().sliced();
+///
+/// // Input: "foo" → Ok(Sliced { data: Identifier("foo"), slice: "foo" })
+/// ```
+///
+/// ## With Full Location Info
+///
+/// ```ignore
+/// // Capture token, span, and source
+/// let parser = any::<MyLexer>().located();
+///
+/// // Returns: Located { data: Token, span: Span, slice: &str }
+/// ```
+///
+/// ## Filtering Specific Tokens
+///
+/// ```ignore
+/// // Accept any token, then filter for numbers
+/// let parser = any::<MyLexer>()
+///     .filter(|tok| {
+///         if matches!(tok, Token::Number(_)) {
+///             Ok(())
+///         } else {
+///             Err(ExpectedNumberError::new())
+///         }
+///     });
+///
+/// // More efficient alternative: use `expect` instead
+/// let parser = expect(|tok| matches!(tok, Token::Number(_)));
+/// ```
+///
+/// # Error Handling
+///
+/// `Any` can fail with:
+/// - `UnexpectedEot`: No more tokens available (end of input)
+/// - Lexer errors: The lexer produced an error token
+///
+/// # When to Use
+///
+/// - **Building blocks**: As the foundation for more complex parsers
+/// - **Generic parsing**: When you need to consume any token
+/// - **With filtering**: Combined with `.filter()` or `.filter_map()`
+/// - **Development**: Quick prototyping before adding specific token checks
+///
+/// **Prefer `expect`** when you know which token you want - it provides better error messages.
+///
+/// # Performance
+///
+/// - **Memory**: Zero-sized type (no runtime overhead)
+/// - **Runtime**: O(1) - single token consumption
+/// - **Variants**: `.spanned()`, `.sliced()`, `.located()` have minimal overhead
+///
+/// # See Also
+///
+/// - [`Expect`] - Parse a specific token (better error messages)
+/// - [`Filter`] - Validate after parsing
+/// - [`Spanned`], [`Sliced`], [`Located`] - Output wrapper types
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct Any<L, Ctx, Lang: ?Sized = ()> {
   _lxr: PhantomData<L>,

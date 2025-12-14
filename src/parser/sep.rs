@@ -26,7 +26,135 @@ pub struct Require(());
 pub type SeparatedByOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
   With<With<Trailing, Leading>, With<Max, Min>>;
 
-/// A parser that parses a sequence of elements separated by a specific separator.
+/// A parser that parses a sequence of elements separated by a delimiter.
+///
+/// This combinator parses repeated occurrences of an element parser, expecting each
+/// element to be separated by a delimiter (e.g., comma, semicolon). It provides
+/// fine-grained control over:
+/// - **Leading separators**: Allow/deny/require separators before the first element
+/// - **Trailing separators**: Allow/deny/require separators after the last element
+/// - **Repetition bounds**: Minimum and maximum number of elements
+///
+/// # Type Parameters
+///
+/// - `F`: The element parser
+/// - `SepClassifier`: Separator checker (e.g., [`Comma`], custom punctuator)
+/// - `Condition`: Decision function that determines when to stop parsing
+/// - `O`: Output type of the element parser
+/// - `Window`: Lookahead window size for the condition
+/// - `L`: Lexer type
+/// - `Ctx`: Parse context
+/// - `Config`: Configuration options (trailing/leading/min/max)
+/// - `Lang`: Language marker type (default `()`)
+///
+/// # Examples
+///
+/// ## Basic Comma-Separated List
+///
+/// ```ignore
+/// use tokit::parser::{SeparatedBy, ParseInput};
+/// use generic_arraydeque::typenum::U1;
+///
+/// // Parse: element, element, element
+/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+///     element_parser(),
+///     |peeked, _| match peeked.front() {
+///         None => Ok(Action::Stop),
+///         Some(Token::Comma) => Ok(Action::Continue),
+///         _ => Ok(Action::Stop),
+///     }
+/// ).collect::<Vec<_>>();
+///
+/// // Input: "1, 2, 3"
+/// // Output: Ok(vec![1, 2, 3])
+/// ```
+///
+/// ## With Trailing Separator
+///
+/// ```ignore
+/// // Parse: element, element, element,  (trailing comma allowed)
+/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+///     element_parser(),
+///     stop_condition
+/// )
+/// .allow_trailing()   // Allow trailing comma
+/// .collect::<Vec<_>>();
+///
+/// // Input: "1, 2, 3,"
+/// // Output: Ok(vec![1, 2, 3])
+/// ```
+///
+/// ## With Leading Separator
+///
+/// ```ignore
+/// // Parse: , element, element  (leading comma allowed)
+/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+///     element_parser(),
+///     stop_condition
+/// )
+/// .allow_leading()    // Allow leading comma
+/// .collect::<Vec<_>>();
+///
+/// // Input: ", 1, 2"
+/// // Output: Ok(vec![1, 2])
+/// ```
+///
+/// ## With Bounds
+///
+/// ```ignore
+/// // Parse at least 1, at most 5 elements
+/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+///     element_parser(),
+///     stop_condition
+/// )
+/// .at_least(Minimum::new(1))
+/// .at_most(Maximum::new(5))
+/// .collect::<Vec<_>>();
+/// ```
+///
+/// ## Custom Separator
+///
+/// ```ignore
+/// // Parse elements separated by semicolons
+/// let parser = SeparatedBy::semicolon::<MyLexer, U1, Ctx>(
+///     element_parser(),
+///     stop_condition
+/// ).collect::<Vec<_>>();
+///
+/// // Input: "a;b;c"
+/// // Output: Ok(vec![a, b, c])
+/// ```
+///
+/// # How It Works
+///
+/// 1. **Parse first element** (unless leading separator is required)
+/// 2. **Loop**:
+///    - Call `condition` to check if we should continue
+///    - If `Action::Continue`: parse separator, then element
+///    - If `Action::Stop`: break
+/// 3. **Validate** trailing separator rules
+/// 4. **Collect** parsed elements into container
+///
+/// # Error Handling
+///
+/// The parser emits errors via the [`SeparatedByEmitter`](crate::emitter::SeparatedByEmitter) trait:
+/// - Missing separator between elements
+/// - Unexpected leading separator (when denied)
+/// - Unexpected trailing separator (when denied)
+/// - Missing element after separator
+/// - Too few or too many elements (when bounds set)
+///
+/// # Performance
+///
+/// - **Memory**: O(1) for the parser itself (elements collected into container)
+/// - **Parsing**: O(n) where n is the number of elements
+/// - **Lookahead**: O(W) per iteration where W is the window size
+///
+/// # See Also
+///
+/// - [`delimited_by`](SeparatedBy::delimited_by) - Wrap in delimiters (e.g., `[...]` or `{...}`)
+/// - [`repeated`](Repeated) - Repeat without separators
+/// - [`collect`](SeparatedBy::collect) - Collect into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SeparatedBy<
   F,

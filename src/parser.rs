@@ -159,7 +159,7 @@ use crate::{
   Check, Emitter, Lexed, Lexer, Source, Token,
   emitter::{Fatal, FromEmitterError},
   error::{UnexpectedEot, token::UnexpectedToken},
-  lexer::{Input, InputRef, Peeked, PunctuatorToken},
+  lexer::{Cursor, Input, InputRef, Peeked, PunctuatorToken},
   punct::Comma,
   utils::{
     Expected, Located, Sliced, Spanned,
@@ -191,6 +191,7 @@ pub use repeated::*;
 pub use sep::{SepFixSpec, SeparatedBy, SeparatedByOptions};
 pub use then::*;
 pub use todo::*;
+pub use unwrapped::*;
 pub use validate::*;
 
 // #[cfg(any(feature = "std", feature = "alloc"))]
@@ -218,6 +219,7 @@ mod repeated;
 mod sep;
 mod then;
 mod todo;
+mod unwrapped;
 mod validate;
 
 #[cfg(any(feature = "std", feature = "alloc"))]
@@ -335,7 +337,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Ignores the output of this parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn ignored(self) -> Ignore<Self, O>
+  fn ignored(self) -> Ignore<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
   {
@@ -345,7 +347,10 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Creates a `Repeated` combinator that applies this parser repeatedly
   /// until the condition handler `Condition` returns [`RepeatedAction::End`] or an fatal error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn repeated<Condition, W>(self, condition: Condition) -> Repeated<Self, Condition, O, W>
+  fn repeated<Condition, W>(
+    self,
+    condition: Condition,
+  ) -> Repeated<Self, Condition, O, W, L, Ctx, RepeatedOptions, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -362,7 +367,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     self,
     sep_classifier: SepClassifier,
     condition: Condition,
-  ) -> SeparatedBy<Self, SepClassifier, Condition, O, W, L, Ctx>
+  ) -> SeparatedBy<Self, SepClassifier, Condition, O, W, L, Ctx, SeparatedByOptions, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -379,7 +384,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn separated_by_comma<Condition, W>(
     self,
     condition: Condition,
-  ) -> SeparatedBy<Self, Comma, Condition, O, W, L, Ctx>
+  ) -> SeparatedBy<Self, Comma, Condition, O, W, L, Ctx, SeparatedByOptions, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -437,12 +442,22 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Map::new(self, f)
   }
 
+  /// Map the output of this parser using the given function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn map_with<U, F>(self, f: F) -> MapWith<Self, F, L, Ctx, O, U, Lang>
+  where
+    Self: Sized,
+    F: FnMut(O, ParseState<'_, 'inp, '_, L, Ctx, Lang>) -> U,
+  {
+    MapWith::new(self, f)
+  }
+
   /// Filter the output of this parser using a validation function.
   ///
   /// The parser must produce a `Spanned<O>` value. The validator receives
   /// the data and span, and returns `Ok(())` if valid or an error otherwise.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn filter<F>(self, validator: F) -> Filter<Self, F>
+  fn filter<F>(self, validator: F) -> Filter<Self, F, O, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -452,12 +467,30 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Filter::of(self, validator)
   }
 
+  /// Filter the output of this parser using a validation function.
+  ///
+  /// The parser must produce a `Spanned<O>` value. The validator receives
+  /// the data and span, and returns `Ok(())` if valid or an error otherwise.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn filter_with<F>(self, validator: F) -> FilterWith<Self, F, O, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    F: FnMut(
+      &O,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    FilterWith::of(self, validator)
+  }
+
   /// Filter and map the output of this parser using a validation/transformation function.
   ///
   /// The parser must produce a `Spanned<O>` value. The mapper receives
   /// the data and span, and returns `Ok(new_value)` or an error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn filter_map<U, F>(self, mapper: F) -> FilterMap<Self, F, O>
+  fn filter_map<U, F>(self, mapper: F) -> FilterMap<Self, F, O, U, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -467,12 +500,30 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     FilterMap::of(self, mapper)
   }
 
+  /// Filter and map the output of this parser using a validation/transformation function.
+  ///
+  /// The parser must produce a `Spanned<O>` value. The mapper receives
+  /// the data and span, and returns `Ok(new_value)` or an error.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn filter_map_with<U, F>(self, mapper: F) -> FilterMapWith<Self, F, O, U, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    F: FnMut(
+      O,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    FilterMapWith::of(self, mapper)
+  }
+
   /// Validate the output of this parser with full location context.
   ///
   /// The parser must produce a `Located<O>` value. The validator receives
   /// the data, span, and slice, and returns `Ok(())` if valid or an error otherwise.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn validate<F>(self, validator: F) -> Validate<Self, F>
+  fn validate<F>(self, validator: F) -> Validate<Self, F, O, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -482,9 +533,27 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Validate::of(self, validator)
   }
 
+  /// Validate the output of this parser with full location context.
+  ///
+  /// The parser must produce a `Located<O>` value. The validator receives
+  /// the data, span, and slice, and returns `Ok(())` if valid or an error otherwise.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn validate_with<F>(self, validator: F) -> ValidateWith<Self, F, O, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    F: FnMut(
+      &O,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    ValidateWith::of(self, validator)
+  }
+
   /// Sequence this parser with another, ignoring the output of the second.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn then_ignore<G, U>(self, second: G) -> ThenIgnore<Self, G, U>
+  fn then_ignore<G, U>(self, second: G) -> ThenIgnore<Self, G, O, U, L, Ctx, Lang>
   where
     Self: Sized,
     G: ParseInput<'inp, L, U, Ctx, Lang>,
@@ -495,7 +564,29 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Sequence this parser with another, using the first result to determine the second parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn then<T, U>(self, then: T) -> Then<Self, T>
+  fn and_then<T, U>(self, then: T) -> AndThen<Self, T, O, U, L, Ctx, Lang>
+  where
+    Self: Sized,
+    T: ParseInput<'inp, L, U, Ctx, Lang>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    AndThen::new(self, then)
+  }
+
+  /// Sequence this parser with another, using the first result to determine the second parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn and_then_with<T, U>(self, then: T) -> AndThenWith<Self, T, O, U, L, Ctx, Lang>
+  where
+    Self: Sized,
+    T: ParseInput<'inp, L, U, Ctx, Lang>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    AndThenWith::new(self, then)
+  }
+
+  /// Sequence this parser with another, using the first result to determine the second parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn then<T, U>(self, then: T) -> Then<Self, T, O, U, L, Ctx, Lang>
   where
     Self: Sized,
     T: ParseInput<'inp, L, U, Ctx, Lang>,
@@ -506,7 +597,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Sequence this parser with another, ignoring the output of the first.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn ignore_then<G, U>(self, second: G) -> IgnoreThen<Self, G, O>
+  fn ignore_then<G, U>(self, second: G) -> IgnoreThen<Self, G, O, U, L, Ctx, Lang>
   where
     Self: Sized,
     G: ParseInput<'inp, L, U, Ctx, Lang>,
@@ -516,7 +607,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Recover from errors produced by this parser using the given recovery parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn recover<R>(self, recovery: R) -> Recover<Self, R>
+  fn recover<R>(self, recovery: R) -> Recover<Self, R, O, L, Ctx, Lang>
   where
     Self: Sized,
     R: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -527,7 +618,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Recover in-place from errors produced by this parser using the given recovery parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn inplace_recover<R>(self, recovery: R) -> InplaceRecover<Self, R>
+  fn inplace_recover<R>(self, recovery: R) -> InplaceRecover<Self, R, O, L, Ctx, Lang>
   where
     Self: Sized,
     R: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -538,12 +629,51 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Creates a parser that accepts any token with optional padding.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn padded(self) -> Padded<Self>
+  fn padded(self) -> Padded<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
   {
     Padded::new(self)
   }
+
+  /// Creates a parser that accepts any token with optional padding.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn padded_left(self) -> PaddedLeft<Self, O, L, Ctx, Lang>
+  where
+    Self: Sized,
+  {
+    PaddedLeft::new(self)
+  }
+
+  /// Creates a parser that accepts any token with optional padding.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn padded_right(self) -> PaddedRight<Self, O, L, Ctx, Lang>
+  where
+    Self: Sized,
+  {
+    PaddedRight::new(self)
+  }
+}
+
+/// Extension trait for unwrapping `Option` outputs.
+pub trait ParseInputUnwrapExt<'inp, L, O, Ctx, Lang: ?Sized> {
+  /// Creates an `Unwrapped` parser that unwraps the `Option` result of this parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[track_caller]
+  fn unwrap(self) -> Unwrapped<Self, O, Ctx, Lang>
+  where
+    Self: Sized + ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+  {
+    Unwrapped::new(self)
+  }
+}
+
+impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInputUnwrapExt<'inp, L, O, Ctx, Lang> for F
+where
+  F: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
 }
 
 impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInput<'inp, L, O, Ctx, Lang> for F
@@ -894,6 +1024,61 @@ where
     let mut input = Input::with_state_and_cache(src, state, cache);
     let mut input_ref = input.as_ref(&mut emitter);
     f.parse_input(&mut input_ref)
+  }
+}
+
+/// A parsing state passed to parser functions.
+pub struct ParseState<'a, 'inp, 'closure, L, Ctx, Lang: ?Sized = ()>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  inp: &'a mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+  start: Cursor<'inp, 'closure, L>,
+}
+
+impl<'a, 'inp, 'closure, L, Ctx, Lang: ?Sized> ParseState<'a, 'inp, 'closure, L, Ctx, Lang>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  /// Create a new `ParseState`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  const fn new(
+    inp: &'a mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    start: Cursor<'inp, 'closure, L>,
+  ) -> Self {
+    Self { inp, start }
+  }
+
+  /// Returns the span covering the output being parsed.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn span(&self) -> L::Span {
+    self.inp.span_since(&self.start)
+  }
+
+  /// Returns a mutable reference to an emitter.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn emitter(&mut self) -> &mut Ctx::Emitter {
+    self.inp.emitter()
+  }
+
+  /// Returns the state of the lexer.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn state(&self) -> &L::State {
+    self.inp.state()
+  }
+
+  /// Returns the state of the lexer.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn state_mut(&mut self) -> &mut L::State {
+    self.inp.state_mut()
+  }
+
+  /// Returns the source slice covering the output being parsed.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn slice(&self) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
+    self.inp.slice_since(&self.start)
   }
 }
 

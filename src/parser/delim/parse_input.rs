@@ -16,7 +16,7 @@ use super::*;
 impl<'inp, L, P, Open, Close, O, Condition, Container, Ctx, Delim, W, Max, Min, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<P, Condition, Open, Close, Delim, O, W, RepeatedOptions<Max, Min>>,
+    DelimitedBy<P, Condition, Open, Close, Delim, O, W, L, Ctx, RepeatedOptions<Max, Min>, Lang>,
     Container,
     Ctx,
     Lang,

@@ -7,7 +7,12 @@ use super::*;
 
 impl<'inp, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, Container, Ctx, Lang>
+  for Collect<
+    Repeated<F, Condition, O, W, L, Ctx, RepeatedOptions<Max, Min>, Lang>,
+    Container,
+    Ctx,
+    Lang,
+  >
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -37,7 +42,12 @@ where
 
 impl<'inp, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-  for Collect<Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>, Container, Ctx, Lang>
+  for Collect<
+    Repeated<F, Condition, O, W, L, Ctx, RepeatedOptions<Max, Min>, Lang>,
+    Container,
+    Ctx,
+    Lang,
+  >
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -68,7 +78,7 @@ where
 impl<'inp, 'c, L, F, Condition, O, Container, Ctx, Max, Min, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut Repeated<F, Condition, O, W, RepeatedOptions<Max, Min>>,
+    &'c mut Repeated<F, Condition, O, W, L, Ctx, RepeatedOptions<Max, Min>, Lang>,
     &'c mut Container,
     Ctx,
     Lang,

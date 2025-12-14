@@ -65,7 +65,13 @@ where
 
   /// Returns a reference to the current lexer state (extras)
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn state(&self) -> &L::State {
+  pub const fn state(&self) -> &L::State {
+    self.state
+  }
+
+  /// Returns a mutable reference to the current lexer state (extras)
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn state_mut(&mut self) -> &mut L::State {
     self.state
   }
 

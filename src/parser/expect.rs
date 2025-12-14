@@ -6,7 +6,141 @@ use crate::{
 
 use super::*;
 
-/// A parser that expects a specific token.
+/// A parser that expects a token matching a specific criterion.
+///
+/// This parser consumes one token and checks if it matches the provided classifier.
+/// If the token matches, parsing succeeds; otherwise, an `UnexpectedToken` error is
+/// emitted with information about what was expected and what was found.
+///
+/// Unlike [`Any`] which accepts any token, `Expect` provides **better error messages**
+/// by specifying what token was expected when a mismatch occurs.
+///
+/// # Type Parameters
+///
+/// - `Classifier`: A function or closure that checks if a token matches (implements [`Check`])
+/// - `Ctx`: Parse context
+/// - `Lang`: Language marker type (default `()`)
+///
+/// # Examples
+///
+/// ## Expect Specific Token Type
+///
+/// ```ignore
+/// use tokit::parser::{expect, ParseInput};
+///
+/// // Expect a semicolon token
+/// let parser = expect(|tok| {
+///     if matches!(tok, Token::Semicolon) {
+///         Ok(())
+///     } else {
+///         Err(Expected::token(TokenKind::Semicolon))
+///     }
+/// });
+///
+/// // Input: Token::Semicolon   → Ok(Token::Semicolon)
+/// // Input: Token::Comma       → Err(UnexpectedToken { expected: Semicolon, found: Comma })
+/// ```
+///
+/// ## Expect Token with Value Check
+///
+/// ```ignore
+/// // Expect identifier starting with uppercase
+/// let parser = expect(|tok| {
+///     match tok {
+///         Token::Identifier(name) if name.starts_with(char::is_uppercase) => Ok(()),
+///         _ => Err(Expected::description("uppercase identifier")),
+///     }
+/// });
+/// ```
+///
+/// ## Multiple Valid Tokens
+///
+/// ```ignore
+/// // Accept either semicolon or newline
+/// let parser = expect(|tok| {
+///     match tok {
+///         Token::Semicolon | Token::Newline => Ok(()),
+///         _ => Err(Expected::one_of(&[TokenKind::Semicolon, TokenKind::Newline])),
+///     }
+/// });
+/// ```
+///
+/// ## With Span Information
+///
+/// ```ignore
+/// // Capture token and its position
+/// let parser = expect(classifier).spanned();
+///
+/// // Returns: Spanned { data: Token, span: Span }
+/// ```
+///
+/// ## With Source Text
+///
+/// ```ignore
+/// // Capture token and source slice
+/// let parser = expect(|tok| matches!(tok, Token::Number(_)))
+///     .sliced()
+///     .map(|Sliced { data, slice }| {
+///         // Use slice to parse the exact number format
+///         parse_number(slice)
+///     });
+/// ```
+///
+/// # Error Handling
+///
+/// `Expect` provides detailed error information:
+/// - **What was expected**: Based on the `Expected` value from the classifier
+/// - **What was found**: The actual token that didn't match
+/// - **Position**: Span information for the unexpected token
+///
+/// Errors:
+/// - `UnexpectedToken`: Token didn't match the classifier
+/// - `UnexpectedEot`: No more tokens available (end of input)
+/// - Lexer errors: The lexer produced an error token
+///
+/// # Classifier Pattern
+///
+/// The classifier should return `Result<(), Expected>`:
+/// - `Ok(())`: Token matches, parsing succeeds
+/// - `Err(Expected::...)`: Token doesn't match, error describes what was expected
+///
+/// ```ignore
+/// // Good error messages
+/// |tok| match tok {
+///     Token::If => Ok(()),
+///     _ => Err(Expected::keyword("if")),
+/// }
+///
+/// // Generic error (less helpful)
+/// |tok| match tok {
+///     Token::If => Ok(()),
+///     _ => Err(Expected::description("keyword")),
+/// }
+/// ```
+///
+/// # Comparison with Any
+///
+/// | Parser | Accepts | Error Message Quality |
+/// |--------|---------|----------------------|
+/// | [`Any`] | Any token | Generic (just "unexpected token") |
+/// | **`Expect`** | Specific tokens | Detailed (expected vs found) |
+///
+/// **When to use**:
+/// - `Any`: Consume any token, filter later
+/// - `Expect`: Know what token you want, need good error messages
+///
+/// # Performance
+///
+/// - **Memory**: Size of the classifier closure (often zero-sized)
+/// - **Runtime**: O(1) - single token check
+/// - **Error construction**: Only on mismatch
+///
+/// # See Also
+///
+/// - [`Any`] - Accept any token
+/// - [`Filter`] - Validate after parsing (less specific errors)
+/// - [`Check`] - The trait for token classifiers
+/// - [`Expected`] - Type for describing expected tokens
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Expect<Classifier, Ctx, Lang: ?Sized = ()> {
   is: Classifier,
