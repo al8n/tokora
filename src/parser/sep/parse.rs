@@ -16,6 +16,17 @@ use super::*;
 
 use core::mem;
 
+mod allow_leading;
+mod allow_surrounded;
+mod allow_trailing;
+mod at_least;
+mod at_most;
+mod bounded;
+mod require_leading;
+mod require_surrounded;
+mod require_trailing;
+mod unbounded;
+
 impl<
   'inp,
   L,
@@ -370,6 +381,104 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, W, L
     Lang,
   >
 {
+  fn parse<Container>(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    container: &mut Container,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    F: ParseInput<'inp, L, O, Ctx, Lang>,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+    SepClassifier: Check<L::Token>,
+    Ctx::Emitter: SeparatedByEmitter<'inp, O, SepClassifier, L, Lang>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+    W: Window,
+    Trailing: super::TrailingSpec,
+    Leading: super::LeadingSpec,
+    Max: super::MaxSpec,
+    Min: super::MinSpec,
+  {
+    let mut state: State<L::Token, L::Span> = State::Start;
+    let ckp = inp.save();
+    let leading_spec = parser.config.leading();
+    let mut num_elems = 0;
+
+    loop {
+      let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+
+      let peek_span = match peeked.front() {
+        None => {
+          drop(peeked);
+          return self.handle_end(state, inp, &ckp, num_elems, container);
+        }
+        Some(tok) => {
+          // the sync_until_token_then_peek_with_emitter guarantees the first token is not a `Lexed::Error`
+          let tok = tok
+            .as_maybe_ref()
+            .map(
+              |t| t.token().map(|t| *t, |t| t.unwrap_token_ref()),
+              |t| t.token().map_data(|t| t.unwrap_token_ref()),
+            )
+            .into_inner();
+          let peek_span = tok.span();
+          match tok.data() {
+            // TODO(al8n): move the batching logic into the lexer sync function
+            // Lexed::Error(_) => {
+            //   drop(peeked);
+
+            //   // if the next token is an error token, emit the error.
+            //   let nxt = inp
+            //     .next()
+            //     .expect("peeked token already confirmed there must be a token");
+
+            //   // try to batch lexer errors
+            //   if let Some(lexer_errs_id) = &mut lexer_errs_id {
+            //     inp
+            //       .emitter()
+            //       .emit_to_batch(lexer_errs_id, nxt.map_data(|s| s.unwrap_error()))?;
+            //   } else {
+            //     let nxt_span = nxt.span_ref().clone();
+            //     inp.emitter().create_batch_with_error(
+            //       "lexer errors".into(),
+            //       nxt.map_data(|s| s.unwrap_error()),
+            //     )?;
+            //     lexer_errs_id = Some(nxt_span);
+            //   }
+            //   continue;
+            // }
+            tok if self.sep.check(tok) => {
+              drop(peeked);
+              state = self.handle_separator(state, inp, leading_spec)?;
+
+              continue;
+            }
+            _ => peek_span.clone(),
+          }
+        }
+      };
+
+      match self.condition.decide(peeked, emitter)? {
+        Action::Stop => {
+          return self.handle_end(state, inp, &ckp, num_elems, container);
+        }
+        Action::Continue => {
+          // if the peeked token belongs to an element, check the current state
+          state = self.handle_continue(
+            state,
+            inp,
+            &ckp,
+            &peek_span,
+            &mut num_elems,
+            leading_spec,
+            container,
+          )?;
+        }
+      }
+    }
+  }
+
   pub(in crate::parser) fn handle_separator<'closure>(
     &mut self,
     mut state: State<L::Token, L::Span>,

@@ -28,6 +28,12 @@ impl<P> AtLeast<P> {
   {
     self.apply(Maximum::new(maximum))
   }
+
+  /// Returns a mutable reference to the inner parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn parser_mut(&mut self) -> &mut P {
+    &mut self.parser
+  }
 }
 
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtLeast<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
@@ -48,6 +54,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtLeast<Repeated<F, Condition, O,
   ) -> Collect<Self, Container, (), ()> {
     Collect::new(self, container)
   }
+
   // /// Creates a new `Delimited` parser with the given delimiters and separator.
   // #[cfg_attr(not(tarpaulin), inline(always))]
   // pub const fn delimited_by<Open, Close, Delim>(
@@ -55,7 +62,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtLeast<Repeated<F, Condition, O,
   //   left: Open,
   //   right: Close,
   //   delim: Delim,
-  // ) -> DelimitedBy<F, Condition, Open, Close, Delim, O, W, L, Ctx, Lang> {
+  // ) -> DelimitedBy<Self, Open, Close, Delim, O, W, L, Ctx, Lang> {
   //   DelimitedBy::new_in(self, left, right, delim)
   // }
 }

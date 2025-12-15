@@ -4,7 +4,7 @@ use mayber::Maybe::{Owned, Ref};
 
 use crate::{
   container::{DelimiterContainer, SeparatorsContainer},
-  emitter::{DelimiterEmitter, SeparatedByEmitter},
+  emitter::{DelimitedEmitter, SeparatedEmitter},
   error::{Unclosed, Undelimited},
   parser::{collect::Collect, sep::State},
 };
@@ -58,7 +58,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter:
-    SeparatedByEmitter<'inp, O, SepClassifier, L, Lang> + DelimiterEmitter<'inp, Delim, L, Lang>,
+    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default
@@ -133,7 +133,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter:
-    SeparatedByEmitter<'inp, O, SepClassifier, L, Lang> + DelimiterEmitter<'inp, Delim, L, Lang>,
+    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default
@@ -202,7 +202,7 @@ impl<
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter:
-      SeparatedByEmitter<'inp, O, SepClassifier, L, Lang> + DelimiterEmitter<'inp, Delim, L, Lang>,
+      SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,

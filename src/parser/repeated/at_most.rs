@@ -2,21 +2,25 @@ use super::*;
 
 /// A parser that matches its inner parser at most `maximum` times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Bounded<P> {
+pub struct AtMost<P> {
   pub(super) maximum: usize,
-  pub(super) minimum: usize,
   pub(super) parser: P,
 }
 
-impl<P> Bounded<P> {
-  /// Creates a new `Bounded` parser that matches its inner parser at most `maximum` times.
+impl<P> AtMost<P> {
+  /// Creates a new `AtMost` parser that matches its inner parser at most `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: P, maximum: usize, minimum: usize) -> Self {
-    Self {
-      maximum,
-      minimum,
-      parser,
-    }
+  pub(super) const fn new(parser: P, maximum: usize) -> Self {
+    Self { maximum, parser }
+  }
+
+  /// Creates a `Bounded` parser that matches its inner parser at least `minimum` and at most `maximum` times.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn at_least(self, minimum: usize) -> Bounded<P>
+  where
+    Self: Apply<Bounded<P>, Options = Minimum>,
+  {
+    self.apply(Minimum::new(minimum))
   }
 
   /// Returns the maximum number of times the inner parser should match.
@@ -25,14 +29,14 @@ impl<P> Bounded<P> {
     self.maximum
   }
 
-  /// Returns the minimum number of times the inner parser should match.
+  /// Returns a mutable reference to the inner parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn minimum(&self) -> usize {
-    self.minimum
+  pub const fn parser_mut(&mut self) -> &mut P {
+    &mut self.parser
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtMost<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn collect<Container>(self) -> Collect<Self, Container, (), ()>
@@ -58,7 +62,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Bounded<Repeated<F, Condition, O,
   //   left: Open,
   //   right: Close,
   //   delim: Delim,
-  // ) -> DelimitedBy<F, Condition, Open, Close, Delim, O, W, L, Ctx, Lang> {
+  // ) -> DelimitedBy<Self, Open, Close, Delim, O, W, L, Ctx, Lang> {
   //   DelimitedBy::new_in(self, left, right, delim)
   // }
 }

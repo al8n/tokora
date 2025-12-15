@@ -6,7 +6,17 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use super::*;
 
-mod parser_input;
+pub use allow_leading::*;
+pub use allow_trailing::*;
+pub use require_leading::*;
+pub use require_trailing::*;
+
+mod parse;
+
+mod allow_leading;
+mod allow_trailing;
+mod require_leading;
+mod require_trailing;
 
 /// Leading-separator markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -1,6 +1,6 @@
 use crate::{
   container::DelimiterContainer,
-  emitter::{DelimiterEmitter, FullContainerEmitter},
+  emitter::{DelimitedEmitter, FullContainerEmitter},
 };
 
 use super::*;
@@ -21,7 +21,7 @@ where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: DelimiterEmitter<'inp, Delim, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container:

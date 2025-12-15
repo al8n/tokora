@@ -4,7 +4,7 @@ use mayber::Maybe::{Owned, Ref};
 
 use crate::{
   container::DelimiterContainer,
-  emitter::{DelimiterEmitter, FullContainerEmitter},
+  emitter::{DelimitedEmitter, FullContainerEmitter},
   error::{Unclosed, Undelimited, syntax::FullContainer},
 };
 
@@ -48,7 +48,7 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    Ctx::Emitter: DelimiterEmitter<'inp, Delim, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
+    Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     Container:

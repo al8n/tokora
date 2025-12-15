@@ -1,6 +1,6 @@
 use crate::{
   container::DelimiterContainer,
-  emitter::{DelimiterEmitter, TooFewEmitter},
+  emitter::{DelimitedEmitter, TooFewEmitter},
   error::syntax::TooFew,
 };
 
@@ -32,7 +32,7 @@ where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: DelimiterEmitter<'inp, Delim, L, Lang> + TooFewEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + TooFewEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container:
@@ -49,7 +49,7 @@ where
     let min = self.parser.parser.minimum();
 
     DelimitedBy::new_in(
-      &mut self.parser.parser.parser,
+      self.parser.parser.parser_mut(),
       &self.parser.left_classifier,
       &self.parser.right_classifier,
       &self.parser.delimiter,

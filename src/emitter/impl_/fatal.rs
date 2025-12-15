@@ -148,10 +148,10 @@ where
   }
 }
 
-impl<'inp, L, O, Sep, E, Lang: ?Sized> SeparatedByEmitter<'inp, O, Sep, L, Lang> for Fatal<E, Lang>
+impl<'inp, L, O, Sep, E, Lang: ?Sized> SeparatedEmitter<'inp, O, Sep, L, Lang> for Fatal<E, Lang>
 where
   L: Lexer<'inp>,
-  E: FromSeparatedByEmitterError<'inp, O, Sep, L, Lang>,
+  E: FromSeparatedError<'inp, O, Sep, L, Lang>,
   Fatal<E, Lang>: Emitter<'inp, L, Lang, Error = E>
     + BatchEmitter<'inp, L, UnexpectedLeadingOf<'inp, Sep, L, Lang>>
     + BatchEmitter<'inp, L, UnexpectedTrailingOf<'inp, Sep, L, Lang>>
@@ -168,38 +168,38 @@ where
     Err(E::from_missing_separator(err))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_element(
-    &mut self,
-    err: MissingSyntaxOf<'inp, O, L, Lang>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Err(E::from_missing_element(err))
-  }
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // fn emit_missing_element(
+  //   &mut self,
+  //   err: MissingSyntaxOf<'inp, O, L, Lang>,
+  // ) -> Result<(), Self::Error>
+  // where
+  //   L: Lexer<'inp>,
+  // {
+  //   Err(E::from_missing_element(err))
+  // }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_leading_separator(
-    &mut self,
-    err: MissingLeadingOf<'inp, Sep, L, Lang>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Err(E::from_missing_leading_separator(err))
-  }
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // fn emit_missing_leading_separator(
+  //   &mut self,
+  //   err: MissingLeadingOf<'inp, Sep, L, Lang>,
+  // ) -> Result<(), Self::Error>
+  // where
+  //   L: Lexer<'inp>,
+  // {
+  //   Err(E::from_missing_leading_separator(err))
+  // }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_trailing_separator(
-    &mut self,
-    err: MissingTrailingOf<'inp, Sep, L, Lang>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Err(E::from_missing_trailing_separator(err))
-  }
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // fn emit_missing_trailing_separator(
+  //   &mut self,
+  //   err: MissingTrailingOf<'inp, Sep, L, Lang>,
+  // ) -> Result<(), Self::Error>
+  // where
+  //   L: Lexer<'inp>,
+  // {
+  //   Err(E::from_missing_trailing_separator(err))
+  // }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_repeated_separator(
@@ -212,33 +212,33 @@ where
     Err(E::from_unexpected_repeated_separator(err))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_unexpected_leading_separator(
-    &mut self,
-    err: UnexpectedLeadingOf<'inp, Sep, L, Lang>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Err(E::from_unexpected_leading_separator(err))
-  }
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // fn emit_unexpected_leading_separator(
+  //   &mut self,
+  //   err: UnexpectedLeadingOf<'inp, Sep, L, Lang>,
+  // ) -> Result<(), Self::Error>
+  // where
+  //   L: Lexer<'inp>,
+  // {
+  //   Err(E::from_unexpected_leading_separator(err))
+  // }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_unexpected_trailing_separator(
-    &mut self,
-    err: UnexpectedTrailingOf<'inp, Sep, L, Lang>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Err(E::from_unexpected_trailing_separator(err))
-  }
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // fn emit_unexpected_trailing_separator(
+  //   &mut self,
+  //   err: UnexpectedTrailingOf<'inp, Sep, L, Lang>,
+  // ) -> Result<(), Self::Error>
+  // where
+  //   L: Lexer<'inp>,
+  // {
+  //   Err(E::from_unexpected_trailing_separator(err))
+  // }
 }
 
-impl<'inp, L, Delim, E, Lang: ?Sized> DelimiterEmitter<'inp, Delim, L, Lang> for Fatal<E, Lang>
+impl<'inp, L, Delim, E, Lang: ?Sized> DelimitedEmitter<'inp, Delim, L, Lang> for Fatal<E, Lang>
 where
   L: Lexer<'inp>,
-  E: FromDelimiterEmitterError<'inp, Delim, L, Lang>,
+  E: FromDelimitedError<'inp, Delim, L, Lang>,
   Fatal<E, Lang>: Emitter<'inp, L, Lang, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -282,7 +282,7 @@ const _: () = {
   const fn assert_noop_separated_by_emitter<'a, L, O, Sep, Error, E>()
   where
     L: Lexer<'a>,
-    E: SeparatedByEmitter<'a, O, Sep, L, Error = Error>,
+    E: SeparatedEmitter<'a, O, Sep, L, Error = Error>,
   {
   }
 
