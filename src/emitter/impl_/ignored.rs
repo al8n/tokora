@@ -1,6 +1,10 @@
 use crate::utils::Spanned;
 
-use super::*;
+use super::super::*;
+
+mod full_container;
+mod too_few;
+mod too_many;
 
 /// An emitter that ignores all errors, and the error type is `()`.
 ///
@@ -42,36 +46,6 @@ where
   where
     L: Lexer<'a>,
   {
-  }
-}
-
-impl<'a, O, L, Lang: ?Sized> RepeatedEmitter<'a, O, L, Lang> for Ignored
-where
-  O: ?Sized,
-  L: Lexer<'a>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_few(&mut self, _: TooFew<O, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    Ok(())
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(&mut self, _: TooMany<O, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    Ok(())
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_full_container(&mut self, _: FullContainer<O, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    Ok(())
   }
 }
 
@@ -246,13 +220,6 @@ const _: () = {
   {
   }
 
-  const fn assert_noop_repeated_emitter<'a, L, Any, Error, E>()
-  where
-    L: Lexer<'a>,
-    E: RepeatedEmitter<'a, Any, L, Error = Error>,
-  {
-  }
-
   const fn assert_noop_separated_by_emitter<'a, L, O, Sep, Error, E>()
   where
     L: Lexer<'a>,
@@ -261,7 +228,5 @@ const _: () = {
   }
 
   assert_noop_batch_emitter::<'_, DummyLexer, (), (), Ignored>();
-  assert_noop_repeated_emitter::<'_, DummyLexer, (), (), Ignored>();
-
   assert_noop_separated_by_emitter::<'_, DummyLexer, (), DummySep, (), Ignored>();
 };

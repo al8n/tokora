@@ -171,6 +171,9 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray, typenum};
 
 pub use any::*;
+pub use at_least::*;
+pub use at_most::*;
+pub use bounded::*;
 pub use choice::*;
 pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
@@ -199,6 +202,9 @@ pub use validate::*;
 // pub use recursive::*;
 
 mod any;
+mod at_least;
+mod at_most;
+mod bounded;
 mod choice;
 mod collect;
 mod ctx;
@@ -350,7 +356,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn repeated<Condition, W>(
     self,
     condition: Condition,
-  ) -> Repeated<Self, Condition, O, W, L, Ctx, RepeatedOptions, Lang>
+  ) -> Repeated<Self, Condition, O, W, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,

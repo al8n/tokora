@@ -14,12 +14,15 @@ use crate::{
 
 use super::Token;
 
-pub use fatal::Fatal;
-pub use silent::Silent;
+pub use full_container::*;
+pub use impl_::*;
+pub use too_few::*;
+pub use too_many::*;
 
-mod fatal;
-mod ignored;
-mod silent;
+mod full_container;
+mod impl_;
+mod too_few;
+mod too_many;
 
 /// A trait for handling and emitting errors during tokenization and parsing.
 ///
@@ -411,110 +414,9 @@ where
   }
 }
 
-/// An emitter that handles errors related to repeated elements during parsing.
-pub trait RepeatedEmitter<'a, O: ?Sized, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
-  /// Emits an error indicating that too few elements were found.
-  fn emit_too_few(&mut self, err: TooFew<O, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>;
-
-  /// Emits an error indicating that too many elements were found.
-  fn emit_too_many(&mut self, err: TooMany<O, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>;
-
-  /// Emits an error indicating that the given container is full, and cannot accept more elements.
-  fn emit_full_container(
-    &mut self,
-    err: FullContainer<O, L::Span, Lang>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>;
-}
-
-impl<'a, O, L, U, Lang: ?Sized> RepeatedEmitter<'a, O, L, Lang> for &mut U
-where
-  U: RepeatedEmitter<'a, O, L, Lang>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_few(&mut self, err: TooFew<O, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    (**self).emit_too_few(err)
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_many(&mut self, err: TooMany<O, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    (**self).emit_too_many(err)
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_full_container(&mut self, err: FullContainer<O, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    (**self).emit_full_container(err)
-  }
-}
-
-/// A trait bound for emitters that handle separated-by syntax errors.
-pub trait FromRepeatedEmitterError<'a, O: ?Sized, L, Lang: ?Sized = ()> {
-  /// Creates an emitter error from a too few elements error.
-  fn from_too_few(err: TooFew<O, L::Span, Lang>) -> Self
-  where
-    L: Lexer<'a>;
-
-  /// Creates an emitter error from a too many elements error.
-  fn from_too_many(err: TooMany<O, L::Span, Lang>) -> Self
-  where
-    L: Lexer<'a>;
-
-  /// Creates an emitter error from a full container error.
-  fn from_full_container(err: FullContainer<O, L::Span, Lang>) -> Self
-  where
-    L: Lexer<'a>;
-}
-
-impl<'a, T, O: ?Sized, L, Lang: ?Sized> FromRepeatedEmitterError<'a, O, L, Lang> for T
-where
-  L: Lexer<'a>,
-  T: From<TooFew<O, L::Span, Lang>>
-    + From<TooMany<O, L::Span, Lang>>
-    + From<FullContainer<O, L::Span, Lang>>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from_too_few(err: TooFew<O, L::Span, Lang>) -> Self
-  where
-    L: Lexer<'a>,
-  {
-    err.into()
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from_too_many(err: TooMany<O, L::Span, Lang>) -> Self
-  where
-    L: Lexer<'a>,
-  {
-    err.into()
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from_full_container(err: FullContainer<O, L::Span, Lang>) -> Self
-  where
-    L: Lexer<'a>,
-  {
-    err.into()
-  }
-}
-
 /// An emitter that handles missing separator or repeated separators found during parsing.
 pub trait SeparatedByEmitter<'inp, O, Sep, L, Lang: ?Sized = ()>:
-  RepeatedEmitter<'inp, O, L, Lang>
-  + BatchEmitter<'inp, L, UnexpectedLeadingOf<'inp, Sep, L, Lang>, Lang>
+  BatchEmitter<'inp, L, UnexpectedLeadingOf<'inp, Sep, L, Lang>, Lang>
   + BatchEmitter<'inp, L, UnexpectedTrailingOf<'inp, Sep, L, Lang>, Lang>
   + BatchEmitter<'inp, L, UnexpectedRepeatedOf<'inp, Sep, L, Lang>, Lang>
 where
@@ -668,8 +570,7 @@ where
 
 /// A trait bound for converting separated-by emitter errors into emitter errors.
 pub trait FromSeparatedByEmitterError<'inp, O, Sep, L, Lang: ?Sized = ()>:
-  FromRepeatedEmitterError<'inp, O, L, Lang>
-  + FromEmitterError<'inp, L, Lang>
+  FromEmitterError<'inp, L, Lang>
   + From<UnexpectedLeadingOf<'inp, Sep, L, Lang>>
   + From<UnexpectedTrailingOf<'inp, Sep, L, Lang>>
   + From<UnexpectedRepeatedOf<'inp, Sep, L, Lang>>
@@ -722,8 +623,7 @@ where
     + From<UnexpectedRepeatedOf<'inp, Sep, L, Lang>>
     + From<UnexpectedLeadingOf<'inp, Sep, L, Lang>>
     + From<UnexpectedTrailingOf<'inp, Sep, L, Lang>>
-    + FromEmitterError<'inp, L, Lang>
-    + FromRepeatedEmitterError<'inp, O, L, Lang>,
+    + FromEmitterError<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from_missing_separator(err: MissingSeparatorOf<'inp, Sep, L, Lang>) -> Self

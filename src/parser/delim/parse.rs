@@ -4,46 +4,55 @@ use mayber::Maybe::{Owned, Ref};
 
 use crate::{
   container::DelimiterContainer,
-  emitter::{DelimiterEmitter, RepeatedEmitter},
-  error::{
-    Unclosed, Undelimited,
-    syntax::{FullContainer, TooFew, TooMany},
-  },
+  emitter::{DelimiterEmitter, FullContainerEmitter},
+  error::{Unclosed, Undelimited, syntax::FullContainer},
 };
 
 use super::*;
 
-impl<'inp, L, P, Open, Close, O, Condition, Container, Ctx, Delim, W, Max, Min, Lang: ?Sized>
-  ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<
-    DelimitedBy<P, Condition, Open, Close, Delim, O, W, L, Ctx, RepeatedOptions<Max, Min>, Lang>,
-    Container,
+mod at_least;
+mod at_most;
+mod bounded;
+mod unbounded;
+
+impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
+  DelimitedBy<
+    &mut Repeated<P, Condition, O, W, L, Ctx, Lang>,
+    &Open,
+    &Close,
+    &Delim,
+    O,
+    W,
+    L,
     Ctx,
     Lang,
   >
-where
-  Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Delim: Clone,
-  L: Lexer<'inp>,
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  W: Window,
-  Ctx::Emitter: DelimiterEmitter<'inp, Delim, L, Lang> + RepeatedEmitter<'inp, O, L, Lang>,
-  Ctx: ParseContext<'inp, L, Lang>,
-  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-  Container:
-    Default + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>,
-  Max: super::MaxSpec,
-  Min: super::MinSpec,
 {
-  fn parse_input(
+  fn parse_repeated<Container>(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    container: &mut Container,
+    on_stop: impl FnOnce(
+      usize,
+      &mut InputRef<'inp, '_, L, Ctx, Lang>,
+      &L::Span,
+    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
+    Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
+    Delim: Clone,
+    L: Lexer<'inp>,
+    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+    W: Window,
+    Ctx::Emitter: DelimiterEmitter<'inp, Delim, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+    Container:
+      Default + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>,
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let ckp = inp.save();
@@ -56,7 +65,7 @@ where
         let ct = maybe_tok.as_maybe_ref().map(identity, |t| t.as_ref());
 
         let tok = ct.token().copied().into_data();
-        match self.parser.left_classifier.check(tok) {
+        match self.left_classifier.check(tok) {
           Err(knd) => {
             let (span, tok) = maybe_tok
               .map(|t| t.into_token().cloned(), |t| t.into_token())
@@ -86,7 +95,7 @@ where
     // we already handled the first token above
     let has_open = match state {
       Ok(left) => {
-        self.container.push_open(left);
+        container.push_open(left);
         true
       }
       Err(err) => {
@@ -96,8 +105,6 @@ where
     };
 
     let mut nums = 0;
-    let max = self.parser.maximum();
-    let min = self.parser.minimum();
 
     loop {
       let (mut peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
@@ -112,7 +119,7 @@ where
           .into_inner();
 
         // find the ending delimiter
-        if self.parser.right_classifier.check(tok).is_ok() {
+        if self.right_classifier.check(tok).is_ok() {
           let front = peeked.pop_front().expect("just checked there is a front");
           drop(peeked);
           let close = match front {
@@ -122,23 +129,23 @@ where
               .map_data(|t| t.unwrap_token()),
             Owned(ct) => ct.into_token().map_data(|t| t.unwrap_token()),
           };
-          self.container.push_close(close);
+          container.push_close(close);
 
-          if min > nums {
-            let span = inp.span_since(ckp.cursor());
-            inp.emitter().emit_too_few(TooFew::of(span, nums, min))?;
-          }
+          // if min > nums {
+          //   let span = inp.span_since(ckp.cursor());
+          //   inp.emitter().emit_too_few(TooFew::of(span, nums, min))?;
+          // }
 
-          if nums > max {
-            let span = inp.span_since(ckp.cursor());
-            inp.emitter().emit_too_many(TooMany::of(span, nums, max))?;
-          }
-
-          return Ok(mem::take(&mut self.container));
+          // if nums > max {
+          //   let span = inp.span_since(ckp.cursor());
+          //   inp.emitter().emit_too_many(TooMany::of(span, nums, max))?;
+          // }
+          let span = inp.span_since(ckp.cursor());
+          return on_stop(nums, inp, &span).map(|_| mem::take(container));
         }
       }
 
-      match self.parser.parser.condition.decide(peeked, emitter) {
+      match self.parser.condition.decide(peeked, emitter) {
         Err(err) => return Err(err),
         Ok(action) => match action {
           // missing ending delimiter
@@ -147,22 +154,18 @@ where
               let span = inp.span_since(ckp.cursor());
               inp
                 .emitter()
-                .emit_unclosed(Unclosed::of(span, self.parser.delimiter.clone()))?;
+                .emit_unclosed(Unclosed::of(span, self.delimiter.clone()))?;
             } else {
               let span = inp.span_since(ckp.cursor());
               inp
                 .emitter()
-                .emit_undelimited(Undelimited::of(span, self.parser.delimiter.clone()))?;
+                .emit_undelimited(Undelimited::of(span, self.delimiter.clone()))?;
             }
 
-            return Ok(mem::take(&mut self.container));
+            return Ok(mem::take(container));
           }
           Action::Continue => {
-            if self
-              .container
-              .push(self.parser.parser.f.parse_input(inp)?)
-              .is_some()
-            {
+            if container.push(self.parser.f.parse_input(inp)?).is_some() {
               let span = inp.span_since(ckp.cursor());
               inp.emitter().emit_full_container(FullContainer::of(
                 span,

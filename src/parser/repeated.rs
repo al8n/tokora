@@ -2,32 +2,7 @@ use core::marker::PhantomData;
 
 use super::*;
 
-mod parse_input;
-
-/// A type-safe alias for configuring `Repeated` parsers.
-///
-/// Canonical configuration layout: `With<With<Trailing, Leading>, With<Maximum, Minimum>>`.
-pub type RepeatedOptions<Max = (), Min = ()> = With<PhantomData<()>, With<Max, Min>>;
-
-impl<MAX, MIN> MaxSpec for RepeatedOptions<MAX, MIN>
-where
-  MAX: MaxSpec,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn maximum(&self) -> usize {
-    self.secondary.primary.maximum()
-  }
-}
-
-impl<MAX, MIN> MinSpec for RepeatedOptions<MAX, MIN>
-where
-  MIN: MinSpec,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn minimum(&self) -> usize {
-    self.secondary.secondary.minimum()
-  }
-}
+mod parse;
 
 /// A parser that repeatedly applies an element parser until a condition signals to stop.
 ///
@@ -155,10 +130,9 @@ where
 /// - [`delimited_by`](Repeated::delimited_by) - Wrap in delimiters
 /// - [`collect`](Repeated::collect) - Collect into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Repeated<F, Condition, O, W, L, Ctx, Config = RepeatedOptions, Lang: ?Sized = ()> {
+pub struct Repeated<F, Condition, O, W, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
   pub(super) condition: Condition,
-  pub(super) config: Config,
   _m: PhantomData<O>,
   _cap: PhantomData<W>,
   _l: PhantomData<L>,
@@ -166,9 +140,7 @@ pub struct Repeated<F, Condition, O, W, L, Ctx, Config = RepeatedOptions, Lang: 
   _lang: PhantomData<Lang>,
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  Repeated<F, Condition, O, W, L, Ctx, RepeatedOptions, Lang>
-{
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Repeated<F, Condition, O, W, L, Ctx, Lang> {
   /// Creates a new `Repeated` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new(f: F, condition: Condition) -> Self {
@@ -181,7 +153,6 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
     Self {
       f,
       condition,
-      config: RepeatedOptions::new(PhantomData, With::new((), ())),
       _m: PhantomData,
       _cap: PhantomData,
       _l: PhantomData,
@@ -191,9 +162,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
   }
 }
 
-impl<F, Condition, O, Options, W, L, Ctx, Lang: ?Sized>
-  Repeated<F, Condition, O, W, L, Ctx, Options, Lang>
-{
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Repeated<F, Condition, O, W, L, Ctx, Lang> {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn collect<Container>(self) -> Collect<Self, Container, (), ()>
@@ -214,90 +183,93 @@ impl<F, Condition, O, Options, W, L, Ctx, Lang: ?Sized>
 
   /// Creates a new `Delimited` parser with the given delimiters and separator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn delimited_by<Open, Close, Delim>(
+  pub fn delimited_by<Open, Close, Delim>(
     self,
     left: Open,
     right: Close,
     delim: Delim,
-  ) -> DelimitedBy<F, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lang> {
+  ) -> DelimitedBy<Self, Open, Close, Delim, O, W, L, Ctx, Lang> {
     DelimitedBy::new_in(self, left, right, delim)
   }
 }
 
-impl<F, Condition, O, Max, Min, W, L, Ctx, Lang: ?Sized>
-  Repeated<F, Condition, O, W, L, Ctx, RepeatedOptions<Max, Min>, Lang>
-{
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Repeated<F, Condition, O, W, L, Ctx, Lang> {
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_least(
-    self,
-    n: Min::Options,
-  ) -> Repeated<F, Condition, O, W, L, Ctx, RepeatedOptions<Max, Minimum>, Lang>
-  where
-    Min: Apply<Minimum>,
-  {
-    Repeated {
-      f: self.f,
-      condition: self.condition,
-      config: RepeatedOptions::new(
-        self.config.primary,
-        With::new(
-          self.config.secondary.primary,
-          Min::apply(self.config.secondary.secondary, n),
-        ),
-      ),
-      _m: PhantomData,
-      _cap: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
+  pub fn at_least(self, n: usize) -> AtLeast<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
+    self.apply(Minimum::new(n))
   }
 
   /// Sets the maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_most(
+  pub fn at_most(self, n: usize) -> AtMost<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
+    self.apply(Maximum::new(n))
+  }
+
+  /// Sets both the minimum and maximum number of elements to parse.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn bounded(
     self,
-    n: Max::Options,
-  ) -> Repeated<F, Condition, O, W, L, Ctx, RepeatedOptions<Maximum, Min>, Lang>
-  where
-    Max: Apply<Maximum>,
-  {
-    Repeated {
-      f: self.f,
-      condition: self.condition,
-      config: RepeatedOptions::new(
-        self.config.primary,
-        With::new(
-          Max::apply(self.config.secondary.primary, n),
-          self.config.secondary.secondary,
-        ),
-      ),
-      _m: PhantomData,
-      _cap: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
+    min: usize,
+    max: usize,
+  ) -> Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
+    self.apply(With::new(Maximum::new(max), Minimum::new(min)))
   }
+}
 
-  /// Returns the minimum number of elements required.
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>>
+  for Repeated<F, Condition, O, W, L, Ctx, Lang>
+{
+  type Options = Minimum;
+
   #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn minimum(&self) -> usize
-  where
-    Min: MinSpec,
-  {
-    Min::minimum(&self.config.secondary.secondary)
+  fn apply(self, options: Self::Options) -> AtLeast<Self> {
+    AtLeast::new(self, options.get())
   }
+}
 
-  /// Returns the maximum number of elements allowed.
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>>
+  for Repeated<F, Condition, O, W, L, Ctx, Lang>
+{
+  type Options = Maximum;
+
   #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn maximum(&self) -> usize
-  where
-    Max: MaxSpec,
-  {
-    Max::maximum(&self.config.secondary.primary)
+  fn apply(self, options: Self::Options) -> AtMost<Self> {
+    AtMost::new(self, options.get())
+  }
+}
+
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>>
+  for Repeated<F, Condition, O, W, L, Ctx, Lang>
+{
+  type Options = With<Maximum, Minimum>;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn apply(self, options: Self::Options) -> Bounded<Self> {
+    Bounded::new(self, options.primary.get(), options.secondary.get())
+  }
+}
+
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
+  Apply<Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>>>
+  for AtMost<Repeated<F, Condition, O, W, L, Ctx, Lang>>
+{
+  type Options = Minimum;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn apply(self, options: Self::Options) -> Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
+    Bounded::new(self.parser, self.maximum, options.get())
+  }
+}
+
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
+  Apply<Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>>>
+  for AtLeast<Repeated<F, Condition, O, W, L, Ctx, Lang>>
+{
+  type Options = Maximum;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn apply(self, options: Self::Options) -> Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
+    Bounded::new(self.parser, options.get(), self.minimum)
   }
 }

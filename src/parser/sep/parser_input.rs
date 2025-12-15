@@ -1,7 +1,7 @@
 use crate::{
   Check,
   container::SeparatorsContainer,
-  emitter::{BatchEmitter, RepeatedEmitter, SeparatedByEmitter},
+  emitter::{BatchEmitter, SeparatedByEmitter},
   error::{
     syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
     token::{

@@ -1,6 +1,6 @@
 use super::*;
 
-mod parse_input;
+mod parse;
 
 /// A parser that parses repeated elements enclosed in delimiter tokens (without separators).
 ///
@@ -140,29 +140,20 @@ mod parse_input;
 /// - [`delimited_by`](Repeated::delimited_by) - How to create this combinator
 /// - [`collect`](DelimitedBy::collect) - Collect elements into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct DelimitedBy<
-  P,
-  Condition,
-  Open,
-  Close,
-  Delim,
-  O,
-  W,
-  L,
-  Ctx,
-  Config = RepeatedOptions,
-  Lang: ?Sized = (),
-> {
-  parser: Repeated<P, Condition, O, W, L, Ctx, Config, Lang>,
+pub struct DelimitedBy<P, Open, Close, Delim, O, W, L, Ctx, Lang: ?Sized = ()> {
+  parser: P,
   left_classifier: Open,
   right_classifier: Close,
   delimiter: Delim,
   _m: PhantomData<O>,
   _window: PhantomData<W>,
+  _lang: PhantomData<Lang>,
+  _l: PhantomData<L>,
+  _ctx: PhantomData<Ctx>,
 }
 
-impl<P, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lang: ?Sized>
-  DelimitedBy<P, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lang>
+impl<P, Open, Close, Delim, O, W, L, Ctx, Lang: ?Sized>
+  DelimitedBy<P, Open, Close, Delim, O, W, L, Ctx, Lang>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -183,12 +174,7 @@ impl<P, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lang: ?Sized>
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new_in(
-    parser: Repeated<P, Condition, O, W, L, Ctx, Options, Lang>,
-    left: Open,
-    right: Close,
-    delim: Delim,
-  ) -> Self {
+  pub(super) const fn new_in(parser: P, left: Open, right: Close, delim: Delim) -> Self {
     Self {
       parser,
       left_classifier: left,
@@ -196,30 +182,9 @@ impl<P, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lang: ?Sized>
       delimiter: delim,
       _m: PhantomData,
       _window: PhantomData,
+      _lang: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
     }
-  }
-}
-
-impl<F, Condition, Open, Close, Delim, O, Max, Min, W, L, Ctx, Lang: ?Sized>
-  DelimitedBy<F, Condition, Open, Close, Delim, O, W, L, Ctx, RepeatedOptions<Max, Min>, Lang>
-{
-  /// Returns the minimum number of elements required.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn minimum(&self) -> usize
-  where
-    Min: MinSpec,
-  {
-    Min::minimum(&self.parser.config.secondary.secondary)
-  }
-
-  /// Returns the maximum number of elements allowed.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn maximum(&self) -> usize
-  where
-    Max: MaxSpec,
-  {
-    Max::maximum(&self.parser.config.secondary.primary)
   }
 }
