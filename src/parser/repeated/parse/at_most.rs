@@ -83,7 +83,7 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let max = self.parser.maximum();
+    let max = self.parser.maximum().get();
 
     self
       .parser

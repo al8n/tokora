@@ -3,7 +3,7 @@ use super::*;
 /// A parser that matches its inner parser at most `maximum` times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct AtMost<P> {
-  pub(in crate::parser) maximum: usize,
+  pub(in crate::parser) maximum: Maximum,
   pub(in crate::parser) parser: P,
 }
 
@@ -11,7 +11,10 @@ impl<P> AtMost<P> {
   /// Creates a new `AtMost` parser that matches its inner parser at most `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(in crate::parser) const fn new(parser: P, maximum: usize) -> Self {
-    Self { maximum, parser }
+    Self {
+      maximum: Maximum::new(maximum),
+      parser,
+    }
   }
 
   /// Creates a `Bounded` parser that matches its inner parser at least `minimum` and at most `maximum` times.
@@ -25,7 +28,7 @@ impl<P> AtMost<P> {
 
   /// Returns the maximum number of times the inner parser should match.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn maximum(&self) -> usize {
+  pub const fn maximum(&self) -> Maximum {
     self.maximum
   }
 

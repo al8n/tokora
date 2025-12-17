@@ -3,7 +3,7 @@ use super::*;
 /// A parser that matches its inner parser at most `maximum` times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct AtLeast<P> {
-  pub(in crate::parser) minimum: usize,
+  pub(in crate::parser) minimum: Minimum,
   pub(in crate::parser) parser: P,
 }
 
@@ -11,12 +11,15 @@ impl<P> AtLeast<P> {
   /// Creates a new `AtLeast` parser that matches its inner parser at most `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(in crate::parser) const fn new(parser: P, minimum: usize) -> Self {
-    Self { minimum, parser }
+    Self {
+      minimum: Minimum::new(minimum),
+      parser,
+    }
   }
 
   /// Returns the minimum number of times the inner parser should match.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn minimum(&self) -> usize {
+  pub const fn minimum(&self) -> Minimum {
     self.minimum
   }
 

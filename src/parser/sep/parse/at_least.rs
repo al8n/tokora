@@ -1,46 +1,12 @@
 use crate::{
   emitter::{TooFewEmitter, UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter},
-  error::{
-    syntax::TooFew,
-    token::{UnexpectedLeadingOf, UnexpectedTrailingOf},
-  },
+  error::token::{UnexpectedLeadingOf, UnexpectedTrailingOf},
 };
 
 use super::*;
 
-#[derive(Clone, Copy)]
-struct Limitation {
-  minimum: usize,
-}
-
-impl Limitation {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check<'inp, 'closure, O, Sep, L, Ctx, Lang: ?Sized>(
-    &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-    num_elems: usize,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
-      + UnexpectedTrailingSeparatorEmitter<'inp, O, Sep, L, Lang>
-      + TooFewEmitter<'inp, O, L, Lang>,
-  {
-    let full_span = inp.span_since(ckp.cursor());
-    if num_elems < self.minimum {
-      inp
-        .emitter()
-        .emit_too_few(TooFew::of(full_span.clone(), num_elems, self.minimum))?;
-    }
-
-    Ok(full_span)
-  }
-}
-
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for Limitation
+  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for Minimum
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -114,7 +80,7 @@ where
 }
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for Limitation
+  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for Minimum
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -136,7 +102,7 @@ where
 }
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for Limitation
+  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for Minimum
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -288,7 +254,7 @@ where
         _l: PhantomData,
         _lang: PhantomData,
       },
-      *minimum,
+      minimum.get(),
     );
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
@@ -329,12 +295,10 @@ where
       parser, container, ..
     } = &mut self.0;
 
-    let limitation = Limitation {
-      minimum: parser.minimum,
-    };
+    let minimum = parser.minimum();
 
     parser
       .parser_mut()
-      .parse(inp, container, &limitation, &limitation, &limitation)
+      .parse(inp, container, &minimum, &minimum, &minimum)
   }
 }

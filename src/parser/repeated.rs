@@ -265,7 +265,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn apply(self, options: Self::Options) -> Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
-    Bounded::new(self.parser, self.maximum, options.get())
+    Bounded::new(self.parser, self.maximum.get(), options.get())
   }
 }
 
@@ -277,6 +277,6 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn apply(self, options: Self::Options) -> Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
-    Bounded::new(self.parser, options.get(), self.minimum)
+    Bounded::new(self.parser, options.get(), self.minimum.get())
   }
 }

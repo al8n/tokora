@@ -46,7 +46,7 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let max = self.parser.parser.maximum();
+    let max = self.parser.parser.maximum().get();
 
     DelimitedBy::new_in(
       self.parser.parser.parser_mut(),

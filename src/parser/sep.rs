@@ -328,31 +328,21 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
 
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn at_least(
-    self,
-    minimum: usize,
-  ) -> AtLeast<Self> {
+  pub const fn at_least(self, minimum: usize) -> AtLeast<Self> {
     AtLeast::new(self, minimum)
   }
 
   /// Sets the maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn at_most(
-    self,
-    maximum: usize,
-  ) -> AtMost<Self> {
+  pub const fn at_most(self, maximum: usize) -> AtMost<Self> {
     AtMost::new(self, maximum)
   }
 
   /// Sets both the minimum and maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn bounded(
-    self,
-    minimum: usize,
-    maximum: usize,
-  ) -> Bounded<Self> {
+  pub const fn bounded(self, minimum: usize, maximum: usize) -> Bounded<Self> {
     Bounded::new(self, maximum, minimum)
-  } 
+  }
 }
 
 // macro_rules! sep_by {

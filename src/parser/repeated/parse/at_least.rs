@@ -83,7 +83,7 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let min = self.parser.minimum();
+    let min = self.parser.minimum().get();
 
     self
       .parser

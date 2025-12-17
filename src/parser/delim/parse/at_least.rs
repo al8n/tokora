@@ -46,7 +46,7 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let min = self.parser.parser.minimum();
+    let min = self.parser.parser.minimum().get();
 
     DelimitedBy::new_in(
       self.parser.parser.parser_mut(),

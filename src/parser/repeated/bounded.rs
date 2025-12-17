@@ -3,8 +3,8 @@ use super::*;
 /// A parser that matches its inner parser at most `maximum` times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Bounded<P> {
-  pub(in crate::parser) maximum: usize,
-  pub(in crate::parser) minimum: usize,
+  pub(in crate::parser) maximum: Maximum,
+  pub(in crate::parser) minimum: Minimum,
   pub(in crate::parser) parser: P,
 }
 
@@ -13,21 +13,21 @@ impl<P> Bounded<P> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(in crate::parser) const fn new(parser: P, maximum: usize, minimum: usize) -> Self {
     Self {
-      maximum,
-      minimum,
+      maximum: Maximum::new(maximum),
+      minimum: Minimum::new(minimum),
       parser,
     }
   }
 
   /// Returns the maximum number of times the inner parser should match.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn maximum(&self) -> usize {
+  pub const fn maximum(&self) -> Maximum {
     self.maximum
   }
 
   /// Returns the minimum number of times the inner parser should match.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn minimum(&self) -> usize {
+  pub const fn minimum(&self) -> Minimum {
     self.minimum
   }
 
@@ -45,6 +45,11 @@ impl<P> Bounded<P> {
       minimum: self.minimum,
       parser: &mut self.parser,
     }
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) const fn to_with(&self) -> With<Minimum, Maximum> {
+    With::new(self.minimum(), self.maximum())
   }
 
   /// Maps the inner parser to a new parser using the given function.
