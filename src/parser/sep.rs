@@ -4,6 +4,8 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 // use crate::{Check, punct::*};
 
+use crate::lexer::Span;
+
 use super::*;
 
 pub use allow_leading::*;
@@ -174,13 +176,11 @@ pub struct SeparatedBy<
   Window,
   L,
   Ctx,
-  Config = SeparatedByOptions,
   Lang: ?Sized = (),
 > {
   pub(super) f: F,
   pub(super) sep: SepClassifier,
   pub(super) condition: Condition,
-  pub(super) config: Config,
   pub(super) _m: PhantomData<O>,
   pub(super) _decision_window: PhantomData<Window>,
   pub(super) _l: PhantomData<L>,
@@ -189,7 +189,7 @@ pub struct SeparatedBy<
 }
 
 impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
-  SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, SeparatedByOptions, Lang>
+  SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
 {
   /// Creates a new `SeparatedBy` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -198,7 +198,6 @@ impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
       f,
       sep: sep_classifier,
       condition,
-      config: SeparatedByOptions::new(With::new((), ()), With::new((), ())),
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
@@ -208,19 +207,18 @@ impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
   }
 }
 
-impl<F, SepClassifier, Condition, O, Options, Window, L, Ctx, Lang: ?Sized>
-  SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Options, Lang>
+impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
+  SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang>
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn as_mut(
     &mut self,
-  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, &mut Options, Lang>
+  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, Lang>
   {
     SeparatedBy {
       f: &mut self.f,
       sep: &mut self.sep,
       condition: &mut self.condition,
-      config: &mut self.config,
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
@@ -247,32 +245,31 @@ impl<F, SepClassifier, Condition, O, Options, Window, L, Ctx, Lang: ?Sized>
     Collect::new(self, container)
   }
 
-  /// Creates a new `DelimitedSeparatedBy` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn delimited_by<Open, Close, Delim>(
-    self,
-    left: Open,
-    right: Close,
-    delim: Delim,
-  ) -> DelimitedSeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    Open,
-    Close,
-    Delim,
-    O,
-    Window,
-    L,
-    Ctx,
-    Options,
-    Lang,
-  > {
-    DelimitedSeparatedBy::new_in(self, left, right, delim)
-  }
+  // /// Creates a new `DelimitedSeparatedBy` parser.
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // pub const fn delimited_by<Open, Close, Delim>(
+  //   self,
+  //   left: Open,
+  //   right: Close,
+  //   delim: Delim,
+  // ) -> DelimitedSeparatedBy<
+  //   F,
+  //   SepClassifier,
+  //   Condition,
+  //   Open,
+  //   Close,
+  //   Delim,
+  //   O,
+  //   Window,
+  //   L,
+  //   Ctx,
+  //   Lang,
+  // > {
+  //   DelimitedSeparatedBy::new_in(self, left, right, delim)
+  // }
 }
 
-impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx, Lang: ?Sized>
+impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
   SeparatedBy<
     F,
     SepClassifier,
@@ -281,7 +278,6 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx
     Window,
     L,
     Ctx,
-    SeparatedByOptions<Trailing, Leading, Max, Min>,
     Lang,
   >
 {
@@ -297,20 +293,12 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx
     Window,
     L,
     Ctx,
-    SeparatedByOptions<Allow, Leading, Max, Min>,
     Lang,
-  >
-  where
-    Trailing: Apply<Allow>,
-  {
+  > {
     SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeparatedByOptions::new(
-        With::new(Allow(()), self.config.primary.secondary),
-        self.config.secondary,
-      ),
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
@@ -331,20 +319,13 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx
     Window,
     L,
     Ctx,
-    SeparatedByOptions<Require, Leading, Max, Min>,
     Lang,
   >
-  where
-    Trailing: Apply<Require>,
   {
     SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeparatedByOptions::new(
-        With::new(Require(()), self.config.primary.secondary),
-        self.config.secondary,
-      ),
       _m: PhantomData,
       _decision_window: PhantomData,
       _ctx: PhantomData,
@@ -365,20 +346,13 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx
     Window,
     L,
     Ctx,
-    SeparatedByOptions<Trailing, Allow, Max, Min>,
     Lang,
   >
-  where
-    Leading: Apply<Allow>,
   {
     SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeparatedByOptions::new(
-        With::new(self.config.primary.primary, Allow(())),
-        self.config.secondary,
-      ),
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
@@ -399,20 +373,13 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx
     Window,
     L,
     Ctx,
-    SeparatedByOptions<Trailing, Require, Max, Min>,
     Lang,
   >
-  where
-    Leading: Apply<Require>,
   {
     SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeparatedByOptions::new(
-        With::new(self.config.primary.primary, Require(())),
-        self.config.secondary,
-      ),
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
@@ -434,23 +401,13 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx
     Window,
     L,
     Ctx,
-    SeparatedByOptions<Trailing, Leading, Max, Minimum>,
     Lang,
   >
-  where
-    Min: Apply<Minimum>,
   {
     SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeparatedByOptions::new(
-        self.config.primary,
-        With::new(
-          self.config.secondary.primary,
-          Min::apply(self.config.secondary.secondary, n),
-        ),
-      ),
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
@@ -472,23 +429,13 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx
     Window,
     L,
     Ctx,
-    SeparatedByOptions<Trailing, Leading, Maximum, Min>,
     Lang,
   >
-  where
-    Max: Apply<Maximum>,
   {
     SeparatedBy {
       f: self.f,
       sep: self.sep,
       condition: self.condition,
-      config: SeparatedByOptions::new(
-        self.config.primary,
-        With::new(
-          Max::apply(self.config.secondary.primary, n),
-          self.config.secondary.secondary,
-        ),
-      ),
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
@@ -777,8 +724,84 @@ pub(super) enum State<T, S> {
   Start,
   Element,
   Leading(Spanned<T, S>),
-  /// the span is the start of the
-  Leadings(S),
   Separator(Spanned<T, S>),
-  RepeatedSeparator(S),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct CachedRepeatedSep<S> {
+  // the number of consecutive separators
+  count: usize,
+  // the current cached separator token.
+  span: S,
+}
+
+impl<S> CachedRepeatedSep<S> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(span: S) -> Self {
+    Self { count: 1, span }
+  }
+
+  /// Returns the number of consecutive separators.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn count(&self) -> usize {
+    self.count
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_span(self) -> S {
+    self.span
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn expand(&mut self, end: S::Offset)
+  where
+    S: Span,
+  {
+    self.count += 1;
+    *self.span.end_mut() = end;
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct CachedSepTok<T, S> {
+  // the number of consecutive separators
+  count: usize,
+  // the current cached separator token.
+  tok: Spanned<T, S>,
+}
+
+impl<T, S> From<Spanned<T, S>> for CachedSepTok<T, S> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(tok: Spanned<T, S>) -> Self {
+    Self::new(tok)
+  }
+}
+
+impl<T, S> CachedSepTok<T, S> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(tok: Spanned<T, S>) -> Self {
+    Self { count: 1, tok }
+  }
+
+  /// Returns the number of consecutive separators.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn count(&self) -> usize {
+    self.count
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_components(self) -> (S, T) {
+    self.tok.into_components()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_inner(self) -> Spanned<T, S> {
+    self.tok
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn update_replace(&mut self, tok: Spanned<T, S>) -> Spanned<T, S> {
+    self.count += 1;
+    core::mem::replace(&mut self.tok, tok)
+  }
 }

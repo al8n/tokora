@@ -1,4 +1,7 @@
-use crate::{error::token::UnexpectedToken, utils::Spanned};
+use crate::{
+  error::{syntax::MissingSyntaxOf, token::UnexpectedToken},
+  utils::Spanned,
+};
 
 use super::super::*;
 
@@ -152,10 +155,6 @@ impl<'inp, L, O, Sep, E, Lang: ?Sized> SeparatedEmitter<'inp, O, Sep, L, Lang> f
 where
   L: Lexer<'inp>,
   E: FromSeparatedError<'inp, O, Sep, L, Lang>,
-  Fatal<E, Lang>: Emitter<'inp, L, Lang, Error = E>
-    + BatchEmitter<'inp, L, UnexpectedLeadingOf<'inp, Sep, L, Lang>>
-    + BatchEmitter<'inp, L, UnexpectedTrailingOf<'inp, Sep, L, Lang>>
-    + BatchEmitter<'inp, L, UnexpectedRepeatedOf<'inp, Sep, L, Lang>>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_separator(
@@ -168,71 +167,16 @@ where
     Err(E::from_missing_separator(err))
   }
 
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_missing_element(
-  //   &mut self,
-  //   err: MissingSyntaxOf<'inp, O, L, Lang>,
-  // ) -> Result<(), Self::Error>
-  // where
-  //   L: Lexer<'inp>,
-  // {
-  //   Err(E::from_missing_element(err))
-  // }
-
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_missing_leading_separator(
-  //   &mut self,
-  //   err: MissingLeadingOf<'inp, Sep, L, Lang>,
-  // ) -> Result<(), Self::Error>
-  // where
-  //   L: Lexer<'inp>,
-  // {
-  //   Err(E::from_missing_leading_separator(err))
-  // }
-
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_missing_trailing_separator(
-  //   &mut self,
-  //   err: MissingTrailingOf<'inp, Sep, L, Lang>,
-  // ) -> Result<(), Self::Error>
-  // where
-  //   L: Lexer<'inp>,
-  // {
-  //   Err(E::from_missing_trailing_separator(err))
-  // }
-
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_unexpected_repeated_separator(
+  fn emit_missing_element(
     &mut self,
-    err: UnexpectedRepeatedOf<'inp, Sep, L, Lang>,
+    err: MissingSyntaxOf<'inp, O, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    Err(E::from_unexpected_repeated_separator(err))
+    Err(E::from_missing_element(err))
   }
-
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_unexpected_leading_separator(
-  //   &mut self,
-  //   err: UnexpectedLeadingOf<'inp, Sep, L, Lang>,
-  // ) -> Result<(), Self::Error>
-  // where
-  //   L: Lexer<'inp>,
-  // {
-  //   Err(E::from_unexpected_leading_separator(err))
-  // }
-
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_unexpected_trailing_separator(
-  //   &mut self,
-  //   err: UnexpectedTrailingOf<'inp, Sep, L, Lang>,
-  // ) -> Result<(), Self::Error>
-  // where
-  //   L: Lexer<'inp>,
-  // {
-  //   Err(E::from_unexpected_trailing_separator(err))
-  // }
 }
 
 impl<'inp, L, Delim, E, Lang: ?Sized> DelimitedEmitter<'inp, Delim, L, Lang> for Fatal<E, Lang>

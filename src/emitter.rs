@@ -14,16 +14,15 @@ use crate::{
 
 use super::Token;
 
-
+pub use delimited::*;
 pub use impl_::*;
 pub use repeated::*;
 pub use separated::*;
-pub use delimited::*;
 
+mod delimited;
 mod impl_;
 mod repeated;
 mod separated;
-mod delimited;
 
 /// A trait for handling and emitting errors during tokenization and parsing.
 ///
@@ -317,4 +316,3 @@ where
     (**self).drop_batch(id)
   }
 }
-

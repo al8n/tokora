@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::utils::Spanned;
+use crate::{error::syntax::MissingSyntaxOf, utils::Spanned};
 
 use super::super::*;
 
@@ -154,71 +154,16 @@ where
     Ok(())
   }
 
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_missing_element(
-  //   &mut self,
-  //   _: MissingSyntaxOf<'inp, O, L, Lang>,
-  // ) -> Result<(), Self::Error>
-  // where
-  //   L: Lexer<'inp>,
-  // {
-  //   Ok(())
-  // }
-
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_missing_leading_separator(
-  //   &mut self,
-  //   _: MissingLeadingOf<'inp, Sep, L, Lang>,
-  // ) -> Result<(), Self::Error>
-  // where
-  //   L: Lexer<'inp>,
-  // {
-  //   Ok(())
-  // }
-
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_missing_trailing_separator(
-  //   &mut self,
-  //   _: MissingTrailingOf<'inp, Sep, L, Lang>,
-  // ) -> Result<(), Self::Error>
-  // where
-  //   L: Lexer<'inp>,
-  // {
-  //   Ok(())
-  // }
-
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_unexpected_repeated_separator(
+  fn emit_missing_element(
     &mut self,
-    _: UnexpectedRepeatedOf<'inp, Sep, L, Lang>,
+    _: MissingSyntaxOf<'inp, O, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
     Ok(())
   }
-
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_unexpected_leading_separator(
-  //   &mut self,
-  //   _: UnexpectedLeadingOf<'inp, Sep, L, Lang>,
-  // ) -> Result<(), Self::Error>
-  // where
-  //   L: Lexer<'inp>,
-  // {
-  //   Ok(())
-  // }
-
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // fn emit_unexpected_trailing_separator(
-  //   &mut self,
-  //   _: UnexpectedTrailingOf<'inp, Sep, L, Lang>,
-  // ) -> Result<(), Self::Error>
-  // where
-  //   L: Lexer<'inp>,
-  // {
-  //   Ok(())
-  // }
 }
 
 impl<'inp, L, E, Delim, Lang: ?Sized> DelimitedEmitter<'inp, Delim, L, Lang> for Silent<E, Lang>

@@ -2,7 +2,7 @@ use super::*;
 
 /// An emitter that handles unexpected leading separator.
 pub trait UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang: ?Sized = ()>:
-  Emitter<'inp, L, Lang>
+  SeparatedEmitter<'inp, O, Sep, L, Lang>
 where
   L: Lexer<'inp>,
 {
