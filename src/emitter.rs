@@ -5,7 +5,7 @@ use crate::{
     syntax::{FullContainer, TooFew, TooMany},
     token::{
       MissingLeadingOf, MissingSeparatorOf, MissingTrailingOf, UnexpectedLeadingOf,
-      UnexpectedRepeatedOf, UnexpectedToken, UnexpectedTrailingOf,
+      UnexpectedToken, UnexpectedTrailingOf,
     },
   },
   lexer::Cursor,

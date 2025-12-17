@@ -168,16 +168,7 @@ pub type SeparatedByOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
 /// - [`repeated`](Repeated) - Repeat without separators
 /// - [`collect`](SeparatedBy::collect) - Collect into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SeparatedBy<
-  F,
-  SepClassifier,
-  Condition,
-  O,
-  Window,
-  L,
-  Ctx,
-  Lang: ?Sized = (),
-> {
+pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
   pub(super) sep: SepClassifier,
   pub(super) condition: Condition,
@@ -213,8 +204,7 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn as_mut(
     &mut self,
-  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, Lang>
-  {
+  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, Lang> {
     SeparatedBy {
       f: &mut self.f,
       sep: &mut self.sep,
@@ -270,31 +260,11 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
 }
 
 impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
-  SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    Lang,
-  >
+  SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang>
 {
   /// Allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn allow_trailing(
-    self,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    Lang,
-  > {
+  pub fn allow_trailing(self) -> SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang> {
     SeparatedBy {
       f: self.f,
       sep: self.sep,
@@ -311,17 +281,7 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_trailing(
     self,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    Lang,
-  >
-  {
+  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang> {
     SeparatedBy {
       f: self.f,
       sep: self.sep,
@@ -336,19 +296,7 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
 
   /// Allows leading separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn allow_leading(
-    self,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    Lang,
-  >
-  {
+  pub fn allow_leading(self) -> SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang> {
     SeparatedBy {
       f: self.f,
       sep: self.sep,
@@ -365,17 +313,7 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn require_leading(
     self,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    Lang,
-  >
-  {
+  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang> {
     SeparatedBy {
       f: self.f,
       sep: self.sep,
@@ -390,99 +328,31 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
 
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_least(
+  pub const fn at_least(
     self,
-    n: Min::Options,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    Lang,
-  >
-  {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
+    minimum: usize,
+  ) -> AtLeast<Self> {
+    AtLeast::new(self, minimum)
   }
 
   /// Sets the maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_most(
+  pub const fn at_most(
     self,
-    n: Max::Options,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    Lang,
-  >
-  {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
+    maximum: usize,
+  ) -> AtMost<Self> {
+    AtMost::new(self, maximum)
   }
 
-  /// Returns the specification for leading separators.
+  /// Sets both the minimum and maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn leading(&self) -> SepFixSpec
-  where
-    Leading: LeadingSpec,
-  {
-    Leading::leading(&self.config.primary.secondary)
-  }
-
-  /// Returns the specification for trailing separators.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn trailing(&self) -> SepFixSpec
-  where
-    Trailing: TrailingSpec,
-  {
-    Trailing::trailing(&self.config.primary.primary)
-  }
-
-  /// Returns the minimum number of elements required.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn minimum(&self) -> usize
-  where
-    Min: MinSpec,
-  {
-    Min::minimum(&self.config.secondary.secondary)
-  }
-
-  /// Returns the maximum number of elements allowed.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn maximum(&self) -> usize
-  where
-    Max: MaxSpec,
-  {
-    Max::maximum(&self.config.secondary.primary)
-  }
+  pub const fn bounded(
+    self,
+    minimum: usize,
+    maximum: usize,
+  ) -> Bounded<Self> {
+    Bounded::new(self, maximum, minimum)
+  } 
 }
 
 // macro_rules! sep_by {

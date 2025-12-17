@@ -367,7 +367,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     self,
     sep_classifier: SepClassifier,
     condition: Condition,
-  ) -> SeparatedBy<Self, SepClassifier, Condition, O, W, L, Ctx, SeparatedByOptions, Lang>
+  ) -> SeparatedBy<Self, SepClassifier, Condition, O, W, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -384,7 +384,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn separated_by_comma<Condition, W>(
     self,
     condition: Condition,
-  ) -> SeparatedBy<Self, Comma, Condition, O, W, L, Ctx, SeparatedByOptions, Lang>
+  ) -> SeparatedBy<Self, Comma, Condition, O, W, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,

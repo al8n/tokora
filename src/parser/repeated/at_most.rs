@@ -3,14 +3,14 @@ use super::*;
 /// A parser that matches its inner parser at most `maximum` times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct AtMost<P> {
-  pub(super) maximum: usize,
-  pub(super) parser: P,
+  pub(in crate::parser) maximum: usize,
+  pub(in crate::parser) parser: P,
 }
 
 impl<P> AtMost<P> {
   /// Creates a new `AtMost` parser that matches its inner parser at most `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: P, maximum: usize) -> Self {
+  pub(in crate::parser) const fn new(parser: P, maximum: usize) -> Self {
     Self { maximum, parser }
   }
 
@@ -33,6 +33,19 @@ impl<P> AtMost<P> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn parser_mut(&mut self) -> &mut P {
     &mut self.parser
+  }
+
+  /// Maps the inner parser to a new parser using the given function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AtMost<NP>
+  where
+    F: FnOnce(&'a mut P) -> NP,
+    NP: 'a,
+  {
+    AtMost {
+      maximum: self.maximum,
+      parser: f(&mut self.parser),
+    }
   }
 }
 

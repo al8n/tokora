@@ -91,16 +91,7 @@ trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
 }
 
 impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
-  SeparatedBy<
-    &'c mut F,
-    &'c mut SepClassifier,
-    &'c mut Condition,
-    O,
-    W,
-    L,
-    Ctx,
-    Lang,
-  >
+  SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>
 {
   fn parse<'closure, Container, CH, SP, EH>(
     &mut self,

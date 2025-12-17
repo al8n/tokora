@@ -128,33 +128,9 @@ where
   }
 }
 
-impl<
-  'inp,
-  L,
-  F,
-  SepClassifier,
-  Condition,
-  O,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-  W,
-> ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<
-    SeparatedBy<
-      F,
-      SepClassifier,
-      Condition,
-      O,
-      W,
-      L,
-      Ctx,
-      Lang,
-    >,
-    Container,
-    Ctx,
-    Lang,
-  >
+impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+  ParseInput<'inp, L, Container, Ctx, Lang>
+  for Collect<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -173,42 +149,16 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    Wrapper(self
-      .as_mut()
-      .map_parser(|p| p.as_mut()))
+    Wrapper(self.as_mut().map_parser(|p| p.as_mut()))
       .parse_input(inp)
       .map(|_| mem::take(&mut self.container))
   }
 }
 
-impl<
-  'inp,
-  L,
-  F,
-  SepClassifier,
-  Condition,
-  O,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-  W,
-> ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
+impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+  ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
-    Collect<
-      SeparatedBy<
-        F,
-        SepClassifier,
-        Condition,
-        O,
-        W,
-        L,
-        Ctx,
-        Lang,
-      >,
-      Container,
-      Ctx,
-      Lang,
-    >,
+    Collect<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>, Container, Ctx, Lang>,
     PhantomSpan,
   >
 where
@@ -229,39 +179,16 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    Wrapper(self
-      .primary_mut()
-      .as_mut()
-      .map_parser(|p| p.as_mut()))
+    Wrapper(self.primary_mut().as_mut().map_parser(|p| p.as_mut()))
       .parse_input(inp)
       .map(|span| Spanned::new(span, mem::take(&mut self.primary.container)))
   }
 }
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  Condition,
-  O,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-  W,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut SeparatedBy<
-      &'c mut F,
-      &'c mut SepClassifier,
-      Condition,
-      O,
-      W,
-      L,
-      Ctx,
-      Lang,
-    >,
+    &'c mut SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>,
     &'c mut Container,
     Ctx,
     Lang,
@@ -288,13 +215,9 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     let Self {
-      parser:
-        SeparatedBy {
-          f,
-          sep,
-          condition,
-          ..
-        },
+      parser: SeparatedBy {
+        f, sep, condition, ..
+      },
       container,
       ..
     } = self;
@@ -316,34 +239,16 @@ where
 
 struct Wrapper<T>(T);
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  Condition,
-  O,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-  W,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
-  for Wrapper<Collect<
-    SeparatedBy<
-      &'c mut F,
-      &'c mut SepClassifier,
-      &'c mut Condition,
-      O,
-      W,
-      L,
+impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
+  for Wrapper<
+    Collect<
+      SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+      &'c mut Container,
       Ctx,
       Lang,
     >,
-    &'c mut Container,
-    Ctx,
-    Lang,
-  >>
+  >
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,

@@ -3,15 +3,15 @@ use super::*;
 /// A parser that matches its inner parser at most `maximum` times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Bounded<P> {
-  pub(super) maximum: usize,
-  pub(super) minimum: usize,
-  pub(super) parser: P,
+  pub(in crate::parser) maximum: usize,
+  pub(in crate::parser) minimum: usize,
+  pub(in crate::parser) parser: P,
 }
 
 impl<P> Bounded<P> {
   /// Creates a new `Bounded` parser that matches its inner parser at most `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: P, maximum: usize, minimum: usize) -> Self {
+  pub(in crate::parser) const fn new(parser: P, maximum: usize, minimum: usize) -> Self {
     Self {
       maximum,
       minimum,
@@ -35,6 +35,30 @@ impl<P> Bounded<P> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn parser_mut(&mut self) -> &mut P {
     &mut self.parser
+  }
+
+  /// Returns a mutable `Bounded` parser with a mutable reference to the inner parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn as_mut(&mut self) -> Bounded<&mut P> {
+    Bounded {
+      maximum: self.maximum,
+      minimum: self.minimum,
+      parser: &mut self.parser,
+    }
+  }
+
+  /// Maps the inner parser to a new parser using the given function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> Bounded<NP>
+  where
+    F: FnOnce(&'a mut P) -> NP,
+    NP: 'a,
+  {
+    Bounded {
+      maximum: self.maximum,
+      minimum: self.minimum,
+      parser: f(&mut self.parser),
+    }
   }
 }
 
