@@ -188,7 +188,7 @@ pub use peek_then::*;
 pub use peek_then_choice::*;
 pub use recover::*;
 pub use repeated::*;
-pub use sep::{SepFixSpec, SeparatedBy, SeparatedByOptions};
+pub use sep::*;
 pub use then::*;
 pub use todo::*;
 pub use unwrapped::*;

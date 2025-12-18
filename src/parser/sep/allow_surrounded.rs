@@ -2,12 +2,12 @@ use super::*;
 
 /// A parser that matches its inner parser at most `maximum` times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct AllowLeading<P> {
+pub struct AllowSurrounded<P> {
   pub(in crate::parser) parser: P,
 }
 
-impl<P> AllowLeading<P> {
-  /// Creates a new `AllowLeading` parser that matches its inner parser at most `maximum` times.
+impl<P> AllowSurrounded<P> {
+  /// Creates a new `AllowSurrounded` parser that matches its inner parser at most `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(in crate::parser) const fn new(parser: P) -> Self {
     Self { parser }
@@ -15,27 +15,27 @@ impl<P> AllowLeading<P> {
 
   /// Sets the maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_most(self, maximum: usize) -> AllowLeading<AtMost<P>>
+  pub fn at_most(self, maximum: usize) -> AllowSurrounded<AtMost<P>>
   where
-    Self: Apply<AllowLeading<AtMost<P>>, Options = Maximum>,
+    Self: Apply<AllowSurrounded<AtMost<P>>, Options = Maximum>,
   {
     self.apply(Maximum::new(maximum))
   }
 
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_least(self, minimum: usize) -> AllowLeading<AtLeast<P>>
+  pub fn at_least(self, minimum: usize) -> AllowSurrounded<AtLeast<P>>
   where
-    Self: Apply<AllowLeading<AtLeast<P>>, Options = Minimum>,
+    Self: Apply<AllowSurrounded<AtLeast<P>>, Options = Minimum>,
   {
     self.apply(Minimum::new(minimum))
   }
 
   /// Sets both the minimum and maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bounded(self, minimum: usize, maximum: usize) -> AllowLeading<Bounded<P>>
+  pub fn bounded(self, minimum: usize, maximum: usize) -> AllowSurrounded<Bounded<P>>
   where
-    Self: Apply<AllowLeading<Bounded<P>>, Options = With<Minimum, Maximum>>,
+    Self: Apply<AllowSurrounded<Bounded<P>>, Options = With<Minimum, Maximum>>,
   {
     self.apply(With::new(Minimum::new(minimum), Maximum::new(maximum)))
   }
@@ -46,29 +46,29 @@ impl<P> AllowLeading<P> {
     &mut self.parser
   }
 
-  /// Returns a mutable reference to the `AllowLeading` parser wrapping the inner parser.
+  /// Returns a mutable reference to the `AllowSurrounded` parser wrapping the inner parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn as_mut(&mut self) -> AllowLeading<&mut P> {
-    AllowLeading {
+  pub const fn as_mut(&mut self) -> AllowSurrounded<&mut P> {
+    AllowSurrounded {
       parser: &mut self.parser,
     }
   }
 
   /// Maps the inner parser to a new parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AllowLeading<NP>
+  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AllowSurrounded<NP>
   where
     F: FnOnce(&'a mut P) -> NP,
     NP: 'a,
   {
-    AllowLeading {
+    AllowSurrounded {
       parser: f(&mut self.parser),
     }
   }
 }
 
 impl<F, Condition, Sep, O, W, L, Ctx, Lang: ?Sized>
-  AllowLeading<SeparatedBy<F, Sep, Condition, O, W, L, Ctx, Lang>>
+  AllowSurrounded<SeparatedBy<F, Sep, Condition, O, W, L, Ctx, Lang>>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]

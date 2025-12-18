@@ -1,33 +1,23 @@
 use core::marker::PhantomData;
 
-use derive_more::{IsVariant, TryUnwrap, Unwrap};
+use derive_more::IsVariant;
 
 use super::*;
 
+pub use allow_leading::AllowLeading;
+pub use allow_trailing::AllowTrailing;
+pub use require_leading::RequireLeading;
+pub use require_trailing::RequireTrailing;
+pub use allow_surrounded::AllowSurrounded;
+pub use require_surrounded::RequireSurrounded;
+
 mod parse;
-
-pub use parse::allow_leading::AllowLeading;
-pub use parse::allow_trailing::AllowTrailing;
-pub use parse::require_leading::RequireLeading;
-pub use parse::require_trailing::RequireTrailing;
-
-/// Leading-separator markers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Deny(());
-
-/// Leading-separator markers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Allow(());
-
-/// Requires a leading separator.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Require(());
-
-/// A type-safe alias for configuring `SeparatedBy` parsers.
-///
-/// Canonical configuration layout: `With<With<Trailing, Leading>, With<Maximum, Minimum>>`.
-pub type SeparatedByOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
-  With<With<Trailing, Leading>, With<Max, Min>>;
+mod allow_leading;
+mod allow_trailing;
+mod require_leading;
+mod require_trailing;
+mod allow_surrounded;
+mod require_surrounded;
 
 /// A parser that parses a sequence of elements separated by a delimiter.
 ///
@@ -382,153 +372,6 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
 //   Hash,
 //   At,
 // );
-
-impl Apply<Allow> for () {
-  type Options = ();
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, _: Self::Options) -> Allow {
-    Allow(())
-  }
-}
-
-impl Apply<Require> for () {
-  type Options = ();
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, _: Self::Options) -> Require {
-    Require(())
-  }
-}
-
-/// Specification for leading/trailing separators.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]
-pub enum SepFixSpec {
-  /// Denies leading/trailing separators.
-  Deny(Deny),
-  /// Allows leading/trailing separators.
-  Allow(Allow),
-  /// Requires leading/trailing separators.
-  Require(Require),
-}
-
-pub(super) trait LeadingSpec {
-  fn leading(&self) -> SepFixSpec;
-}
-
-impl<T: LeadingSpec> LeadingSpec for &mut T {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    (**self).leading()
-  }
-}
-
-impl LeadingSpec for Deny {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    SepFixSpec::Deny(*self)
-  }
-}
-
-impl LeadingSpec for Allow {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    SepFixSpec::Allow(*self)
-  }
-}
-
-impl LeadingSpec for Require {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    SepFixSpec::Require(*self)
-  }
-}
-
-pub(super) trait TrailingSpec {
-  fn trailing(&self) -> SepFixSpec;
-}
-
-impl<T: TrailingSpec> TrailingSpec for &mut T {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    (**self).trailing()
-  }
-}
-
-impl TrailingSpec for Deny {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    SepFixSpec::Deny(*self)
-  }
-}
-
-impl TrailingSpec for Allow {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    SepFixSpec::Allow(*self)
-  }
-}
-
-impl TrailingSpec for Require {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    SepFixSpec::Require(*self)
-  }
-}
-
-impl TrailingSpec for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    SepFixSpec::Deny(Deny(()))
-  }
-}
-
-impl LeadingSpec for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    SepFixSpec::Deny(Deny(()))
-  }
-}
-
-impl<T, L, MAX, MIN> MaxSpec for SeparatedByOptions<T, L, MAX, MIN>
-where
-  MAX: MaxSpec,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn maximum(&self) -> usize {
-    self.secondary.primary.maximum()
-  }
-}
-
-impl<T, L, MAX, MIN> MinSpec for SeparatedByOptions<T, L, MAX, MIN>
-where
-  MIN: MinSpec,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn minimum(&self) -> usize {
-    self.secondary.secondary.minimum()
-  }
-}
-
-impl<T, L, MAX, MIN> TrailingSpec for SeparatedByOptions<T, L, MAX, MIN>
-where
-  T: TrailingSpec,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    T::trailing(&self.primary.primary)
-  }
-}
-
-impl<T, L, MAX, MIN> LeadingSpec for SeparatedByOptions<T, L, MAX, MIN>
-where
-  L: LeadingSpec,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    L::leading(&self.primary.secondary)
-  }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
 pub(super) enum State<T, S> {
