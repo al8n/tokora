@@ -1,17 +1,18 @@
 use crate::{
-  emitter::{TooManyEmitter, UnexpectedTrailingSeparatorEmitter},
-  error::token::UnexpectedTrailingOf,
+  emitter::{MissingLeadingSeparatorEmitter, TooManyEmitter, UnexpectedTrailingSeparatorEmitter},
+  error::token::{MissingLeadingOf, UnexpectedTrailingOf},
 };
 
 use super::*;
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for AllowLeading<Maximum>
+  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for RequireLeading<Maximum>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, Sep, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -86,32 +87,37 @@ where
 }
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for AllowLeading<Maximum>
+  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for RequireLeading<Maximum>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>,
+  Ctx::Emitter:
+    SeparatedEmitter<'inp, O, Sep, L, Lang> + MissingLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
     &self,
-    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    _: L::Offset,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    off: L::Offset,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    Ok(())
+    inp
+      .emitter()
+      .emit_missing_leading_separator(MissingLeadingOf::<'_, Sep, L, Lang>::of(off))
   }
 }
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for AllowLeading<Maximum>
+  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for RequireLeading<Maximum>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, O, Sep, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -130,7 +136,7 @@ where
 impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    AllowLeading<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+    RequireLeading<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
     Container,
     Ctx,
     Lang,
@@ -142,6 +148,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
@@ -166,7 +173,7 @@ impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      AllowLeading<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+      RequireLeading<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
       Container,
       Ctx,
       Lang,
@@ -180,6 +187,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
@@ -204,7 +212,7 @@ where
 impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut AllowLeading<
+    &'c mut RequireLeading<
       AtMost<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
     >,
     &'c mut Container,
@@ -218,6 +226,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
@@ -234,7 +243,7 @@ where
   {
     let Self {
       parser:
-        AllowLeading {
+        RequireLeading {
           parser:
             AtMost {
               parser: SeparatedBy {
@@ -246,7 +255,7 @@ where
       container,
       ..
     } = self;
-    let parser = AllowLeading::new(AtMost::new(
+    let parser = RequireLeading::new(AtMost::new(
       SeparatedBy {
         f: &mut **f,
         sep: &mut **sep,
@@ -270,7 +279,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      AllowLeading<
+      RequireLeading<
         AtMost<
           SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
         >,
@@ -287,6 +296,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
@@ -301,7 +311,7 @@ where
       parser, container, ..
     } = &mut self.0;
 
-    let limitation = AllowLeading::new(parser.parser.maximum());
+    let limitation = RequireLeading::new(parser.parser.maximum());
 
     parser
       .parser_mut()

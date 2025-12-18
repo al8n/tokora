@@ -131,15 +131,6 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
           };
           container.push_close(close);
 
-          // if min > nums {
-          //   let span = inp.span_since(ckp.cursor());
-          //   inp.emitter().emit_too_few(TooFew::of(span, nums, min))?;
-          // }
-
-          // if nums > max {
-          //   let span = inp.span_since(ckp.cursor());
-          //   inp.emitter().emit_too_many(TooMany::of(span, nums, max))?;
-          // }
           let span = inp.span_since(ckp.cursor());
           return on_stop(nums, inp, &span).map(|_| mem::take(container));
         }

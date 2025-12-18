@@ -46,14 +46,16 @@ where
     _: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,
-    _: Spanned<L::Token, L::Span>,
+    span: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    // nothing to do, the unexpected leading separator should be handled by SeparatorStateHandler or ContinueStateHandler
-    Ok(inp.span_since(ckp.cursor()))
+    inp
+      .emitter()
+      .emit_missing_element(MissingSyntaxOf::<'_, O, L, Lang>::of(span.span_ref().end()))
+      .map(|_| inp.span_since(ckp.cursor()))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

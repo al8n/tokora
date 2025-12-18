@@ -49,13 +49,19 @@ where
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,
-    _: Spanned<L::Token, L::Span>,
+    spanned: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.check(inp, ckp, num_elems)
+    inp
+      .emitter()
+      .emit_missing_element(MissingSyntaxOf::<'_, O, L, Lang>::of(
+        spanned.span_ref().end(),
+      ))
+      .and_then(|_| self.parser.check(inp, ckp, num_elems))
+      .map(|_| inp.span_since(ckp.cursor()))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
