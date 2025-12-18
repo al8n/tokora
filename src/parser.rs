@@ -175,7 +175,6 @@ pub use choice::*;
 pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
 pub use delim::*;
-pub use delim_seq::*;
 pub use empty::*;
 pub use expect::*;
 pub use filter::*;
@@ -203,7 +202,6 @@ mod choice;
 mod collect;
 mod ctx;
 mod delim;
-mod delim_seq;
 mod empty;
 mod expect;
 mod filter;
@@ -1188,42 +1186,6 @@ pub enum Action {
   Continue,
 }
 
-impl Apply<Maximum> for () {
-  type Options = usize;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> Maximum {
-    Maximum(options)
-  }
-}
-
-impl Apply<Minimum> for () {
-  type Options = usize;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> Minimum {
-    Minimum(options)
-  }
-}
-
-impl Apply<Maximum> for Maximum {
-  type Options = usize;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> Maximum {
-    Maximum(options)
-  }
-}
-
-impl Apply<Minimum> for Minimum {
-  type Options = usize;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> Minimum {
-    Minimum(options)
-  }
-}
-
 /// A marker type representing the maximum number of elements allowed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Maximum(pub usize);
@@ -1263,56 +1225,6 @@ impl Minimum {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn get(&self) -> usize {
     self.0
-  }
-}
-
-trait MinSpec {
-  fn minimum(&self) -> usize;
-}
-
-impl<T: MinSpec> MinSpec for &mut T {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn minimum(&self) -> usize {
-    (**self).minimum()
-  }
-}
-
-impl MinSpec for Minimum {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn minimum(&self) -> usize {
-    self.0
-  }
-}
-
-impl MinSpec for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn minimum(&self) -> usize {
-    0
-  }
-}
-
-trait MaxSpec {
-  fn maximum(&self) -> usize;
-}
-
-impl<T: MaxSpec> MaxSpec for &mut T {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn maximum(&self) -> usize {
-    (**self).maximum()
-  }
-}
-
-impl MaxSpec for Maximum {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn maximum(&self) -> usize {
-    self.0
-  }
-}
-
-impl MaxSpec for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn maximum(&self) -> usize {
-    usize::MAX
   }
 }
 

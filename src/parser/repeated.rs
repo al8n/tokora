@@ -188,14 +188,14 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Repeated<F, Condition, O, W, L, C
     Collect::new(self, container)
   }
 
-  /// Creates a new `Delimited` parser with the given delimiters and separator.
+  /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn delimited_by<Open, Close, Delim>(
+  pub const fn delimited_by<Open, Close, Delim>(
     self,
     left: Open,
     right: Close,
     delim: Delim,
-  ) -> DelimitedBy<Self, Open, Close, Delim, O, W, L, Ctx, Lang> {
+  ) -> DelimitedBy<Self, Open, Close, Delim> {
     DelimitedBy::new_in(self, left, right, delim)
   }
 }

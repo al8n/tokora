@@ -122,10 +122,10 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(dead_code)]
   pub(crate) fn lexer_at(&self, off: &L::Offset) -> L
   where
     L::State: Clone,
-    // C: Cache<'inp, L>,
   {
     let mut lexer = L::with_state(self.input, self.state.clone());
     lexer.bump(off);

@@ -6,13 +6,13 @@ use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
   Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser, Token as TokenT,
-  emitter::{DelimiterEmitter, SeparatedByEmitter},
+  emitter::{DelimitedEmitter, SeparatedEmitter},
   error::{
     UnclosedBrace, UnclosedBracket, Undelimited, UnexpectedEot, UnopenedBrace, UnopenedBracket,
     syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
     token::{
       MissingLeadingComma, MissingSeparatorOf, MissingTrailingComma, UnexpectedLeadingComma,
-      UnexpectedRepeatedComma, UnexpectedToken, UnexpectedTrailingComma,
+      UnexpectedToken, UnexpectedTrailingComma,
     },
   },
   lexer::{InputRef, Peeked, PunctuatorToken},
@@ -53,7 +53,6 @@ enum JsonError<'a> {
   Parse(Spanned<ParseFloatError>),
   UnexpectedTrailingComma(UnexpectedTrailingComma<'a, JsonLexer<'a>>),
   UnexpectedLeadingComma(UnexpectedLeadingComma<'a, JsonLexer<'a>>),
-  RepeatedComma(UnexpectedRepeatedComma<'a, JsonLexer<'a>>),
   MissingComma(MissingSeparatorOf<'a, Comma, JsonLexer<'a>>),
   MissingValue(MissingSyntaxOf<'a, JsonValue<'a>, JsonLexer<'a>>),
   MissingField(MissingSyntaxOf<'a, (&'a str, JsonValue<'a>), JsonLexer<'a>>),
@@ -118,7 +117,6 @@ impl core::fmt::Debug for JsonError<'_> {
       Self::UnclosedBracket(err) => write!(f, "{err:?}"),
       Self::UnexpectedLeadingComma(err) => err.debug_fmt(f),
       Self::UnexpectedTrailingComma(err) => err.debug_fmt(f),
-      Self::RepeatedComma(err) => err.debug_fmt(f),
       Self::MissingComma(err) => err.debug_fmt(f),
       Self::MissingValue(err) => err.debug_fmt(f),
       Self::MissingLeadingComma(err) => err.debug_fmt(f),
@@ -149,7 +147,6 @@ impl core::fmt::Display for JsonError<'_> {
       Self::UnclosedBracket(err) => write!(f, "{}", err),
       Self::UnexpectedLeadingComma(err) => err.display_fmt(f),
       Self::UnexpectedTrailingComma(err) => err.display_fmt(f),
-      Self::RepeatedComma(err) => err.display_fmt(f),
       Self::MissingComma(err) => err.display_fmt(f),
       Self::MissingValue(err) => err.display_fmt(f),
       Self::MissingLeadingComma(err) => err.display_fmt(f),
@@ -479,15 +476,15 @@ fn list<'inp, Ctx>(
 ) -> Result<Vec<JsonValue<'inp>>, JsonError<'inp>>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
-  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + SeparatedByEmitter<
+  Ctx::Emitter: SeparatedEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + SeparatedEmitter<
       'inp,
       (&'inp str, JsonValue<'inp>),
       Comma,
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
-    > + DelimiterEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimiterEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
   json_value
     .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
@@ -501,15 +498,15 @@ fn field<'inp, Ctx>(
 ) -> Result<(&'inp str, JsonValue<'inp>), JsonError<'inp>>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
-  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + SeparatedByEmitter<
+  Ctx::Emitter: SeparatedEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + SeparatedEmitter<
       'inp,
       (&'inp str, JsonValue<'inp>),
       Comma,
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
-    > + DelimiterEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimiterEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
   string
     .then_ignore(Expect::new(expect_colon))
@@ -522,15 +519,15 @@ fn object<'inp, Ctx>(
 ) -> Result<Vec<(&'inp str, JsonValue<'inp>)>, JsonError<'inp>>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
-  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + SeparatedByEmitter<
+  Ctx::Emitter: SeparatedEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + SeparatedEmitter<
       'inp,
       (&'inp str, JsonValue<'inp>),
       Comma,
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
-    > + DelimiterEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimiterEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
   field
     .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
@@ -544,15 +541,15 @@ fn json_value<'inp, Ctx>(
 ) -> Result<JsonValue<'inp>, JsonError<'inp>>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
-  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + SeparatedByEmitter<
+  Ctx::Emitter: SeparatedEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + SeparatedEmitter<
       'inp,
       (&'inp str, JsonValue<'inp>),
       Comma,
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
-    > + DelimiterEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimiterEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
   let end = inp.input().len();
   (

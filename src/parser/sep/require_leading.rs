@@ -71,6 +71,17 @@ impl<P> RequireLeading<P> {
     }
   }
 
+  /// Delimits the parser with the given open and close classifiers and delimiter.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn delimited_by<Open, Close, Delim>(
+    self,
+    left: Open,
+    right: Close,
+    delim: Delim,
+  ) -> DelimitedBy<Self, Open, Close, Delim> {
+    DelimitedBy::new_in(self, left, right, delim)
+  }
+
   /// Maps the inner parser to a new parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> RequireLeading<NP>

@@ -140,21 +140,14 @@ mod parse;
 /// - [`delimited_by`](Repeated::delimited_by) - How to create this combinator
 /// - [`collect`](DelimitedBy::collect) - Collect elements into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct DelimitedBy<P, Open, Close, Delim, O, W, L, Ctx, Lang: ?Sized = ()> {
+pub struct DelimitedBy<P, Open, Close, Delim> {
   parser: P,
   left_classifier: Open,
   right_classifier: Close,
   delimiter: Delim,
-  _m: PhantomData<O>,
-  _window: PhantomData<W>,
-  _lang: PhantomData<Lang>,
-  _l: PhantomData<L>,
-  _ctx: PhantomData<Ctx>,
 }
 
-impl<P, Open, Close, Delim, O, W, L, Ctx, Lang: ?Sized>
-  DelimitedBy<P, Open, Close, Delim, O, W, L, Ctx, Lang>
-{
+impl<P, Open, Close, Delim> DelimitedBy<P, Open, Close, Delim> {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn collect<Container>(self) -> Collect<Self, Container, (), ()>
@@ -180,11 +173,6 @@ impl<P, Open, Close, Delim, O, W, L, Ctx, Lang: ?Sized>
       left_classifier: left,
       right_classifier: right,
       delimiter: delim,
-      _m: PhantomData,
-      _window: PhantomData,
-      _lang: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
     }
   }
 }

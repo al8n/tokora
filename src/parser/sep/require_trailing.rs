@@ -63,6 +63,17 @@ impl<P> RequireTrailing<P> {
     }
   }
 
+  /// Delimits the parser with the given open and close classifiers and delimiter.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn delimited_by<Open, Close, Delim>(
+    self,
+    left: Open,
+    right: Close,
+    delim: Delim,
+  ) -> DelimitedBy<Self, Open, Close, Delim> {
+    DelimitedBy::new_in(self, left, right, delim)
+  }
+
   /// Maps the inner parser to a new parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> RequireTrailing<NP>
@@ -96,15 +107,19 @@ impl<F, Condition, Sep, O, W, L, Ctx, Lang: ?Sized>
   ) -> Collect<Self, Container, Ctx, Lang> {
     Collect::new(self, container)
   }
+}
 
-  // /// Creates a new `Delimited` parser with the given delimiters and separator.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn delimited_by<Open, Close, Delim>(
-  //   self,
-  //   left: Open,
-  //   right: Close,
-  //   delim: Delim,
-  // ) -> DelimitedBy<Self, Open, Close, Delim, O, W, L, Ctx, Lang> {
-  //   DelimitedBy::new_in(self, left, right, delim)
-  // }
+impl<F, Condition, Sep, Open, Close, Delim, O, W, L, Ctx, Lang: ?Sized>
+  Apply<DelimitedBy<Self, Open, Close, Delim>>
+  for RequireTrailing<SeparatedBy<F, Sep, Condition, O, W, L, Ctx, Lang>>
+{
+  type Options = (Open, Close, Delim);
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn apply(
+    self,
+    (open, close, delim): (Open, Close, Delim),
+  ) -> DelimitedBy<Self, Open, Close, Delim> {
+    DelimitedBy::new_in(self, open, close, delim)
+  }
 }

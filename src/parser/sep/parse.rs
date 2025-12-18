@@ -26,7 +26,7 @@ mod require_surrounded;
 mod require_trailing;
 mod unbounded;
 
-trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+pub(in crate::parser) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
   fn handle_start_state(
     &self,
     num_elems: usize,
@@ -70,7 +70,7 @@ trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
     Ctx: ParseContext<'inp, L, Lang>;
 }
 
-trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+pub(in crate::parser) trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
   fn handle_start_state(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -81,7 +81,7 @@ trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
     Ctx: ParseContext<'inp, L, Lang>;
 }
 
-trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+pub(in crate::parser) trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
   fn handle_start_state(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,

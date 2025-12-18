@@ -18,8 +18,6 @@ where
 const _: () = {
   use crate::lexer::DummyLexer;
 
-  struct DummySep;
-
   const fn assert_noop_too_few_emitter<'a, L, Any, Error, E>()
   where
     L: Lexer<'a>,

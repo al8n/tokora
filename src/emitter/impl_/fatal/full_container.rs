@@ -20,8 +20,6 @@ where
 const _: () = {
   use crate::lexer::{BlackHole, DummyLexer};
 
-  struct DummySep;
-
   const fn assert_noop_full_container_emitter<'a, L, Any, Error, E>()
   where
     L: Lexer<'a>,

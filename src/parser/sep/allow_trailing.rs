@@ -43,6 +43,17 @@ impl<P> AllowTrailing<P> {
     AllowTrailing::new(Bounded::new(self.parser, maximum, minimum))
   }
 
+  /// Delimits the parser with the given open and close classifiers and delimiter.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn delimited_by<Open, Close, Delim>(
+    self,
+    left: Open,
+    right: Close,
+    delim: Delim,
+  ) -> DelimitedBy<Self, Open, Close, Delim> {
+    DelimitedBy::new_in(self, left, right, delim)
+  }
+
   /// Returns a mutable reference to the inner parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn parser_mut(&mut self) -> &mut P {
