@@ -1,5 +1,3 @@
-use crate::{emitter::UnexpectedLeadingSeparatorEmitter, error::token::UnexpectedLeadingOf};
-
 use super::*;
 
 struct Unbounded;
@@ -9,8 +7,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -102,23 +99,19 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
     &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    sep_tok: &Spanned<L::Token, L::Span>,
+    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    _: &Spanned<L::Token, L::Span>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let (span, tok) = sep_tok.clone().into_components();
-    inp.emitter().emit_unexpected_leading_separator(
-      UnexpectedLeadingOf::<'_, Sep, L, Lang>::of(span).with_found(tok),
-    )
+    Ok(())
   }
 }
 
@@ -135,9 +128,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter:
+    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
@@ -150,7 +142,7 @@ where
     Wrapper(
       self
         .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.as_mut())),
+        .map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))),
     )
     .parse_input(inp)
     .map(|_| mem::take(&mut self.container))
@@ -173,9 +165,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter:
+    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
@@ -189,7 +180,7 @@ where
       self
         .primary_mut()
         .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.as_mut())),
+        .map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))),
     )
     .parse_input(inp)
     .map(|span| Spanned::new(span, mem::take(&mut self.primary.container)))
@@ -211,9 +202,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter:
+    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
@@ -276,9 +266,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter:
+    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,

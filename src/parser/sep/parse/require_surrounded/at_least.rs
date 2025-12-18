@@ -25,7 +25,7 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.check(inp, ckp, num_elems)
+    self.parser.parser.check(inp, ckp, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -43,8 +43,7 @@ where
     inp
       .emitter()
       .emit_missing_trailing_separator(MissingTrailingOf::<'_, Sep, L, Lang>::of(span.end()))
-      .and_then(|_| self.parser.check(inp, ckp, num_elems))
-      .map(|_| span)
+      .and_then(|_| self.parser.parser.check(inp, ckp, num_elems))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -64,8 +63,7 @@ where
       .emit_missing_element(MissingSyntaxOf::<'_, O, L, Lang>::of(
         spanned.span_ref().end(),
       ))
-      .and_then(|_| self.parser.check(inp, ckp, num_elems))
-      .map(|_| inp.span_since(ckp.cursor()))
+      .and_then(|_| self.parser.parser.check(inp, ckp, num_elems))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -80,7 +78,7 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.check(inp, ckp, num_elems)
+    self.parser.parser.check(inp, ckp, num_elems)
   }
 }
 
@@ -161,9 +159,9 @@ where
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     Wrapper(
-      self
-        .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))),
+      self.as_mut().map_parser(|p| {
+        p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut())))
+      }),
     )
     .parse_input(inp)
     .map(|_| mem::take(&mut self.container))
@@ -202,10 +200,9 @@ where
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     Wrapper(
-      self
-        .primary_mut()
-        .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))),
+      self.primary_mut().as_mut().map_parser(|p| {
+        p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut())))
+      }),
     )
     .parse_input(inp)
     .map(|span| Spanned::new(span, mem::take(&mut self.primary.container)))

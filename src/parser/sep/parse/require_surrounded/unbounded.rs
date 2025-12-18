@@ -157,7 +157,7 @@ where
     Wrapper(
       self
         .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.as_mut())),
+        .map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))),
     )
     .parse_input(inp)
     .map(|_| mem::take(&mut self.container))
@@ -197,7 +197,7 @@ where
       self
         .primary_mut()
         .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.as_mut())),
+        .map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))),
     )
     .parse_input(inp)
     .map(|span| Spanned::new(span, mem::take(&mut self.primary.container)))

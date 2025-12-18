@@ -60,7 +60,6 @@ where
         spanned.span_ref().start(),
       ))
       .and_then(|_| self.parser.check(inp, ckp, num_elems))
-      .map(|_| inp.span_since(ckp.cursor()))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

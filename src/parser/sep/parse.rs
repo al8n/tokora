@@ -14,12 +14,14 @@ use super::*;
 use core::mem;
 
 mod allow_leading;
+mod allow_leading_require_trailing;
 mod allow_surrounded;
 mod allow_trailing;
 mod at_least;
 mod at_most;
 mod bounded;
 mod require_leading;
+mod require_leading_allow_trailing;
 mod require_surrounded;
 mod require_trailing;
 mod unbounded;

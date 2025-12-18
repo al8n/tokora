@@ -48,7 +48,6 @@ where
       .emitter()
       .emit_missing_trailing_separator(MissingTrailingOf::<'_, Sep, L, Lang>::of(span.end()))
       .and_then(|_| self.parser.check(inp, ckp, num_elems))
-      .map(|_| span)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
