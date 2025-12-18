@@ -2,23 +2,14 @@ use core::marker::PhantomData;
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
-// use crate::{Check, punct::*};
-
-use crate::lexer::Span;
-
 use super::*;
-
-pub use allow_leading::*;
-pub use allow_trailing::*;
-pub use require_leading::*;
-pub use require_trailing::*;
 
 mod parse;
 
-mod allow_leading;
-mod allow_trailing;
-mod require_leading;
-mod require_trailing;
+pub use parse::allow_leading::AllowLeading;
+pub use parse::allow_trailing::AllowTrailing;
+pub use parse::require_leading::RequireLeading;
+pub use parse::require_trailing::RequireTrailing;
 
 /// Leading-separator markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -264,66 +255,26 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
 {
   /// Allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn allow_trailing(self) -> SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang> {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
+  pub fn allow_trailing(self) -> AllowTrailing<Self> {
+    AllowTrailing::new(self)
   }
 
   /// Requires a trailing separator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn require_trailing(
-    self,
-  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang> {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _ctx: PhantomData,
-      _l: PhantomData,
-      _lang: PhantomData,
-    }
+  pub fn require_trailing(self) -> RequireTrailing<Self> {
+    RequireTrailing::new(self)
   }
 
   /// Allows leading separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn allow_leading(self) -> SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang> {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
+  pub fn allow_leading(self) -> AllowLeading<Self> {
+    AllowLeading::new(self)
   }
 
   /// Requires a leading separator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn require_leading(
-    self,
-  ) -> SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang> {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
+  pub fn require_leading(self) -> RequireLeading<Self> {
+    RequireLeading::new(self)
   }
 
   /// Sets the minimum number of elements to parse.
@@ -585,83 +536,4 @@ pub(super) enum State<T, S> {
   Element,
   Leading(Spanned<T, S>),
   Separator(Spanned<T, S>),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct CachedRepeatedSep<S> {
-  // the number of consecutive separators
-  count: usize,
-  // the current cached separator token.
-  span: S,
-}
-
-impl<S> CachedRepeatedSep<S> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: S) -> Self {
-    Self { count: 1, span }
-  }
-
-  /// Returns the number of consecutive separators.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn count(&self) -> usize {
-    self.count
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_span(self) -> S {
-    self.span
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn expand(&mut self, end: S::Offset)
-  where
-    S: Span,
-  {
-    self.count += 1;
-    *self.span.end_mut() = end;
-  }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct CachedSepTok<T, S> {
-  // the number of consecutive separators
-  count: usize,
-  // the current cached separator token.
-  tok: Spanned<T, S>,
-}
-
-impl<T, S> From<Spanned<T, S>> for CachedSepTok<T, S> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(tok: Spanned<T, S>) -> Self {
-    Self::new(tok)
-  }
-}
-
-impl<T, S> CachedSepTok<T, S> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(tok: Spanned<T, S>) -> Self {
-    Self { count: 1, tok }
-  }
-
-  /// Returns the number of consecutive separators.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn count(&self) -> usize {
-    self.count
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (S, T) {
-    self.tok.into_components()
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_inner(self) -> Spanned<T, S> {
-    self.tok
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn update_replace(&mut self, tok: Spanned<T, S>) -> Spanned<T, S> {
-    self.count += 1;
-    core::mem::replace(&mut self.tok, tok)
-  }
 }

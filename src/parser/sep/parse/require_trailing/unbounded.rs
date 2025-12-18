@@ -1,6 +1,6 @@
 use crate::{
   emitter::{MissingTrailingSeparatorEmitter, UnexpectedLeadingSeparatorEmitter},
-  error::token::MissingTrailingOf,
+  error::token::{MissingTrailingOf, UnexpectedLeadingOf},
 };
 
 use super::*;
@@ -112,19 +112,23 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, O, Sep, L, Lang>,
+    + MissingTrailingSeparatorEmitter<'inp, O, Sep, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
     &self,
-    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    _: &Spanned<L::Token, L::Span>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    sep_tok: &Spanned<L::Token, L::Span>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    Ok(())
+    let (span, tok) = sep_tok.clone().into_components();
+    inp.emitter().emit_unexpected_leading_separator(
+      UnexpectedLeadingOf::<'_, Sep, L, Lang>::of(span).with_found(tok),
+    )
   }
 }
 

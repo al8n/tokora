@@ -1,6 +1,6 @@
 use crate::{
-  emitter::{MissingTrailingSeparatorEmitter, TooManyEmitter},
-  error::token::MissingTrailingOf,
+  emitter::{MissingTrailingSeparatorEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter},
+  error::token::{MissingTrailingOf, UnexpectedLeadingOf},
 };
 
 use super::*;
@@ -53,19 +53,13 @@ where
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,
-    spanned: Spanned<L::Token, L::Span>,
+    _: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    inp
-      .emitter()
-      .emit_missing_element(MissingSyntaxOf::<'_, O, L, Lang>::of(
-        spanned.span_ref().start(),
-      ))
-      .and_then(|_| self.parser.check(inp, ckp, num_elems))
-      .map(|_| inp.span_since(ckp.cursor()))
+    self.parser.check(inp, ckp, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -111,20 +105,23 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, O, Sep, L, Lang>,
+  Ctx::Emitter:
+    SeparatedEmitter<'inp, O, Sep, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
     &self,
-    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    _: &Spanned<L::Token, L::Span>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    sep_tok: &Spanned<L::Token, L::Span>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    Ok(())
+    let (span, tok) = sep_tok.clone().into_components();
+    inp.emitter().emit_unexpected_leading_separator(
+      UnexpectedLeadingOf::<'_, Sep, L, Lang>::of(span).with_found(tok),
+    )
   }
 }
 
@@ -143,6 +140,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
@@ -181,6 +179,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
@@ -219,6 +218,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
@@ -288,6 +288,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
