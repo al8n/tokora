@@ -23,31 +23,38 @@ impl<P> AllowLeading<P> {
     }
   }
 
+  /// Sets the parser to allow trailing separators.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn require_trailing(self) -> AllowLeading<RequireTrailing<P>> {
+    AllowLeading {
+      parser: RequireTrailing {
+        parser: self.parser,
+      },
+    }
+  }
+
   /// Sets the maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_most(self, maximum: usize) -> AllowLeading<AtMost<P>>
-  where
-    Self: Apply<AllowLeading<AtMost<P>>, Options = Maximum>,
-  {
-    self.apply(Maximum::new(maximum))
+  pub fn at_most(self, maximum: usize) -> AllowLeading<AtMost<P>> {
+    AllowLeading {
+      parser: AtMost::new(self.parser, maximum),
+    }
   }
 
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_least(self, minimum: usize) -> AllowLeading<AtLeast<P>>
-  where
-    Self: Apply<AllowLeading<AtLeast<P>>, Options = Minimum>,
-  {
-    self.apply(Minimum::new(minimum))
+  pub fn at_least(self, minimum: usize) -> AllowLeading<AtLeast<P>> {
+    AllowLeading {
+      parser: AtLeast::new(self.parser, minimum),
+    }
   }
 
   /// Sets both the minimum and maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bounded(self, minimum: usize, maximum: usize) -> AllowLeading<Bounded<P>>
-  where
-    Self: Apply<AllowLeading<Bounded<P>>, Options = With<Minimum, Maximum>>,
-  {
-    self.apply(With::new(Minimum::new(minimum), Maximum::new(maximum)))
+  pub fn bounded(self, minimum: usize, maximum: usize) -> AllowLeading<Bounded<P>> {
+    AllowLeading {
+      parser: Bounded::new(self.parser, maximum, minimum),
+    }
   }
 
   /// Returns a mutable reference to the inner parser.
