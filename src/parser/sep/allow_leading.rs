@@ -13,6 +13,16 @@ impl<P> AllowLeading<P> {
     Self { parser }
   }
 
+  /// Sets the parser to allow trailing separators.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn allow_trailing(self) -> AllowLeading<AllowTrailing<P>> {
+    AllowLeading {
+      parser: AllowTrailing {
+        parser: self.parser,
+      },
+    }
+  }
+
   /// Sets the maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn at_most(self, maximum: usize) -> AllowLeading<AtMost<P>>
@@ -99,4 +109,3 @@ impl<F, Condition, Sep, O, W, L, Ctx, Lang: ?Sized>
   //   DelimitedBy::new_in(self, left, right, delim)
   // }
 }
-

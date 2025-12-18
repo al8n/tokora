@@ -8,16 +8,12 @@ pub use allow_leading::AllowLeading;
 pub use allow_trailing::AllowTrailing;
 pub use require_leading::RequireLeading;
 pub use require_trailing::RequireTrailing;
-pub use allow_surrounded::AllowSurrounded;
-pub use require_surrounded::RequireSurrounded;
 
-mod parse;
 mod allow_leading;
 mod allow_trailing;
+mod parse;
 mod require_leading;
 mod require_trailing;
-mod allow_surrounded;
-mod require_surrounded;
 
 /// A parser that parses a sequence of elements separated by a delimiter.
 ///
@@ -196,6 +192,48 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
       _ctx: PhantomData,
       _lang: PhantomData,
     }
+  }
+
+  /// Sets the minimum number of elements to parse.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn at_least(self, minimum: usize) -> AtLeast<Self> {
+    AtLeast::new(self, minimum)
+  }
+
+  /// Sets the maximum number of elements to parse.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn at_most(self, maximum: usize) -> AtMost<Self> {
+    AtMost::new(self, maximum)
+  }
+
+  /// Sets both the minimum and maximum number of elements to parse.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn bounded(self, minimum: usize, maximum: usize) -> Bounded<Self> {
+    Bounded::new(self, maximum, minimum)
+  }
+
+  /// Sets allows trailing separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn allow_trailing(self) -> AllowTrailing<Self> {
+    AllowTrailing::new(self)
+  }
+
+  /// Sets requires trailing separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn require_trailing(self) -> RequireTrailing<Self> {
+    RequireTrailing::new(self)
+  }
+
+  /// Sets allows leading separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn allow_leading(self) -> AllowLeading<Self> {
+    AllowLeading::new(self)
+  }
+
+  /// Sets requires leading separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn require_leading(self) -> RequireLeading<Self> {
+    RequireLeading::new(self)
   }
 
   /// Collects the parsed elements into the specified container.

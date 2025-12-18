@@ -125,7 +125,7 @@ where
 impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    AllowSurrounded<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+    AllowLeading<AllowTrailing<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
     Container,
     Ctx,
     Lang,
@@ -161,7 +161,7 @@ impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      AllowSurrounded<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      AllowLeading<AllowTrailing<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
       Container,
       Ctx,
       Lang,
@@ -199,7 +199,9 @@ where
 impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut AllowSurrounded<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+    &'c mut AllowLeading<
+      AllowTrailing<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+    >,
     &'c mut Container,
     Ctx,
     Lang,
@@ -226,16 +228,19 @@ where
   {
     let Self {
       parser:
-        AllowSurrounded {
-          parser: SeparatedBy {
-            f, sep, condition, ..
-          },
+        AllowLeading {
+          parser:
+            AllowTrailing {
+              parser: SeparatedBy {
+                f, sep, condition, ..
+              },
+            },
         },
       container,
       ..
     } = self;
 
-    let parser = AllowSurrounded::new(SeparatedBy {
+    let parser = AllowLeading::new(AllowTrailing::new(SeparatedBy {
       f: &mut *f,
       sep: &mut *sep,
       condition: &mut *condition,
@@ -244,7 +249,7 @@ where
       _ctx: PhantomData,
       _l: PhantomData,
       _lang: PhantomData,
-    });
+    }));
 
     Wrapper(Collect::new(parser, container)).parse_input(input)
   }
@@ -256,8 +261,10 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      AllowSurrounded<
-        SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+      AllowLeading<
+        AllowTrailing<
+          SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+        >,
       >,
       &'c mut Container,
       Ctx,
@@ -286,6 +293,7 @@ where
     } = &mut self.0;
 
     parser
+      .parser_mut()
       .parser_mut()
       .parse(inp, container, HANDLER, HANDLER, HANDLER)
   }

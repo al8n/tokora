@@ -1,5 +1,8 @@
 use crate::{
-  emitter::{MissingTrailingSeparatorEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter},
+  emitter::{
+    MissingTrailingSeparatorEmitter, TooFewEmitter, TooManyEmitter,
+    UnexpectedLeadingSeparatorEmitter,
+  },
   error::token::{MissingTrailingOf, UnexpectedLeadingOf},
 };
 

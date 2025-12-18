@@ -1,12 +1,12 @@
 use crate::{
-  emitter::{MissingLeadingSeparatorEmitter, TooFewEmitter, MissingTrailingSeparatorEmitter},
+  emitter::{MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter, TooFewEmitter},
   error::token::{MissingLeadingOf, MissingTrailingOf},
 };
 
 use super::*;
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for RequireSurrounded<Minimum>
+  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for RequireLeading<RequireTrailing<Minimum>>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -85,7 +85,8 @@ where
 }
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for RequireSurrounded<Minimum>
+  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>
+  for RequireLeading<RequireTrailing<Minimum>>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -109,7 +110,8 @@ where
 }
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for RequireSurrounded<Minimum>
+  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>
+  for RequireLeading<RequireTrailing<Minimum>>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -133,7 +135,9 @@ where
 impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    RequireSurrounded<AtLeast<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+    RequireLeading<
+      RequireTrailing<AtLeast<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+    >,
     Container,
     Ctx,
     Lang,
@@ -170,7 +174,9 @@ impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      RequireSurrounded<AtLeast<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+      RequireLeading<
+        RequireTrailing<AtLeast<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+      >,
       Container,
       Ctx,
       Lang,
@@ -209,8 +215,10 @@ where
 impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut RequireSurrounded<
-      AtLeast<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+    &'c mut RequireLeading<
+      RequireTrailing<
+        AtLeast<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      >,
     >,
     &'c mut Container,
     Ctx,
@@ -240,19 +248,23 @@ where
   {
     let Self {
       parser:
-        RequireSurrounded {
+        RequireLeading {
           parser:
-            AtLeast {
-              parser: SeparatedBy {
-                f, sep, condition, ..
-              },
-              minimum,
+            RequireTrailing {
+              parser:
+                AtLeast {
+                  parser:
+                    SeparatedBy {
+                      f, sep, condition, ..
+                    },
+                  minimum,
+                },
             },
         },
       container,
       ..
     } = self;
-    let parser = RequireSurrounded::new(AtLeast::new(
+    let parser = RequireLeading::new(RequireTrailing::new(AtLeast::new(
       SeparatedBy {
         f: &mut **f,
         sep: &mut **sep,
@@ -264,7 +276,7 @@ where
         _lang: PhantomData,
       },
       minimum.get(),
-    ));
+    )));
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
   }
@@ -276,9 +288,11 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      RequireSurrounded<
-        AtLeast<
-          SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+      RequireLeading<
+        RequireTrailing<
+          AtLeast<
+            SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+          >,
         >,
       >,
       &'c mut Container,
@@ -308,11 +322,14 @@ where
       parser, container, ..
     } = &mut self.0;
 
-    let limitation = RequireSurrounded::new(parser.parser.minimum());
+    let limitation = RequireLeading::new(RequireTrailing::new(parser.parser.parser.minimum()));
 
-    parser
-      .parser_mut()
-      .parser_mut()
-      .parse(inp, container, &limitation, &limitation, &limitation)
+    parser.parser_mut().parser_mut().parser_mut().parse(
+      inp,
+      container,
+      &limitation,
+      &limitation,
+      &limitation,
+    )
   }
 }

@@ -1,6 +1,5 @@
 use super::*;
 
-
 /// A parser that matches its inner parser at most `maximum` times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct AllowTrailing<P> {
@@ -12,6 +11,14 @@ impl<P> AllowTrailing<P> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(in crate::parser) const fn new(parser: P) -> Self {
     Self { parser }
+  }
+
+  /// Sets the parser to allow trailing separators.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn allow_leading(self) -> AllowLeading<AllowTrailing<P>> {
+    AllowLeading {
+      parser: self.parser,
+    }
   }
 
   /// Sets the maximum number of elements to parse.
@@ -100,4 +107,3 @@ impl<F, Condition, Sep, O, W, L, Ctx, Lang: ?Sized>
   //   DelimitedBy::new_in(self, left, right, delim)
   // }
 }
-

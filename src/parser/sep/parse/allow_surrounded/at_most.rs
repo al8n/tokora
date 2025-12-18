@@ -3,12 +3,11 @@ use crate::emitter::TooManyEmitter;
 use super::*;
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for AllowSurrounded<Maximum>
+  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for AllowLeading<AllowTrailing<Maximum>>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
-    + TooManyEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -76,7 +75,8 @@ where
 }
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for AllowSurrounded<Maximum>
+  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>
+  for AllowLeading<AllowTrailing<Maximum>>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -97,7 +97,8 @@ where
 }
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for AllowSurrounded<Maximum>
+  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>
+  for AllowLeading<AllowTrailing<Maximum>>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -120,7 +121,9 @@ where
 impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    AllowSurrounded<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+    AllowLeading<
+      AllowTrailing<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+    >,
     Container,
     Ctx,
     Lang,
@@ -130,8 +133,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + TooManyEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter:
+    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
@@ -155,7 +158,9 @@ impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      AllowSurrounded<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+      AllowLeading<
+        AllowTrailing<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+      >,
       Container,
       Ctx,
       Lang,
@@ -167,8 +172,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + TooManyEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter:
+    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
@@ -192,8 +197,10 @@ where
 impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut AllowSurrounded<
-      AtMost<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+    &'c mut AllowLeading<
+      AllowTrailing<
+        AtMost<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      >,
     >,
     &'c mut Container,
     Ctx,
@@ -204,8 +211,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + TooManyEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter:
+    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
@@ -221,19 +228,23 @@ where
   {
     let Self {
       parser:
-        AllowSurrounded {
+        AllowLeading {
           parser:
-            AtMost {
-              parser: SeparatedBy {
-                f, sep, condition, ..
-              },
-              maximum,
+            AllowTrailing {
+              parser:
+                AtMost {
+                  parser:
+                    SeparatedBy {
+                      f, sep, condition, ..
+                    },
+                  maximum,
+                },
             },
         },
       container,
       ..
     } = self;
-    let parser = AllowSurrounded::new(AtMost::new(
+    let parser = AllowLeading::new(AllowTrailing::new(AtMost::new(
       SeparatedBy {
         f: &mut **f,
         sep: &mut **sep,
@@ -245,7 +256,7 @@ where
         _lang: PhantomData,
       },
       maximum.get(),
-    ));
+    )));
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
   }
@@ -257,9 +268,11 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      AllowSurrounded<
-        AtMost<
-          SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+      AllowLeading<
+        AllowTrailing<
+          AtMost<
+            SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+          >,
         >,
       >,
       &'c mut Container,
@@ -272,8 +285,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + TooManyEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter:
+    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
   W: Window,
@@ -287,11 +300,14 @@ where
       parser, container, ..
     } = &mut self.0;
 
-    let limitation = AllowSurrounded::new(parser.parser.maximum());
+    let limitation = AllowLeading::new(AllowTrailing::new(parser.parser.parser.maximum()));
 
-    parser
-      .parser_mut()
-      .parser_mut()
-      .parse(inp, container, &limitation, &limitation, &limitation)
+    parser.parser_mut().parser_mut().parser_mut().parse(
+      inp,
+      container,
+      &limitation,
+      &limitation,
+      &limitation,
+    )
   }
 }

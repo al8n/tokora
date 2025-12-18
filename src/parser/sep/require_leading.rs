@@ -13,6 +13,16 @@ impl<P> RequireLeading<P> {
     Self { parser }
   }
 
+  /// Sets the parser to require trailing separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn require_trailing(self) -> RequireLeading<RequireTrailing<P>> {
+    RequireLeading {
+      parser: RequireTrailing {
+        parser: self.parser,
+      },
+    }
+  }
+
   /// Sets the maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn at_most(self, maximum: usize) -> RequireLeading<AtMost<P>>
@@ -99,4 +109,3 @@ impl<F, Condition, Sep, O, W, L, Ctx, Lang: ?Sized>
   //   DelimitedBy::new_in(self, left, right, delim)
   // }
 }
-

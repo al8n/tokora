@@ -105,8 +105,8 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, O, Sep, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(

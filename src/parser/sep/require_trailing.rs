@@ -1,4 +1,3 @@
-
 use super::*;
 
 /// A parser that matches its inner parser at most `maximum` times.
@@ -12,6 +11,12 @@ impl<P> RequireTrailing<P> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(in crate::parser) const fn new(parser: P) -> Self {
     Self { parser }
+  }
+
+  /// Sets the parser to require leading separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn require_leading(self) -> RequireLeading<RequireTrailing<P>> {
+    RequireLeading { parser: self }
   }
 
   /// Sets the maximum number of elements to parse.
