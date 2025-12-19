@@ -108,18 +108,3 @@ impl<F, Condition, Sep, O, W, L, Ctx, Lang: ?Sized>
     Collect::new(self, container)
   }
 }
-
-impl<F, Condition, Sep, Open, Close, Delim, O, W, L, Ctx, Lang: ?Sized>
-  Apply<DelimitedBy<Self, Open, Close, Delim>>
-  for RequireTrailing<SeparatedBy<F, Sep, Condition, O, W, L, Ctx, Lang>>
-{
-  type Options = (Open, Close, Delim);
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(
-    self,
-    (open, close, delim): (Open, Close, Delim),
-  ) -> DelimitedBy<Self, Open, Close, Delim> {
-    DelimitedBy::new_in(self, open, close, delim)
-  }
-}

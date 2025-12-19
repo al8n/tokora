@@ -1,6 +1,6 @@
 use super::*;
 
-mod parse;
+mod repeated;
 
 /// A parser that parses repeated elements enclosed in delimiter tokens (without separators).
 ///
@@ -141,10 +141,10 @@ mod parse;
 /// - [`collect`](DelimitedBy::collect) - Collect elements into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DelimitedBy<P, Open, Close, Delim> {
-  parser: P,
-  left_classifier: Open,
-  right_classifier: Close,
-  delimiter: Delim,
+  pub(crate) parser: P,
+  pub(crate) left_classifier: Open,
+  pub(crate) right_classifier: Close,
+  pub(crate) delimiter: Delim,
 }
 
 impl<P, Open, Close, Delim> DelimitedBy<P, Open, Close, Delim> {
@@ -173,6 +173,23 @@ impl<P, Open, Close, Delim> DelimitedBy<P, Open, Close, Delim> {
       left_classifier: left,
       right_classifier: right,
       delimiter: delim,
+    }
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) fn map_parser_mut<'a, Q, F>(
+    &'a mut self,
+    f: F,
+  ) -> DelimitedBy<Q, &'a Open, &'a Close, &'a Delim>
+  where
+    F: FnOnce(&'a mut P) -> Q,
+    Q: 'a,
+  {
+    DelimitedBy {
+      parser: f(&mut self.parser),
+      left_classifier: &self.left_classifier,
+      right_classifier: &self.right_classifier,
+      delimiter: &self.delimiter,
     }
   }
 }

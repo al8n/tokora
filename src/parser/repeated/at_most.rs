@@ -32,6 +32,17 @@ impl<P> AtMost<P> {
     self.maximum
   }
 
+  /// Delimits the parser with the given open and close classifiers and delimiter.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn delimited_by<Open, Close, Delim>(
+    self,
+    left: Open,
+    right: Close,
+    delim: Delim,
+  ) -> DelimitedBy<Self, Open, Close, Delim> {
+    DelimitedBy::new_in(self, left, right, delim)
+  }
+
   /// Returns a mutable reference to the inner parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn parser_mut(&mut self) -> &mut P {
@@ -71,14 +82,5 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtMost<Repeated<F, Condition, O, 
     Collect::new(self, container)
   }
 
-  // /// Creates a new `Delimited` parser with the given delimiters and separator.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn delimited_by<Open, Close, Delim>(
-  //   self,
-  //   left: Open,
-  //   right: Close,
-  //   delim: Delim,
-  // ) -> DelimitedBy<Self, Open, Close, Delim, O, W, L, Ctx, Lang> {
-  //   DelimitedBy::new_in(self, left, right, delim)
-  // }
+
 }

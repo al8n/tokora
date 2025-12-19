@@ -115,15 +115,4 @@ impl<F, Condition, Sep, O, W, L, Ctx, Lang: ?Sized>
   ) -> Collect<Self, Container, Ctx, Lang> {
     Collect::new(self, container)
   }
-
-  // /// Creates a new `Delimited` parser with the given delimiters and separator.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn delimited_by<Open, Close, Delim>(
-  //   self,
-  //   left: Open,
-  //   right: Close,
-  //   delim: Delim,
-  // ) -> DelimitedBy<Self, Open, Close, Delim, O, W, L, Ctx, Lang> {
-  //   DelimitedBy::new_in(self, left, right, delim)
-  // }
 }

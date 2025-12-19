@@ -26,72 +26,6 @@ mod require_surrounded;
 mod require_trailing;
 mod unbounded;
 
-pub(in crate::parser) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
-  fn handle_start_state(
-    &self,
-    num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-
-  fn handle_element_state(
-    &self,
-    num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-
-  fn handle_leading_state(
-    &self,
-    num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-    leading_sep: Spanned<L::Token, L::Span>,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-
-  fn handle_separator_state(
-    &self,
-    num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-    sep: Spanned<L::Token, L::Span>,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-}
-
-pub(in crate::parser) trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
-  fn handle_start_state(
-    &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    off: L::Offset,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-}
-
-pub(in crate::parser) trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
-  fn handle_start_state(
-    &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    sep_tok: &Spanned<L::Token, L::Span>,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-}
-
 impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
   SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>
 {
@@ -171,7 +105,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     }
   }
 
-  pub(in crate::parser) fn handle_separator<'closure, Handler, Container>(
+  pub(super) fn handle_separator<'closure, Handler, Container>(
     &mut self,
     mut state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -244,7 +178,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
   }
 
   #[allow(clippy::too_many_arguments)]
-  pub(in crate::parser) fn handle_continue<'closure, Container, Handler>(
+  pub(super) fn handle_continue<'closure, Container, Handler>(
     &mut self,
     mut state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -284,28 +218,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
       }
       // we are in leading state,
       State::Leading(_) => {
-        // match leading_spec {
-        //   // no leading separators allowed
-        //   SepFixSpec::Deny(_) => {
-        //     let (sep_span, sep_token) = leading_tok.into_components();
-        //     inp
-        //       .emitter()
-        //       .emit_unexpected_leading_separator(
-        //         UnexpectedLeadingOf::<'_, SepClassifier, L, Lang>::leading_of(sep_span, sep_token),
-        //       )?;
-        //   }
-        //   SepFixSpec::Allow(_) | SepFixSpec::Require(_) => {}
-        // }
-
-        // let the passing handler deal with the leading separator
-
-        // handler.handle_leading_state(
-        //   *num_elems,
-        //   inp,
-        //   ckp,
-        //   leading_tok,
-        // )?;
-
         // parse the first element
         let element = self.f.parse_input(inp)?;
         if push(num_elems, container, element).is_some() {
@@ -320,21 +232,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
       }
       // nothing before element, parse the first element
       State::Start => {
-        // match leading_spec {
-        //   SepFixSpec::Require(_) => {
-        //     let off = peek_span.start();
-        //     // unhappy, missing the required leading separator
-        //     inp
-        //       .emitter()
-        //       .emit_missing_leading_separator(
-        //         MissingLeadingOf::<'_, SepClassifier, L, Lang>::leading_of(off),
-        //       )?;
-        //   }
-        //   SepFixSpec::Deny(_) | SepFixSpec::Allow(_) => {
-        //     // so happyyyyy, no leading separators, just parse the first element
-        //   }
-        // }
-
         // let the passing handler deal with the start state
         handler.handle_start_state(inp, peek_span.start())?;
 
@@ -377,7 +274,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     Ok(state)
   }
 
-  pub(in crate::parser) fn handle_end<'closure, Handler>(
+  pub(super) fn handle_end<'closure, Handler>(
     &mut self,
     state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -396,99 +293,20 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
     Handler: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
   {
-    // let minimum = self.config.minimum();
-    // let maximum = self.config.maximum();
-    // let leading_spec = self.config.leading();
-    // let trailing_spec = self.config.trailing();
-
     Ok(match state {
       // we are in the start state, so no elements were found
       State::Start => {
-        // let span = inp.span_since(ckp.cursor());
-        // if minimum > 0 {
-        //   inp
-        //     .emitter()
-        //     .emit_too_few(TooFew::of(span.clone(), num_elems, minimum))?;
-        // }
-        // span
         handler.handle_start_state(num_elems, inp, ckp)?
       }
       // we are in element state, so all good, check for trailing separator, and the minimum, maximum constraints
       State::Element => {
-        // let full_span = inp.span_since(ckp.cursor());
-        // if num_elems < minimum {
-        //   inp
-        //     .emitter()
-        //     .emit_too_few(TooFew::of(full_span.clone(), num_elems, minimum))?;
-        // }
-
-        // if num_elems > maximum {
-        //   inp
-        //     .emitter()
-        //     .emit_too_many(TooMany::of(full_span.clone(), num_elems, maximum))?;
-        // }
-
-        // if trailing_spec.is_require() {
-        //   let off = inp.span().end();
-        //   inp
-        //     .emitter()
-        //     .emit_missing_trailing_separator(
-        //       MissingTrailingOf::<'_, SepClassifier, L, Lang>::trailing_of(off),
-        //     )?;
-        // }
-        // full_span
         handler.handle_element_state(num_elems, inp, ckp)?
       }
       State::Leading(spanned) => {
-        // // only find leading separators, no element
-        // let (sep_span, sep_token) = spanned.into_components();
-        // match leading_spec {
-        //   SepFixSpec::Deny(_) => {
-        //     // we are not allowed to have leading separators
-        //     inp
-        //       .emitter()
-        //       .emit_unexpected_leading_separator(
-        //         UnexpectedLeadingOf::<'_, SepClassifier, L, Lang>::leading_of(sep_span, sep_token),
-        //       )?;
-        //   }
-        //   SepFixSpec::Allow(_) | SepFixSpec::Require(_) => {
-        //     // we should emit an error as we are missing the element followed the leading separator
-        //     inp
-        //       .emitter()
-        //       .emit_missing_element(MissingSyntaxOf::<'_, O, L, Lang>::of(sep_span.end()))?;
-        //   }
-        // }
-        // inp.span_since(ckp.cursor())
         handler.handle_leading_state(num_elems, inp, ckp, spanned)?
       }
       // we have a trailing separator
       State::Separator(spanned) => {
-        // let (sep_span, sep_token) = spanned.into_components();
-
-        // // we have a trailing separator, but the spec says no trailing separators allowed
-        // if trailing_spec.is_deny() {
-        //   inp
-        //     .emitter()
-        //     .emit_unexpected_trailing_separator(
-        //       UnexpectedTrailingOf::<'_, SepClassifier, L, Lang>::trailing_of(sep_span, sep_token),
-        //     )?;
-        // }
-
-        // let full_span = inp.span_since(ckp.cursor());
-        // let nums = container.len();
-        // if nums < minimum {
-        //   inp
-        //     .emitter()
-        //     .emit_too_few(TooFew::of(full_span.clone(), nums, minimum))?;
-        // }
-
-        // if nums > maximum {
-        //   inp
-        //     .emitter()
-        //     .emit_too_many(TooMany::of(full_span.clone(), nums, maximum))?;
-        // }
-
-        // full_span
         handler.handle_separator_state(num_elems, inp, ckp, spanned)?
       }
     })

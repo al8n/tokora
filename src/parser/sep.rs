@@ -2,6 +2,8 @@ use core::marker::PhantomData;
 
 use derive_more::IsVariant;
 
+use crate::lexer::Checkpoint;
+
 use super::*;
 
 pub use allow_leading::AllowLeading;
@@ -14,6 +16,9 @@ mod allow_trailing;
 mod parse;
 mod require_leading;
 mod require_trailing;
+
+mod delim;
+
 
 /// A parser that parses a sequence of elements separated by a delimiter.
 ///
@@ -144,7 +149,7 @@ mod require_trailing;
 /// - [`delimited_by`](SeparatedBy::delimited_by) - Wrap in delimiters (e.g., `[...]` or `{...}`)
 /// - [`repeated`](Repeated) - Repeat without separators
 /// - [`collect`](SeparatedBy::collect) - Collect into a container
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
   pub(super) sep: SepClassifier,
@@ -154,6 +159,44 @@ pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Si
   pub(super) _l: PhantomData<L>,
   pub(super) _ctx: PhantomData<Ctx>,
   pub(super) _lang: PhantomData<Lang>,
+}
+
+impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Copy
+  for SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+where
+  F: Copy,
+  SepClassifier: Copy,
+  Condition: Copy,
+{}
+
+impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Clone for SeparatedBy<
+  F,
+  SepClassifier,
+  Condition,
+  O,
+  W,
+  L,
+  Ctx,
+  Lang,
+>
+where
+  F: Clone,
+  SepClassifier: Clone,
+  Condition: Clone,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn clone(&self) -> Self {
+    Self {
+      f: self.f.clone(),
+      sep: self.sep.clone(),
+      condition: self.condition.clone(),
+      _m: PhantomData,
+      _decision_window: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
+      _lang: PhantomData,
+    }
+  }
 }
 
 impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
@@ -375,6 +418,73 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
 //   Hash,
 //   At,
 // );
+
+trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+  fn handle_start_state(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+
+  fn handle_element_state(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+
+  fn handle_leading_state(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+    leading_sep: Spanned<L::Token, L::Span>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+
+  fn handle_separator_state(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+    sep: Spanned<L::Token, L::Span>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+}
+
+trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+  fn handle_start_state(
+    &self,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    off: L::Offset,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+}
+
+trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+  fn handle_start_state(
+    &self,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    sep_tok: &Spanned<L::Token, L::Span>,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+}
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
 pub(super) enum State<T, S> {

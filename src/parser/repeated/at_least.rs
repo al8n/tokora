@@ -32,10 +32,27 @@ impl<P> AtLeast<P> {
     self.apply(Maximum::new(maximum))
   }
 
+  /// Delimits the parser with the given open and close classifiers and delimiter.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn delimited_by<Open, Close, Delim>(
+    self,
+    left: Open,
+    right: Close,
+    delim: Delim,
+  ) -> DelimitedBy<Self, Open, Close, Delim> {
+    DelimitedBy::new_in(self, left, right, delim)
+  }
+
   /// Returns a mutable reference to the inner parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn parser_mut(&mut self) -> &mut P {
     &mut self.parser
+  }
+
+  /// Consumes the parser, returning the inner parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_parser(self) -> P {
+    self.parser
   }
 
   /// Maps the inner parser to a new parser using the given function.
@@ -55,7 +72,7 @@ impl<P> AtLeast<P> {
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtLeast<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn collect<Container>(self) -> Collect<Self, Container, (), ()>
+  pub fn collect<Container>(self) -> Collect<Self, Container, Ctx, Lang>
   where
     Container: Default,
   {
@@ -67,18 +84,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtLeast<Repeated<F, Condition, O,
   pub const fn collect_with<Container>(
     self,
     container: Container,
-  ) -> Collect<Self, Container, (), ()> {
+  ) -> Collect<Self, Container, Ctx, Lang> {
     Collect::new(self, container)
   }
-
-  // /// Creates a new `Delimited` parser with the given delimiters and separator.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn delimited_by<Open, Close, Delim>(
-  //   self,
-  //   left: Open,
-  //   right: Close,
-  //   delim: Delim,
-  // ) -> DelimitedBy<Self, Open, Close, Delim, O, W, L, Ctx, Lang> {
-  //   DelimitedBy::new_in(self, left, right, delim)
-  // }
 }
