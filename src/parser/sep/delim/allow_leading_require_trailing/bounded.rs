@@ -1,7 +1,4 @@
-use crate::emitter::{
-  TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
-  UnexpectedTrailingSeparatorEmitter,
-};
+use crate::emitter::{MissingTrailingSeparatorEmitter, TooFewEmitter, TooManyEmitter};
 
 use super::*;
 
@@ -27,8 +24,7 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -80,8 +76,7 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -145,8 +140,7 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -241,8 +235,7 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,

@@ -1,6 +1,4 @@
-use crate::emitter::{
-  TooManyEmitter, UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
-};
+use crate::emitter::{MissingTrailingSeparatorEmitter, TooManyEmitter};
 
 use super::*;
 
@@ -8,7 +6,9 @@ impl<'inp, L, F, SepClassifier, Condition, O, Open, Close, Delim, Container, Ctx
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
     DelimitedBy<
-      AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      AllowLeading<
+        RequireTrailing<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+      >,
       Open,
       Close,
       Delim,
@@ -26,8 +26,7 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default
@@ -58,7 +57,9 @@ impl<'inp, L, F, SepClassifier, Condition, O, Open, Close, Delim, Container, Ctx
   for With<
     Collect<
       DelimitedBy<
-        AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+        AllowLeading<
+          RequireTrailing<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+        >,
         Open,
         Close,
         Delim,
@@ -78,8 +79,7 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default
@@ -124,7 +124,11 @@ impl<
 > ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
-      AtMost<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      AllowLeading<
+        RequireTrailing<
+          AtMost<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+        >,
+      >,
       Open,
       Close,
       Delim,
@@ -142,8 +146,7 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>
@@ -214,8 +217,12 @@ impl<
   for Wrapper<
     Collect<
       DelimitedBy<
-        AtMost<
-          SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+        AllowLeading<
+          RequireTrailing<
+            AtMost<
+              SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+            >,
+          >,
         >,
         &'c Open,
         &'c Close,
@@ -235,8 +242,7 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>

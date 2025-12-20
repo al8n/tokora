@@ -1,7 +1,4 @@
-use crate::emitter::{
-  TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
-  UnexpectedTrailingSeparatorEmitter,
-};
+use crate::emitter::{TooFewEmitter, TooManyEmitter};
 
 use super::*;
 
@@ -9,7 +6,9 @@ impl<'inp, L, F, SepClassifier, Condition, O, Open, Close, Delim, Container, Ctx
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
     DelimitedBy<
-      Bounded<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      AllowLeading<
+        AllowTrailing<Bounded<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+      >,
       Open,
       Close,
       Delim,
@@ -27,8 +26,6 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -45,11 +42,11 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    Wrapper(
-      self
-        .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))),
-    )
+    Wrapper(self.as_mut().map_parser(|p| {
+      p.map_parser_mut(|p| {
+        p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut())))
+      })
+    }))
     .parse_input(inp)
     .map(|_| mem::take(&mut self.container))
   }
@@ -60,7 +57,9 @@ impl<'inp, L, F, SepClassifier, Condition, O, Open, Close, Delim, Container, Ctx
   for With<
     Collect<
       DelimitedBy<
-        Bounded<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+        AllowLeading<
+          AllowTrailing<Bounded<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+        >,
         Open,
         Close,
         Delim,
@@ -80,8 +79,6 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -98,12 +95,11 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    Wrapper(
-      self
-        .primary_mut()
-        .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))),
-    )
+    Wrapper(self.primary_mut().as_mut().map_parser(|p| {
+      p.map_parser_mut(|p| {
+        p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut())))
+      })
+    }))
     .parse_input(inp)
     .map(|span| Spanned::new(span, mem::take(&mut self.primary.container)))
   }
@@ -127,7 +123,11 @@ impl<
 > ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
-      Bounded<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      AllowLeading<
+        AllowTrailing<
+          Bounded<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+        >,
+      >,
       Open,
       Close,
       Delim,
@@ -145,8 +145,6 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -170,12 +168,19 @@ where
       parser:
         DelimitedBy {
           parser:
-            Bounded {
-              parser: SeparatedBy {
-                f, sep, condition, ..
-              },
-              maximum,
-              minimum,
+            AllowLeading {
+              parser:
+                AllowTrailing {
+                  parser:
+                    Bounded {
+                      parser:
+                        SeparatedBy {
+                          f, sep, condition, ..
+                        },
+                      maximum,
+                      minimum,
+                    },
+                },
             },
           left_classifier,
           right_classifier,
@@ -185,11 +190,11 @@ where
       ..
     } = self;
     let parser = DelimitedBy::new_in(
-      Bounded::new(
+      AllowLeading::new(AllowTrailing::new(Bounded::new(
         SeparatedBy::new(&mut **f, &mut **sep, &mut *condition),
         maximum.get(),
         minimum.get(),
-      ),
+      ))),
       &*left_classifier,
       &*right_classifier,
       &*delimiter,
@@ -220,8 +225,12 @@ impl<
   for Wrapper<
     Collect<
       DelimitedBy<
-        Bounded<
-          SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+        AllowLeading<
+          AllowTrailing<
+            Bounded<
+              SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+            >,
+          >,
         >,
         &'c Open,
         &'c Close,
@@ -241,8 +250,6 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
     + FullContainerEmitter<'inp, O, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -262,12 +269,19 @@ where
       parser, container, ..
     } = &mut self.0;
 
-    let maximum = parser.parser.maximum();
+    let limitation = AllowLeading::new(AllowTrailing::new(parser.parser.parser.parser.to_with()));
 
     let DelimitedBy {
-      parser: SeparatedBy {
-        f, sep, condition, ..
-      },
+      parser:
+        AllowTrailing {
+          parser:
+            Bounded {
+              parser: SeparatedBy {
+                f, sep, condition, ..
+              },
+              ..
+            },
+        },
       left_classifier,
       right_classifier,
       delimiter,
@@ -279,6 +293,6 @@ where
       *right_classifier,
       *delimiter,
     )
-    .parse_separated(inp, container, &maximum, &maximum, &maximum)
+    .parse_separated(inp, container, &limitation, &limitation, &limitation)
   }
 }
