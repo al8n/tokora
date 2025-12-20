@@ -2,7 +2,11 @@ use core::{convert::identity, mem};
 
 use mayber::Maybe::{Owned, Ref};
 
-use crate::{container::{DelimiterContainer, SeparatorsContainer}, emitter::{DelimitedEmitter, FullContainerEmitter, SeparatedEmitter}, error::{Unclosed, Undelimited}};
+use crate::{
+  container::{DelimiterContainer, SeparatorsContainer},
+  emitter::{DelimitedEmitter, FullContainerEmitter, SeparatedEmitter},
+  error::{Unclosed, Undelimited},
+};
 
 use super::*;
 
@@ -12,17 +16,22 @@ mod bounded;
 mod unbounded;
 
 mod allow_leading;
-mod allow_trailing;
 mod allow_leading_require_trailing;
 mod allow_surrounded;
+mod allow_trailing;
 
 mod require_leading;
-mod require_trailing;
 mod require_leading_allow_trailing;
 mod require_surrounded;
+mod require_trailing;
 
 impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
-  DelimitedBy<SeparatedBy<&'c mut P, &'c mut Sep, &'c mut Condition, O, W, L, Ctx, Lang>, &Open, &Close, &Delim>
+  DelimitedBy<
+    SeparatedBy<&'c mut P, &'c mut Sep, &'c mut Condition, O, W, L, Ctx, Lang>,
+    &Open,
+    &Close,
+    &Delim,
+  >
 {
   fn parse_separated<'closure, Container, CH, SP, EH>(
     &mut self,
@@ -43,11 +52,12 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + SeparatedEmitter<'inp, O, Sep, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
+    Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang>
+      + SeparatedEmitter<'inp, O, Sep, L, Lang>
+      + FullContainerEmitter<'inp, O, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-    Container:
-      DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>
+    Container: DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>
       + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
     EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
@@ -217,4 +227,3 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
     Ok(elems_span)
   }
 }
-

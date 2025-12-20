@@ -81,6 +81,4 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtMost<Repeated<F, Condition, O, 
   ) -> Collect<Self, Container, (), ()> {
     Collect::new(self, container)
   }
-
-
 }

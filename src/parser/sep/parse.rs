@@ -295,20 +295,12 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
   {
     Ok(match state {
       // we are in the start state, so no elements were found
-      State::Start => {
-        handler.handle_start_state(num_elems, inp, ckp)?
-      }
+      State::Start => handler.handle_start_state(num_elems, inp, ckp)?,
       // we are in element state, so all good, check for trailing separator, and the minimum, maximum constraints
-      State::Element => {
-        handler.handle_element_state(num_elems, inp, ckp)?
-      }
-      State::Leading(spanned) => {
-        handler.handle_leading_state(num_elems, inp, ckp, spanned)?
-      }
+      State::Element => handler.handle_element_state(num_elems, inp, ckp)?,
+      State::Leading(spanned) => handler.handle_leading_state(num_elems, inp, ckp, spanned)?,
       // we have a trailing separator
-      State::Separator(spanned) => {
-        handler.handle_separator_state(num_elems, inp, ckp, spanned)?
-      }
+      State::Separator(spanned) => handler.handle_separator_state(num_elems, inp, ckp, spanned)?,
     })
   }
 }

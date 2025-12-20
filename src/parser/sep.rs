@@ -19,7 +19,6 @@ mod require_trailing;
 
 mod delim;
 
-
 /// A parser that parses a sequence of elements separated by a delimiter.
 ///
 /// This combinator parses repeated occurrences of an element parser, expecting each
@@ -167,18 +166,11 @@ where
   F: Copy,
   SepClassifier: Copy,
   Condition: Copy,
-{}
+{
+}
 
-impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Clone for SeparatedBy<
-  F,
-  SepClassifier,
-  Condition,
-  O,
-  W,
-  L,
-  Ctx,
-  Lang,
->
+impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Clone
+  for SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
 where
   F: Clone,
   SepClassifier: Clone,
@@ -485,7 +477,6 @@ trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
     Ctx: ParseContext<'inp, L, Lang>;
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
 pub(super) enum State<T, S> {
   Start,
@@ -493,3 +484,5 @@ pub(super) enum State<T, S> {
   Leading(Spanned<T, S>),
   Separator(Spanned<T, S>),
 }
+
+struct Unbounded;

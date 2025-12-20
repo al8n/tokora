@@ -5,8 +5,6 @@ use crate::{
 
 use super::*;
 
-struct Unbounded;
-
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
   EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for Unbounded
 where

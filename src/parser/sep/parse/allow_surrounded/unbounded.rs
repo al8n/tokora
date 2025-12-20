@@ -1,9 +1,7 @@
 use super::*;
 
-struct Unbounded;
-
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for Unbounded
+  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for AllowLeading<AllowTrailing<Unbounded>>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -74,7 +72,8 @@ where
 }
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for Unbounded
+  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>
+  for AllowLeading<AllowTrailing<Unbounded>>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -95,7 +94,8 @@ where
 }
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for Unbounded
+  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>
+  for AllowLeading<AllowTrailing<Unbounded>>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -276,7 +276,8 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    const HANDLER: &Unbounded = &Unbounded;
+    const HANDLER: &AllowLeading<AllowTrailing<Unbounded>> =
+      &AllowLeading::new(AllowTrailing::new(Unbounded));
     let Collect {
       parser, container, ..
     } = &mut self.0;
