@@ -119,7 +119,7 @@ impl<
     &'c mut DelimitedBy<
       AllowLeading<
         RequireTrailing<
-          SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+          SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>,
         >,
       >,
       Open,

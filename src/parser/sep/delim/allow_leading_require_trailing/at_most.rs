@@ -42,11 +42,11 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    Wrapper(
-      self
-        .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))),
-    )
+    Wrapper(self.as_mut().map_parser(|p| {
+      p.map_parser_mut(|p| {
+        p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut())))
+      })
+    }))
     .parse_input(inp)
     .map(|_| mem::take(&mut self.container))
   }
@@ -95,12 +95,11 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    Wrapper(
-      self
-        .primary_mut()
-        .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))),
-    )
+    Wrapper(self.primary_mut().as_mut().map_parser(|p| {
+      p.map_parser_mut(|p| {
+        p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut())))
+      })
+    }))
     .parse_input(inp)
     .map(|span| Spanned::new(span, mem::take(&mut self.primary.container)))
   }
@@ -169,11 +168,18 @@ where
       parser:
         DelimitedBy {
           parser:
-            AtMost {
-              parser: SeparatedBy {
-                f, sep, condition, ..
-              },
-              maximum,
+            AllowLeading {
+              parser:
+                RequireTrailing {
+                  parser:
+                    AtMost {
+                      parser:
+                        SeparatedBy {
+                          f, sep, condition, ..
+                        },
+                      maximum,
+                    },
+                },
             },
           left_classifier,
           right_classifier,
@@ -183,10 +189,10 @@ where
       ..
     } = self;
     let parser = DelimitedBy::new_in(
-      AtMost::new(
+      AllowLeading::new(RequireTrailing::new(AtMost::new(
         SeparatedBy::new(&mut **f, &mut **sep, &mut *condition),
         maximum.get(),
-      ),
+      ))),
       &*left_classifier,
       &*right_classifier,
       &*delimiter,
@@ -261,12 +267,19 @@ where
       parser, container, ..
     } = &mut self.0;
 
-    let maximum = parser.parser.maximum();
+    let maximum = AllowLeading::new(RequireTrailing::new(parser.parser.parser.parser.maximum()));
 
     let DelimitedBy {
-      parser: SeparatedBy {
-        f, sep, condition, ..
-      },
+      parser:
+        RequireTrailing {
+          parser:
+            AtMost {
+              parser: SeparatedBy {
+                f, sep, condition, ..
+              },
+              ..
+            },
+        },
       left_classifier,
       right_classifier,
       delimiter,
