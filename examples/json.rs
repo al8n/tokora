@@ -6,7 +6,10 @@ use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
   Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser, Token as TokenT,
-  emitter::{DelimitedEmitter, SeparatedEmitter},
+  emitter::{
+    DelimitedEmitter, FullContainerEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
+    UnexpectedTrailingSeparatorEmitter,
+  },
   error::{
     UnclosedBrace, UnclosedBracket, Undelimited, UnexpectedEot, UnopenedBrace, UnopenedBracket,
     syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
@@ -484,7 +487,13 @@ where
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
     > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + FullContainerEmitter<'inp, JsonValue<'inp>, JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + FullContainerEmitter<'inp, (&'inp str, JsonValue<'inp>), JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   json_value
     .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
@@ -506,7 +515,13 @@ where
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
     > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + FullContainerEmitter<'inp, JsonValue<'inp>, JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + FullContainerEmitter<'inp, (&'inp str, JsonValue<'inp>), JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   string
     .then_ignore(Expect::new(expect_colon))
@@ -527,7 +542,13 @@ where
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
     > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + FullContainerEmitter<'inp, JsonValue<'inp>, JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + FullContainerEmitter<'inp, (&'inp str, JsonValue<'inp>), JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   field
     .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
@@ -549,7 +570,13 @@ where
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
     > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + FullContainerEmitter<'inp, JsonValue<'inp>, JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + FullContainerEmitter<'inp, (&'inp str, JsonValue<'inp>), JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   let end = inp.input().len();
   (
