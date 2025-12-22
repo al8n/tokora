@@ -543,7 +543,7 @@ where
     + UnexpectedLeadingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
-  let end = inp.input().len();
+  let end = inp.source().len();
   (
     boolean.map(JsonValue::Bool),
     null.map(|_| JsonValue::Null),

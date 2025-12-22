@@ -19,9 +19,7 @@ use crate::{
 
 use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
 
-mod iter;
-
-/// A reference to an [`Input`] instance.
+/// A reference to an `Input` instance.
 pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = ()>
 where
   L: Lexer<'inp>,
@@ -59,7 +57,7 @@ where
   /// This allows access to the raw source being tokenized, which is typically
   /// a `&str` or `&[u8]` depending on your Logos token definition.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn input(&self) -> &L::Source {
+  pub const fn source(&self) -> &L::Source {
     self.input
   }
 
