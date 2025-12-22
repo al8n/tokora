@@ -85,18 +85,6 @@ where
     self.emitter
   }
 
-  // /// Returns an iterator over the tokens of the lexer.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn iter(&mut self) -> iter::Iter<'inp, '_, L, C> {
-  //   iter::Iter::new(self)
-  // }
-
-  // /// Consumes the lexer and returns an iterator over the tokens of the lexer.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn into_iter(self) -> iter::IntoIter<'inp, '_, L, C> {
-  //   iter::IntoIter::new(self)
-  // }
-
   /// Creates a lexer positioned at the end of the cache or current cursor.
   ///
   /// This internal method constructs a fresh Logos lexer with the current state and
