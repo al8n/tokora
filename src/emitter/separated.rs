@@ -13,7 +13,7 @@ mod unexpected_leading;
 mod unexpected_trailing;
 
 /// An emitter that handles missing separator or repeated separators found during parsing.
-pub trait SeparatedEmitter<'inp, O, Sep, L, Lang: ?Sized = ()>: Emitter<'inp, L, Lang>
+pub trait SeparatedEmitter<'inp, O: ?Sized, Sep: ?Sized, L, Lang: ?Sized = ()>: Emitter<'inp, L, Lang>
 where
   L: Lexer<'inp>,
 {
@@ -34,10 +34,13 @@ where
     L: Lexer<'inp>;
 }
 
-impl<'inp, O, L, Sep, U, Lang: ?Sized> SeparatedEmitter<'inp, O, Sep, L, Lang> for &mut U
+impl<'inp, O, L, Sep, U, Lang> SeparatedEmitter<'inp, O, Sep, L, Lang> for &mut U
 where
   L: Lexer<'inp>,
   U: SeparatedEmitter<'inp, O, Sep, L, Lang>,
+  O: ?Sized,
+  Sep: ?Sized,
+  Lang: ?Sized,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_separator(

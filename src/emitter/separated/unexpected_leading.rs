@@ -1,7 +1,7 @@
 use super::*;
 
 /// An emitter that handles unexpected leading separator.
-pub trait UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang: ?Sized = ()>:
+pub trait UnexpectedLeadingSeparatorEmitter<'inp, O: ?Sized, Sep: ?Sized, L, Lang: ?Sized = ()>:
   SeparatedEmitter<'inp, O, Sep, L, Lang>
 where
   L: Lexer<'inp>,
@@ -20,6 +20,8 @@ where
   U: UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>,
   L: Lexer<'inp>,
   Lang: ?Sized,
+  O: ?Sized,
+  Sep: ?Sized,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_leading_separator(

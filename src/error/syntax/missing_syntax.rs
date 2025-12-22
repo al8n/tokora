@@ -97,14 +97,14 @@ pub type MissingSyntaxOf<'inp, Syntax, L, Lang = ()> =
 /// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
 /// ```
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct MissingSyntax<Syntax, O = usize, Lang: ?Sized = ()> {
+pub struct MissingSyntax<Syntax: ?Sized, O = usize, Lang: ?Sized = ()> {
   offset: O,
   msg: Option<Message>,
   _syntax: PhantomData<Syntax>,
   _lang: PhantomData<Lang>,
 }
 
-impl<Syntax, O> MissingSyntax<Syntax, O> {
+impl<Syntax: ?Sized, O> MissingSyntax<Syntax, O> {
   /// Creates a new missing token error.
   ///
   /// This error indicates that an missing token was encountered,
@@ -121,7 +121,7 @@ impl<Syntax, O> MissingSyntax<Syntax, O> {
   }
 }
 
-impl<Syntax, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
+impl<Syntax: ?Sized, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new_in(offset: O, message: Option<Message>) -> Self {
     Self {

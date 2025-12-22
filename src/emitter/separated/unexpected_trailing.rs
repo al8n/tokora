@@ -1,7 +1,7 @@
 use super::*;
 
 /// An emitter that handles unexpected trailing separator.
-pub trait UnexpectedTrailingSeparatorEmitter<'inp, O, Sep, L, Lang: ?Sized = ()>:
+pub trait UnexpectedTrailingSeparatorEmitter<'inp, O: ?Sized, Sep: ?Sized, L, Lang: ?Sized = ()>:
   SeparatedEmitter<'inp, O, Sep, L, Lang>
 where
   L: Lexer<'inp>,

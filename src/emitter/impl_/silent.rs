@@ -7,6 +7,10 @@ use super::super::*;
 mod full_container;
 mod too_few;
 mod too_many;
+mod unexpected_leading_separator;
+mod unexpected_trailing_separator;
+mod delimiter;
+mod separator;
 
 /// A silent emitter that treats all errors as non-fatal, and ignores them.
 ///
@@ -92,121 +96,11 @@ where
   }
 }
 
-impl<'a, L, Any, E, Lang: ?Sized> BatchEmitter<'a, L, Any, Lang> for Silent<E, Lang>
-where
-  L: Lexer<'a>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn create_batch(&mut self, _: <L>::Span, _: Message)
-  where
-    L: Lexer<'a>,
-  {
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn create_batch_with_error(
-    &mut self,
-    _: Message,
-    _: Spanned<Any, L::Span>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    Ok(())
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_to_batch(&mut self, _: &<L>::Span, _: Spanned<Any, L::Span>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    Ok(())
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_batch(&mut self, _: &<L>::Span) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    Ok(())
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn drop_batch(&mut self, _: &<L>::Span)
-  where
-    L: Lexer<'a>,
-  {
-  }
-}
-
-impl<'inp, L, O, Sep, E, Lang: ?Sized> SeparatedEmitter<'inp, O, Sep, L, Lang> for Silent<E, Lang>
-where
-  L: Lexer<'inp>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_separator(
-    &mut self,
-    _: MissingSeparatorOf<'inp, Sep, L, Lang>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_element(
-    &mut self,
-    _: MissingSyntaxOf<'inp, O, L, Lang>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp, L, E, Delim, Lang: ?Sized> DelimitedEmitter<'inp, Delim, L, Lang> for Silent<E, Lang>
-where
-  L: Lexer<'inp>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_unclosed(&mut self, _: Unclosed<Delim, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_unopened(&mut self, _: Unopened<Delim, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_undelimited(&mut self, _: Undelimited<Delim, L::Span, Lang>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
 #[cfg(test)]
 const _: () = {
-  use crate::lexer::{BlackHole, DummyLexer};
+  use crate::lexer::DummyLexer;
 
   struct DummySep;
-
-  const fn assert_noop_batch_emitter<'a, L, Any, Error, E>()
-  where
-    L: Lexer<'a>,
-    E: BatchEmitter<'a, L, Any, Error = Error>,
-  {
-  }
 
   const fn assert_noop_separated_by_emitter<'a, L, O, Sep, Error, E>()
   where
@@ -215,7 +109,5 @@ const _: () = {
   {
   }
 
-  assert_noop_batch_emitter::<'_, DummyLexer, (), (), Silent<()>>();
-  assert_noop_batch_emitter::<'_, DummyLexer, (), BlackHole, Silent<BlackHole>>();
   assert_noop_separated_by_emitter::<'_, DummyLexer, (), DummySep, (), Silent<()>>();
 };

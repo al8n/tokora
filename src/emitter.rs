@@ -9,7 +9,7 @@ use crate::{
     },
   },
   lexer::Cursor,
-  utils::{Message, Spanned},
+  utils::Spanned,
 };
 
 use super::Token;
@@ -216,103 +216,5 @@ where
     L: Lexer<'a>,
   {
     err.into()
-  }
-}
-
-/// An emitter that supports batching of errors for more efficient reporting.
-pub trait BatchEmitter<'a, L, Error, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
-  /// Creates a new empty batch for collecting errors, returning its ID.
-  ///
-  /// The given `span` represents the starting span of the batch, and `description`
-  /// provides a message describing the batch.
-  fn create_batch(&mut self, span: L::Span, description: Message)
-  where
-    L: Lexer<'a>;
-
-  /// Creates a new batch for collecting errors with an initial error.
-  ///
-  /// If the initial error is kind of fatal error, it returns an `Err`.
-  fn create_batch_with_error(
-    &mut self,
-    description: Message,
-    err: Spanned<Error, L::Span>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>;
-
-  /// Emits an single error into the specified batch.
-  ///
-  /// If this error can trigger a fatal condition, the emitter can return an `Err`.
-  fn emit_to_batch(
-    &mut self,
-    id: &L::Span,
-    err: Spanned<Error, L::Span>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>;
-
-  /// Emits all errors collected in the specified batch.
-  ///
-  /// If the batch does not exist or is empty, this method does nothing.
-  ///
-  /// If emitting the batch triggers a fatal condition, the emitter can return an `Err`.
-  fn emit_batch(&mut self, id: &L::Span) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>;
-
-  /// Drops the specified batch without emitting its errors.
-  ///
-  /// This can be used to discard non-fatal errors that are replaced by other errors.
-  fn drop_batch(&mut self, id: &L::Span)
-  where
-    L: Lexer<'a>;
-}
-
-impl<'a, L, Error, U, Lang: ?Sized> BatchEmitter<'a, L, Error, Lang> for &mut U
-where
-  U: BatchEmitter<'a, L, Error, Lang>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn create_batch(&mut self, span: L::Span, description: Message)
-  where
-    L: Lexer<'a>,
-  {
-    (**self).create_batch(span, description)
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn create_batch_with_error(
-    &mut self,
-    description: Message,
-    err: Spanned<Error, L::Span>,
-  ) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    (**self).create_batch_with_error(description, err)
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_to_batch(&mut self, id: &L::Span, err: Spanned<Error, L::Span>) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    (**self).emit_to_batch(id, err)
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_batch(&mut self, id: &L::Span) -> Result<(), Self::Error>
-  where
-    L: Lexer<'a>,
-  {
-    (**self).emit_batch(id)
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn drop_batch(&mut self, id: &L::Span)
-  where
-    L: Lexer<'a>,
-  {
-    (**self).drop_batch(id)
   }
 }
