@@ -1,5 +1,5 @@
 use crate::{
-  container::DelimiterContainer,
+  container::Container as ContainerT,
   emitter::{DelimitedEmitter, TooFewEmitter, TooManyEmitter},
   error::syntax::{TooFew, TooMany},
 };
@@ -27,8 +27,7 @@ where
     + TooFewEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-  Container:
-    Default + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>,
+  Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
 {
   fn parse_input(
     &mut self,

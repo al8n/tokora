@@ -134,10 +134,9 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>,
+    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -172,10 +171,9 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>,
+    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -208,10 +206,9 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>,
+    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   fn parse_input(
@@ -268,10 +265,9 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>,
+    + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   fn parse_input(

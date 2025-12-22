@@ -3,8 +3,8 @@ use core::{convert::identity, mem};
 use mayber::Maybe::{Owned, Ref};
 
 use crate::{
-  container::{DelimiterContainer, SeparatorsContainer},
-  emitter::{DelimitedEmitter, FullContainerEmitter, SeparatedEmitter},
+  container::Container as ContainerT,
+  emitter::{DelimitedEmitter, SeparatedEmitter},
   error::{Unclosed, Undelimited},
 };
 
@@ -52,13 +52,10 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang>
-      + SeparatedEmitter<'inp, O, Sep, L, Lang>
-      + FullContainerEmitter<'inp, O, L, Lang>,
+    Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + SeparatedEmitter<'inp, O, Sep, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-    Container: DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>
-      + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+    Container: DelimiterHandler<'inp, L> + SeparatorHandler<'inp, L> + ContainerT<O>,
     EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
@@ -106,7 +103,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
     let has_open = match state {
       Ok(left) => {
         left_span = Some(left.span_ref().clone());
-        container.push_open(left);
+        container.on_open_delimiter(left);
         true
       }
       Err(err) => {
@@ -177,7 +174,6 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
           state = parser.handle_continue(
             state,
             inp,
-            &ckp,
             &peek_span,
             &mut num_elems,
             container,
@@ -220,7 +216,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
           .emit_undelimited(Undelimited::of(span, self.delimiter.clone()))?;
       }
       Some(right) => {
-        let _ = container.push_close(right);
+        container.on_close_delimiter(right);
       }
     }
 

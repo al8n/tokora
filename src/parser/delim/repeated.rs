@@ -3,9 +3,9 @@ use core::{convert::identity, mem};
 use mayber::Maybe::{Owned, Ref};
 
 use crate::{
-  container::DelimiterContainer,
+  container::Container as ContainerT,
   emitter::{DelimitedEmitter, FullContainerEmitter},
-  error::{Unclosed, Undelimited, syntax::FullContainer},
+  error::{Unclosed, Undelimited},
 };
 
 use super::*;
@@ -41,8 +41,7 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-    Container:
-      Default + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>,
+    Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let ckp = inp.save();
@@ -85,7 +84,7 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     // we already handled the first token above
     let has_open = match state {
       Ok(left) => {
-        container.push_open(left);
+        container.on_open_delimiter(left);
         true
       }
       Err(err) => {
@@ -119,7 +118,7 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
               .map_data(|t| t.unwrap_token()),
             Owned(ct) => ct.into_token().map_data(|t| t.unwrap_token()),
           };
-          container.push_close(close);
+          container.on_close_delimiter(close);
 
           let span = inp.span_since(ckp.cursor());
           return on_stop(nums, inp, &span).map(|_| mem::take(container));
@@ -146,14 +145,7 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
             return Ok(mem::take(container));
           }
           Action::Continue => {
-            if container.push(self.parser.f.parse_input(inp)?).is_some() {
-              let span = inp.span_since(ckp.cursor());
-              inp.emitter().emit_full_container(FullContainer::of(
-                span,
-                nums,
-                Container::capacity(),
-              ))?;
-            }
+            container.push(self.parser.f.parse_input(inp)?);
             nums += 1;
           }
         },

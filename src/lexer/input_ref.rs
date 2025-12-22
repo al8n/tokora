@@ -108,7 +108,6 @@ where
   pub fn lexer(&self) -> L
   where
     L::State: Clone,
-    // C: Cache<'inp, L>,
   {
     let mut lexer = L::with_state(self.input, self.state.clone());
     lexer.bump(
@@ -118,17 +117,6 @@ where
         .map(|s| s.end_ref())
         .unwrap_or_else(|| self.span.end_ref()),
     );
-    lexer
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(dead_code)]
-  pub(crate) fn lexer_at(&self, off: &L::Offset) -> L
-  where
-    L::State: Clone,
-  {
-    let mut lexer = L::with_state(self.input, self.state.clone());
-    lexer.bump(off);
     lexer
   }
 
@@ -151,10 +139,7 @@ where
   /// (if any), preventing the cursor from moving backwards past cached tokens.
   /// The cursor is also clamped to the input length.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn set_span_after_consume(&mut self, new: MaybeRef<'_, L::Span>)
-  // where
-  //   C: Cache<'inp, L>,
-  {
+  fn set_span_after_consume(&mut self, new: MaybeRef<'_, L::Span>) {
     let end = self.input.len();
     let cache = self.cache().first_span();
 
@@ -763,9 +748,11 @@ where
   where
     W: Window,
   {
-    let remaining_cap = buf.remaining_capacity();
+    let buf_len = buf.len();
+    let remaining_cap = buf.capacity() - buf_len;
     let mut in_cache = self.cache().len();
     let mut want = remaining_cap.saturating_sub(in_cache);
+    let exp = want;
 
     // If we already have enough tokens cached, just peek from cache
     if want == 0 {
@@ -802,16 +789,11 @@ where
 
     // Fill buffer from cache (this covers both cached tokens and any we just added)
     // SAFETY: Cache.peek() returns slice of initialized tokens, guaranteed by trait contract
-    // println!(
-    //   "Want: {in_cache}, Remaining: {remaining_cap}, Peeked tokens: {}",
-    //   buf.len()
-    // );
     self.cache.peek::<W>(buf);
-    // println!("After cache peek: {}", buf.len());
-    // debug_assert!(
-    //   buf.len() - remaining_cap == in_cache,
-    //   "Cache peek returned unexpected number of tokens"
-    // );
+    debug_assert!(
+      buf_len + in_cache == buf.len(),
+      "Cache peek returned unexpected number of tokens"
+    );
 
     for i in 0..yielded {
       // SAFETY: We just wrote `yielded` elements into `overflowed`, so the first `yielded` elements are initialized.
@@ -819,6 +801,14 @@ where
         buf.push_back(overflowed[i].assume_init_read());
       }
     }
+    debug_assert!(
+      buf.len() == buf_len + in_cache + yielded,
+      "buffer length mismatch after adding overflowed tokens"
+    );
+    debug_assert!(
+      exp == in_cache + yielded,
+      "expected peeked token count mismatch"
+    );
 
     self.emitter
   }

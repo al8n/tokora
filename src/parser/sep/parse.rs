@@ -1,9 +1,9 @@
 use crate::{
   Check,
-  container::SeparatorsContainer,
-  emitter::{FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter},
+  container::Container as ContainerT,
+  emitter::{SeparatedEmitter, TooFewEmitter, TooManyEmitter},
   error::{
-    syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
+    syntax::{MissingSyntaxOf, TooFew, TooMany},
     token::MissingSeparatorOf,
   },
   lexer::{Checkpoint, Span},
@@ -42,10 +42,9 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     F: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     SepClassifier: Check<L::Token>,
-    Ctx::Emitter:
-      SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+    Container: ContainerT<O> + SeparatorHandler<'inp, L>,
     W: Window,
     EH: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
     CH: ContinueStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
@@ -94,7 +93,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
           state = self.handle_continue(
             state,
             inp,
-            &ckp,
             &peek_span,
             &mut num_elems,
             container,
@@ -118,7 +116,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
     Handler: SeparatorStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
-    Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+    Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   {
     let sep_tok = inp
       .next()
@@ -146,7 +144,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
         // and change the state to Separator.
         // TODO(al8n): return error when separator container is full?
         let sep = sep_tok.map_data(|t| t.unwrap_token());
-        container.push_separator(sep.clone());
+        container.on_separator(sep.clone());
         state = State::Separator(sep);
       }
       // first token is a separator
@@ -156,7 +154,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
         let st = sep_tok.map_data(|t| t.unwrap_token());
         handler.handle_start_state(inp, &st)?;
         // TODO(al8n): return error when separator container is full?
-        container.push_separator(st.clone());
+        container.on_separator(st.clone());
         state = State::Leading(st);
       }
       // we are in separator state, so the next token should be an element,
@@ -170,7 +168,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
 
         // TODO(al8n): return error when separator container is full?
         let sep_tok = sep_tok.map_data(|t| t.unwrap_token());
-        container.push_separator(sep_tok.clone());
+        container.on_separator(sep_tok.clone());
         state = State::Separator(sep_tok);
       }
     }
@@ -182,7 +180,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     &mut self,
     mut state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
     peek_span: &L::Span,
     num_elems: &mut usize,
     container: &mut Container,
@@ -196,9 +193,8 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     W: Window,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     SepClassifier: Check<L::Token>,
-    Ctx::Emitter:
-      SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
-    Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+    Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
+    Container: ContainerT<O> + SeparatorHandler<'inp, L>,
     Handler: ContinueStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
   {
     match state {
@@ -206,28 +202,14 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
       State::Separator(_) => {
         // parse the next element
         let element = self.f.parse_input(inp)?;
-        if push(num_elems, container, element).is_some() {
-          let span = inp.span_since(ckp.cursor());
-          inp.emitter().emit_full_container(FullContainer::of(
-            span,
-            container.len(),
-            Container::capacity(),
-          ))?;
-        }
+        push(num_elems, container, element);
         state = State::Element;
       }
       // we are in leading state,
       State::Leading(_) => {
         // parse the first element
         let element = self.f.parse_input(inp)?;
-        if push(num_elems, container, element).is_some() {
-          let span = inp.span_since(ckp.cursor());
-          inp.emitter().emit_full_container(FullContainer::of(
-            span,
-            *num_elems,
-            Container::capacity(),
-          ))?;
-        }
+        push(num_elems, container, element);
         state = State::Element;
       }
       // nothing before element, parse the first element
@@ -237,14 +219,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
 
         // parse the first element
         let element = self.f.parse_input(inp)?;
-        if push(num_elems, container, element).is_some() {
-          let span = inp.span_since(ckp.cursor());
-          inp.emitter().emit_full_container(FullContainer::of(
-            span,
-            *num_elems,
-            Container::capacity(),
-          ))?;
-        }
+        push(num_elems, container, element);
 
         state = State::Element;
       }
@@ -259,14 +234,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
 
         // parse the next element
         let element = self.f.parse_input(inp)?;
-        if push(num_elems, container, element).is_some() {
-          let span = inp.span_since(ckp.cursor());
-          inp.emitter().emit_full_container(FullContainer::of(
-            span,
-            *num_elems,
-            Container::capacity(),
-          ))?;
-        }
+        push(num_elems, container, element);
         state = State::Element;
       }
     }
@@ -387,15 +355,10 @@ impl Maximum {
 }
 
 #[cfg_attr(not(tarpaulin), inline(always))]
-fn push<C, T>(nums: &mut usize, container: &mut C, item: T) -> Option<T>
+fn push<C, T>(nums: &mut usize, container: &mut C, item: T)
 where
   C: crate::container::Container<T>,
 {
-  match container.push(item) {
-    None => {
-      *nums += 1;
-      None
-    }
-    Some(item) => Some(item),
-  }
+  container.push(item);
+  *nums += 1;
 }

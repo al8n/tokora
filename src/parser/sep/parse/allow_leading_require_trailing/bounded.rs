@@ -147,7 +147,7 @@ where
     + TooManyEmitter<'inp, O, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -188,7 +188,7 @@ where
     + TooManyEmitter<'inp, O, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -228,7 +228,7 @@ where
     + TooManyEmitter<'inp, O, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -306,7 +306,7 @@ where
     + TooManyEmitter<'inp, O, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]

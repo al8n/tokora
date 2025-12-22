@@ -1,4 +1,4 @@
-use crate::{emitter::FullContainerEmitter, error::syntax::FullContainer};
+use crate::emitter::FullContainerEmitter;
 
 use super::*;
 
@@ -43,14 +43,7 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
             return on_stop(nums, inp, &span).map(|_| span);
           }
           Action::Continue => {
-            if container.push(self.f.parse_input(inp)?).is_some() {
-              let span = inp.span_since(ckp.cursor());
-              inp.emitter().emit_full_container(FullContainer::of(
-                span,
-                nums,
-                Container::capacity(),
-              ))?;
-            }
+            container.push(self.f.parse_input(inp)?);
             nums += 1;
           }
         },

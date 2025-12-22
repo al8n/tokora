@@ -25,14 +25,11 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-  Container: Default
-    + SeparatorsContainer<Spanned<L::Token, L::Span>, O>
-    + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>,
+  Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
   Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
   Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
@@ -77,14 +74,11 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-  Container: Default
-    + SeparatorsContainer<Spanned<L::Token, L::Span>, O>
-    + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>,
+  Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
   Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
   Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
@@ -142,13 +136,11 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-  Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>
-    + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>,
+  Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
   Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
   Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
@@ -241,13 +233,11 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + DelimitedEmitter<'inp, Delim, L, Lang>
-    + FullContainerEmitter<'inp, O, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-  Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>
-    + DelimiterContainer<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>, O>,
+  Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
   Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
   Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,

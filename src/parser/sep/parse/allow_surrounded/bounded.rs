@@ -140,7 +140,7 @@ where
     + TooFewEmitter<'inp, O, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -180,7 +180,7 @@ where
     + TooFewEmitter<'inp, O, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: Default + SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -219,7 +219,7 @@ where
     + TooFewEmitter<'inp, O, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -296,7 +296,7 @@ where
     + TooFewEmitter<'inp, O, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Container: SeparatorsContainer<Spanned<L::Token, L::Span>, O>,
+  Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
