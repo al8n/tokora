@@ -57,7 +57,7 @@ where
   /// This allows access to the raw source being tokenized, which is typically
   /// a `&str` or `&[u8]` depending on your Logos token definition.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn source(&self) -> &L::Source {
+  pub const fn source(&self) -> &'inp L::Source {
     self.input
   }
 
