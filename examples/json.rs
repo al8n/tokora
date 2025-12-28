@@ -1,6 +1,5 @@
 use std::num::ParseFloatError;
 
-use deranged::RangedU8;
 use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
 use logos::Logos;
@@ -16,7 +15,7 @@ use tokit::{
     token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
   lexer::{InputRef, Peeked, PunctuatorToken},
-  parser::{Action, Expect},
+  parser::{Action, Branch, Expect},
   punct::{Brace, Bracket, Comma},
   utils::{Expected, Spanned},
 };
@@ -563,12 +562,12 @@ where
           let span = tok.span();
           match tok.data() {
             Lexed::Token(tok) => match tok {
-              Token::Bool(_) => Ok(RangedU8::new(0).unwrap()),
-              Token::Null => Ok(RangedU8::new(1).unwrap()),
-              Token::Number(_) => Ok(RangedU8::new(2).unwrap()),
-              Token::String(_) => Ok(RangedU8::new(3).unwrap()),
-              Token::BracketOpen => Ok(RangedU8::new(4).unwrap()),
-              Token::BraceOpen => Ok(RangedU8::new(5).unwrap()),
+              Token::Bool(_) => Ok(Branch::B0),
+              Token::Null => Ok(Branch::B1),
+              Token::Number(_) => Ok(Branch::B2),
+              Token::String(_) => Ok(Branch::B3),
+              Token::BracketOpen => Ok(Branch::B4),
+              Token::BraceOpen => Ok(Branch::B5),
               tok => Err(JsonError::UnexpectedToken(
                 UnexpectedToken::expected_one_of(
                   *span,

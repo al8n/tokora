@@ -65,16 +65,16 @@ macro_rules! tuple_choice {
         Ctx: ParseContext<'inp, L, Lang>,
         $([< P $param >]: ParseInput<'inp, L, O, Ctx, Lang>),+
       {
-        type Id = deranged::RangedU8<0, $end>;
+        type Id = Branch<$end>;
 
         fn parse_choice(
           &mut self,
           inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
           id: &Self::Id,
         ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-          match id.get() {
+          match id.id() {
             $($param => self.$param.parse_input(inp),)+
-            _ => unreachable!("deranged::RangedU8 guarantees in-bounds"),
+            _ => unreachable!(concat!("Branch<", stringify!($end), "> guarantees in-bounds")),
           }
         }
       }
@@ -133,3 +133,148 @@ const _: () = {
     }
   }
 };
+
+/// Branch identifier for choice parsers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Branch<const N: usize>(usize);
+
+impl<const N: usize> Branch<N> {
+  /// Returns the matched branch id.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn id(&self) -> usize {
+    self.0
+  }
+}
+
+#[allow(non_upper_case_globals)]
+mod sealed {
+  use super::Branch;
+
+  macro_rules! bound {
+    ($($param: literal),+$(,)?) => {
+      paste::paste! {
+        $(
+          #[doc(hidden)]
+          pub trait [< _ $param >] {}
+        )*
+      }
+    };
+  }
+
+  seq_macro::seq!(N in 1..=32 {
+    bound!(#(N,)*);
+  });
+
+  impl<const N: usize> Branch<N> {
+    /// The zeroth branch.
+    pub const B0: Self = Branch(0);
+  }
+
+  macro_rules! const_value {
+    ($(
+      $(#[$meta:meta])*
+      $id:literal
+    ),+$(,)?) => {
+      paste::paste! {
+        $(
+          impl<const N: usize> Branch<N>
+          where
+            Self: [< _ $id >],
+          {
+            $(#[$meta])*
+            pub const [<B $id>]: Self = Branch($id);
+          }
+        )*
+      }
+    };
+  }
+
+  macro_rules! impl_bound {
+    (@inner $end:literal; $($param:literal),+ $(,)?) => {
+      ::paste::paste! {
+        $(
+          impl [< _ $param >] for Branch<$end>
+          {}
+        )*
+      }
+    };
+    ($end:literal) => {
+      paste::paste! {
+        seq_macro::seq!(P in 1..=$end {
+          impl_bound!(@inner $end; P);
+        });
+      }
+    };
+  }
+
+  seq_macro::seq!(E in 1..=32 {
+    impl_bound!(E);
+  });
+
+  const_value!(
+    /// The first branch.
+    1,
+    /// The second branch.
+    2,
+    /// The third branch.
+    3,
+    /// The fourth branch.
+    4,
+    /// The fifth branch.
+    5,
+    /// The sixth branch.
+    6,
+    /// The seventh branch.
+    7,
+    /// The eighth branch.
+    8,
+    /// The ninth branch.
+    9,
+    /// The tenth branch.
+    10,
+    /// The eleventh branch.
+    11,
+    /// The twelfth branch.
+    12,
+    /// The thirteenth branch.
+    13,
+    /// The fourteenth branch.
+    14,
+    /// The fifteenth branch.
+    15,
+    /// The sixteenth branch.
+    16,
+    /// The seventeenth branch.
+    17,
+    /// The eighteenth branch.
+    18,
+    /// The nineteenth branch.
+    19,
+    /// The twentieth branch.
+    20,
+    /// The twenty-first branch.
+    21,
+    /// The twenty-second branch.
+    22,
+    /// The twenty-third branch.
+    23,
+    /// The twenty-fourth branch.
+    24,
+    /// The twenty-fifth branch.
+    25,
+    /// The twenty-sixth branch.
+    26,
+    /// The twenty-seventh branch.
+    27,
+    /// The twenty-eighth branch.
+    28,
+    /// The twenty-ninth branch.
+    29,
+    /// The thirtieth branch.
+    30,
+    /// The thirty-first branch.
+    31,
+    /// The thirty-second branch.
+    32,
+  );
+}
