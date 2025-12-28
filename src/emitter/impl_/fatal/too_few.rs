@@ -4,7 +4,7 @@ impl<'a, O, L, E, Lang: ?Sized> TooFewEmitter<'a, O, L, Lang> for Fatal<E, Lang>
 where
   O: ?Sized,
   L: Lexer<'a>,
-  E: FromTooFewError<'a, O, L, Lang> + FromFullContainerError<'a, O, L, Lang>,
+  E: FromTooFewError<'a, O, L, Lang> + FromEmitterError<'a, L, Lang>,
   Fatal<E, Lang>: Emitter<'a, L, Lang, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]

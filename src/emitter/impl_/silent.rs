@@ -4,13 +4,13 @@ use crate::{error::syntax::MissingSyntaxOf, utils::Spanned};
 
 use super::super::*;
 
+mod delimiter;
 mod full_container;
+mod separator;
 mod too_few;
 mod too_many;
 mod unexpected_leading_separator;
 mod unexpected_trailing_separator;
-mod delimiter;
-mod separator;
 
 /// A silent emitter that treats all errors as non-fatal, and ignores them.
 ///

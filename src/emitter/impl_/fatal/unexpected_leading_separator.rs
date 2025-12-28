@@ -1,6 +1,5 @@
 use super::*;
 
-
 impl<'inp, L, O, Sep, E, Lang: ?Sized> UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>
   for Fatal<E, Lang>
 where

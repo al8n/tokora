@@ -6,19 +6,21 @@ use crate::{
   utils::Spanned,
 };
 
-use super::super::separated::{
-  FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
-  UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
+use super::super::{
+  separated::{
+    FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
+  },
+  *,
 };
-use super::super::*;
 
+mod delimiter;
 mod full_container;
+mod separator;
 mod too_few;
 mod too_many;
 mod unexpected_leading_separator;
 mod unexpected_trailing_separator;
-mod delimiter;
-mod separator;
 
 /// A fatal emitter that treats all errors as fatal.
 ///

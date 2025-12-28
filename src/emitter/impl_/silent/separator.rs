@@ -1,6 +1,7 @@
 use super::*;
 
-impl<'inp, L, O: ?Sized, Sep: ?Sized, E, Lang: ?Sized> SeparatedEmitter<'inp, O, Sep, L, Lang> for Silent<E, Lang>
+impl<'inp, L, O: ?Sized, Sep: ?Sized, E, Lang: ?Sized> SeparatedEmitter<'inp, O, Sep, L, Lang>
+  for Silent<E, Lang>
 where
   L: Lexer<'inp>,
 {

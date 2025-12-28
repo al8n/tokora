@@ -1,6 +1,5 @@
 use super::*;
 
-
 impl<'inp, L, O, Sep, Lang: ?Sized> UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>
   for Ignored
 where

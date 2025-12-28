@@ -1,18 +1,21 @@
 use super::*;
 
-impl<'a, O, L, E, Lang: ?Sized> TooManyEmitter<'a, O, L, Lang> for Fatal<E, Lang>
+impl<'a, O, L, S, E, Lang: ?Sized> TooManyEmitter<'a, O, L, Lang> for Verbose<E, S, Lang>
 where
   O: ?Sized,
-  L: Lexer<'a>,
+  L: Lexer<'a, Span = S, Offset = S::Offset>,
   E: FromTooManyError<'a, O, L, Lang> + FromEmitterError<'a, L, Lang>,
-  Fatal<E, Lang>: Emitter<'a, L, Lang, Error = E>,
+  S: Span + Ord + Clone,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_too_many(&mut self, err: TooMany<O, L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
-    Err(E::from_too_many(err))
+    self
+      .errs
+      .insert(err.span_ref().clone(), E::from_too_many(err));
+    Ok(())
   }
 }
 

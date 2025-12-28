@@ -1,7 +1,7 @@
 use super::*;
 
-impl<'inp, L, O: ?Sized, E, Sep: ?Sized, Lang: ?Sized> UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>
-  for Silent<E, Lang>
+impl<'inp, L, O: ?Sized, E, Sep: ?Sized, Lang: ?Sized>
+  UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang> for Silent<E, Lang>
 where
   L: Lexer<'inp>,
 {

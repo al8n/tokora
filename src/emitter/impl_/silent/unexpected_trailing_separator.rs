@@ -1,6 +1,7 @@
 use super::*;
 
-impl<'a, O: ?Sized, Sep: ?Sized, L, E, Lang: ?Sized> UnexpectedTrailingSeparatorEmitter<'a, O, Sep, L, Lang> for Silent<E, Lang>
+impl<'a, O: ?Sized, Sep: ?Sized, L, E, Lang: ?Sized>
+  UnexpectedTrailingSeparatorEmitter<'a, O, Sep, L, Lang> for Silent<E, Lang>
 where
   L: Lexer<'a>,
 {
@@ -10,7 +11,7 @@ where
     _: UnexpectedTrailingOf<'a, Sep, L, Lang>,
   ) -> Result<(), Self::Error>
   where
-    L: Lexer<'a>
+    L: Lexer<'a>,
   {
     Ok(())
   }

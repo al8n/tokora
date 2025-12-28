@@ -13,7 +13,8 @@ mod unexpected_leading;
 mod unexpected_trailing;
 
 /// An emitter that handles missing separator or repeated separators found during parsing.
-pub trait SeparatedEmitter<'inp, O: ?Sized, Sep: ?Sized, L, Lang: ?Sized = ()>: Emitter<'inp, L, Lang>
+pub trait SeparatedEmitter<'inp, O: ?Sized, Sep: ?Sized, L, Lang: ?Sized = ()>:
+  Emitter<'inp, L, Lang>
 where
   L: Lexer<'inp>,
 {

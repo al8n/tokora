@@ -23,9 +23,7 @@ where
 }
 
 /// An emitter that handles too many elements error for repeated parsers.
-pub trait TooManyEmitter<'a, O: ?Sized, L, Lang: ?Sized = ()>:
-  FullContainerEmitter<'a, O, L, Lang>
-{
+pub trait TooManyEmitter<'a, O: ?Sized, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   /// Emits an error indicating that too many elements were found.
   fn emit_too_many(&mut self, err: TooMany<O, L::Span, Lang>) -> Result<(), Self::Error>
   where

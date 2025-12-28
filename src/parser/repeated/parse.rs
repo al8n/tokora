@@ -1,5 +1,3 @@
-use crate::emitter::FullContainerEmitter;
-
 use super::*;
 
 mod at_least;
@@ -25,7 +23,7 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
     F: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    Ctx::Emitter: FullContainerEmitter<'inp, O, L, Lang>,
+    Ctx::Emitter: Emitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: crate::container::Container<O>,
   {
