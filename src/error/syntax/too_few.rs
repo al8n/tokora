@@ -41,8 +41,33 @@ impl<O: ?Sized, S, Lang: ?Sized> TooFew<O, S, Lang> {
 
   /// Returns the span associated with this error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> &S {
+  pub const fn span_ref(&self) -> &S {
     &self.span
+  }
+
+  /// Returns the span associated with this error.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span(self) -> S
+  where
+    S: Copy,
+  {
+    self.span
+  }
+
+  /// Returns the mutable reference to the span associated with this error.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_mut(&mut self) -> &mut S {
+    &mut self.span
+  }
+
+  /// Bumps the span by n offsets.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn bump(&mut self, by: &S::Offset) -> &mut Self
+  where
+    S: crate::lexer::Span,
+  {
+    self.span.bump(by);
+    self
   }
 
   /// Returns the number of elements found.

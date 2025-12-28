@@ -9,6 +9,7 @@ use super::{Checkpoint, Lexer, Span};
 
 mod blackhole;
 mod generic_arraydeque;
+mod option;
 
 /// The default cache type used by the lexer.
 pub type DefaultCache<'a, L> =

@@ -3,9 +3,11 @@ use core::marker::PhantomData;
 use derive_more::From;
 
 pub use missing_token::*;
+pub use unexpected_repeated_token::*;
 pub use unexpected_token::*;
 
 mod missing_token;
+mod unexpected_repeated_token;
 mod unexpected_token;
 
 /// A marker type representing trailing tokens.

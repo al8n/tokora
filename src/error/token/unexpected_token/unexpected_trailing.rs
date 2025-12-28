@@ -95,7 +95,7 @@ alias! {
   DoubleColon,
 }
 
-/// A type alias for an `UnexpectedPrefix` error indicating a trailing punctuator was found for a given lexer and separator.
+/// A type alias for an `UnexpectedToken` error indicating a trailing punctuator was found for a given lexer and separator.
 pub type UnexpectedTrailingOf<'inp, Sep, L, Lang = ()> = UnexpectedToken<
   'inp,
   <L as Lexer<'inp>>::Token,

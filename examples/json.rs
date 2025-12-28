@@ -6,14 +6,14 @@ use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
   Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser, Token as TokenT,
-  emitter::{DelimiterEmitter, SeparatedByEmitter},
+  emitter::{
+    DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
+    UnexpectedTrailingSeparatorEmitter,
+  },
   error::{
     UnclosedBrace, UnclosedBracket, Undelimited, UnexpectedEot, UnopenedBrace, UnopenedBracket,
-    syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
-    token::{
-      MissingLeadingComma, MissingSeparatorOf, MissingTrailingComma, UnexpectedLeadingComma,
-      UnexpectedRepeatedComma, UnexpectedToken, UnexpectedTrailingComma,
-    },
+    syntax::MissingSyntaxOf,
+    token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
   lexer::{InputRef, Peeked, PunctuatorToken},
   parser::{Action, Expect},
@@ -53,12 +53,9 @@ enum JsonError<'a> {
   Parse(Spanned<ParseFloatError>),
   UnexpectedTrailingComma(UnexpectedTrailingComma<'a, JsonLexer<'a>>),
   UnexpectedLeadingComma(UnexpectedLeadingComma<'a, JsonLexer<'a>>),
-  RepeatedComma(UnexpectedRepeatedComma<'a, JsonLexer<'a>>),
   MissingComma(MissingSeparatorOf<'a, Comma, JsonLexer<'a>>),
   MissingValue(MissingSyntaxOf<'a, JsonValue<'a>, JsonLexer<'a>>),
   MissingField(MissingSyntaxOf<'a, (&'a str, JsonValue<'a>), JsonLexer<'a>>),
-  MissingLeadingComma(MissingLeadingComma<'a, JsonLexer<'a>>),
-  MissingTrailingComma(MissingTrailingComma<'a, JsonLexer<'a>>),
   UnopenedBrace(UnopenedBrace<<JsonLexer<'a> as Lexer<'a>>::Span>),
   UnclosedBrace(UnclosedBrace<<JsonLexer<'a> as Lexer<'a>>::Span>),
   UnopenedBracket(UnopenedBracket<<JsonLexer<'a> as Lexer<'a>>::Span>),
@@ -73,12 +70,6 @@ enum JsonError<'a> {
       <JsonLexer<'a> as Lexer<'a>>::Span,
     >,
   ),
-  TooMany(TooMany<JsonValue<'a>, <JsonLexer<'a> as Lexer<'a>>::Span>),
-  TooFew(TooFew<JsonValue<'a>, <JsonLexer<'a> as Lexer<'a>>::Span>),
-  FullContainer(FullContainer<JsonValue<'a>, <JsonLexer<'a> as Lexer<'a>>::Span>),
-  TooManyField(TooMany<(&'a str, JsonValue<'a>), <JsonLexer<'a> as Lexer<'a>>::Span>),
-  TooFewField(TooFew<(&'a str, JsonValue<'a>), <JsonLexer<'a> as Lexer<'a>>::Span>),
-  FullFieldContainer(FullContainer<(&'a str, JsonValue<'a>), <JsonLexer<'a> as Lexer<'a>>::Span>),
   Eot(UnexpectedEot),
   Other(&'a str),
 }
@@ -118,19 +109,10 @@ impl core::fmt::Debug for JsonError<'_> {
       Self::UnclosedBracket(err) => write!(f, "{err:?}"),
       Self::UnexpectedLeadingComma(err) => err.debug_fmt(f),
       Self::UnexpectedTrailingComma(err) => err.debug_fmt(f),
-      Self::RepeatedComma(err) => err.debug_fmt(f),
       Self::MissingComma(err) => err.debug_fmt(f),
       Self::MissingValue(err) => err.debug_fmt(f),
-      Self::MissingLeadingComma(err) => err.debug_fmt(f),
-      Self::MissingTrailingComma(err) => err.debug_fmt(f),
-      Self::TooMany(err) => write!(f, "{err:?}"),
-      Self::TooFew(err) => write!(f, "{err:?}"),
-      Self::FullContainer(err) => write!(f, "{err:?}"),
       Self::MissingField(err) => err.debug_fmt(f),
       Self::Other(msg) => write!(f, "{}", msg),
-      Self::TooFewField(err) => write!(f, "{err:?}"),
-      Self::TooManyField(err) => write!(f, "{err:?}"),
-      Self::FullFieldContainer(err) => write!(f, "{err:?}"),
     }
   }
 }
@@ -149,19 +131,10 @@ impl core::fmt::Display for JsonError<'_> {
       Self::UnclosedBracket(err) => write!(f, "{}", err),
       Self::UnexpectedLeadingComma(err) => err.display_fmt(f),
       Self::UnexpectedTrailingComma(err) => err.display_fmt(f),
-      Self::RepeatedComma(err) => err.display_fmt(f),
       Self::MissingComma(err) => err.display_fmt(f),
       Self::MissingValue(err) => err.display_fmt(f),
-      Self::MissingLeadingComma(err) => err.display_fmt(f),
-      Self::MissingTrailingComma(err) => err.display_fmt(f),
-      Self::TooMany(err) => err.display_fmt(f),
-      Self::TooFew(err) => err.display_fmt(f),
-      Self::FullContainer(err) => err.display_fmt(f),
       Self::MissingField(err) => err.display_fmt(f),
       Self::Other(msg) => write!(f, "{}", msg),
-      Self::TooFewField(err) => err.display_fmt(f),
-      Self::TooManyField(err) => err.display_fmt(f),
-      Self::FullFieldContainer(err) => err.display_fmt(f),
     }
   }
 }
@@ -479,15 +452,19 @@ fn list<'inp, Ctx>(
 ) -> Result<Vec<JsonValue<'inp>>, JsonError<'inp>>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
-  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + SeparatedByEmitter<
+  Ctx::Emitter: SeparatedEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + SeparatedEmitter<
       'inp,
       (&'inp str, JsonValue<'inp>),
       Comma,
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
-    > + DelimiterEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimiterEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   json_value
     .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
@@ -501,15 +478,19 @@ fn field<'inp, Ctx>(
 ) -> Result<(&'inp str, JsonValue<'inp>), JsonError<'inp>>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
-  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + SeparatedByEmitter<
+  Ctx::Emitter: SeparatedEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + SeparatedEmitter<
       'inp,
       (&'inp str, JsonValue<'inp>),
       Comma,
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
-    > + DelimiterEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimiterEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   string
     .then_ignore(Expect::new(expect_colon))
@@ -522,15 +503,19 @@ fn object<'inp, Ctx>(
 ) -> Result<Vec<(&'inp str, JsonValue<'inp>)>, JsonError<'inp>>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
-  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + SeparatedByEmitter<
+  Ctx::Emitter: SeparatedEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + SeparatedEmitter<
       'inp,
       (&'inp str, JsonValue<'inp>),
       Comma,
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
-    > + DelimiterEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimiterEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   field
     .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
@@ -544,17 +529,21 @@ fn json_value<'inp, Ctx>(
 ) -> Result<JsonValue<'inp>, JsonError<'inp>>
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
-  Ctx::Emitter: SeparatedByEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + SeparatedByEmitter<
+  Ctx::Emitter: SeparatedEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + SeparatedEmitter<
       'inp,
       (&'inp str, JsonValue<'inp>),
       Comma,
       JsonLexer<'inp>,
       Error = JsonError<'inp>,
-    > + DelimiterEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
-    + DelimiterEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>,
+    > + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, JsonValue<'inp>, Comma, JsonLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
-  let end = inp.input().len();
+  let end = inp.source().len();
   (
     boolean.map(JsonValue::Bool),
     null.map(|_| JsonValue::Null),

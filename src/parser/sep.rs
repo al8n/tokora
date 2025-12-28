@@ -1,48 +1,243 @@
 use core::marker::PhantomData;
 
-use derive_more::{IsVariant, TryUnwrap, Unwrap};
+use derive_more::IsVariant;
 
-// use crate::{Check, punct::*};
+use crate::lexer::Checkpoint;
 
 use super::*;
 
-mod parser_input;
+pub use allow_leading::AllowLeading;
+pub use allow_trailing::AllowTrailing;
+pub use require_leading::RequireLeading;
+pub use require_trailing::RequireTrailing;
 
-/// Leading-separator markers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Deny(());
+mod allow_leading;
+mod allow_trailing;
+mod parse;
+mod require_leading;
+mod require_trailing;
 
-/// Leading-separator markers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Allow(());
+mod delim;
 
-/// Requires a leading separator.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Require(());
+/// A handler for separator events during parsing.
+pub trait SeparatorHandler<'inp, L> {
+  /// Called when a separator is encountered.
+  fn on_separator(&mut self, sep: Spanned<L::Token, L::Span>)
+  where
+    L: Lexer<'inp>;
+}
 
-/// A type-safe alias for configuring `SeparatedBy` parsers.
+impl<'inp, L, T> SeparatorHandler<'inp, L> for &mut T
+where
+  T: ?Sized + SeparatorHandler<'inp, L>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn on_separator(&mut self, sep: Spanned<L::Token, L::Span>)
+  where
+    L: Lexer<'inp>,
+  {
+    (**self).on_separator(sep)
+  }
+}
+
+macro_rules! blackhole {
+  ($ty:ty) => {
+    impl<'inp, L> SeparatorHandler<'inp, L> for $ty {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
+      where
+        L: Lexer<'inp>,
+      {
+      }
+    }
+  };
+  (@generic $ty:ty) => {
+    impl<'inp, L, T> SeparatorHandler<'inp, L> for $ty {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
+      where
+        L: Lexer<'inp>,
+      {
+      }
+    }
+  };
+}
+
+blackhole!(());
+blackhole!(crate::lexer::BlackHole);
+blackhole!(@generic core::marker::PhantomData<T>);
+blackhole!(@generic crate::utils::marker::Ignored<T>);
+
+#[cfg(any(feature = "alloc", feature = "std"))]
+const _: () = {
+  use std::{collections::vec_deque::VecDeque, vec::Vec};
+
+  impl<'inp, L, T> SeparatorHandler<'inp, L> for Vec<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_separator(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+  }
+
+  impl<'inp, L, T> SeparatorHandler<'inp, L> for VecDeque<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_separator(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+  }
+
+  #[cfg(feature = "smallvec")]
+  impl<'inp, L, T, N> SeparatorHandler<'inp, L> for smallvec::SmallVec<N>
+  where
+    N: smallvec::Array<Item = T>,
+  {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_separator(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+  }
+};
+
+/// A parser that parses a sequence of elements separated by a delimiter.
 ///
-/// Canonical configuration layout: `With<With<Trailing, Leading>, With<Maximum, Minimum>>`.
-pub type SeparatedByOptions<Trailing = (), Leading = (), Max = (), Min = ()> =
-  With<With<Trailing, Leading>, With<Max, Min>>;
-
-/// A parser that parses a sequence of elements separated by a specific separator.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SeparatedBy<
-  F,
-  SepClassifier,
-  Condition,
-  O,
-  Window,
-  L,
-  Ctx,
-  Config = SeparatedByOptions,
-  Lang: ?Sized = (),
-> {
+/// This combinator parses repeated occurrences of an element parser, expecting each
+/// element to be separated by a delimiter (e.g., comma, semicolon). It provides
+/// fine-grained control over:
+/// - **Leading separators**: Allow/deny/require separators before the first element
+/// - **Trailing separators**: Allow/deny/require separators after the last element
+/// - **Repetition bounds**: Minimum and maximum number of elements
+///
+/// # Type Parameters
+///
+/// - `F`: The element parser
+/// - `SepClassifier`: Separator checker (e.g., [`Comma`], custom punctuator)
+/// - `Condition`: Decision function that determines when to stop parsing
+/// - `O`: Output type of the element parser
+/// - `Window`: Lookahead window size for the condition
+/// - `L`: Lexer type
+/// - `Ctx`: Parse context
+/// - `Config`: Configuration options (trailing/leading/min/max)
+/// - `Lang`: Language marker type (default `()`)
+///
+/// # Examples
+///
+/// ## Basic Comma-Separated List
+///
+/// ```ignore
+/// use tokit::parser::{SeparatedBy, ParseInput};
+/// use generic_arraydeque::typenum::U1;
+///
+/// // Parse: element, element, element
+/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+///     element_parser(),
+///     |peeked, _| match peeked.front() {
+///         None => Ok(Action::Stop),
+///         Some(Token::Comma) => Ok(Action::Continue),
+///         _ => Ok(Action::Stop),
+///     }
+/// ).collect::<Vec<_>>();
+///
+/// // Input: "1, 2, 3"
+/// // Output: Ok(vec![1, 2, 3])
+/// ```
+///
+/// ## With Trailing Separator
+///
+/// ```ignore
+/// // Parse: element, element, element,  (trailing comma allowed)
+/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+///     element_parser(),
+///     stop_condition
+/// )
+/// .allow_trailing()   // Allow trailing comma
+/// .collect::<Vec<_>>();
+///
+/// // Input: "1, 2, 3,"
+/// // Output: Ok(vec![1, 2, 3])
+/// ```
+///
+/// ## With Leading Separator
+///
+/// ```ignore
+/// // Parse: , element, element  (leading comma allowed)
+/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+///     element_parser(),
+///     stop_condition
+/// )
+/// .allow_leading()    // Allow leading comma
+/// .collect::<Vec<_>>();
+///
+/// // Input: ", 1, 2"
+/// // Output: Ok(vec![1, 2])
+/// ```
+///
+/// ## With Bounds
+///
+/// ```ignore
+/// // Parse at least 1, at most 5 elements
+/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+///     element_parser(),
+///     stop_condition
+/// )
+/// .at_least(Minimum::new(1))
+/// .at_most(Maximum::new(5))
+/// .collect::<Vec<_>>();
+/// ```
+///
+/// ## Custom Separator
+///
+/// ```ignore
+/// // Parse elements separated by semicolons
+/// let parser = SeparatedBy::semicolon::<MyLexer, U1, Ctx>(
+///     element_parser(),
+///     stop_condition
+/// ).collect::<Vec<_>>();
+///
+/// // Input: "a;b;c"
+/// // Output: Ok(vec![a, b, c])
+/// ```
+///
+/// # How It Works
+///
+/// 1. **Parse first element** (unless leading separator is required)
+/// 2. **Loop**:
+///    - Call `condition` to check if we should continue
+///    - If `Action::Continue`: parse separator, then element
+///    - If `Action::Stop`: break
+/// 3. **Validate** trailing separator rules
+/// 4. **Collect** parsed elements into container
+///
+/// # Error Handling
+///
+/// The parser emits errors via the [`SeparatedByEmitter`](crate::emitter::SeparatedByEmitter) trait:
+/// - Missing separator between elements
+/// - Unexpected leading separator (when denied)
+/// - Unexpected trailing separator (when denied)
+/// - Missing element after separator
+/// - Too few or too many elements (when bounds set)
+///
+/// # Performance
+///
+/// - **Memory**: O(1) for the parser itself (elements collected into container)
+/// - **Parsing**: O(n) where n is the number of elements
+/// - **Lookahead**: O(W) per iteration where W is the window size
+///
+/// # See Also
+///
+/// - [`delimited_by`](SeparatedBy::delimited_by) - Wrap in delimiters (e.g., `[...]` or `{...}`)
+/// - [`repeated`](Repeated) - Repeat without separators
+/// - [`collect`](SeparatedBy::collect) - Collect into a container
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
   pub(super) sep: SepClassifier,
   pub(super) condition: Condition,
-  pub(super) config: Config,
   pub(super) _m: PhantomData<O>,
   pub(super) _decision_window: PhantomData<Window>,
   pub(super) _l: PhantomData<L>,
@@ -50,17 +245,28 @@ pub struct SeparatedBy<
   pub(super) _lang: PhantomData<Lang>,
 }
 
-impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
-  SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, SeparatedByOptions, Lang>
+impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Copy
+  for SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+where
+  F: Copy,
+  SepClassifier: Copy,
+  Condition: Copy,
 {
-  /// Creates a new `SeparatedBy` parser with the given container.
+}
+
+impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Clone
+  for SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+where
+  F: Clone,
+  SepClassifier: Clone,
+  Condition: Clone,
+{
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
+  fn clone(&self) -> Self {
     Self {
-      f,
-      sep: sep_classifier,
-      condition,
-      config: SeparatedByOptions::new(With::new((), ()), With::new((), ())),
+      f: self.f.clone(),
+      sep: self.sep.clone(),
+      condition: self.condition.clone(),
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
@@ -70,25 +276,84 @@ impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
   }
 }
 
-impl<F, SepClassifier, Condition, O, Options, Window, L, Ctx, Lang: ?Sized>
-  SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Options, Lang>
+impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
+  SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
 {
+  /// Creates a new `SeparatedBy` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn as_mut(
-    &mut self,
-  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, &mut Options, Lang>
-  {
-    SeparatedBy {
-      f: &mut self.f,
-      sep: &mut self.sep,
-      condition: &mut self.condition,
-      config: &mut self.config,
+  pub(super) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
+    Self {
+      f,
+      sep: sep_classifier,
+      condition,
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
     }
+  }
+}
+
+impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
+  SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang>
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) const fn as_mut(
+    &mut self,
+  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, Lang> {
+    SeparatedBy {
+      f: &mut self.f,
+      sep: &mut self.sep,
+      condition: &mut self.condition,
+      _m: PhantomData,
+      _decision_window: PhantomData,
+      _l: PhantomData,
+      _ctx: PhantomData,
+      _lang: PhantomData,
+    }
+  }
+
+  /// Sets the minimum number of elements to parse.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn at_least(self, minimum: usize) -> AtLeast<Self> {
+    AtLeast::new(self, minimum)
+  }
+
+  /// Sets the maximum number of elements to parse.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn at_most(self, maximum: usize) -> AtMost<Self> {
+    AtMost::new(self, maximum)
+  }
+
+  /// Sets both the minimum and maximum number of elements to parse.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn bounded(self, minimum: usize, maximum: usize) -> Bounded<Self> {
+    Bounded::new(self, maximum, minimum)
+  }
+
+  /// Sets allows trailing separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn allow_trailing(self) -> AllowTrailing<Self> {
+    AllowTrailing::new(self)
+  }
+
+  /// Sets requires trailing separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn require_trailing(self) -> RequireTrailing<Self> {
+    RequireTrailing::new(self)
+  }
+
+  /// Sets allows leading separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn allow_leading(self) -> AllowLeading<Self> {
+    AllowLeading::new(self)
+  }
+
+  /// Sets requires leading separator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn require_leading(self) -> RequireLeading<Self> {
+    RequireLeading::new(self)
   }
 
   /// Collects the parsed elements into the specified container.
@@ -109,295 +374,39 @@ impl<F, SepClassifier, Condition, O, Options, Window, L, Ctx, Lang: ?Sized>
     Collect::new(self, container)
   }
 
-  /// Creates a new `DelimitedSeparatedBy` parser.
+  /// Creates a new `Delimited` parser with the given delimiters and separator.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited_by<Open, Close, Delim>(
     self,
     left: Open,
     right: Close,
     delim: Delim,
-  ) -> DelimitedSeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    Open,
-    Close,
-    Delim,
-    O,
-    Window,
-    L,
-    Ctx,
-    Options,
-    Lang,
-  > {
-    DelimitedSeparatedBy::new_in(self, left, right, delim)
-  }
-}
-
-impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx, Lang: ?Sized>
-  SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    SeparatedByOptions<Trailing, Leading, Max, Min>,
-    Lang,
-  >
-{
-  /// Allows trailing separators.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn allow_trailing(
-    self,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    SeparatedByOptions<Allow, Leading, Max, Min>,
-    Lang,
-  >
-  where
-    Trailing: Apply<Allow>,
-  {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      config: SeparatedByOptions::new(
-        With::new(Allow(()), self.config.primary.secondary),
-        self.config.secondary,
-      ),
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
+  ) -> DelimitedBy<Self, Open, Close, Delim> {
+    DelimitedBy::new_in(self, left, right, delim)
   }
 
-  /// Requires a trailing separator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn require_trailing(
-    self,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    SeparatedByOptions<Require, Leading, Max, Min>,
-    Lang,
-  >
-  where
-    Trailing: Apply<Require>,
-  {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      config: SeparatedByOptions::new(
-        With::new(Require(()), self.config.primary.secondary),
-        self.config.secondary,
-      ),
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _ctx: PhantomData,
-      _l: PhantomData,
-      _lang: PhantomData,
-    }
-  }
-
-  /// Allows leading separators.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn allow_leading(
-    self,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    SeparatedByOptions<Trailing, Allow, Max, Min>,
-    Lang,
-  >
-  where
-    Leading: Apply<Allow>,
-  {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      config: SeparatedByOptions::new(
-        With::new(self.config.primary.primary, Allow(())),
-        self.config.secondary,
-      ),
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
-  }
-
-  /// Requires a leading separator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn require_leading(
-    self,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    SeparatedByOptions<Trailing, Require, Max, Min>,
-    Lang,
-  >
-  where
-    Leading: Apply<Require>,
-  {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      config: SeparatedByOptions::new(
-        With::new(self.config.primary.primary, Require(())),
-        self.config.secondary,
-      ),
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
-  }
-
-  /// Sets the minimum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_least(
-    self,
-    n: Min::Options,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    SeparatedByOptions<Trailing, Leading, Max, Minimum>,
-    Lang,
-  >
-  where
-    Min: Apply<Minimum>,
-  {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      config: SeparatedByOptions::new(
-        self.config.primary,
-        With::new(
-          self.config.secondary.primary,
-          Min::apply(self.config.secondary.secondary, n),
-        ),
-      ),
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
-  }
-
-  /// Sets the maximum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_most(
-    self,
-    n: Max::Options,
-  ) -> SeparatedBy<
-    F,
-    SepClassifier,
-    Condition,
-    O,
-    Window,
-    L,
-    Ctx,
-    SeparatedByOptions<Trailing, Leading, Maximum, Min>,
-    Lang,
-  >
-  where
-    Max: Apply<Maximum>,
-  {
-    SeparatedBy {
-      f: self.f,
-      sep: self.sep,
-      condition: self.condition,
-      config: SeparatedByOptions::new(
-        self.config.primary,
-        With::new(
-          Max::apply(self.config.secondary.primary, n),
-          self.config.secondary.secondary,
-        ),
-      ),
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _l: PhantomData,
-      _ctx: PhantomData,
-      _lang: PhantomData,
-    }
-  }
-
-  /// Returns the specification for leading separators.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn leading(&self) -> SepFixSpec
-  where
-    Leading: LeadingSpec,
-  {
-    Leading::leading(&self.config.primary.secondary)
-  }
-
-  /// Returns the specification for trailing separators.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn trailing(&self) -> SepFixSpec
-  where
-    Trailing: TrailingSpec,
-  {
-    Trailing::trailing(&self.config.primary.primary)
-  }
-
-  /// Returns the minimum number of elements required.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn minimum(&self) -> usize
-  where
-    Min: MinSpec,
-  {
-    Min::minimum(&self.config.secondary.secondary)
-  }
-
-  /// Returns the maximum number of elements allowed.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(private_bounds)]
-  pub fn maximum(&self) -> usize
-  where
-    Max: MaxSpec,
-  {
-    Max::maximum(&self.config.secondary.primary)
-  }
+  // /// Creates a new `DelimitedSeparatedBy` parser.
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // pub const fn delimited_by<Open, Close, Delim>(
+  //   self,
+  //   left: Open,
+  //   right: Close,
+  //   delim: Delim,
+  // ) -> DelimitedSeparatedBy<
+  //   F,
+  //   SepClassifier,
+  //   Condition,
+  //   Open,
+  //   Close,
+  //   Delim,
+  //   O,
+  //   Window,
+  //   L,
+  //   Ctx,
+  //   Lang,
+  // > {
+  //   DelimitedSeparatedBy::new_in(self, left, right, delim)
+  // }
 }
 
 // macro_rules! sep_by {
@@ -487,151 +496,70 @@ impl<F, SepClassifier, Condition, O, Trailing, Leading, Max, Min, Window, L, Ctx
 //   At,
 // );
 
-impl Apply<Allow> for () {
-  type Options = ();
+trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+  fn handle_start_state(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, _: Self::Options) -> Allow {
-    Allow(())
-  }
+  fn handle_element_state(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+
+  fn handle_leading_state(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+    leading_sep: Spanned<L::Token, L::Span>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+
+  fn handle_separator_state(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+    sep: Spanned<L::Token, L::Span>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
 }
 
-impl Apply<Require> for () {
-  type Options = ();
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, _: Self::Options) -> Require {
-    Require(())
-  }
+trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+  fn handle_start_state(
+    &self,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    off: L::Offset,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
 }
 
-/// Specification for leading/trailing separators.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Unwrap, TryUnwrap)]
-pub enum SepFixSpec {
-  /// Denies leading/trailing separators.
-  Deny(Deny),
-  /// Allows leading/trailing separators.
-  Allow(Allow),
-  /// Requires leading/trailing separators.
-  Require(Require),
-}
-
-pub(super) trait LeadingSpec {
-  fn leading(&self) -> SepFixSpec;
-}
-
-impl<T: LeadingSpec> LeadingSpec for &mut T {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    (**self).leading()
-  }
-}
-
-impl LeadingSpec for Deny {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    SepFixSpec::Deny(*self)
-  }
-}
-
-impl LeadingSpec for Allow {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    SepFixSpec::Allow(*self)
-  }
-}
-
-impl LeadingSpec for Require {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    SepFixSpec::Require(*self)
-  }
-}
-
-pub(super) trait TrailingSpec {
-  fn trailing(&self) -> SepFixSpec;
-}
-
-impl<T: TrailingSpec> TrailingSpec for &mut T {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    (**self).trailing()
-  }
-}
-
-impl TrailingSpec for Deny {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    SepFixSpec::Deny(*self)
-  }
-}
-
-impl TrailingSpec for Allow {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    SepFixSpec::Allow(*self)
-  }
-}
-
-impl TrailingSpec for Require {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    SepFixSpec::Require(*self)
-  }
-}
-
-impl TrailingSpec for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    SepFixSpec::Deny(Deny(()))
-  }
-}
-
-impl LeadingSpec for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    SepFixSpec::Deny(Deny(()))
-  }
-}
-
-impl<T, L, MAX, MIN> MaxSpec for SeparatedByOptions<T, L, MAX, MIN>
-where
-  MAX: MaxSpec,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn maximum(&self) -> usize {
-    self.secondary.primary.maximum()
-  }
-}
-
-impl<T, L, MAX, MIN> MinSpec for SeparatedByOptions<T, L, MAX, MIN>
-where
-  MIN: MinSpec,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn minimum(&self) -> usize {
-    self.secondary.secondary.minimum()
-  }
-}
-
-impl<T, L, MAX, MIN> TrailingSpec for SeparatedByOptions<T, L, MAX, MIN>
-where
-  T: TrailingSpec,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn trailing(&self) -> SepFixSpec {
-    T::trailing(&self.primary.primary)
-  }
-}
-
-impl<T, L, MAX, MIN> LeadingSpec for SeparatedByOptions<T, L, MAX, MIN>
-where
-  L: LeadingSpec,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn leading(&self) -> SepFixSpec {
-    L::leading(&self.primary.secondary)
-  }
+trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+  fn handle_start_state(
+    &self,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    sep_tok: &Spanned<L::Token, L::Span>,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]
@@ -639,8 +567,7 @@ pub(super) enum State<T, S> {
   Start,
   Element,
   Leading(Spanned<T, S>),
-  /// the span is the start of the
-  Leadings(S),
   Separator(Spanned<T, S>),
-  RepeatedSeparator(S),
 }
+
+struct Unbounded;

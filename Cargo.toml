@@ -82,17 +82,6 @@ name = "json"
 path = "examples/json.rs"
 required-features = ["std", "logos"]
 
-# Note: These examples are being updated for v0.3.0 API
-# [[example]]
-# name = "simple_calculator"
-# path = "examples/simple_calculator.rs"
-# required-features = ["std"]
-
-# [[example]]
-# name = "custom_parser"
-# path = "examples/custom_parser.rs"
-# required-features = ["std"]
-
 [profile.bench]
 opt-level = 3
 debug = false

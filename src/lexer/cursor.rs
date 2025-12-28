@@ -13,7 +13,7 @@ use super::{Lexer, Span};
 /// - If there are cached tokens, it points to the start of the first cached token
 /// - Otherwise, it points to the position where the next token will be lexed from
 #[repr(transparent)]
-pub struct Cursor<'a, 'closure, L: Lexer<'a>> {
+pub struct Cursor<'inp, 'closure, L: Lexer<'inp>> {
   pub(crate) span: L::Span,
   _phantom: PhantomData<fn(&'closure ()) -> &'closure ()>,
 }

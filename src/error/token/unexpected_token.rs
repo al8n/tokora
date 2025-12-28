@@ -53,11 +53,11 @@ use crate::{
 };
 
 pub use unexpected_leading::*;
-pub use unexpected_repeated::*;
+// pub use unexpected_repeated::*;
 pub use unexpected_trailing::*;
 
 mod unexpected_leading;
-mod unexpected_repeated;
+// mod unexpected_repeated;
 mod unexpected_trailing;
 
 /// An error representing an unexpected token encountered during parsing.

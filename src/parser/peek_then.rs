@@ -1,6 +1,114 @@
 use super::*;
 
-/// a
+/// A combinator that peeks ahead before applying a parser, enabling conditional parsing.
+///
+/// This combinator looks ahead at the input using a fixed window size, then:
+/// 1. **Calls a handler** with the peeked tokens
+/// 2. **If handler returns `Ok(())`**: applies the inner parser
+/// 3. **If handler returns `Err(e)`**: stops without parsing and returns the error
+///
+/// Unlike [`PeekThenChoice`] which chooses between multiple parsers, `PeekThen` makes a
+/// **binary decision**: parse or don't parse. It's useful for:
+/// - **Validation**: Check conditions before committing to parsing
+/// - **Early rejection**: Fail fast if lookahead shows incompatible input
+/// - **Contextual parsing**: Parse only when specific tokens are present
+///
+/// # Type Parameters
+///
+/// - `P`: The inner parser to apply if the condition passes
+/// - `D`: Handler function that inspects lookahead and returns `Ok(())` or `Err(...)`
+/// - `T`: Token type from the lexer
+/// - `Window`: Lookahead window size (e.g., `typenum::U1`, `U2`, etc.)
+///
+/// # Examples
+///
+/// ## Basic Conditional Parsing
+///
+/// ```ignore
+/// use tokit::parser::{ParseInput, Action};
+/// use generic_arraydeque::typenum::U1;
+///
+/// // Only parse identifier if it doesn't start with underscore
+/// let parser = identifier_parser()
+///     .peek_then::<_, U1>(|mut peeked, _emitter| {
+///         match peeked.front() {
+///             Some(Token::Identifier(name)) if !name.starts_with('_') => Ok(()),
+///             _ => Err(InvalidIdentifierError::new()),
+///         }
+///     });
+/// ```
+///
+/// ## Multi-Token Validation
+///
+/// ```ignore
+/// use generic_arraydeque::typenum::U2;
+///
+/// // Parse function only if next two tokens are "fn" and an identifier
+/// let parser = function_parser()
+///     .peek_then::<_, U2>(|mut peeked, _| {
+///         let tok1 = peeked.get(0);
+///         let tok2 = peeked.get(1);
+///
+///         match (tok1, tok2) {
+///             (Some(Token::Fn), Some(Token::Identifier(_))) => Ok(()),
+///             _ => Err(ExpectedFunctionError::new()),
+///         }
+///     });
+/// ```
+///
+/// ## Optional Parsing with `or_not`
+///
+/// ```ignore
+/// use generic_arraydeque::typenum::U1;
+///
+/// // Parse optional visibility modifier
+/// let parser = visibility_parser()
+///     .peek_then::<_, U1>(|mut peeked, _| {
+///         match peeked.front() {
+///             Some(Token::Pub) => Ok(()),
+///             _ => Err(()),  // Not an error, just skip
+///         }
+///     })
+///     .or_not();  // Converts to Option<Visibility>
+///
+/// // Input: "pub fn" → Ok(Some(Visibility::Public))
+/// // Input: "fn"     → Ok(None)
+/// ```
+///
+/// ## Context-Aware Parsing
+///
+/// ```ignore
+/// // In a context where we only want numbers
+/// let parser = value_parser()
+///     .peek_then::<_, U1>(|mut peeked, _| {
+///         match peeked.front() {
+///             Some(Token::Number(_)) => Ok(()),
+///             Some(other) => Err(UnexpectedToken::new(other.kind())),
+///             None => Err(UnexpectedEot::new()),
+///         }
+///     });
+/// ```
+///
+/// # Difference from `PeekThenChoice`
+///
+/// | Feature | `PeekThen` | `PeekThenChoice` |
+/// |---------|-----------|------------------|
+/// | **Decision** | Binary (parse or error) | N-way (which parser to use) |
+/// | **Input Parser** | Single parser | Tuple of parsers |
+/// | **Handler Returns** | `Result<(), E>` | `Result<Id, E>` |
+/// | **Use Case** | Validation, filtering | Alternative parsers |
+///
+/// # Performance
+///
+/// - **Lookahead cost**: O(W) where W is the window size
+/// - **No backtracking**: Parser runs at most once
+/// - **Stack allocation**: Lookahead window lives on the stack
+///
+/// # See Also
+///
+/// - [`PeekThenChoice`] - Choose between multiple parsers based on lookahead
+/// - [`or_not`](PeekThen::or_not) - Convert to optional parsing (returns `Option<T>`)
+/// - [`filter`](crate::parser::Filter) - Validate after parsing (no lookahead)
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PeekThen<P, D, T, Window> {
   parser: P,
