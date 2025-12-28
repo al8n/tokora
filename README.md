@@ -42,7 +42,7 @@ Unlike traditional parser combinators that buffer tokens and rely on implicit ba
 - **Zero-Cost Abstractions**: All configuration resolved at compile time
 - **No-std Support**: Core functionality works without allocator
 - **Multiple Source Types**: Support for `str`, `[u8]`, `Bytes`, `BStr`, `HipStr`
-- **Logos Integration**: Optional `LogosLexer` adapter for seamless [Logos](https://github.com/maciejhirsz/logos) integration
+- **Logos Integration**: Optional `LogosLexer` adapter for seamless [logos](https://github.com/maciejhirsz/logos) integration
 - **CST Support**: Optional Concrete Syntax Tree support via [rowan](https://github.com/rust-analyzer/rowan)
 
 ## Installation
@@ -86,13 +86,30 @@ tokit = "0.0.0"
 
 ### Error Handling
 
-Tokit's flexible `Emitter` system allows the same parser to adapt to different use cases by simply changing the error handling strategy:
+Tokit's flexible `Emitter` system allows the same parser to adapt to different use cases by simply changing the error handling strategy.
 
-- **Emitter Strategies**
-  - `Fatal` - **Fail-fast parsing**: Stop on first error (default) - perfect for runtime parsing and REPLs
-  - `Verbose` - **Comprehensive error collection**: Collect all errors and continue parsing - perfect for compiler diagnostics and IDEs
-  - `Silent` - Silently ignore errors
-  - `Ignored` - Ignore errors completely
+#### Atomically Composable Trait Design
+
+Tokit's emitter system uses **atomically composable traits** - small, focused traits that each handle a specific parsing scenario. Instead of one monolithic interface, error handling is broken down into atomic building blocks:
+
+- **Core**: `Emitter` - Base error handling (lexer errors, unexpected tokens)
+- **Repetition**: `TooFewEmitter`, `TooManyEmitter`, `FullContainerEmitter`
+- **Separation**: `SeparatedEmitter`, `UnexpectedLeadingSeparatorEmitter`, `UnexpectedTrailingSeparatorEmitter`
+- **Delimiters**: `DelimitedEmitter`
+
+This design provides:
+- **Fine-grained control**: Implement only the traits you need
+- **Composability**: Mix and match traits to build custom strategies
+- **Extensibility**: Create specialized emitters for specific use cases
+
+#### Built-in Emitter Strategies
+
+Tokit provides complete implementations that implement all atomic traits with consistent behavior:
+
+- `Fatal` - **Fail-fast parsing**: Stop on first error (default) - perfect for runtime parsing and REPLs
+- `Verbose` - **Comprehensive error collection**: Collect all errors and continue parsing - perfect for compiler diagnostics and IDEs
+- `Silent` - Silently ignore errors
+- `Ignored` - Ignore errors completely
 
 **Key Design**: Change the `Emitter` type to switch between fail-fast runtime parsing and comprehensive compiler diagnostics - **same parser code, different behavior**. This makes Tokit suitable for both:
 
@@ -100,10 +117,19 @@ Tokit's flexible `Emitter` system allows the same parser to adapt to different u
 - **Compiler/IDE**: Comprehensive diagnostics with `Verbose` emitter
 
 **The `Verbose` Emitter**: Unlike `Fatal` which stops at the first error, the `Verbose` emitter collects all errors during parsing and continues where possible. Errors are stored in a `BTreeMap` indexed by span, automatically sorted by their position in the source code. After parsing, retrieve all errors via the `errors()` method for display, analysis, or further processing. This is ideal for:
+
 - Showing users all issues at once in compiler output
 - Providing real-time diagnostics in IDE error panels
 - Collecting comprehensive error information for debugging
 - Generating detailed error reports for language servers
+
+**Custom Emitters**: Thanks to the atomically composable trait design, you can create custom error handling strategies by implementing only the traits you need. You compose small, focused traits to build exactly the behavior you want. For example, you could build an emitter that:
+- Implements only `Emitter` + `TooFewEmitter` for a parser that only needs those scenarios
+- Limits the maximum number of errors before stopping
+- Filters errors by severity level
+- Sends errors to a logging system or telemetry service
+- Implements domain-specific error recovery strategies for specific error types
+- Wraps an existing emitter and adds custom behavior for certain atomic traits
 
 - **Rich Error Types** (in `error/` module)
   - Token-level: `UnexpectedToken`, `MissingToken`, `UnexpectedEot`
@@ -125,64 +151,7 @@ Tokit's flexible `Emitter` system allows the same parser to adapt to different u
   - `Window` - Type-level peek buffer capacity for deterministic lookahead
   - **Note**: Lookahead windows support 1-32 token capacity via `typenum::{U1..U32}`
 
-## Quick Start
-
-Here's a simple example parsing JSON tokens:
-
-```rust
-use logos::Logos;
-use tokit::{Any, Parse, Token as TokenT};
-
-#[derive(Debug, Logos, Clone)]
-#[logos(skip r"[ \t\r\n\f]+")]
-enum Token {
-    #[token("true", |_| true)]
-    #[token("false", |_| false)]
-    Bool(bool),
-
-    #[token("null")]
-    Null,
-
-    #[regex(r"-?(?:0|[1-9]\d*)(?:\.\d+)?", |lex| lex.slice().parse::<f64>().unwrap())]
-    Number(f64),
-}
-
-#[derive(Debug, Display, Clone, Copy)]
-enum TokenKind {
-    Bool,
-    Null,
-    Number,
-}
-
-impl TokenT<'_> for Token {
-    type Kind = TokenKind;
-    type Error = ();
-
-    fn kind(&self) -> Self::Kind {
-        match self {
-            Token::Bool(_) => TokenKind::Bool,
-            Token::Null => TokenKind::Null,
-            Token::Number(_) => TokenKind::Number,
-        }
-    }
-}
-
-type MyLexer<'a> = tokit::LogosLexer<'a, Token, Token>;
-
-fn main() {
-    // Parse any token and extract its value
-    let parser = Any::parser::<'_, MyLexer<'_>, ()>()
-      .map(|tok: Token| match tok {
-        Token::Number(n) => Some(n),
-        _ => None,
-      });
-
-    let result = parser.parse("42.5");
-    println!("{:?}", result); // Ok(Some(42.5))
-}
-```
-
-### More Examples
+## Examples
 
 Check out the examples directory:
 
@@ -247,16 +216,15 @@ Unlike traditional parser combinators that rely on implicit backtracking (trying
 - **Deterministic Parsing**: LALR-style table-driven decisions using fixed-capacity lookahead windows (`Window` trait)
 - **Better Error Messages**: Failed alternatives don't hide earlier, more relevant errors
 
-```rust
+```rust,ignore
 // Traditional parser combinator (hidden backtracking):
 // try_parser1.or(try_parser2).or(try_parser3)  // May backtrack!
 
 // Tokit approach (explicit lookahead, no backtracking):
 let parser = any()
     .peek_then::<_, typenum::U2>(|peeked, _| {
-        match peeked.get(0) {
-            Some(Token::If) => Ok(Action::Continue),  // Deterministic decision
-            _ => Ok(Action::Stop),
+        match peeked.front() {
+            ...
         }
     });
 ```
@@ -271,9 +239,22 @@ Tokit uniquely combines:
 
 This hybrid approach gives you composable abstractions without sacrificing performance or predictability.
 
-### Fail-Fast Runtime ↔ Greedy Compiler Diagnostics
+### Atomically Composable Error Handling
 
-Tokit's architecture decouples parsing logic from error handling strategy through the `Emitter` trait. This means:
+Tokit's error handling system breaks down error scenarios into small, focused traits. Each trait handles one specific parsing situation (like `TooFewEmitter` for "too few elements" or `UnexpectedLeadingSeparatorEmitter` for leading separators).
+
+**Benefits of the Atomically Composable Trait Design:**
+
+- ✅ **Implement only what you need**: Your parser only uses `TooFewEmitter`? Just implement that trait
+- ✅ **Compose custom strategies**: Mix and match atomic traits to build specialized error handlers
+- ✅ **Pre-built bundles**: `Fatal`, `Verbose`, and `Silent` implement all traits for convenience
+- ✅ **Fine-grained control**: Small, reusable pieces that compose into complex behavior
+
+This is fundamentally different from traditional monolithic error handler interfaces - you get both the simplicity of pre-built strategies and the flexibility to implement only what you need.
+
+### Fail-Fast Runtime ↔ Comprehensive Compiler Diagnostics
+
+Tokit's architecture decouples parsing logic from error handling strategy through the atomic `Emitter` trait system. This means:
 
 **Same Parser, Different Contexts:**
 
@@ -301,9 +282,9 @@ Tokit takes inspiration from:
 
 1. **Performance** - Parse-while-lexing (zero-copy streaming), zero-cost abstractions, no hidden allocations
 2. **Predictability** - No hidden backtracking, explicit control flow, deterministic decisions
-3. **Composability** - Small parsers combine into complex ones
-4. **Versatility** - Same parser works for runtime (fail-fast) and compiler diagnostics (greedy) via `Emitter`
-5. **Flexibility** - Work with any lexer, customize error handling, support both AST and CST
+3. **Composability** - Small parsers combine into complex ones; atomic emitter traits compose into custom strategies
+4. **Versatility** - Same parser works for runtime (fail-fast) and compiler diagnostics (comprehensive) via atomic `Emitter` traits
+5. **Flexibility** - Work with any lexer, atomic error handling traits, support both AST and CST
 6. **Correctness** - Rich error types, span tracking, validation
 
 ## Who Uses Tokit?

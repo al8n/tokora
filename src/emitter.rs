@@ -31,6 +31,28 @@ mod separated;
 /// (logged and processing continues). This is particularly useful when you want to collect
 /// multiple errors before stopping, or when implementing error recovery.
 ///
+/// # Atomically Composable Trait Design
+///
+/// Tokit's emitter system uses an **atomically composable trait design**. Instead of one monolithic
+/// emitter interface, error handling is broken down into small, focused traits, each responsible for
+/// a specific parsing scenario:
+///
+/// - **Core**: [`Emitter`] - Base error handling (lexer errors, unexpected tokens)
+/// - **Repetition**: [`TooFewEmitter`], [`TooManyEmitter`], [`FullContainerEmitter`](repeated::FullContainerEmitter)
+/// - **Separation**: [`SeparatedEmitter`](separated::SeparatedEmitter), [`UnexpectedLeadingSeparatorEmitter`](separated::UnexpectedLeadingSeparatorEmitter), [`UnexpectedTrailingSeparatorEmitter`](separated::UnexpectedTrailingSeparatorEmitter)
+/// - **Delimiters**: [`DelimitedEmitter`](delimited::DelimitedEmitter)
+///
+/// This atomic design provides:
+/// - ✅ **Fine-grained control**: Implement only the traits you need for your use case
+/// - ✅ **Composability**: Mix and match traits to build custom error handling strategies
+/// - ✅ **Pre-built bundles**: [`Fatal`](impl_::Fatal), [`Verbose`](impl_::Verbose), and [`Silent`](impl_::Silent) implement all traits with consistent behavior
+/// - ✅ **Extensibility**: Create specialized emitters by implementing a subset of traits
+///
+/// Tokit provides several complete implementations: [`Fatal`](impl_::Fatal), [`Verbose`](impl_::Verbose),
+/// [`Silent`](impl_::Silent), and [`Ignored`](impl_::ignored::Ignored). However, the atomic trait system
+/// encourages you to create custom emitters tailored to your specific needs by implementing only the
+/// traits relevant to your parser.
+///
 /// # Error Handling Strategy
 ///
 /// The emitter uses a `Result`-based approach where:
@@ -43,29 +65,37 @@ mod separated;
 /// - **Error Recovery**: Log errors but continue parsing to find more issues
 /// - **Fail-Fast**: Stop on the first error by always returning `Err`
 /// - **Filtering**: Only treat certain error types as fatal
+/// - **Custom Strategies**: Implement domain-specific error handling (e.g., max error limits, severity filtering, telemetry)
 ///
-/// # Example
+/// # Example: Custom Emitter with Error Limit
 ///
 /// ```ignore
-/// struct MyEmitter {
+/// use tokit::emitter::{Emitter, TooFewEmitter, TooManyEmitter};
+///
+/// struct MaxErrorsEmitter {
 ///     errors: Vec<String>,
 ///     max_errors: usize,
 /// }
 ///
-/// impl<'a, T: Token<'a>> Emitter<'a, T> for MyEmitter {
+/// // Implement the core Emitter trait
+/// impl<'a, L> Emitter<'a, L> for MaxErrorsEmitter {
 ///     type Error = String;
 ///
-///     fn emit_token_error(&mut self, err: Spanned<...>) -> Result<(), Self::Error> {
-///         self.errors.push(format!("Lexer error at {:?}", err.span));
+///     fn emit_lexer_error(&mut self, err: Spanned<...>) -> Result<(), Self::Error> {
+///         self.errors.push(format!("Lexer error: {:?}", err));
 ///         if self.errors.len() >= self.max_errors {
 ///             Err("Too many errors".to_string())
 ///         } else {
 ///             Ok(())
 ///         }
 ///     }
+///     // ... other Emitter methods
+/// }
 ///
-///     fn emit_error(&mut self, err: Spanned<Self::Error>) -> Result<(), Self::Error> {
-///         self.errors.push(err.data);
+/// // Optionally implement atomic traits for specific error scenarios
+/// impl<'a, O, L> TooFewEmitter<'a, O, L> for MaxErrorsEmitter {
+///     fn emit_too_few(&mut self, err: TooFew<...>) -> Result<(), Self::Error> {
+///         self.errors.push(format!("Too few elements: {:?}", err));
 ///         if self.errors.len() >= self.max_errors {
 ///             Err("Too many errors".to_string())
 ///         } else {
@@ -73,6 +103,7 @@ mod separated;
 ///         }
 ///     }
 /// }
+/// // Implement other atomic traits as needed: TooManyEmitter, SeparatedEmitter, etc.
 /// ```
 pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// The error type that this emitter produces.

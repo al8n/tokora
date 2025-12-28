@@ -26,6 +26,14 @@ mod unexpected_trailing_separator;
 ///
 /// This will make the parser stop at the first error encountered, so it is a fail-fast emitter,
 /// suitable for scenarios where error recovery is not desired.
+///
+/// `Fatal` is a **complete implementation** of all atomic emitter traits, providing a pre-built bundle
+/// for fail-fast parsing. It implements all emitter traits ([`Emitter`](super::super::Emitter),
+/// [`TooFewEmitter`](super::super::TooFewEmitter), [`TooManyEmitter`](super::super::TooManyEmitter),
+/// [`DelimitedEmitter`](super::super::DelimitedEmitter), etc.) with consistent fail-fast behavior.
+///
+/// For custom error handling, you can implement only the atomic emitter traits you need rather than
+/// using this pre-built bundle.
 pub struct Fatal<T: ?Sized, Lang: ?Sized = ()> {
   _e: core::marker::PhantomData<T>,
   _lang: core::marker::PhantomData<Lang>,

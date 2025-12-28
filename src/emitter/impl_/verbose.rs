@@ -31,6 +31,15 @@ mod unexpected_trailing_separator;
 /// continues parsing where possible. This makes it ideal for compiler diagnostics, IDE integration,
 /// and development scenarios where you need comprehensive error reporting.
 ///
+/// `Verbose` is a **complete implementation** of all atomic emitter traits, providing a pre-built bundle
+/// for comprehensive error collection. It implements:
+/// - [`Emitter`](super::super::Emitter) - Core error handling
+/// - [`TooFewEmitter`](super::super::TooFewEmitter) - "Too few elements" errors
+/// - [`TooManyEmitter`](super::super::TooManyEmitter) - "Too many elements" errors
+/// - [`DelimitedEmitter`](super::super::DelimitedEmitter) - Delimiter errors
+/// - [`SeparatedEmitter`](super::super::SeparatedEmitter) - Separator errors
+/// - And other atomic traits for specific parsing scenarios
+///
 /// The errors are stored in a `BTreeMap` indexed by span, ensuring they are ordered by their
 /// position in the source code. You can retrieve all collected errors via the [`errors()`](Self::errors) method.
 ///
@@ -57,11 +66,17 @@ mod unexpected_trailing_separator;
 ///
 /// # Comparison with Other Emitters
 ///
-/// | Emitter | Behavior | Use Case |
-/// |---------|----------|----------|
-/// | [`Fatal`](super::fatal::Fatal) | Stop on first error | Runtime, REPL, fail-fast scenarios |
-/// | [`Silent`](super::silent::Silent) | Ignore all errors | Error recovery, best-effort parsing |
-/// | `Verbose` | Collect all errors | Compilers, IDEs, comprehensive diagnostics |
+/// | Emitter | Behavior | Atomic Traits | Use Case |
+/// |---------|----------|---------------|----------|
+/// | [`Fatal`](super::fatal::Fatal) | Stop on first error | Implements all | Runtime, REPL, fail-fast scenarios |
+/// | [`Silent`](super::silent::Silent) | Ignore all errors | Implements all | Error recovery, best-effort parsing |
+/// | `Verbose` | Collect all errors | Implements all | Compilers, IDEs, comprehensive diagnostics |
+/// | Custom | User-defined | Implement only what you need | Specialized use cases |
+///
+/// Thanks to Tokit's **atomically composable trait design**, you can implement only the emitter traits
+/// your parser needs. `Verbose`, `Fatal`, and `Silent` are pre-built bundles that implement all atomic
+/// traits with consistent behavior, but you're encouraged to create custom emitters by implementing just
+/// the specific traits relevant to your parser.
 #[derive(Debug)]
 pub struct Verbose<Error, S = SimpleSpan, Lang: ?Sized = ()> {
   errs: BTreeMap<S, Error>,
