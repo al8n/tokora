@@ -1,4 +1,177 @@
+use crate::lexer::Checkpoint;
+
 use super::*;
+
+/// A trait for recovery parsers that start from the original position after backtracking.
+///
+/// This trait defines the interface for recovery parsers used by [`Recover`]. When the primary
+/// parser fails, implementors of this trait receive the error and attempt to produce a valid
+/// output by parsing from the restored checkpoint position.
+///
+/// # Automatic Implementation
+///
+/// This trait is automatically implemented for closures with the signature:
+/// ```ignore
+/// FnMut(&mut InputRef, Error) -> Result<O, Error>
+/// ```
+///
+/// # Example
+///
+/// ```ignore
+/// use tokit::parser::{ParseInput, RecoverInput};
+///
+/// // Manual implementation
+/// struct ErrorNodeRecovery;
+///
+/// impl RecoverInput<'_, MyLexer, Node, MyContext> for ErrorNodeRecovery {
+///     fn recover_input(&mut self, input, err) -> Result<Node, Error> {
+///         // Create error node with span from error
+///         Ok(Node::Error(err.span()))
+///     }
+/// }
+///
+/// // Or use a closure (automatic implementation)
+/// parser.recover(|_input, err| {
+///     Ok(Node::Error(err.span()))
+/// })
+/// ```
+///
+/// See [`Recover`] for usage examples.
+pub trait RecoverInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+  /// Try to recover from a parsing error.
+  ///
+  /// This method is called when the primary parser fails. The input position has been
+  /// restored to where it was before the primary parser started.
+  ///
+  /// # Parameters
+  ///
+  /// - `input`: Input reference at the original starting position (after backtracking)
+  /// - `err`: The error produced by the failed primary parser
+  ///
+  /// # Returns
+  ///
+  /// - `Ok(output)`: Successfully recovered with a value
+  /// - `Err(error)`: Recovery failed
+  fn recover_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    err: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+}
+
+impl<'inp, L, O, Ctx, Lang: ?Sized, F> RecoverInput<'inp, L, O, Ctx, Lang> for F
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  F: FnMut(
+    &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn recover_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    err: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    (self)(input, err)
+  }
+}
+
+/// A trait for recovery parsers that continue from the error position without backtracking.
+///
+/// This trait defines the interface for recovery parsers used by [`InplaceRecover`]. When the
+/// primary parser fails, implementors of this trait receive the error and the checkpoint, and
+/// attempt to produce a valid output by parsing from the current (error) position.
+///
+/// Unlike [`RecoverInput`], the input position is **not** restored - recovery continues from
+/// where the primary parser stopped.
+///
+/// # Automatic Implementation
+///
+/// This trait is automatically implemented for closures with the signature:
+/// ```ignore
+/// FnMut(&mut InputRef, Checkpoint, Error) -> Result<O, Error>
+/// ```
+///
+/// # Example
+///
+/// ```ignore
+/// use tokit::parser::{ParseInput, InplaceRecoverInput};
+///
+/// // Manual implementation
+/// struct SkipToSemicolon;
+///
+/// impl InplaceRecoverInput<'_, MyLexer, Stmt, MyContext> for SkipToSemicolon {
+///     fn inplace_recover_input(&mut self, input, _ckp, _err) -> Result<Stmt, Error> {
+///         // Skip tokens until semicolon from current position
+///         while !input.peek().is_semicolon() {
+///             input.next();
+///         }
+///         input.next(); // consume semicolon
+///         Ok(Stmt::Error)
+///     }
+/// }
+///
+/// // Or use a closure (automatic implementation)
+/// parser.inplace_recover(|input, _ckp, _err| {
+///     // Skip to semicolon from error position
+///     skip_until_semicolon(input)?;
+///     Ok(Stmt::Error)
+/// })
+/// ```
+///
+/// See [`InplaceRecover`] for usage examples.
+pub trait InplaceRecoverInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+  /// Try to recover from a parsing error without backtracking.
+  ///
+  /// This method is called when the primary parser fails. Unlike [`RecoverInput::recover_input`],
+  /// the input position has **not** been restored - it remains at the error position.
+  ///
+  /// # Parameters
+  ///
+  /// - `input`: Input reference at the current (error) position
+  /// - `ckp`: Checkpoint saved before the primary parser started (for reference only)
+  /// - `err`: The error produced by the failed primary parser
+  ///
+  /// # Returns
+  ///
+  /// - `Ok(output)`: Successfully recovered with a value
+  /// - `Err(error)`: Recovery failed
+  fn inplace_recover_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    ckp: Checkpoint<'inp, '_, L>,
+    err: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+}
+
+impl<'inp, L, O, Ctx, Lang: ?Sized, F> InplaceRecoverInput<'inp, L, O, Ctx, Lang> for F
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  F: FnMut(
+    &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    Checkpoint<'inp, '_, L>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn inplace_recover_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    ckp: Checkpoint<'inp, '_, L>,
+    err: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    (self)(input, ckp, err)
+  }
+}
 
 /// A parser that provides error recovery by trying an alternative parser with backtracking.
 ///
@@ -112,7 +285,6 @@ use super::*;
 /// # See Also
 ///
 /// - [`InplaceRecover`] - Error recovery without backtracking
-/// - [`recover_with`](crate::parser::ParseInput::recover_with) - Recovery with custom function
 /// - [`or_not`](OrNot) - Optional parsing (doesn't emit errors)
 /// - [`PeekThenChoice`] - Deterministic choice (no error recovery)
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -144,7 +316,7 @@ impl<'inp, P, R, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
   for Recover<P, R, O, L, Ctx, Lang>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
-  R: ParseInput<'inp, L, O, Ctx, Lang>,
+  R: RecoverInput<'inp, L, O, Ctx, Lang>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
@@ -157,9 +329,9 @@ where
     let ckp = inp.save();
     match self.parser.parse_input(inp) {
       Ok(output) => Ok(output),
-      Err(_) => {
-        inp.go(ckp);
-        self.recoverer.parse_input(inp)
+      Err(e) => {
+        inp.restore(ckp);
+        self.recoverer.recover_input(inp, e)
       }
     }
   }
@@ -300,7 +472,7 @@ impl<'inp, P, R, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
   for InplaceRecover<P, R, O, L, Ctx, Lang>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
-  R: ParseInput<'inp, L, O, Ctx, Lang>,
+  R: InplaceRecoverInput<'inp, L, O, Ctx, Lang>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
@@ -310,9 +482,10 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    let ckp = inp.save();
     match self.parser.parse_input(inp) {
       Ok(output) => Ok(output),
-      Err(_) => self.recoverer.parse_input(inp),
+      Err(e) => self.recoverer.inplace_recover_input(inp, ckp, e),
     }
   }
 }

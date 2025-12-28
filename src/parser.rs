@@ -160,7 +160,7 @@ use crate::{
   emitter::{Fatal, FromEmitterError},
   error::{UnexpectedEot, token::UnexpectedToken},
   lexer::{Cursor, Input, InputRef, Peeked, PunctuatorToken},
-  punct::Comma,
+  punct::*,
   utils::{
     Expected, Located, Sliced, Spanned,
     marker::{PhantomLocated, PhantomSliced, PhantomSpan},
@@ -291,6 +291,31 @@ where
   }
 }
 
+macro_rules! define_separated_by {
+  ($($name:ident),+$(,)?) => {
+    paste::paste! {
+      $(
+        #[doc = "Creates a `SeparatedBy` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn [< separated_by_ $name:snake >]<Condition, W>(
+          self,
+          condition: Condition,
+        ) -> SeparatedBy<Self, $name, Condition, O, W, L, Ctx, Lang>
+        where
+          Self: Sized,
+          L: Lexer<'inp>,
+          L::Token: PunctuatorToken<'inp>,
+          Ctx: ParseContext<'inp, L, Lang>,
+          Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+          W: Window,
+        {
+          SeparatedBy::new(self, <$name>::PHANTOM, condition)
+        }
+      )*
+    }
+  };
+}
+
 /// Core trait implemented by every parser combinator.
 ///
 /// This mirrors the ergonomics of libraries like `winnow`: a parser is
@@ -311,6 +336,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn spanned(self) -> With<PhantomSpan, Self>
   where
     Self: Sized,
+    With<PhantomSpan, Self>: ParseInput<'inp, L, Spanned<O>, Ctx, Lang>,
   {
     With::new(PhantomSpan::phantom(), self)
   }
@@ -320,6 +346,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn sourced(self) -> With<PhantomSliced, Self>
   where
     Self: Sized,
+    With<PhantomSliced, Self>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     With::new(PhantomSliced::phantom(), self)
   }
@@ -329,6 +356,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn located(self) -> With<PhantomLocated, Self>
   where
     Self: Sized,
+    With<PhantomLocated, Self>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     With::new(PhantomLocated::phantom(), self)
   }
@@ -338,6 +366,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn ignored(self) -> Ignore<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
+    Ignore<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, (), Ctx, Lang>,
   {
     Ignore::new(self)
   }
@@ -377,22 +406,26 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     SeparatedBy::new(self, sep_classifier, condition)
   }
 
-  /// Creates a `SeparatedBy` combinator that applies this parser repeatedly,
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn separated_by_comma<Condition, W>(
-    self,
-    condition: Condition,
-  ) -> SeparatedBy<Self, Comma, Condition, O, W, L, Ctx, Lang>
-  where
-    Self: Sized,
-    L: Lexer<'inp>,
-    L::Token: PunctuatorToken<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-    W: Window,
-  {
-    SeparatedBy::new(self, Comma::PHANTOM, condition)
-  }
+  define_separated_by!(
+    Comma,
+    Semicolon,
+    Dot,
+    Colon,
+    Pipe,
+    Ampersand,
+    Hyphen,
+    Underscore,
+    DoubleColon,
+    Arrow,
+    FatArrow,
+    Tilde, 
+    Slash,
+    BackSlash,
+    Percent,
+    Dollar,
+    Hash,
+    At,
+  );
 
   /// Creates a `PeekThen` combinator that peeks at most `N` tokens first from the input before parsing.
   ///
@@ -436,6 +469,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     Self: Sized,
     F: FnMut(O) -> U,
+    Map<Self, F, L, Ctx, O, U, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     Map::new(self, f)
   }
@@ -446,14 +480,12 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     Self: Sized,
     F: FnMut(O, ParseState<'_, 'inp, '_, L, Ctx, Lang>) -> U,
+    MapWith<Self, F, L, Ctx, O, U, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     MapWith::new(self, f)
   }
 
   /// Filter the output of this parser using a validation function.
-  ///
-  /// The parser must produce a `Spanned<O>` value. The validator receives
-  /// the data and span, and returns `Ok(())` if valid or an error otherwise.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn filter<F>(self, validator: F) -> Filter<Self, F, O, L, Ctx, Lang>
   where
@@ -461,14 +493,12 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Filter<Self, F, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     Filter::of(self, validator)
   }
 
   /// Filter the output of this parser using a validation function.
-  ///
-  /// The parser must produce a `Spanned<O>` value. The validator receives
-  /// the data and span, and returns `Ok(())` if valid or an error otherwise.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn filter_with<F>(self, validator: F) -> FilterWith<Self, F, O, L, Ctx, Lang>
   where
@@ -479,6 +509,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
       ParseState<'_, 'inp, '_, L, Ctx, Lang>,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
+    FilterWith<Self, F, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     FilterWith::of(self, validator)
   }
@@ -494,6 +525,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     F: FnMut(O) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
+    FilterMap<Self, F, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     FilterMap::of(self, mapper)
   }
@@ -512,14 +544,12 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
       ParseState<'_, 'inp, '_, L, Ctx, Lang>,
     ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
+    FilterMapWith<Self, F, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     FilterMapWith::of(self, mapper)
   }
 
   /// Validate the output of this parser with full location context.
-  ///
-  /// The parser must produce a `Located<O>` value. The validator receives
-  /// the data, span, and slice, and returns `Ok(())` if valid or an error otherwise.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn validate<F>(self, validator: F) -> Validate<Self, F, O, L, Ctx, Lang>
   where
@@ -532,9 +562,6 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Validate the output of this parser with full location context.
-  ///
-  /// The parser must produce a `Located<O>` value. The validator receives
-  /// the data, span, and slice, and returns `Ok(())` if valid or an error otherwise.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn validate_with<F>(self, validator: F) -> ValidateWith<Self, F, O, L, Ctx, Lang>
   where
@@ -556,6 +583,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Self: Sized,
     G: ParseInput<'inp, L, U, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
+    ThenIgnore<Self, G, O, U, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     ThenIgnore::new(self, second)
   }
@@ -567,6 +595,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Self: Sized,
     T: ParseInput<'inp, L, U, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
+    AndThen<Self, T, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     AndThen::new(self, then)
   }
@@ -578,17 +607,19 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Self: Sized,
     T: ParseInput<'inp, L, U, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
+    AndThenWith<Self, T, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     AndThenWith::new(self, then)
   }
 
-  /// Sequence this parser with another, using the first result to determine the second parser.
+  /// Sequence this parser with another, keeping both outputs.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn then<T, U>(self, then: T) -> Then<Self, T, O, U, L, Ctx, Lang>
   where
     Self: Sized,
     T: ParseInput<'inp, L, U, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Then<Self, T, O, U, L, Ctx, Lang>: ParseInput<'inp, L, (O, U), Ctx, Lang>,
   {
     Then::new(self, then)
   }
@@ -599,28 +630,93 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     Self: Sized,
     G: ParseInput<'inp, L, U, Ctx, Lang>,
+    IgnoreThen<Self, G, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     IgnoreThen::new(self, second)
   }
 
-  /// Recover from errors produced by this parser using the given recovery parser.
+  /// Recover from errors by trying an alternative parser with backtracking.
+  ///
+  /// If this parser fails, the input position is reset to where it was before parsing,
+  /// and the recovery parser is tried from the original position. This enables trying
+  /// completely different parsing strategies when the primary approach fails.
+  ///
+  /// # Use Cases
+  ///
+  /// - **Alternative interpretations**: Try parsing as different constructs
+  /// - **Fallback values**: Return error/placeholder nodes on failure
+  /// - **Resilient parsing**: Continue parsing to find more issues
+  ///
+  /// # Example
+  ///
+  /// ```ignore
+  /// // Parse expression or fallback to error node
+  /// let parser = parse_expression()
+  ///     .recover(parse_error_node());
+  ///
+  /// // Input: "1 + 2"      → Ok(BinaryOp(Add, 1, 2))
+  /// // Input: "@ invalid" → Ok(ErrorNode(...))
+  /// ```
+  ///
+  /// # Comparison with inplace_recover
+  ///
+  /// - `recover()`: Resets to starting position, tries alternative from beginning
+  /// - `inplace_recover()`: Continues from error position, typically skips ahead
+  ///
+  /// See [`Recover`] for detailed documentation and more examples.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn recover<R>(self, recovery: R) -> Recover<Self, R, O, L, Ctx, Lang>
   where
     Self: Sized,
-    R: ParseInput<'inp, L, O, Ctx, Lang>,
+    R: RecoverInput<'inp, L, O, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Recover<Self, R, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     Recover::new(self, recovery)
   }
 
-  /// Recover in-place from errors produced by this parser using the given recovery parser.
+  /// Recover from errors without backtracking, continuing from the error position.
+  ///
+  /// If this parser fails, the recovery parser starts from where the error occurred,
+  /// not from the original starting position. This is typically used to skip ahead to
+  /// a synchronization point (like a semicolon or brace) to resume parsing.
+  ///
+  /// # Use Cases
+  ///
+  /// - **Panic mode recovery**: Skip tokens until reaching a safe point
+  /// - **Resynchronization**: Find the next statement/block boundary
+  /// - **Performance**: Avoid checkpoint overhead when backtracking isn't needed
+  ///
+  /// # Example
+  ///
+  /// ```ignore
+  /// // Parse statement, skip to semicolon on error
+  /// let parser = parse_statement()
+  ///     .inplace_recover(
+  ///         skip_until(|tok| matches!(tok, Token::Semicolon))
+  ///             .then_ignore(any())
+  ///             .map(|_| Statement::Error)
+  ///     );
+  ///
+  /// // Input: "let x = 1;"     → Ok(LetStmt { .. })
+  /// // Input: "bad ### ; ok"   → Ok(Statement::Error)
+  /// //             ^^^ ^
+  /// //        error, skip to semicolon from here
+  /// ```
+  ///
+  /// # Comparison with recover
+  ///
+  /// - `recover()`: Resets to starting position, tries alternative from beginning
+  /// - `inplace_recover()`: Continues from error position, typically skips ahead
+  ///
+  /// See [`InplaceRecover`] for detailed documentation and more examples.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn inplace_recover<R>(self, recovery: R) -> InplaceRecover<Self, R, O, L, Ctx, Lang>
   where
     Self: Sized,
-    R: ParseInput<'inp, L, O, Ctx, Lang>,
+    R: InplaceRecoverInput<'inp, L, O, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
+    InplaceRecover<Self, R, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     InplaceRecover::new(self, recovery)
   }
@@ -630,6 +726,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn padded(self) -> Padded<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
+    Padded<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     Padded::new(self)
   }
@@ -639,6 +736,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn padded_left(self) -> PaddedLeft<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
+    PaddedLeft<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     PaddedLeft::new(self)
   }
@@ -648,6 +746,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn padded_right(self) -> PaddedRight<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
+    PaddedRight<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     PaddedRight::new(self)
   }

@@ -168,7 +168,7 @@ where
       Some(result) => Some(result),
       None => {
         let ckp = Checkpoint::new(Cursor::new(cur), state);
-        self.go(ckp);
+        self.restore(ckp);
         None
       }
     }
@@ -282,7 +282,6 @@ where
     &self,
     cursor: &Cursor<'inp, 'closure, L>,
   ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
-    // let start = cursor.cursor;
     let end = self.cursor();
     self.input.slice(cursor.as_inner()..end.as_inner())
   }
@@ -811,7 +810,7 @@ where
   /// let checkpoint = tokenizer.save();
   /// // Try parsing something...
   /// if parsing_failed {
-  ///     tokenizer.go(checkpoint); // Restore state
+  ///     tokenizer.restore(checkpoint); // Restore state
   /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -836,7 +835,7 @@ where
   /// This is commonly used for parser backtracking.
   #[doc(alias = "rewinds")]
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn go(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+  pub fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     self.cache_mut().rewind(&checkpoint);
     let cur = checkpoint.cursor();
     self.emitter().rewind(cur);
