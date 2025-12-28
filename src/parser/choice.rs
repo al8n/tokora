@@ -102,12 +102,49 @@ where
 {
   type Id = deranged::RangedUsize<0, N>;
 
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_choice(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     id: &Self::Id,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self[id.get()].parse_input(inp)
+  }
+}
+
+impl<'inp, L, O, Ctx, Lang: ?Sized, P> ParseChoice<'inp, L, O, Ctx, Lang> for [P]
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang>,
+{
+  type Id = usize;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_choice(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    id: &Self::Id,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    self[*id].parse_input(inp)
+  }
+}
+
+impl<'inp, L, O, Ctx, Lang: ?Sized, P> ParseChoice<'inp, L, O, Ctx, Lang> for &mut [P]
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang>,
+{
+  type Id = usize;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_choice(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    id: &Self::Id,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    self[*id].parse_input(inp)
   }
 }
 
