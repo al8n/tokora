@@ -150,7 +150,6 @@ use super::*;
 /// - [`Map`] - Infallible transformation
 /// - [`Filter`] - Validation without transformation
 /// - [`FilterMapWith`] - Transform with access to parse state
-/// - [`try_map`](crate::parser::ParseInput::try_map) - Alias for `filter_map`
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FilterMap<P, F, O, U, L, Ctx, Lang: ?Sized = ()> {
   parser: P,

@@ -140,7 +140,7 @@ const _: () = {
 /// This combinator wraps a [`Repeated`] parser with **opening and closing delimiters**,
 /// parsing constructs like `[element element element]` or `{item item item}`.
 ///
-/// Unlike [`DelimitedSeparatedBy`] which expects separators between elements (e.g., commas),
+/// Unlike separated sequences which expect separators between elements (e.g., commas),
 /// `DelimitedBy` parses **consecutive elements** with no separators between them.
 ///
 /// # Type Parameters
@@ -268,7 +268,6 @@ const _: () = {
 ///
 /// # See Also
 ///
-/// - [`DelimitedSeparatedBy`] - Delimited lists with separators
 /// - [`Repeated`] - The underlying repetition parser
 /// - [`delimited_by`](Repeated::delimited_by) - How to create this combinator
 /// - [`collect`](DelimitedBy::collect) - Collect elements into a container

@@ -801,7 +801,7 @@ where
   /// Saves the current state of the tokenizer as a checkpoint.
   ///
   /// This creates a snapshot of the current position and lexer state, which can
-  /// later be restored using [`go`](Self::go). Checkpoints are essential for
+  /// later be restored using [`restore`](Self::restore). Checkpoints are essential for
   /// implementing backtracking in parsers.
   ///
   /// # Example
@@ -892,7 +892,7 @@ where
 
   /// Advances the cursor and returns the next token (valid or error).
   ///
-  /// Unlike [`next_valid_with`](Self::next_valid_with), this method returns both
+  /// Unlike [`next_token`](Self::next_token), this method returns both
   /// valid tokens and lexer errors wrapped in [`Lexed`]. The cursor advances
   /// regardless of whether a valid token or error is returned.
   ///

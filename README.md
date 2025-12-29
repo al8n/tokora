@@ -98,6 +98,7 @@ Tokit's emitter system uses **atomically composable traits** - small, focused tr
 - **Delimiters**: `DelimitedEmitter`
 
 This design provides:
+
 - **Fine-grained control**: Implement only the traits you need
 - **Composability**: Mix and match traits to build custom strategies
 - **Extensibility**: Create specialized emitters for specific use cases
@@ -124,6 +125,7 @@ Tokit provides complete implementations that implement all atomic traits with co
 - Generating detailed error reports for language servers
 
 **Custom Emitters**: Thanks to the atomically composable trait design, you can create custom error handling strategies by implementing only the traits you need. You compose small, focused traits to build exactly the behavior you want. For example, you could build an emitter that:
+
 - Implements only `Emitter` + `TooFewEmitter` for a parser that only needs those scenarios
 - Limits the maximum number of errors before stopping
 - Filters errors by severity level
@@ -156,6 +158,7 @@ Tokit provides built-in parser combinators for resilient parsing that can contin
 #### Recovery Patterns
 
 **Alternative Parsing** (with backtracking):
+
 ```rust,ignore
 // Try parsing as function, fall back to error item
 let parser = parse_function()
@@ -165,6 +168,7 @@ let parser = parse_function()
 ```
 
 **Synchronization Points** (without backtracking):
+
 ```rust,ignore
 // Parse statement, skip to semicolon on error
 let parser = parse_statement()
@@ -178,6 +182,7 @@ let parser = parse_statement()
 ```
 
 **Comprehensive Error Collection**:
+
 ```rust,ignore
 // Use with Verbose emitter to collect all errors
 let emitter = Verbose::new();
@@ -214,8 +219,6 @@ Check out the examples directory:
 ```bash
 # JSON token parsing with map combinators
 cargo run --example json
-
-# Note: The calculator examples are being updated for v0.3.0 API
 ```
 
 ## Architecture

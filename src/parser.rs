@@ -102,41 +102,42 @@
 //!
 //! ## Basic Parsers
 //!
-//! - [`any`] - Accept any single token
-//! - [`expect`] - Expect specific token, emit error if not found
-//! - [`empty`] - No-op parser
-//! - [`todo`] - Placeholder for incomplete implementations
+//! - `any` - Accept any single token
+//! - `expect` - Expect specific token, emit error if not found
+//! - `empty` - No-op parser
+//! - `todo` - Placeholder for incomplete implementations
 //!
 //! ## Sequencing
 //!
-//! - [`then`] - Sequential composition: parse `p1` then `p2`
-//! - [`then_ignore`] - Parse both, keep only first result
-//! - [`ignore_then`] - Parse both, keep only second result
+//! - `then` - Sequential composition: parse `p1` then `p2`
+//! - `then_ignore` - Parse both, keep only first result
+//! - `ignore_then` - Parse both, keep only second result
 //!
 //! ## Repetition & Collections
 //!
-//! - [`repeated`] - Repeat until condition returns `Action::Stop`
-//! - [`separated_by`](SeparatedBy) - Parse elements separated by delimiter
-//! - [`delim`] - Parse delimited content (e.g., parentheses)
-//! - [`delim_seq`] - Parse delimited, separated sequences
+//! - `repeated` - Repeat until condition returns `Action::Stop`
+//! - `separated_by` - Parse elements separated by delimiter
+//! - `delim` - Parse delimited content (e.g., parentheses)
+//! - `delim_seq` - Parse delimited, separated sequences
 //!
 //! ## Lookahead & Conditional (Deterministic)
 //!
-//! - [`peek_then`](PeekThen) - Peek ahead with fixed window, make deterministic decision
-//! - [`peek_then_choice`](PeekThenChoice) - Choose between alternatives based on lookahead
-//! - [`or_not`](OrNot) - Optional parsing
+//! - `peek_then` - Peek ahead with fixed window, make deterministic decision
+//! - `peek_then_choice` - Choose between alternatives based on lookahead
+//! - `or_not` - Optional parsing
 //!
 //! ## Transformation
 //!
-//! - [`map`](Map) - Transform output
-//! - [`filter`](Filter) - Filter with validation
-//! - [`filter_map`](FilterMap) - Filter and transform
-//! - [`validate`](Validate) - Validate with full location context
+//! - `map` - Transform output
+//! - `filter` - Filter with validation
+//! - `filter_map` - Filter and transform
+//! - `validate` - Validate with full location context
 //!
 //! ## Error Recovery
 //!
-//! - [`recover`](Recover) - Try parser, use recovery on error
-//! - [`padded`](Padded) - Skip trivia (whitespace/comments) before and after
+//! - `recover` - Try parser, use recovery on error with backtracking
+//! - `inplace_recover` - Try parser, use recovery on error without backtracking
+//! - `padded` - Skip trivia (whitespace/comments) before and after
 //!
 //! # Performance Characteristics
 //!
@@ -372,7 +373,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Creates a `Repeated` combinator that applies this parser repeatedly
-  /// until the condition handler `Condition` returns [`RepeatedAction::End`] or an fatal error.
+  /// until the condition handler `Condition` returns [`Action::Stop`] or an fatal error.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn repeated<Condition, W>(
     self,
@@ -418,7 +419,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     DoubleColon,
     Arrow,
     FatArrow,
-    Tilde, 
+    Tilde,
     Slash,
     BackSlash,
     Percent,

@@ -79,7 +79,7 @@
 ///
 /// # See Also
 ///
-/// - [`unwrapped`](crate::parser::ParseInput::unwrapped) - Convert `Option<T>` back to `T` (panics on None)
+/// - [`unwrap`](crate::parser::ParseInputUnwrapExt::unwrap) - Convert `Option<T>` back to `T` (panics on None)
 /// - [`peek_then_choice_or_not`](crate::parser::ParseChoice::peek_then_choice_or_not) - Creates OrNot with lookahead
 /// - [`filter_map`](crate::parser::FilterMap) - Transform and optionally filter
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

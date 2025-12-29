@@ -2,11 +2,11 @@ use core::marker::PhantomData;
 
 use super::{Cursor, Lexer};
 
-/// A checkpoint that captures the tokenizer's state for backtracking.
+/// A checkpoint that captures the lexer's state for backtracking.
 ///
-/// A `Checkpoint` stores a snapshot of the tokenizer's position and lexer state
+/// A `Checkpoint` stores a snapshot of the lexer's position and state
 /// at a specific point in time. This allows you to save the current state using
-/// [`Tokenizer::save`] and later restore it using [`Tokenizer::go`], enabling
+/// [`InputRef::save`](crate::lexer::InputRef::save) and later restore it using [`InputRef::restore`](crate::lexer::InputRef::restore), enabling
 /// efficient backtracking in parsers.
 ///
 /// Checkpoints include:

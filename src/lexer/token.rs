@@ -174,11 +174,11 @@ impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, T::Error> {
   }
 }
 
-/// The core trait for token types used with LogoSky.
+/// The core trait for token types used with Tokit.
 ///
 /// `Token` defines the interface that all token types must implement to work with
-/// LogoSky's [`Tokenizer`] and Chumsky parsers. It bridges the gap between Logos'
-/// lexical analysis and the structured token representation needed for parsing.
+/// Tokit's [`Lexer`](crate::Lexer) trait. It bridges the gap between lexical analysis and the
+/// structured token representation needed for parsing.
 ///
 /// # Design
 ///

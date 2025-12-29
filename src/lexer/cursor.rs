@@ -4,9 +4,9 @@ use super::{Lexer, Span};
 
 /// A cursor representing a position in the input source.
 ///
-/// `Cursor` is a lightweight type that wraps a byte offset into the tokenizer's
-/// input source. It's used by [`Checkpoint`] to track positions and is returned
-/// by [`Input::cursor`] to query the current position.
+/// `Cursor` is a lightweight type that wraps a byte offset into the lexer's
+/// input source. It's used by [`Checkpoint`](crate::lexer::Checkpoint) to track positions and represents
+/// the current position in the input stream.
 ///
 /// The cursor position represents:
 /// - The byte offset in the input where the tokenizer will continue lexing

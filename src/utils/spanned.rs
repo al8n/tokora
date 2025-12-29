@@ -4,7 +4,7 @@ use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
 
 /// A value paired with its source location span.
 ///
-/// `Spanned<D>` combines a value of type `D` with a [`Span`] that indicates where in
+/// `Spanned<D>` combines a value of type `D` with a span `S` that indicates where in
 /// the source input the value came from. This is fundamental for building parsers and
 /// compilers that need to track source locations for error reporting, debugging, and
 /// IDE integration.

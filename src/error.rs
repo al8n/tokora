@@ -254,9 +254,8 @@ mod unicode_escape;
 ///
 /// # See Also
 ///
-/// - [`via_parser`](crate::chumsky::recovery::via_parser): Recovery combinator
-/// - [`or_else`](crate::chumsky::Parser::or_else): Fallback for failed parsing
-/// - [`DelimitedByBrace`](crate::chumsky::delimited::DelimitedByBrace): Delimited parser with recovery
+/// - [`Recover`](crate::parser::Recover): Recovery combinator with backtracking
+/// - [`InplaceRecover`](crate::parser::InplaceRecover): Recovery combinator without backtracking
 pub trait ErrorNode<S = SimpleSpan> {
   /// Creates a placeholder node for **malformed content**.
   ///

@@ -120,10 +120,9 @@ mod parse;
 ///
 /// # Error Handling
 ///
-/// The parser emits errors via the [`RepeatedEmitter`](crate::emitter::RepeatedEmitter) trait:
-/// - Too few elements (below minimum)
-/// - Too many elements (above maximum)
-/// - Container full
+/// The parser emits errors via the traits:
+/// - [`TooFewEmitter`](crate::emitter::TooFewEmitter): Too few elements (below minimum)
+/// - [`TooManyEmitter`](crate::emitter::TooManyEmitter): Too many elements (above maximum)
 ///
 /// # Performance
 ///

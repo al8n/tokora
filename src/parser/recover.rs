@@ -441,7 +441,7 @@ where
 /// # See Also
 ///
 /// - [`Recover`] - Error recovery with backtracking
-/// - [`skip_until`](crate::parser::ParseInput::skip_until) - Common recovery pattern
+/// - [`skip_until`](crate::parser::InputRef::skip_until) - Common recovery pattern
 /// - [`or_not`](OrNot) - Optional parsing without error emission
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct InplaceRecover<P, R, O, L, Ctx, Lang: ?Sized = ()> {

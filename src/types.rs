@@ -9,37 +9,37 @@
 //!
 //! ## Identifiers
 //!
-//! - [`Ident`]: Generic identifier with span tracking and language marker
+//! - `Ident`: Generic identifier with span tracking and language marker
 //!
 //! ## Generic Literal
 //!
-//! - [`Lit`]: Generic literal (any literal type)
+//! - `Lit`: Generic literal (any literal type)
 //!
 //! ## Numeric Literals
 //!
-//! - [`LitDecimal`]: Decimal integer (e.g., `42`, `1_000`)
-//! - [`LitHex`]: Hexadecimal integer (e.g., `0xFF`, `0x1A2B`)
-//! - [`LitOctal`]: Octal integer (e.g., `0o77`, `0o644`)
-//! - [`LitBinary`]: Binary integer (e.g., `0b1010`)
-//! - [`LitFloat`]: Floating-point (e.g., `3.14`, `1.0e-5`)
-//! - [`LitHexFloat`]: Hexadecimal float (e.g., `0x1.8p3`)
+//! - `LitDecimal`: Decimal integer (e.g., `42`, `1_000`)
+//! - `LitHex`: Hexadecimal integer (e.g., `0xFF`, `0x1A2B`)
+//! - `LitOctal`: Octal integer (e.g., `0o77`, `0o644`)
+//! - `LitBinary`: Binary integer (e.g., `0b1010`)
+//! - `LitFloat`: Floating-point (e.g., `3.14`, `1.0e-5`)
+//! - `LitHexFloat`: Hexadecimal float (e.g., `0x1.8p3`)
 //!
 //! ## String Literals
 //!
-//! - [`LitString`]: Single-line string (e.g., `"hello"`)
-//! - [`LitMultilineString`]: Multi-line string (e.g., `"""..."""`)
-//! - [`LitRawString`]: Raw string (e.g., `r"C:\path"`)
+//! - `LitString`: Single-line string (e.g., `"hello"`)
+//! - `LitMultilineString`: Multi-line string (e.g., `"""..."""`)
+//! - `LitRawString`: Raw string (e.g., `r"C:\path"`)
 //!
 //! ## Character/Byte Literals
 //!
-//! - [`LitChar`]: Character literal (e.g., `'a'`)
-//! - [`LitByte`]: Byte literal (e.g., `b'a'`)
-//! - [`LitByteString`]: Byte string (e.g., `b"bytes"`)
+//! - `LitChar`: Character literal (e.g., `'a'`)
+//! - `LitByte`: Byte literal (e.g., `b'a'`)
+//! - `LitByteString`: Byte string (e.g., `b"bytes"`)
 //!
 //! ## Boolean and Null
 //!
-//! - [`LitBool`]: Boolean literal (`true`/`false`)
-//! - [`LitNull`]: Null/nil literal
+//! - `LitBool`: Boolean literal (`true`/`false`)
+//! - `LitNull`: Null/nil literal
 //!
 //! # Design Principles
 //!
