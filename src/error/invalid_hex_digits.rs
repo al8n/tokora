@@ -304,7 +304,7 @@ where
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from(
   ///     PositionedChar::with_position('G', 10)
   /// );
-  /// digits.bump(5);
+  /// digits.bump(&5);
   /// assert_eq!(digits[0].position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

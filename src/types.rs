@@ -57,7 +57,7 @@
 //!
 //! ```rust,ignore
 //! use tokit::types::Ident;
-//! use tokit::utils::Span;
+//! use tokit::utils::SimpleSpan;
 //!
 //! // Define your language marker
 //! struct MyLang;
@@ -65,12 +65,12 @@
 //! // Define expression type using Ident
 //! enum Expr<'a> {
 //!     Variable(Ident<&'a str, MyLang>),
-//!     Number(i64, Span),
-//!     Add(Box<Expr<'a>>, Box<Expr<'a>>, Span),
+//!     Number(i64, SimpleSpan),
+//!     Add(Box<Expr<'a>>, Box<Expr<'a>>, SimpleSpan),
 //! }
 //!
 //! // Create an expression
-//! let var = Ident::new(Span::new(0, 1), "x");
+//! let var = Ident::new(SimpleSpan::new(0, 1), "x");
 //! let expr = Expr::Variable(var);
 //! ```
 

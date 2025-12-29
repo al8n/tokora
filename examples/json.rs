@@ -297,7 +297,7 @@ impl<'inp> TokenT<'inp> for Token<'inp> {
   }
 }
 
-type JsonLexer<'a> = tokit::lexer::LogosLexer<'a, Token<'a>, Token<'a>>;
+type JsonLexer<'a> = tokit::lexer::LogosLexer<'a, Token<'a>>;
 
 // Example of using map combinator to extract token values
 #[derive(Debug, Clone)]

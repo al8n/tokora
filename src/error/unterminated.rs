@@ -97,7 +97,7 @@
 //! let mut error = Unterminated::new(SimpleSpan::new(5, 7), "string escape sequence");
 //!
 //! // Adjust to absolute position in the larger document
-//! error.bump(100);
+//! error.bump(&100);
 //! assert_eq!(error.span(), SimpleSpan::new(105, 107));
 //! ```
 
@@ -279,7 +279,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// use tokit::{error::Unterminated, utils::SimpleSpan};
   ///
   /// let mut error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
-  /// error.bump(100);
+  /// error.bump(&100);
   /// assert_eq!(error.span(), SimpleSpan::new(105, 107));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

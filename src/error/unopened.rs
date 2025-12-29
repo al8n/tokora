@@ -102,7 +102,7 @@
 //! let mut error = Unopened::new(SimpleSpan::new(5, 6), '}');
 //!
 //! // Adjust to absolute position in the larger document
-//! error.bump(100);
+//! error.bump(&100);
 //! assert_eq!(error.span(), SimpleSpan::new(105, 106));
 //! ```
 use crate::{
@@ -492,7 +492,7 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// use tokit::{error::Unopened, utils::SimpleSpan};
   ///
   /// let mut error = Unopened::new(SimpleSpan::new(5, 6), ')');
-  /// error.bump(100);
+  /// error.bump(&100);
   /// assert_eq!(error.span(), SimpleSpan::new(105, 106));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

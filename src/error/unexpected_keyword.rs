@@ -259,7 +259,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   ///     "var",
   ///     "let"
   /// );
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 18));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

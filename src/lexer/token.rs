@@ -1110,8 +1110,7 @@ pub trait LitToken<'a>: Token<'a> {
 ///
 /// impl<'a> Token<'a> for MyToken<'a> {
 ///     type Char = char;
-///     type Kind = MyTokenKind;
-///     type Logos = MyTokens<'a>;
+///     type Error = ();
 ///
 ///     fn kind(&self) -> Self::Kind {
 ///         match self {
@@ -1119,6 +1118,10 @@ pub trait LitToken<'a>: Token<'a> {
 ///            MyToken::If => MyTokenKind::KeywordIf,
 ///            MyToken::Else => MyTokenKind::KeywordElse,
 ///         }
+///     }
+///
+///     fn is_trivia(&self) -> bool {
+///         false
 ///     }
 /// }
 ///

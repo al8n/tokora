@@ -17,9 +17,9 @@ use crate::utils::Message;
 /// # Example
 ///
 /// ```rust
-/// use tokit::{error::UnexpectedEnd, utils::Span};
+/// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
 ///
-/// let error = UnexpectedEnd::eof(Span::new(100, 101));
+/// let error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
 /// assert_eq!(error.to_string(), "unexpected end of file, expected byte");
 /// ```
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Display)]
@@ -39,9 +39,9 @@ pub struct FileHint;
 /// # Example
 ///
 /// ```rust
-/// use tokit::{error::UnexpectedEnd, utils::Span};
+/// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
 ///
-/// let error = UnexpectedEnd::eot(Span::new(100, 101));
+/// let error = UnexpectedEnd::eot(SimpleSpan::new(100, 101));
 /// assert_eq!(error.to_string(), "unexpected end of token stream, expected token");
 /// ```
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Display)]
@@ -61,9 +61,9 @@ pub struct TokenHint;
 /// # Example
 ///
 /// ```rust
-/// use tokit::{error::UnexpectedEnd, utils::Span};
+/// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
 ///
-/// let error = UnexpectedEnd::eos(Span::new(100, 101));
+/// let error = UnexpectedEnd::eos(SimpleSpan::new(100, 101));
 /// assert_eq!(error.to_string(), "unexpected end of string, expected character");
 /// ```
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Display)]
@@ -110,17 +110,17 @@ pub struct CharacterHint;
 /// ## Using Convenience Constructors
 ///
 /// ```rust
-/// use tokit::{error::{UnexpectedEnd, UnexpectedEof, UnexpectedEot}, utils::Span};
+/// use tokit::{error::{UnexpectedEnd, UnexpectedEof, UnexpectedEot}, utils::SimpleSpan};
 ///
 /// // Unexpected end of file at position 100
-/// let eof = UnexpectedEnd::eof(Span::new(100, 101));
+/// let eof = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
 /// assert_eq!(eof.to_string(), "unexpected end of file, expected byte");
-/// assert_eq!(eof.span(), Span::new(100, 101));
+/// assert_eq!(eof.span(), SimpleSpan::new(100, 101));
 ///
 /// // Unexpected end of token stream at position 50
-/// let eot = UnexpectedEnd::eot(Span::new(50, 51));
+/// let eot = UnexpectedEnd::eot(SimpleSpan::new(50, 51));
 /// assert_eq!(eot.to_string(), "unexpected end of token stream, expected token");
-/// assert_eq!(eot.span(), Span::new(50, 51));
+/// assert_eq!(eot.span(), SimpleSpan::new(50, 51));
 /// ```
 ///
 /// ## Custom Names and Hints
@@ -217,10 +217,10 @@ impl<O> UnexpectedEnd<FileHint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::eof(Span::new(100, 101));
-  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// let error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
+  /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert_eq!(error.name(), Some("file"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -235,10 +235,10 @@ impl<O, Lang: ?Sized> UnexpectedEnd<FileHint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::eof(Span::new(100, 101));
-  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// let error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
+  /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert_eq!(error.name(), Some("file"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -253,10 +253,10 @@ impl<O> UnexpectedEnd<TokenHint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::eot(Span::new(50, 51));
-  /// assert_eq!(error.span(), Span::new(50, 51));
+  /// let error = UnexpectedEnd::eot(SimpleSpan::new(50, 51));
+  /// assert_eq!(error.span(), SimpleSpan::new(50, 51));
   /// assert_eq!(error.name(), Some("token stream"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -275,10 +275,10 @@ impl<O, Lang: ?Sized> UnexpectedEnd<TokenHint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::eot(Span::new(50, 51));
-  /// assert_eq!(error.span(), Span::new(50, 51));
+  /// let error = UnexpectedEnd::eot(SimpleSpan::new(50, 51));
+  /// assert_eq!(error.span(), SimpleSpan::new(50, 51));
   /// assert_eq!(error.name(), Some("token stream"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -297,10 +297,10 @@ impl<O> UnexpectedEnd<CharacterHint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::eos(Span::new(25, 25));
-  /// assert_eq!(error.span(), Span::new(25, 25));
+  /// let error = UnexpectedEnd::eos(SimpleSpan::new(25, 25));
+  /// assert_eq!(error.span(), SimpleSpan::new(25, 25));
   /// assert_eq!(error.name(), Some("string"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -315,10 +315,10 @@ impl<O, Lang: ?Sized> UnexpectedEnd<CharacterHint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::eos(Span::new(25, 25));
-  /// assert_eq!(error.span(), Span::new(25, 25));
+  /// let error = UnexpectedEnd::eos(SimpleSpan::new(25, 25));
+  /// assert_eq!(error.span(), SimpleSpan::new(25, 25));
   /// assert_eq!(error.name(), Some("string"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -333,11 +333,11 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::Span};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::new(Span::new(10, 10), FileHint);
+  /// let error = UnexpectedEnd::new(SimpleSpan::new(10, 10), FileHint);
   /// assert_eq!(error.name(), None);
-  /// assert_eq!(error.span(), Span::new(10, 10));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(offset: O, hint: Hint) -> Self {
@@ -353,9 +353,9 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// # #[cfg(feature = "std")] {
   /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
-  /// let error = UnexpectedEnd::maybe_name(Span::new(10, 10), Some(Message::from_static("string")), FileHint);
+  /// let error = UnexpectedEnd::maybe_name(SimpleSpan::new(10, 10), Some(Message::from_static("string")), FileHint);
   /// assert_eq!(error.name(), Some("string"));
-  /// assert_eq!(error.span(), Span::new(10, 10));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 10));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -371,9 +371,9 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// # #[cfg(feature = "std")] {
   /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
-  /// let error = UnexpectedEnd::with_name(Span::new(20, 20), Message::from_static("block"), FileHint);
+  /// let error = UnexpectedEnd::with_name(SimpleSpan::new(20, 20), Message::from_static("block"), FileHint);
   /// assert_eq!(error.name(), Some("block"));
-  /// assert_eq!(error.span(), Span::new(20, 20));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 20));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -386,11 +386,11 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::{UnexpectedEnd, TokenHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, TokenHint}, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::with_hint(Span::new(15, 15), TokenHint);
+  /// let error = UnexpectedEnd::with_hint(SimpleSpan::new(15, 15), TokenHint);
   /// assert_eq!(error.name(), None);
-  /// assert_eq!(error.span(), Span::new(15, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_hint(offset: O, hint: Hint) -> Self {
@@ -404,11 +404,11 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::Span};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::new(Span::new(10, 10), FileHint);
+  /// let error = UnexpectedEnd::new(SimpleSpan::new(10, 10), FileHint);
   /// assert_eq!(error.name(), None);
-  /// assert_eq!(error.span(), Span::new(10, 10));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn of(offset: O, hint: Hint) -> Self {
@@ -424,9 +424,9 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// # #[cfg(feature = "std")] {
   /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
-  /// let error = UnexpectedEnd::maybe_name(Span::new(10, 10), Some(Message::from_static("string")), FileHint);
+  /// let error = UnexpectedEnd::maybe_name(SimpleSpan::new(10, 10), Some(Message::from_static("string")), FileHint);
   /// assert_eq!(error.name(), Some("string"));
-  /// assert_eq!(error.span(), Span::new(10, 10));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 10));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -447,9 +447,9 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// # #[cfg(feature = "std")] {
   /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
-  /// let error = UnexpectedEnd::with_name(Span::new(20, 20), Message::from_static("block"), FileHint);
+  /// let error = UnexpectedEnd::with_name(SimpleSpan::new(20, 20), Message::from_static("block"), FileHint);
   /// assert_eq!(error.name(), Some("block"));
-  /// assert_eq!(error.span(), Span::new(20, 20));
+  /// assert_eq!(error.span(), SimpleSpan::new(20, 20));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -462,11 +462,11 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::{UnexpectedEnd, TokenHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, TokenHint}, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::with_hint(Span::new(15, 15), TokenHint);
+  /// let error = UnexpectedEnd::with_hint(SimpleSpan::new(15, 15), TokenHint);
   /// assert_eq!(error.name(), None);
-  /// assert_eq!(error.span(), Span::new(15, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_hint_of(offset: O, hint: Hint) -> Self {
@@ -483,9 +483,9 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::{UnexpectedEnd, FileHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint}, utils::SimpleSpan};
   ///
-  /// let mut error = UnexpectedEnd::new(Span::new(10, 11), FileHint);
+  /// let mut error = UnexpectedEnd::new(SimpleSpan::new(10, 11), FileHint);
   /// error.set_name("expression");
   /// assert_eq!(error.name(), Some("expression"));
   /// ```
@@ -503,7 +503,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// # #[cfg(feature = "std")] {
   /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
-  /// let mut error = UnexpectedEnd::with_name(Span::new(10, 11), Message::from_static("old"), FileHint);
+  /// let mut error = UnexpectedEnd::with_name(SimpleSpan::new(10, 11), Message::from_static("old"), FileHint);
   /// error.update_name(Some("new"));
   /// assert_eq!(error.name(), Some("new"));
   /// # }
@@ -522,7 +522,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// # #[cfg(feature = "std")] {
   /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
   ///
-  /// let mut error = UnexpectedEnd::with_name(Span::new(10, 11), Message::from_static("block"), FileHint);
+  /// let mut error = UnexpectedEnd::with_name(SimpleSpan::new(10, 11), Message::from_static("block"), FileHint);
   /// error.clear_name();
   /// assert_eq!(error.name(), None);
   /// # }
@@ -538,9 +538,9 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::eof(Span::new(100, 101));
+  /// let error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
   /// assert_eq!(error.name(), Some("file"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -556,9 +556,9 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::{UnexpectedEnd, FileHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint}, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::eof(Span::new(100, 101));
+  /// let error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
   /// // FileHint is a zero-sized type
   /// let _ = error.hint();
   /// ```
@@ -572,9 +572,9 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::{UnexpectedEnd, FileHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint}, utils::SimpleSpan};
   ///
-  /// let mut error = UnexpectedEnd::eof(Span::new(100, 101));
+  /// let mut error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
   /// let old_hint = error.replace_hint(FileHint);
   /// // old_hint is FileHint
   /// ```
@@ -588,12 +588,12 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::SimpleSpan};
   ///
-  /// let file_error = UnexpectedEnd::eof(Span::new(100, 101));
+  /// let file_error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
   /// let token_error = file_error.map_hint(|_| TokenHint);
   /// assert_eq!(token_error.name(), Some("file"));
-  /// assert_eq!(token_error.span(), Span::new(100, 101));
+  /// assert_eq!(token_error.span(), SimpleSpan::new(100, 101));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn map_hint<F, NewHint>(self, f: F) -> UnexpectedEnd<NewHint, O, Lang>
@@ -613,12 +613,12 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::SimpleSpan};
   ///
-  /// let file_error = UnexpectedEnd::eof(Span::new(100, 101));
+  /// let file_error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
   /// let token_error = file_error.reconstruct(Some("block"), |_| TokenHint);
   /// assert_eq!(token_error.name(), Some("block"));
-  /// assert_eq!(token_error.span(), Span::new(100, 101));
+  /// assert_eq!(token_error.span(), SimpleSpan::new(100, 101));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn reconstruct<F, NewHint>(
@@ -637,12 +637,12 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::Span};
+  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::SimpleSpan};
   ///
-  /// let file_error = UnexpectedEnd::eof(Span::new(100, 101));
+  /// let file_error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
   /// let token_error = file_error.reconstruct_with_name("expression", |_| TokenHint);
   /// assert_eq!(token_error.name(), Some("expression"));
-  /// assert_eq!(token_error.span(), Span::new(100, 101));
+  /// assert_eq!(token_error.span(), SimpleSpan::new(100, 101));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn reconstruct_with_name<F, NewHint>(
@@ -664,10 +664,10 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// # #[cfg(feature = "std")] {
   /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::{Message, Span}};
   ///
-  /// let file_error = UnexpectedEnd::with_name(Span::new(10, 10), Message::from_static("file"), FileHint);
+  /// let file_error = UnexpectedEnd::with_name(SimpleSpan::new(10, 10), Message::from_static("file"), FileHint);
   /// let token_error = file_error.reconstruct_without_name(|_| TokenHint);
   /// assert_eq!(token_error.name(), None);
-  /// assert_eq!(token_error.span(), Span::new(10, 10));
+  /// assert_eq!(token_error.span(), SimpleSpan::new(10, 10));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -683,10 +683,10 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::eof(Span::new(100, 101));
-  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// let error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
+  /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn offset(&self) -> O
@@ -716,11 +716,11 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
   ///
-  /// let mut error = UnexpectedEnd::eof(Span::new(10, 10));
-  /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 15));
+  /// let mut error = UnexpectedEnd::eof(SimpleSpan::new(10, 10));
+  /// error.bump(&5);
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, n: &O) -> &mut Self
@@ -736,11 +736,11 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd, utils::Span};
+  /// use tokit::{error::UnexpectedEnd, utils::SimpleSpan};
   ///
-  /// let error = UnexpectedEnd::eof(Span::new(100, 101));
+  /// let error = UnexpectedEnd::eof(SimpleSpan::new(100, 101));
   /// let (span, name, hint) = error.into_components();
-  /// assert_eq!(span, Span::new(100, 101));
+  /// assert_eq!(span, SimpleSpan::new(100, 101));
   /// assert_eq!(name, Some("file".into()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

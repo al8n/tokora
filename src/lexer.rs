@@ -7,7 +7,7 @@ use crate::utils::{SimpleSpan, Spanned};
 pub(crate) use input::Input;
 
 #[cfg(feature = "logos")]
-pub use self::logos::LogosLexer;
+pub use self::logos::{FromLogos, LogosLexer};
 pub use cache::*;
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;

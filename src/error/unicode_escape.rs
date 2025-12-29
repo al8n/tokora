@@ -349,7 +349,7 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
   ///     InvalidFixedUnicodeHexDigits::from(PositionedChar::with_position('G', 12)),
   ///     SimpleSpan::new(10, 16)
   /// );
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 21));
   /// ```
   #[inline]
@@ -552,7 +552,7 @@ impl<O> InvalidUnicodeScalarValue<O> {
   ///     SimpleSpan::new(10, 18),
   ///     InvalidUnicodeScalarKind::Surrogate
   /// );
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 23));
   /// ```
   #[inline]
@@ -687,7 +687,7 @@ impl<O> EmptyVariableUnicodeEscape<O> {
   /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = EmptyVariableUnicodeEscape::new(SimpleSpan::new(10, 14));
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 19));
   /// ```
   #[inline]
@@ -893,7 +893,7 @@ impl<Char, O> MalformedVariableUnicodeSequence<Char, O> {
   /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = MalformedVariableUnicodeSequence::from_char(10, 'G');
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 16));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -1028,7 +1028,7 @@ impl<O> TooManyDigitsInVariableUnicodeEscape<O> {
   /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = TooManyDigitsInVariableUnicodeEscape::new(SimpleSpan::new(10, 20), 7);
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -1243,7 +1243,7 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
   ///
   /// let mut error: VariableUnicodeEscapeError<char> =
   ///     VariableUnicodeEscapeError::empty(SimpleSpan::new(10, 14));
-  /// error.bump(5);
+  /// error.bump(&5);
   /// // Now the span would be adjusted by 5
   /// ```
   #[inline]
@@ -1449,7 +1449,7 @@ impl<O> IncompleteFixedUnicodeEscape<O> {
   /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 12));
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 17));
   /// ```
   #[inline]
@@ -1609,7 +1609,7 @@ impl<Char, O> FixedUnicodeEscapeError<Char, O> {
   ///
   /// let mut error: FixedUnicodeEscapeError =
   ///     FixedUnicodeEscapeError::Incomplete(IncompleteFixedUnicodeEscape::new(SimpleSpan::new(10, 14)));
-  /// error.bump(5);
+  /// error.bump(&5);
   /// // The span is now adjusted
   /// ```
   #[inline]
@@ -1987,7 +1987,7 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
   /// let mut error = UnicodeEscapeError::<char>::empty_variable_unicode_escape(
   ///     SimpleSpan::new(10, 14)
   /// );
-  /// error.bump(5);
+  /// error.bump(&5);
   /// // The span is now adjusted by 5
   /// ```
   #[inline]

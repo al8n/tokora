@@ -20,11 +20,11 @@
 //! When the parser reaches the end of input missingly, use constructors without a found token:
 //!
 //! ```
-//! use tokit::{utils::Span, error::MissingToken};
+//! use tokit::{utils::SimpleSpan, error::token::MissingToken};
 //!
 //! // Simple end-of-input error
 //! let error: MissingToken<&str, &str> = MissingToken::expected_one(
-//!     Span::new(100, 100),
+//!     SimpleSpan::new(100, 100),
 //!     "}"
 //! );
 //! assert_eq!(format!("{}", error), "missing end of input, expected '}'");
@@ -35,10 +35,10 @@
 //! When a specific token was found but something else was expected:
 //!
 //! ```
-//! use tokit::{utils::{Expected, Span}, error::MissingToken};
+//! use tokit::{utils::{Expected, SimpleSpan}, error::token::MissingToken};
 //!
 //! let error = MissingToken::expected_one_with_found(
-//!     Span::new(10, 15),
+//!     SimpleSpan::new(10, 15),
 //!     "else",
 //!     "if"
 //! );
@@ -81,20 +81,20 @@ pub type MissingSeparatorOf<'inp, Sep, L, Lang = ()> = MissingToken<
 /// # Examples
 ///
 /// ```
-/// use tokit::{utils::{Expected, Span}, error::MissingToken};
+/// use tokit::{utils::{Expected, SimpleSpan}, error::token::MissingToken};
 ///
 /// // Error when expecting a specific token but got something else
 /// let error = MissingToken::expected_one_with_found(
-///     Span::new(10, 15),
+///     SimpleSpan::new(10, 15),
 ///     "}",
 ///     "{"
 /// );
-/// assert_eq!(error.span(), Span::new(10, 15));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 15));
 /// assert_eq!(format!("{}", error), "missing token '}', expected '{'");
 ///
 /// // Error when expecting one of multiple tokens
 /// let error = MissingToken::expected_one_of_with_found(
-///     Span::new(0, 10),
+///     SimpleSpan::new(0, 10),
 ///     "identifier",
 ///     &["if", "while", "for"]
 /// );
@@ -105,7 +105,7 @@ pub type MissingSeparatorOf<'inp, Sep, L, Lang = ()> = MissingToken<
 ///
 /// // Error when reaching end of input missingly
 /// let error: MissingToken<&str, &str> = MissingToken::expected_one(
-///     Span::new(100, 100),
+///     SimpleSpan::new(100, 100),
 ///     "}"
 /// );
 /// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
@@ -235,14 +235,14 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::new(
-  ///     Span::new(100, 101),
+  ///     SimpleSpan::new(100, 101),
   ///     Expected::one("}")
   /// );
   /// assert!(error.found().is_none());
-  /// assert_eq!(error.span(), Span::new(100, 101));
+  /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -258,10 +258,10 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::Span, error::MissingToken};
+  /// use tokit::{utils::SimpleSpan, error::token::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::expected_one(
-  ///     Span::new(50, 51),
+  ///     SimpleSpan::new(50, 51),
   ///     ";"
   /// );
   /// assert!(error.found().is_none());
@@ -280,10 +280,10 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::Span, error::MissingToken};
+  /// use tokit::{utils::SimpleSpan, error::token::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::expected_one_with_found(
-  ///     Span::new(50, 51),
+  ///     SimpleSpan::new(50, 51),
   ///     ":",
   ///     ";"
   /// );
@@ -303,10 +303,10 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::Span, error::MissingToken};
+  /// use tokit::{utils::SimpleSpan, error::token::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::expected_one_of(
-  ///     Span::new(25, 26),
+  ///     SimpleSpan::new(25, 26),
   ///     &["+", "-", "*", "/"]
   /// );
   /// assert!(error.found().is_none());
@@ -328,10 +328,10 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::Span, error::MissingToken};
+  /// use tokit::{utils::SimpleSpan, error::token::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::expected_one_of_with_found(
-  ///     Span::new(25, 26),
+  ///     SimpleSpan::new(25, 26),
   ///     ":",
   ///     &["+", "-", "*", "/"]
   /// );
@@ -351,14 +351,14 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
-  ///     Span::new(10, 15),
+  ///     SimpleSpan::new(10, 15),
   ///     "identifier",
   ///     "number"
   /// );
-  /// assert_eq!(error.span(), Span::new(10, 15));
+  /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn offset(&self) -> O
@@ -373,7 +373,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
   ///     10,
@@ -392,7 +392,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
   ///     10,
@@ -423,10 +423,10 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
-  ///     Span::new(5, 6),
+  ///     SimpleSpan::new(5, 6),
   ///     "}",
   ///     "{"
   /// );
@@ -448,15 +448,15 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::MissingToken};
   ///
   /// let mut error = MissingToken::expected_one_with_found(
-  ///     Span::new(10, 15),
+  ///     SimpleSpan::new(10, 15),
   ///     "}",
   ///     "{"
   /// );
-  /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 20));
+  /// error.bump(&5);
+  /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &O)
@@ -475,10 +475,10 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   ///
   /// ```
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
-  ///    Span::new(0, 5),
+  ///    SimpleSpan::new(0, 5),
   ///   "identifier",
   ///   "number"
   /// );
@@ -508,15 +508,15 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::MissingToken};
   ///
   /// let error = MissingToken::expected_one_with_found(
-  ///     Span::new(5, 6),
+  ///     SimpleSpan::new(5, 6),
   ///     "}",
   ///     "{"
   /// );
-  /// let (span, found, expected) = error.into_components();
-  /// assert_eq!(span, Span::new(5, 6));
+  /// let (offset, found, expected) = error.into_components();
+  /// assert_eq!(offset, 5);
   /// assert_eq!(found, Some("}"));
   /// assert_eq!(expected, Expected::one("{"));
   /// ```

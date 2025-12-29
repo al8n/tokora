@@ -107,7 +107,7 @@
 //! let mut error = Undelimited::new(SimpleSpan::new(5, 6), '}');
 //!
 //! // Adjust to absolute position in the larger document
-//! error.bump(100);
+//! error.bump(&100);
 //! assert_eq!(error.span(), SimpleSpan::new(105, 106));
 //! ```
 
@@ -508,7 +508,7 @@ impl<Delimiter, S, Lang: ?Sized> Undelimited<Delimiter, S, Lang> {
   /// use tokit::{error::Undelimited, utils::SimpleSpan};
   ///
   /// let mut error = Undelimited::new(SimpleSpan::new(5, 10), '(');
-  /// error.bump(100);
+  /// error.bump(&100);
   /// assert_eq!(error.span(), SimpleSpan::new(105, 110));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

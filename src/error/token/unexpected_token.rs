@@ -20,7 +20,7 @@
 //! When the parser reaches the end of input unexpectedly, use constructors without a found token:
 //!
 //! ```
-//! use tokit::{utils::SimpleSpan, error::UnexpectedToken};
+//! use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
 //!
 //! // Simple end-of-input error
 //! let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
@@ -35,7 +35,7 @@
 //! When a specific token was found but something else was expected:
 //!
 //! ```
-//! use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+//! use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
 //!
 //! let error = UnexpectedToken::expected_one_with_found(
 //!     SimpleSpan::new(10, 15),
@@ -74,7 +74,7 @@ mod unexpected_trailing;
 /// # Examples
 ///
 /// ```
-/// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+/// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
 ///
 /// // Error when expecting a specific token but got something else
 /// let error = UnexpectedToken::expected_one_with_found(
@@ -183,7 +183,7 @@ impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::new(
   ///     SimpleSpan::new(100, 101),
@@ -206,7 +206,7 @@ impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::maybe_expected_of(
   ///     SimpleSpan::new(100, 101),
@@ -254,7 +254,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::new(
   ///     SimpleSpan::new(100, 101),
@@ -277,7 +277,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::maybe_expected_of(
   ///     SimpleSpan::new(100, 101),
@@ -300,7 +300,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedToken};
+  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(50, 51),
@@ -322,7 +322,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedToken};
+  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(50, 51),
@@ -345,7 +345,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedToken};
+  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_of(
   ///     SimpleSpan::new(25, 26),
@@ -370,7 +370,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedToken};
+  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_of_with_found(
   ///     SimpleSpan::new(25, 26),
@@ -397,7 +397,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// // With a found token
   /// let error = UnexpectedToken::expected_one(
@@ -430,7 +430,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// // With a found token
   /// let error = UnexpectedToken::expected_one(
@@ -465,7 +465,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(5, 10),
@@ -488,7 +488,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(5, 10),
@@ -511,7 +511,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
@@ -533,7 +533,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
@@ -552,14 +552,14 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let mut error = UnexpectedToken::expected_one_with_found(
   ///    SimpleSpan::new(10, 15),
   ///   "identifier",
   ///   "number"
   /// );
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -574,7 +574,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(0, 10),
@@ -599,7 +599,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(5, 6),
@@ -624,14 +624,14 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let mut error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
   ///     "}",
   ///     "{"
   /// );
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -651,7 +651,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   ///
   /// ```
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///    SimpleSpan::new(0, 5),
@@ -684,7 +684,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(5, 6),

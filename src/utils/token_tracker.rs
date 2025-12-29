@@ -374,7 +374,10 @@ impl TokenTracker for TokenLimiter {
 const _: () = {
   use logos::{Lexer, Logos};
 
-  use crate::{Token, lexer::LogosLexer};
+  use crate::{
+    Token,
+    lexer::{FromLogos, LogosLexer},
+  };
 
   impl<'a, T> TokenTracker for Lexer<'a, T>
   where
@@ -394,13 +397,12 @@ const _: () = {
     }
   }
 
-  impl<'a, T, L> TokenTracker for LogosLexer<'a, T, L>
+  impl<'a, T> TokenTracker for LogosLexer<'a, T>
   where
-    T: From<L> + Token<'a>,
-    L: Logos<'a>,
-    L::Extras: TokenTracker,
+    T: FromLogos<'a> + Token<'a>,
+    <T::Logos as Logos<'a>>::Extras: TokenTracker,
   {
-    type Error = <L::Extras as TokenTracker>::Error;
+    type Error = <<T::Logos as Logos<'a>>::Extras as TokenTracker>::Error;
 
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn increase(&mut self) {

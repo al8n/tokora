@@ -553,7 +553,7 @@ impl<Knowledge, S> Malformed<Knowledge, S> {
   /// use tokit::{error::Malformed, utils::SimpleSpan};
   ///
   /// let mut error: Malformed<()> = Malformed::new(SimpleSpan::new(10, 15));
-  /// error.bump(100);
+  /// error.bump(&100);
   /// assert_eq!(error.span(), SimpleSpan::new(110, 115));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
