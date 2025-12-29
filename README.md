@@ -201,10 +201,10 @@ Error recovery works seamlessly with the atomically composable emitter system - 
 ### Utilities
 
 - **Span Tracking**
-  - `Span` - Lightweight span representation
-  - `Spanned<T>` - Wrap value with span
-  - `Located<T>` - Wrap value with span and source slice
-  - `Sliced<T>` - Wrap value with source slice
+  - `SimpleSpan` - Lightweight span representation
+  - `Spanned<T, S>` - Wrap value with span
+  - `Located<T, S>` - Wrap value with span and source slice
+  - `Sliced<T, S>` - Wrap value with source slice
 
 - **Parser Configuration**
   - `Parser<F, L, O, Error, Context>` - Configurable parser
