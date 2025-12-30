@@ -5,7 +5,7 @@ pub use generic_arraydeque::GenericArrayDeque;
 pub use lexeme::*;
 pub use located::*;
 pub use message::Message;
-pub use oneof::{OneOf, Ownable};
+pub use oneof::OneOf;
 pub use positioned_char::*;
 pub use sliced::*;
 pub use span::*;

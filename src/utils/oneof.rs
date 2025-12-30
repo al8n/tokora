@@ -7,20 +7,6 @@ type Inner<'a, T> = &'a [T];
 #[cfg(any(feature = "std", feature = "alloc"))]
 type Inner<'a, T> = Cow<'a, [T]>;
 
-/// Marker trait for types that can be owned.
-#[cfg(not(any(feature = "std", feature = "alloc")))]
-pub trait Ownable {}
-
-#[cfg(not(any(feature = "std", feature = "alloc")))]
-impl<T: ?Sized> Ownable for T {}
-
-/// Marker trait for types that can be owned (i.e., cloned).
-#[cfg(any(feature = "std", feature = "alloc"))]
-pub trait Ownable: Clone {}
-
-#[cfg(any(feature = "std", feature = "alloc"))]
-impl<T: Clone> Ownable for T {}
-
 /// Feature-aware slice with a unified API.
 ///
 /// - **`no_std` + `no_alloc`**: stores a `&'a [T]`
@@ -40,7 +26,7 @@ impl<T: Clone> Ownable for T {}
 #[cfg_attr(not(any(feature = "std", feature = "alloc")), derive(Copy))]
 #[repr(transparent)]
 #[display("{inner}")]
-pub struct OneOf<'a, T: Ownable> {
+pub struct OneOf<'a, T: Clone> {
   #[deref]
   #[deref_mut]
   #[as_ref]
@@ -48,7 +34,7 @@ pub struct OneOf<'a, T: Ownable> {
   inner: Inner<'a, T>,
 }
 
-impl<'a, T: Ownable> OneOf<'a, T> {
+impl<'a, T: Clone> OneOf<'a, T> {
   /// Creates a new message from the provided representation.
   ///
   /// ## Examples
@@ -138,7 +124,7 @@ impl<'a, T: Ownable> OneOf<'a, T> {
   }
 }
 
-impl<'a, T: Ownable> From<&'a [T]> for OneOf<'a, T> {
+impl<'a, T: Clone> From<&'a [T]> for OneOf<'a, T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(value: &'a [T]) -> Self {
     Self {
@@ -147,14 +133,14 @@ impl<'a, T: Ownable> From<&'a [T]> for OneOf<'a, T> {
   }
 }
 
-impl<T: Ownable> AsRef<[T]> for OneOf<'_, T> {
+impl<T: Clone> AsRef<[T]> for OneOf<'_, T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn as_ref(&self) -> &[T] {
     self.as_inner()
   }
 }
 
-impl<T: Ownable> core::borrow::Borrow<[T]> for OneOf<'_, T> {
+impl<T: Clone> core::borrow::Borrow<[T]> for OneOf<'_, T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn borrow(&self) -> &[T] {
     self.as_inner()
@@ -192,7 +178,7 @@ const _: () = {
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 const _: () = {
-  impl<'a, T: Ownable> OneOf<'a, T> {
+  impl<'a, T: Clone> OneOf<'a, T> {
     #[cfg_attr(not(tarpaulin), inline(always))]
     const fn borrow_const(value: &'a [T]) -> Inner<'a, T> {
       Cow::Borrowed(value)
@@ -240,28 +226,28 @@ const _: () = {
     }
   }
 
-  impl<T: Ownable> From<Vec<T>> for OneOf<'_, T> {
+  impl<T: Clone> From<Vec<T>> for OneOf<'_, T> {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn from(value: Vec<T>) -> Self {
       OneOf::from_vec(value)
     }
   }
 
-  impl<'a, T: Ownable> From<Cow<'a, [T]>> for OneOf<'a, T> {
+  impl<'a, T: Clone> From<Cow<'a, [T]>> for OneOf<'a, T> {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn from(value: Cow<'a, [T]>) -> Self {
       Self { inner: value }
     }
   }
 
-  impl<'a, T: Ownable> From<OneOf<'a, T>> for Cow<'a, [T]> {
+  impl<'a, T: Clone> From<OneOf<'a, T>> for Cow<'a, [T]> {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn from(value: OneOf<'a, T>) -> Self {
       value.inner
     }
   }
 
-  impl<'a, T: Ownable> From<&OneOf<'a, T>> for Cow<'a, [T]> {
+  impl<'a, T: Clone> From<&OneOf<'a, T>> for Cow<'a, [T]> {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn from(value: &OneOf<'a, T>) -> Self {
       value.inner.clone()

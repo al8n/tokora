@@ -5,7 +5,7 @@
 
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
-use crate::utils::{OneOf, oneof::Ownable};
+use crate::utils::OneOf;
 
 /// An enumeration representing expected tokens or values in parsing contexts.
 ///
@@ -29,14 +29,14 @@ use crate::utils::{OneOf, oneof::Ownable};
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
-pub enum Expected<'a, T: Ownable> {
+pub enum Expected<'a, T: Clone> {
   /// A single expected token or value.
   One(T),
   /// Multiple alternative expected tokens or values.
   OneOf(OneOf<'a, T>),
 }
 
-impl<'a, T: Ownable> Expected<'a, T> {
+impl<'a, T: Clone> Expected<'a, T> {
   /// Creates a new `Expected` variant with a single expected value.
   ///
   /// This is equivalent to `Expected::One(expected)` but provides a more ergonomic API.
@@ -76,7 +76,7 @@ impl<'a, T: Ownable> Expected<'a, T> {
   }
 }
 
-impl<T: core::fmt::Display + Ownable> core::fmt::Display for Expected<'_, T> {
+impl<T: core::fmt::Display + Clone> core::fmt::Display for Expected<'_, T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
