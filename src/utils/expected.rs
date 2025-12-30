@@ -5,6 +5,8 @@
 
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
+use crate::utils::{OneOf, oneof::Ownable};
+
 /// An enumeration representing expected tokens or values in parsing contexts.
 ///
 /// This type is used to express what token or value was expected during parsing or validation.
@@ -23,18 +25,18 @@ use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 /// let multiple = Expected::OneOf(&["identifier", "number", "string"]);
 /// assert_eq!(format!("{}", multiple), "expected one of: 'identifier', 'number', 'string'");
 /// ```
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, From, IsVariant, Unwrap, TryUnwrap)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, From, IsVariant, Unwrap, TryUnwrap)]
 #[unwrap(ref, ref_mut)]
 #[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
-pub enum Expected<'a, T> {
+pub enum Expected<'a, T: Ownable> {
   /// A single expected token or value.
   One(T),
   /// Multiple alternative expected tokens or values.
-  OneOf(&'a [T]),
+  OneOf(OneOf<'a, T>),
 }
 
-impl<'a, T> Expected<'a, T> {
+impl<'a, T: Ownable> Expected<'a, T> {
   /// Creates a new `Expected` variant with a single expected value.
   ///
   /// This is equivalent to `Expected::One(expected)` but provides a more ergonomic API.
@@ -70,11 +72,11 @@ impl<'a, T> Expected<'a, T> {
   /// ```
   #[inline]
   pub const fn one_of(expected: &'a [T]) -> Self {
-    Self::OneOf(expected)
+    Self::OneOf(OneOf::from_slice(expected))
   }
 }
 
-impl<T: core::fmt::Display> core::fmt::Display for Expected<'_, T> {
+impl<T: core::fmt::Display + Ownable> core::fmt::Display for Expected<'_, T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {

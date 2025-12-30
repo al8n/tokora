@@ -49,7 +49,7 @@ use core::marker::PhantomData;
 
 use crate::{
   error::token::{Leading, Repeated, Trailing},
-  utils::{Expected, SimpleSpan},
+  utils::{Expected, Ownable, SimpleSpan},
 };
 
 pub use unexpected_leading::*;
@@ -103,8 +103,8 @@ mod unexpected_trailing;
 /// );
 /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
 /// ```
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedToken<'a, T, Kind, S = SimpleSpan, Lang: ?Sized = ()> {
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct UnexpectedToken<'a, T, Kind: Ownable, S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,
   found: Option<T>,
   expected: Option<Expected<'a, Kind>>,
@@ -112,12 +112,12 @@ pub struct UnexpectedToken<'a, T, Kind, S = SimpleSpan, Lang: ?Sized = ()> {
 }
 
 // Allow unit to be used as an error sink for tests and no-op emitters.
-impl<'a, T, Kind, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for () {
+impl<'a, T, Kind: Ownable, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {}
 }
 
-impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Trailing<Data>> {
+impl<T, Kind: Ownable, S, Data> UnexpectedToken<'_, T, Kind, S, Trailing<Data>> {
   /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn trailing(span: S, found: T) -> Self {
@@ -125,7 +125,7 @@ impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Trailing<Data>> {
   }
 }
 
-impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Leading<Data>> {
+impl<T, Kind: Ownable, S, Data> UnexpectedToken<'_, T, Kind, S, Leading<Data>> {
   /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn leading(span: S, found: T) -> Self {
@@ -133,7 +133,7 @@ impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Leading<Data>> {
   }
 }
 
-impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Repeated<Data>> {
+impl<T, Kind: Ownable, S, Data> UnexpectedToken<'_, T, Kind, S, Repeated<Data>> {
   /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn repeated(span: S, found: T) -> Self {
@@ -141,7 +141,7 @@ impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Repeated<Data>> {
   }
 }
 
-impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Trailing<Data, Lang>> {
+impl<T, Kind: Ownable, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Trailing<Data, Lang>> {
   /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn trailing_of(span: S, found: T) -> Self {
@@ -149,7 +149,7 @@ impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Trailing<Da
   }
 }
 
-impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Leading<Data, Lang>> {
+impl<T, Kind: Ownable, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Leading<Data, Lang>> {
   /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn leading_of(span: S, found: T) -> Self {
@@ -157,7 +157,7 @@ impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Leading<Dat
   }
 }
 
-impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Repeated<Data, Lang>> {
+impl<T, Kind: Ownable, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Repeated<Data, Lang>> {
   /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn repeated_of(span: S, found: T) -> Self {
@@ -165,7 +165,7 @@ impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Repeated<Da
   }
 }
 
-impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
+impl<'a, T, Kind: Ownable, S> UnexpectedToken<'a, T, Kind, S> {
   /// Creates a new unexpected token error.
   ///
   /// This error indicates that an unexpected token was encountered,
@@ -222,7 +222,7 @@ impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
   }
 }
 
-impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
+impl<'a, T, Kind: Ownable, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new_in(
     span: S,
@@ -667,6 +667,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   pub fn map_expected<F, Kind2>(self, f: F) -> UnexpectedToken<'a, T, Kind2, S>
   where
     F: FnOnce(Expected<'a, Kind>) -> Expected<'a, Kind2>,
+    Kind2: Ownable,
   {
     UnexpectedToken {
       span: self.span,
@@ -702,7 +703,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   }
 }
 
-impl<T, Kind, S, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Lang>
+impl<T, Kind: Ownable, S, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Lang>
 where
   S: crate::lexer::Span,
 {

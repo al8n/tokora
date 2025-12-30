@@ -79,7 +79,7 @@ use crate::{
 ///     "unexpected 'class', expected one of: 'struct', 'enum', 'trait' keyword"
 /// );
 /// ```
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnexpectedKeyword<'a, F, S = SimpleSpan> {
   span: S,
   found: F,
@@ -240,8 +240,8 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn expected(&self) -> Expected<'a, &'a str> {
-    self.expected
+  pub fn expected(&self) -> Expected<'a, &'a str> {
+    self.expected.clone()
   }
 
   /// Bumps both the start and end positions of the span by the given offset.
@@ -275,7 +275,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
 impl<S: core::fmt::Display> core::fmt::Display for UnexpectedKeyword<'_, S> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    match self.expected {
+    match &self.expected {
       Expected::One(expected) => {
         write!(
           f,

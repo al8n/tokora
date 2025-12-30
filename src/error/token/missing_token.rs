@@ -50,7 +50,7 @@ use core::{marker::PhantomData, ops::AddAssign};
 use crate::{
   Lexer, Token,
   error::token::{Leading, Separator, Trailing},
-  utils::{Expected, Message},
+  utils::{Expected, Message, Ownable},
 };
 
 pub use missing_leading::*;
@@ -111,14 +111,14 @@ pub type MissingSeparatorOf<'inp, Sep, L, Lang = ()> = MissingToken<
 /// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
 /// ```
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct MissingToken<'a, Kind, O = usize, Lang: ?Sized = ()> {
+pub struct MissingToken<'a, Kind: Ownable, O = usize, Lang: ?Sized = ()> {
   offset: O,
   expected: Option<Expected<'a, Kind>>,
   message: Option<Message>,
   _lang: PhantomData<Lang>,
 }
 
-impl<Kind, O, Data> MissingToken<'_, Kind, O, Trailing<Data>> {
+impl<Kind: Ownable, O, Data> MissingToken<'_, Kind, O, Trailing<Data>> {
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn trailing(offset: O) -> Self {
@@ -132,7 +132,7 @@ impl<Kind, O, Data> MissingToken<'_, Kind, O, Trailing<Data>> {
   }
 }
 
-impl<Kind, O, Data, Lang> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
+impl<Kind: Ownable, O, Data, Lang> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn leading(offset: O) -> Self {
@@ -146,7 +146,7 @@ impl<Kind, O, Data, Lang> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
   }
 }
 
-impl<Kind, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<Data, Lang>> {
+impl<Kind: Ownable, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<Data, Lang>> {
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn trailing_of(offset: O) -> Self {
@@ -160,7 +160,7 @@ impl<Kind, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<Data, Lang>
   }
 }
 
-impl<Kind, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
+impl<Kind: Ownable, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn leading_of(offset: O) -> Self {
@@ -174,7 +174,7 @@ impl<Kind, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<Data, Lang>>
   }
 }
 
-impl<Kind, O> MissingToken<'_, Kind, O> {
+impl<Kind: Ownable, O> MissingToken<'_, Kind, O> {
   /// Creates a new missing token error.
   ///
   /// This error indicates that an missing token was encountered,
@@ -194,7 +194,7 @@ impl<Kind, O> MissingToken<'_, Kind, O> {
   }
 }
 
-impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
+impl<'a, Kind: Ownable, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new_in(
     offset: O,
@@ -491,6 +491,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   pub fn map_expected<F, Kind2>(self, f: F) -> MissingToken<'a, Kind2, O, Lang>
   where
     F: FnOnce(Expected<'a, Kind>) -> Expected<'a, Kind2>,
+    Kind2: Ownable,
   {
     MissingToken {
       offset: self.offset,
@@ -526,12 +527,12 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   }
 }
 
-impl<'a, Kind, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for () {
+impl<'a, Kind: Ownable, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {}
 }
 
-impl<Kind, O, Lang: ?Sized> MissingToken<'_, Kind, O, Lang> {
+impl<Kind: Ownable, O, Lang: ?Sized> MissingToken<'_, Kind, O, Lang> {
   /// Formats the error using the provided formatter in debug style.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn debug_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result

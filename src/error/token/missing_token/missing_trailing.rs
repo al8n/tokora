@@ -1,4 +1,4 @@
-use super::{MissingToken, Trailing};
+use super::{MissingToken, Trailing, Ownable};
 use crate::{Lexer, Token, punct::*};
 
 macro_rules! alias {
@@ -13,7 +13,7 @@ macro_rules! alias {
         $(#[$attr])*
         pub type [< MissingTrailing $name >] <'inp, L, Lang = ()> = MissingTrailingOf<'inp, $name, L, Lang>;
 
-        impl<Kind, O> MissingToken<'_, Kind, O, Trailing<$name>> {
+        impl<Kind: Ownable, O> MissingToken<'_, Kind, O, Trailing<$name>> {
           #[doc = "Create a new `MissingToken` error indicating a trailing `" $name "` was missing for a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub const fn [< trailing_ $name:snake>](
@@ -23,7 +23,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<$name, Lang>> {
+        impl<Kind: Ownable, O, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<$name, Lang>> {
           #[doc = "Create a new `MissingToken` error indicating a trailing `" $name "` was missing for a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub const fn [< trailing_ $name:snake _of>](
@@ -33,7 +33,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O, Lang: ?Sized> ::core::fmt::Debug for MissingToken<'_, Kind, O, Trailing<$name, Lang>>
+        impl<Kind: Ownable, O, Lang: ?Sized> ::core::fmt::Debug for MissingToken<'_, Kind, O, Trailing<$name, Lang>>
         where
           O: ::core::fmt::Debug,
         {
@@ -45,7 +45,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O, Lang: ?Sized> ::core::fmt::Display for MissingToken<'_, Kind, O, Trailing<$name, Lang>>
+        impl<Kind: Ownable, O, Lang: ?Sized> ::core::fmt::Display for MissingToken<'_, Kind, O, Trailing<$name, Lang>>
         where
           O: ::core::fmt::Display,
         {
@@ -60,7 +60,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O, Lang: ?Sized> ::core::error::Error for MissingToken<'_, Kind, O, Trailing<$name, Lang>>
+        impl<Kind: Ownable, O, Lang: ?Sized> ::core::error::Error for MissingToken<'_, Kind, O, Trailing<$name, Lang>>
         where
           O: ::core::fmt::Display + ::core::fmt::Debug,
         {

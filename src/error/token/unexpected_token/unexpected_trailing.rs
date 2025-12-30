@@ -1,4 +1,4 @@
-use super::{Trailing, UnexpectedToken};
+use super::{Trailing, UnexpectedToken, Ownable};
 use crate::{Lexer, Token, punct::*};
 
 macro_rules! alias {
@@ -13,7 +13,7 @@ macro_rules! alias {
         $(#[$attr])*
         pub type [< UnexpectedTrailing $name >] <'inp, L, Lang = ()> = UnexpectedTrailingOf<'inp, $name, L, Lang>;
 
-        impl<T, Kind, S> UnexpectedToken<'_, T, Kind, S, Trailing<$name>> {
+        impl<T, Kind: Ownable, S> UnexpectedToken<'_, T, Kind, S, Trailing<$name>> {
           #[doc = "Create a new `UnexpectedToken` error indicating a trailing `" $name "` was found."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub const fn [< trailing_ $name:snake>](
@@ -24,7 +24,7 @@ macro_rules! alias {
           }
         }
 
-        impl<T, Kind, S, Lang> UnexpectedToken<'_, T, Kind, S, Trailing<$name, Lang>> {
+        impl<T, Kind: Ownable, S, Lang> UnexpectedToken<'_, T, Kind, S, Trailing<$name, Lang>> {
           #[doc = "Create a new `UnexpectedToken` error indicating a trailing `" $name "` was found for the given langauge."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub const fn [< trailing_ $name:snake _of>](
@@ -35,7 +35,7 @@ macro_rules! alias {
           }
         }
 
-        impl<T, Kind, S, Lang> ::core::fmt::Debug for UnexpectedToken<'_, T, Kind, S, Trailing<$name, Lang>>
+        impl<T, Kind: Ownable, S, Lang> ::core::fmt::Debug for UnexpectedToken<'_, T, Kind, S, Trailing<$name, Lang>>
         where
           S: ::core::fmt::Debug,
           T: ::core::fmt::Debug,
@@ -50,7 +50,7 @@ macro_rules! alias {
           }
         }
 
-        impl<T, Kind, S, Lang> ::core::fmt::Display for UnexpectedToken<'_, T, Kind, S, Trailing<$name, Lang>>
+        impl<T, Kind: Ownable, S, Lang> ::core::fmt::Display for UnexpectedToken<'_, T, Kind, S, Trailing<$name, Lang>>
         where
           S: ::core::fmt::Display,
           Lang: ?Sized,
@@ -66,7 +66,7 @@ macro_rules! alias {
           }
         }
 
-        impl<T, Kind, S, Lang> ::core::error::Error for UnexpectedToken<'_, T, Kind, S, Trailing<$name, Lang>>
+        impl<T, Kind: Ownable, S, Lang> ::core::error::Error for UnexpectedToken<'_, T, Kind, S, Trailing<$name, Lang>>
         where
           S: ::core::fmt::Display + ::core::fmt::Debug,
           T: ::core::fmt::Debug,
