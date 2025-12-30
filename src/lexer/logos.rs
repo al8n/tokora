@@ -105,6 +105,14 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  fn check(&self) -> Result<(), T::Error>
+  where
+    T: Token<'inp>,
+  {
+    self.inner.extras.check().map_err(Into::into)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn state(&self) -> &Self::State {
     &self.inner.extras
   }
@@ -112,14 +120,6 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn state_mut(&mut self) -> &mut Self::State {
     &mut self.inner.extras
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check(&self) -> Result<(), T::Error>
-  where
-    T: Token<'inp>,
-  {
-    self.inner.extras.check().map_err(Into::into)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -141,6 +141,14 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'inp>
+  where
+    T: Token<'inp>,
+  {
+    self.inner.slice()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn lex(&mut self) -> Option<Result<T, T::Error>>
   where
     T: Token<'inp>,
@@ -153,14 +161,6 @@ where
       Some(Err(err)) => Some(Err(err.into())),
       None => None,
     }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'inp>
-  where
-    T: Token<'inp>,
-  {
-    self.inner.slice()
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

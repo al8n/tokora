@@ -327,6 +327,7 @@ where
   /// #     type COMPONENTS = U1;
   /// #     type REQUIRED = U1;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U1> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
   /// #         COMPONENTS
@@ -383,6 +384,7 @@ where
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         &COMPONENTS
@@ -473,6 +475,7 @@ where
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -522,6 +525,7 @@ where
   /// #     type COMPONENTS = U3;
   /// #     type REQUIRED = U3;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U3> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U3> = &GenericArrayDeque::from_array([Component::A, Component::B, Component::C]);
   /// #         COMPONENTS
@@ -570,6 +574,7 @@ where
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -627,6 +632,7 @@ where
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -687,6 +693,7 @@ where
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -742,6 +749,7 @@ where
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -793,6 +801,7 @@ where
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -842,6 +851,7 @@ where
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -888,6 +898,7 @@ where
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
@@ -940,6 +951,7 @@ where
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -985,6 +997,7 @@ where
   /// #     type COMPONENTS = U1;
   /// #     type REQUIRED = U1;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U1> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
   /// #         COMPONENTS
@@ -1046,6 +1059,7 @@ where
   /// #     type COMPONENTS = U1;
   /// #     type REQUIRED = U1;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U1> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
   /// #         COMPONENTS

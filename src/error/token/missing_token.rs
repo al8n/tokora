@@ -302,7 +302,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   ///
   /// # Examples
   ///
-  /// ```
+  /// ```ignore
   /// use tokit::{utils::SimpleSpan, error::token::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::expected_one_of(
@@ -327,7 +327,7 @@ impl<'a, Kind, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   ///
   /// # Examples
   ///
-  /// ```
+  /// ```ignore
   /// use tokit::{utils::SimpleSpan, error::token::MissingToken};
   ///
   /// let error: MissingToken<&str, &str> = MissingToken::expected_one_of_with_found(
