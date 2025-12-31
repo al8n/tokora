@@ -137,7 +137,7 @@ pub struct Map<F, G, L, Ctx, O, O2, Lang: ?Sized = ()> {
 impl<F, G, L, Ctx, O, O2, Lang: ?Sized> Map<F, G, L, Ctx, O, O2, Lang> {
   /// Creates a new `Map` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: F, map_fn: G) -> Self {
+  pub(crate) const fn new(parser: F, map_fn: G) -> Self {
     Self {
       parser,
       map_fn,
@@ -248,7 +248,7 @@ pub struct MapWith<F, G, L, Ctx, O, O2, Lang: ?Sized = ()> {
 impl<F, G, L, Ctx, O, O2, Lang: ?Sized> MapWith<F, G, L, Ctx, O, O2, Lang> {
   /// Creates a new `Map` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: F, map_fn: G) -> Self {
+  pub(crate) const fn new(parser: F, map_fn: G) -> Self {
     Self {
       parser,
       map_fn,

@@ -96,13 +96,14 @@ where
     L::State: Clone,
   {
     let mut lexer = L::with_state(self.input, self.state.clone());
-    lexer.bump(
-      self
-        .cache()
-        .last_span()
-        .map(|s| s.end_ref())
-        .unwrap_or_else(|| self.span.end_ref()),
-    );
+    lexer.bump(self.offset());
+    lexer
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn lexer_no_state(&self) -> L {
+    let mut lexer = L::new(self.input);
+    lexer.bump(self.offset());
     lexer
   }
 
@@ -272,8 +273,8 @@ where
 
   /// Returns a slice of the current token from the input source.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn slice(&self) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
-    self.input.slice(self.span.start_ref()..self.span.end_ref())
+  pub fn slice(&self) -> <L::Source as Source<L::Offset>>::Slice<'inp> {
+    self.lexer_no_state().slice()
   }
 
   /// Returns a slice of the input source from the given cursor to the current cursor of the tokenizer.
@@ -405,7 +406,7 @@ where
       *self.state = extras;
       true
     } else {
-      self.next().is_some()
+      self.next_inner().is_some()
     }
   }
 
@@ -828,6 +829,16 @@ where
     Cursor::from_ref(self.cache().first_span().unwrap_or(self.span))
   }
 
+  /// Returns the current offset of the tokenizer to the original source.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn offset(&self) -> &L::Offset {
+    self
+      .cache()
+      .last_span()
+      .map(|s| s.end_ref())
+      .unwrap_or_else(|| self.span.end_ref())
+  }
+
   /// Restores the tokenizer state to a previously saved checkpoint.
   ///
   /// This rewinds the cache, resets the cursor position, and restores the lexer
@@ -908,6 +919,11 @@ where
       return Some(Spanned::new(span, lexed));
     }
 
+    self.next_inner()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn next_inner(&mut self) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>> {
     let mut lexer = self.lexer();
     Lexed::lex_spanned(&mut lexer).inspect(|_| {
       self.set_span_after_consume(lexer.span().into());

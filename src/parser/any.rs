@@ -244,12 +244,7 @@ where
   {
     match inp.next() {
       Some(Spanned { data: tok, .. }) => match tok {
-        Lexed::Token(tok) => Ok(Sliced::new(
-          inp
-            .slice()
-            .expect("lexer gurantees there must be a valid slice to yield a token"),
-          tok,
-        )),
+        Lexed::Token(tok) => Ok(Sliced::new(inp.slice(), tok)),
         Lexed::Error(err) => Err(err.into()),
       },
       None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
@@ -284,13 +279,7 @@ where
   {
     match inp.next() {
       Some(Spanned { data: tok, span }) => match tok {
-        Lexed::Token(tok) => Ok(Located::new(
-          inp
-            .slice()
-            .expect("lexer gurantees there must be a valid slice to yield a token"),
-          span,
-          tok,
-        )),
+        Lexed::Token(tok) => Ok(Located::new(inp.slice(), span, tok)),
         Lexed::Error(err) => Err(err.into()),
       },
       None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),

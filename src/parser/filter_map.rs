@@ -164,7 +164,7 @@ pub struct FilterMap<P, F, O, U, L, Ctx, Lang: ?Sized = ()> {
 impl<P, F, O, U, L, Ctx, Lang: ?Sized> FilterMap<P, F, O, U, L, Ctx, Lang> {
   /// Creates a new `Validate` combinator for the specified language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn of<'inp>(parser: P, filter: F) -> Self
+  pub(crate) const fn of<'inp>(parser: P, filter: F) -> Self
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
@@ -286,7 +286,7 @@ pub struct FilterMapWith<P, F, O, U, L, Ctx, Lang: ?Sized = ()> {
 impl<P, F, O, U, L, Ctx, Lang: ?Sized> FilterMapWith<P, F, O, U, L, Ctx, Lang> {
   /// Creates a new `Validate` combinator for the specified language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn of<'inp>(parser: P, filter: F) -> Self
+  pub(crate) const fn of<'inp>(parser: P, filter: F) -> Self
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,

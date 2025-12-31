@@ -149,7 +149,7 @@ pub struct Repeated<F, Condition, O, W, L, Ctx, Lang: ?Sized = ()> {
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Repeated<F, Condition, O, W, L, Ctx, Lang> {
   /// Creates a new `Repeated` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(f: F, condition: Condition) -> Self {
+  pub(crate) const fn new(f: F, condition: Condition) -> Self {
     Self::new_in(f, condition)
   }
 

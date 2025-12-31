@@ -80,9 +80,7 @@ pub trait Lexer<'inp>: 'inp {
   type Offset: Default + fmt::Debug + Ord + Clone + Hash;
 
   /// Lexes the input source and returns a tokenizer.
-  fn new(src: &'inp Self::Source) -> Self
-  where
-    Self::State: Default;
+  fn new(src: &'inp Self::Source) -> Self;
 
   /// Lexes the input source with the given initial state and returns a tokenizer.
   fn with_state(src: &'inp Self::Source, state: Self::State) -> Self;

@@ -1,6 +1,6 @@
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
-use crate::utils::{Spanned, cmp::Equivalent};
+use crate::utils::Spanned;
 
 #[cfg(feature = "logos")]
 #[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
@@ -1168,34 +1168,8 @@ pub trait LitToken<'a>: Token<'a> {
 /// }
 /// ```
 pub trait IdentifierToken<'a>: Token<'a> {
-  /// The source type for the identifier.
-  type Source: ?Sized + 'a;
-
   /// Returns `true` when the token is an identifier (user-defined name).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_identifier(&self) -> bool {
-    self.identifier().is_some()
-  }
-
-  /// Returns `true` when the identifier matches the given name.
-  ///
-  /// The default implementation defers to [`identifier`](IdentifierToken::identifier).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn matches_identifier<O>(&self, name: &O) -> bool
-  where
-    O: Equivalent<Self::Source>,
-  {
-    self.identifier().is_some_and(|id| name.equivalent(id))
-  }
-
-  /// Returns the identifier source, if this token is an identifier.
-  fn identifier(&self) -> Option<&Self::Source>;
-
-  /// Attempts to convert the token into its identifier source.
-  fn try_into_identifier(self) -> Result<Self::Source, Self>
-  where
-    Self: Sized,
-    Self::Source: Sized;
+  fn is_identifier(&self) -> bool;
 }
 
 /// A trait for tokens that represent keywords.

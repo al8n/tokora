@@ -300,7 +300,7 @@ pub struct Recover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
 impl<P, R, O, L, Ctx, Lang: ?Sized> Recover<P, R, O, L, Ctx, Lang> {
   /// Creates a new `Recover` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: P, recoverer: R) -> Self {
+  pub(crate) const fn new(parser: P, recoverer: R) -> Self {
     Self {
       parser,
       recoverer,
@@ -456,7 +456,7 @@ pub struct InplaceRecover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
 impl<P, R, O, L, Ctx, Lang: ?Sized> InplaceRecover<P, R, O, L, Ctx, Lang> {
   /// Creates a new `InplaceRecover` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: P, recoverer: R) -> Self {
+  pub(crate) const fn new(parser: P, recoverer: R) -> Self {
     Self {
       parser,
       recoverer,

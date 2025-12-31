@@ -81,7 +81,7 @@ where
   T: FromLogos<'inp> + Token<'inp>,
   T::Error: From<<T::Logos as Logos<'inp>>::Error>
     + From<<<T::Logos as Logos<'inp>>::Extras as State>::Error>,
-  <T::Logos as Logos<'inp>>::Extras: State,
+  <T::Logos as Logos<'inp>>::Extras: State + Default,
   <T::Logos as Logos<'inp>>::Source:
     Source<usize, Slice<'inp> = <<T::Logos as Logos<'inp>>::Source as logos::Source>::Slice<'inp>>,
 {
@@ -92,10 +92,7 @@ where
   type Offset = usize;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn new(src: &'inp Self::Source) -> Self
-  where
-    Self::State: Default,
-  {
+  fn new(src: &'inp Self::Source) -> Self {
     logos::Lexer::new(src).into_lexer()
   }
 

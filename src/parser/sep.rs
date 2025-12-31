@@ -281,7 +281,7 @@ impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
 {
   /// Creates a new `SeparatedBy` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
+  pub(crate) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
     Self {
       f,
       sep: sep_classifier,

@@ -75,7 +75,7 @@ impl<P, O, Ctx, Lang: ?Sized> Unwrapped<P, O, Ctx, Lang> {
   /// Creates a new `Unwrapped` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[track_caller]
-  pub(super) const fn new(parser: P) -> Self {
+  pub(crate) const fn new(parser: P) -> Self {
     Self {
       parser,
       _m: PhantomData,

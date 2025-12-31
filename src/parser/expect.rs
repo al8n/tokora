@@ -290,12 +290,7 @@ where
     match inp.next() {
       Some(Spanned { span, data: tok }) => match tok {
         Lexed::Token(tok) => match self.primary.is.check(&tok) {
-          Ok(()) => Ok(Sliced::new(
-            inp
-              .slice()
-              .expect("lexer gurantees there must be a valid slice to yield a token"),
-            tok,
-          )),
+          Ok(()) => Ok(Sliced::new(inp.slice(), tok)),
           Err(expected) => Err(
             UnexpectedToken::with_expected_of(span, expected)
               .with_found(tok)
@@ -336,13 +331,7 @@ where
     match inp.next() {
       Some(Spanned { span, data: tok }) => match tok {
         Lexed::Token(tok) => match self.primary.is.check(&tok) {
-          Ok(()) => Ok(Located::new(
-            inp
-              .slice()
-              .expect("lexer gurantees there must be a valid slice to yield a token"),
-            span,
-            tok,
-          )),
+          Ok(()) => Ok(Located::new(inp.slice(), span, tok)),
           Err(expected) => Err(
             UnexpectedToken::with_expected_of(span, expected)
               .with_found(tok)
