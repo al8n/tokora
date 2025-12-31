@@ -151,28 +151,28 @@ use crate::{
 /// assert_eq!(ident.span(), SimpleSpan::new(10, 18));
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Keyword<S, Lang> {
-  span: SimpleSpan,
+pub struct Keyword<S, Span = SimpleSpan, Lang = ()> {
+  span: Span,
   ident: S,
   _lang: PhantomData<Lang>,
 }
 
-impl<S, Lang> From<Keyword<S, Lang>> for super::Ident<S, Lang> {
+impl<S, Span, Lang> From<Keyword<S, Span, Lang>> for super::Ident<S, Span, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(keyword: Keyword<S, Lang>) -> Self {
+  fn from(keyword: Keyword<S, Span, Lang>) -> Self {
     Self::new(keyword.span, keyword.ident)
   }
 }
 
-impl<S, Lang> AsSpan<SimpleSpan> for Keyword<S, Lang> {
+impl<S, Span, Lang> AsSpan<Span> for Keyword<S, Span, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_span(&self) -> &SimpleSpan {
+  fn as_span(&self) -> &Span {
     self.span_ref()
   }
 }
 
-impl<S, Lang> IntoComponents for Keyword<S, Lang> {
-  type Components = (SimpleSpan, S);
+impl<S, Span, Lang> IntoComponents for Keyword<S, Span, Lang> {
+  type Components = (Span, S);
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn into_components(self) -> Self::Components {
@@ -180,7 +180,7 @@ impl<S, Lang> IntoComponents for Keyword<S, Lang> {
   }
 }
 
-impl<S, Lang> Keyword<S, Lang> {
+impl<S, Span, Lang> Keyword<S, Span, Lang> {
   /// Creates a new identifier with the given span and source string.
   ///
   /// # Parameters
@@ -202,7 +202,7 @@ impl<S, Lang> Keyword<S, Lang> {
   /// assert_eq!(ident.source_ref(), &"count");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: SimpleSpan, source: S) -> Self {
+  pub const fn new(span: Span, source: S) -> Self {
     Self {
       span,
       ident: source,
@@ -223,7 +223,10 @@ impl<S, Lang> Keyword<S, Lang> {
   /// assert_eq!(ident.span(), SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> SimpleSpan {
+  pub const fn span(&self) -> Span
+  where
+    Span: Copy,
+  {
     self.span
   }
 
@@ -243,7 +246,7 @@ impl<S, Lang> Keyword<S, Lang> {
   /// assert_eq!(*span_ref, SimpleSpan::new(0, 3));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &SimpleSpan {
+  pub const fn span_ref(&self) -> &Span {
     &self.span
   }
 
@@ -264,7 +267,7 @@ impl<S, Lang> Keyword<S, Lang> {
   /// assert_eq!(ident.span(), SimpleSpan::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut SimpleSpan {
+  pub const fn span_mut(&mut self) -> &mut Span {
     &mut self.span
   }
 
@@ -342,20 +345,21 @@ impl<S, Lang> Keyword<S, Lang> {
 
   /// Consumes the identifier and returns the span and source string.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (SimpleSpan, S) {
+  pub fn into_components(self) -> (Span, S) {
     (self.span, self.ident)
   }
 
   /// Maps the source string to a new type, preserving the span and language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map<U>(self, f: impl FnOnce(S) -> U) -> Keyword<U, Lang> {
+  pub fn map<U>(self, f: impl FnOnce(S) -> U) -> Keyword<U, Span, Lang> {
     Keyword::new(self.span, f(self.ident))
   }
 }
 
-impl<S, Lang> ErrorNode for Keyword<S, Lang>
+impl<S, Span, Lang> ErrorNode<Span> for Keyword<S, Span, Lang>
 where
-  S: ErrorNode,
+  S: ErrorNode<Span>,
+  Span: Clone,
 {
   /// Creates a placeholder identifier for **malformed content**.
   ///
@@ -372,8 +376,8 @@ where
   /// let bad_ident = Keyword::<String, YulLang>::error(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn error(span: SimpleSpan) -> Self {
-    Self::new(span, S::error(span))
+  fn error(span: Span) -> Self {
+    Self::new(span.clone(), S::error(span))
   }
 
   /// Creates a placeholder identifier for **missing required content**.
@@ -394,8 +398,8 @@ where
   /// let missing_ident = Keyword::<String, YulLang>::missing(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn missing(span: SimpleSpan) -> Self {
-    Self::new(span, S::missing(span))
+  fn missing(span: Span) -> Self {
+    Self::new(span.clone(), S::missing(span))
   }
 }
 

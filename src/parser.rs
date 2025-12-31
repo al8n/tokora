@@ -298,7 +298,7 @@ macro_rules! define_separated_by {
       $(
         #[doc = "Creates a `SeparatedBy` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
         #[cfg_attr(not(tarpaulin), inline(always))]
-        fn [< separated_by_ $name:snake >]<Condition, W>(
+        fn [< separated_on_condition_by_ $name:snake >]<Condition, W>(
           self,
           condition: Condition,
         ) -> SeparatedBy<Self, $name, Condition, O, W, L, Ctx, Lang>
@@ -344,7 +344,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Wraps the output of this parser in a `Sliced` with the source slice of the parsed input.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn sourced(self) -> With<PhantomSliced, Self>
+  fn sliced(self) -> With<PhantomSliced, Self>
   where
     Self: Sized,
     With<PhantomSliced, Self>: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -375,7 +375,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Creates a `Repeated` combinator that applies this parser repeatedly
   /// until the condition handler `Condition` returns [`Action::Stop`] or an fatal error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn repeated<Condition, W>(
+  fn repeated_on_condition<Condition, W>(
     self,
     condition: Condition,
   ) -> Repeated<Self, Condition, O, W, L, Ctx, Lang>
@@ -391,7 +391,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Creates a `SeparatedBy` combinator that applies this parser repeatedly,
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn separated_by<SepClassifier, Condition, W>(
+  fn separated_on_condition<SepClassifier, Condition, W>(
     self,
     sep_classifier: SepClassifier,
     condition: Condition,

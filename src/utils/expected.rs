@@ -15,14 +15,14 @@ use crate::utils::OneOf;
 /// # Examples
 ///
 /// ```
-/// use tokit::utils::Expected;
+/// use tokit::utils::{Expected, OneOf};
 ///
 /// // A single expected token
 /// let single = Expected::One("identifier");
 /// assert_eq!(format!("{}", single), "expected 'identifier'");
 ///
 /// // Multiple expected tokens
-/// let multiple = Expected::OneOf(&["identifier", "number", "string"]);
+/// let multiple = Expected::OneOf(OneOf::from_slice(&["identifier", "number", "string"]));
 /// assert_eq!(format!("{}", multiple), "expected one of: 'identifier', 'number', 'string'");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, IsVariant, Unwrap, TryUnwrap)]
@@ -67,7 +67,7 @@ impl<'a, T: Clone> Expected<'a, T> {
   ///
   /// let expected = Expected::one_of(&["if", "while", "for"]);
   /// if let Expected::OneOf(values) = expected {
-  ///     assert_eq!(values, &["if", "while", "for"]);
+  ///     assert_eq!(values.as_slice(), &["if", "while", "for"]);
   /// }
   /// ```
   #[inline]

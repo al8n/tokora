@@ -466,7 +466,7 @@ where
     + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   json_value
-    .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
+    .separated_on_condition_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
     .delimited_by(open_bracket, close_bracket, Bracket::PHANTOM)
     .collect()
     .parse_input(inp)
@@ -517,7 +517,7 @@ where
     + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   field
-    .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
+    .separated_on_condition_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
     .delimited_by(open_brace, close_brace, Brace::PHANTOM)
     .collect()
     .parse_input(inp)

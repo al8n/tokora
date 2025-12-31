@@ -1152,7 +1152,7 @@ pub trait LitToken<'a>: Token<'a> {
 ///     }
 /// }
 /// ```
-pub trait IdentifierToken<'a, S>: Token<'a> {
+pub trait IdentifierToken<'a, S: ?Sized>: Token<'a> {
   /// Returns `true` when the token is an identifier (user-defined name).
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_identifier(&self) -> bool {
@@ -1178,7 +1178,8 @@ pub trait IdentifierToken<'a, S>: Token<'a> {
   /// Attempts to get the identifier source, returning the `Err(Self)` if this token is not an identifier.
   fn try_into_identifier(self) -> Result<S, Self>
   where
-    Self: Sized;
+    Self: Sized,
+    S: Sized;
 }
 
 /// A trait for tokens that represent keywords.
