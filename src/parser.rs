@@ -171,6 +171,9 @@ use crate::{
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 pub use any::*;
+pub use at_least::*;
+pub use at_most::*;
+pub use bounded::*;
 pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
 pub use delim::*;
@@ -185,12 +188,16 @@ pub use padded::*;
 pub use peek_then::*;
 pub use peek_then_choice::*;
 pub use recover::*;
-pub use repeated::*;
+pub use repeated_on_condition::*;
 pub use sep::*;
 pub use then::*;
 pub use todo::*;
 pub use unwrapped::*;
 pub use validate::*;
+
+mod at_least;
+mod at_most;
+mod bounded;
 
 // #[cfg(any(feature = "std", feature = "alloc"))]
 // #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
@@ -214,7 +221,7 @@ mod peek_then;
 mod peek_then_choice;
 mod punct;
 mod recover;
-mod repeated;
+mod repeated_on_condition;
 mod sep;
 mod then;
 mod todo;
@@ -682,14 +689,4 @@ impl Minimum {
   pub const fn get(&self) -> usize {
     self.0
   }
-}
-
-/// The result of a parsing attempt.
-pub enum ParseResult<O, E> {
-  /// No output, no error, no consumption; the input was rewound to its original state.
-  Rewind,
-  /// Successful parse with output `O` and no emitted errors.
-  Ok(O),
-  /// Fatal parse failure with error `E`; caller should stop or propagate.
-  Err(E),
 }

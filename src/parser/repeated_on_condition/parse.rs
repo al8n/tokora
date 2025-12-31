@@ -6,7 +6,7 @@ mod bounded;
 mod unbounded;
 
 impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
-  Repeated<F, Condition, O, W, L, Ctx, Lang>
+  RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>
 {
   fn parse<Container>(
     &mut self,

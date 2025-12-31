@@ -79,13 +79,13 @@ impl<T: ?Sized, Lang: ?Sized> Leading<T, Lang> {
 /// A marker type representing repeated tokens.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct Repeated<T: ?Sized, Lang: ?Sized = ()> {
+pub struct RepeatedOnCondition<T: ?Sized, Lang: ?Sized = ()> {
   _marker: PhantomData<T>,
   _lang: PhantomData<Lang>,
 }
 
-impl<T: ?Sized> Repeated<T> {
-  /// Creates a new `Repeated`.
+impl<T: ?Sized> RepeatedOnCondition<T> {
+  /// Creates a new `RepeatedOnCondition`.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new() -> Self
   where
@@ -95,8 +95,8 @@ impl<T: ?Sized> Repeated<T> {
   }
 }
 
-impl<T: ?Sized, Lang: ?Sized> Repeated<T, Lang> {
-  /// Creates a new `Repeated` for the given language.
+impl<T: ?Sized, Lang: ?Sized> RepeatedOnCondition<T, Lang> {
+  /// Creates a new `RepeatedOnCondition` for the given language.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn of() -> Self
   where

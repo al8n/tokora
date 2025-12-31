@@ -2,34 +2,34 @@ use super::*;
 
 /// A parser that matches its inner parser at most `maximum` times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct AtLeast<P> {
-  pub(in crate::parser) minimum: Minimum,
+pub struct AtMost<P> {
+  pub(in crate::parser) maximum: Maximum,
   pub(in crate::parser) parser: P,
 }
 
-impl<P> AtLeast<P> {
-  /// Creates a new `AtLeast` parser that matches its inner parser at most `maximum` times.
+impl<P> AtMost<P> {
+  /// Creates a new `AtMost` parser that matches its inner parser at most `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(in crate::parser) const fn new(parser: P, minimum: usize) -> Self {
+  pub(in crate::parser) const fn new(parser: P, maximum: usize) -> Self {
     Self {
-      minimum: Minimum::new(minimum),
+      maximum: Maximum::new(maximum),
       parser,
     }
   }
 
-  /// Returns the minimum number of times the inner parser should match.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn minimum(&self) -> Minimum {
-    self.minimum
-  }
-
   /// Creates a `Bounded` parser that matches its inner parser at least `minimum` and at most `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_most(self, maximum: usize) -> Bounded<P>
+  pub fn at_least(self, minimum: usize) -> Bounded<P>
   where
-    Self: Apply<Bounded<P>, Options = Maximum>,
+    Self: Apply<Bounded<P>, Options = Minimum>,
   {
-    self.apply(Maximum::new(maximum))
+    self.apply(Minimum::new(minimum))
+  }
+
+  /// Returns the maximum number of times the inner parser should match.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn maximum(&self) -> Maximum {
+    self.maximum
   }
 
   /// Delimits the parser with the given open and close classifiers and delimiter.
@@ -49,30 +49,26 @@ impl<P> AtLeast<P> {
     &mut self.parser
   }
 
-  /// Consumes the parser, returning the inner parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_parser(self) -> P {
-    self.parser
-  }
-
   /// Maps the inner parser to a new parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AtLeast<NP>
+  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AtMost<NP>
   where
     F: FnOnce(&'a mut P) -> NP,
     NP: 'a,
   {
-    AtLeast {
-      minimum: self.minimum,
+    AtMost {
+      maximum: self.maximum,
       parser: f(&mut self.parser),
     }
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtLeast<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
+  AtMost<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>
+{
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn collect<Container>(self) -> Collect<Self, Container, Ctx, Lang>
+  pub fn collect<Container>(self) -> Collect<Self, Container, (), ()>
   where
     Container: Default,
   {
@@ -84,7 +80,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtLeast<Repeated<F, Condition, O,
   pub const fn collect_with<Container>(
     self,
     container: Container,
-  ) -> Collect<Self, Container, Ctx, Lang> {
+  ) -> Collect<Self, Container, (), ()> {
     Collect::new(self, container)
   }
 }

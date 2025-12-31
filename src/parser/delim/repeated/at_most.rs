@@ -9,7 +9,7 @@ use super::*;
 impl<'inp, L, P, Open, Close, O, Condition, Container, Ctx, Delim, W, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<AtMost<Repeated<P, Condition, O, W, L, Ctx, Lang>>, Open, Close, Delim>,
+    DelimitedBy<AtMost<RepeatedOnCondition<P, Condition, O, W, L, Ctx, Lang>>, Open, Close, Delim>,
     Container,
     Ctx,
     Lang,

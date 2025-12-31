@@ -1,19 +1,16 @@
-use crate::{
-  emitter::{TooFewEmitter, TooManyEmitter},
-  error::syntax::{TooFew, TooMany},
-};
+use crate::emitter::FullContainerEmitter;
 
 use super::*;
 
 impl<'inp, L, F, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>>, Container, Ctx, Lang>
+  for Collect<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter: FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
@@ -35,13 +32,13 @@ where
 
 impl<'inp, L, F, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-  for Collect<Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>>, Container, Ctx, Lang>
+  for Collect<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter: FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
@@ -64,7 +61,7 @@ where
 impl<'inp, 'c, L, F, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>>,
+    &'c mut RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>,
     &'c mut Container,
     Ctx,
     Lang,
@@ -74,7 +71,7 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter: FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: crate::container::Container<O>,
 {
@@ -86,25 +83,36 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let max = self.parser.maximum().get();
-    let min = self.parser.minimum().get();
+    // let ckp = inp.save();
+    // let mut nums = 0;
 
+    // loop {
+    //   let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+
+    //   match self.parser.condition.decide(peeked, emitter) {
+    //     Err(err) => return Err(err),
+    //     Ok(action) => match action {
+    //       Action::Stop => return Ok(inp.span_since(ckp.cursor())),
+    //       Action::Continue => {
+    //         if self
+    //           .container
+    //           .push(self.parser.f.parse_input(inp)?)
+    //           .is_some()
+    //         {
+    //           let span = inp.span_since(ckp.cursor());
+    //           inp.emitter().emit_full_container(FullContainer::of(
+    //             span,
+    //             nums,
+    //             Container::capacity(),
+    //           ))?;
+    //         }
+    //         nums += 1;
+    //       }
+    //     },
+    //   }
+    // }
     self
       .parser
-      .parser
-      .parse(inp, &mut self.container, |nums, inp, span| {
-        if min > nums {
-          inp
-            .emitter()
-            .emit_too_few(TooFew::of(span.clone(), nums, min))?;
-        }
-
-        if nums > max {
-          inp
-            .emitter()
-            .emit_too_many(TooMany::of(span.clone(), nums, max))?;
-        }
-        Ok(())
-      })
+      .parse(inp, &mut self.container, |_, _, _| Ok(()))
   }
 }

@@ -16,7 +16,7 @@ mod bounded;
 mod unbounded;
 
 impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
-  DelimitedBy<&mut Repeated<P, Condition, O, W, L, Ctx, Lang>, &Open, &Close, &Delim>
+  DelimitedBy<&mut RepeatedOnCondition<P, Condition, O, W, L, Ctx, Lang>, &Open, &Close, &Delim>
 {
   fn parse_repeated<Container>(
     &mut self,
