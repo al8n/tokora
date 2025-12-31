@@ -6,36 +6,38 @@ macro_rules! define_parsers {
   ($($name:ident::$fn:ident),+$(,)?) => {
     paste::paste! {
       $(
-        #[doc = "A parser that parses a token and returns `" $name "` instance if matches."]
-        ///
-        /// If the function returns `Ok(None)`, it means the next token does not match,
-        /// and promises no valid token is consumed.
-        pub fn [< try_ $name:snake >]<'inp, L, Ctx>(
-          inp: &mut InputRef<'inp, '_, L, Ctx>,
-        ) -> Result<Option<$name<L::Span, ()>>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
-        where
-          L: Lexer<'inp>,
-          L::Token: PunctuatorToken<'inp>,
-          Ctx: ParseContext<'inp, L>,
-          <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>,
-        {
-          [< try_ $name:snake _of >](inp)
-        }
+        impl $name {
+          #[doc = "A parser that parses a token and returns `" $name "` instance if matches."]
+          ///
+          /// If the function returns `Ok(None)`, it means the next token does not match,
+          /// and promises no valid token is consumed.
+          pub fn try_parse<'inp, L, Ctx>(
+            inp: &mut InputRef<'inp, '_, L, Ctx>,
+          ) -> Result<Option<$name<L::Span, ()>>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
+          where
+            L: Lexer<'inp>,
+            L::Token: PunctuatorToken<'inp>,
+            Ctx: ParseContext<'inp, L>,
+            <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>,
+          {
+            Self::try_parse_of(inp)
+          }
 
-        #[doc = "A parser that parses a token and returns `" $name " ` instance if matches for a specific language."]
-        ///
-        /// If the function returns `Ok(None)`, it means the next token does not match,
-        /// and promises no valid token is consumed.
-        pub fn [< try_ $name:snake _of >]<'inp, L, Ctx, Lang: ?Sized>(
-          inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-        ) -> Result<Option<$name<L::Span, (), Lang>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-        where
-          L: Lexer<'inp>,
-          L::Token: PunctuatorToken<'inp>,
-          Ctx: ParseContext<'inp, L, Lang>,
-          <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-        {
-          <$name>::new(()).try_parse_input(inp)
+          #[doc = "A parser that parses a token and returns `" $name " ` instance if matches for a specific language."]
+          ///
+          /// If the function returns `Ok(None)`, it means the next token does not match,
+          /// and promises no valid token is consumed.
+          pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized>(
+            inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+          ) -> Result<Option<$name<L::Span, (), Lang>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+          where
+            L: Lexer<'inp>,
+            L::Token: PunctuatorToken<'inp>,
+            Ctx: ParseContext<'inp, L, Lang>,
+            <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+          {
+            <$name>::new(()).try_parse_input(inp)
+          }
         }
 
         impl<'inp, L, Ctx, Lang> TryParseInput<'inp, L, $name<L::Span, (), Lang>, Ctx, Lang>

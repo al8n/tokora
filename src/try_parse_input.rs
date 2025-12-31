@@ -8,7 +8,7 @@ use super::*;
 /// to inspect the input and decide whether to consume it based on lookahead. If the parser
 /// returns `Ok(None)`, **no valid tokens are consumed** - the input position only advances
 /// past any error tokens that were consumed by the emitter.
-/// 
+///
 /// **IMPORTANT:**
 ///
 /// Implementations **must** uphold this contract:
@@ -32,4 +32,3 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>;
 }
-

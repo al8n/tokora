@@ -1172,6 +1172,13 @@ pub trait IdentifierToken<'a>: Token<'a> {
   fn is_identifier(&self) -> bool;
 }
 
+impl<'a, T: IdentifierToken<'a>> IdentifierToken<'a> for &'a T {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_identifier(&self) -> bool {
+    T::is_identifier(self)
+  }
+}
+
 /// A trait for tokens that represent keywords.
 ///
 /// ## Example
@@ -1255,6 +1262,18 @@ pub trait KeywordToken<'a>: Token<'a> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn keyword(&self) -> Option<&'static str> {
     None
+  }
+}
+
+impl<'a, T: KeywordToken<'a>> KeywordToken<'a> for &'a T {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_keyword(&self) -> bool {
+    T::is_keyword(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn keyword(&self) -> Option<&'static str> {
+    T::keyword(self)
   }
 }
 
