@@ -36,7 +36,10 @@ pub trait Require<O> {
   /// The error type returned when a requirement is not met.
   type Err;
 
-  /// Attempts to extract the desired output from the token, returning `Err(Self::Err)` if not possible.
+  /// Returns `true` if the `Self` matches, and can safely be converted to `O`.
+  fn matches(&self) -> bool;
+
+  /// Attempts to extract the desired output from `Self`, returning `Err(Self::Err)` if not possible.
   fn require(self) -> Result<O, Self::Err>
   where
     Self: Sized;

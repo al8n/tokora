@@ -160,21 +160,21 @@ enum Status {
 /// assert_eq!(ident.span(), SimpleSpan::new(10, 18));
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Ident<S, Span = SimpleSpan, Lang = ()> {
+pub struct Ident<S, Span = SimpleSpan, Lang: ?Sized = ()> {
   span: Span,
   ident: S,
   status: Status,
   _lang: PhantomData<Lang>,
 }
 
-impl<S, Span, Lang> AsSpan<Span> for Ident<S, Span, Lang> {
+impl<S, Span, Lang: ?Sized> AsSpan<Span> for Ident<S, Span, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn as_span(&self) -> &Span {
     self.span_ref()
   }
 }
 
-impl<S, Span, Lang> IntoComponents for Ident<S, Span, Lang> {
+impl<S, Span, Lang: ?Sized> IntoComponents for Ident<S, Span, Lang> {
   type Components = (Span, S);
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -183,7 +183,7 @@ impl<S, Span, Lang> IntoComponents for Ident<S, Span, Lang> {
   }
 }
 
-impl<S, Span, Lang> Ident<S, Span, Lang> {
+impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   /// Creates a new identifier with the given span and source string.
   ///
   /// # Parameters

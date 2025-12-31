@@ -419,6 +419,21 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   fn is_trivia(&self) -> bool;
 }
 
+impl<'a, T: Token<'a>> Token<'a> for &'a T {
+  type Kind = T::Kind;
+  type Error = T::Error;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn kind(&self) -> Self::Kind {
+    (*self).kind()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_trivia(&self) -> bool {
+    (*self).is_trivia()
+  }
+}
+
 /// A trait for tokens that can classify punctuation without pattern matching on kinds.
 ///
 /// [`PunctuatorToken`] builds on [`Token`] to provide ergonomic helpers for recognizing
@@ -1152,7 +1167,10 @@ pub trait LitToken<'a>: Token<'a> {
 ///     }
 /// }
 /// ```
-pub trait IdentifierToken<'a, S: ?Sized>: Token<'a> {
+pub trait IdentifierToken<'a>: Token<'a> {
+  /// The source type for the identifier.
+  type Source: ?Sized + 'a;
+
   /// Returns `true` when the token is an identifier (user-defined name).
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_identifier(&self) -> bool {
@@ -1165,21 +1183,19 @@ pub trait IdentifierToken<'a, S: ?Sized>: Token<'a> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn matches_identifier<O>(&self, name: &O) -> bool
   where
-    O: Equivalent<S>,
+    O: Equivalent<Self::Source>,
   {
     self.identifier().is_some_and(|id| name.equivalent(id))
   }
 
   /// Returns the identifier source, if this token is an identifier.
-  fn identifier(&self) -> Option<&S> {
-    None
-  }
+  fn identifier(&self) -> Option<&Self::Source>;
 
-  /// Attempts to get the identifier source, returning the `Err(Self)` if this token is not an identifier.
-  fn try_into_identifier(self) -> Result<S, Self>
+  /// Attempts to convert the token into its identifier source.
+  fn try_into_identifier(self) -> Result<Self::Source, Self>
   where
     Self: Sized,
-    S: Sized;
+    Self::Source: Sized;
 }
 
 /// A trait for tokens that represent keywords.

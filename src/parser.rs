@@ -207,6 +207,7 @@ mod empty;
 mod expect;
 mod filter;
 mod filter_map;
+mod ident;
 mod ignore;
 mod map;
 mod or_not;
