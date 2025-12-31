@@ -13,7 +13,7 @@ macro_rules! alias {
         $(#[$attr])*
         pub type [< UnexpectedLeading $name >] <'inp, L, Lang = ()> = UnexpectedLeadingOf<'inp, $name, L, Lang>;
 
-        impl<T, Kind, S> UnexpectedToken<'_, T, Kind, S, Leading<$name>> {
+        impl<T, Kind: Clone, S> UnexpectedToken<'_, T, Kind, S, Leading<$name>> {
           #[doc = "Create a new `UnexpectedToken` error indicating a leading `" $name "` was found."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub const fn [< leading_ $name:snake>](
@@ -24,7 +24,7 @@ macro_rules! alias {
           }
         }
 
-        impl<T, Kind, S, Lang> UnexpectedToken<'_, T, Kind, S, Leading<$name, Lang>> {
+        impl<T, Kind: Clone, S, Lang> UnexpectedToken<'_, T, Kind, S, Leading<$name, Lang>> {
           #[doc = "Create a new `UnexpectedToken` error indicating a leading `" $name "` was found for the given langauge."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub const fn [< leading_ $name:snake _of>](
@@ -35,7 +35,7 @@ macro_rules! alias {
           }
         }
 
-        impl<T, Kind, S, Lang> ::core::fmt::Debug for UnexpectedToken<'_, T, Kind, S, Leading<$name, Lang>>
+        impl<T, Kind: Clone, S, Lang> ::core::fmt::Debug for UnexpectedToken<'_, T, Kind, S, Leading<$name, Lang>>
         where
           S: ::core::fmt::Debug,
           T: ::core::fmt::Debug,
@@ -50,7 +50,7 @@ macro_rules! alias {
           }
         }
 
-        impl<T, Kind, S, Lang> ::core::fmt::Display for UnexpectedToken<'_, T, Kind, S, Leading<$name, Lang>>
+        impl<T, Kind: Clone, S, Lang> ::core::fmt::Display for UnexpectedToken<'_, T, Kind, S, Leading<$name, Lang>>
         where
           S: ::core::fmt::Display,
           Lang: ?Sized,
@@ -66,7 +66,7 @@ macro_rules! alias {
           }
         }
 
-        impl<T, Kind, S, Lang> ::core::error::Error for UnexpectedToken<'_, T, Kind, S, Leading<$name, Lang>>
+        impl<T, Kind: Clone, S, Lang> ::core::error::Error for UnexpectedToken<'_, T, Kind, S, Leading<$name, Lang>>
         where
           S: ::core::fmt::Display + ::core::fmt::Debug,
           T: ::core::fmt::Debug,

@@ -30,13 +30,22 @@
 //! # {
 //! use tokit::{
 //!     utils::{typenum::U3, GenericArrayDeque},
-//!     syntax::Syntax,
+//!     syntax::{Syntax, Language},
 //!     error::IncompleteSyntax
 //! };
 //! use core::fmt;
 //!
-//! #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+//! #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 //! struct MyLanguage;
+//!
+//! #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+//! enum MySyntaxKind {
+//!     WhileLoop,
+//! }
+//!
+//! impl Language for MyLanguage {
+//!     type SyntaxKind = MySyntaxKind;
+//! }
 //!
 //! #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 //! enum WhileComponent {
@@ -62,6 +71,7 @@
 //!     type COMPONENTS = U3;
 //!     type REQUIRED = U3;
 //!     type Lang = MyLanguage;
+//!     const KIND: MySyntaxKind = MySyntaxKind::WhileLoop;
 //!
 //!     fn possible_components() -> &'static GenericArrayDeque<Self::Component, U3> {
 //!         const COMPONENTS: &GenericArrayDeque<WhileComponent, U3> = &GenericArrayDeque::from_array([
@@ -195,13 +205,18 @@ use core::{
 /// #         match self { Self::A => write!(f, "A"), Self::B => write!(f, "B") }
 /// #     }
 /// # }
+/// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// # struct MyLang;
+/// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// # enum MySyntaxKind { Syntax }
+/// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
 /// # struct MySyntax;
 /// # impl Syntax for MySyntax {
 /// #     type Component = Component;
 /// #     type COMPONENTS = U2;
 /// #     type REQUIRED = U2;
 /// #     type Lang = MyLang;
+/// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
 /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
 /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
 /// #         COMPONENTS
@@ -301,13 +316,18 @@ where
   /// # impl fmt::Display for Component {
   /// #     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "A") }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U1;
   /// #     type REQUIRED = U1;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U1> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
   /// #         COMPONENTS
@@ -353,13 +373,18 @@ where
   /// #         match self { Self::A => write!(f, "A"), Self::B => write!(f, "B") }
   /// #     }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         &COMPONENTS
@@ -439,13 +464,18 @@ where
   /// #         match self { Self::A => write!(f, "A"), Self::B => write!(f, "B") }
   /// #     }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -484,13 +514,18 @@ where
   /// # impl fmt::Display for Component {
   /// #     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "X") }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U3;
   /// #     type REQUIRED = U3;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U3> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U3> = &GenericArrayDeque::from_array([Component::A, Component::B, Component::C]);
   /// #         COMPONENTS
@@ -528,13 +563,18 @@ where
   /// #         match self { Self::A => write!(f, "A"), Self::B => write!(f, "B") }
   /// #     }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -581,13 +621,18 @@ where
   /// #         match self { Self::A => write!(f, "A"), Self::B => write!(f, "B") }
   /// #     }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -637,13 +682,18 @@ where
   /// #         match self { Self::A => write!(f, "A"), Self::B => write!(f, "B") }
   /// #     }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -688,13 +738,18 @@ where
   /// # impl fmt::Display for Component {
   /// #     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "X") }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -735,13 +790,18 @@ where
   /// # impl fmt::Display for Component {
   /// #     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "X") }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -780,13 +840,18 @@ where
   /// #         match self { Self::A => write!(f, "A"), Self::B => write!(f, "B") }
   /// #     }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -825,10 +890,15 @@ where
   /// #         match self { Self::A => write!(f, "A"), Self::B => write!(f, "B") }
   /// #     }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
@@ -870,13 +940,18 @@ where
   /// #         match self { Self::A => write!(f, "A"), Self::B => write!(f, "B") }
   /// #     }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U2;
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
@@ -911,13 +986,18 @@ where
   /// # impl fmt::Display for Component {
   /// #     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "A") }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U1;
   /// #     type REQUIRED = U1;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U1> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
   /// #         COMPONENTS
@@ -968,13 +1048,18 @@ where
   /// # impl fmt::Display for Component {
   /// #     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "A") }
   /// # }
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   /// # struct MyLang;
+  /// # #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+  /// # enum MySyntaxKind { Syntax }
+  /// # impl tokit::syntax::Language for MyLang { type SyntaxKind = MySyntaxKind; }
   /// # struct MySyntax;
   /// # impl Syntax for MySyntax {
   /// #     type Component = Component;
   /// #     type COMPONENTS = U1;
   /// #     type REQUIRED = U1;
   /// #     type Lang = MyLang;
+  /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
   /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U1> {
   /// #         const COMPONENTS: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
   /// #         COMPONENTS
@@ -985,7 +1070,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(SimpleSpan::new(10, 15), Component::A);
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// # }
   /// ```

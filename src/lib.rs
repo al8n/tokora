@@ -2,7 +2,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
-#![allow(clippy::double_parens)]
+#![allow(clippy::double_parens, clippy::type_complexity)]
 #![deny(missing_docs, warnings)]
 
 #[cfg(all(not(feature = "std"), feature = "alloc"))]
@@ -18,8 +18,11 @@ pub use logos;
 pub use check::Check;
 pub use emitter::Emitter;
 pub use lexer::{Cache, Lexed, Lexer, Source, State, Token};
-pub use parser::{Parse, ParseChoice, ParseContext, ParseInput, Parser, Window};
+pub use parse_choice::*;
+pub use parse_input::*;
+pub use parser::{Parse, ParseContext, Parser};
 pub use require::Require;
+pub use try_parse_input::TryParseInput;
 
 /// Concrete Syntax Tree (CST) representations and utilities.
 #[cfg(feature = "rowan")]
@@ -55,7 +58,10 @@ pub mod punct;
 
 mod check;
 mod keyword;
+mod parse_choice;
+mod parse_input;
 mod require;
+mod try_parse_input;
 
 #[doc(hidden)]
 pub mod __private {

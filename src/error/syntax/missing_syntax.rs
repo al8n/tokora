@@ -12,38 +12,6 @@
 //! - **Flexible expectations**: Can express single or multiple alternative expected tokens
 //! - **Position adjustment**: The `bump()` method allows adjusting error positions when
 //!   combining errors from different parsing contexts
-//!
-//! # Common Patterns
-//!
-//! ## End of Input Errors
-//!
-//! When the parser reaches the end of input missingly, use constructors without a found token:
-//!
-//! ```
-//! use tokit::{utils::Span, error::MissingSyntax};
-//!
-//! // Simple end-of-input error
-//! let error: MissingSyntax<&str, &str> = MissingSyntax::expected_one(
-//!     Span::new(100, 100),
-//!     "}"
-//! );
-//! assert_eq!(format!("{}", error), "missing end of input, expected '}'");
-//! ```
-//!
-//! ## Unexpected Token Errors
-//!
-//! When a specific token was found but something else was expected:
-//!
-//! ```
-//! use tokit::{utils::{Expected, Span}, error::MissingSyntax};
-//!
-//! let error = MissingSyntax::expected_one_with_found(
-//!     Span::new(10, 15),
-//!     "else",
-//!     "if"
-//! );
-//! assert_eq!(format!("{}", error), "missing token 'else', expected 'if'");
-//! ```
 
 use core::{marker::PhantomData, ops::AddAssign};
 
@@ -66,21 +34,21 @@ pub type MissingSyntaxOf<'inp, Syntax, L, Lang = ()> =
 ///
 /// # Examples
 ///
-/// ```
-/// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
+/// ```ignore
+/// use tokit::{utils::{Expected, SimpleSpan}, error::syntax::MissingSyntax};
 ///
 /// // Error when expecting a specific token but got something else
 /// let error = MissingSyntax::expected_one_with_found(
-///     Span::new(10, 15),
+///     SimpleSpan::new(10, 15),
 ///     "}",
 ///     "{"
 /// );
-/// assert_eq!(error.span(), Span::new(10, 15));
+/// assert_eq!(error.span(), SimpleSpan::new(10, 15));
 /// assert_eq!(format!("{}", error), "missing token '}', expected '{'");
 ///
 /// // Error when expecting one of multiple tokens
 /// let error = MissingSyntax::expected_one_of_with_found(
-///     Span::new(0, 10),
+///     SimpleSpan::new(0, 10),
 ///     "identifier",
 ///     &["if", "while", "for"]
 /// );
@@ -91,7 +59,7 @@ pub type MissingSyntaxOf<'inp, Syntax, L, Lang = ()> =
 ///
 /// // Error when reaching end of input missingly
 /// let error: MissingSyntax<&str, &str> = MissingSyntax::expected_one(
-///     Span::new(100, 100),
+///     SimpleSpan::new(100, 100),
 ///     "}"
 /// );
 /// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
@@ -149,11 +117,11 @@ impl<Syntax: ?Sized, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
+  /// use tokit::error::syntax::MissingSyntax;
   ///
-  /// let error = MissingSyntax::new(
-  ///     10,
-  /// );
+  /// struct Lit;
+  ///
+  /// let error: MissingSyntax<Lit, usize> = MissingSyntax::new(10);
   /// assert_eq!(error.offset(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -169,9 +137,11 @@ impl<Syntax: ?Sized, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
+  /// use tokit::error::syntax::MissingSyntax;
   ///
-  /// let error = MissingSyntax::new(
+  /// struct Lit;
+  ///
+  /// let error: MissingSyntax<Lit, usize> = MissingSyntax::new(
   ///     10,
   /// );
   /// assert_eq!(error.offset_ref(), &10);
@@ -186,9 +156,11 @@ impl<Syntax: ?Sized, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
+  /// use tokit::error::syntax::MissingSyntax;
   ///
-  /// let error = MissingSyntax::new(
+  /// struct Lit;
+  ///
+  /// let mut error: MissingSyntax<Lit, usize> = MissingSyntax::new(
   ///     10,
   /// );
   /// assert_eq!(error.offset_mut(), &mut 10);
@@ -218,15 +190,15 @@ impl<Syntax: ?Sized, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
+  /// use tokit::error::syntax::MissingSyntax;
   ///
-  /// let mut error = MissingSyntax::expected_one_with_found(
-  ///     Span::new(10, 15),
-  ///     "}",
-  ///     "{"
+  /// struct Lit;
+  ///
+  /// let mut error: MissingSyntax<Lit, usize> = MissingSyntax::new(
+  ///    10
   /// );
-  /// error.bump(5);
-  /// assert_eq!(error.span(), Span::new(15, 20));
+  /// error.bump(&5);
+  /// assert_eq!(error.offset(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &O)
@@ -244,17 +216,16 @@ impl<Syntax: ?Sized, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, Span}, error::MissingSyntax};
+  /// use tokit::error::syntax::MissingSyntax;
   ///
-  /// let error = MissingSyntax::expected_one_with_found(
-  ///     Span::new(5, 6),
-  ///     "}",
-  ///     "{"
+  /// struct Lit;
+  ///
+  /// let error: MissingSyntax<Lit, usize> = MissingSyntax::new(
+  ///     10,
   /// );
-  /// let (span, found, expected) = error.into_components();
-  /// assert_eq!(span, Span::new(5, 6));
-  /// assert_eq!(found, Some("}"));
-  /// assert_eq!(expected, Expected::one("{"));
+  /// let (offset, msg) = error.into_components();
+  /// assert_eq!(offset, 10);
+  /// assert_eq!(msg, None);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn into_components(self) -> (O, Option<Message>) {

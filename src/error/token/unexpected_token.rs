@@ -20,7 +20,7 @@
 //! When the parser reaches the end of input unexpectedly, use constructors without a found token:
 //!
 //! ```
-//! use tokit::{utils::SimpleSpan, error::UnexpectedToken};
+//! use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
 //!
 //! // Simple end-of-input error
 //! let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
@@ -35,7 +35,7 @@
 //! When a specific token was found but something else was expected:
 //!
 //! ```
-//! use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+//! use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
 //!
 //! let error = UnexpectedToken::expected_one_with_found(
 //!     SimpleSpan::new(10, 15),
@@ -74,7 +74,7 @@ mod unexpected_trailing;
 /// # Examples
 ///
 /// ```
-/// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+/// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
 ///
 /// // Error when expecting a specific token but got something else
 /// let error = UnexpectedToken::expected_one_with_found(
@@ -103,8 +103,8 @@ mod unexpected_trailing;
 /// );
 /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
 /// ```
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedToken<'a, T, Kind, S = SimpleSpan, Lang: ?Sized = ()> {
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct UnexpectedToken<'a, T, Kind: Clone, S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,
   found: Option<T>,
   expected: Option<Expected<'a, Kind>>,
@@ -112,12 +112,12 @@ pub struct UnexpectedToken<'a, T, Kind, S = SimpleSpan, Lang: ?Sized = ()> {
 }
 
 // Allow unit to be used as an error sink for tests and no-op emitters.
-impl<'a, T, Kind, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for () {
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {}
 }
 
-impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Trailing<Data>> {
+impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, Trailing<Data>> {
   /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn trailing(span: S, found: T) -> Self {
@@ -125,7 +125,7 @@ impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Trailing<Data>> {
   }
 }
 
-impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Leading<Data>> {
+impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, Leading<Data>> {
   /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn leading(span: S, found: T) -> Self {
@@ -133,7 +133,7 @@ impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Leading<Data>> {
   }
 }
 
-impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Repeated<Data>> {
+impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, Repeated<Data>> {
   /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn repeated(span: S, found: T) -> Self {
@@ -141,7 +141,7 @@ impl<T, Kind, S, Data> UnexpectedToken<'_, T, Kind, S, Repeated<Data>> {
   }
 }
 
-impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Trailing<Data, Lang>> {
+impl<T, Kind: Clone, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Trailing<Data, Lang>> {
   /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn trailing_of(span: S, found: T) -> Self {
@@ -149,7 +149,7 @@ impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Trailing<Da
   }
 }
 
-impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Leading<Data, Lang>> {
+impl<T, Kind: Clone, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Leading<Data, Lang>> {
   /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn leading_of(span: S, found: T) -> Self {
@@ -157,7 +157,7 @@ impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Leading<Dat
   }
 }
 
-impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Repeated<Data, Lang>> {
+impl<T, Kind: Clone, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Repeated<Data, Lang>> {
   /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn repeated_of(span: S, found: T) -> Self {
@@ -165,7 +165,7 @@ impl<T, Kind, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Repeated<Da
   }
 }
 
-impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
+impl<'a, T, Kind: Clone, S> UnexpectedToken<'a, T, Kind, S> {
   /// Creates a new unexpected token error.
   ///
   /// This error indicates that an unexpected token was encountered,
@@ -183,7 +183,7 @@ impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::new(
   ///     SimpleSpan::new(100, 101),
@@ -206,7 +206,7 @@ impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::maybe_expected_of(
   ///     SimpleSpan::new(100, 101),
@@ -222,7 +222,7 @@ impl<'a, T, Kind, S> UnexpectedToken<'a, T, Kind, S> {
   }
 }
 
-impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new_in(
     span: S,
@@ -254,7 +254,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::new(
   ///     SimpleSpan::new(100, 101),
@@ -277,7 +277,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::maybe_expected_of(
   ///     SimpleSpan::new(100, 101),
@@ -300,7 +300,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedToken};
+  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(50, 51),
@@ -322,7 +322,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedToken};
+  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(50, 51),
@@ -345,7 +345,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedToken};
+  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_of(
   ///     SimpleSpan::new(25, 26),
@@ -370,7 +370,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedToken};
+  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
   ///
   /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_of_with_found(
   ///     SimpleSpan::new(25, 26),
@@ -397,7 +397,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// // With a found token
   /// let error = UnexpectedToken::expected_one(
@@ -430,7 +430,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// // With a found token
   /// let error = UnexpectedToken::expected_one(
@@ -465,7 +465,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(5, 10),
@@ -488,7 +488,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(5, 10),
@@ -511,7 +511,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
@@ -533,7 +533,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
@@ -552,14 +552,14 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let mut error = UnexpectedToken::expected_one_with_found(
   ///    SimpleSpan::new(10, 15),
   ///   "identifier",
   ///   "number"
   /// );
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -574,7 +574,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(0, 10),
@@ -599,7 +599,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(5, 6),
@@ -624,14 +624,14 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let mut error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
   ///     "}",
   ///     "{"
   /// );
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -651,7 +651,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   ///
   /// ```
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///    SimpleSpan::new(0, 5),
@@ -667,6 +667,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   pub fn map_expected<F, Kind2>(self, f: F) -> UnexpectedToken<'a, T, Kind2, S>
   where
     F: FnOnce(Expected<'a, Kind>) -> Expected<'a, Kind2>,
+    Kind2: Clone,
   {
     UnexpectedToken {
       span: self.span,
@@ -684,7 +685,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedToken};
+  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
   ///
   /// let error = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(5, 6),
@@ -702,7 +703,7 @@ impl<'a, T, Kind, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
   }
 }
 
-impl<T, Kind, S, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Lang>
+impl<T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Lang>
 where
   S: crate::lexer::Span,
 {

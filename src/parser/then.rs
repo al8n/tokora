@@ -41,7 +41,7 @@ pub struct Then<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
 impl<F, T, O, U, L, Ctx, Lang: ?Sized> Then<F, T, O, U, L, Ctx, Lang> {
   /// Creates a new `Then` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: F, then: T) -> Self {
+  pub(crate) const fn new(parser: F, then: T) -> Self {
     Self {
       parser,
       then,
@@ -107,7 +107,7 @@ pub struct IgnoreThen<F, G, O, U, L, Ctx, Lang: ?Sized> {
 impl<F, G, O, U, L, Ctx, Lang: ?Sized> IgnoreThen<F, G, O, U, L, Ctx, Lang> {
   /// Creates a new `IgnoreThen` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(first: F, second: G) -> Self {
+  pub(crate) const fn new(first: F, second: G) -> Self {
     Self {
       first,
       second,
@@ -171,7 +171,7 @@ pub struct ThenIgnore<F, G, O, U, L, Ctx, Lang: ?Sized> {
 impl<F, G, O, U, L, Ctx, Lang: ?Sized> ThenIgnore<F, G, O, U, L, Ctx, Lang> {
   /// Creates a new `ThenIgnore` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(first: F, second: G) -> Self {
+  pub(crate) const fn new(first: F, second: G) -> Self {
     Self {
       first,
       second,
@@ -241,7 +241,7 @@ pub struct AndThen<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
 impl<F, O, T, U, L, Ctx, Lang: ?Sized> AndThen<F, T, O, U, L, Ctx, Lang> {
   /// Creates a new `AndThen` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: F, then: T) -> Self {
+  pub(crate) const fn new(parser: F, then: T) -> Self {
     Self {
       parser,
       then,
@@ -310,7 +310,7 @@ pub struct AndThenWith<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
 impl<F, O, T, U, L, Ctx, Lang: ?Sized> AndThenWith<F, T, O, U, L, Ctx, Lang> {
   /// Creates a new `AndThen` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: F, then: T) -> Self {
+  pub(crate) const fn new(parser: F, then: T) -> Self {
     Self {
       parser,
       then,

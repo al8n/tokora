@@ -13,7 +13,7 @@ macro_rules! alias {
         $(#[$attr])*
         pub type [< MissingLeading $name >] <'inp, L, Lang = ()> = MissingLeadingOf<'inp, $name, L, Lang>;
 
-        impl<Kind, O> MissingToken<'_, Kind, O, Leading<$name>> {
+        impl<Kind: Clone, O> MissingToken<'_, Kind, O, Leading<$name>> {
           #[doc = "Create a new `MissingToken` error indicating a leading `" $name "` was missing for a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub const fn [< leading_ $name:snake>](
@@ -23,7 +23,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<$name, Lang>> {
+        impl<Kind: Clone, O, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<$name, Lang>> {
           #[doc = "Create a new `MissingToken` error indicating a leading `" $name "` was missing for a specific language."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub const fn [< leading_ $name:snake _of>](
@@ -33,7 +33,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O, Lang: ?Sized> ::core::fmt::Debug for MissingToken<'_, Kind, O, Leading<$name, Lang>>
+        impl<Kind: Clone, O, Lang: ?Sized> ::core::fmt::Debug for MissingToken<'_, Kind, O, Leading<$name, Lang>>
         where
           O: ::core::fmt::Debug,
         {
@@ -45,7 +45,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O, Lang: ?Sized> ::core::fmt::Display for MissingToken<'_, Kind, O, Leading<$name, Lang>>
+        impl<Kind: Clone, O, Lang: ?Sized> ::core::fmt::Display for MissingToken<'_, Kind, O, Leading<$name, Lang>>
         where
           O: ::core::fmt::Display,
         {
@@ -60,7 +60,7 @@ macro_rules! alias {
           }
         }
 
-        impl<Kind, O, Lang: ?Sized> ::core::error::Error for MissingToken<'_, Kind, O, Leading<$name, Lang>>
+        impl<Kind: Clone, O, Lang: ?Sized> ::core::error::Error for MissingToken<'_, Kind, O, Leading<$name, Lang>>
         where
           O: ::core::fmt::Display + ::core::fmt::Debug,
         {

@@ -590,7 +590,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
   /// let mut error: Invalid<()> = Invalid::new(SimpleSpan::new(5, 10));
-  /// error.bump(100);
+  /// error.bump(&100);
   /// assert_eq!(error.span(), SimpleSpan::new(105, 110));
   /// ```
   ///
@@ -600,7 +600,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   /// use tokit::{error::Invalid, utils::SimpleSpan};
   ///
   /// let mut error: Invalid<()> = Invalid::new(SimpleSpan::new(5, 10));
-  /// error.bump(100).bump(50);
+  /// error.bump(&100).bump(&50);
   /// assert_eq!(error.span(), SimpleSpan::new(155, 160));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

@@ -66,7 +66,7 @@ use core::ops::{AddAssign, Range};
 /// assert_eq!(span.end(), 30);
 ///
 /// // Shift the entire span
-/// span.bump(5);
+/// span.bump(&5);
 /// assert_eq!(span.start(), 20);
 /// assert_eq!(span.end(), 35);
 /// ```
@@ -210,7 +210,7 @@ impl SimpleSpan {
   /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
-  /// span.bump(10);
+  /// span.bump(&10);
   /// assert_eq!(span, SimpleSpan::new(15, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -414,7 +414,7 @@ impl<O> SimpleSpan<O> {
   /// use tokit::utils::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
-  /// span.bump(10);
+  /// span.bump(&10);
   /// assert_eq!(span, SimpleSpan::new(15, 25));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

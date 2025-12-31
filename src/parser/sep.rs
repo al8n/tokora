@@ -215,7 +215,7 @@ const _: () = {
 ///
 /// # Error Handling
 ///
-/// The parser emits errors via the [`SeparatedByEmitter`](crate::emitter::SeparatedByEmitter) trait:
+/// The parser emits errors via the [`SeparatedEmitter`](crate::emitter::SeparatedEmitter) trait:
 /// - Missing separator between elements
 /// - Unexpected leading separator (when denied)
 /// - Unexpected trailing separator (when denied)
@@ -281,7 +281,7 @@ impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
 {
   /// Creates a new `SeparatedBy` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
+  pub(crate) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
     Self {
       f,
       sep: sep_classifier,
@@ -384,117 +384,7 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
   ) -> DelimitedBy<Self, Open, Close, Delim> {
     DelimitedBy::new_in(self, left, right, delim)
   }
-
-  // /// Creates a new `DelimitedSeparatedBy` parser.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // pub const fn delimited_by<Open, Close, Delim>(
-  //   self,
-  //   left: Open,
-  //   right: Close,
-  //   delim: Delim,
-  // ) -> DelimitedSeparatedBy<
-  //   F,
-  //   SepClassifier,
-  //   Condition,
-  //   Open,
-  //   Close,
-  //   Delim,
-  //   O,
-  //   Window,
-  //   L,
-  //   Ctx,
-  //   Lang,
-  // > {
-  //   DelimitedSeparatedBy::new_in(self, left, right, delim)
-  // }
 }
-
-// macro_rules! sep_by {
-//   ($(
-//     $(#[$meta:meta])*
-//     $sep:ident
-//   ),+$(,)?) => {
-//     paste::paste! {
-//       $(
-//         impl<F, Condition, O> SeparatedBy<F, $sep, Condition, O, (), (), ()> {
-//           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser."]
-//           #[cfg_attr(not(tarpaulin), inline(always))]
-//           pub const fn [< $sep:snake >]<'inp, L, Ctx, W>(f: F, condition: Condition) -> SeparatedBy<F, $sep, Condition, O, W, L, Ctx>
-//           where
-//             L: Lexer<'inp>,
-//             Ctx: ParseContext<'inp, L, ()>,
-//             $sep: Check<L::Token>,
-//             Condition: Decision<'inp, L, Ctx::Emitter, W, ()>,
-//             W: Window,
-//           {
-//             SeparatedBy::new_in(f, <$sep>::PHANTOM, condition)
-//           }
-//         }
-
-//         impl<F, Condition, O, Lang: ?Sized> SeparatedBy<F, $sep<(), (), Lang>, Condition, O, ()> {
-//           #[doc = "Creates a new sequence with [" $sep:snake "](crate::punct::" $sep ") separator parser of a specific language."]
-//           #[cfg_attr(not(tarpaulin), inline(always))]
-//           pub const fn [< $sep:snake _of >]<'inp, L, W, Ctx>(f: F, condition: Condition) -> SeparatedBy<F, $sep, Condition, O, W>
-//           where
-//             L: Lexer<'inp>,
-//             $sep<(), (), Lang>: Check<L::Token>,
-//             Ctx: ParseContext<'inp, L, Lang>,
-//             Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-//             W: Window,
-//           {
-//             SeparatedBy::new_in(f, <$sep>::PHANTOM.change_language_const(), condition)
-//           }
-//         }
-
-//         #[cfg(test)]
-//         const _: () = {
-//           use crate::lexer::DummyLexer;
-//           use generic_arraydeque::typenum::U1;
-
-//           fn __assert_parse_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-//             Parser::with_parser(
-//               SeparatedBy::[< $sep:snake >]::<DummyLexer, U1, ()>(
-//                 Any::new(),
-//                 |_toks: Peeked<'_, '_, DummyLexer, U1>, _: &mut Fatal<()>| Ok(Action::Continue),
-//               )
-//               .collect::<()>(),
-//             )
-//           }
-
-//           fn __assert_parse_with_ctx_impl__<'inp>() -> impl Parse<'inp, DummyLexer, (), ()> {
-//             Parser::with_parser_and_context(SeparatedBy::[< $sep:snake >]::<DummyLexer, U1, ()>(
-//                 Any::new(),
-//                 |_toks: Peeked<'_, '_, DummyLexer, U1>, _: &mut Fatal<()>| Ok(Action::Continue),
-//               )
-//               .collect::<()>(), ())
-//           }
-//         };
-//       )*
-//     }
-//   };
-// }
-
-// sep_by!(
-//   Comma,
-//   Semicolon,
-//   Dot,
-//   Colon,
-//   Pipe,
-//   Ampersand,
-//   Hyphen,
-//   Underscore,
-//   DoubleColon,
-//   Arrow,
-//   FatArrow,
-//   Tilde,
-//   Trivia,
-//   Slash,
-//   BackSlash,
-//   Percent,
-//   Dollar,
-//   Hash,
-//   At,
-// );
 
 trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
   fn handle_start_state(

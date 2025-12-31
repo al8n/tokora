@@ -258,7 +258,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   ///   SimpleSpan::new(0, 5),
   ///   Lexeme::Char(PositionedChar::with_position('x', 5))
   /// );
-  /// error.bump(10);
+  /// error.bump(&10);
   /// assert_eq!(error.token(), SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

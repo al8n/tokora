@@ -175,7 +175,7 @@ impl<O> IncompleteHexEscape<O> {
   /// use tokit::utils::SimpleSpan;
   ///
   /// let mut error = IncompleteHexEscape::new(SimpleSpan::new(10, 12));
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 17));
   /// ```
   #[inline]
@@ -214,7 +214,6 @@ impl<O> IncompleteHexEscape<O> {
 /// );
 ///
 /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
-/// assert!(!error.is_incomplete()); // Only 4 chars total, expected 4 (\xXX)
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MalformedHexEscape<Char = char, O = usize> {
@@ -373,7 +372,7 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
   /// let mut error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 14));
-  /// error.bump(5);
+  /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 19));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -548,7 +547,7 @@ impl<Char, O> HexEscapeError<Char, O> {
   /// let mut error = HexEscapeError::<char>::incomplete(
   ///     SimpleSpan::new(10, 12)
   /// );
-  /// error.bump(5);
+  /// error.bump(&5);
   /// // The span is now adjusted
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

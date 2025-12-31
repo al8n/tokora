@@ -345,7 +345,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   ///     "digit"
   /// );
   ///
-  /// error.lexeme_mut().bump(10);
+  /// error.lexeme_mut().bump(&10);
   /// assert_eq!(error.unwrap_char().position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -590,7 +590,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   ///     "digit"
   /// );
   ///
-  /// error.bump(10);
+  /// error.bump(&10);
   /// assert_eq!(error.unwrap_char().position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

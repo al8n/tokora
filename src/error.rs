@@ -116,29 +116,29 @@ mod unicode_escape;
 /// ## Basic Implementation
 ///
 /// ```rust
-/// use tokit::{error::ErrorNode, utils::Span};
+/// use tokit::{error::ErrorNode, utils::SimpleSpan};
 ///
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct Identifier(String);
 ///
 /// impl ErrorNode for Identifier {
-///     fn error(_span: Span) -> Self {
+///     fn error(_span: SimpleSpan) -> Self {
 ///         // Token was present but malformed (e.g., "123abc")
 ///         Identifier("<error>".to_string())
 ///     }
 ///
-///     fn missing(_span: Span) -> Self {
+///     fn missing(_span: SimpleSpan) -> Self {
 ///         // Required identifier was completely absent
 ///         Identifier("<missing>".to_string())
 ///     }
 /// }
 ///
 /// // Parser encounters "let 123 = 5;"
-/// let malformed = Identifier::error(Span::new(4, 7)); // "123" is malformed
+/// let malformed = Identifier::error(SimpleSpan::new(4, 7)); // "123" is malformed
 /// assert_eq!(malformed.0, "<error>");
 ///
 /// // Parser encounters "let = 5;"
-/// let absent = Identifier::missing(Span::new(4, 4)); // Nothing where identifier expected
+/// let absent = Identifier::missing(SimpleSpan::new(4, 4)); // Nothing where identifier expected
 /// assert_eq!(absent.0, "<missing>");
 /// ```
 ///
@@ -254,9 +254,8 @@ mod unicode_escape;
 ///
 /// # See Also
 ///
-/// - [`via_parser`](crate::chumsky::recovery::via_parser): Recovery combinator
-/// - [`or_else`](crate::chumsky::Parser::or_else): Fallback for failed parsing
-/// - [`DelimitedByBrace`](crate::chumsky::delimited::DelimitedByBrace): Delimited parser with recovery
+/// - [`Recover`](crate::parser::Recover): Recovery combinator with backtracking
+/// - [`InplaceRecover`](crate::parser::InplaceRecover): Recovery combinator without backtracking
 pub trait ErrorNode<S = SimpleSpan> {
   /// Creates a placeholder node for **malformed content**.
   ///
@@ -280,22 +279,22 @@ pub trait ErrorNode<S = SimpleSpan> {
   /// # Implementation
   ///
   /// ```rust
-  /// use tokit::{error::ErrorNode, utils::Span};
+  /// use tokit::{error::ErrorNode, utils::SimpleSpan};
   ///
   /// struct Identifier(String);
   ///
   /// impl ErrorNode for Identifier {
-  ///     fn error(_span: Span) -> Self {
+  ///     fn error(_span: SimpleSpan) -> Self {
   ///         Identifier("<error>".to_string())
   ///     }
   ///
-  ///     fn missing(_span: Span) -> Self {
+  ///     fn missing(_span: SimpleSpan) -> Self {
   ///         Identifier("<missing>".to_string())
   ///     }
   /// }
   ///
   /// // Parser found "123abc" as identifier
-  /// let node = Identifier::error(Span::new(0, 6));
+  /// let node = Identifier::error(SimpleSpan::new(0, 6));
   /// ```
   fn error(span: S) -> Self;
 
@@ -321,22 +320,22 @@ pub trait ErrorNode<S = SimpleSpan> {
   /// # Implementation
   ///
   /// ```rust
-  /// use tokit::{error::ErrorNode, utils::Span};
+  /// use tokit::{error::ErrorNode, utils::SimpleSpan};
   ///
   /// struct FunctionName(String);
   ///
   /// impl ErrorNode for FunctionName {
-  ///     fn error(_span: Span) -> Self {
+  ///     fn error(_span: SimpleSpan) -> Self {
   ///         FunctionName("<error>".to_string())
   ///     }
   ///
-  ///     fn missing(_span: Span) -> Self {
+  ///     fn missing(_span: SimpleSpan) -> Self {
   ///         FunctionName("<missing>".to_string())
   ///     }
   /// }
   ///
   /// // Parser expected function name but found "("
-  /// let node = FunctionName::missing(Span::new(3, 3));
+  /// let node = FunctionName::missing(SimpleSpan::new(3, 3));
   /// ```
   fn missing(span: S) -> Self;
 }

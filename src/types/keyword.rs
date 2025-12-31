@@ -151,28 +151,28 @@ use crate::{
 /// assert_eq!(ident.span(), SimpleSpan::new(10, 18));
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Keyword<S, Lang> {
-  span: SimpleSpan,
+pub struct Keyword<S, Span = SimpleSpan, Lang: ?Sized = ()> {
+  span: Span,
   ident: S,
   _lang: PhantomData<Lang>,
 }
 
-impl<S, Lang> From<Keyword<S, Lang>> for super::Ident<S, Lang> {
+impl<S, Span, Lang: ?Sized> From<Keyword<S, Span, Lang>> for super::Ident<S, Span, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(keyword: Keyword<S, Lang>) -> Self {
+  fn from(keyword: Keyword<S, Span, Lang>) -> Self {
     Self::new(keyword.span, keyword.ident)
   }
 }
 
-impl<S, Lang> AsSpan<SimpleSpan> for Keyword<S, Lang> {
+impl<S, Span, Lang: ?Sized> AsSpan<Span> for Keyword<S, Span, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_span(&self) -> &SimpleSpan {
+  fn as_span(&self) -> &Span {
     self.span_ref()
   }
 }
 
-impl<S, Lang> IntoComponents for Keyword<S, Lang> {
-  type Components = (SimpleSpan, S);
+impl<S, Span, Lang: ?Sized> IntoComponents for Keyword<S, Span, Lang> {
+  type Components = (Span, S);
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn into_components(self) -> Self::Components {
@@ -180,7 +180,7 @@ impl<S, Lang> IntoComponents for Keyword<S, Lang> {
   }
 }
 
-impl<S, Lang> Keyword<S, Lang> {
+impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   /// Creates a new identifier with the given span and source string.
   ///
   /// # Parameters
@@ -202,7 +202,7 @@ impl<S, Lang> Keyword<S, Lang> {
   /// assert_eq!(ident.source_ref(), &"count");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: SimpleSpan, source: S) -> Self {
+  pub const fn new(span: Span, source: S) -> Self {
     Self {
       span,
       ident: source,
@@ -223,7 +223,10 @@ impl<S, Lang> Keyword<S, Lang> {
   /// assert_eq!(ident.span(), SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> SimpleSpan {
+  pub const fn span(&self) -> Span
+  where
+    Span: Copy,
+  {
     self.span
   }
 
@@ -243,7 +246,7 @@ impl<S, Lang> Keyword<S, Lang> {
   /// assert_eq!(*span_ref, SimpleSpan::new(0, 3));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &SimpleSpan {
+  pub const fn span_ref(&self) -> &Span {
     &self.span
   }
 
@@ -264,7 +267,7 @@ impl<S, Lang> Keyword<S, Lang> {
   /// assert_eq!(ident.span(), SimpleSpan::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut SimpleSpan {
+  pub const fn span_mut(&mut self) -> &mut Span {
     &mut self.span
   }
 
@@ -342,20 +345,21 @@ impl<S, Lang> Keyword<S, Lang> {
 
   /// Consumes the identifier and returns the span and source string.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (SimpleSpan, S) {
+  pub fn into_components(self) -> (Span, S) {
     (self.span, self.ident)
   }
 
   /// Maps the source string to a new type, preserving the span and language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map<U>(self, f: impl FnOnce(S) -> U) -> Keyword<U, Lang> {
+  pub fn map<U>(self, f: impl FnOnce(S) -> U) -> Keyword<U, Span, Lang> {
     Keyword::new(self.span, f(self.ident))
   }
 }
 
-impl<S, Lang> ErrorNode for Keyword<S, Lang>
+impl<S, Span, Lang: ?Sized> ErrorNode<Span> for Keyword<S, Span, Lang>
 where
-  S: ErrorNode,
+  S: ErrorNode<Span>,
+  Span: Clone,
 {
   /// Creates a placeholder identifier for **malformed content**.
   ///
@@ -372,8 +376,8 @@ where
   /// let bad_ident = Keyword::<String, YulLang>::error(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn error(span: SimpleSpan) -> Self {
-    Self::new(span, S::error(span))
+  fn error(span: Span) -> Self {
+    Self::new(span.clone(), S::error(span))
   }
 
   /// Creates a placeholder identifier for **missing required content**.
@@ -394,122 +398,7 @@ where
   /// let missing_ident = Keyword::<String, YulLang>::missing(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn missing(span: SimpleSpan) -> Self {
-    Self::new(span, S::missing(span))
+  fn missing(span: Span) -> Self {
+    Self::new(span.clone(), S::missing(span))
   }
 }
-
-// #[cfg(feature = "chumsky")]
-// #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-// const _: () = {
-//   use chumsky::{Parser, extra::ParserExtra, prelude::*};
-//   use logos::{Logos, Source};
-
-//   use crate::{
-//     KeywordToken, Lexed, LogoStream, error::UnexpectedToken, syntax::Language, utils::SimpleSimpleSpanned,
-//   };
-
-//   impl<S, Lang> Keyword<S, Lang> {
-//     /// Creates a Chumsky parser that parses identifier tokens into `Keyword`.
-//     ///
-//     /// This parser validates that the token is an identifier (not a keyword or other
-//     /// token type) and converts it to an `Keyword` with proper span tracking.
-//     ///
-//     /// # Type Parameters
-//     ///
-//     /// - `'a`: Lifetime of the input source
-//     /// - `I`: Token stream implementing [`LogoStream`]
-//     /// - `T`: Token type implementing [`KeywordifierToken`]
-//     /// - `Error`: Error type that can be constructed from lexer and parser errors
-//     /// - `E`: Parser extra state carrying errors and metadata
-//     ///
-//     /// # Parameters
-//     ///
-//     /// - `ident_kind`: Function that returns the expected syntax kind for error
-//     ///   reporting. Called when a non-identifier token is found.
-//     ///
-//     /// # Returns
-//     ///
-//     /// A Chumsky parser that produces `Keyword<S, Lang>` on success or emits an
-//     /// [`UnexpectedToken`] error when a non-identifier is found.
-//     ///
-//     /// # Error Behavior
-//     ///
-//     /// The parser fails with an error in these cases:
-//     /// - Token is not an identifier (e.g., keyword, operator, literal)
-//     /// - Lexer error occurred while scanning the token
-//     ///
-//     /// # Examples
-//     ///
-//     /// ## Basic Usage
-//     ///
-//     /// ```rust,ignore
-//     /// use tokit::types::Keyword;
-//     /// use tokit::chumsky::Parser;
-//     ///
-//     /// // Parser for YUL keywords
-//     /// let ident_parser = Keyword::<&str, YulLang>::parser(|| YulSyntaxKind::Keyword);
-//     ///
-//     /// // Parse "count" into Keyword
-//     /// let result = ident_parser.parse(stream)?;
-//     /// assert_eq!(result.source_ref(), &"count");
-//     /// ```
-//     ///
-//     /// ## With Error Recovery
-//     ///
-//     /// ```rust,ignore
-//     /// use tokit::types::Keyword;
-//     /// use tokit::error::ErrorNode;
-//     /// use tokit::chumsky::{Parser, prelude::*};
-//     ///
-//     /// // Parser with recovery for missing keywords
-//     /// let ident_parser = Keyword::<String, YulLang>::parser(|| YulSyntaxKind::Keyword)
-//     ///     .recover_with(via_parser(
-//     ///         // Create placeholder on error
-//     ///         empty().map_with(|_, exa| Keyword::missing(exa.span()))
-//     ///     ));
-//     ///
-//     /// // Even with missing identifier, parsing continues
-//     /// let result = ident_parser.parse(stream)?;
-//     /// ```
-//     ///
-//     /// ## Custom String Type
-//     ///
-//     /// ```rust,ignore
-//     /// // Use owned String for keywords
-//     /// let parser = Keyword::<String, MyLang>::parser(|| MyKind::Keywordifier);
-//     ///
-//     /// // Use interned strings
-//     /// let parser = Keyword::<Symbol, MyLang>::parser(|| MyKind::Keywordifier);
-//     /// ```
-//     ///
-//     /// # See Also
-//     ///
-//     /// - [`KeywordToken`]: Trait for tokens that can be keywords
-//     /// - [`UnexpectedToken`]: Error emitted when wrong token type is found
-//     /// - [`ErrorNode`]: For creating placeholder keywords during recovery
-//     #[cfg_attr(not(tarpaulin), inline(always))]
-//     pub fn parser<'a, I, T, E>(
-//       keyword_kind: impl Fn() -> Lang::SyntaxKind + Clone + 'a,
-//     ) -> impl Parser<'a, I, Self, E> + Clone + 'a
-//     where
-//       I: LogoStream<'a, T>,
-//       T: KeywordToken<'a>,
-//       S: From<<<T::Logos as Logos<'a>>::Source as Source>::Slice<'a>> + 'a,
-//       Lang: Language,
-//       Lang::SyntaxKind: 'a,
-//       E::Error: From<<T::Logos as Logos<'a>>::Error>
-//         + From<<T::Logos as Logos<'a>>::Error>
-//         + From<UnexpectedToken<'a, T, Lang::SyntaxKind>>,
-//       E: ParserExtra<'a, I> + 'a,
-//     {
-//       any().try_map_with(move |tok: Lexed<'_, T>, exa| match tok {
-//         Lexed::Token(SimpleSpanned { span, data: tok }) => match tok.is_keyword() {
-//           true => Ok(Self::new(span, S::from(exa.slice()))),
-//           false => Err(UnexpectedToken::expected_one_with_found(span, tok, keyword_kind()).into()),
-//         },
-//         Lexed::Error(e) => Err(E::Error::from(e)),
-//       })
-//     }
-//   }
-// };

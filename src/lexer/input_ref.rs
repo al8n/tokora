@@ -96,13 +96,14 @@ where
     L::State: Clone,
   {
     let mut lexer = L::with_state(self.input, self.state.clone());
-    lexer.bump(
-      self
-        .cache()
-        .last_span()
-        .map(|s| s.end_ref())
-        .unwrap_or_else(|| self.span.end_ref()),
-    );
+    lexer.bump(self.offset());
+    lexer
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn lexer_no_state(&self) -> L {
+    let mut lexer = L::new(self.input);
+    lexer.bump(self.offset());
     lexer
   }
 
@@ -168,7 +169,7 @@ where
       Some(result) => Some(result),
       None => {
         let ckp = Checkpoint::new(Cursor::new(cur), state);
-        self.go(ckp);
+        self.restore(ckp);
         None
       }
     }
@@ -272,8 +273,8 @@ where
 
   /// Returns a slice of the current token from the input source.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn slice(&self) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
-    self.input.slice(self.span.start_ref()..self.span.end_ref())
+  pub fn slice(&self) -> <L::Source as Source<L::Offset>>::Slice<'inp> {
+    self.lexer_no_state().slice()
   }
 
   /// Returns a slice of the input source from the given cursor to the current cursor of the tokenizer.
@@ -282,7 +283,6 @@ where
     &self,
     cursor: &Cursor<'inp, 'closure, L>,
   ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
-    // let start = cursor.cursor;
     let end = self.cursor();
     self.input.slice(cursor.as_inner()..end.as_inner())
   }
@@ -406,7 +406,7 @@ where
       *self.state = extras;
       true
     } else {
-      self.next().is_some()
+      self.next_inner().is_some()
     }
   }
 
@@ -802,7 +802,7 @@ where
   /// Saves the current state of the tokenizer as a checkpoint.
   ///
   /// This creates a snapshot of the current position and lexer state, which can
-  /// later be restored using [`go`](Self::go). Checkpoints are essential for
+  /// later be restored using [`restore`](Self::restore). Checkpoints are essential for
   /// implementing backtracking in parsers.
   ///
   /// # Example
@@ -811,7 +811,7 @@ where
   /// let checkpoint = tokenizer.save();
   /// // Try parsing something...
   /// if parsing_failed {
-  ///     tokenizer.go(checkpoint); // Restore state
+  ///     tokenizer.restore(checkpoint); // Restore state
   /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -829,6 +829,16 @@ where
     Cursor::from_ref(self.cache().first_span().unwrap_or(self.span))
   }
 
+  /// Returns the current offset of the tokenizer to the original source.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn offset(&self) -> &L::Offset {
+    self
+      .cache()
+      .last_span()
+      .map(|s| s.end_ref())
+      .unwrap_or_else(|| self.span.end_ref())
+  }
+
   /// Restores the tokenizer state to a previously saved checkpoint.
   ///
   /// This rewinds the cache, resets the cursor position, and restores the lexer
@@ -836,7 +846,7 @@ where
   /// This is commonly used for parser backtracking.
   #[doc(alias = "rewinds")]
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn go(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+  pub fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     self.cache_mut().rewind(&checkpoint);
     let cur = checkpoint.cursor();
     self.emitter().rewind(cur);
@@ -893,7 +903,7 @@ where
 
   /// Advances the cursor and returns the next token (valid or error).
   ///
-  /// Unlike [`next_valid_with`](Self::next_valid_with), this method returns both
+  /// Unlike [`next_token`](Self::next_token), this method returns both
   /// valid tokens and lexer errors wrapped in [`Lexed`]. The cursor advances
   /// regardless of whether a valid token or error is returned.
   ///
@@ -909,6 +919,11 @@ where
       return Some(Spanned::new(span, lexed));
     }
 
+    self.next_inner()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn next_inner(&mut self) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>> {
     let mut lexer = self.lexer();
     Lexed::lex_spanned(&mut lexer).inspect(|_| {
       self.set_span_after_consume(lexer.span().into());

@@ -101,7 +101,7 @@ use crate::{
 macro_rules! define_literal {
   (
     $(#[$meta:meta])*
-    $name:ident,
+    $name:ident $(= $default:ty)?,
     $doc:expr,
     $example_str:expr,
     $example_desc:expr
@@ -142,7 +142,7 @@ macro_rules! define_literal {
       #[doc = "let bad_lit = " $name "::<String, YulLang>::error(span);"]
       /// ```
       #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-      pub struct $name<D, S = $crate::__private::utils::SimpleSpan, Lang = ()> {
+      pub struct $name<D $( = $default)?, S = $crate::__private::utils::SimpleSpan, Lang = ()> {
         span: S,
         data: D,
         _lang: PhantomData<Lang>,
@@ -197,6 +197,16 @@ macro_rules! define_literal {
       #[cfg_attr(not(tarpaulin), inline(always))]
       pub const fn span_mut(&mut self) -> &mut S {
         &mut self.span
+      }
+
+      /// Bumps the span to of this literal by the specified offset.
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      pub fn bump(&mut self, by: &S::Offset) -> &mut Self
+      where
+        S: $crate::lexer::Span,
+      {
+        self.span.bump(by);
+        self
       }
 
       /// Returns a mutable reference to the source string.
@@ -370,7 +380,7 @@ define_literal!(
   ///
   /// Represents a single character enclosed in single quotes, such as `'a'`, `'\\n'`,
   /// or `'\\u{1F600}'`. May contain escape sequences for special characters.
-  LitChar,
+  LitChar = char,
   "A character literal (e.g., `'a'`, `'\\n'`, `'\\u{1F600}'`).",
   "\"'a'\"",
   "Malformed char like unclosed 'a"
@@ -382,7 +392,7 @@ define_literal!(
   /// Represents a single byte value enclosed in single quotes with a `b` prefix,
   /// such as `b'a'`, `b'\\x7F'`, or `b'\\n'`. Used in languages like Rust for
   /// ASCII/byte manipulation.
-  LitByte,
+  LitByte = u8,
   "A byte literal (e.g., `b'a'`, `b'\\x7F'`).",
   "\"b'a'\"",
   "Malformed byte literal"
@@ -405,10 +415,32 @@ define_literal!(
   ///
   /// Represents boolean values `true` or `false`. The source string contains the
   /// actual keyword as it appears in source code.
-  LitBool,
+  LitBool = bool,
   "A boolean literal (`true` or `false`).",
   "\"true\"",
   "Malformed boolean like \"tru\" or \"fals\""
+);
+
+define_literal!(
+  /// A `true` literal.
+  ///
+  /// Represents boolean value `true`. The source string contains the
+  /// actual keyword as it appears in source code.
+  LitTrue = (),
+  "A `true` literal.",
+  "\"true\"",
+  "Malformed `true` literal like \"tru\""
+);
+
+define_literal!(
+  /// A `true` literal.
+  ///
+  /// Represents boolean value `true`. The source string contains the
+  /// actual keyword as it appears in source code.
+  LitFalse = (),
+  "A `false` literal.",
+  "\"false\"",
+  "Malformed `false` literal like \"fals\""
 );
 
 define_literal!(
@@ -417,7 +449,7 @@ define_literal!(
   /// Represents the null, nil, or None value in various programming languages.
   /// The source string contains the keyword as it appears (e.g., `null`, `nil`,
   /// `None`, `nullptr`).
-  LitNull,
+  LitNull = (),
   "A null/nil literal (e.g., `null`, `nil`, `None`).",
   "\"null\"",
   "Malformed null literal"

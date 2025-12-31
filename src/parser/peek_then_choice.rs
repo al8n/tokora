@@ -1,3 +1,5 @@
+use crate::ParseChoice;
+
 use super::*;
 
 /// A combinator that chooses between multiple parser alternatives based on lookahead.
@@ -101,7 +103,7 @@ pub struct PeekThenChoice<P, H, L, Ctx, W, Lang: ?Sized = ()> {
 impl<P, H, L, Ctx, W: Window, Lang: ?Sized> PeekThenChoice<P, H, L, Ctx, W, Lang> {
   /// Creates a new `PeekThenChoice` combinator for the specified language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn of<'inp, O>(parser: P, condition: H) -> Self
+  pub(crate) const fn of<'inp, O>(parser: P, condition: H) -> Self
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
@@ -123,7 +125,7 @@ impl<P, H, L, Ctx, W: Window, Lang: ?Sized> PeekThenChoice<P, H, L, Ctx, W, Lang
 
   /// Creates a new `PeekThenChoice` combinator for the specified language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn or_not_of<'inp, O>(parser: P, condition: H) -> OrNot<Self>
+  pub(crate) const fn or_not_of<'inp, O>(parser: P, condition: H) -> OrNot<Self>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
@@ -206,7 +208,10 @@ where
 mod tests {
   use generic_arraydeque::typenum::U2;
 
-  use crate::lexer::{DummyLexer, DummyToken};
+  use crate::{
+    Branch,
+    lexer::{DummyLexer, DummyToken},
+  };
 
   use super::*;
 

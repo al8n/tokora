@@ -97,7 +97,7 @@
 //! let mut error = Unclosed::new(SimpleSpan::new(5, 6), '{');
 //!
 //! // Adjust to absolute position in the larger document
-//! error.bump(100);
+//! error.bump(&100);
 //! assert_eq!(error.span(), SimpleSpan::new(105, 106));
 //! ```
 
@@ -489,7 +489,7 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// use tokit::{error::Unclosed, utils::SimpleSpan};
   ///
   /// let mut error = Unclosed::new(SimpleSpan::new(5, 6), '(');
-  /// error.bump(100);
+  /// error.bump(&100);
   /// assert_eq!(error.span(), SimpleSpan::new(105, 106));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

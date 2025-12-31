@@ -115,7 +115,7 @@ pub struct Ignore<P, O, L, Ctx, Lang: ?Sized = ()> {
 impl<P, O, L, Ctx, Lang: ?Sized> Ignore<P, O, L, Ctx, Lang> {
   /// Creates a parser that ignores any output.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(parser: P) -> Self {
+  pub(crate) const fn new(parser: P) -> Self {
     Self {
       parser,
       _output: PhantomData,

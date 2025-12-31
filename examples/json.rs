@@ -4,7 +4,8 @@ use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
-  Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser, Token as TokenT,
+  Branch, Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser,
+  Token as TokenT,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
@@ -15,7 +16,7 @@ use tokit::{
     token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
   lexer::{InputRef, Peeked, PunctuatorToken},
-  parser::{Action, Branch, Expect},
+  parser::{Action, Expect},
   punct::{Brace, Bracket, Comma},
   utils::{Expected, Spanned},
 };
@@ -297,7 +298,7 @@ impl<'inp> TokenT<'inp> for Token<'inp> {
   }
 }
 
-type JsonLexer<'a> = tokit::lexer::LogosLexer<'a, Token<'a>, Token<'a>>;
+type JsonLexer<'a> = tokit::lexer::LogosLexer<'a, Token<'a>>;
 
 // Example of using map combinator to extract token values
 #[derive(Debug, Clone)]
@@ -466,7 +467,7 @@ where
     + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   json_value
-    .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
+    .separated_on_condition_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
     .delimited_by(open_bracket, close_bracket, Bracket::PHANTOM)
     .collect()
     .parse_input(inp)
@@ -517,7 +518,7 @@ where
     + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   field
-    .separated_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
+    .separated_on_condition_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
     .delimited_by(open_brace, close_brace, Brace::PHANTOM)
     .collect()
     .parse_input(inp)

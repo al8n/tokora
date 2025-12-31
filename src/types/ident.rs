@@ -160,22 +160,22 @@ enum Status {
 /// assert_eq!(ident.span(), SimpleSpan::new(10, 18));
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Ident<S, Lang> {
-  span: SimpleSpan,
+pub struct Ident<S, Span = SimpleSpan, Lang: ?Sized = ()> {
+  span: Span,
   ident: S,
   status: Status,
   _lang: PhantomData<Lang>,
 }
 
-impl<S, Lang> AsSpan<SimpleSpan> for Ident<S, Lang> {
+impl<S, Span, Lang: ?Sized> AsSpan<Span> for Ident<S, Span, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn as_span(&self) -> &SimpleSpan {
+  fn as_span(&self) -> &Span {
     self.span_ref()
   }
 }
 
-impl<S, Lang> IntoComponents for Ident<S, Lang> {
-  type Components = (SimpleSpan, S);
+impl<S, Span, Lang: ?Sized> IntoComponents for Ident<S, Span, Lang> {
+  type Components = (Span, S);
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn into_components(self) -> Self::Components {
@@ -183,7 +183,7 @@ impl<S, Lang> IntoComponents for Ident<S, Lang> {
   }
 }
 
-impl<S, Lang> Ident<S, Lang> {
+impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   /// Creates a new identifier with the given span and source string.
   ///
   /// # Parameters
@@ -205,12 +205,12 @@ impl<S, Lang> Ident<S, Lang> {
   /// assert_eq!(ident.source_ref(), &"count");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: SimpleSpan, source: S) -> Self {
+  pub const fn new(span: Span, source: S) -> Self {
     Self::with_status(span, source, Status::Valid)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  const fn with_status(span: SimpleSpan, source: S, status: Status) -> Self {
+  const fn with_status(span: Span, source: S, status: Status) -> Self {
     Self {
       span,
       ident: source,
@@ -232,7 +232,10 @@ impl<S, Lang> Ident<S, Lang> {
   /// assert_eq!(ident.span(), SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(&self) -> SimpleSpan {
+  pub const fn span(&self) -> Span
+  where
+    Span: Copy,
+  {
     self.span
   }
 
@@ -252,7 +255,7 @@ impl<S, Lang> Ident<S, Lang> {
   /// assert_eq!(*span_ref, SimpleSpan::new(0, 3));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_ref(&self) -> &SimpleSpan {
+  pub const fn span_ref(&self) -> &Span {
     &self.span
   }
 
@@ -273,7 +276,7 @@ impl<S, Lang> Ident<S, Lang> {
   /// assert_eq!(ident.span(), SimpleSpan::new(10, 13));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span_mut(&mut self) -> &mut SimpleSpan {
+  pub const fn span_mut(&mut self) -> &mut Span {
     &mut self.span
   }
 
@@ -369,14 +372,15 @@ impl<S, Lang> Ident<S, Lang> {
 
   /// Maps the source string to a new type, preserving the span and language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map<U>(self, f: impl FnOnce(S) -> U) -> Ident<U, Lang> {
+  pub fn map<U>(self, f: impl FnOnce(S) -> U) -> Ident<U, Span, Lang> {
     Ident::new(self.span, f(self.ident))
   }
 }
 
-impl<S, Lang> ErrorNode for Ident<S, Lang>
+impl<S, Span, Lang> ErrorNode<Span> for Ident<S, Span, Lang>
 where
-  S: ErrorNode,
+  S: ErrorNode<Span>,
+  Span: Clone,
 {
   /// Creates a placeholder identifier for **malformed content**.
   ///
@@ -393,8 +397,8 @@ where
   /// let bad_ident = Ident::<String, YulLang>::error(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn error(span: SimpleSpan) -> Self {
-    Self::with_status(span, S::error(span), Status::Error)
+  fn error(span: Span) -> Self {
+    Self::with_status(span.clone(), S::error(span), Status::Error)
   }
 
   /// Creates a placeholder identifier for **missing required content**.
@@ -415,122 +419,7 @@ where
   /// let missing_ident = Ident::<String, YulLang>::missing(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn missing(span: SimpleSpan) -> Self {
-    Self::with_status(span, S::missing(span), Status::Missing)
+  fn missing(span: Span) -> Self {
+    Self::with_status(span.clone(), S::missing(span), Status::Missing)
   }
 }
-
-// #[cfg(feature = "chumsky")]
-// #[cfg_attr(docsrs, doc(cfg(feature = "chumsky")))]
-// const _: () = {
-//   use chumsky::{Parser, extra::ParserExtra, prelude::*};
-//   use logos::{Logos, Source};
-
-//   use crate::{
-//     IdentifierToken, Lexed, LogoStream, error::UnexpectedToken, syntax::Language, utils::SimpleSimpleSpanned,
-//   };
-
-//   impl<S, Lang> Ident<S, Lang> {
-//     /// Creates a Chumsky parser that parses identifier tokens into `Ident`.
-//     ///
-//     /// This parser validates that the token is an identifier (not a keyword or other
-//     /// token type) and converts it to an `Ident` with proper span tracking.
-//     ///
-//     /// # Type Parameters
-//     ///
-//     /// - `'a`: Lifetime of the input source
-//     /// - `I`: Token stream implementing [`LogoStream`]
-//     /// - `T`: Token type implementing [`IdentifierToken`]
-//     /// - `Error`: Error type that can be constructed from lexer and parser errors
-//     /// - `E`: Parser extra state carrying errors and metadata
-//     ///
-//     /// # Parameters
-//     ///
-//     /// - `ident_kind`: Function that returns the expected syntax kind for error
-//     ///   reporting. Called when a non-identifier token is found.
-//     ///
-//     /// # Returns
-//     ///
-//     /// A Chumsky parser that produces `Ident<S, Lang>` on success or emits an
-//     /// [`UnexpectedToken`] error when a non-identifier is found.
-//     ///
-//     /// # Error Behavior
-//     ///
-//     /// The parser fails with an error in these cases:
-//     /// - Token is not an identifier (e.g., keyword, operator, literal)
-//     /// - Lexer error occurred while scanning the token
-//     ///
-//     /// # Examples
-//     ///
-//     /// ## Basic Usage
-//     ///
-//     /// ```rust,ignore
-//     /// use tokit::types::Ident;
-//     /// use tokit::chumsky::Parser;
-//     ///
-//     /// // Parser for YUL identifiers
-//     /// let ident_parser = Ident::<&str, YulLang>::parser(|| YulSyntaxKind::Ident);
-//     ///
-//     /// // Parse "count" into Ident
-//     /// let result = ident_parser.parse(stream)?;
-//     /// assert_eq!(result.source_ref(), &"count");
-//     /// ```
-//     ///
-//     /// ## With Error Recovery
-//     ///
-//     /// ```rust,ignore
-//     /// use tokit::types::Ident;
-//     /// use tokit::error::ErrorNode;
-//     /// use tokit::chumsky::{Parser, prelude::*};
-//     ///
-//     /// // Parser with recovery for missing identifiers
-//     /// let ident_parser = Ident::<String, YulLang>::parser(|| YulSyntaxKind::Ident)
-//     ///     .recover_with(via_parser(
-//     ///         // Create placeholder on error
-//     ///         empty().map_with(|_, exa| Ident::missing(exa.span()))
-//     ///     ));
-//     ///
-//     /// // Even with missing identifier, parsing continues
-//     /// let result = ident_parser.parse(stream)?;
-//     /// ```
-//     ///
-//     /// ## Custom String Type
-//     ///
-//     /// ```rust,ignore
-//     /// // Use owned String for identifiers
-//     /// let parser = Ident::<String, MyLang>::parser(|| MyKind::Identifier);
-//     ///
-//     /// // Use interned strings
-//     /// let parser = Ident::<Symbol, MyLang>::parser(|| MyKind::Identifier);
-//     /// ```
-//     ///
-//     /// # See Also
-//     ///
-//     /// - [`IdentifierToken`]: Trait for tokens that can be identifiers
-//     /// - [`UnexpectedToken`]: Error emitted when wrong token type is found
-//     /// - [`ErrorNode`]: For creating placeholder identifiers during recovery
-//     #[cfg_attr(not(tarpaulin), inline(always))]
-//     pub fn parser<'a, I, T, E>(
-//       ident_kind: impl Fn() -> Lang::SyntaxKind + Clone + 'a,
-//     ) -> impl Parser<'a, I, Self, E> + Clone + 'a
-//     where
-//       I: LogoStream<'a, T>,
-//       T: IdentifierToken<'a>,
-//       S: From<<<<T>::Logos as Logos<'a>>::Source as Source>::Slice<'a>> + 'a,
-//       Lang: Language,
-//       Lang::SyntaxKind: 'a,
-//       E::Error: From<<T::Logos as Logos<'a>>::Error>
-//         + From<<T::Logos as Logos<'a>>::Error>
-//         + From<UnexpectedToken<'a, T, Lang::SyntaxKind>>,
-//       E: ParserExtra<'a, I> + 'a,
-//     {
-//       any().try_map(move |tok: Lexed<'_, T>, _| match tok {
-//         Lexed::Token(SimpleSpanned { span, data: tok }) => match tok.try_into_identifier() {
-//           Ok(ident) => Ok(Ident::new(span, ident.into())),
-//           Err(tok) => Err(UnexpectedToken::expected_one_with_found(span, tok, ident_kind()).into()),
-//         },
-//         Lexed::Error(e) => Err(E::Error::from(e)),
-//       })
-//     }
-//   }
-// };

@@ -349,7 +349,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// use tokit::utils::{Lexeme, PositionedChar};
   ///
   /// let mut lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
-  /// lexeme.bump(10);
+  /// lexeme.bump(&10);
   ///
   /// assert_eq!(lexeme.unwrap_char().position(), 15);
   /// ```

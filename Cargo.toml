@@ -53,7 +53,7 @@ derive_more = { version = "2", default-features = false, features = [
   "is_variant",
 ] }
 generic-arraydeque = { version = "0.1", default-features = false, features = ["unstable"] }
-logos = { version = "0.15", default-features = false, optional = true, features = [
+logos = { version = "0.16", default-features = false, optional = true, features = [
   "export_derive",
 ] }
 paste = "1"

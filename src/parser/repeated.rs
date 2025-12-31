@@ -120,10 +120,9 @@ mod parse;
 ///
 /// # Error Handling
 ///
-/// The parser emits errors via the [`RepeatedEmitter`](crate::emitter::RepeatedEmitter) trait:
-/// - Too few elements (below minimum)
-/// - Too many elements (above maximum)
-/// - Container full
+/// The parser emits errors via the traits:
+/// - [`TooFewEmitter`](crate::emitter::TooFewEmitter): Too few elements (below minimum)
+/// - [`TooManyEmitter`](crate::emitter::TooManyEmitter): Too many elements (above maximum)
 ///
 /// # Performance
 ///
@@ -150,7 +149,7 @@ pub struct Repeated<F, Condition, O, W, L, Ctx, Lang: ?Sized = ()> {
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Repeated<F, Condition, O, W, L, Ctx, Lang> {
   /// Creates a new `Repeated` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(f: F, condition: Condition) -> Self {
+  pub(crate) const fn new(f: F, condition: Condition) -> Self {
     Self::new_in(f, condition)
   }
 

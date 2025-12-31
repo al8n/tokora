@@ -38,18 +38,18 @@ mod separated;
 /// a specific parsing scenario:
 ///
 /// - **Core**: [`Emitter`] - Base error handling (lexer errors, unexpected tokens)
-/// - **Repetition**: [`TooFewEmitter`], [`TooManyEmitter`], [`FullContainerEmitter`](repeated::FullContainerEmitter)
-/// - **Separation**: [`SeparatedEmitter`](separated::SeparatedEmitter), [`UnexpectedLeadingSeparatorEmitter`](separated::UnexpectedLeadingSeparatorEmitter), [`UnexpectedTrailingSeparatorEmitter`](separated::UnexpectedTrailingSeparatorEmitter)
-/// - **Delimiters**: [`DelimitedEmitter`](delimited::DelimitedEmitter)
+/// - **Repetition**: [`TooFewEmitter`], [`TooManyEmitter`], [`FullContainerEmitter`]
+/// - **Separation**: [`SeparatedEmitter`], [`UnexpectedLeadingSeparatorEmitter`], [`UnexpectedTrailingSeparatorEmitter`]
+/// - **Delimiters**: [`DelimitedEmitter`]
 ///
 /// This atomic design provides:
 /// - ✅ **Fine-grained control**: Implement only the traits you need for your use case
 /// - ✅ **Composability**: Mix and match traits to build custom error handling strategies
-/// - ✅ **Pre-built bundles**: [`Fatal`](impl_::Fatal), [`Verbose`](impl_::Verbose), and [`Silent`](impl_::Silent) implement all traits with consistent behavior
+/// - ✅ **Pre-built bundles**: [`Fatal`], [`Verbose`], and [`Silent`] implement all traits with consistent behavior
 /// - ✅ **Extensibility**: Create specialized emitters by implementing a subset of traits
 ///
-/// Tokit provides several complete implementations: [`Fatal`](impl_::Fatal), [`Verbose`](impl_::Verbose),
-/// [`Silent`](impl_::Silent), and [`Ignored`](impl_::ignored::Ignored). However, the atomic trait system
+/// Tokit provides several complete implementations: [`Fatal`], [`Verbose`],
+/// [`Silent`], and [`Ignored`](crate::utils::marker::Ignored). However, the atomic trait system
 /// encourages you to create custom emitters tailored to your specific needs by implementing only the
 /// traits relevant to your parser.
 ///

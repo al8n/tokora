@@ -236,5 +236,13 @@ punctuator! {
   (Dollar, "DOLLAR", "$"),
   (Hash, "HASH", "#"),
   (At, "AT", "@"),
+  (Asterisk, "ASTERISK", "*"),
+  (Apostrophe, "APOSTROPHE", "'"),
+  (DoubleQuote, "DOUBLE_QUOTE", "\""),
+  (Plus, "PLUS", "+"),
+  (Exclamation, "EXCLAMATION", "!"),
+  (Question, "QUESTION", "?"),
+  (Backtick, "BACKTICK", "`"),
   (Trivia, "TRIVIA", "any trivia characters"),
+  (Caret, "CARET", "^"),
 }

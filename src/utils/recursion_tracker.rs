@@ -319,7 +319,7 @@ impl RecursionTracker for RecursionLimiter {
 
 #[cfg(feature = "logos")]
 const _: () = {
-  use crate::{Token, lexer::LogosLexer};
+  use crate::lexer::{FromLogos, LogosLexer};
   use logos::{Lexer, Logos};
 
   impl<'a, T> RecursionTracker for Lexer<'a, T>
@@ -350,13 +350,12 @@ const _: () = {
     }
   }
 
-  impl<'a, T, L> RecursionTracker for LogosLexer<'a, T, L>
+  impl<'a, T> RecursionTracker for LogosLexer<'a, T>
   where
-    T: From<L> + Token<'a>,
-    L: Logos<'a>,
-    L::Extras: RecursionTracker,
+    T: FromLogos<'a>,
+    <T::Logos as Logos<'a>>::Extras: RecursionTracker,
   {
-    type Error = <L::Extras as RecursionTracker>::Error;
+    type Error = <<T::Logos as Logos<'a>>::Extras as RecursionTracker>::Error;
 
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn increase(&mut self) {

@@ -7,7 +7,7 @@ use crate::utils::{SimpleSpan, Spanned};
 pub(crate) use input::Input;
 
 #[cfg(feature = "logos")]
-pub use self::logos::LogosLexer;
+pub use self::logos::{FromLogos, LogosLexer};
 pub use cache::*;
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
@@ -80,9 +80,7 @@ pub trait Lexer<'inp>: 'inp {
   type Offset: Default + fmt::Debug + Ord + Clone + Hash;
 
   /// Lexes the input source and returns a tokenizer.
-  fn new(src: &'inp Self::Source) -> Self
-  where
-    Self::State: Default;
+  fn new(src: &'inp Self::Source) -> Self;
 
   /// Lexes the input source with the given initial state and returns a tokenizer.
   fn with_state(src: &'inp Self::Source, state: Self::State) -> Self;

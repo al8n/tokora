@@ -300,7 +300,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   ///   SimpleSpan::new(1, 5),
   ///   Lexeme::Char(PositionedChar::with_position('x', 0))
   /// );
-  /// error.bump(10);
+  /// error.bump(&10);
   /// assert_eq!(error.token(), SimpleSpan::new(11, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

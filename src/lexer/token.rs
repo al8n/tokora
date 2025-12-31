@@ -1,6 +1,6 @@
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
-use crate::utils::{Spanned, cmp::Equivalent};
+use crate::utils::Spanned;
 
 #[cfg(feature = "logos")]
 #[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
@@ -174,11 +174,11 @@ impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, T::Error> {
   }
 }
 
-/// The core trait for token types used with LogoSky.
+/// The core trait for token types used with Tokit.
 ///
 /// `Token` defines the interface that all token types must implement to work with
-/// LogoSky's [`Tokenizer`] and Chumsky parsers. It bridges the gap between Logos'
-/// lexical analysis and the structured token representation needed for parsing.
+/// Tokit's [`Lexer`](crate::Lexer) trait. It bridges the gap between lexical analysis and the
+/// structured token representation needed for parsing.
 ///
 /// # Design
 ///
@@ -417,6 +417,21 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   /// }
   /// ```
   fn is_trivia(&self) -> bool;
+}
+
+impl<'a, T: Token<'a>> Token<'a> for &'a T {
+  type Kind = T::Kind;
+  type Error = T::Error;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn kind(&self) -> Self::Kind {
+    (*self).kind()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_trivia(&self) -> bool {
+    (*self).is_trivia()
+  }
 }
 
 /// A trait for tokens that can classify punctuation without pattern matching on kinds.
@@ -1110,8 +1125,7 @@ pub trait LitToken<'a>: Token<'a> {
 ///
 /// impl<'a> Token<'a> for MyToken<'a> {
 ///     type Char = char;
-///     type Kind = MyTokenKind;
-///     type Logos = MyTokens<'a>;
+///     type Error = ();
 ///
 ///     fn kind(&self) -> Self::Kind {
 ///         match self {
@@ -1119,6 +1133,10 @@ pub trait LitToken<'a>: Token<'a> {
 ///            MyToken::If => MyTokenKind::KeywordIf,
 ///            MyToken::Else => MyTokenKind::KeywordElse,
 ///         }
+///     }
+///
+///     fn is_trivia(&self) -> bool {
+///         false
 ///     }
 /// }
 ///
@@ -1149,33 +1167,16 @@ pub trait LitToken<'a>: Token<'a> {
 ///     }
 /// }
 /// ```
-pub trait IdentifierToken<'a, S>: Token<'a> {
+pub trait IdentifierToken<'a>: Token<'a> {
   /// Returns `true` when the token is an identifier (user-defined name).
+  fn is_identifier(&self) -> bool;
+}
+
+impl<'a, T: IdentifierToken<'a>> IdentifierToken<'a> for &'a T {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_identifier(&self) -> bool {
-    self.identifier().is_some()
+    T::is_identifier(self)
   }
-
-  /// Returns `true` when the identifier matches the given name.
-  ///
-  /// The default implementation defers to [`identifier`](IdentifierToken::identifier).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn matches_identifier<O>(&self, name: &O) -> bool
-  where
-    O: Equivalent<S>,
-  {
-    self.identifier().is_some_and(|id| name.equivalent(id))
-  }
-
-  /// Returns the identifier source, if this token is an identifier.
-  fn identifier(&self) -> Option<&S> {
-    None
-  }
-
-  /// Attempts to get the identifier source, returning the `Err(Self)` if this token is not an identifier.
-  fn try_into_identifier(self) -> Result<S, Self>
-  where
-    Self: Sized;
 }
 
 /// A trait for tokens that represent keywords.
@@ -1261,6 +1262,18 @@ pub trait KeywordToken<'a>: Token<'a> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn keyword(&self) -> Option<&'static str> {
     None
+  }
+}
+
+impl<'a, T: KeywordToken<'a>> KeywordToken<'a> for &'a T {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_keyword(&self) -> bool {
+    T::is_keyword(self)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn keyword(&self) -> Option<&'static str> {
+    T::keyword(self)
   }
 }
 

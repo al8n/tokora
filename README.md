@@ -38,7 +38,7 @@ Unlike traditional parser combinators that buffer tokens and rely on implicit ba
 - **Token-Based Parsing**: Works directly on token streams from any lexer implementing the `Lexer<'inp>` trait
 - **Composable Combinators**: Build complex parsers from simple, reusable building blocks
 - **Flexible Error Handling**: Configurable error emission strategies (`Fatal`, `Silent`, `Ignored`)
-- **Rich Error Recovery**: Built-in support for error recovery and validation
+- **Rich Error Recovery**: Built-in `recover()` and `inplace_recover()` combinators for resilient parsing with backtracking or synchronization
 - **Zero-Cost Abstractions**: All configuration resolved at compile time
 - **No-std Support**: Core functionality works without allocator
 - **Multiple Source Types**: Support for `str`, `[u8]`, `Bytes`, `BStr`, `HipStr`
@@ -98,6 +98,7 @@ Tokit's emitter system uses **atomically composable traits** - small, focused tr
 - **Delimiters**: `DelimitedEmitter`
 
 This design provides:
+
 - **Fine-grained control**: Implement only the traits you need
 - **Composability**: Mix and match traits to build custom strategies
 - **Extensibility**: Create specialized emitters for specific use cases
@@ -124,6 +125,7 @@ Tokit provides complete implementations that implement all atomic traits with co
 - Generating detailed error reports for language servers
 
 **Custom Emitters**: Thanks to the atomically composable trait design, you can create custom error handling strategies by implementing only the traits you need. You compose small, focused traits to build exactly the behavior you want. For example, you could build an emitter that:
+
 - Implements only `Emitter` + `TooFewEmitter` for a parser that only needs those scenarios
 - Limits the maximum number of errors before stopping
 - Filters errors by severity level
@@ -137,13 +139,72 @@ Tokit provides complete implementations that implement all atomic traits with co
   - Escape sequences: `HexEscape`, `UnicodeEscape`
   - All errors include span tracking
 
+### Error Recovery
+
+Tokit provides built-in parser combinators for resilient parsing that can continue after errors:
+
+#### Recovery Strategies
+
+- **`recover(recovery_parser)`** - Error recovery with backtracking
+  - If primary parser fails, **resets to starting position** and tries recovery parser
+  - Use for: Alternative interpretations, fallback values, error nodes
+  - Example: `parse_expr().recover(parse_error_node())`
+
+- **`inplace_recover(recovery_parser)`** - Error recovery without backtracking
+  - If primary parser fails, **continues from error position** with recovery parser
+  - Use for: Panic mode recovery, resynchronization, skipping to safe points
+  - Example: `parse_stmt().inplace_recover(skip_to_semicolon())`
+
+#### Recovery Patterns
+
+**Alternative Parsing** (with backtracking):
+
+```rust,ignore
+// Try parsing as function, fall back to error item
+let parser = parse_function()
+    .recover(parse_error_item());
+
+// Input with error → recovers gracefully
+```
+
+**Synchronization Points** (without backtracking):
+
+```rust,ignore
+// Parse statement, skip to semicolon on error
+let parser = parse_statement()
+    .inplace_recover(
+        skip_until(|tok| matches!(tok, Token::Semicolon))
+            .then_ignore(any())
+            .map(|_| Statement::Error)
+    );
+
+// Continues parsing from next statement
+```
+
+**Comprehensive Error Collection**:
+
+```rust,ignore
+// Use with Verbose emitter to collect all errors
+let emitter = Verbose::new();
+let items = many(
+    parse_item().recover(parse_error_item())
+);
+
+// After parsing, retrieve all errors:
+for (span, error) in emitter.errors() {
+    eprintln!("Error at {:?}: {}", span, error);
+}
+```
+
+Error recovery works seamlessly with the atomically composable emitter system - combine `Verbose` emitter with recovery combinators to build robust parsers that report all issues in a single pass.
+
 ### Utilities
 
 - **Span Tracking**
-  - `Span` - Lightweight span representation
-  - `Spanned<T>` - Wrap value with span
-  - `Located<T>` - Wrap value with span and source slice
-  - `Sliced<T>` - Wrap value with source slice
+  - `SimpleSpan` - Lightweight span representation
+  - `Spanned<T, S>` - Wrap value with span
+  - `Located<T, S>` - Wrap value with span and source slice
+  - `Sliced<T, S>` - Wrap value with source slice
 
 - **Parser Configuration**
   - `Parser<F, L, O, Error, Context>` - Configurable parser
@@ -158,8 +219,6 @@ Check out the examples directory:
 ```bash
 # JSON token parsing with map combinators
 cargo run --example json
-
-# Note: The calculator examples are being updated for v0.3.0 API
 ```
 
 ## Architecture

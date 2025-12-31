@@ -22,7 +22,7 @@ macro_rules! keyword {
         #[doc = "The `" $kw "` keyword"]
         $(#[$meta])*
         #[derive(::core::fmt::Debug, ::core::clone::Clone, ::core::marker::Copy, ::core::cmp::PartialEq, ::core::cmp::Eq, ::core::hash::Hash)]
-        pub struct $name<S = $crate::__private::utils::Span, C = ()> {
+        pub struct $name<S = $crate::__private::utils::SimpleSpan, C = ()> {
           span: S,
           source: C,
         }

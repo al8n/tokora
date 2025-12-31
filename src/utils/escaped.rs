@@ -310,7 +310,7 @@ impl<Char, O> SingleCharEscape<Char, O> {
   ///     PositionedChar::with_position('n', 11),
   /// );
   ///
-  /// escape.bump(5);
+  /// escape.bump(&5);
   ///
   /// assert_eq!(escape.position(), 16);      // Was 11, now 16
   /// assert_eq!(escape.span(), SimpleSpan::new(15, 17)); // Was 10-12, now 15-17
@@ -486,7 +486,7 @@ impl<S> MultiCharEscape<S> {
   ///     SimpleSpan::new(5, 9)
   /// );
   ///
-  /// escape.bump(10);
+  /// escape.bump(&10);
   ///
   /// assert_eq!(escape.content(), SimpleSpan::new(16, 19));
   /// assert_eq!(escape.span(), SimpleSpan::new(15, 19));
@@ -751,7 +751,7 @@ impl<Char, O> EscapedLexeme<Char, O> {
   ///     PositionedChar::with_position('n', 11)
   /// );
   ///
-  /// escape.bump(5);
+  /// escape.bump(&5);
   /// assert_eq!(escape.span(), SimpleSpan::new(15, 17));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
