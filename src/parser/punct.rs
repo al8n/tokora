@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::{ParseOptional, error::UnexpectedEot, lexer::PunctuatorToken, punct::*};
+use crate::{TryParseInput, error::UnexpectedEot, lexer::PunctuatorToken, punct::*};
 
 macro_rules! define_parsers {
   ($($name:ident::$fn:ident),+$(,)?) => {
@@ -35,12 +35,10 @@ macro_rules! define_parsers {
           Ctx: ParseContext<'inp, L, Lang>,
           <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
         {
-          <$name>::new(()).parse_optional(inp)
+          <$name>::new(()).try_parse_input(inp)
         }
 
-        impl $crate::parse_optional::sealed::Sealed for $name {}
-
-        impl<'inp, L, Ctx, Lang> ParseOptional<'inp, L, $name<L::Span, (), Lang>, Ctx, Lang>
+        impl<'inp, L, Ctx, Lang> TryParseInput<'inp, L, $name<L::Span, (), Lang>, Ctx, Lang>
           for $name
         where
           L: Lexer<'inp>,
@@ -50,7 +48,7 @@ macro_rules! define_parsers {
           Lang: ?Sized,
         {
           #[cfg_attr(not(tarpaulin), inline(always))]
-          fn parse_optional(
+          fn try_parse_input(
             &mut self,
             inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
           ) -> Result<

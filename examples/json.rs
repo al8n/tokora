@@ -4,7 +4,7 @@ use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
-  Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser, Token as TokenT,
+  Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser, Token as TokenT, Branch,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
@@ -15,7 +15,7 @@ use tokit::{
     token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
   lexer::{InputRef, Peeked, PunctuatorToken},
-  parser::{Action, Branch, Expect},
+  parser::{Action, Expect},
   punct::{Brace, Bracket, Comma},
   utils::{Expected, Spanned},
 };

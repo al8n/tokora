@@ -20,9 +20,9 @@ pub use emitter::Emitter;
 pub use lexer::{Cache, Lexed, Lexer, Source, State, Token};
 pub use parse_choice::*;
 pub use parse_input::*;
-pub use parse_optional::ParseOptional;
 pub use parser::{Parse, ParseContext, Parser};
 pub use require::Require;
+pub use try_parse_input::TryParseInput;
 
 /// Concrete Syntax Tree (CST) representations and utilities.
 #[cfg(feature = "rowan")]
@@ -60,8 +60,8 @@ mod check;
 mod keyword;
 mod parse_choice;
 mod parse_input;
-mod parse_optional;
 mod require;
+mod try_parse_input;
 
 #[doc(hidden)]
 pub mod __private {

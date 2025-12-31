@@ -127,6 +127,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn spanned(self) -> With<PhantomSpan, Self>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     With<PhantomSpan, Self>: ParseInput<'inp, L, Spanned<O>, Ctx, Lang>,
   {
     With::new(PhantomSpan::phantom(), self)
@@ -137,6 +138,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn sliced(self) -> With<PhantomSliced, Self>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     With<PhantomSliced, Self>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     With::new(PhantomSliced::phantom(), self)
@@ -147,6 +149,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn located(self) -> With<PhantomLocated, Self>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     With<PhantomLocated, Self>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     With::new(PhantomLocated::phantom(), self)
@@ -157,6 +160,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn ignored(self) -> Ignore<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     Ignore<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, (), Ctx, Lang>,
   {
     Ignore::new(self)
@@ -260,6 +264,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     Self: Sized,
     F: FnMut(O) -> U,
+    L: Lexer<'inp>,
     Map<Self, F, L, Ctx, O, U, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     Map::new(self, f)
@@ -270,6 +275,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn map_with<U, F>(self, f: F) -> MapWith<Self, F, L, Ctx, O, U, Lang>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     F: FnMut(O, ParseState<'_, 'inp, '_, L, Ctx, Lang>) -> U,
     MapWith<Self, F, L, Ctx, O, U, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
@@ -372,6 +378,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn then_ignore<G, U>(self, second: G) -> ThenIgnore<Self, G, O, U, L, Ctx, Lang>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     G: ParseInput<'inp, L, U, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     ThenIgnore<Self, G, O, U, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -384,7 +391,8 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn and_then<T, U>(self, then: T) -> AndThen<Self, T, O, U, L, Ctx, Lang>
   where
     Self: Sized,
-    T: ParseInput<'inp, L, U, Ctx, Lang>,
+    T: FnMut(O) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     AndThen<Self, T, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
@@ -396,8 +404,12 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn and_then_with<T, U>(self, then: T) -> AndThenWith<Self, T, O, U, L, Ctx, Lang>
   where
     Self: Sized,
-    T: ParseInput<'inp, L, U, Ctx, Lang>,
+    T: FnMut(
+      O,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
+    L: Lexer<'inp>,
     AndThenWith<Self, T, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
     AndThenWith::new(self, then)
@@ -408,6 +420,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn then<T, U>(self, then: T) -> Then<Self, T, O, U, L, Ctx, Lang>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     T: ParseInput<'inp, L, U, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Then<Self, T, O, U, L, Ctx, Lang>: ParseInput<'inp, L, (O, U), Ctx, Lang>,
@@ -420,6 +433,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn ignore_then<G, U>(self, second: G) -> IgnoreThen<Self, G, O, U, L, Ctx, Lang>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     G: ParseInput<'inp, L, U, Ctx, Lang>,
     IgnoreThen<Self, G, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
   {
@@ -459,6 +473,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn recover<R>(self, recovery: R) -> Recover<Self, R, O, L, Ctx, Lang>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     R: RecoverInput<'inp, L, O, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Recover<Self, R, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -505,6 +520,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn inplace_recover<R>(self, recovery: R) -> InplaceRecover<Self, R, O, L, Ctx, Lang>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     R: InplaceRecoverInput<'inp, L, O, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     InplaceRecover<Self, R, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -517,6 +533,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn padded(self) -> Padded<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     Padded<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     Padded::new(self)
@@ -527,6 +544,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn padded_left(self) -> PaddedLeft<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     PaddedLeft<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     PaddedLeft::new(self)
@@ -537,6 +555,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn padded_right(self) -> PaddedRight<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
+    L: Lexer<'inp>,
     PaddedRight<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     PaddedRight::new(self)
