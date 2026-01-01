@@ -166,13 +166,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Ignore::new(self)
   }
 
-  /// Creates a `Repeated` combinator that applies this parser repeatedly
+  /// Creates a `RepeatedOnCondition` combinator that applies this parser repeatedly
   /// until the condition handler `Condition` returns [`Action::Stop`] or an fatal error.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn repeated_on_condition<Condition, W>(
     self,
     condition: Condition,
-  ) -> Repeated<Self, Condition, O, W, L, Ctx, Lang>
+  ) -> RepeatedOnCondition<Self, Condition, O, W, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -180,7 +180,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY>,
     W: Window,
   {
-    Repeated::new(self, condition)
+    RepeatedOnCondition::new(self, condition)
   }
 
   /// Creates a `SeparatedBy` combinator that applies this parser repeatedly,

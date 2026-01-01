@@ -63,10 +63,12 @@ impl<P> AtMost<P> {
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtMost<Repeated<F, Condition, O, W, L, Ctx, Lang>> {
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
+  AtMost<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>
+{
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn collect<Container>(self) -> Collect<Self, Container, (), ()>
+  pub fn collect<Container>(self) -> Collect<Self, Container, Ctx, Lang>
   where
     Container: Default,
   {
@@ -78,7 +80,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> AtMost<Repeated<F, Condition, O, 
   pub const fn collect_with<Container>(
     self,
     container: Container,
-  ) -> Collect<Self, Container, (), ()> {
+  ) -> Collect<Self, Container, Ctx, Lang> {
     Collect::new(self, container)
   }
 }

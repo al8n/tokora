@@ -151,7 +151,7 @@
 // /// | Feature | `DelimitedBy` | `DelimitedSeparatedBy` |
 // /// |---------|---------------|------------------------|
 // /// | **Separators** | ❌ No separators | ✅ Elements separated |
-// /// | **Base Parser** | [`Repeated`] | [`SeparatedBy`] |
+// /// | **Base Parser** | [`RepeatedOnCondition`] | [`SeparatedBy`] |
 // /// | **Example** | `[a b c]` | `[a, b, c]` |
 // /// | **Config** | Min/max only | Trailing/leading + min/max |
 // ///

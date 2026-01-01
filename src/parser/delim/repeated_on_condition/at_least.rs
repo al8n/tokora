@@ -1,15 +1,15 @@
 use crate::{
   container::Container as ContainerT,
-  emitter::{DelimitedEmitter, TooFewEmitter, TooManyEmitter},
-  error::syntax::{TooFew, TooMany},
+  emitter::{DelimitedEmitter, TooFewEmitter},
+  error::syntax::TooFew,
 };
 
 use super::*;
 
-impl<'inp, L, P, Open, Close, O, Container, Ctx, Delim, Lang: ?Sized>
+impl<'inp, L, P, Open, Close, O, Condition, Container, Ctx, Delim, W, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<Bounded<Repeated<P, O, L, Ctx, Lang>>, Open, Close, Delim>,
+    DelimitedBy<AtLeast<RepeatedOnCondition<P, Condition, O, W, L, Ctx, Lang>>, Open, Close, Delim>,
     Container,
     Ctx,
     Lang,
@@ -19,10 +19,10 @@ where
   Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
   Delim: Clone,
   L: Lexer<'inp>,
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
-  Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang>
-    + TooManyEmitter<'inp, O, L, Lang>
-    + TooFewEmitter<'inp, O, L, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  W: Window,
+  Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + TooFewEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
@@ -35,7 +35,6 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let max = self.parser.parser.maximum().get();
     let min = self.parser.parser.minimum().get();
 
     DelimitedBy::new_in(
@@ -51,11 +50,6 @@ where
           .emit_too_few(TooFew::of(span.clone(), nums, min))?;
       }
 
-      if nums > max {
-        inp
-          .emitter()
-          .emit_too_many(TooMany::of(span.clone(), nums, max))?;
-      }
       Ok(())
     })
   }

@@ -1,13 +1,19 @@
-use crate::{emitter::TooManyEmitter, error::syntax::TooMany};
+use crate::{
+  emitter::{TooFewEmitter, TooManyEmitter},
+  error::syntax::{TooFew, TooMany},
+};
 
 use super::*;
 
-impl<'inp, L, F, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<AtMost<Repeated<F, O, L, Ctx, Lang>>, Container, Ctx, Lang>
+impl<'inp, L, F, Condition, O, Container, Ctx, Lang: ?Sized, W>
+  ParseInput<'inp, L, Container, Ctx, Lang>
+  for Collect<Bounded<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
-  F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  Ctx::Emitter: TooManyEmitter<'inp, O, L, Lang>,
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  W: Window,
+  Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
@@ -27,13 +33,15 @@ where
   }
 }
 
-impl<'inp, L, F, O, Container, Ctx, Lang: ?Sized>
+impl<'inp, L, F, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-  for Collect<AtMost<Repeated<F, O, L, Ctx, Lang>>, Container, Ctx, Lang>
+  for Collect<Bounded<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
-  F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  Ctx::Emitter: TooManyEmitter<'inp, O, L, Lang>,
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  W: Window,
+  Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
@@ -53,12 +61,20 @@ where
   }
 }
 
-impl<'inp, 'c, L, F, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, L::Span, Ctx, Lang>
-  for Collect<&'c mut AtMost<Repeated<F, O, L, Ctx, Lang>>, &'c mut Container, Ctx, Lang>
+impl<'inp, 'c, L, F, Condition, O, Container, Ctx, Lang: ?Sized, W>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
+  for Collect<
+    &'c mut Bounded<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>,
+    &'c mut Container,
+    Ctx,
+    Lang,
+  >
 where
   L: Lexer<'inp>,
-  F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  Ctx::Emitter: TooManyEmitter<'inp, O, L, Lang>,
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  W: Window,
+  Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: crate::container::Container<O>,
 {
@@ -71,11 +87,18 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     let max = self.parser.maximum().get();
+    let min = self.parser.minimum().get();
 
     self
       .parser
       .parser
       .parse(inp, &mut self.container, |nums, inp, span| {
+        if min > nums {
+          inp
+            .emitter()
+            .emit_too_few(TooFew::of(span.clone(), nums, min))?;
+        }
+
         if nums > max {
           inp
             .emitter()

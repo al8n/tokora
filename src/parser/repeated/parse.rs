@@ -1,3 +1,5 @@
+use crate::TryParseInput;
+
 use super::*;
 
 mod at_least;
@@ -5,10 +7,8 @@ mod at_most;
 mod bounded;
 mod unbounded;
 
-impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
-  Repeated<F, Condition, O, W, L, Ctx, Lang>
-{
-  fn parse<Container>(
+impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
+  pub(super) fn parse<Container>(
     &mut self,
     inp: &mut InputRef<'inp, 'c, L, Ctx, Lang>,
     container: &mut Container,
@@ -20,32 +20,31 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    F: ParseInput<'inp, L, O, Ctx, Lang>,
-    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-    W: Window,
+    F: TryParseInput<'inp, L, O, Ctx, Lang>,
     Ctx::Emitter: Emitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: crate::container::Container<O>,
   {
+    let mut num = 0;
     let ckp = inp.save();
-    let mut nums = 0;
+    let mut cursor = ckp.cursor().clone();
 
     loop {
-      let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
-
-      match self.condition.decide(peeked, emitter) {
-        Err(err) => return Err(err),
-        Ok(action) => match action {
-          Action::Stop => {
-            let span = inp.span_since(ckp.cursor());
-            return on_stop(nums, inp, &span).map(|_| span);
-          }
-          Action::Continue => {
-            container.push(self.f.parse_input(inp)?);
-            nums += 1;
-          }
-        },
+      match self.f.try_parse_input(inp) {
+        Ok(Some(item)) => {
+          container.push(item);
+          num += 1;
+        }
+        Ok(None) => break,
+        Err(err) => {
+          let span = inp.span_since(&cursor);
+          inp.emitter().emit_error(Spanned::new(span, err))?;
+        }
       }
+      cursor = inp.cursor().clone();
     }
+
+    let span = inp.span_since(ckp.cursor());
+    on_stop(num, inp, &span).map(|_| span)
   }
 }

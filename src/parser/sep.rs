@@ -231,7 +231,7 @@ const _: () = {
 /// # See Also
 ///
 /// - [`delimited_by`](SeparatedBy::delimited_by) - Wrap in delimiters (e.g., `[...]` or `{...}`)
-/// - [`repeated`](Repeated) - Repeat without separators
+/// - [`repeated`](RepeatedOnCondition) - Repeat without separators
 /// - [`collect`](SeparatedBy::collect) - Collect into a container
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {

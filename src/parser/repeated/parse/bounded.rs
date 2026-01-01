@@ -5,14 +5,11 @@ use crate::{
 
 use super::*;
 
-impl<'inp, L, F, Condition, O, Container, Ctx, Lang: ?Sized, W>
-  ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>>, Container, Ctx, Lang>
+impl<'inp, L, F, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, Container, Ctx, Lang>
+  for Collect<Bounded<Repeated<F, O, L, Ctx, Lang>>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  W: Window,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
@@ -33,14 +30,12 @@ where
   }
 }
 
-impl<'inp, L, F, Condition, O, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, L, F, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-  for Collect<Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>>, Container, Ctx, Lang>
+  for Collect<Bounded<Repeated<F, O, L, Ctx, Lang>>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  W: Window,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
@@ -61,19 +56,11 @@ where
   }
 }
 
-impl<'inp, 'c, L, F, Condition, O, Container, Ctx, Lang: ?Sized, W>
-  ParseInput<'inp, L, L::Span, Ctx, Lang>
-  for Collect<
-    &'c mut Bounded<Repeated<F, Condition, O, W, L, Ctx, Lang>>,
-    &'c mut Container,
-    Ctx,
-    Lang,
-  >
+impl<'inp, 'c, L, F, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, L::Span, Ctx, Lang>
+  for Collect<&'c mut Bounded<Repeated<F, O, L, Ctx, Lang>>, &'c mut Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  W: Window,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: crate::container::Container<O>,

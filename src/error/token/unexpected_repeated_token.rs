@@ -5,27 +5,27 @@ use crate::{
   utils::SimpleSpan,
 };
 
-use super::Repeated;
+use super::RepeatedOnCondition;
 
 /// An error indicating that an unexpected repeated tokens were found during parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UnexpectedRepeatedToken<T, S = SimpleSpan, Lang: ?Sized = ()> {
+pub struct UnexpectedRepeatedOnConditionToken<T, S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,
   count: usize,
   _t: PhantomData<T>,
   _lang: PhantomData<Lang>,
 }
 
-impl<T, S> UnexpectedRepeatedToken<T, S> {
-  /// Creates a new `UnexpectedRepeatedToken` error.
+impl<T, S> UnexpectedRepeatedOnConditionToken<T, S> {
+  /// Creates a new `UnexpectedRepeatedOnConditionToken` error.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(span: S, count: usize) -> Self {
     Self::of(span, count)
   }
 }
 
-impl<T, S, Lang: ?Sized> UnexpectedRepeatedToken<T, S, Lang> {
-  /// Creates a new `UnexpectedRepeatedToken` error for the given language.
+impl<T, S, Lang: ?Sized> UnexpectedRepeatedOnConditionToken<T, S, Lang> {
+  /// Creates a new `UnexpectedRepeatedOnConditionToken` error for the given language.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn of(span: S, count: usize) -> Self {
     Self {
@@ -78,11 +78,15 @@ impl<T, S, Lang: ?Sized> UnexpectedRepeatedToken<T, S, Lang> {
   }
 }
 
-impl<T, S, Lang: ?Sized> From<UnexpectedRepeatedToken<T, S, Lang>> for () {
+impl<T, S, Lang: ?Sized> From<UnexpectedRepeatedOnConditionToken<T, S, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: UnexpectedRepeatedToken<T, S, Lang>) -> Self {}
+  fn from(_: UnexpectedRepeatedOnConditionToken<T, S, Lang>) -> Self {}
 }
 
 /// A type alias for an `UnexpectedPrefix` error indicating a repeated punctuator was found for a given lexer and separator.
-pub type UnexpectedRepeatedOf<'inp, Sep, L, Lang = ()> =
-  UnexpectedRepeatedToken<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span, Repeated<Sep, Lang>>;
+pub type UnexpectedRepeatedOnConditionOf<'inp, Sep, L, Lang = ()> =
+  UnexpectedRepeatedOnConditionToken<
+    <L as Lexer<'inp>>::Token,
+    <L as Lexer<'inp>>::Span,
+    RepeatedOnCondition<Sep, Lang>,
+  >;
