@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use derive_more::IsVariant;
 
-use crate::{SeparatorHandler, lexer::Checkpoint};
+use crate::SeparatorHandler;
 
 use super::*;
 
@@ -140,41 +140,35 @@ mod delim;
 /// - [`repeated`](RepeatedOnCondition) - Repeat without separators
 /// - [`collect`](Separated::collect) - Collect into a container
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Separated<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {
+pub struct Separated<F, SepClassifier, O, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
   pub(super) sep: SepClassifier,
-  pub(super) condition: Condition,
   pub(super) _m: PhantomData<O>,
-  pub(super) _decision_window: PhantomData<Window>,
   pub(super) _l: PhantomData<L>,
   pub(super) _ctx: PhantomData<Ctx>,
   pub(super) _lang: PhantomData<Lang>,
 }
 
-impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Copy
-  for Separated<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Copy
+  for Separated<F, SepClassifier, O, L, Ctx, Lang>
 where
   F: Copy,
   SepClassifier: Copy,
-  Condition: Copy,
 {
 }
 
-impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Clone
-  for Separated<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Clone
+  for Separated<F, SepClassifier, O, L, Ctx, Lang>
 where
   F: Clone,
   SepClassifier: Clone,
-  Condition: Clone,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn clone(&self) -> Self {
     Self {
       f: self.f.clone(),
       sep: self.sep.clone(),
-      condition: self.condition.clone(),
       _m: PhantomData,
-      _decision_window: PhantomData,
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
@@ -182,18 +176,16 @@ where
   }
 }
 
-impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
-  Separated<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized>
+  Separated<F, SepClassifier, O, L, Ctx, Lang>
 {
   /// Creates a new `Separated` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
+  pub(crate) const fn new(f: F, sep_classifier: SepClassifier) -> Self {
     Self {
       f,
       sep: sep_classifier,
-      condition,
       _m: PhantomData,
-      _decision_window: PhantomData,
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
@@ -201,19 +193,17 @@ impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
   }
 }
 
-impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
-  Separated<F, SepClassifier, Condition, O, Window, L, Ctx, Lang>
+impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized>
+  Separated<F, SepClassifier, O, L, Ctx, Lang>
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn as_mut(
     &mut self,
-  ) -> Separated<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, Lang> {
+  ) -> Separated<&mut F, &mut SepClassifier, &mut O, L, Ctx, Lang> {
     Separated {
       f: &mut self.f,
       sep: &mut self.sep,
-      condition: &mut self.condition,
       _m: PhantomData,
-      _decision_window: PhantomData,
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
@@ -290,72 +280,6 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
   ) -> DelimitedBy<Self, Open, Close, Delim> {
     DelimitedBy::new_in(self, left, right, delim)
   }
-}
-
-trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
-  fn handle_start_state(
-    &self,
-    num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-
-  fn handle_element_state(
-    &self,
-    num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-
-  fn handle_leading_state(
-    &self,
-    num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-    leading_sep: Spanned<L::Token, L::Span>,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-
-  fn handle_separator_state(
-    &self,
-    num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-    sep: Spanned<L::Token, L::Span>,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-}
-
-trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
-  fn handle_start_state(
-    &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    off: L::Offset,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
-}
-
-trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
-  fn handle_start_state(
-    &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    sep_tok: &Spanned<L::Token, L::Span>,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]

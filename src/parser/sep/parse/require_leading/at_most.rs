@@ -132,10 +132,10 @@ where
   }
 }
 
-impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    RequireLeading<AtMost<Separated<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+    RequireLeading<AtMost<Separated<F, SepClassifier, O, L, Ctx, Lang>>>,
     Container,
     Ctx,
     Lang,
@@ -143,7 +143,6 @@ impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
@@ -151,7 +150,6 @@ where
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
-  W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
@@ -168,11 +166,11 @@ where
   }
 }
 
-impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      RequireLeading<AtMost<Separated<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+      RequireLeading<AtMost<Separated<F, SepClassifier, O, L, Ctx, Lang>>>,
       Container,
       Ctx,
       Lang,
@@ -182,7 +180,6 @@ impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
@@ -190,7 +187,6 @@ where
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
-  W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
@@ -208,11 +204,11 @@ where
   }
 }
 
-impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut RequireLeading<
-      AtMost<Separated<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      AtMost<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
     >,
     &'c mut Container,
     Ctx,
@@ -221,7 +217,6 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
@@ -229,7 +224,6 @@ where
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L>,
-  W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
@@ -246,7 +240,7 @@ where
           parser:
             AtMost {
               parser: Separated {
-                f, sep, condition, ..
+                f, sep, ..
               },
               maximum,
             },
@@ -258,9 +252,7 @@ where
       Separated {
         f: &mut **f,
         sep: &mut **sep,
-        condition: &mut *condition,
         _m: PhantomData,
-        _decision_window: PhantomData,
         _ctx: PhantomData,
         _l: PhantomData,
         _lang: PhantomData,
@@ -274,12 +266,12 @@ where
 
 struct Wrapper<T>(T);
 
-impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
       RequireLeading<
-        AtMost<Separated<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>>,
+        AtMost<Separated<&'c mut F, &'c mut SepClassifier, &'c mut O, L, Ctx, Lang>>,
       >,
       &'c mut Container,
       Ctx,
@@ -289,7 +281,6 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
@@ -297,7 +288,6 @@ where
     + TooManyEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L>,
-  W: Window,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(

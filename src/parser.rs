@@ -169,6 +169,7 @@ use crate::{
 };
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
+use handler::*;
 
 pub use allow_leading::AllowLeading;
 pub use allow_trailing::AllowTrailing;
@@ -241,6 +242,7 @@ mod todo;
 mod unwrapped;
 mod validate;
 mod with;
+mod handler;
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 mod recursive;

@@ -23,8 +23,8 @@ mod require_surrounded;
 mod require_trailing;
 mod unbounded;
 
-impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
-  Separated<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>
+impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
+  Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>
 {
   fn parse<'closure, Container, CH, SP, EH>(
     &mut self,
@@ -37,67 +37,66 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
   where
     L: Lexer<'inp>,
     F: ParseInput<'inp, L, O, Ctx, Lang>,
-    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     SepClassifier: Check<L::Token>,
     Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
-    W: Window,
     EH: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
     CH: ContinueStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
     SP: SeparatorStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
   {
-    let mut state = State::Start;
-    let ckp = inp.save();
-    let mut num_elems = 0;
+    // let mut state = State::Start;
+    // let ckp = inp.save();
+    // let mut num_elems = 0;
 
-    loop {
-      let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+    // loop {
+    //   let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<generic_arraydeque::typenum::U1>()?;
 
-      let peek_span = match peeked.front() {
-        None => {
-          drop(peeked);
-          return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
-        }
-        Some(tok) => {
-          // the sync_until_token_then_peek_with_emitter guarantees the first token is not a `Lexed::Error`
-          let tok = tok
-            .as_maybe_ref()
-            .map(
-              |t| t.token().map(|t| *t, |t| t.unwrap_token_ref()),
-              |t| t.token().map_data(|t| t.unwrap_token_ref()),
-            )
-            .into_inner();
-          let peek_span = tok.span();
-          match tok.data() {
-            tok if self.sep.check(tok) => {
-              drop(peeked);
-              state = self.handle_separator(state, inp, container, separator_state_handler)?;
+    //   let peek_span = match peeked.front() {
+    //     None => {
+    //       drop(peeked);
+    //       return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
+    //     }
+    //     Some(tok) => {
+    //       // the sync_until_token_then_peek_with_emitter guarantees the first token is not a `Lexed::Error`
+    //       let tok = tok
+    //         .as_maybe_ref()
+    //         .map(
+    //           |t| t.token().map(|t| *t, |t| t.unwrap_token_ref()),
+    //           |t| t.token().map_data(|t| t.unwrap_token_ref()),
+    //         )
+    //         .into_inner();
+    //       let peek_span = tok.span();
+    //       match tok.data() {
+    //         tok if self.sep.check(tok) => {
+    //           drop(peeked);
+    //           state = self.handle_separator(state, inp, container, separator_state_handler)?;
 
-              continue;
-            }
-            _ => peek_span.clone(),
-          }
-        }
-      };
+    //           continue;
+    //         }
+    //         _ => peek_span.clone(),
+    //       }
+    //     }
+    //   };
 
-      match self.condition.decide(peeked, emitter)? {
-        Action::Stop => {
-          return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
-        }
-        Action::Continue => {
-          // if the peeked token belongs to an element, check the current state
-          state = self.handle_continue(
-            state,
-            inp,
-            &peek_span,
-            &mut num_elems,
-            container,
-            continue_state_handler,
-          )?;
-        }
-      }
-    }
+    //   match self.condition.decide(peeked, emitter)? {
+    //     Action::Stop => {
+    //       return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
+    //     }
+    //     Action::Continue => {
+    //       // if the peeked token belongs to an element, check the current state
+    //       state = self.handle_continue(
+    //         state,
+    //         inp,
+    //         &peek_span,
+    //         &mut num_elems,
+    //         container,
+    //         continue_state_handler,
+    //       )?;
+    //     }
+    //   }
+    // }
+    todo!()
   }
 
   pub(super) fn handle_separator<'closure, Handler, Container>(
@@ -187,8 +186,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     F: ParseInput<'inp, L, O, Ctx, Lang>,
-    W: Window,
-    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     SepClassifier: Check<L::Token>,
     Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
@@ -252,8 +249,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     F: ParseInput<'inp, L, O, Ctx, Lang>,
-    W: Window,
-    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     SepClassifier: Check<L::Token>,
     Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
     Handler: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
