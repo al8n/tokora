@@ -170,6 +170,8 @@ use crate::{
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
+pub use allow_leading::AllowLeading;
+pub use allow_trailing::AllowTrailing;
 pub use any::*;
 pub use at_least::*;
 pub use at_most::*;
@@ -190,15 +192,21 @@ pub use peek_then_choice::*;
 pub use recover::*;
 pub use repeated::*;
 pub use repeated_on_condition::*;
-pub use sep::*;
+pub use require_leading::RequireLeading;
+pub use require_trailing::RequireTrailing;
+pub use sep_on_condition::*;
 pub use then::*;
 pub use todo::*;
 pub use unwrapped::*;
 pub use validate::*;
 
+mod allow_leading;
+mod allow_trailing;
 mod at_least;
 mod at_most;
 mod bounded;
+mod require_leading;
+mod require_trailing;
 
 // #[cfg(any(feature = "std", feature = "alloc"))]
 // #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
@@ -224,7 +232,7 @@ mod punct;
 mod recover;
 mod repeated;
 mod repeated_on_condition;
-mod sep;
+mod sep_on_condition;
 mod then;
 mod todo;
 mod unwrapped;
