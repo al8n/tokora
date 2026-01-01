@@ -96,7 +96,7 @@ impl<P> AllowLeading<P> {
 }
 
 impl<F, Condition, Sep, O, W, L, Ctx, Lang: ?Sized>
-  AllowLeading<SeparatedOnCondition<F, Sep, Condition, O, W, L, Ctx, Lang>>
+  AllowLeading<SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]

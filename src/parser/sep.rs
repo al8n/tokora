@@ -137,7 +137,7 @@ mod delim;
 /// # See Also
 ///
 /// - [`delimited_by`](Separated::delimited_by) - Wrap in delimiters (e.g., `[...]` or `{...}`)
-/// - [`repeated`](RepeatedOnCondition) - Repeat without separators
+/// - [`repeated`](RepeatedWhile) - Repeat without separators
 /// - [`collect`](Separated::collect) - Collect into a container
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Separated<F, SepClassifier, O, L, Ctx, Lang: ?Sized = ()> {

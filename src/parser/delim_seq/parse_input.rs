@@ -31,7 +31,7 @@ impl<
   W,
 > ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedSeparatedOnCondition<
+    DelimitedSeparatedWhile<
       P,
       SepClassifier,
       Condition,
@@ -42,7 +42,7 @@ impl<
       W,
       L,
       Ctx,
-      SeparatedOnConditionOptions<Trailing, Leading, Max, Min>,
+      SeparatedWhileOptions<Trailing, Leading, Max, Min>,
       Lang,
     >,
     Container,
@@ -104,7 +104,7 @@ impl<
 > ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      DelimitedSeparatedOnCondition<
+      DelimitedSeparatedWhile<
         P,
         SepClassifier,
         Condition,
@@ -115,7 +115,7 @@ impl<
         W,
         L,
         Ctx,
-        SeparatedOnConditionOptions<Trailing, Leading, Max, Min>,
+        SeparatedWhileOptions<Trailing, Leading, Max, Min>,
         Lang,
       >,
       Container,
@@ -175,7 +175,7 @@ impl<
   Lang: ?Sized,
 >
   Collect<
-    DelimitedSeparatedOnCondition<
+    DelimitedSeparatedWhile<
       P,
       SepClassifier,
       Condition,
@@ -186,7 +186,7 @@ impl<
       W,
       L,
       Ctx,
-      SeparatedOnConditionOptions<Trailing, Leading, Max, Min>,
+      SeparatedWhileOptions<Trailing, Leading, Max, Min>,
       Lang,
     >,
     Container,

@@ -86,12 +86,12 @@ macro_rules! define_separated_by {
   ($($name:ident),+$(,)?) => {
     paste::paste! {
       $(
-        #[doc = "Creates a `SeparatedOnCondition` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
+        #[doc = "Creates a `SeparatedWhile` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
         #[cfg_attr(not(tarpaulin), inline(always))]
-        fn [< separated_on_condition_by_ $name:snake >]<Condition, W>(
+        fn [< separated_by_ $name:snake _while>]<Condition, W>(
           self,
           condition: Condition,
-        ) -> SeparatedOnCondition<Self, $name, Condition, O, W, L, Ctx, Lang>
+        ) -> SeparatedWhile<Self, $name, Condition, O, W, L, Ctx, Lang>
         where
           Self: Sized,
           L: Lexer<'inp>,
@@ -100,7 +100,7 @@ macro_rules! define_separated_by {
           Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
           W: Window,
         {
-          SeparatedOnCondition::new(self, <$name>::PHANTOM, condition)
+          SeparatedWhile::new(self, <$name>::PHANTOM, condition)
         }
       )*
     }
@@ -166,13 +166,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Ignore::new(self)
   }
 
-  /// Creates a `RepeatedOnCondition` combinator that applies this parser repeatedly
+  /// Creates a `RepeatedWhile` combinator that applies this parser repeatedly
   /// until the condition handler `Condition` returns [`Action::Stop`] or an fatal error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn repeated_on_condition<Condition, W>(
+  fn repeated_while<Condition, W>(
     self,
     condition: Condition,
-  ) -> RepeatedOnCondition<Self, Condition, O, W, L, Ctx, Lang>
+  ) -> RepeatedWhile<Self, Condition, O, W, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -180,16 +180,16 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY>,
     W: Window,
   {
-    RepeatedOnCondition::new(self, condition)
+    RepeatedWhile::new(self, condition)
   }
 
-  /// Creates a `SeparatedOnCondition` combinator that applies this parser repeatedly,
+  /// Creates a `SeparatedWhile` combinator that applies this parser repeatedly,
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn separated_on_condition<SepClassifier, Condition, W>(
+  fn separated_while<SepClassifier, Condition, W>(
     self,
     sep_classifier: SepClassifier,
     condition: Condition,
-  ) -> SeparatedOnCondition<Self, SepClassifier, Condition, O, W, L, Ctx, Lang>
+  ) -> SeparatedWhile<Self, SepClassifier, Condition, O, W, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -198,7 +198,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     SepClassifier: Check<L::Token>,
     W: Window,
   {
-    SeparatedOnCondition::new(self, sep_classifier, condition)
+    SeparatedWhile::new(self, sep_classifier, condition)
   }
 
   define_separated_by!(

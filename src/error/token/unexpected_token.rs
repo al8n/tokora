@@ -48,7 +48,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-  error::token::{Leading, RepeatedOnCondition, Trailing},
+  error::token::{Leading, RepeatedWhile, Trailing},
   utils::{Expected, SimpleSpan},
 };
 
@@ -133,7 +133,7 @@ impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, Leading<Data>> {
   }
 }
 
-impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, RepeatedOnCondition<Data>> {
+impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, RepeatedWhile<Data>> {
   /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn repeated(span: S, found: T) -> Self {
@@ -158,7 +158,7 @@ impl<T, Kind: Clone, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Lead
 }
 
 impl<T, Kind: Clone, S, Data, Lang: ?Sized>
-  UnexpectedToken<'_, T, Kind, S, RepeatedOnCondition<Data, Lang>>
+  UnexpectedToken<'_, T, Kind, S, RepeatedWhile<Data, Lang>>
 {
   /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]

@@ -64,7 +64,7 @@ impl<P> AtMost<P> {
 }
 
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  AtMost<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>
+  AtMost<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]

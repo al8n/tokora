@@ -70,7 +70,7 @@ impl<P> AtLeast<P> {
 }
 
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  AtLeast<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>
+  AtLeast<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]

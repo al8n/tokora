@@ -79,7 +79,7 @@ impl<P> Bounded<P> {
 }
 
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  Bounded<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>
+  Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]

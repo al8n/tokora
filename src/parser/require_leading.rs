@@ -96,7 +96,7 @@ impl<P> RequireLeading<P> {
 }
 
 impl<F, Condition, Sep, O, W, L, Ctx, Lang: ?Sized>
-  RequireLeading<SeparatedOnCondition<F, Sep, Condition, O, W, L, Ctx, Lang>>
+  RequireLeading<SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]

@@ -138,7 +138,7 @@ const _: () = {
 
 /// A parser that parses repeated elements enclosed in delimiter tokens (without separators).
 ///
-/// This combinator wraps a [`RepeatedOnCondition`] parser with **opening and closing delimiters**,
+/// This combinator wraps a [`RepeatedWhile`] parser with **opening and closing delimiters**,
 /// parsing constructs like `[element element element]` or `{item item item}`.
 ///
 /// Unlike separated sequences which expect separators between elements (e.g., commas),
@@ -248,18 +248,18 @@ const _: () = {
 /// 3. **Parse closing delimiter**: Consume the right delimiter token
 /// 4. **Return**: Return the collected elements
 ///
-/// # Comparison with DelimitedSeparatedOnCondition
+/// # Comparison with DelimitedSeparatedWhile
 ///
-/// | Feature | `DelimitedBy` | `DelimitedSeparatedOnCondition` |
+/// | Feature | `DelimitedBy` | `DelimitedSeparatedWhile` |
 /// |---------|---------------|------------------------|
 /// | **Separators** | ❌ No separators | ✅ Elements separated (e.g., commas) |
-/// | **Base Parser** | [`RepeatedOnCondition`] | [`SeparatedOnCondition`] |
+/// | **Base Parser** | [`RepeatedWhile`] | [`SeparatedWhile`] |
 /// | **Example** | `[a b c]` | `[a, b, c]` |
 /// | **Use Case** | Consecutive items | Separated lists |
 ///
 /// **When to use**:
 /// - `DelimitedBy`: Parse lists of consecutive elements (no separators)
-/// - `DelimitedSeparatedOnCondition`: Parse comma/semicolon-separated lists
+/// - `DelimitedSeparatedWhile`: Parse comma/semicolon-separated lists
 ///
 /// # Performance
 ///
@@ -269,8 +269,8 @@ const _: () = {
 ///
 /// # See Also
 ///
-/// - [`RepeatedOnCondition`] - The underlying repetition parser
-/// - [`delimited_by`](RepeatedOnCondition::delimited_by) - How to create this combinator
+/// - [`RepeatedWhile`] - The underlying repetition parser
+/// - [`delimited_by`](RepeatedWhile::delimited_by) - How to create this combinator
 /// - [`collect`](DelimitedBy::collect) - Collect elements into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DelimitedBy<P, Open, Close, Delim> {

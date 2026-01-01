@@ -6,12 +6,12 @@
 
 // /// A parser that parses separator-delimited elements enclosed in delimiter tokens.
 // ///
-// /// This combinator wraps a [`SeparatedOnCondition`] parser with **opening and closing delimiters**,
+// /// This combinator wraps a [`SeparatedWhile`] parser with **opening and closing delimiters**,
 // /// parsing constructs like `[a, b, c]` or `{x; y; z}` where elements are separated by
 // /// delimiters (commas, semicolons, etc.).
 // ///
 // /// Unlike [`DelimitedBy`] which parses consecutive elements without separators,
-// /// `DelimitedSeparatedOnCondition` expects **separators between elements**.
+// /// `DelimitedSeparatedWhile` expects **separators between elements**.
 // ///
 // /// # Type Parameters
 // ///
@@ -142,22 +142,22 @@
 // /// # How It Works
 // ///
 // /// 1. **Parse opening delimiter**: Consume the left delimiter token
-// /// 2. **Parse separated elements**: Use the SeparatedOnCondition parser
+// /// 2. **Parse separated elements**: Use the SeparatedWhile parser
 // /// 3. **Parse closing delimiter**: Consume the right delimiter token
 // /// 4. **Return**: Return the collected elements
 // ///
 // /// # Comparison with DelimitedBy
 // ///
-// /// | Feature | `DelimitedBy` | `DelimitedSeparatedOnCondition` |
+// /// | Feature | `DelimitedBy` | `DelimitedSeparatedWhile` |
 // /// |---------|---------------|------------------------|
 // /// | **Separators** | ❌ No separators | ✅ Elements separated |
-// /// | **Base Parser** | [`RepeatedOnCondition`] | [`SeparatedOnCondition`] |
+// /// | **Base Parser** | [`RepeatedWhile`] | [`SeparatedWhile`] |
 // /// | **Example** | `[a b c]` | `[a, b, c]` |
 // /// | **Config** | Min/max only | Trailing/leading + min/max |
 // ///
 // /// **When to use**:
 // /// - `DelimitedBy`: Parse consecutive elements (e.g., `[a b c]`)
-// /// - `DelimitedSeparatedOnCondition`: Parse separated lists (e.g., `[a, b, c]`)
+// /// - `DelimitedSeparatedWhile`: Parse separated lists (e.g., `[a, b, c]`)
 // ///
 // /// # Performance
 // ///
@@ -169,11 +169,11 @@
 // /// # See Also
 // ///
 // /// - [`DelimitedBy`] - Delimited lists without separators
-// /// - [`SeparatedOnCondition`] - The underlying separator parser
-// /// - [`delimited_by`](SeparatedOnCondition::delimited_by) - How to create this combinator
-// /// - [`collect`](DelimitedSeparatedOnCondition::collect) - Collect elements into a container
+// /// - [`SeparatedWhile`] - The underlying separator parser
+// /// - [`delimited_by`](SeparatedWhile::delimited_by) - How to create this combinator
+// /// - [`collect`](DelimitedSeparatedWhile::collect) - Collect elements into a container
 // #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-// pub struct DelimitedSeparatedOnCondition<
+// pub struct DelimitedSeparatedWhile<
 //   P,
 //   SepClassifier,
 //   Condition,
@@ -186,7 +186,7 @@
 //   Ctx,
 //   Lang: ?Sized = (),
 // > {
-//   parser: SeparatedOnCondition<P, SepClassifier, Condition, O, W, L, Ctx, Lang>,
+//   parser: SeparatedWhile<P, SepClassifier, Condition, O, W, L, Ctx, Lang>,
 //   left_classifier: Open,
 //   right_classifier: Close,
 //   delimiter: Delim,
@@ -211,7 +211,7 @@
 //   Ctx,
 //   Lang: ?Sized,
 // >
-//   DelimitedSeparatedOnCondition<
+//   DelimitedSeparatedWhile<
 //     P,
 //     SepClassifier,
 //     Condition,
@@ -222,7 +222,7 @@
 //     Window,
 //     L,
 //     Ctx,
-//     SeparatedOnConditionOptions<Trailing, Leading, Max, Min>,
+//     SeparatedWhileOptions<Trailing, Leading, Max, Min>,
 //     Lang,
 //   >
 // {
@@ -268,7 +268,7 @@
 // }
 
 // impl<P, SepClassifier, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lang: ?Sized>
-//   DelimitedSeparatedOnCondition<P, SepClassifier, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lang>
+//   DelimitedSeparatedWhile<P, SepClassifier, Condition, Open, Close, Delim, O, W, L, Ctx, Options, Lang>
 // {
 //   /// Collects the parsed elements into the specified container.
 //   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -290,7 +290,7 @@
 
 //   #[cfg_attr(not(tarpaulin), inline(always))]
 //   pub(super) const fn new_in(
-//     parser: SeparatedOnCondition<P, SepClassifier, Condition, O, W, L, Ctx, Options, Lang>,
+//     parser: SeparatedWhile<P, SepClassifier, Condition, O, W, L, Ctx, Options, Lang>,
 //     left: Open,
 //     right: Close,
 //     delim: Delim,
