@@ -19,7 +19,7 @@ impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Si
   >
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
@@ -67,7 +67,7 @@ impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Si
   >
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
@@ -114,7 +114,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang:
   >
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
@@ -196,7 +196,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang:
   >
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>

@@ -67,7 +67,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
           match tok.data() {
             tok if self.sep.check(tok) => {
               state = self.handle_separator(state, inp, container, separator_state_handler)?;
-
+              cursor = inp.cursor().clone();
               continue;
             }
             _ => peek_span.clone(),
