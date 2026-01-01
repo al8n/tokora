@@ -1,4 +1,8 @@
-use crate::{lexer::{InputRef, PunctuatorToken}, parser::{Repeated, Separated}, punct::*};
+use crate::{
+  lexer::{InputRef, PunctuatorToken},
+  parser::{Repeated, Separated},
+  punct::*,
+};
 
 use super::*;
 
@@ -7,6 +11,8 @@ macro_rules! define_separated_by {
     paste::paste! {
       $(
         #[doc = "Creates a `Separated` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
+        ///
+        /// See [`separated`](crate::TryParseInput::separated) for details.
         #[cfg_attr(not(tarpaulin), inline(always))]
         fn [< separated_by_ $name:snake>](
           self,
@@ -47,8 +53,29 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>;
 
-  /// Creates a `Repeated` combinator that applies this parser repeatedly,
-  /// the returned parser will stop when this parser returns `Ok(None)` or an error.
+  /// Creates a `Repeated` combinator that applies this parser repeatedly until it signals completion.
+  ///
+  /// The parser will be called repeatedly until:
+  /// - It returns `Ok(None)` - parser peeked ahead, didn't match (no tokens consumed)
+  /// - It returns `Err(e)` - parse error
+  ///
+  /// ## Key Behavior
+  ///
+  /// Since this parser implements [`TryParseInput`], when it returns `Ok(None)`:
+  /// - The parser **peeked ahead** and saw tokens it doesn't match
+  /// - **No tokens were consumed** - input position unchanged
+  /// - Repetition **stops cleanly**
+  ///
+  /// ## When to Use This
+  ///
+  /// Use `.repeated()` when:
+  /// - You want to parse zero or more occurrences
+  /// - The parser can look ahead and decide if it matches
+  /// - You want automatic stopping based on parser's lookahead
+  ///
+  /// ## See Also
+  ///
+  /// - [`repeated_while`](crate::ParseInput::repeated_while) - When you want to provide explicit stopping condition
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn repeated(self) -> Repeated<Self, O, L, Ctx, Lang>
   where
@@ -59,8 +86,30 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Repeated::new(self)
   }
 
-  /// Creates a `Separated` combinator which separates elements by the given separator parser
-  /// and applies this parser for each element.
+  /// Creates a `Separated` combinator that parses separated elements, where **this parser
+  /// handles the lookahead**.
+  ///
+  /// This parser (the element parser) will be called repeatedly to parse elements separated
+  /// by the given separator. Since this parser implements [`TryParseInput`], it can peek ahead
+  /// and return `Ok(None)` when it doesn't match, **without consuming any tokens**.
+  ///
+  /// ## Key Behavior
+  ///
+  /// The combinator stops when this element parser returns `Ok(None)`:
+  /// - Parser **peeked ahead** and saw tokens it doesn't match
+  /// - **No tokens consumed** - separator or closing delimiter left in input
+  /// - Parsing **stops cleanly**
+  ///
+  /// ## When to Use This
+  ///
+  /// Use `.separated()` when:
+  /// - Your element parser has built-in lookahead (implements `TryParseInput`)
+  /// - You want the element parser to decide when to stop
+  /// - The parser returns `Ok(None)` for non-matching tokens
+  ///
+  /// ## See Also
+  ///
+  /// - [`separated_while`](crate::ParseInput::separated_while) - When you want to provide the lookahead/stopping logic externally
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn separated<SepClassifier>(
     self,

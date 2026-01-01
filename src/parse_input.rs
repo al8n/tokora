@@ -87,6 +87,8 @@ macro_rules! define_separated_by {
     paste::paste! {
       $(
         #[doc = "Creates a `SeparatedWhile` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
+        ///
+        /// See [`separated_while`](crate::ParseInput::separated_while) for details.
         #[cfg_attr(not(tarpaulin), inline(always))]
         fn [< separated_by_ $name:snake _while>]<Condition, W>(
           self,
@@ -166,8 +168,28 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Ignore::new(self)
   }
 
-  /// Creates a `RepeatedWhile` combinator that applies this parser repeatedly
-  /// until the condition handler `Condition` returns [`Action::Stop`] or an fatal error.
+  /// Creates a `RepeatedWhile` combinator that applies this parser repeatedly, where **you
+  /// provide the lookahead logic**.
+  ///
+  /// The parser will be called repeatedly until:
+  /// - Your condition function returns `Action::Stop` - you decided to stop based on lookahead
+  /// - It returns `Err(e)` - fatal error
+  ///
+  /// ## Key Behavior
+  ///
+  /// Unlike [`repeated()`](TryParseInput::repeated), this parser doesn't need built-in lookahead:
+  /// - **You provide** a condition function that peeks ahead at tokens
+  /// - Condition decides `Continue` or `Stop` based on what it sees
+  /// - Element parser is only called when condition says `Continue`
+  ///
+  /// ## Type Parameters
+  ///
+  /// - `W`: Window size for lookahead (e.g., `U1` for 1 token, `U2` for 2 tokens)
+  ///
+  /// ## See Also
+  ///
+  /// - [`repeated`](TryParseInput::repeated) - Parser has lookahead, no separator
+  /// - [`Action`] - The decision type (`Continue` or `Stop`)
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn repeated_while<Condition, W>(
     self,
@@ -183,7 +205,30 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     RepeatedWhile::new(self, condition)
   }
 
-  /// Creates a `SeparatedWhile` combinator that applies this parser repeatedly,
+  /// Creates a `SeparatedWhile` combinator that parses separated elements, where **you
+  /// provide the lookahead logic**.
+  ///
+  /// The parser will be called repeatedly to parse elements separated by the given separator,
+  /// until:
+  /// - Your condition function returns `Action::Stop` - you decided to stop based on lookahead
+  /// - It returns `Err(e)` - fatal error
+  ///
+  /// ## Key Behavior
+  ///
+  /// Unlike [`separated()`](TryParseInput::separated), this parser doesn't need built-in lookahead:
+  /// - **You provide** a condition function that peeks ahead at tokens
+  /// - Condition decides `Continue` or `Stop` based on what it sees
+  /// - Element parser is only called when condition says `Continue`
+  /// - Separator is parsed between elements
+  ///
+  /// ## Type Parameters
+  ///
+  /// - `W`: Window size for lookahead (e.g., `U1` for 1 token, `U2` for 2 tokens)
+  ///
+  /// ## See Also
+  ///
+  /// - [`separated`](TryParseInput::separated) - Parser has lookahead, with separator
+  /// - [`Action`] - The decision type (`Continue` or `Stop`)
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn separated_while<SepClassifier, Condition, W>(
     self,
