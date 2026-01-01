@@ -12,7 +12,7 @@ mod parse;
 /// - **Repetition bounds**: Minimum and maximum number of elements
 /// - **Delimiters**: Can wrap in delimiters like `[...]` or `{...}`
 ///
-/// Unlike [`SeparatedBy`] which expects delimiters between elements, `RepeatedOnCondition` parses
+/// Unlike [`SeparatedBy`] which expects delimiters between elements, `Repeated` parses
 /// consecutive elements with no separators.
 ///
 /// # Type Parameters
@@ -31,7 +31,7 @@ mod parse;
 /// ## Basic Repetition
 ///
 /// ```ignore
-/// use tokit::parser::{ParseInput, RepeatedOnCondition, Action};
+/// use tokit::parser::{ParseInput, Repeated, Action};
 /// use generic_arraydeque::typenum::U1;
 ///
 /// // Parse numbers until we hit a non-number token
@@ -105,7 +105,7 @@ mod parse;
 ///
 /// # Difference from `SeparatedBy`
 ///
-/// | Feature | `RepeatedOnCondition` | `SeparatedBy` |
+/// | Feature | `Repeated` | `SeparatedBy` |
 /// |---------|-----------|---------------|
 /// | **Separators** | ❌ No separators | ✅ Elements separated by delimiter |
 /// | **Use Case** | Consecutive elements | Comma/semicolon-separated lists |
@@ -126,36 +126,24 @@ mod parse;
 /// # See Also
 ///
 /// - [`SeparatedBy`] - Parse elements with separators (e.g., commas)
-/// - [`delimited_by`](RepeatedOnCondition::delimited_by) - Wrap in delimiters
-/// - [`collect`](RepeatedOnCondition::collect) - Collect into a container
+/// - [`delimited_by`](Repeated::delimited_by) - Wrap in delimiters
+/// - [`collect`](Repeated::collect) - Collect into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang: ?Sized = ()> {
+pub struct Repeated<F, O, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
-  pub(super) condition: Condition,
   _m: PhantomData<O>,
-  _cap: PhantomData<W>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>
-{
-  /// Creates a new `RepeatedOnCondition` parser.
+impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
+  /// Creates a new `Repeated` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new(f: F, condition: Condition) -> Self {
-    Self::new_in(f, condition)
-  }
-
-  /// Creates a new `RepeatedOnCondition` parser with the given container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  const fn new_in(f: F, condition: Condition) -> Self {
+  pub(crate) const fn new(f: F) -> Self {
     Self {
       f,
-      condition,
       _m: PhantomData,
-      _cap: PhantomData,
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
@@ -163,9 +151,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>
-{
+impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn collect<Container>(self) -> Collect<Self, Container, Ctx, Lang>
@@ -196,38 +182,27 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>
-{
+impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_least(
-    self,
-    n: usize,
-  ) -> AtLeast<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>> {
+  pub fn at_least(self, n: usize) -> AtLeast<Repeated<F, O, L, Ctx, Lang>> {
     self.apply(Minimum::new(n))
   }
 
   /// Sets the maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_most(self, n: usize) -> AtMost<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>> {
+  pub fn at_most(self, n: usize) -> AtMost<Repeated<F, O, L, Ctx, Lang>> {
     self.apply(Maximum::new(n))
   }
 
   /// Sets both the minimum and maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bounded(
-    self,
-    min: usize,
-    max: usize,
-  ) -> Bounded<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>> {
+  pub fn bounded(self, min: usize, max: usize) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
     self.apply(With::new(Maximum::new(max), Minimum::new(min)))
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>>
-  for RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>
-{
+impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>> for Repeated<F, O, L, Ctx, Lang> {
   type Options = Minimum;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -236,9 +211,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>>
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>>
-  for RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>
-{
+impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>> for Repeated<F, O, L, Ctx, Lang> {
   type Options = Maximum;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -247,9 +220,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>>
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>>
-  for RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>
-{
+impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>> for Repeated<F, O, L, Ctx, Lang> {
   type Options = With<Maximum, Minimum>;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -258,32 +229,24 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>>
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  Apply<Bounded<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>>
-  for AtMost<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>
+impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Repeated<F, O, L, Ctx, Lang>>>
+  for AtMost<Repeated<F, O, L, Ctx, Lang>>
 {
   type Options = Minimum;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(
-    self,
-    options: Self::Options,
-  ) -> Bounded<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>> {
+  fn apply(self, options: Self::Options) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
     Bounded::new(self.parser, self.maximum.get(), options.get())
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  Apply<Bounded<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>>
-  for AtLeast<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>>
+impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Repeated<F, O, L, Ctx, Lang>>>
+  for AtLeast<Repeated<F, O, L, Ctx, Lang>>
 {
   type Options = Maximum;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(
-    self,
-    options: Self::Options,
-  ) -> Bounded<RepeatedOnCondition<F, Condition, O, W, L, Ctx, Lang>> {
+  fn apply(self, options: Self::Options) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
     Bounded::new(self.parser, options.get(), self.minimum.get())
   }
 }

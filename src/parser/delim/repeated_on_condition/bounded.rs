@@ -6,10 +6,10 @@ use crate::{
 
 use super::*;
 
-impl<'inp, L, P, Open, Close, O, Container, Ctx, Delim, Lang: ?Sized>
+impl<'inp, L, P, Open, Close, O, Condition, Container, Ctx, Delim, W, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<Bounded<Repeated<P, O, L, Ctx, Lang>>, Open, Close, Delim>,
+    DelimitedBy<Bounded<RepeatedOnCondition<P, Condition, O, W, L, Ctx, Lang>>, Open, Close, Delim>,
     Container,
     Ctx,
     Lang,
@@ -19,7 +19,9 @@ where
   Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
   Delim: Clone,
   L: Lexer<'inp>,
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+  W: Window,
   Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang>
     + TooManyEmitter<'inp, O, L, Lang>
     + TooFewEmitter<'inp, O, L, Lang>,

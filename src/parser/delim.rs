@@ -1,6 +1,7 @@
 use super::*;
 
 mod repeated;
+mod repeated_on_condition;
 
 /// A handler for delimiter events during parsing.
 pub trait DelimiterHandler<'inp, L> {
