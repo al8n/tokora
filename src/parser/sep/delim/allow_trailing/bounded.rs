@@ -93,25 +93,11 @@ where
   }
 }
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
-      AllowTrailing<
-        Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
-      >,
+      AllowTrailing<Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
       Open,
       Close,
       Delim,
@@ -152,9 +138,7 @@ where
             AllowTrailing {
               parser:
                 Bounded {
-                  parser: Separated {
-                    f, sep, ..
-                  },
+                  parser: Separated { f, sep, .. },
                   maximum,
                   minimum,
                 },
@@ -183,28 +167,12 @@ where
 
 struct Wrapper<T>(T);
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
       DelimitedBy<
-        AllowTrailing<
-          Bounded<
-            Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>,
-          >,
-        >,
+        AllowTrailing<Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
         &'c Open,
         &'c Close,
         &'c Delim,
@@ -242,13 +210,10 @@ where
     let limitation = AllowTrailing::new(parser.parser.parser.to_with());
 
     let DelimitedBy {
-      parser:
-        Bounded {
-          parser: Separated {
-            f, sep, ..
-          },
-          ..
-        },
+      parser: Bounded {
+        parser: Separated { f, sep, .. },
+        ..
+      },
       left_classifier,
       right_classifier,
       delimiter,

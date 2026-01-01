@@ -153,10 +153,7 @@ where
 
 impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-  for With<
-    Collect<Separated<F, SepClassifier, O, L, Ctx, Lang>, Container, Ctx, Lang>,
-    PhantomSpan,
-  >
+  for With<Collect<Separated<F, SepClassifier, O, L, Ctx, Lang>, Container, Ctx, Lang>, PhantomSpan>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -205,9 +202,7 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     let Self {
-      parser: Separated {
-        f, sep, ..
-      },
+      parser: Separated { f, sep, .. },
       container,
       ..
     } = self;

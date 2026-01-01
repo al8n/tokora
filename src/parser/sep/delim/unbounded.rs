@@ -82,20 +82,8 @@ where
   }
 }
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
       Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>,
@@ -134,9 +122,7 @@ where
     let Self {
       parser:
         DelimitedBy {
-          parser: Separated {
-            f, sep, ..
-          },
+          parser: Separated { f, sep, .. },
           left_classifier,
           right_classifier,
           delimiter,
@@ -157,20 +143,8 @@ where
 
 struct Wrapper<T>(T);
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
       DelimitedBy<
@@ -211,9 +185,7 @@ where
     } = &mut self.0;
 
     let DelimitedBy {
-      parser: Separated {
-        f, sep, ..
-      },
+      parser: Separated { f, sep, .. },
       left_classifier,
       right_classifier,
       delimiter,

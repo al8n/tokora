@@ -132,12 +132,7 @@ where
 
 impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<
-    Bounded<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-    Container,
-    Ctx,
-    Lang,
-  >
+  for Collect<Bounded<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -168,12 +163,7 @@ where
 impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
-    Collect<
-      Bounded<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-      Container,
-      Ctx,
-      Lang,
-    >,
+    Collect<Bounded<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Container, Ctx, Lang>,
     PhantomSpan,
   >
 where
@@ -236,9 +226,7 @@ where
     let Self {
       parser:
         Bounded {
-          parser: Separated {
-            f, sep, ..
-          },
+          parser: Separated { f, sep, .. },
           maximum,
           minimum,
         },

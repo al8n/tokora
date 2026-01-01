@@ -176,9 +176,7 @@ where
   }
 }
 
-impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized>
-  Separated<F, SepClassifier, O, L, Ctx, Lang>
-{
+impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Separated<F, SepClassifier, O, L, Ctx, Lang> {
   /// Creates a new `Separated` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(crate) const fn new(f: F, sep_classifier: SepClassifier) -> Self {
@@ -193,13 +191,9 @@ impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized>
   }
 }
 
-impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized>
-  Separated<F, SepClassifier, O, L, Ctx, Lang>
-{
+impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Separated<F, SepClassifier, O, L, Ctx, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn as_mut(
-    &mut self,
-  ) -> Separated<&mut F, &mut SepClassifier, &mut O, L, Ctx, Lang> {
+  pub(super) const fn as_mut(&mut self) -> Separated<&mut F, &mut SepClassifier, O, L, Ctx, Lang> {
     Separated {
       f: &mut self.f,
       sep: &mut self.sep,

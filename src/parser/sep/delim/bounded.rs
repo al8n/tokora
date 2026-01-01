@@ -8,12 +8,7 @@ use super::*;
 impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<
-      Bounded<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-      Open,
-      Close,
-      Delim,
-    >,
+    DelimitedBy<Bounded<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Open, Close, Delim>,
     Container,
     Ctx,
     Lang,
@@ -54,12 +49,7 @@ impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Si
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      DelimitedBy<
-        Bounded<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-        Open,
-        Close,
-        Delim,
-      >,
+      DelimitedBy<Bounded<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Open, Close, Delim>,
       Container,
       Ctx,
       Lang,
@@ -99,20 +89,8 @@ where
   }
 }
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
       Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
@@ -155,9 +133,7 @@ where
         DelimitedBy {
           parser:
             Bounded {
-              parser: Separated {
-                f, sep, ..
-              },
+              parser: Separated { f, sep, .. },
               maximum,
               minimum,
             },
@@ -185,20 +161,8 @@ where
 
 struct Wrapper<T>(T);
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
       DelimitedBy<
@@ -241,9 +205,7 @@ where
     let maximum = parser.parser.maximum();
 
     let DelimitedBy {
-      parser: Separated {
-        f, sep, ..
-      },
+      parser: Separated { f, sep, .. },
       left_classifier,
       right_classifier,
       delimiter,

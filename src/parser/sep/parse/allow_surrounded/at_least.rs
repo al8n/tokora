@@ -121,9 +121,7 @@ where
 impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    AllowLeading<
-      AllowTrailing<AtLeast<Separated<F, SepClassifier, O, L, Ctx, Lang>>>,
-    >,
+    AllowLeading<AllowTrailing<AtLeast<Separated<F, SepClassifier, O, L, Ctx, Lang>>>>,
     Container,
     Ctx,
     Lang,
@@ -155,9 +153,7 @@ impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      AllowLeading<
-        AllowTrailing<AtLeast<Separated<F, SepClassifier, O, L, Ctx, Lang>>>,
-      >,
+      AllowLeading<AllowTrailing<AtLeast<Separated<F, SepClassifier, O, L, Ctx, Lang>>>>,
       Container,
       Ctx,
       Lang,
@@ -191,9 +187,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut AllowLeading<
-      AllowTrailing<
-        AtLeast<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
-      >,
+      AllowTrailing<AtLeast<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
     >,
     &'c mut Container,
     Ctx,
@@ -223,9 +217,7 @@ where
             AllowTrailing {
               parser:
                 AtLeast {
-                  parser: Separated {
-                    f, sep, ..
-                  },
+                  parser: Separated { f, sep, .. },
                   minimum,
                 },
             },
@@ -256,11 +248,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   for Wrapper<
     Collect<
       AllowLeading<
-        AllowTrailing<
-          AtLeast<
-            Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>,
-          >,
-        >,
+        AllowTrailing<AtLeast<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
       >,
       &'c mut Container,
       Ctx,

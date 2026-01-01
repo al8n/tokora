@@ -207,9 +207,7 @@ where
 impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut RequireTrailing<
-      Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
-    >,
+    &'c mut RequireTrailing<Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
     &'c mut Container,
     Ctx,
     Lang,
@@ -240,9 +238,7 @@ where
         RequireTrailing {
           parser:
             Bounded {
-              parser: Separated {
-                f, sep, ..
-              },
+              parser: Separated { f, sep, .. },
               maximum,
               minimum,
             },
@@ -273,9 +269,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      RequireTrailing<
-        Bounded<Separated<&'c mut F, &'c mut SepClassifier, &'c mut O, L, Ctx, Lang>>,
-      >,
+      RequireTrailing<Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
       &'c mut Container,
       Ctx,
       Lang,

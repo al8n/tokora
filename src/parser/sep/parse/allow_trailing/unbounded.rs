@@ -122,12 +122,7 @@ where
 
 impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<
-    AllowTrailing<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-    Container,
-    Ctx,
-    Lang,
-  >
+  for Collect<AllowTrailing<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -155,12 +150,7 @@ where
 impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
-    Collect<
-      AllowTrailing<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-      Container,
-      Ctx,
-      Lang,
-    >,
+    Collect<AllowTrailing<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Container, Ctx, Lang>,
     PhantomSpan,
   >
 where
@@ -214,12 +204,9 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     let Self {
-      parser:
-        AllowTrailing {
-          parser: Separated {
-            f, sep, ..
-          },
-        },
+      parser: AllowTrailing {
+        parser: Separated { f, sep, .. },
+      },
       container,
       ..
     } = self;
@@ -243,9 +230,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      AllowTrailing<
-        Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>,
-      >,
+      AllowTrailing<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
       &'c mut Container,
       Ctx,
       Lang,

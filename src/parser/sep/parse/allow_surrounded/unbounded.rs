@@ -208,12 +208,9 @@ where
     let Self {
       parser:
         AllowLeading {
-          parser:
-            AllowTrailing {
-              parser: Separated {
-                f, sep, ..
-              },
-            },
+          parser: AllowTrailing {
+            parser: Separated { f, sep, .. },
+          },
         },
       container,
       ..
@@ -238,11 +235,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      AllowLeading<
-        AllowTrailing<
-          Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>,
-        >,
-      >,
+      AllowLeading<AllowTrailing<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
       &'c mut Container,
       Ctx,
       Lang,

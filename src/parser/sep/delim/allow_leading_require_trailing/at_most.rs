@@ -6,9 +6,7 @@ impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Si
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
     DelimitedBy<
-      AllowLeading<
-        RequireTrailing<AtMost<Separated<F, SepClassifier, O, L, Ctx, Lang>>>,
-      >,
+      AllowLeading<RequireTrailing<AtMost<Separated<F, SepClassifier, O, L, Ctx, Lang>>>>,
       Open,
       Close,
       Delim,
@@ -52,9 +50,7 @@ impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Si
   for With<
     Collect<
       DelimitedBy<
-        AllowLeading<
-          RequireTrailing<AtMost<Separated<F, SepClassifier, O, L, Ctx, Lang>>>,
-        >,
+        AllowLeading<RequireTrailing<AtMost<Separated<F, SepClassifier, O, L, Ctx, Lang>>>>,
         Open,
         Close,
         Delim,
@@ -95,26 +91,12 @@ where
   }
 }
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
       AllowLeading<
-        RequireTrailing<
-          AtMost<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
-        >,
+        RequireTrailing<AtMost<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
       >,
       Open,
       Close,
@@ -157,10 +139,7 @@ where
                 RequireTrailing {
                   parser:
                     AtMost {
-                      parser:
-                        Separated {
-                          f, sep, ..
-                        },
+                      parser: Separated { f, sep, .. },
                       maximum,
                     },
                 },
@@ -188,29 +167,13 @@ where
 
 struct Wrapper<T>(T);
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
       DelimitedBy<
         AllowLeading<
-          RequireTrailing<
-            AtMost<
-              Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>,
-            >,
-          >,
+          RequireTrailing<AtMost<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
         >,
         &'c Open,
         &'c Close,
@@ -250,13 +213,10 @@ where
     let DelimitedBy {
       parser:
         RequireTrailing {
-          parser:
-            AtMost {
-              parser: Separated {
-                f, sep, ..
-              },
-              ..
-            },
+          parser: AtMost {
+            parser: Separated { f, sep, .. },
+            ..
+          },
         },
       left_classifier,
       right_classifier,

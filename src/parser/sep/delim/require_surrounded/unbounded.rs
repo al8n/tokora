@@ -91,26 +91,11 @@ where
   }
 }
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
-      RequireLeading<
-        RequireTrailing<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
-      >,
+      RequireLeading<RequireTrailing<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
       Open,
       Close,
       Delim,
@@ -150,9 +135,7 @@ where
             RequireLeading {
               parser:
                 RequireTrailing {
-                  parser: Separated {
-                    f, sep, ..
-                  },
+                  parser: Separated { f, sep, .. },
                 },
             },
           left_classifier,
@@ -163,10 +146,7 @@ where
       ..
     } = self;
     let parser = DelimitedBy::new_in(
-      RequireLeading::new(RequireTrailing::new(Separated::new(
-        &mut **f,
-        &mut **sep,
-      ))),
+      RequireLeading::new(RequireTrailing::new(Separated::new(&mut **f, &mut **sep))),
       &*left_classifier,
       &*right_classifier,
       &*delimiter,
@@ -178,28 +158,13 @@ where
 
 struct Wrapper<T>(T);
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
       DelimitedBy<
         RequireLeading<
-          RequireTrailing<
-            Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>,
-          >,
+          RequireTrailing<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
         >,
         &'c Open,
         &'c Close,
@@ -240,12 +205,9 @@ where
     let DelimitedBy {
       parser:
         RequireLeading {
-          parser:
-            RequireTrailing {
-              parser: Separated {
-                f, sep, ..
-              },
-            },
+          parser: RequireTrailing {
+            parser: Separated { f, sep, .. },
+          },
         },
       left_classifier,
       right_classifier,

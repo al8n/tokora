@@ -207,9 +207,7 @@ where
 impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut RequireLeading<
-      AtMost<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
-    >,
+    &'c mut RequireLeading<AtMost<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
     &'c mut Container,
     Ctx,
     Lang,
@@ -239,9 +237,7 @@ where
         RequireLeading {
           parser:
             AtMost {
-              parser: Separated {
-                f, sep, ..
-              },
+              parser: Separated { f, sep, .. },
               maximum,
             },
         },
@@ -270,9 +266,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      RequireLeading<
-        AtMost<Separated<&'c mut F, &'c mut SepClassifier, &'c mut O, L, Ctx, Lang>>,
-      >,
+      RequireLeading<AtMost<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
       &'c mut Container,
       Ctx,
       Lang,

@@ -223,6 +223,7 @@ mod empty;
 mod expect;
 mod filter;
 mod filter_map;
+mod handler;
 mod ident;
 mod ignore;
 mod keyword;
@@ -242,7 +243,6 @@ mod todo;
 mod unwrapped;
 mod validate;
 mod with;
-mod handler;
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 mod recursive;

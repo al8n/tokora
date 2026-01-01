@@ -7,12 +7,7 @@ use super::*;
 impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<
-      AtLeast<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-      Open,
-      Close,
-      Delim,
-    >,
+    DelimitedBy<AtLeast<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Open, Close, Delim>,
     Container,
     Ctx,
     Lang,
@@ -52,12 +47,7 @@ impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Si
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      DelimitedBy<
-        AtLeast<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-        Open,
-        Close,
-        Delim,
-      >,
+      DelimitedBy<AtLeast<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Open, Close, Delim>,
       Container,
       Ctx,
       Lang,
@@ -96,20 +86,8 @@ where
   }
 }
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
       AtLeast<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
@@ -151,9 +129,7 @@ where
         DelimitedBy {
           parser:
             AtLeast {
-              parser: Separated {
-                f, sep, ..
-              },
+              parser: Separated { f, sep, .. },
               minimum,
             },
           left_classifier,
@@ -164,10 +140,7 @@ where
       ..
     } = self;
     let parser = DelimitedBy::new_in(
-      AtLeast::new(
-        Separated::new(&mut **f, &mut **sep),
-        minimum.get(),
-      ),
+      AtLeast::new(Separated::new(&mut **f, &mut **sep), minimum.get()),
       &*left_classifier,
       &*right_classifier,
       &*delimiter,
@@ -179,20 +152,8 @@ where
 
 struct Wrapper<T>(T);
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
       DelimitedBy<
@@ -234,9 +195,7 @@ where
     let minimum = parser.parser.minimum();
 
     let DelimitedBy {
-      parser: Separated {
-        f, sep, ..
-      },
+      parser: Separated { f, sep, .. },
       left_classifier,
       right_classifier,
       delimiter,

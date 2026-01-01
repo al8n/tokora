@@ -5,12 +5,7 @@ use super::*;
 impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<
-      RequireTrailing<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-      Open,
-      Close,
-      Delim,
-    >,
+    DelimitedBy<RequireTrailing<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Open, Close, Delim>,
     Container,
     Ctx,
     Lang,
@@ -92,21 +87,8 @@ where
   }
 }
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
       RequireTrailing<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
@@ -145,12 +127,9 @@ where
     let Self {
       parser:
         DelimitedBy {
-          parser:
-            RequireTrailing {
-              parser: Separated {
-                f, sep, ..
-              },
-            },
+          parser: RequireTrailing {
+            parser: Separated { f, sep, .. },
+          },
           left_classifier,
           right_classifier,
           delimiter,
@@ -171,27 +150,12 @@ where
 
 struct Wrapper<T>(T);
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
       DelimitedBy<
-        RequireTrailing<
-          Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>,
-        >,
+        RequireTrailing<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
         &'c Open,
         &'c Close,
         &'c Delim,
@@ -228,12 +192,9 @@ where
     } = &mut self.0;
 
     let DelimitedBy {
-      parser:
-        RequireTrailing {
-          parser: Separated {
-            f, sep, ..
-          },
-        },
+      parser: RequireTrailing {
+        parser: Separated { f, sep, .. },
+      },
       left_classifier,
       right_classifier,
       delimiter,

@@ -5,12 +5,7 @@ use super::*;
 impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<
-      AllowLeading<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-      Open,
-      Close,
-      Delim,
-    >,
+    DelimitedBy<AllowLeading<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Open, Close, Delim>,
     Container,
     Ctx,
     Lang,
@@ -48,12 +43,7 @@ impl<'inp, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Si
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      DelimitedBy<
-        AllowLeading<Separated<F, SepClassifier, O, L, Ctx, Lang>>,
-        Open,
-        Close,
-        Delim,
-      >,
+      DelimitedBy<AllowLeading<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Open, Close, Delim>,
       Container,
       Ctx,
       Lang,
@@ -90,21 +80,8 @@ where
   }
 }
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
       AllowLeading<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
@@ -142,12 +119,9 @@ where
     let Self {
       parser:
         DelimitedBy {
-          parser:
-            AllowLeading {
-              parser: Separated {
-                f, sep, ..
-              },
-            },
+          parser: AllowLeading {
+            parser: Separated { f, sep, .. },
+          },
           left_classifier,
           right_classifier,
           delimiter,
@@ -168,27 +142,12 @@ where
 
 struct Wrapper<T>(T);
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
       DelimitedBy<
-        AllowLeading<
-          Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>,
-        >,
+        AllowLeading<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
         &'c Open,
         &'c Close,
         &'c Delim,
@@ -224,12 +183,9 @@ where
     } = &mut self.0;
 
     let DelimitedBy {
-      parser:
-        AllowLeading {
-          parser: Separated {
-            f, sep, ..
-          },
-        },
+      parser: AllowLeading {
+        parser: Separated { f, sep, .. },
+      },
       left_classifier,
       right_classifier,
       delimiter,

@@ -204,9 +204,7 @@ where
 impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut AllowLeading<
-      Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
-    >,
+    &'c mut AllowLeading<Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
     &'c mut Container,
     Ctx,
     Lang,
@@ -236,9 +234,7 @@ where
         AllowLeading {
           parser:
             Bounded {
-              parser: Separated {
-                f, sep, ..
-              },
+              parser: Separated { f, sep, .. },
               maximum,
               minimum,
             },
@@ -269,9 +265,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      AllowLeading<
-        Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
-      >,
+      AllowLeading<Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
       &'c mut Container,
       Ctx,
       Lang,

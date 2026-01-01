@@ -26,12 +26,7 @@ mod require_surrounded;
 mod require_trailing;
 
 impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
-  DelimitedBy<
-    Separated<&'c mut P, &'c mut Sep, O, L, Ctx, Lang>,
-    &Open,
-    &Close,
-    &Delim,
-  >
+  DelimitedBy<Separated<&'c mut P, &'c mut Sep, O, L, Ctx, Lang>, &Open, &Close, &Delim>
 {
   fn parse_separated<'closure, Container, CH, SP, EH>(
     &mut self,
