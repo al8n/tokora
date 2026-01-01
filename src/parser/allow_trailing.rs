@@ -82,7 +82,7 @@ impl<P> AllowTrailing<P> {
 }
 
 impl<F, Condition, Sep, O, W, L, Ctx, Lang: ?Sized>
-  AllowTrailing<SeparatedBy<F, Sep, Condition, O, W, L, Ctx, Lang>>
+  AllowTrailing<SeparatedOnCondition<F, Sep, Condition, O, W, L, Ctx, Lang>>
 {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]

@@ -8,7 +8,9 @@ impl<'inp, L, F, SepClassifier, Condition, O, Open, Close, Delim, Container, Ctx
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
     DelimitedBy<
-      RequireTrailing<AtLeast<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+      RequireTrailing<
+        AtLeast<SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      >,
       Open,
       Close,
       Delim,
@@ -55,7 +57,9 @@ impl<'inp, L, F, SepClassifier, Condition, O, Open, Close, Delim, Container, Ctx
   for With<
     Collect<
       DelimitedBy<
-        RequireTrailing<AtLeast<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+        RequireTrailing<
+          AtLeast<SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+        >,
         Open,
         Close,
         Delim,
@@ -118,7 +122,9 @@ impl<
   for Collect<
     &'c mut DelimitedBy<
       RequireTrailing<
-        AtLeast<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+        AtLeast<
+          SeparatedOnCondition<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>,
+        >,
       >,
       Open,
       Close,
@@ -163,7 +169,7 @@ where
               parser:
                 AtLeast {
                   parser:
-                    SeparatedBy {
+                    SeparatedOnCondition {
                       f, sep, condition, ..
                     },
                   minimum,
@@ -178,7 +184,7 @@ where
     } = self;
     let parser = DelimitedBy::new_in(
       RequireTrailing::new(AtLeast::new(
-        SeparatedBy::new(&mut **f, &mut **sep, &mut *condition),
+        SeparatedOnCondition::new(&mut **f, &mut **sep, &mut *condition),
         minimum.get(),
       )),
       &*left_classifier,
@@ -213,7 +219,16 @@ impl<
       DelimitedBy<
         RequireTrailing<
           AtLeast<
-            SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+            SeparatedOnCondition<
+              &'c mut F,
+              &'c mut SepClassifier,
+              &'c mut Condition,
+              O,
+              W,
+              L,
+              Ctx,
+              Lang,
+            >,
           >,
         >,
         &'c Open,
@@ -257,7 +272,7 @@ where
     let DelimitedBy {
       parser:
         AtLeast {
-          parser: SeparatedBy {
+          parser: SeparatedOnCondition {
             f, sep, condition, ..
           },
           ..
@@ -268,7 +283,7 @@ where
     } = parser.map_parser_mut(|p| p.parser_mut());
 
     DelimitedBy::new_in(
-      SeparatedBy::new(&mut **f, &mut **sep, &mut **condition),
+      SeparatedOnCondition::new(&mut **f, &mut **sep, &mut **condition),
       *left_classifier,
       *right_classifier,
       *delimiter,

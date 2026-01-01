@@ -5,7 +5,12 @@ use super::*;
 impl<'inp, L, F, SepClassifier, Condition, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>, Open, Close, Delim>,
+    DelimitedBy<
+      SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>,
+      Open,
+      Close,
+      Delim,
+    >,
     Container,
     Ctx,
     Lang,
@@ -46,7 +51,12 @@ impl<'inp, L, F, SepClassifier, Condition, O, Open, Close, Delim, Container, Ctx
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      DelimitedBy<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>, Open, Close, Delim>,
+      DelimitedBy<
+        SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>,
+        Open,
+        Close,
+        Delim,
+      >,
       Container,
       Ctx,
       Lang,
@@ -104,7 +114,7 @@ impl<
 > ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
-      SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>,
+      SeparatedOnCondition<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>,
       Open,
       Close,
       Delim,
@@ -142,7 +152,7 @@ where
     let Self {
       parser:
         DelimitedBy {
-          parser: SeparatedBy {
+          parser: SeparatedOnCondition {
             f, sep, condition, ..
           },
           left_classifier,
@@ -153,7 +163,7 @@ where
       ..
     } = self;
     let parser = DelimitedBy::new_in(
-      SeparatedBy::new(&mut **f, &mut **sep, &mut *condition),
+      SeparatedOnCondition::new(&mut **f, &mut **sep, &mut *condition),
       &*left_classifier,
       &*right_classifier,
       &*delimiter,
@@ -184,7 +194,16 @@ impl<
   for Wrapper<
     Collect<
       DelimitedBy<
-        SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+        SeparatedOnCondition<
+          &'c mut F,
+          &'c mut SepClassifier,
+          &'c mut Condition,
+          O,
+          W,
+          L,
+          Ctx,
+          Lang,
+        >,
         &'c Open,
         &'c Close,
         &'c Delim,
@@ -223,7 +242,7 @@ where
     } = &mut self.0;
 
     let DelimitedBy {
-      parser: SeparatedBy {
+      parser: SeparatedOnCondition {
         f, sep, condition, ..
       },
       left_classifier,
@@ -232,7 +251,7 @@ where
     } = parser.map_parser_mut(|p| p.as_mut());
 
     DelimitedBy::new_in(
-      SeparatedBy::new(&mut **f, &mut **sep, &mut **condition),
+      SeparatedOnCondition::new(&mut **f, &mut **sep, &mut **condition),
       *left_classifier,
       *right_classifier,
       *delimiter,

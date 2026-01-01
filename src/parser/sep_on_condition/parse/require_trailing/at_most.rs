@@ -127,7 +127,7 @@ where
 impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    RequireTrailing<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+    RequireTrailing<AtMost<SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
     Container,
     Ctx,
     Lang,
@@ -164,7 +164,9 @@ impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      RequireTrailing<AtMost<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>>,
+      RequireTrailing<
+        AtMost<SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      >,
       Container,
       Ctx,
       Lang,
@@ -204,7 +206,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut RequireTrailing<
-      AtMost<SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      AtMost<SeparatedOnCondition<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
     >,
     &'c mut Container,
     Ctx,
@@ -237,7 +239,7 @@ where
         RequireTrailing {
           parser:
             AtMost {
-              parser: SeparatedBy {
+              parser: SeparatedOnCondition {
                 f, sep, condition, ..
               },
               maximum,
@@ -247,7 +249,7 @@ where
       ..
     } = self;
     let parser = RequireTrailing::new(AtMost::new(
-      SeparatedBy {
+      SeparatedOnCondition {
         f: &mut **f,
         sep: &mut **sep,
         condition: &mut *condition,
@@ -272,7 +274,16 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
     Collect<
       RequireTrailing<
         AtMost<
-          SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+          SeparatedOnCondition<
+            &'c mut F,
+            &'c mut SepClassifier,
+            &'c mut Condition,
+            O,
+            W,
+            L,
+            Ctx,
+            Lang,
+          >,
         >,
       >,
       &'c mut Container,

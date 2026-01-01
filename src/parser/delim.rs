@@ -248,18 +248,18 @@ const _: () = {
 /// 3. **Parse closing delimiter**: Consume the right delimiter token
 /// 4. **Return**: Return the collected elements
 ///
-/// # Comparison with DelimitedSeparatedBy
+/// # Comparison with DelimitedSeparatedOnCondition
 ///
-/// | Feature | `DelimitedBy` | `DelimitedSeparatedBy` |
+/// | Feature | `DelimitedBy` | `DelimitedSeparatedOnCondition` |
 /// |---------|---------------|------------------------|
 /// | **Separators** | ❌ No separators | ✅ Elements separated (e.g., commas) |
-/// | **Base Parser** | [`RepeatedOnCondition`] | [`SeparatedBy`] |
+/// | **Base Parser** | [`RepeatedOnCondition`] | [`SeparatedOnCondition`] |
 /// | **Example** | `[a b c]` | `[a, b, c]` |
 /// | **Use Case** | Consecutive items | Separated lists |
 ///
 /// **When to use**:
 /// - `DelimitedBy`: Parse lists of consecutive elements (no separators)
-/// - `DelimitedSeparatedBy`: Parse comma/semicolon-separated lists
+/// - `DelimitedSeparatedOnCondition`: Parse comma/semicolon-separated lists
 ///
 /// # Performance
 ///

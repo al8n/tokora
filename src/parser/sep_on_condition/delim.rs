@@ -27,7 +27,7 @@ mod require_trailing;
 
 impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
   DelimitedBy<
-    SeparatedBy<&'c mut P, &'c mut Sep, &'c mut Condition, O, W, L, Ctx, Lang>,
+    SeparatedOnCondition<&'c mut P, &'c mut Sep, &'c mut Condition, O, W, L, Ctx, Lang>,
     &Open,
     &Close,
     &Delim,

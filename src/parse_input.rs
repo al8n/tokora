@@ -86,12 +86,12 @@ macro_rules! define_separated_by {
   ($($name:ident),+$(,)?) => {
     paste::paste! {
       $(
-        #[doc = "Creates a `SeparatedBy` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
+        #[doc = "Creates a `SeparatedOnCondition` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
         #[cfg_attr(not(tarpaulin), inline(always))]
         fn [< separated_on_condition_by_ $name:snake >]<Condition, W>(
           self,
           condition: Condition,
-        ) -> SeparatedBy<Self, $name, Condition, O, W, L, Ctx, Lang>
+        ) -> SeparatedOnCondition<Self, $name, Condition, O, W, L, Ctx, Lang>
         where
           Self: Sized,
           L: Lexer<'inp>,
@@ -100,7 +100,7 @@ macro_rules! define_separated_by {
           Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
           W: Window,
         {
-          SeparatedBy::new(self, <$name>::PHANTOM, condition)
+          SeparatedOnCondition::new(self, <$name>::PHANTOM, condition)
         }
       )*
     }
@@ -183,13 +183,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     RepeatedOnCondition::new(self, condition)
   }
 
-  /// Creates a `SeparatedBy` combinator that applies this parser repeatedly,
+  /// Creates a `SeparatedOnCondition` combinator that applies this parser repeatedly,
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn separated_on_condition<SepClassifier, Condition, W>(
     self,
     sep_classifier: SepClassifier,
     condition: Condition,
-  ) -> SeparatedBy<Self, SepClassifier, Condition, O, W, L, Ctx, Lang>
+  ) -> SeparatedOnCondition<Self, SepClassifier, Condition, O, W, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -198,7 +198,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     SepClassifier: Check<L::Token>,
     W: Window,
   {
-    SeparatedBy::new(self, sep_classifier, condition)
+    SeparatedOnCondition::new(self, sep_classifier, condition)
   }
 
   define_separated_by!(

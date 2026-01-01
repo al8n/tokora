@@ -1,11 +1,8 @@
 use crate::{
   Check,
   container::Container as ContainerT,
-  emitter::{SeparatedEmitter, TooFewEmitter, TooManyEmitter},
-  error::{
-    syntax::{MissingSyntaxOf, TooFew, TooMany},
-    token::MissingSeparatorOf,
-  },
+  emitter::SeparatedEmitter,
+  error::{syntax::MissingSyntaxOf, token::MissingSeparatorOf},
   lexer::{Checkpoint, Span},
 };
 
@@ -27,7 +24,7 @@ mod require_trailing;
 mod unbounded;
 
 impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
-  SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>
+  SeparatedOnCondition<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>
 {
   fn parse<'closure, Container, CH, SP, EH>(
     &mut self,
@@ -270,87 +267,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
       // we have a trailing separator
       State::Separator(spanned) => handler.handle_separator_state(num_elems, inp, ckp, spanned)?,
     })
-  }
-}
-
-impl With<Minimum, Maximum> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check<'inp, 'closure, O, Sep, L, Ctx, Lang: ?Sized>(
-    &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-    num_elems: usize,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
-      + TooFewEmitter<'inp, O, L, Lang>
-      + TooManyEmitter<'inp, O, L, Lang>,
-  {
-    let full_span = inp.span_since(ckp.cursor());
-    let minimum = self.primary().get();
-    let maximum = self.secondary().get();
-    if num_elems < minimum {
-      inp
-        .emitter()
-        .emit_too_few(TooFew::of(full_span.clone(), num_elems, minimum))?;
-    }
-
-    if num_elems > maximum {
-      inp
-        .emitter()
-        .emit_too_many(TooMany::of(full_span.clone(), num_elems, maximum))?;
-    }
-    Ok(full_span)
-  }
-}
-
-impl Minimum {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check<'inp, 'closure, O, Sep, L, Ctx, Lang: ?Sized>(
-    &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-    num_elems: usize,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang> + TooFewEmitter<'inp, O, L, Lang>,
-  {
-    let full_span = inp.span_since(ckp.cursor());
-    let minimum = self.get();
-    if num_elems < minimum {
-      inp
-        .emitter()
-        .emit_too_few(TooFew::of(full_span.clone(), num_elems, minimum))?;
-    }
-    Ok(full_span)
-  }
-}
-
-impl Maximum {
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check<'inp, 'closure, O, Sep, L, Ctx, Lang: ?Sized>(
-    &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
-    num_elems: usize,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
-  {
-    let full_span = inp.span_since(ckp.cursor());
-    let maximum = self.get();
-    if num_elems > maximum {
-      inp
-        .emitter()
-        .emit_too_many(TooMany::of(full_span.clone(), num_elems, maximum))?;
-    }
-    Ok(full_span)
   }
 }
 

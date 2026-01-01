@@ -2,98 +2,13 @@ use core::marker::PhantomData;
 
 use derive_more::IsVariant;
 
-use crate::lexer::Checkpoint;
+use crate::{SeparatorHandler, lexer::Checkpoint};
 
 use super::*;
 
 mod parse;
 
 mod delim;
-
-/// A handler for separator events during parsing.
-pub trait SeparatorHandler<'inp, L> {
-  /// Called when a separator is encountered.
-  fn on_separator(&mut self, sep: Spanned<L::Token, L::Span>)
-  where
-    L: Lexer<'inp>;
-}
-
-impl<'inp, L, T> SeparatorHandler<'inp, L> for &mut T
-where
-  T: ?Sized + SeparatorHandler<'inp, L>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn on_separator(&mut self, sep: Spanned<L::Token, L::Span>)
-  where
-    L: Lexer<'inp>,
-  {
-    (**self).on_separator(sep)
-  }
-}
-
-macro_rules! blackhole {
-  ($ty:ty) => {
-    impl<'inp, L> SeparatorHandler<'inp, L> for $ty {
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
-      where
-        L: Lexer<'inp>,
-      {
-      }
-    }
-  };
-  (@generic $ty:ty) => {
-    impl<'inp, L, T> SeparatorHandler<'inp, L> for $ty {
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
-      where
-        L: Lexer<'inp>,
-      {
-      }
-    }
-  };
-}
-
-blackhole!(());
-blackhole!(crate::lexer::BlackHole);
-blackhole!(@generic core::marker::PhantomData<T>);
-blackhole!(@generic crate::utils::marker::Ignored<T>);
-
-#[cfg(any(feature = "alloc", feature = "std"))]
-const _: () = {
-  use std::{collections::vec_deque::VecDeque, vec::Vec};
-
-  impl<'inp, L, T> SeparatorHandler<'inp, L> for Vec<T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn on_separator(&mut self, _: Spanned<<L>::Token, <L>::Span>)
-    where
-      L: Lexer<'inp>,
-    {
-    }
-  }
-
-  impl<'inp, L, T> SeparatorHandler<'inp, L> for VecDeque<T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn on_separator(&mut self, _: Spanned<<L>::Token, <L>::Span>)
-    where
-      L: Lexer<'inp>,
-    {
-    }
-  }
-
-  #[cfg(feature = "smallvec")]
-  impl<'inp, L, T, N> SeparatorHandler<'inp, L> for smallvec::SmallVec<N>
-  where
-    N: smallvec::Array<Item = T>,
-  {
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn on_separator(&mut self, _: Spanned<<L>::Token, <L>::Span>)
-    where
-      L: Lexer<'inp>,
-    {
-    }
-  }
-};
 
 /// A parser that parses a sequence of elements separated by a delimiter.
 ///
@@ -121,11 +36,11 @@ const _: () = {
 /// ## Basic Comma-Separated List
 ///
 /// ```ignore
-/// use tokit::parser::{SeparatedBy, ParseInput};
+/// use tokit::parser::{SeparatedOnCondition, ParseInput};
 /// use generic_arraydeque::typenum::U1;
 ///
 /// // Parse: element, element, element
-/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+/// let parser = SeparatedOnCondition::comma::<MyLexer, U1, Ctx>(
 ///     element_parser(),
 ///     |peeked, _| match peeked.front() {
 ///         None => Ok(Action::Stop),
@@ -142,7 +57,7 @@ const _: () = {
 ///
 /// ```ignore
 /// // Parse: element, element, element,  (trailing comma allowed)
-/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+/// let parser = SeparatedOnCondition::comma::<MyLexer, U1, Ctx>(
 ///     element_parser(),
 ///     stop_condition
 /// )
@@ -157,7 +72,7 @@ const _: () = {
 ///
 /// ```ignore
 /// // Parse: , element, element  (leading comma allowed)
-/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+/// let parser = SeparatedOnCondition::comma::<MyLexer, U1, Ctx>(
 ///     element_parser(),
 ///     stop_condition
 /// )
@@ -172,7 +87,7 @@ const _: () = {
 ///
 /// ```ignore
 /// // Parse at least 1, at most 5 elements
-/// let parser = SeparatedBy::comma::<MyLexer, U1, Ctx>(
+/// let parser = SeparatedOnCondition::comma::<MyLexer, U1, Ctx>(
 ///     element_parser(),
 ///     stop_condition
 /// )
@@ -185,7 +100,7 @@ const _: () = {
 ///
 /// ```ignore
 /// // Parse elements separated by semicolons
-/// let parser = SeparatedBy::semicolon::<MyLexer, U1, Ctx>(
+/// let parser = SeparatedOnCondition::semicolon::<MyLexer, U1, Ctx>(
 ///     element_parser(),
 ///     stop_condition
 /// ).collect::<Vec<_>>();
@@ -221,11 +136,11 @@ const _: () = {
 ///
 /// # See Also
 ///
-/// - [`delimited_by`](SeparatedBy::delimited_by) - Wrap in delimiters (e.g., `[...]` or `{...}`)
+/// - [`delimited_by`](SeparatedOnCondition::delimited_by) - Wrap in delimiters (e.g., `[...]` or `{...}`)
 /// - [`repeated`](RepeatedOnCondition) - Repeat without separators
-/// - [`collect`](SeparatedBy::collect) - Collect into a container
+/// - [`collect`](SeparatedOnCondition::collect) - Collect into a container
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {
+pub struct SeparatedOnCondition<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
   pub(super) sep: SepClassifier,
   pub(super) condition: Condition,
@@ -237,7 +152,7 @@ pub struct SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Si
 }
 
 impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Copy
-  for SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+  for SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
 where
   F: Copy,
   SepClassifier: Copy,
@@ -246,7 +161,7 @@ where
 }
 
 impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Clone
-  for SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+  for SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
 where
   F: Clone,
   SepClassifier: Clone,
@@ -268,9 +183,9 @@ where
 }
 
 impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
-  SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+  SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
 {
-  /// Creates a new `SeparatedBy` parser with the given container.
+  /// Creates a new `SeparatedOnCondition` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(crate) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
     Self {
@@ -287,13 +202,13 @@ impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
 }
 
 impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
-  SeparatedBy<F, SepClassifier, Condition, O, Window, L, Ctx, Lang>
+  SeparatedOnCondition<F, SepClassifier, Condition, O, Window, L, Ctx, Lang>
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn as_mut(
     &mut self,
-  ) -> SeparatedBy<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, Lang> {
-    SeparatedBy {
+  ) -> SeparatedOnCondition<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, Lang> {
+    SeparatedOnCondition {
       f: &mut self.f,
       sep: &mut self.sep,
       condition: &mut self.condition,

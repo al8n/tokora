@@ -129,7 +129,12 @@ where
 
 impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>, Container, Ctx, Lang>
+  for Collect<
+    SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>,
+    Container,
+    Ctx,
+    Lang,
+  >
 where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -156,7 +161,12 @@ where
 impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
-    Collect<SeparatedBy<F, SepClassifier, Condition, O, W, L, Ctx, Lang>, Container, Ctx, Lang>,
+    Collect<
+      SeparatedOnCondition<F, SepClassifier, Condition, O, W, L, Ctx, Lang>,
+      Container,
+      Ctx,
+      Lang,
+    >,
     PhantomSpan,
   >
 where
@@ -185,7 +195,7 @@ where
 impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut SeparatedBy<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>,
+    &'c mut SeparatedOnCondition<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>,
     &'c mut Container,
     Ctx,
     Lang,
@@ -211,13 +221,13 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     let Self {
-      parser: SeparatedBy {
+      parser: SeparatedOnCondition {
         f, sep, condition, ..
       },
       container,
       ..
     } = self;
-    let parser = SeparatedBy {
+    let parser = SeparatedOnCondition {
       f: &mut **f,
       sep: &mut **sep,
       condition: &mut *condition,
@@ -239,7 +249,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      SeparatedBy<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+      SeparatedOnCondition<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
       &'c mut Container,
       Ctx,
       Lang,

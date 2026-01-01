@@ -22,6 +22,7 @@ pub use parse_choice::*;
 pub use parse_input::*;
 pub use parser::{Parse, ParseContext, Parser};
 pub use require::Require;
+pub use separator_handler::SeparatorHandler;
 pub use try_parse_input::TryParseInput;
 
 /// Concrete Syntax Tree (CST) representations and utilities.
@@ -61,6 +62,7 @@ mod keyword;
 mod parse_choice;
 mod parse_input;
 mod require;
+mod separator_handler;
 mod try_parse_input;
 
 #[doc(hidden)]

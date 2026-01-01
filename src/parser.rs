@@ -194,11 +194,13 @@ pub use repeated::*;
 pub use repeated_on_condition::*;
 pub use require_leading::RequireLeading;
 pub use require_trailing::RequireTrailing;
+pub use sep::*;
 pub use sep_on_condition::*;
 pub use then::*;
 pub use todo::*;
 pub use unwrapped::*;
 pub use validate::*;
+pub use with::*;
 
 mod allow_leading;
 mod allow_trailing;
@@ -232,11 +234,13 @@ mod punct;
 mod recover;
 mod repeated;
 mod repeated_on_condition;
+mod sep;
 mod sep_on_condition;
 mod then;
 mod todo;
 mod unwrapped;
 mod validate;
+mod with;
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 mod recursive;
@@ -568,80 +572,6 @@ pub trait Apply<State> {
 
   /// Transform `self` into `State` using the provided `options`.
   fn apply(self, options: Self::Options) -> State;
-}
-
-/// Combines two values in a type-safe way.
-///
-/// This type is used throughout the parser system for:
-///
-/// - Wrapping parser functions with base parsers: `With<F, Parser<()>>`
-/// - Building configuration structures: `With<E, C>` for emitter + cache
-/// - Nested configurations: `With<PhantomData<L>, With<E, C>>` for ParserOptions
-///
-/// # Type Parameters
-///
-/// - `P`: The primary value (typically a parser function or marker)
-/// - `S`: The secondary value (typically configuration or a base parser)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct With<P, S> {
-  pub(crate) primary: P,
-  pub(crate) secondary: S,
-}
-
-impl<P, S> With<P, S> {
-  /// Create a new `With` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(primary: P, secondary: S) -> Self {
-    Self { primary, secondary }
-  }
-
-  /// Returns a reference to the primary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn primary(&self) -> &P {
-    &self.primary
-  }
-
-  /// Returns a reference to the secondary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn secondary(&self) -> &S {
-    &self.secondary
-  }
-
-  /// Returns a mutable reference to the primary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn primary_mut(&mut self) -> &mut P {
-    &mut self.primary
-  }
-
-  /// Returns a mutable reference to the secondary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn secondary_mut(&mut self) -> &mut S {
-    &mut self.secondary
-  }
-
-  /// Maps the primary value using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map_primary<U, F>(self, f: F) -> With<U, S>
-  where
-    F: FnOnce(P) -> U,
-  {
-    With {
-      primary: f(self.primary),
-      secondary: self.secondary,
-    }
-  }
-
-  /// Maps the secondary value using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn map_secondary<U, F>(self, f: F) -> With<P, U>
-  where
-    F: FnOnce(S) -> U,
-  {
-    With {
-      primary: self.primary,
-      secondary: f(self.secondary),
-    }
-  }
 }
 
 /// A hint used during parsing.

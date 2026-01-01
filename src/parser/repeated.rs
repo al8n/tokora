@@ -12,7 +12,7 @@ mod parse;
 /// - **Repetition bounds**: Minimum and maximum number of elements
 /// - **Delimiters**: Can wrap in delimiters like `[...]` or `{...}`
 ///
-/// Unlike [`SeparatedBy`] which expects delimiters between elements, `Repeated` parses
+/// Unlike [`SeparatedOnCondition`] which expects delimiters between elements, `Repeated` parses
 /// consecutive elements with no separators.
 ///
 /// # Type Parameters
@@ -103,9 +103,9 @@ mod parse;
 /// 3. **Validate** min/max bounds
 /// 4. **Collect** parsed elements into container
 ///
-/// # Difference from `SeparatedBy`
+/// # Difference from `SeparatedOnCondition`
 ///
-/// | Feature | `Repeated` | `SeparatedBy` |
+/// | Feature | `Repeated` | `SeparatedOnCondition` |
 /// |---------|-----------|---------------|
 /// | **Separators** | ❌ No separators | ✅ Elements separated by delimiter |
 /// | **Use Case** | Consecutive elements | Comma/semicolon-separated lists |
@@ -125,7 +125,7 @@ mod parse;
 ///
 /// # See Also
 ///
-/// - [`SeparatedBy`] - Parse elements with separators (e.g., commas)
+/// - [`SeparatedOnCondition`] - Parse elements with separators (e.g., commas)
 /// - [`delimited_by`](Repeated::delimited_by) - Wrap in delimiters
 /// - [`collect`](Repeated::collect) - Collect into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
