@@ -1,6 +1,28 @@
-use crate::{lexer::InputRef, parser::Repeated};
+use crate::{lexer::{InputRef, PunctuatorToken}, parser::{Repeated, Separated}, punct::*};
 
 use super::*;
+
+macro_rules! define_separated_by {
+  ($($name:ident),+$(,)?) => {
+    paste::paste! {
+      $(
+        #[doc = "Creates a `Separated` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn [< separated_by_ $name:snake>](
+          self,
+        ) -> Separated<Self, $name, O, L, Ctx, Lang>
+        where
+          Self: Sized,
+          L: Lexer<'inp>,
+          L::Token: PunctuatorToken<'inp>,
+          Ctx: ParseContext<'inp, L, Lang>,
+        {
+          Separated::new(self, <$name>::PHANTOM)
+        }
+      )*
+    }
+  };
+}
 
 /// Tentative parsing trait for optional token consumption with automatic backtracking.
 ///
@@ -36,4 +58,41 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   {
     Repeated::new(self)
   }
+
+  /// Creates a `Separated` combinator which separates elements by the given separator parser
+  /// and applies this parser for each element.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn separated<SepClassifier>(
+    self,
+    sep_classifier: SepClassifier,
+  ) -> Separated<Self, SepClassifier, O, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    SepClassifier: Check<L::Token>,
+  {
+    Separated::new(self, sep_classifier)
+  }
+
+  define_separated_by!(
+    Comma,
+    Semicolon,
+    Dot,
+    Colon,
+    Pipe,
+    Ampersand,
+    Hyphen,
+    Underscore,
+    DoubleColon,
+    Arrow,
+    FatArrow,
+    Tilde,
+    Slash,
+    BackSlash,
+    Percent,
+    Dollar,
+    Hash,
+    At,
+  );
 }
