@@ -1,5 +1,5 @@
 use crate::{
-  Check,
+  Check, TryParseInput,
   container::Container as ContainerT,
   emitter::SeparatedEmitter,
   error::{syntax::MissingSyntaxOf, token::MissingSeparatorOf},
@@ -36,7 +36,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    F: ParseInput<'inp, L, O, Ctx, Lang>,
+    F: TryParseInput<'inp, L, O, Ctx, Lang>,
     SepClassifier: Check<L::Token>,
     Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
@@ -45,58 +45,58 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     CH: ContinueStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
     SP: SeparatorStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
   {
-    // let mut state = State::Start;
-    // let ckp = inp.save();
-    // let mut num_elems = 0;
+    let mut state = State::Start;
+    let ckp = inp.save();
+    let mut cursor = ckp.cursor().clone();
+    let mut num_elems = 0;
 
-    // loop {
-    //   let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<generic_arraydeque::typenum::U1>()?;
+    loop {
+      let tok = inp.sync_until_token()?;
 
-    //   let peek_span = match peeked.front() {
-    //     None => {
-    //       drop(peeked);
-    //       return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
-    //     }
-    //     Some(tok) => {
-    //       // the sync_until_token_then_peek_with_emitter guarantees the first token is not a `Lexed::Error`
-    //       let tok = tok
-    //         .as_maybe_ref()
-    //         .map(
-    //           |t| t.token().map(|t| *t, |t| t.unwrap_token_ref()),
-    //           |t| t.token().map_data(|t| t.unwrap_token_ref()),
-    //         )
-    //         .into_inner();
-    //       let peek_span = tok.span();
-    //       match tok.data() {
-    //         tok if self.sep.check(tok) => {
-    //           drop(peeked);
-    //           state = self.handle_separator(state, inp, container, separator_state_handler)?;
+      let peek_span = match tok {
+        None => {
+          return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
+        }
+        Some(tok) => {
+          // the sync_until_token guarantees the first token is not a `Lexed::Error`
+          let tok = tok
+            .as_maybe_ref()
+            .map(|t| t.token().copied(), |t| t.token())
+            .into_inner();
+          let peek_span = tok.span();
+          match tok.data() {
+            tok if self.sep.check(tok) => {
+              state = self.handle_separator(state, inp, container, separator_state_handler)?;
 
-    //           continue;
-    //         }
-    //         _ => peek_span.clone(),
-    //       }
-    //     }
-    //   };
+              continue;
+            }
+            _ => peek_span.clone(),
+          }
+        }
+      };
 
-    //   match self.condition.decide(peeked, emitter)? {
-    //     Action::Stop => {
-    //       return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
-    //     }
-    //     Action::Continue => {
-    //       // if the peeked token belongs to an element, check the current state
-    //       state = self.handle_continue(
-    //         state,
-    //         inp,
-    //         &peek_span,
-    //         &mut num_elems,
-    //         container,
-    //         continue_state_handler,
-    //       )?;
-    //     }
-    //   }
-    // }
-    todo!()
+      match self.f.try_parse_input(inp) {
+        Err(e) => {
+          let span = inp.span_since(&cursor);
+          inp.emitter().emit_error(Spanned::new(span, e))?;
+        }
+        Ok(None) => return self.handle_end(state, inp, &ckp, num_elems, end_state_handler),
+        Ok(Some(elem)) => {
+          // if the peeked token belongs to an element, check the current state
+          state = self.handle_continue(
+            state,
+            inp,
+            peek_span,
+            elem,
+            &mut num_elems,
+            container,
+            continue_state_handler,
+          )?;
+        }
+      }
+
+      cursor = inp.cursor().clone();
+    }
   }
 
   pub(super) fn handle_separator<'closure, Handler, Container>(
@@ -176,7 +176,8 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     &mut self,
     mut state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    peek_span: &L::Span,
+    peek_span: L::Span,
+    element: O,
     num_elems: &mut usize,
     container: &mut Container,
     handler: &Handler,
@@ -185,7 +186,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     'inp: 'closure,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    F: ParseInput<'inp, L, O, Ctx, Lang>,
+    F: TryParseInput<'inp, L, O, Ctx, Lang>,
     SepClassifier: Check<L::Token>,
     Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
@@ -194,15 +195,11 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     match state {
       // happy path, we found a separator before an element
       State::Separator(_) => {
-        // parse the next element
-        let element = self.f.parse_input(inp)?;
         push(num_elems, container, element);
         state = State::Element;
       }
       // we are in leading state,
       State::Leading(_) => {
-        // parse the first element
-        let element = self.f.parse_input(inp)?;
         push(num_elems, container, element);
         state = State::Element;
       }
@@ -211,8 +208,6 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
         // let the passing handler deal with the start state
         handler.handle_start_state(inp, peek_span.start())?;
 
-        // parse the first element
-        let element = self.f.parse_input(inp)?;
         push(num_elems, container, element);
 
         state = State::Element;
@@ -227,7 +222,6 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
           .emit_missing_separator(MissingSeparatorOf::<'_, SepClassifier, L, Lang>::of(off))?;
 
         // parse the next element
-        let element = self.f.parse_input(inp)?;
         push(num_elems, container, element);
         state = State::Element;
       }
@@ -248,7 +242,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     'inp: 'closure,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    F: ParseInput<'inp, L, O, Ctx, Lang>,
+    F: TryParseInput<'inp, L, O, Ctx, Lang>,
     SepClassifier: Check<L::Token>,
     Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
     Handler: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,

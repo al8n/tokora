@@ -133,7 +133,7 @@ impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   for Collect<AtMost<Separated<F, SepClassifier, O, L, Ctx, Lang>>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
@@ -165,7 +165,7 @@ impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   >
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
@@ -200,7 +200,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   >
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
@@ -256,7 +256,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   >
 where
   L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, O, SepClassifier, L, Lang>
