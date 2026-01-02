@@ -94,4 +94,3 @@ impl<P> AllowLeading<P> {
     }
   }
 }
-

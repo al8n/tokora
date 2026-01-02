@@ -4,8 +4,8 @@ use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
-  Branch, Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser,
-  Token as TokenT, Collectable,
+  Accumulator, Branch, Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser,
+  Token as TokenT,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,

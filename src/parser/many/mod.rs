@@ -11,17 +11,15 @@ pub use delim::*;
 pub use repeated::*;
 pub use repeated_while::*;
 
+pub use options::*;
 pub use sep::*;
 pub use sep_while::*;
-pub use options::*;
-
 
 mod delim;
 mod handler;
 mod repeated;
 mod repeated_while;
 
+mod options;
 mod sep;
 mod sep_while;
-mod options;
-

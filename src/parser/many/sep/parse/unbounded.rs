@@ -84,14 +84,17 @@ where
       container,
       ..
     } = self;
-    let parser = Collect::new(Separated {
-      f: &mut **f,
-      sep: &mut **sep,
-      _m: PhantomData,
-      _ctx: PhantomData,
-      _l: PhantomData,
-      _lang: PhantomData,
-    }, &mut *container);
+    let parser = Collect::new(
+      Separated {
+        f: &mut **f,
+        sep: &mut **sep,
+        _m: PhantomData,
+        _ctx: PhantomData,
+        _l: PhantomData,
+        _lang: PhantomData,
+      },
+      &mut *container,
+    );
 
     Wrapper(parser).parse_input(input)
   }

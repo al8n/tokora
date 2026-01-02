@@ -1,4 +1,4 @@
-use super::{DelimitedBy, With, Apply};
+use super::{Apply, DelimitedBy, With};
 
 pub use allow_leading::AllowLeading;
 pub use allow_trailing::AllowTrailing;

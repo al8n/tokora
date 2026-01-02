@@ -82,8 +82,8 @@ where
   }
 }
 
-/// A trait for parsers that can collect their results into a container.
-pub trait Collectable<'inp, L, Container, Ctx, Lang: ?Sized = ()> {
+/// A trait for parsers that accumulate their results into a container.
+pub trait Accumulator<'inp, L, Container, Ctx, Lang: ?Sized = ()> {
   /// Collects the parsed elements into the specified container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn collect(self) -> Collect<Self, Container, Ctx, Lang>
@@ -97,10 +97,7 @@ pub trait Collectable<'inp, L, Container, Ctx, Lang: ?Sized = ()> {
 
   /// Collects the parsed elements with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn collect_with(
-    self,
-    container: Container,
-  ) -> Collect<Self, Container, Ctx, Lang>
+  fn collect_with(self, container: Container) -> Collect<Self, Container, Ctx, Lang>
   where
     Self: Sized,
     Collect<Self, Container, Ctx, Lang>: ParseInput<'inp, L, Container, Ctx, Lang>,
@@ -109,10 +106,8 @@ pub trait Collectable<'inp, L, Container, Ctx, Lang: ?Sized = ()> {
   }
 }
 
-impl<'inp, P, Container, L, Ctx, Lang: ?Sized> Collectable<'inp, L, Container, Ctx,  Lang>
-  for P
-where
-  Collect<P, Container, Ctx, Lang>: ParseInput<'inp, L, Container, Ctx, Lang>,
+impl<'inp, P, Container, L, Ctx, Lang: ?Sized> Accumulator<'inp, L, Container, Ctx, Lang> for P where
+  Collect<P, Container, Ctx, Lang>: ParseInput<'inp, L, Container, Ctx, Lang>
 {
 }
 

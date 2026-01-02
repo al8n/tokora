@@ -96,16 +96,19 @@ where
       ..
     } = self;
 
-    let parser = Collect::new(SeparatedWhile {
-      f: &mut **f,
-      sep: &mut **sep,
-      condition: &mut *condition,
-      _m: PhantomData,
-      _decision_window: PhantomData,
-      _ctx: PhantomData,
-      _l: PhantomData,
-      _lang: PhantomData,
-    }, &mut *container);
+    let parser = Collect::new(
+      SeparatedWhile {
+        f: &mut **f,
+        sep: &mut **sep,
+        condition: &mut *condition,
+        _m: PhantomData,
+        _decision_window: PhantomData,
+        _ctx: PhantomData,
+        _l: PhantomData,
+        _lang: PhantomData,
+      },
+      &mut *container,
+    );
 
     Wrapper(parser).parse_input(input)
   }

@@ -80,4 +80,3 @@ impl<P> AllowTrailing<P> {
     }
   }
 }
-
