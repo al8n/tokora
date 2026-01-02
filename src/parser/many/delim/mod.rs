@@ -281,24 +281,6 @@ pub struct DelimitedBy<P, Open, Close, Delim> {
 }
 
 impl<P, Open, Close, Delim> DelimitedBy<P, Open, Close, Delim> {
-  /// Collects the parsed elements into the specified container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn collect<Container, Ctx, Lang: ?Sized>(self) -> Collect<Self, Container, Ctx, Lang>
-  where
-    Container: Default,
-  {
-    Collect::new(self, Container::default())
-  }
-
-  /// Collects the parsed elements with the given container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn collect_with<Container, Ctx, Lang: ?Sized>(
-    self,
-    container: Container,
-  ) -> Collect<Self, Container, Ctx, Lang> {
-    Collect::new(self, container)
-  }
-
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new_in(parser: P, left: Open, right: Close, delim: Delim) -> Self {
     Self {

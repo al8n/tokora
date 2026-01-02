@@ -5,7 +5,7 @@ use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
   Branch, Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser,
-  Token as TokenT,
+  Token as TokenT, Collectable,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
