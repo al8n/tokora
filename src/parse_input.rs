@@ -607,27 +607,6 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 }
 
-/// Extension trait for unwrapping `Option` outputs.
-pub trait ParseInputUnwrapExt<'inp, L, O, Ctx, Lang: ?Sized> {
-  /// Creates an `Unwrapped` parser that unwraps the `Option` result of this parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[track_caller]
-  fn unwrap(self) -> Unwrapped<Self, O, Ctx, Lang>
-  where
-    Self: Sized + ParseInput<'inp, L, Option<O>, Ctx, Lang>,
-  {
-    Unwrapped::new(self)
-  }
-}
-
-impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInputUnwrapExt<'inp, L, O, Ctx, Lang> for F
-where
-  F: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
-  L: Lexer<'inp>,
-  Ctx: ParseContext<'inp, L, Lang>,
-{
-}
-
 impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInput<'inp, L, O, Ctx, Lang> for F
 where
   F: FnMut(
@@ -720,4 +699,25 @@ where
       )
     })
   }
+}
+
+/// Extension trait for unwrapping `Option` outputs.
+pub trait ParseInputUnwrapExt<'inp, L, O, Ctx, Lang: ?Sized> {
+  /// Creates an `Unwrapped` parser that unwraps the `Option` result of this parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[track_caller]
+  fn unwrap(self) -> Unwrapped<Self, O, Ctx, Lang>
+  where
+    Self: Sized + ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+  {
+    Unwrapped::new(self)
+  }
+}
+
+impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInputUnwrapExt<'inp, L, O, Ctx, Lang> for F
+where
+  F: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
 }

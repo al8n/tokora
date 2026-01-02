@@ -69,24 +69,3 @@ impl<P> AtLeast<P> {
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  AtLeast<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>
-{
-  /// Collects the parsed elements into the specified container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn collect<Container>(self) -> Collect<Self, Container, Ctx, Lang>
-  where
-    Container: Default,
-  {
-    Collect::new(self, Container::default())
-  }
-
-  /// Collects the parsed elements with the given container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn collect_with<Container>(
-    self,
-    container: Container,
-  ) -> Collect<Self, Container, Ctx, Lang> {
-    Collect::new(self, container)
-  }
-}

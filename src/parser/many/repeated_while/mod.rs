@@ -2,7 +2,10 @@ use core::marker::PhantomData;
 
 use super::*;
 
-mod parse;
+mod at_least;
+mod at_most;
+mod bounded;
+mod unbounded;
 
 /// A parser that repeatedly applies an element parser until a condition signals to stop.
 ///
@@ -12,7 +15,7 @@ mod parse;
 /// - **Repetition bounds**: Minimum and maximum number of elements
 /// - **Delimiters**: Can wrap in delimiters like `[...]` or `{...}`
 ///
-/// Unlike [`SeparatedWhile`] which expects delimiters between elements, `Repeated` parses
+/// Unlike [`SeparatedWhile`] which expects delimiters between elements, `RepeatedWhile` parses
 /// consecutive elements with no separators.
 ///
 /// # Type Parameters
@@ -31,7 +34,7 @@ mod parse;
 /// ## Basic Repetition
 ///
 /// ```ignore
-/// use tokit::parser::{ParseInput, Repeated, Action};
+/// use tokit::parser::{ParseInput, RepeatedWhile, Action};
 /// use generic_arraydeque::typenum::U1;
 ///
 /// // Parse numbers until we hit a non-number token
@@ -105,7 +108,7 @@ mod parse;
 ///
 /// # Difference from `SeparatedWhile`
 ///
-/// | Feature | `Repeated` | `SeparatedWhile` |
+/// | Feature | `RepeatedWhile` | `SeparatedWhile` |
 /// |---------|-----------|---------------|
 /// | **Separators** | ❌ No separators | ✅ Elements separated by delimiter |
 /// | **Use Case** | Consecutive elements | Comma/semicolon-separated lists |
@@ -126,24 +129,34 @@ mod parse;
 /// # See Also
 ///
 /// - [`SeparatedWhile`] - Parse elements with separators (e.g., commas)
-/// - [`delimited_by`](Repeated::delimited_by) - Wrap in delimiters
-/// - [`collect`](Repeated::collect) - Collect into a container
+/// - [`delimited_by`](RepeatedWhile::delimited_by) - Wrap in delimiters
+/// - [`collect`](RepeatedWhile::collect) - Collect into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Repeated<F, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct RepeatedWhile<F, Condition, O, W, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
+  pub(super) condition: Condition,
   _m: PhantomData<O>,
+  _cap: PhantomData<W>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
-  /// Creates a new `Repeated` parser.
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W, L, Ctx, Lang> {
+  /// Creates a new `RepeatedWhile` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new(f: F) -> Self {
+  pub(crate) const fn new(f: F, condition: Condition) -> Self {
+    Self::new_in(f, condition)
+  }
+
+  /// Creates a new `RepeatedWhile` parser with the given container.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  const fn new_in(f: F, condition: Condition) -> Self {
     Self {
       f,
+      condition,
       _m: PhantomData,
+      _cap: PhantomData,
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
@@ -151,24 +164,24 @@ impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
-  /// Collects the parsed elements into the specified container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn collect<Container>(self) -> Collect<Self, Container, Ctx, Lang>
-  where
-    Container: Default,
-  {
-    Collect::new(self, Container::default())
-  }
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W, L, Ctx, Lang> {
+  // /// Collects the parsed elements into the specified container.
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // pub fn collect<Container>(self) -> Collect<Self, Container, Ctx, Lang>
+  // where
+  //   Container: Default,
+  // {
+  //   Collect::new(self, Container::default())
+  // }
 
-  /// Collects the parsed elements with the given container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn collect_with<Container>(
-    self,
-    container: Container,
-  ) -> Collect<Self, Container, Ctx, Lang> {
-    Collect::new(self, container)
-  }
+  // /// Collects the parsed elements with the given container.
+  // #[cfg_attr(not(tarpaulin), inline(always))]
+  // pub const fn collect_with<Container>(
+  //   self,
+  //   container: Container,
+  // ) -> Collect<Self, Container, Ctx, Lang> {
+  //   Collect::new(self, container)
+  // }
 
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -182,27 +195,33 @@ impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W, L, Ctx, Lang> {
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_least(self, n: usize) -> AtLeast<Repeated<F, O, L, Ctx, Lang>> {
+  pub fn at_least(self, n: usize) -> AtLeast<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
     self.apply(Minimum::new(n))
   }
 
   /// Sets the maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn at_most(self, n: usize) -> AtMost<Repeated<F, O, L, Ctx, Lang>> {
+  pub fn at_most(self, n: usize) -> AtMost<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
     self.apply(Maximum::new(n))
   }
 
   /// Sets both the minimum and maximum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bounded(self, min: usize, max: usize) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
+  pub fn bounded(
+    self,
+    min: usize,
+    max: usize,
+  ) -> Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
     self.apply(With::new(Maximum::new(max), Minimum::new(min)))
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>> for Repeated<F, O, L, Ctx, Lang> {
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>>
+  for RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>
+{
   type Options = Minimum;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -211,7 +230,9 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>> for Repeated<F, O, L, Ctx,
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>> for Repeated<F, O, L, Ctx, Lang> {
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>>
+  for RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>
+{
   type Options = Maximum;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -220,7 +241,9 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>> for Repeated<F, O, L, Ctx, 
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>> for Repeated<F, O, L, Ctx, Lang> {
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>>
+  for RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>
+{
   type Options = With<Maximum, Minimum>;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -229,24 +252,77 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>> for Repeated<F, O, L, Ctx,
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Repeated<F, O, L, Ctx, Lang>>>
-  for AtMost<Repeated<F, O, L, Ctx, Lang>>
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
+  Apply<Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>>
+  for AtMost<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>
 {
   type Options = Minimum;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
+  fn apply(
+    self,
+    options: Self::Options,
+  ) -> Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
     Bounded::new(self.parser, self.maximum.get(), options.get())
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Repeated<F, O, L, Ctx, Lang>>>
-  for AtLeast<Repeated<F, O, L, Ctx, Lang>>
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
+  Apply<Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>>
+  for AtLeast<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>
 {
   type Options = Maximum;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, options: Self::Options) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
+  fn apply(
+    self,
+    options: Self::Options,
+  ) -> Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
     Bounded::new(self.parser, options.get(), self.minimum.get())
+  }
+}
+
+impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
+  RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>
+{
+  fn parse<Container>(
+    &mut self,
+    inp: &mut InputRef<'inp, 'c, L, Ctx, Lang>,
+    container: &mut Container,
+    on_stop: impl FnOnce(
+      usize,
+      &mut InputRef<'inp, 'c, L, Ctx, Lang>,
+      &L::Span,
+    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    F: ParseInput<'inp, L, O, Ctx, Lang>,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+    W: Window,
+    Ctx::Emitter: Emitter<'inp, L, Lang>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Container: crate::container::Container<O>,
+  {
+    let ckp = inp.save();
+    let mut nums = 0;
+
+    loop {
+      let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+
+      match self.condition.decide(peeked, emitter) {
+        Err(err) => return Err(err),
+        Ok(action) => match action {
+          Action::Stop => {
+            let span = inp.span_since(ckp.cursor());
+            return on_stop(nums, inp, &span).map(|_| span);
+          }
+          Action::Continue => {
+            container.push(self.f.parse_input(inp)?);
+            nums += 1;
+          }
+        },
+      }
+    }
   }
 }
