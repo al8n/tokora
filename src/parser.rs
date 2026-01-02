@@ -169,47 +169,27 @@ use crate::{
 };
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
-use handler::*;
 
-pub use allow_leading::AllowLeading;
-pub use allow_trailing::AllowTrailing;
 pub use any::*;
-pub use at_least::*;
-pub use at_most::*;
-pub use bounded::*;
 pub use collect::Collect;
 pub use ctx::{FatalContext, ParseContext, ParserContext};
-pub use delim::*;
 pub use empty::*;
 pub use expect::*;
 pub use filter::*;
 pub use filter_map::*;
 pub use ignore::*;
+pub use many::*;
 pub use map::*;
 pub use or_not::*;
 pub use padded::*;
 pub use peek_then::*;
 pub use peek_then_choice::*;
 pub use recover::*;
-pub use repeated::*;
-pub use repeated_while::*;
-pub use require_leading::RequireLeading;
-pub use require_trailing::RequireTrailing;
-pub use sep::*;
-pub use sep_while::*;
 pub use then::*;
 pub use todo::*;
 pub use unwrapped::*;
 pub use validate::*;
 pub use with::*;
-
-mod allow_leading;
-mod allow_trailing;
-mod at_least;
-mod at_most;
-mod bounded;
-mod require_leading;
-mod require_trailing;
 
 // #[cfg(any(feature = "std", feature = "alloc"))]
 // #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
@@ -218,15 +198,14 @@ mod require_trailing;
 mod any;
 mod collect;
 mod ctx;
-mod delim;
 mod empty;
 mod expect;
 mod filter;
 mod filter_map;
-mod handler;
 mod ident;
 mod ignore;
 mod keyword;
+mod many;
 mod map;
 mod or_not;
 mod padded;
@@ -234,10 +213,6 @@ mod peek_then;
 mod peek_then_choice;
 mod punct;
 mod recover;
-mod repeated;
-mod repeated_while;
-mod sep;
-mod sep_while;
 mod then;
 mod todo;
 mod unwrapped;
@@ -589,46 +564,4 @@ pub enum Action {
   #[unwrap(ignore)]
   #[try_unwrap(ignore)]
   Continue,
-}
-
-/// A marker type representing the maximum number of elements allowed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Maximum(pub usize);
-
-impl Maximum {
-  /// The maximum possible value for `Maximum`.
-  pub const MAX: Self = Self::new(usize::MAX);
-
-  /// Creates a new `Maximum`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(n: usize) -> Self {
-    Self(n)
-  }
-
-  /// Returns the maximum number of elements allowed.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn get(&self) -> usize {
-    self.0
-  }
-}
-
-/// A marker type representing the minimum number of elements required.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Minimum(usize);
-
-impl Minimum {
-  /// The minimum possible value for `Minimum`.
-  pub const MIN: Self = Self::new(0);
-
-  /// Creates a new `Minimum`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(n: usize) -> Self {
-    Self(n)
-  }
-
-  /// Returns the minimum number of elements required.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn get(&self) -> usize {
-    self.0
-  }
 }
