@@ -299,5 +299,3 @@ pub(super) enum State<T, S> {
   Leading(Spanned<T, S>),
   Separator(Spanned<T, S>),
 }
-
-struct Unbounded;
