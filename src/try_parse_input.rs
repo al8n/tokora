@@ -1,3 +1,5 @@
+use derive_more::{IsVariant, TryUnwrap, Unwrap};
+
 use crate::{
   input::InputRef,
   parser::{Repeated, Separated},
@@ -6,6 +8,61 @@ use crate::{
 };
 
 use super::*;
+
+pub use TryParseInputResult::{Declined, Matched};
+
+/// Result type for tentative parsing attempts.
+#[derive(Debug, Clone, PartialEq, Eq, IsVariant, TryUnwrap, Unwrap)]
+#[unwrap(ref, ref_mut)]
+#[try_unwrap(ref, ref_mut)]
+pub enum TryParseInputResult<O> {
+  /// Parser successfully matched and produced a value.
+  Matched(O),
+  /// Parser declined to match without consuming any valid tokens.
+  #[unwrap(ignore)]
+  #[try_unwrap(ignore)]
+  Declined,
+}
+
+impl<O> From<Option<O>> for TryParseInputResult<O> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(opt: Option<O>) -> Self {
+    match opt {
+      Some(value) => Self::Matched(value),
+      None => Self::Declined,
+    }
+  }
+}
+
+impl<O> From<TryParseInputResult<O>> for Option<O> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(result: TryParseInputResult<O>) -> Self {
+    match result {
+      TryParseInputResult::Matched(value) => Some(value),
+      TryParseInputResult::Declined => None,
+    }
+  }
+}
+
+impl<O> TryParseInputResult<O> {
+  /// Converts to a `TryParseInputResult` with a reference to the inner value.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn as_ref(&self) -> TryParseInputResult<&O> {
+    match self {
+      Self::Matched(value) => TryParseInputResult::Matched(value),
+      Self::Declined => TryParseInputResult::Declined,
+    }
+  }
+
+  /// Converts to a `TryParseInputResult` with a mutable reference to the inner value.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn as_mut(&mut self) -> TryParseInputResult<&mut O> {
+    match self {
+      Self::Matched(value) => TryParseInputResult::Matched(value),
+      Self::Declined => TryParseInputResult::Declined,
+    }
+  }
+}
 
 macro_rules! define_separated_by {
   ($($name:ident),+$(,)?) => {
@@ -53,7 +110,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-  ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  ) -> Result<TryParseInputResult<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>;
@@ -149,4 +206,21 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Hash,
     At,
   );
+}
+
+impl<'inp, L, F, O, Ctx, Lang: ?Sized> TryParseInput<'inp, L, O, Ctx, Lang> for &mut F
+where
+  F: FnMut(
+    &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<TryParseInputResult<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<TryParseInputResult<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    (self)(input)
+  }
 }

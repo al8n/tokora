@@ -161,7 +161,6 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     Self: Sized,
     L: Lexer<'inp>,
-    With<PhantomSpan, Self>: ParseInput<'inp, L, Spanned<O>, Ctx, Lang>,
   {
     With::new(PhantomSpan::phantom(), self)
   }
@@ -172,7 +171,6 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     Self: Sized,
     L: Lexer<'inp>,
-    With<PhantomSliced, Self>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     With::new(PhantomSliced::phantom(), self)
   }
@@ -183,7 +181,6 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   where
     Self: Sized,
     L: Lexer<'inp>,
-    With<PhantomLocated, Self>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     With::new(PhantomLocated::phantom(), self)
   }

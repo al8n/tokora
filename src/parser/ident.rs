@@ -1,4 +1,9 @@
-use crate::{error::UnexpectedEot, token::IdentifierToken, types::Ident};
+use crate::{
+  error::UnexpectedEot,
+  token::IdentifierToken,
+  try_parse_input::{Declined, Matched, TryParseInputResult},
+  types::Ident,
+};
 
 use super::*;
 
@@ -10,7 +15,7 @@ impl Ident<(), ()> {
   pub fn try_parse<'inp, L, Ctx>(
     inp: &mut InputRef<'inp, '_, L, Ctx>,
   ) -> Result<
-    Option<Ident<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>>,
+    TryParseInputResult<Ident<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error,
   >
   where
@@ -29,7 +34,7 @@ impl Ident<(), ()> {
   pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized>(
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<
-    Option<Ident<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>>,
+    TryParseInputResult<Ident<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
@@ -58,11 +63,11 @@ impl Ident<(), ()> {
           .into_inner();
 
         if !ident {
-          return Ok(None);
+          return Ok(Declined);
         }
 
         inp.skip_one();
-        Ok(Some(Ident::new(span, inp.slice())))
+        Ok(Matched(Ident::new(span, inp.slice())))
       }
     }
   }

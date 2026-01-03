@@ -177,6 +177,9 @@ pub mod token;
 /// intermediate buffering.
 pub mod input;
 
+/// Tentative parsing trait
+pub mod try_parse_input;
+
 mod check;
 mod keyword;
 mod located;
@@ -184,7 +187,6 @@ mod parse_choice;
 mod parse_context;
 mod parse_input;
 mod require;
-mod try_parse_input;
 
 #[doc(hidden)]
 pub mod __private {

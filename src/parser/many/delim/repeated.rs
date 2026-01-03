@@ -7,6 +7,7 @@ use crate::{
   container::Container as ContainerT,
   emitter::DelimitedEmitter,
   error::{Unclosed, Undelimited},
+  try_parse_input::{Declined, Matched},
 };
 
 use super::*;
@@ -117,12 +118,12 @@ impl<'inp, L, P, Open, Close, O, Ctx, Delim, Lang: ?Sized>
           let span = inp.span_since(&elem_cur);
           inp.emitter().emit_error(Spanned::new(span, err))?;
         }
-        Ok(Some(nxt)) => {
+        Ok(Matched(nxt)) => {
           container.push(nxt);
           nums += 1;
         }
         // no more elemnts.
-        Ok(None) => {
+        Ok(Declined) => {
           let nxt = inp.sync_until_token()?;
           match nxt {
             None => on_missing_close(inp, inp.span_since(ckp.cursor()))?,

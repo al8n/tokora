@@ -7,6 +7,7 @@ use crate::{
   container::Container as ContainerT,
   emitter::{DelimitedEmitter, SeparatedEmitter},
   error::{Unclosed, Undelimited},
+  try_parse_input::{Declined, Matched},
 };
 
 use super::*;
@@ -154,13 +155,13 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
           let span = inp.span_since(&cursor);
           inp.emitter().emit_error(Spanned::new(span, e))?;
         }
-        Ok(None) => {
+        Ok(Declined) => {
           break (
             parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
             None,
           );
         }
-        Ok(Some(elem)) => {
+        Ok(Matched(elem)) => {
           // if the peeked token belongs to an element, check the current state
           state = parser.handle_continue(
             state,
