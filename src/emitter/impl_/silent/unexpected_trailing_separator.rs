@@ -1,7 +1,7 @@
 use super::*;
 
-impl<'a, O: ?Sized, Sep: ?Sized, L, E, Lang: ?Sized>
-  UnexpectedTrailingSeparatorEmitter<'a, O, Sep, L, Lang> for Silent<E, Lang>
+impl<'a, Sep: ?Sized, L, E, Lang: ?Sized> UnexpectedTrailingSeparatorEmitter<'a, Sep, L, Lang>
+  for Silent<E, Lang>
 where
   L: Lexer<'a>,
 {

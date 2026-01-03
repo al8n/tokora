@@ -10,7 +10,7 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter: TooFewEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
@@ -38,7 +38,7 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter: TooFewEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
@@ -71,7 +71,7 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: TooFewEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter: TooFewEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: crate::container::Container<O>,
 {

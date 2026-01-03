@@ -82,7 +82,7 @@ impl<P, S> With<P, S> {
 
 impl With<Minimum, Maximum> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn check<'inp, 'closure, O, Sep, L, Ctx, Lang: ?Sized>(
+  pub(crate) fn check<'inp, 'closure, Sep, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,
@@ -91,9 +91,9 @@ impl With<Minimum, Maximum> {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
-      + TooFewEmitter<'inp, O, L, Lang>
-      + TooManyEmitter<'inp, O, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
+      + TooFewEmitter<'inp, L, Lang>
+      + TooManyEmitter<'inp, L, Lang>,
   {
     let full_span = inp.span_since(ckp.cursor());
     let minimum = self.primary().get();
@@ -115,7 +115,7 @@ impl With<Minimum, Maximum> {
 
 impl Minimum {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn check<'inp, 'closure, O, Sep, L, Ctx, Lang: ?Sized>(
+  pub(crate) fn check<'inp, 'closure, Sep, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,
@@ -124,7 +124,7 @@ impl Minimum {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang> + TooFewEmitter<'inp, O, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang> + TooFewEmitter<'inp, L, Lang>,
   {
     let full_span = inp.span_since(ckp.cursor());
     let minimum = self.get();
@@ -139,7 +139,7 @@ impl Minimum {
 
 impl Maximum {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn check<'inp, 'closure, O, Sep, L, Ctx, Lang: ?Sized>(
+  pub(crate) fn check<'inp, 'closure, Sep, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,
@@ -148,7 +148,7 @@ impl Maximum {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang> + TooManyEmitter<'inp, O, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang> + TooManyEmitter<'inp, L, Lang>,
   {
     let full_span = inp.span_since(ckp.cursor());
     let maximum = self.get();

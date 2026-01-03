@@ -1,11 +1,11 @@
 use super::*;
 
-impl<'inp, L, O, S, Sep, E, Lang: ?Sized> UnexpectedTrailingSeparatorEmitter<'inp, O, Sep, L, Lang>
+impl<'inp, L, S, Sep, E, Lang: ?Sized> UnexpectedTrailingSeparatorEmitter<'inp, Sep, L, Lang>
   for Verbose<E, S, Lang>
 where
   L: Lexer<'inp, Span = S, Offset = S::Offset>,
-  E: FromUnexpectedTrailingSeparatorError<'inp, O, Sep, L, Lang>,
-  Verbose<E, S, Lang>: SeparatedEmitter<'inp, O, Sep, L, Lang, Error = E>,
+  E: FromUnexpectedTrailingSeparatorError<'inp, Sep, L, Lang>,
+  Verbose<E, S, Lang>: SeparatedEmitter<'inp, Sep, L, Lang, Error = E>,
   S: Span + Ord + Clone,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]

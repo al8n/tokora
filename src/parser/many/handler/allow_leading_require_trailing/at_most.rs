@@ -15,9 +15,9 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>
-    + TooManyEmitter<'inp, O, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, O, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
+    + TooManyEmitter<'inp, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, Sep, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -65,7 +65,7 @@ where
   {
     inp
       .emitter()
-      .emit_missing_element(MissingSyntaxOf::<'_, O, L, Lang>::of(
+      .emit_missing_element(MissingSyntaxOf::<'_, L, Lang>::of(
         spanned.span_ref().start(),
       ))
       .and_then(|_| self.parser.parser.check(inp, ckp, num_elems))
@@ -93,7 +93,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -115,7 +115,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, O, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(

@@ -1,8 +1,8 @@
 use super::*;
 
 /// An emitter that handles missing trailing separator.
-pub trait MissingTrailingSeparatorEmitter<'inp, O, Sep, L, Lang: ?Sized = ()>:
-  SeparatedEmitter<'inp, O, Sep, L, Lang>
+pub trait MissingTrailingSeparatorEmitter<'inp, Sep, L, Lang: ?Sized = ()>:
+  SeparatedEmitter<'inp, Sep, L, Lang>
 where
   L: Lexer<'inp>,
 {
@@ -15,9 +15,9 @@ where
     L: Lexer<'inp>;
 }
 
-impl<'inp, O, Sep, L, Lang, U> MissingTrailingSeparatorEmitter<'inp, O, Sep, L, Lang> for &mut U
+impl<'inp, Sep, L, Lang, U> MissingTrailingSeparatorEmitter<'inp, Sep, L, Lang> for &mut U
 where
-  U: MissingTrailingSeparatorEmitter<'inp, O, Sep, L, Lang>,
+  U: MissingTrailingSeparatorEmitter<'inp, Sep, L, Lang>,
   L: Lexer<'inp>,
   Lang: ?Sized,
 {
@@ -34,15 +34,14 @@ where
 }
 
 /// A trait bound for creating emitter errors from missing trailing separator errors.
-pub trait FromMissingTrailingSeparatorError<'a, O: ?Sized, Sep, L, Lang: ?Sized = ()> {
+pub trait FromMissingTrailingSeparatorError<'a, Sep, L, Lang: ?Sized = ()> {
   /// Creates an emitter error from a missing trailing separator error.
   fn from_missing_trailing_separator(err: MissingTrailingOf<'a, Sep, L, Lang>) -> Self
   where
     L: Lexer<'a>;
 }
 
-impl<'a, T, O: ?Sized, Sep, L, Lang: ?Sized> FromMissingTrailingSeparatorError<'a, O, Sep, L, Lang>
-  for T
+impl<'a, T, Sep, L, Lang: ?Sized> FromMissingTrailingSeparatorError<'a, Sep, L, Lang> for T
 where
   L: Lexer<'a>,
   T: From<MissingTrailingOf<'a, Sep, L, Lang>>,

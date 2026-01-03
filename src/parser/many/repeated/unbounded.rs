@@ -1,5 +1,3 @@
-use crate::emitter::FullContainerEmitter;
-
 use super::*;
 
 impl<'inp, L, F, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, Container, Ctx, Lang>
@@ -7,7 +5,6 @@ impl<'inp, L, F, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, Container,
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  Ctx::Emitter: FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
@@ -33,7 +30,6 @@ impl<'inp, L, F, O, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  Ctx::Emitter: FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
@@ -58,7 +54,6 @@ impl<'inp, 'c, L, F, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, L::Spa
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  Ctx::Emitter: FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: crate::container::Container<O>,
 {

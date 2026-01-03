@@ -2,11 +2,10 @@ use crate::error::syntax::MissingSyntaxOf;
 
 use super::*;
 
-impl<'inp, L, O, S, Sep, E, Lang: ?Sized> SeparatedEmitter<'inp, O, Sep, L, Lang>
-  for Verbose<E, S, Lang>
+impl<'inp, L, S, Sep, E, Lang: ?Sized> SeparatedEmitter<'inp, Sep, L, Lang> for Verbose<E, S, Lang>
 where
   L: Lexer<'inp, Span = S, Offset = S::Offset>,
-  E: FromSeparatedError<'inp, O, Sep, L, Lang>,
+  E: FromSeparatedError<'inp, Sep, L, Lang>,
   S: Span + Ord + Clone,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -25,10 +24,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_element(
-    &mut self,
-    err: MissingSyntaxOf<'inp, O, L, Lang>,
-  ) -> Result<(), Self::Error>
+  fn emit_missing_element(&mut self, err: MissingSyntaxOf<'inp, L, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {

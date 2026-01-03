@@ -1,11 +1,11 @@
 use super::*;
 
-impl<'inp, L, O, Sep, E, Lang: ?Sized> UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>
+impl<'inp, L, Sep, E, Lang: ?Sized> UnexpectedLeadingSeparatorEmitter<'inp, Sep, L, Lang>
   for Fatal<E, Lang>
 where
   L: Lexer<'inp>,
-  E: FromUnexpectedLeadingSeparatorError<'inp, O, Sep, L, Lang>,
-  Fatal<E, Lang>: SeparatedEmitter<'inp, O, Sep, L, Lang, Error = E>,
+  E: FromUnexpectedLeadingSeparatorError<'inp, Sep, L, Lang>,
+  Fatal<E, Lang>: SeparatedEmitter<'inp, Sep, L, Lang, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_leading_separator(

@@ -39,7 +39,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     L: Lexer<'inp>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
     SepClassifier: Check<L::Token>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
     EH: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
@@ -111,7 +111,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     'inp: 'closure,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
     Handler: SeparatorStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   {
@@ -131,7 +131,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
         // and let the emitter decide whether to return early
         inp
           .emitter()
-          .emit_missing_element(MissingSyntaxOf::<'_, O, L, Lang>::of(
+          .emit_missing_element(MissingSyntaxOf::<'_, L, Lang>::of(
             sep_tok.span_ref().start(),
           ))?;
 
@@ -159,7 +159,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
         // We found consecutive separators, emit missing element error via the emitter
         inp
           .emitter()
-          .emit_missing_element(MissingSyntaxOf::<'_, O, L, Lang>::of(
+          .emit_missing_element(MissingSyntaxOf::<'_, L, Lang>::of(
             sep_tok.span_ref().start(),
           ))?;
 
@@ -189,7 +189,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     Ctx: ParseContext<'inp, L, Lang>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
     SepClassifier: Check<L::Token>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
     Handler: ContinueStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
   {
@@ -245,7 +245,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     Ctx: ParseContext<'inp, L, Lang>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
     SepClassifier: Check<L::Token>,
-    Ctx::Emitter: SeparatedEmitter<'inp, O, SepClassifier, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
     Handler: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
   {
     Ok(match state {

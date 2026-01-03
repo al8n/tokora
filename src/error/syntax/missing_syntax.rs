@@ -18,8 +18,7 @@ use core::{marker::PhantomData, ops::AddAssign};
 use crate::{Lexer, utils::Message};
 
 /// A type alias for a `MissingSyntax` error for a given lexer and separator.
-pub type MissingSyntaxOf<'inp, Syntax, L, Lang = ()> =
-  MissingSyntax<Syntax, <L as Lexer<'inp>>::Offset, Lang>;
+pub type MissingSyntaxOf<'inp, L, Lang = ()> = MissingSyntax<<L as Lexer<'inp>>::Offset, Lang>;
 
 /// An error representing an missing token encountered during parsing.
 ///
@@ -65,14 +64,13 @@ pub type MissingSyntaxOf<'inp, Syntax, L, Lang = ()> =
 /// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
 /// ```
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct MissingSyntax<Syntax: ?Sized, O = usize, Lang: ?Sized = ()> {
-  offset: O,
+pub struct MissingSyntax<Offset = usize, Lang: ?Sized = ()> {
+  offset: Offset,
   msg: Option<Message>,
-  _syntax: PhantomData<Syntax>,
   _lang: PhantomData<Lang>,
 }
 
-impl<Syntax: ?Sized, O> MissingSyntax<Syntax, O> {
+impl<O> MissingSyntax<O> {
   /// Creates a new missing token error.
   ///
   /// This error indicates that an missing token was encountered,
@@ -89,13 +87,12 @@ impl<Syntax: ?Sized, O> MissingSyntax<Syntax, O> {
   }
 }
 
-impl<Syntax: ?Sized, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
+impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn new_in(offset: O, message: Option<Message>) -> Self {
     Self {
       offset,
       msg: message,
-      _syntax: PhantomData,
       _lang: PhantomData,
     }
   }
@@ -234,12 +231,12 @@ impl<Syntax: ?Sized, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   }
 }
 
-impl<Syntax, O, Lang> From<MissingSyntax<Syntax, O, Lang>> for () {
+impl<O, Lang> From<MissingSyntax<O, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: MissingSyntax<Syntax, O, Lang>) -> Self {}
+  fn from(_: MissingSyntax<O, Lang>) -> Self {}
 }
 
-impl<Syntax, O, Lang> MissingSyntax<Syntax, O, Lang>
+impl<O, Lang> MissingSyntax<O, Lang>
 where
   O: core::fmt::Debug,
   Lang: ?Sized,

@@ -1,20 +1,20 @@
 use super::*;
 
 /// A trait bound for creating emitter errors from too few elements errors.
-pub trait FromTooFewError<'a, O: ?Sized, L, Lang: ?Sized = ()> {
+pub trait FromTooFewError<'a, L, Lang: ?Sized = ()> {
   /// Creates an emitter error from a too few elements error.
-  fn from_too_few(err: TooFew<O, L::Span, Lang>) -> Self
+  fn from_too_few(err: TooFew<L::Span, Lang>) -> Self
   where
     L: Lexer<'a>;
 }
 
-impl<'a, T, O: ?Sized, L, Lang: ?Sized> FromTooFewError<'a, O, L, Lang> for T
+impl<'a, T, L, Lang: ?Sized> FromTooFewError<'a, L, Lang> for T
 where
   L: Lexer<'a>,
-  T: From<TooFew<O, L::Span, Lang>>,
+  T: From<TooFew<L::Span, Lang>>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from_too_few(err: TooFew<O, <L>::Span, Lang>) -> Self
+  fn from_too_few(err: TooFew<L::Span, Lang>) -> Self
   where
     L: Lexer<'a>,
   {
@@ -23,19 +23,19 @@ where
 }
 
 /// An emitter that handles too few elements error for repeated parsers.
-pub trait TooFewEmitter<'a, O: ?Sized, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
+pub trait TooFewEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   /// Emits an error indicating that too few elements were found.
-  fn emit_too_few(&mut self, err: TooFew<O, L::Span, Lang>) -> Result<(), Self::Error>
+  fn emit_too_few(&mut self, err: TooFew<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
 }
 
-impl<'a, O, L, Lang: ?Sized, U> TooFewEmitter<'a, O, L, Lang> for &mut U
+impl<'a, L, Lang: ?Sized, U> TooFewEmitter<'a, L, Lang> for &mut U
 where
-  U: TooFewEmitter<'a, O, L, Lang>,
+  U: TooFewEmitter<'a, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_too_few(&mut self, err: TooFew<O, L::Span, Lang>) -> Result<(), Self::Error>
+  fn emit_too_few(&mut self, err: TooFew<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {

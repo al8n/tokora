@@ -110,12 +110,12 @@ const _: () = {
 
   struct DummySep;
 
-  const fn assert_noop_separated_by_emitter<'a, L, O, Sep, Error, E>()
+  const fn assert_noop_separated_by_emitter<'a, L, Sep, Error, E>()
   where
     L: Lexer<'a>,
-    E: SeparatedEmitter<'a, O, Sep, L, Error = Error>,
+    E: SeparatedEmitter<'a, Sep, L, Error = Error>,
   {
   }
 
-  assert_noop_separated_by_emitter::<'_, DummyLexer, (), DummySep, (), Silent<()>>();
+  assert_noop_separated_by_emitter::<'_, DummyLexer, DummySep, (), Silent<()>>();
 };
