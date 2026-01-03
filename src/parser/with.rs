@@ -1,7 +1,7 @@
 use crate::{
   emitter::{SeparatedEmitter, TooFewEmitter, TooManyEmitter},
   error::syntax::{TooFew, TooMany},
-  lexer::Checkpoint,
+  input::Checkpoint,
 };
 
 use super::*;

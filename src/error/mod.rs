@@ -22,7 +22,7 @@ pub use unterminated::*;
 
 use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 
-use crate::utils::SimpleSpan;
+use crate::span::SimpleSpan;
 
 mod errors;
 

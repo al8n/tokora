@@ -70,9 +70,12 @@
 
 use core::ops::AddAssign;
 
-use crate::utils::{Lexeme, human_display::DisplayHuman};
+use crate::{
+  span::SimpleSpan,
+  utils::{Lexeme, human_display::DisplayHuman},
+};
 
-use super::{PositionedChar, SimpleSpan};
+use super::PositionedChar;
 
 /// A single-character escape sequence representation.
 ///
@@ -494,7 +497,7 @@ impl<S> MultiCharEscape<S> {
   #[inline]
   pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
   where
-    S: crate::lexer::Span,
+    S: crate::span::Span,
   {
     self.span.bump(offset);
     self.content.bump(offset);

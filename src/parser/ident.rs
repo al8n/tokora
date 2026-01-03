@@ -1,4 +1,4 @@
-use crate::{error::UnexpectedEot, lexer::IdentifierToken, types::Ident};
+use crate::{error::UnexpectedEot, token::IdentifierToken, types::Ident};
 
 use super::*;
 

@@ -68,7 +68,8 @@ use core::marker::PhantomData;
 
 use crate::{
   error::ErrorNode,
-  utils::{AsSpan, IntoComponents, SimpleSpan},
+  span::{AsSpan, SimpleSpan},
+  utils::IntoComponents,
 };
 
 /// A language identifier with span tracking.

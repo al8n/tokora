@@ -11,13 +11,14 @@ use mayber::{Maybe, MaybeRef};
 
 use crate::{
   ParseContext, Token, Window,
+  cache::{CachedToken, CachedTokenRefOf, MaybeRefCachedTokenOf, Peeked},
   emitter::Emitter,
   error::token::UnexpectedToken,
-  lexer::{CachedTokenRefOf, MaybeRefCachedTokenOf, peek::Peeked},
-  utils::{Expected, Spanned},
+  span::Spanned,
+  utils::Expected,
 };
 
-use super::{Cache, CachedToken, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
+use super::{Cache, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
 
 /// A reference to an `Input` instance.
 pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = ()>

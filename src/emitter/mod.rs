@@ -8,8 +8,8 @@ use crate::{
       UnexpectedToken, UnexpectedTrailingOf,
     },
   },
-  lexer::Cursor,
-  utils::Spanned,
+  input::Cursor,
+  span::Spanned,
 };
 
 use super::Token;

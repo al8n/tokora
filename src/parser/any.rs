@@ -1,8 +1,4 @@
-use crate::{
-  error::UnexpectedEot,
-  lexer::Span,
-  utils::{Located, marker::PhantomLocated},
-};
+use crate::{error::UnexpectedEot, located::Located, span::Span, utils::marker::PhantomLocated};
 
 use super::*;
 

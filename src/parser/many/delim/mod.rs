@@ -75,7 +75,6 @@ macro_rules! blackhole {
 }
 
 blackhole!(());
-blackhole!(crate::lexer::BlackHole);
 blackhole!(@generic core::marker::PhantomData<T>);
 blackhole!(@generic crate::utils::marker::Ignored<T>);
 

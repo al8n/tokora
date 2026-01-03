@@ -3,14 +3,12 @@ pub use escaped::*;
 pub use expected::*;
 pub use generic_arraydeque::GenericArrayDeque;
 pub use lexeme::*;
-pub use located::*;
+
 pub use mayber::{Maybe, MaybeMut, MaybeRef, Owned, Ref};
 pub use message::Message;
 pub use oneof::OneOf;
 pub use positioned_char::*;
-pub use sliced::*;
-pub use span::*;
-pub use spanned::*;
+
 pub use to_equivalent::*;
 
 /// Re-export of generic-arraydeque for direct access.
@@ -50,79 +48,10 @@ mod delimited;
 mod escaped;
 mod expected;
 mod lexeme;
-mod located;
 mod message;
 mod oneof;
 mod positioned_char;
-mod sliced;
-mod span;
-mod spanned;
 mod to_equivalent;
-
-/// Enables accessing the source span of a parsed element.
-///
-/// This trait provides a way to retrieve the span information associated with
-/// a parsed element without taking ownership of the element itself. This is
-/// useful for scenarios where you need to reference the location of the element
-/// in the source input, such as for error reporting or diagnostics.
-///
-/// ## Usage Patterns
-/// Common scenarios for using this trait:
-/// - **Error reporting**: Attaching span information to error messages
-/// - **Diagnostics**: Highlighting source locations in IDEs or tools
-/// - **Logging**: Recording where certain elements were parsed from
-/// - **Analysis**: Performing source-based analysis or transformations
-///
-/// ## Implementation Notes
-///
-/// Implementing types should ensure that:
-///   - The returned span is accurate and corresponds to the element's location in the source
-///   - The method is efficient and does not involve unnecessary allocations or computations
-///   - The trait is implemented for all relevant types
-///   - The span information is preserved during parsing and transformations
-///   - The implementation is consistent with other span-related traits
-///   - The method is efficient (ideally zero-cost)
-///   - The returned reference is valid for the lifetime of the element
-pub trait AsSpan<Span> {
-  /// Consumes this element and returns the owned source span.
-  ///
-  /// This method takes ownership of the element and extracts its span information
-  /// as an owned value. This is useful when you need to transfer ownership of
-  /// the span data to another data structure or when the element itself is no
-  /// longer needed but the location information should be preserved.
-  fn as_span(&self) -> &Span;
-}
-
-/// Enables consuming a parsed element to extract its source span.
-///
-/// This trait provides a way to take ownership of the span information from
-/// a parsed element, which is useful when the element itself is no longer
-/// needed but the span data should be preserved or transferred to another
-/// data structure.
-///
-/// ## Usage Patterns
-///
-/// Common scenarios for using this trait:
-/// - **AST construction**: Building higher-level AST nodes that need owned spans
-/// - **Error collection**: Gathering span information for batch error reporting
-/// - **Transformation**: Converting between different representations while preserving location
-/// - **Optimization**: Avoiding clones when transferring ownership is acceptable
-///
-/// ## Implementation Notes
-///
-/// Implementing types should ensure that:
-/// - The returned span is equivalent to what `AsSpan::spanned()` would return
-/// - All span information is preserved during the conversion
-/// - The conversion is efficient (ideally zero-cost)
-pub trait IntoSpan<Span>: AsSpan<Span> {
-  /// Consumes this element and returns the owned source span.
-  ///
-  /// This method takes ownership of the element and extracts its span information
-  /// as an owned value. This is useful when you need to transfer ownership of
-  /// the span data to another data structure or when the element itself is no
-  /// longer needed but the location information should be preserved.
-  fn into_span(self) -> Span;
-}
 
 /// Enables destructuring a parsed element into its constituent components.
 ///

@@ -49,7 +49,8 @@ use core::marker::PhantomData;
 
 use crate::{
   error::token::{Leading, RepeatedWhile, Trailing},
-  utils::{Expected, SimpleSpan},
+  span::{SimpleSpan, Span},
+  utils::Expected,
 };
 
 pub use unexpected_leading::*;
@@ -639,7 +640,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &S::Offset)
   where
-    S: crate::lexer::Span,
+    S: Span,
   {
     self.span.bump(offset);
   }
@@ -707,7 +708,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
 
 impl<T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Lang>
 where
-  S: crate::lexer::Span,
+  S: Span,
 {
   /// Creates a debug representation of the unexpected token error.
   pub fn debug_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result

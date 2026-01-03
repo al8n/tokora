@@ -83,7 +83,10 @@
 //! assert_eq!(error.knowledge().is_some(), true);
 //! ```
 
-use crate::utils::{SimpleSpan, human_display::DisplayHuman, knowledge::*};
+use crate::{
+  span::{SimpleSpan, Span},
+  utils::{human_display::DisplayHuman, knowledge::*},
+};
 
 /// A malformed string literal token.
 ///
@@ -559,7 +562,7 @@ impl<Knowledge, S> Malformed<Knowledge, S> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
   where
-    S: crate::lexer::Span,
+    S: Span,
   {
     self.span.bump(offset);
     self

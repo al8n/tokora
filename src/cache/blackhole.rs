@@ -1,5 +1,5 @@
 use super::{
-  super::BlackHole, Cache, CachedTokenOf, CachedTokenRefOf, Checkpoint, GenericArrayDeque, Lexer,
+  Cache, CachedTokenOf, CachedTokenRefOf, Checkpoint, GenericArrayDeque, Lexer,
   MaybeRefCachedTokenOf,
 };
 
@@ -80,5 +80,4 @@ macro_rules! blackhole {
   };
 }
 
-blackhole!(BlackHole);
 blackhole!(());

@@ -1,7 +1,7 @@
 use crate::{
   Check,
   error::{UnexpectedEot, token::UnexpectedToken},
-  lexer::Span,
+  span::Span,
 };
 
 use super::*;

@@ -39,8 +39,8 @@
 //! ```
 
 use crate::{
-  lexer::Span,
-  utils::{Expected, SimpleSpan},
+  span::{SimpleSpan, Span},
+  utils::Expected,
 };
 
 /// An error representing an unexpected identifier encountered during parsing.

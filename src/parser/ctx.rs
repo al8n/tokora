@@ -6,11 +6,7 @@
 
 use core::marker::PhantomData;
 
-use crate::{
-  Cache, Emitter, Lexer,
-  emitter::Fatal,
-  lexer::{BlackHole, DefaultCache, InputContext},
-};
+use crate::{Cache, Emitter, Lexer, cache::DefaultCache, emitter::Fatal, input::InputContext};
 
 /// A context that provides emitter and cache configuration for parsing.
 pub trait ParseContext<'inp, L, Lang: ?Sized = ()> {
@@ -44,23 +40,6 @@ where
     L: Lexer<'inp>,
   {
     InputContext::new(Fatal::of(), DefaultCache::<'inp, L>::new())
-  }
-}
-
-impl<'inp, L, Lang: ?Sized> ParseContext<'inp, L, Lang> for BlackHole
-where
-  L: Lexer<'inp>,
-  Fatal<(), Lang>: Emitter<'inp, L, Lang>,
-{
-  type Emitter = Fatal<(), Lang>;
-  type Cache = Self;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn provide(self) -> InputContext<Self::Emitter, Self::Cache>
-  where
-    L: Lexer<'inp>,
-  {
-    InputContext::new(Fatal::of(), Self)
   }
 }
 

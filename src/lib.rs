@@ -15,14 +15,20 @@ extern crate std;
 #[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
 pub use logos;
 
+pub use cache::{Cache, DefaultCache};
 pub use check::Check;
 pub use emitter::Emitter;
-pub use lexer::{Cache, Lexed, Lexer, Source, State, Token};
+pub use input::InputRef;
+pub use lexer::{Lexed, Lexer, State};
+pub use located::*;
 pub use parse_choice::*;
 pub use parse_input::*;
 pub use parser::{Parse, ParseContext, Parser};
 pub use require::Require;
 pub use separator_handler::SeparatorHandler;
+pub use slice::Slice;
+pub use source::Source;
+pub use token::Token;
 pub use try_parse_input::TryParseInput;
 
 /// Concrete Syntax Tree (CST) representations and utilities.
@@ -57,8 +63,27 @@ pub mod error;
 /// Common punctuation tokens.
 pub mod punct;
 
+/// The source related structures and traits
+pub mod source;
+
+/// The span related structures and traits
+pub mod span;
+
+/// Slice related structures and traits
+pub mod slice;
+
+/// The cache related structures and traits
+pub mod cache;
+
+/// The token related structures and traits
+pub mod token;
+
+/// The input related structures and traits
+pub mod input;
+
 mod check;
 mod keyword;
+mod located;
 mod parse_choice;
 mod parse_input;
 mod require;
@@ -67,7 +92,7 @@ mod try_parse_input;
 
 #[doc(hidden)]
 pub mod __private {
-  pub use super::{check::Check, error, lexer::*, require::Require, syntax, utils};
+  pub use super::{check::Check, error, lexer::*, require::Require, span, syntax, token, utils};
   #[cfg(feature = "logos")]
   pub use logos;
   pub use paste;

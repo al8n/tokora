@@ -3,7 +3,8 @@ use crate::{
   container::Container as ContainerT,
   emitter::SeparatedEmitter,
   error::{syntax::MissingSyntaxOf, token::MissingSeparatorOf},
-  lexer::{Checkpoint, Span},
+  input::Checkpoint,
+  span::Span,
 };
 
 use super::*;

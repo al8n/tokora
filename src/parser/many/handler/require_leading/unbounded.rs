@@ -5,12 +5,12 @@ use crate::{
     syntax::MissingSyntaxOf,
     token::{MissingLeadingOf, UnexpectedTrailingOf},
   },
-  lexer::{Checkpoint, InputRef, Span},
+  lexer::{Checkpoint, InputRef},
   parser::{
     RequireLeading,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler, Unbounded},
   },
-  utils::Spanned,
+  span::{Span, Spanned},
 };
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>

@@ -1,4 +1,8 @@
-use super::{IntoComponents, SimpleSpan, Sliced, Spanned};
+use super::{
+  slice::Sliced,
+  span::{SimpleSpan, Spanned},
+  utils::IntoComponents,
+};
 
 /// A value with complete location information: both which source and where in that source.
 ///

@@ -1,4 +1,6 @@
-use super::{AsSpan, IntoComponents, IntoSpan, SimpleSpan};
+use crate::span::{AsSpan, IntoSpan, SimpleSpan};
+
+use super::IntoComponents;
 
 /// A value delimited by opening and closing markers with source location tracking.
 ///

@@ -1,4 +1,4 @@
-use crate::{Lexer, utils::Spanned};
+use crate::{Lexer, span::Spanned};
 
 /// A handler for separator events during parsing.
 pub trait SeparatorHandler<'inp, L> {
@@ -45,7 +45,6 @@ macro_rules! blackhole {
 }
 
 blackhole!(());
-blackhole!(crate::lexer::BlackHole);
 blackhole!(@generic core::marker::PhantomData<T>);
 blackhole!(@generic crate::utils::marker::Ignored<T>);
 

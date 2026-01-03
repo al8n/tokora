@@ -1,7 +1,8 @@
 use crate::{
-  lexer::{InputRef, PunctuatorToken},
+  input::InputRef,
   parser::{Repeated, Separated},
   punct::*,
+  token::PunctuatorToken,
 };
 
 use super::*;
@@ -36,6 +37,9 @@ macro_rules! define_separated_by {
 /// to inspect the input and decide whether to consume it based on lookahead. If the parser
 /// returns `Ok(None)`, **no valid tokens are consumed** - the input position only advances
 /// past any error tokens that were consumed by the emitter.
+///
+/// **IMPORTANT:**
+/// Implicit backtracking may occur when a parser returns `Ok(None)`.
 pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Attempts to parse `O` from the input without committing.
   ///
@@ -44,6 +48,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Implementations **must** uphold this contract:
   /// - ✅ `Ok(Some(value))` - Parser succeeded, tokens consumed, value produced
   /// - ✅ `Ok(None)` - Parser declined, **no valid tokens consumed** (error tokens may be consumed by emitter)
+  ///   - Backtracking may occur - input position restored to before parse attempt
   /// - ✅ `Err(error)` - Parser encountered an error (may have consumed tokens)
   fn try_parse_input(
     &mut self,

@@ -24,7 +24,7 @@ macro_rules! check_punct {
     $(
       impl<'inp, T, S, C, Lang> $crate::__private::Check<T, ::core::primitive::bool> for $name<S, C, Lang>
       where
-        T: $crate::__private::$trait<'inp> + ?::core::marker::Sized + 'inp,
+        T: $crate::__private::token::$trait<'inp> + ?::core::marker::Sized + 'inp,
         Lang: ?::core::marker::Sized,
       {
         #[cfg_attr(not(tarpaulin), inline(always))]

@@ -1,8 +1,8 @@
 use core::marker::PhantomData;
 
 use crate::{
-  lexer::{Lexer, Span},
-  utils::SimpleSpan,
+  lexer::Lexer,
+  span::{SimpleSpan, Span},
 };
 
 use super::RepeatedWhile;

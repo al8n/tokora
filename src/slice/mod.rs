@@ -1,4 +1,123 @@
-use super::IntoComponents;
+use super::utils::IntoComponents;
+
+#[cfg(feature = "bytes")]
+mod bytes;
+
+#[cfg(feature = "bstr")]
+mod bstr;
+
+#[cfg(feature = "hipstr")]
+mod hipstr;
+
+/// The slice type returned by lexers' sources.
+pub trait Slice<'source>: PartialEq + Eq + core::fmt::Debug {
+  /// The character type used by the lexer.
+  ///
+  /// - Use `char` for text-based lexers processing UTF-8 strings
+  /// - Use `u8` for byte-based lexers processing binary data or non-UTF-8 input
+  ///
+  /// This type must match the character type used by the Logos lexer's source.
+  type Char: Copy + core::fmt::Debug + PartialEq + Eq + core::hash::Hash;
+
+  /// An iterator over the characters in the slice.
+  type Iter<'a>: Iterator<Item = Self::Char>
+  where
+    Self: 'a;
+
+  /// An iterator over the characters in the slice with their offsets to the start of the slice.
+  type PositionedIter<'a>: Iterator<Item = (usize, Self::Char)>
+  where
+    Self: 'a;
+
+  /// Returns an iterator over the characters in the slice.
+  fn iter<'a>(&'a self) -> Self::Iter<'a>
+  where
+    Self: 'a;
+
+  /// Returns an iterator over the characters in the slice with their offsets to the start of the slice.
+  fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
+  where
+    Self: 'a;
+
+  /// Returns the length of the slice.
+  fn len(&self) -> usize;
+
+  /// Returns `true` if the slice is empty.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_empty(&self) -> bool {
+    self.len() == 0
+  }
+}
+
+impl<'source> Slice<'source> for &'source [u8] {
+  type Char = u8;
+
+  type Iter<'a>
+    = core::iter::Copied<core::slice::Iter<'a, u8>>
+  where
+    Self: 'a;
+
+  type PositionedIter<'a>
+    = core::iter::Enumerate<core::iter::Copied<core::slice::Iter<'a, u8>>>
+  where
+    Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn iter<'a>(&'a self) -> Self::Iter<'a>
+  where
+    Self: 'a,
+  {
+    <[u8]>::iter(self).copied()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
+  where
+    Self: 'a,
+  {
+    <[u8]>::iter(self).copied().enumerate()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    <[u8]>::len(self)
+  }
+}
+
+impl<'source> Slice<'source> for &'source str {
+  type Char = char;
+
+  type Iter<'a>
+    = core::str::Chars<'a>
+  where
+    Self: 'a;
+
+  type PositionedIter<'a>
+    = core::str::CharIndices<'a>
+  where
+    Self: 'a;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn iter<'a>(&'a self) -> Self::Iter<'a>
+  where
+    Self: 'a,
+  {
+    self.chars()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
+  where
+    Self: 'a,
+  {
+    self.char_indices()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    <str>::len(self)
+  }
+}
 
 /// A value paired with its slice metadata.
 ///

@@ -1,8 +1,10 @@
 use mayber::Maybe;
 
-use crate::lexer::{CachedToken, CachedTokenRefOf, Lexed, MaybeRefCachedTokenOf};
+use crate::lexer::{Lexed, Lexer};
 
-use super::{Cache, CachedTokenOf, Checkpoint, Lexer, Span};
+use super::{
+  Cache, CachedToken, CachedTokenOf, CachedTokenRefOf, Checkpoint, MaybeRefCachedTokenOf, Span,
+};
 
 use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 

@@ -5,12 +5,12 @@ use crate::{
     UnexpectedLeadingSeparatorEmitter,
   },
   error::token::{MissingTrailingOf, UnexpectedLeadingOf},
-  lexer::{Checkpoint, InputRef, Span},
+  input::{Checkpoint, InputRef},
   parser::{
     Maximum, Minimum, RequireTrailing, With,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},
   },
-  utils::Spanned,
+  span::{Span, Spanned},
 };
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>

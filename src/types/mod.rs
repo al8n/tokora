@@ -78,8 +78,8 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use crate::{
   error::ErrorNode,
+  span::{AsSpan, SimpleSpan},
   syntax::{Language, Syntax},
-  utils::{AsSpan, SimpleSpan},
 };
 
 pub use ident::*;

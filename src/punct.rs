@@ -138,14 +138,14 @@ macro_rules! punctuator {
           }
         }
 
-        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::AsSpan<S> for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::span::AsSpan<S> for $name<S, C, Lang> {
           #[inline]
           fn as_span(&self) -> &S {
             self.span()
           }
         }
 
-        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::IntoSpan<S> for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::span::IntoSpan<S> for $name<S, C, Lang> {
           #[inline]
           fn into_span(self) -> S {
             self.span

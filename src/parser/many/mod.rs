@@ -1,7 +1,5 @@
 use crate::{
-  Decision, Emitter, ParseContext, ParseInput, Window,
-  lexer::{InputRef, Lexer},
-  utils::Spanned,
+  Decision, Emitter, ParseContext, ParseInput, Window, input::InputRef, lexer::Lexer, span::Spanned,
 };
 
 use super::*;

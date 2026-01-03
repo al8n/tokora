@@ -1,15 +1,22 @@
 use ::generic_arraydeque::{GenericArrayDeque, typenum::U1};
+use mayber::Maybe;
 
 use crate::{
   Window,
-  lexer::{CachedTokenOf, CachedTokenRefOf, MaybeRefCachedTokenOf},
+  input::Checkpoint,
+  lexer::{Lexed, Lexer},
+  span::{Span, Spanned},
 };
-
-use super::{Checkpoint, Lexer, Span};
 
 mod blackhole;
 mod generic_arraydeque;
 mod option;
+
+/// A peeked buffer of tokens from the lexer.
+pub type Peeked<'p, 'inp, L, W> = ::generic_arraydeque::GenericArrayDeque<
+  MaybeRefCachedTokenOf<'p, 'inp, L>,
+  <W as Window>::CAPACITY,
+>;
 
 /// The default cache type used by the lexer.
 pub type DefaultCache<'a, L> =
@@ -312,5 +319,116 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
     'a: 's,
   {
     self.last().map(move |t| *t.token().span())
+  }
+}
+
+/// A cached token with its associated state for a specific lexer.
+pub type CachedTokenOf<
+  'a,
+  L,
+  T = Lexed<'a, <L as Lexer<'a>>::Token>,
+  Span = <L as Lexer<'a>>::Span,
+> = CachedToken<T, <L as Lexer<'a>>::State, Span>;
+/// A cached token with its associated state for a specific lexer.
+pub type CachedTokenRefOf<
+  'r,
+  'a,
+  L,
+  T = Lexed<'a, <L as Lexer<'a>>::Token>,
+  Span = <L as Lexer<'a>>::Span,
+> = CachedToken<&'r T, &'r <L as Lexer<'a>>::State, &'r Span>;
+/// A maybe reference to a cached token with its associated state for a specific lexer.
+pub type MaybeRefCachedTokenOf<
+  'r,
+  'a,
+  L,
+  T = Lexed<'a, <L as Lexer<'a>>::Token>,
+  Span = <L as Lexer<'a>>::Span,
+> = Maybe<CachedTokenRefOf<'r, 'a, L, T, Span>, CachedTokenOf<'a, L, T, Span>>;
+
+/// A cached token with its associated state.
+pub struct CachedToken<T, State, Span> {
+  pub(crate) token: Spanned<T, Span>,
+  pub(crate) state: State,
+}
+
+impl<T, State, Span> Clone for CachedToken<T, State, Span>
+where
+  State: Clone,
+  Span: Clone,
+  T: Clone,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn clone(&self) -> Self {
+    Self {
+      token: self.token.clone(),
+      state: self.state.clone(),
+    }
+  }
+}
+
+// impl<'a, L: Lexer<'a>> TryFrom<> for CachedToken<T, State, Span> {
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   pub(super) fn try_into_token(
+//     self,
+//   ) -> Result<CachedToken<T, State, Span>, <T as Token<>>::Error> {
+//     match self.token.data {
+//       Lexed::Token(token) => Ok(CachedToken::new(Spanned::new(self.token.span, token), self.state)),
+//       Lexed::Error(e) => Err(e),
+//     }
+//   }
+// }
+
+impl<T, State, Span> CachedToken<T, State, Span> {
+  /// Creates a new cached token.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) const fn new(token: Spanned<T, Span>, state: State) -> Self {
+    Self { token, state }
+  }
+
+  /// Returns a reference to the token.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn token(&self) -> Spanned<&T, &Span> {
+    self.token.as_ref()
+  }
+
+  /// Consumes the cached token and returns the lexed token.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_token(self) -> Spanned<T, Span> {
+    self.token
+  }
+
+  /// Returns a reference to the cached token.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn as_ref(&self) -> CachedToken<&T, &State, &Span> {
+    CachedToken {
+      token: self.token.as_ref(),
+      state: &self.state,
+    }
+  }
+
+  /// Maps the token to a new type using the provided function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn map_token<U, F>(self, f: F) -> CachedToken<U, State, Span>
+  where
+    F: FnOnce(T) -> U,
+  {
+    CachedToken {
+      token: self.token.map_data(f),
+      state: self.state,
+    }
+  }
+
+  /// Returns a reference to the state.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn state(&self) -> &State {
+    &self.state
+  }
+
+  /// Consumes the cached token and returns the extras.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(clippy::type_complexity)]
+  pub fn into_components(self) -> (Spanned<T, Span>, State) {
+    (self.token, self.state)
   }
 }

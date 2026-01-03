@@ -158,12 +158,16 @@ use core::marker::PhantomData;
 
 use crate::{
   Check, Emitter, Lexed, Lexer, Source, Token,
+  cache::Peeked,
   emitter::{Fatal, FromEmitterError},
   error::{UnexpectedEot, token::UnexpectedToken},
-  lexer::{Cursor, Input, InputRef, Peeked},
+  input::{Cursor, Input, InputRef},
+  located::Located,
   parse_input::*,
+  slice::Sliced,
+  span::Spanned,
   utils::{
-    Expected, Located, Sliced, Spanned,
+    Expected,
     marker::{PhantomLocated, PhantomSliced, PhantomSpan},
   },
 };

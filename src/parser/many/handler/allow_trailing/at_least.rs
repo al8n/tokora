@@ -2,12 +2,12 @@ use crate::{
   Emitter, Lexer, ParseContext,
   emitter::{SeparatedEmitter, TooFewEmitter, UnexpectedLeadingSeparatorEmitter},
   error::{syntax::MissingSyntaxOf, token::UnexpectedLeadingOf},
-  lexer::{Checkpoint, InputRef, Span},
+  lexer::{Checkpoint, InputRef},
   parser::{
     AllowTrailing, Minimum,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},
   },
-  utils::Spanned,
+  span::{Span, Spanned},
 };
 
 impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>

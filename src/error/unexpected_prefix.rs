@@ -1,6 +1,9 @@
 use core::ops::{Add, AddAssign};
 
-use crate::utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::DisplayHuman};
+use crate::{
+  span::SimpleSpan,
+  utils::{CharLen, Lexeme, PositionedChar, human_display::DisplayHuman},
+};
 
 /// An error indicating that an unexpected prefix was found after a valid token.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

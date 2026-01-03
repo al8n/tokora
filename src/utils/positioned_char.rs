@@ -2,7 +2,7 @@ use core::ops::Add;
 
 use super::CharLen;
 
-use crate::utils::SimpleSpan;
+use crate::span::SimpleSpan;
 
 /// A character paired with its byte position in the source input.
 ///

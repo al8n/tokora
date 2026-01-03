@@ -1,8 +1,16 @@
 use core::marker::PhantomData;
 
-use crate::ParseContext;
+use crate::{ParseContext, span::Span};
 
 use super::*;
+
+pub use checkpoint::Checkpoint;
+pub use cursor::Cursor;
+pub use input_ref::InputRef;
+
+mod checkpoint;
+mod cursor;
+mod input_ref;
 
 /// The context for parsing input
 pub struct InputContext<E, C> {

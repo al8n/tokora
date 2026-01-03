@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::{error::syntax::MissingSyntaxOf, utils::Spanned};
+use crate::{error::syntax::MissingSyntaxOf, span::Spanned};
 
 use super::super::*;
 

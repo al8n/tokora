@@ -3,13 +3,15 @@ use core::mem::MaybeUninit;
 use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray, typenum};
 
 use crate::{
-  lexer::{InputRef, Peeked, PunctuatorToken},
+  cache::Peeked,
+  input::InputRef,
+  located::Located,
   parser::*,
   punct::*,
-  utils::{
-    Located, Sliced, Spanned,
-    marker::{PhantomLocated, PhantomSliced, PhantomSpan},
-  },
+  slice::Sliced,
+  span::Spanned,
+  token::PunctuatorToken,
+  utils::marker::{PhantomLocated, PhantomSliced, PhantomSpan},
 };
 
 use super::*;

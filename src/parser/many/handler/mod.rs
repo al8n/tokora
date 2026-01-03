@@ -1,7 +1,7 @@
 use crate::{
   Emitter, Lexer, ParseContext,
-  lexer::{Checkpoint, InputRef},
-  utils::Spanned,
+  input::{Checkpoint, InputRef},
+  span::Spanned,
 };
 
 mod allow_leading;

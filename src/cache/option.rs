@@ -1,9 +1,11 @@
 use generic_arraydeque::GenericArrayDeque;
 use mayber::Maybe;
 
-use crate::lexer::{CachedToken, CachedTokenRefOf, Lexed, MaybeRefCachedTokenOf};
+use crate::lexer::{Lexed, Lexer};
 
-use super::{Cache, CachedTokenOf, Checkpoint, Lexer, Span};
+use super::{
+  Cache, CachedToken, CachedTokenOf, CachedTokenRefOf, Checkpoint, MaybeRefCachedTokenOf, Span,
+};
 
 impl<'a, L> Cache<'a, L> for Option<CachedToken<Lexed<'a, L::Token>, L::State, L::Span>>
 where

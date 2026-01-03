@@ -1,6 +1,9 @@
 use core::ops::{Add, AddAssign};
 
-use crate::utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::DisplayHuman};
+use crate::{
+  span::SimpleSpan,
+  utils::{CharLen, Lexeme, PositionedChar, human_display::DisplayHuman},
+};
 
 /// A zero-copy error structure combining an unrecognized lexeme with diagnostic knowledge.
 ///

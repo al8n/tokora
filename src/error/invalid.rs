@@ -82,7 +82,10 @@
 //! assert_eq!(error.knowledge().is_some(), true);
 //! ```
 
-use crate::utils::{SimpleSpan, human_display::DisplayHuman, knowledge::*};
+use crate::{
+  span::{SimpleSpan, Span},
+  utils::{human_display::DisplayHuman, knowledge::*},
+};
 
 /// An invalid string literal value.
 ///
@@ -606,7 +609,7 @@ impl<Knowledge, S> Invalid<Knowledge, S> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
   where
-    S: crate::lexer::Span,
+    S: Span,
   {
     self.span.bump(offset);
     self

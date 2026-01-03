@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::utils::SimpleSpan;
+use crate::span::{SimpleSpan, Span};
 
 /// An error indicating too many elements were found.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -49,6 +49,16 @@ impl<O: ?Sized, S, Lang: ?Sized> FullContainer<O, S, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn nums(&self) -> usize {
     self.nums
+  }
+
+  /// Bumps the span by the given offset.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn bump(&mut self, by: &S::Offset) -> &mut Self
+  where
+    S: Span,
+  {
+    self.span.bump(by);
+    self
   }
 
   /// Returns the maximum capacity of the container.

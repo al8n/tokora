@@ -1,6 +1,6 @@
 use mayber::{Owned, Ref};
 
-use crate::{error::UnexpectedEot, lexer::KeywordToken, types::Keyword, utils::cmp::Equivalent};
+use crate::{error::UnexpectedEot, token::KeywordToken, types::Keyword, utils::cmp::Equivalent};
 
 use super::*;
 

@@ -73,7 +73,6 @@ macro_rules! blackhole {
 blackhole!(());
 blackhole!(core::marker::PhantomData<T>);
 blackhole!(crate::utils::marker::Ignored<T>);
-blackhole!(crate::lexer::BlackHole);
 
 impl<T> Container<T> for Option<T> {
   #[cfg_attr(not(tarpaulin), inline(always))]

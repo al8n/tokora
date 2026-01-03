@@ -6,6 +6,7 @@ use logos::Logos;
 use tokit::{
   Accumulator, Branch, Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser,
   Token as TokenT,
+  cache::Peeked,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
@@ -15,10 +16,12 @@ use tokit::{
     syntax::MissingSyntaxOf,
     token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
-  lexer::{InputRef, Peeked, PunctuatorToken},
+  lexer::InputRef,
   parser::{Action, Expect},
   punct::{Brace, Bracket, Comma},
-  utils::{Expected, Spanned},
+  span::Spanned,
+  token::PunctuatorToken,
+  utils::Expected,
 };
 
 #[derive(Clone, Debug, From, PartialEq, Eq)]

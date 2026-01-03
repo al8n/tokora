@@ -104,7 +104,8 @@ use core::ops::{Add, AddAssign};
 use crate::{
   error::{Unclosed, UnexpectedLexeme},
   punct::Brace,
-  utils::{CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::DisplayHuman},
+  span::SimpleSpan,
+  utils::{CharLen, Lexeme, PositionedChar, human_display::DisplayHuman},
 };
 use derive_more::{Display, From, IsVariant, TryUnwrap, Unwrap};
 
