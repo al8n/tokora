@@ -40,6 +40,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
   /// parsing is stopped and return the error from the handler.
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn peek_then_choice<H, W: Window>(self, condition: H) -> PeekThenChoice<Self, H, L, Ctx, W, Lang>
   where
     Self: Sized,
@@ -57,6 +58,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
   /// parsing is stopped and return the error from the handler.
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn peek_then_try_choice<H, W: Window>(
     self,
     condition: H,
