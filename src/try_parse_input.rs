@@ -1,11 +1,92 @@
+use derive_more::{IsVariant, TryUnwrap, Unwrap};
+
 use crate::{
   input::InputRef,
-  parser::{Repeated, Separated},
+  parser::{Accepted, Repeated, Separated},
   punct::*,
   token::PunctuatorToken,
 };
 
 use super::*;
+
+pub use ParseAttempt::{Accept, Decline};
+
+/// Result type for tentative parsing attempts.
+#[derive(Debug, Clone, PartialEq, Eq, IsVariant, TryUnwrap, Unwrap)]
+#[unwrap(ref, ref_mut)]
+#[try_unwrap(ref, ref_mut)]
+pub enum ParseAttempt<O> {
+  /// Parser successfully matched and produced a value.
+  Accept(O),
+  /// Parser declined to match without consuming any valid tokens.
+  #[unwrap(ignore)]
+  #[try_unwrap(ignore)]
+  Decline,
+}
+
+impl<O> From<Option<O>> for ParseAttempt<O> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(opt: Option<O>) -> Self {
+    match opt {
+      Some(value) => Self::Accept(value),
+      None => Self::Decline,
+    }
+  }
+}
+
+impl<O> From<ParseAttempt<O>> for Option<O> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(result: ParseAttempt<O>) -> Self {
+    match result {
+      ParseAttempt::Accept(value) => Some(value),
+      ParseAttempt::Decline => None,
+    }
+  }
+}
+
+impl<O> ParseAttempt<O> {
+  /// Converts to a `ParseAttempt` with a reference to the inner value.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn as_ref(&self) -> ParseAttempt<&O> {
+    match self {
+      Self::Accept(value) => ParseAttempt::Accept(value),
+      Self::Decline => ParseAttempt::Decline,
+    }
+  }
+
+  /// Converts to a `ParseAttempt` with a mutable reference to the inner value.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn as_mut(&mut self) -> ParseAttempt<&mut O> {
+    match self {
+      Self::Accept(value) => ParseAttempt::Accept(value),
+      Self::Decline => ParseAttempt::Decline,
+    }
+  }
+
+  /// Maps the inner value using the given function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn map<U, F>(self, f: F) -> ParseAttempt<U>
+  where
+    F: FnOnce(O) -> U,
+  {
+    match self {
+      Self::Accept(value) => ParseAttempt::Accept(f(value)),
+      Self::Decline => ParseAttempt::Decline,
+    }
+  }
+
+  /// Maps the inner value using the given fallible function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn and_then<U, F, E>(self, f: F) -> Result<ParseAttempt<U>, E>
+  where
+    F: FnOnce(O) -> Result<U, E>,
+  {
+    match self {
+      Self::Accept(value) => Ok(ParseAttempt::Accept(f(value)?)),
+      Self::Decline => Ok(ParseAttempt::Decline),
+    }
+  }
+}
 
 macro_rules! define_separated_by {
   ($($name:ident),+$(,)?) => {
@@ -46,27 +127,38 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// **IMPORTANT:**
   ///
   /// Implementations **must** uphold this contract:
-  /// - ✅ `Ok(Some(value))` - Parser succeeded, tokens consumed, value produced
-  /// - ✅ `Ok(None)` - Parser declined, **no valid tokens consumed** (error tokens may be consumed by emitter)
+  /// - ✅ `Ok(ParseAttempt::Accept(value))` - Parser succeeded, tokens consumed, value produced
+  /// - ✅ `Ok(ParseAttempt::Decline)` - Parser declined, **no valid tokens consumed** (error tokens may be consumed by emitter)
   ///   - Backtracking may occur - input position restored to before parse attempt
   /// - ✅ `Err(error)` - Parser encountered an error (may have consumed tokens)
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-  ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>;
 
+  /// Applies combinator on [`ParseAttempt::Accept`].
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn accepted(self) -> Accepted<Self, L, O, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    Accepted::new(self)
+  }
+
   /// Creates a `Repeated` combinator that applies this parser repeatedly until it signals completion.
   ///
   /// The parser will be called repeatedly until:
-  /// - It returns `Ok(None)` - parser peeked ahead, didn't match (no tokens consumed)
+  /// - It returns `Ok(ParseAttempt::Decline)` - parser peeked ahead, didn't match (no tokens consumed)
   /// - It returns `Err(e)` - parse error
   ///
   /// ## Key Behavior
   ///
-  /// Since this parser implements [`TryParseInput`], when it returns `Ok(None)`:
+  /// Since this parser implements [`TryParseInput`], when it returns `Ok(ParseAttempt::Decline)`:
   /// - The parser **peeked ahead** and saw tokens it doesn't match
   /// - **No tokens were consumed** - input position unchanged
   /// - Repetition **stops cleanly**
@@ -100,7 +192,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// ## Key Behavior
   ///
-  /// The combinator stops when this element parser returns `Ok(None)`:
+  /// The combinator stops when this element parser returns `Ok(ParseAttempt::Decline)`:
   /// - Parser **peeked ahead** and saw tokens it doesn't match
   /// - **No tokens consumed** - separator or closing delimiter left in input
   /// - Parsing **stops cleanly**
@@ -110,7 +202,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Use `.separated()` when:
   /// - Your element parser has built-in lookahead (implements `TryParseInput`)
   /// - You want the element parser to decide when to stop
-  /// - The parser returns `Ok(None)` for non-matching tokens
+  /// - The parser returns `Ok(ParseAttempt::Decline)` for non-matching tokens
   ///
   /// ## See Also
   ///
@@ -149,4 +241,21 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Hash,
     At,
   );
+}
+
+impl<'inp, L, F, O, Ctx, Lang: ?Sized> TryParseInput<'inp, L, O, Ctx, Lang> for &mut F
+where
+  F: FnMut(
+    &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    (self)(input)
+  }
 }

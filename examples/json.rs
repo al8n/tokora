@@ -5,7 +5,7 @@ use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
   Accumulator, Branch, Emitter, InputRef, Lexed, Lexer, Parse, ParseChoice, ParseContext,
-  ParseInput, Parser, Token as TokenT,
+  ParseInput, Parser, Token as TokenT, TryParseInput,
   cache::Peeked,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
@@ -20,6 +20,7 @@ use tokit::{
   punct::{Brace, Bracket, Comma},
   span::Spanned,
   token::PunctuatorToken,
+  try_parse_input::ParseAttempt,
   utils::Expected,
 };
 
@@ -457,8 +458,8 @@ where
     + UnexpectedLeadingSeparatorEmitter<'inp, Comma, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, Comma, JsonLexer<'inp>>,
 {
-  json_value
-    .separated_by_comma_while::<_, U1>(JsonValue::decide::<Ctx>)
+  try_json_value
+    .separated_by_comma()
     .delimited_by(open_bracket, close_bracket, Bracket::PHANTOM)
     .collect()
     .parse_input(inp)
@@ -501,6 +502,54 @@ where
     .parse_input(inp)
 }
 
+fn try_json_value<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
+) -> Result<ParseAttempt<JsonValue<'inp>>, JsonError<'inp>>
+where
+  Ctx: ParseContext<'inp, JsonLexer<'inp>>,
+  Ctx::Emitter: SeparatedEmitter<'inp, Comma, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + DelimitedEmitter<'inp, Bracket, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + DelimitedEmitter<'inp, Brace, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, Comma, JsonLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, Comma, JsonLexer<'inp>>,
+{
+  let end = inp.source().len();
+  (
+    boolean.map(JsonValue::Bool),
+    null.map(|_| JsonValue::Null),
+    number.map(JsonValue::Number),
+    string.map(JsonValue::String),
+    list.map(JsonValue::List),
+    object.map(JsonValue::Object),
+  )
+    // Use `peek_then_try_choice` here as we want to return None if the next token is not a valid start of a JSON value
+    .peek_then_try_choice::<_, U1>(
+      |mut peeked: Peeked<'_, 'inp, JsonLexer<'inp>, U1>, _emitter| match peeked.pop_front() {
+        None => Err(JsonError::Eot(UnexpectedEot::eot(end))),
+        Some(tok) => {
+          let tok = tok
+            .as_maybe_ref()
+            .map(|t| t.token().copied(), |t| t.token())
+            .into_inner();
+
+          match tok.data() {
+            Lexed::Token(tok) => Ok(Some(match tok {
+              Token::Bool(_) => Branch::B0,
+              Token::Null => Branch::B1,
+              Token::Number(_) => Branch::B2,
+              Token::String(_) => Branch::B3,
+              Token::BracketOpen => Branch::B4,
+              Token::BraceOpen => Branch::B5,
+              _ => return Ok(None),
+            })),
+            Lexed::Error(e) => Err(e.clone().into()),
+          }
+        }
+      },
+    )
+    .try_parse_input(inp)
+}
+
 fn json_value<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
 ) -> Result<JsonValue<'inp>, JsonError<'inp>>
@@ -521,6 +570,7 @@ where
     list.map(JsonValue::List),
     object.map(JsonValue::Object),
   )
+    // Use `peek_then_choice` here as we want to return an error if the next token is not a valid start of a JSON value
     .peek_then_choice::<_, U1>(
       |mut peeked: Peeked<'_, 'inp, JsonLexer<'inp>, U1>, _emitter| match peeked.pop_front() {
         None => Err(JsonError::Eot(UnexpectedEot::eot(end))),

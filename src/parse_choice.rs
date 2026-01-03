@@ -1,8 +1,5 @@
 use crate::{
-  Window,
-  cache::Peeked,
-  input::InputRef,
-  parser::{OrNot, PeekThenChoice},
+  Window, cache::Peeked, input::InputRef, parser::PeekThenChoice, try_parse_input::ParseAttempt,
 };
 
 use super::*;
@@ -22,10 +19,28 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>;
 
+  /// Parses using branch identified by `id`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_choice(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    id: Option<&Self::Id>,
+  ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    match id {
+      Some(id) => self.parse_choice(inp, id).map(ParseAttempt::Accept),
+      None => Ok(ParseAttempt::Decline),
+    }
+  }
+
   /// Creates a `PeekThenChoice` combinator that peeks at most `N` tokens first from the input before parsing.
   ///
   /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
   /// parsing is stopped and return the error from the handler.
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn peek_then_choice<H, W: Window>(self, condition: H) -> PeekThenChoice<Self, H, L, Ctx, W, Lang>
   where
     Self: Sized,
@@ -41,13 +56,13 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Creates a `PeekThenChoice` combinator that peeks at most `N` tokens first from the input before parsing.
   ///
-  /// If the condition handler `H` returns `Ok(Some(id))`, the inner choice parser is applied with the given id.
-  /// If the handler returns `Ok(None)`, returns `None` without parsing.
-  /// Otherwise, the error is propagated.
-  fn peek_then_choice_or_not<H, W: Window>(
+  /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
+  /// parsing is stopped and return the error from the handler.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn peek_then_try_choice<H, W: Window>(
     self,
     condition: H,
-  ) -> OrNot<PeekThenChoice<Self, H, L, Ctx, W, Lang>>
+  ) -> PeekThenChoice<Self, H, L, Ctx, W, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -57,7 +72,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
       &mut Ctx::Emitter,
     ) -> Result<Option<Self::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
-    PeekThenChoice::or_not_of(self, condition)
+    PeekThenChoice::of(self, condition)
   }
 }
 

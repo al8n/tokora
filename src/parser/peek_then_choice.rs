@@ -1,4 +1,4 @@
-use crate::ParseChoice;
+use crate::{ParseChoice, TryParseInput, try_parse_input::ParseAttempt};
 
 use super::*;
 
@@ -108,10 +108,6 @@ impl<P, H, L, Ctx, W: Window, Lang: ?Sized> PeekThenChoice<P, H, L, Ctx, W, Lang
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     P: ParseChoice<'inp, L, O, Ctx, Lang>,
-    H: FnMut(
-      Peeked<'_, 'inp, L, W>,
-      &mut Ctx::Emitter,
-    ) -> Result<P::Id, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     Self {
       parser,
@@ -121,28 +117,6 @@ impl<P, H, L, Ctx, W: Window, Lang: ?Sized> PeekThenChoice<P, H, L, Ctx, W, Lang
       _l: PhantomData,
       _lang: PhantomData,
     }
-  }
-
-  /// Creates a new `PeekThenChoice` combinator for the specified language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn or_not_of<'inp, O>(parser: P, condition: H) -> OrNot<Self>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    P: ParseChoice<'inp, L, O, Ctx, Lang>,
-    H: FnMut(
-      Peeked<'_, 'inp, L, W>,
-      &mut Ctx::Emitter,
-    ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
-  {
-    OrNot::new(Self {
-      parser,
-      handler: condition,
-      _capacity: PhantomData,
-      _ctx: PhantomData,
-      _l: PhantomData,
-      _lang: PhantomData,
-    })
   }
 }
 
@@ -168,6 +142,31 @@ where
       (self.handler)(output, emitter)?
     };
     self.parser.parse_choice(inp, &id)
+  }
+}
+
+impl<'inp, P, H, L, O, Ctx, Lang, W: Window> TryParseInput<'inp, L, O, Ctx, Lang>
+  for PeekThenChoice<P, H, L, Ctx, W, Lang>
+where
+  P: ParseChoice<'inp, L, O, Ctx, Lang>,
+  H: FnMut(
+    Peeked<'_, 'inp, L, W>,
+    &mut Ctx::Emitter,
+  ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Lang: ?Sized,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    let id = {
+      let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+      (self.handler)(output, emitter)?
+    };
+    self.parser.try_parse_choice(inp, id.as_ref())
   }
 }
 

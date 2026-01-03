@@ -5,6 +5,7 @@ use crate::{
   error::{syntax::MissingSyntaxOf, token::MissingSeparatorOf},
   input::Checkpoint,
   span::Span,
+  try_parse_input::{Accept, Decline},
 };
 
 use super::*;
@@ -81,8 +82,8 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
           let span = inp.span_since(&cursor);
           inp.emitter().emit_error(Spanned::new(span, e))?;
         }
-        Ok(None) => return self.handle_end(state, inp, &ckp, num_elems, end_state_handler),
-        Ok(Some(elem)) => {
+        Ok(Decline) => return self.handle_end(state, inp, &ckp, num_elems, end_state_handler),
+        Ok(Accept(elem)) => {
           // if the peeked token belongs to an element, check the current state
           state = self.handle_continue(
             state,

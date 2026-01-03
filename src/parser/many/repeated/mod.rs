@@ -1,6 +1,9 @@
 use core::marker::PhantomData;
 
-use crate::TryParseInput;
+use crate::{
+  TryParseInput,
+  try_parse_input::{Accept, Decline},
+};
 
 use super::*;
 
@@ -262,11 +265,11 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
 
     loop {
       match self.f.try_parse_input(inp) {
-        Ok(Some(item)) => {
+        Ok(Accept(item)) => {
           container.push(item);
           num += 1;
         }
-        Ok(None) => break,
+        Ok(Decline) => break,
         Err(err) => {
           let span = inp.span_since(&cursor);
           inp.emitter().emit_error(Spanned::new(span, err))?;

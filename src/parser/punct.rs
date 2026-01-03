@@ -1,6 +1,12 @@
 use super::*;
 
-use crate::{TryParseInput, error::UnexpectedEot, punct::*, token::PunctuatorToken};
+use crate::{
+  TryParseInput,
+  error::UnexpectedEot,
+  punct::*,
+  token::PunctuatorToken,
+  try_parse_input::{Accept, Decline, ParseAttempt},
+};
 
 macro_rules! define_parsers {
   ($($name:ident::$fn:ident),+$(,)?) => {
@@ -13,7 +19,7 @@ macro_rules! define_parsers {
           /// and promises no valid token is consumed.
           pub fn try_parse<'inp, L, Ctx>(
             inp: &mut InputRef<'inp, '_, L, Ctx>,
-          ) -> Result<Option<$name<L::Span, ()>>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
+          ) -> Result<ParseAttempt<$name<L::Span, ()>>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
           where
             L: Lexer<'inp>,
             L::Token: PunctuatorToken<'inp>,
@@ -29,7 +35,7 @@ macro_rules! define_parsers {
           /// and promises no valid token is consumed.
           pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized>(
             inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-          ) -> Result<Option<$name<L::Span, (), Lang>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+          ) -> Result<ParseAttempt<$name<L::Span, (), Lang>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
           where
             L: Lexer<'inp>,
             L::Token: PunctuatorToken<'inp>,
@@ -54,7 +60,7 @@ macro_rules! define_parsers {
             &mut self,
             inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
           ) -> Result<
-            Option<$name<L::Span, (), Lang>>,
+            ParseAttempt<$name<L::Span, (), Lang>>,
             <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
           > {
             let end = inp.cursor().as_inner().clone();
@@ -77,9 +83,9 @@ macro_rules! define_parsers {
                   .into_inner();
                 if matches {
                   inp.skip_one();
-                  Ok(Some($name::new(span).change_language()))
+                  Ok(Accept($name::new(span).change_language()))
                 } else {
-                  Ok(None)
+                  Ok(Decline)
                 }
               }
             }

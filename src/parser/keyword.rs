@@ -1,6 +1,12 @@
 use mayber::{Owned, Ref};
 
-use crate::{error::UnexpectedEot, token::KeywordToken, types::Keyword, utils::cmp::Equivalent};
+use crate::{
+  error::UnexpectedEot,
+  token::KeywordToken,
+  try_parse_input::{Accept, Decline, ParseAttempt},
+  types::Keyword,
+  utils::cmp::Equivalent,
+};
 
 use super::*;
 
@@ -11,7 +17,7 @@ impl Keyword<(), ()> {
   /// and promise no valid token is consumed.
   pub fn try_parse<'inp, L, Ctx>(
     inp: &mut InputRef<'inp, '_, L, Ctx>,
-  ) -> Result<Option<Keyword<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
+  ) -> Result<ParseAttempt<Keyword<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
@@ -28,7 +34,7 @@ impl Keyword<(), ()> {
   pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized>(
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<
-    Option<Keyword<L::Token, L::Span, Lang>>,
+    ParseAttempt<Keyword<L::Token, L::Span, Lang>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
@@ -46,21 +52,21 @@ impl Keyword<(), ()> {
         Owned(t) => {
           let (span, t) = t.into_token().into_components();
           if !t.is_keyword() {
-            return Ok(None);
+            return Ok(Decline);
           }
           inp.skip_one();
-          Ok(Some(Keyword::new(span.clone(), t)))
+          Ok(Accept(Keyword::new(span.clone(), t)))
         }
         Ref(t) => {
           let t = t.into_token().into_data();
           if !t.is_keyword() {
-            return Ok(None);
+            return Ok(Decline);
           }
           let Some(t) = inp.next_token()? else {
             panic!("Token was peeked but now missing");
           };
           let (span, t) = t.into_components();
-          Ok(Some(Keyword::new(span, t)))
+          Ok(Accept(Keyword::new(span, t)))
         }
       },
     }
@@ -73,7 +79,7 @@ impl Keyword<(), ()> {
   pub fn try_parse_sliced<'inp, L, Ctx>(
     inp: &mut InputRef<'inp, '_, L, Ctx>,
   ) -> Result<
-    Option<Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>>,
+    ParseAttempt<Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error,
   >
   where
@@ -92,7 +98,7 @@ impl Keyword<(), ()> {
   pub fn try_parse_sliced_of<'inp, L, Ctx, Lang: ?Sized>(
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<
-    Option<Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>>,
+    ParseAttempt<Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
@@ -121,11 +127,11 @@ impl Keyword<(), ()> {
           .into_inner();
 
         if !keyword {
-          return Ok(None);
+          return Ok(Decline);
         }
 
         inp.skip_one();
-        Ok(Some(Keyword::new(span, inp.slice())))
+        Ok(Accept(Keyword::new(span, inp.slice())))
       }
     }
   }

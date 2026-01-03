@@ -1,5 +1,7 @@
 use core::marker::PhantomData;
 
+use crate::{TryParseInput, try_parse_input::ParseAttempt};
+
 use super::*;
 
 /// A parser that transforms output using an infallible mapping function.
@@ -167,6 +169,26 @@ where
   }
 }
 
+impl<'inp, F, G, L, O, U, Ctx, Lang> TryParseInput<'inp, L, U, Ctx, Lang>
+  for Map<F, G, L, Ctx, O, U, Lang>
+where
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
+  G: FnMut(O) -> U,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<U>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    self
+      .parser
+      .try_parse_input(input)
+      .map(|res| res.map(&mut self.map_fn))
+  }
+}
+
 /// A parser that transforms output with access to parse state (context, span, emitter).
 ///
 /// This is the stateful variant of [`Map`] that provides the transformation function
@@ -279,6 +301,27 @@ where
       .parser
       .parse_input(input)
       .map(|output| (self.map_fn)(output, ParseState::new(input, cursor)))
+  }
+}
+
+impl<'inp, F, G, L, O, U, Ctx, Lang> TryParseInput<'inp, L, U, Ctx, Lang>
+  for MapWith<F, G, L, Ctx, O, U, Lang>
+where
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
+  G: FnMut(O, ParseState<'_, 'inp, '_, L, Ctx, Lang>) -> U,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<U>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    let cursor = input.cursor().clone();
+    self
+      .parser
+      .try_parse_input(input)
+      .map(|res| res.map(|output| (self.map_fn)(output, ParseState::new(input, cursor))))
   }
 }
 
