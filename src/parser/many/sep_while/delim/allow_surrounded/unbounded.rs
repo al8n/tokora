@@ -20,7 +20,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter:
-    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
+    SeparatedEmitter<'inp, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
@@ -68,7 +68,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter:
-    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
+    SeparatedEmitter<'inp, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
@@ -129,7 +129,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter:
-    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
+    SeparatedEmitter<'inp, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
@@ -223,7 +223,7 @@ where
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter:
-    SeparatedEmitter<'inp, O, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
+    SeparatedEmitter<'inp, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,

@@ -1,12 +1,12 @@
 use super::*;
 
-impl<'inp, L, O, Sep, S, E, Lang: ?Sized> UnexpectedLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>
+impl<'inp, L, Sep, S, E, Lang: ?Sized> UnexpectedLeadingSeparatorEmitter<'inp, Sep, L, Lang>
   for Verbose<E, S, Lang>
 where
   L: Lexer<'inp, Span = S, Offset = S::Offset>,
-  E: FromUnexpectedLeadingSeparatorError<'inp, O, Sep, L, Lang>,
+  E: FromUnexpectedLeadingSeparatorError<'inp, Sep, L, Lang>,
   S: Span + Ord + Clone,
-  Verbose<E, S, Lang>: SeparatedEmitter<'inp, O, Sep, L, Lang, Error = E>,
+  Verbose<E, S, Lang>: SeparatedEmitter<'inp, Sep, L, Lang, Error = E>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_leading_separator(

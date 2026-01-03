@@ -23,8 +23,8 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
   Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang>
-    + TooManyEmitter<'inp, O, L, Lang>
-    + TooFewEmitter<'inp, O, L, Lang>,
+    + TooManyEmitter<'inp, L, Lang>
+    + TooFewEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,

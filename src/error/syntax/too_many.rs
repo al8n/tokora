@@ -4,15 +4,14 @@ use crate::span::{SimpleSpan, Span};
 
 /// An error indicating too many elements were found.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct TooMany<O: ?Sized, S = SimpleSpan, Lang: ?Sized = ()> {
+pub struct TooMany<S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,
   nums: usize,
   limit: usize,
-  _syn: PhantomData<O>,
   _lang: PhantomData<Lang>,
 }
 
-impl<O: ?Sized, S> TooMany<O, S> {
+impl<S> TooMany<S> {
   /// Creates a new `TooMany` error.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(span: S, nums: usize, maximum: usize) -> Self {
@@ -20,7 +19,7 @@ impl<O: ?Sized, S> TooMany<O, S> {
   }
 }
 
-impl<O: ?Sized, S, Lang: ?Sized> TooMany<O, S, Lang> {
+impl<S, Lang: ?Sized> TooMany<S, Lang> {
   /// Creates a new `TooMany` error for the given language.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn of(span: S, nums: usize, maximum: usize) -> Self {
@@ -28,13 +27,12 @@ impl<O: ?Sized, S, Lang: ?Sized> TooMany<O, S, Lang> {
   }
 }
 
-impl<O: ?Sized, S, Lang: ?Sized> TooMany<O, S, Lang> {
+impl<S, Lang: ?Sized> TooMany<S, Lang> {
   const fn new_in(span: S, nums: usize, limit: usize) -> Self {
     Self {
       span,
       nums,
       limit,
-      _syn: PhantomData,
       _lang: PhantomData,
     }
   }
@@ -83,12 +81,12 @@ impl<O: ?Sized, S, Lang: ?Sized> TooMany<O, S, Lang> {
   }
 }
 
-impl<O: ?Sized, S> From<TooMany<O, S>> for () {
+impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: TooMany<O, S>) -> Self {}
+  fn from(_: TooMany<S, Lang>) -> Self {}
 }
 
-impl<O: ?Sized, S, Lang> TooMany<O, S, Lang>
+impl<S, Lang> TooMany<S, Lang>
 where
   Lang: ?Sized,
 {

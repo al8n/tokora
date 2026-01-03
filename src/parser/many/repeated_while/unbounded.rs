@@ -1,5 +1,3 @@
-use crate::emitter::FullContainerEmitter;
-
 use super::*;
 
 impl<'inp, L, F, Condition, O, Container, Ctx, Lang: ?Sized, W>
@@ -10,7 +8,6 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
@@ -38,7 +35,6 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
@@ -66,7 +62,6 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: FullContainerEmitter<'inp, O, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: crate::container::Container<O>,
 {
@@ -78,34 +73,6 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    // let ckp = inp.save();
-    // let mut nums = 0;
-
-    // loop {
-    //   let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
-
-    //   match self.parser.condition.decide(peeked, emitter) {
-    //     Err(err) => return Err(err),
-    //     Ok(action) => match action {
-    //       Action::Stop => return Ok(inp.span_since(ckp.cursor())),
-    //       Action::Continue => {
-    //         if self
-    //           .container
-    //           .push(self.parser.f.parse_input(inp)?)
-    //           .is_some()
-    //         {
-    //           let span = inp.span_since(ckp.cursor());
-    //           inp.emitter().emit_full_container(FullContainer::of(
-    //             span,
-    //             nums,
-    //             Container::capacity(),
-    //           ))?;
-    //         }
-    //         nums += 1;
-    //       }
-    //     },
-    //   }
-    // }
     self
       .parser
       .parse(inp, &mut self.container, |_, _, _| Ok(()))

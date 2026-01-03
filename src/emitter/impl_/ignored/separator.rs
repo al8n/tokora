@@ -1,6 +1,6 @@
 use super::*;
 
-impl<'inp, L, O, Sep, Lang: ?Sized> SeparatedEmitter<'inp, O, Sep, L, Lang> for Ignored
+impl<'inp, L, Sep, Lang: ?Sized> SeparatedEmitter<'inp, Sep, L, Lang> for Ignored
 where
   L: Lexer<'inp>,
 {
@@ -16,10 +16,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_element(
-    &mut self,
-    _: MissingSyntaxOf<'inp, O, L, Lang>,
-  ) -> Result<(), Self::Error>
+  fn emit_missing_element(&mut self, _: MissingSyntaxOf<'inp, L, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {

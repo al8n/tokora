@@ -1,8 +1,8 @@
 use super::*;
 
 /// An emitter that handles missing leading separator.
-pub trait MissingLeadingSeparatorEmitter<'inp, O, Sep, L, Lang: ?Sized = ()>:
-  SeparatedEmitter<'inp, O, Sep, L, Lang>
+pub trait MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang: ?Sized = ()>:
+  SeparatedEmitter<'inp, Sep, L, Lang>
 where
   L: Lexer<'inp>,
 {
@@ -15,9 +15,9 @@ where
     L: Lexer<'inp>;
 }
 
-impl<'inp, O, Sep, L, Lang, U> MissingLeadingSeparatorEmitter<'inp, O, Sep, L, Lang> for &mut U
+impl<'inp, Sep, L, Lang, U> MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang> for &mut U
 where
-  U: MissingLeadingSeparatorEmitter<'inp, O, Sep, L, Lang>,
+  U: MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang>,
   L: Lexer<'inp>,
   Lang: ?Sized,
 {
@@ -34,15 +34,14 @@ where
 }
 
 /// A trait bound for creating emitter errors from missing leading separator errors.
-pub trait FromMissingLeadingSeparatorError<'a, O: ?Sized, Sep, L, Lang: ?Sized = ()> {
+pub trait FromMissingLeadingSeparatorError<'a, Sep, L, Lang: ?Sized = ()> {
   /// Creates an emitter error from a missing leading separator error.
   fn from_missing_leading_separator(err: MissingLeadingOf<'a, Sep, L, Lang>) -> Self
   where
     L: Lexer<'a>;
 }
 
-impl<'a, T, O: ?Sized, Sep, L, Lang: ?Sized> FromMissingLeadingSeparatorError<'a, O, Sep, L, Lang>
-  for T
+impl<'a, T, Sep, L, Lang: ?Sized> FromMissingLeadingSeparatorError<'a, Sep, L, Lang> for T
 where
   L: Lexer<'a>,
   T: From<MissingLeadingOf<'a, Sep, L, Lang>>,

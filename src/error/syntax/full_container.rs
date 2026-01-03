@@ -4,15 +4,14 @@ use crate::span::{SimpleSpan, Span};
 
 /// An error indicating too many elements were found.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct FullContainer<O: ?Sized, S = SimpleSpan, Lang: ?Sized = ()> {
+pub struct FullContainer<S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,
   nums: usize,
   limit: usize,
-  _syn: PhantomData<O>,
   _lang: PhantomData<Lang>,
 }
 
-impl<O: ?Sized, S> FullContainer<O, S> {
+impl<S> FullContainer<S> {
   /// Creates a new `FullContainer` error.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(span: S, nums: usize, maximum: usize) -> Self {
@@ -20,7 +19,7 @@ impl<O: ?Sized, S> FullContainer<O, S> {
   }
 }
 
-impl<O: ?Sized, S, Lang: ?Sized> FullContainer<O, S, Lang> {
+impl<S, Lang: ?Sized> FullContainer<S, Lang> {
   /// Creates a new `FullContainer` error for the given language.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn of(span: S, nums: usize, maximum: usize) -> Self {
@@ -28,13 +27,12 @@ impl<O: ?Sized, S, Lang: ?Sized> FullContainer<O, S, Lang> {
   }
 }
 
-impl<O: ?Sized, S, Lang: ?Sized> FullContainer<O, S, Lang> {
+impl<S, Lang: ?Sized> FullContainer<S, Lang> {
   const fn new_in(span: S, nums: usize, limit: usize) -> Self {
     Self {
       span,
       nums,
       limit,
-      _syn: PhantomData,
       _lang: PhantomData,
     }
   }
@@ -68,12 +66,12 @@ impl<O: ?Sized, S, Lang: ?Sized> FullContainer<O, S, Lang> {
   }
 }
 
-impl<O: ?Sized, S, Lang: ?Sized> From<FullContainer<O, S, Lang>> for () {
+impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: FullContainer<O, S, Lang>) -> Self {}
+  fn from(_: FullContainer<S, Lang>) -> Self {}
 }
 
-impl<O: ?Sized, S, Lang> FullContainer<O, S, Lang>
+impl<S, Lang> FullContainer<S, Lang>
 where
   Lang: ?Sized,
 {

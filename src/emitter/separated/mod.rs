@@ -13,7 +13,7 @@ mod unexpected_leading;
 mod unexpected_trailing;
 
 /// An emitter that handles missing separator or repeated separators found during parsing.
-pub trait SeparatedEmitter<'inp, O: ?Sized, Sep: ?Sized, L, Lang: ?Sized = ()>:
+pub trait SeparatedEmitter<'inp, Sep: ?Sized, L, Lang: ?Sized = ()>:
   Emitter<'inp, L, Lang>
 where
   L: Lexer<'inp>,
@@ -29,17 +29,16 @@ where
   /// Emits an error or warning for a missing separator found during parsing.
   fn emit_missing_element(
     &mut self,
-    err: MissingSyntaxOf<'inp, O, L, Lang>,
+    err: MissingSyntaxOf<'inp, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>;
 }
 
-impl<'inp, O, L, Sep, U, Lang> SeparatedEmitter<'inp, O, Sep, L, Lang> for &mut U
+impl<'inp, L, Sep, U, Lang> SeparatedEmitter<'inp, Sep, L, Lang> for &mut U
 where
   L: Lexer<'inp>,
-  U: SeparatedEmitter<'inp, O, Sep, L, Lang>,
-  O: ?Sized,
+  U: SeparatedEmitter<'inp, Sep, L, Lang>,
   Sep: ?Sized,
   Lang: ?Sized,
 {
@@ -55,10 +54,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_missing_element(
-    &mut self,
-    err: MissingSyntaxOf<'inp, O, L, Lang>,
-  ) -> Result<(), Self::Error>
+  fn emit_missing_element(&mut self, err: MissingSyntaxOf<'inp, L, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
@@ -67,7 +63,7 @@ where
 }
 
 /// A trait bound for converting separated-by emitter errors into emitter errors.
-pub trait FromSeparatedError<'inp, O, Sep, L, Lang: ?Sized = ()>:
+pub trait FromSeparatedError<'inp, Sep, L, Lang: ?Sized = ()>:
   FromEmitterError<'inp, L, Lang>
 where
   L: Lexer<'inp>,
@@ -78,16 +74,16 @@ where
     L: Lexer<'inp>;
 
   /// Creates an emitter error from a missing element error.
-  fn from_missing_element(err: MissingSyntaxOf<'inp, O, L, Lang>) -> Self
+  fn from_missing_element(err: MissingSyntaxOf<'inp, L, Lang>) -> Self
   where
     L: Lexer<'inp>;
 }
 
-impl<'inp, T, O, Sep, L, Lang: ?Sized> FromSeparatedError<'inp, O, Sep, L, Lang> for T
+impl<'inp, T, Sep, L, Lang: ?Sized> FromSeparatedError<'inp, Sep, L, Lang> for T
 where
   L: Lexer<'inp>,
   T: From<MissingSeparatorOf<'inp, Sep, L, Lang>>
-    + From<MissingSyntaxOf<'inp, O, L, Lang>>
+    + From<MissingSyntaxOf<'inp, L, Lang>>
     + FromEmitterError<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -99,7 +95,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from_missing_element(err: MissingSyntaxOf<'inp, O, L, Lang>) -> Self
+  fn from_missing_element(err: MissingSyntaxOf<'inp, L, Lang>) -> Self
   where
     L: Lexer<'inp>,
   {

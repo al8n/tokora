@@ -1,7 +1,4 @@
-use crate::{
-  container::Container as ContainerT,
-  emitter::{DelimitedEmitter, FullContainerEmitter},
-};
+use crate::{container::Container as ContainerT, emitter::DelimitedEmitter};
 
 use super::*;
 
@@ -14,7 +11,7 @@ where
   Delim: Clone,
   L: Lexer<'inp>,
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
-  Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + FullContainerEmitter<'inp, O, L, Lang>,
+  Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
