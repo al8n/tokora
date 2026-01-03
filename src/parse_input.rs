@@ -319,16 +319,16 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// If the condition handler `C` returns `Ok(Action::Continue)`, the inner parser is applied,
   /// otherwise returns `None`.
   #[doc(alias = "or_not")]
-  fn peek_then_or_not<C, W>(self, condition: C) -> OrNot<PeekThen<Self, C, L::Token, W>>
+  fn peek_then_try<C, W>(self, condition: C) -> PeekThen<Self, C, L::Token, W>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     C: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    OrNot<PeekThen<Self, C, L::Token, W>>: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+    PeekThen<Self, C, L::Token, W>: TryParseInput<'inp, L, O, Ctx, Lang>,
   {
-    PeekThen::or_not_of(self, condition)
+    PeekThen::of(self, condition)
   }
 
   /// Map the output of this parser using the given function.

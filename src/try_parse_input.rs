@@ -127,8 +127,8 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// **IMPORTANT:**
   ///
   /// Implementations **must** uphold this contract:
-  /// - ✅ `Ok(Some(value))` - Parser succeeded, tokens consumed, value produced
-  /// - ✅ `Ok(None)` - Parser declined, **no valid tokens consumed** (error tokens may be consumed by emitter)
+  /// - ✅ `Ok(ParseAttempt::Accept(value))` - Parser succeeded, tokens consumed, value produced
+  /// - ✅ `Ok(ParseAttempt::Decline)` - Parser declined, **no valid tokens consumed** (error tokens may be consumed by emitter)
   ///   - Backtracking may occur - input position restored to before parse attempt
   /// - ✅ `Err(error)` - Parser encountered an error (may have consumed tokens)
   fn try_parse_input(
@@ -153,12 +153,12 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Creates a `Repeated` combinator that applies this parser repeatedly until it signals completion.
   ///
   /// The parser will be called repeatedly until:
-  /// - It returns `Ok(None)` - parser peeked ahead, didn't match (no tokens consumed)
+  /// - It returns `Ok(ParseAttempt::Decline)` - parser peeked ahead, didn't match (no tokens consumed)
   /// - It returns `Err(e)` - parse error
   ///
   /// ## Key Behavior
   ///
-  /// Since this parser implements [`TryParseInput`], when it returns `Ok(None)`:
+  /// Since this parser implements [`TryParseInput`], when it returns `Ok(ParseAttempt::Decline)`:
   /// - The parser **peeked ahead** and saw tokens it doesn't match
   /// - **No tokens were consumed** - input position unchanged
   /// - Repetition **stops cleanly**
@@ -192,7 +192,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// ## Key Behavior
   ///
-  /// The combinator stops when this element parser returns `Ok(None)`:
+  /// The combinator stops when this element parser returns `Ok(ParseAttempt::Decline)`:
   /// - Parser **peeked ahead** and saw tokens it doesn't match
   /// - **No tokens consumed** - separator or closing delimiter left in input
   /// - Parsing **stops cleanly**
@@ -202,7 +202,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Use `.separated()` when:
   /// - Your element parser has built-in lookahead (implements `TryParseInput`)
   /// - You want the element parser to decide when to stop
-  /// - The parser returns `Ok(None)` for non-matching tokens
+  /// - The parser returns `Ok(ParseAttempt::Decline)` for non-matching tokens
   ///
   /// ## See Also
   ///
