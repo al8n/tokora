@@ -22,7 +22,7 @@ macro_rules! keyword {
         #[doc = "The `" $kw "` keyword"]
         $(#[$meta])*
         #[derive(::core::fmt::Debug, ::core::clone::Clone, ::core::marker::Copy, ::core::cmp::PartialEq, ::core::cmp::Eq, ::core::hash::Hash)]
-        pub struct $name<S = $crate::__private::utils::SimpleSpan, C = ()> {
+        pub struct $name<S = $crate::__private::span::SimpleSpan, C = ()> {
           span: S,
           source: C,
         }
@@ -76,14 +76,14 @@ macro_rules! keyword {
           }
         }
 
-        impl<S, C> $crate::__private::utils::AsSpan<S> for $name<S, C> {
+        impl<S, C> $crate::__private::span::AsSpan<S> for $name<S, C> {
           #[inline]
           fn as_span(&self) -> &S {
             self.span()
           }
         }
 
-       impl<S, C> $crate::__private::utils::IntoSpan<S> for $name<S, C> {
+       impl<S, C> $crate::__private::span::IntoSpan<S> for $name<S, C> {
           #[inline]
           fn into_span(self) -> S {
             self.span
