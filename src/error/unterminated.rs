@@ -101,7 +101,7 @@
 //! assert_eq!(error.span(), SimpleSpan::new(105, 107));
 //! ```
 
-use crate::{lexer::Span, utils::SimpleSpan};
+use crate::span::{SimpleSpan, Span};
 
 /// A zero-copy error type representing an unterminated sequence or operator.
 ///

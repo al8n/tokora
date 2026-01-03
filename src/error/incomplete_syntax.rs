@@ -100,7 +100,10 @@
 //! # }
 //! ```
 
-use crate::{syntax::Syntax, utils::SimpleSpan};
+use crate::{
+  span::{SimpleSpan, Span},
+  syntax::Syntax,
+};
 use generic_arraydeque::{GenericArrayDeque, typenum::Unsigned};
 
 use core::{
@@ -1077,7 +1080,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, offset: &Sp::Offset) -> &mut Self
   where
-    Sp: crate::lexer::Span,
+    Sp: Span,
   {
     self.span.bump(offset);
     self

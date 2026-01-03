@@ -106,9 +106,8 @@
 //! assert_eq!(error.span(), SimpleSpan::new(105, 106));
 //! ```
 use crate::{
-  lexer::Span,
   punct::{Angle, Brace, Bracket, Paren},
-  utils::SimpleSpan,
+  span::{SimpleSpan, Span},
 };
 use core::marker::PhantomData;
 

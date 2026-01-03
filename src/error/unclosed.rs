@@ -104,9 +104,8 @@
 use core::marker::PhantomData;
 
 use crate::{
-  lexer::Span,
   punct::{Angle, Brace, Bracket, Paren},
-  utils::SimpleSpan,
+  span::{SimpleSpan, Span},
 };
 
 /// A unclosed bracket error

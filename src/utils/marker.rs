@@ -32,7 +32,7 @@ impl<T: ?Sized> Clone for Ignored<T> {
 impl<T: ?Sized> Copy for Ignored<T> {}
 
 /// A span with no meaningful offsets, used as a type marker.
-pub type PhantomSpan = super::SimpleSpan<()>;
+pub type PhantomSpan = crate::span::SimpleSpan<()>;
 
 impl PhantomSpan {
   /// A zero-sized span for phantom usage.
@@ -46,7 +46,7 @@ impl PhantomSpan {
 }
 
 /// A sliced value with no meaningful slice, used as a type marker.
-pub type PhantomSliced = super::Sliced<(), ()>;
+pub type PhantomSliced = crate::slice::Sliced<(), ()>;
 
 impl PhantomSliced {
   /// A zero-sized sliced value for phantom usage.
@@ -63,7 +63,7 @@ impl PhantomSliced {
 }
 
 /// A located value with no meaningful source or span, used as a type marker.
-pub type PhantomLocated = super::Located<(), (), ()>;
+pub type PhantomLocated = crate::located::Located<(), (), ()>;
 
 impl PhantomLocated {
   /// A zero-sized located value for phantom usage.

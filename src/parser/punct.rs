@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::{TryParseInput, error::UnexpectedEot, lexer::PunctuatorToken, punct::*};
+use crate::{TryParseInput, error::UnexpectedEot, punct::*, token::PunctuatorToken};
 
 macro_rules! define_parsers {
   ($($name:ident::$fn:ident),+$(,)?) => {

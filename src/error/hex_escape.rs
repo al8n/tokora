@@ -68,10 +68,7 @@
 
 use core::ops::AddAssign;
 
-use crate::{
-  error::InvalidHexDigits,
-  utils::{SimpleSpan, human_display::DisplayHuman},
-};
+use crate::{error::InvalidHexDigits, span::SimpleSpan, utils::human_display::DisplayHuman};
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
 /// A type alias for invalid hex digits in hex escape sequences.

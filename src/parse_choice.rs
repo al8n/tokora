@@ -1,6 +1,7 @@
 use crate::{
   Window,
-  lexer::{InputRef, Peeked},
+  cache::Peeked,
+  input::InputRef,
   parser::{OrNot, PeekThenChoice},
 };
 

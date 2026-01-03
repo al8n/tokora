@@ -1,7 +1,6 @@
 use crate::{
   Lexer,
-  lexer::Span,
-  utils::{SimpleSpan, Spanned},
+  span::{SimpleSpan, Span, Spanned},
 };
 
 use super::super::{

@@ -1,9 +1,8 @@
 use core::{fmt, marker::PhantomData};
 
 use crate::{
-  lexer::Span,
+  span::{SimpleSpan, Span},
   syntax::{Language, Syntax},
-  utils::SimpleSpan,
 };
 
 /// Describes a missing syntax element between two anchors.
@@ -84,7 +83,7 @@ impl<T, S, Lang> Missing<T, S, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn between(before: S, after: S) -> Self
   where
-    S: crate::lexer::Span + Clone,
+    S: Span + Clone,
   {
     let start = before.end_ref();
     let end = after.start_ref();

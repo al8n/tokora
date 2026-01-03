@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::utils::SimpleSpan;
+use crate::span::{SimpleSpan, Span};
 
 /// An error indicating too many elements were found.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -64,7 +64,7 @@ impl<O: ?Sized, S, Lang: ?Sized> TooMany<O, S, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump(&mut self, by: &S::Offset) -> &mut Self
   where
-    S: crate::lexer::Span,
+    S: Span,
   {
     self.span.bump(by);
     self

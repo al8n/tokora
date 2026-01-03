@@ -4,8 +4,9 @@ use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
-  Branch, Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser,
-  Token as TokenT,
+  Accumulator, Branch, Emitter, InputRef, Lexed, Lexer, Parse, ParseChoice, ParseContext,
+  ParseInput, Parser, Token as TokenT,
+  cache::Peeked,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
@@ -15,10 +16,11 @@ use tokit::{
     syntax::MissingSyntaxOf,
     token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
-  lexer::{InputRef, Peeked, PunctuatorToken},
   parser::{Action, Expect},
   punct::{Brace, Bracket, Comma},
-  utils::{Expected, Spanned},
+  span::Spanned,
+  token::PunctuatorToken,
+  utils::Expected,
 };
 
 #[derive(Clone, Debug, From, PartialEq, Eq)]
@@ -467,7 +469,7 @@ where
     + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   json_value
-    .separated_on_condition_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
+    .separated_by_comma_while::<_, U1>(JsonValue::decide::<Ctx>)
     .delimited_by(open_bracket, close_bracket, Bracket::PHANTOM)
     .collect()
     .parse_input(inp)
@@ -518,7 +520,7 @@ where
     + UnexpectedTrailingSeparatorEmitter<'inp, (&'inp str, JsonValue<'inp>), Comma, JsonLexer<'inp>>,
 {
   field
-    .separated_on_condition_by_comma::<_, U1>(JsonValue::decide::<Ctx>)
+    .separated_by_comma_while::<_, U1>(JsonValue::decide::<Ctx>)
     .delimited_by(open_brace, close_brace, Brace::PHANTOM)
     .collect()
     .parse_input(inp)

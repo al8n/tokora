@@ -1,6 +1,6 @@
 use derive_more::{Display, IsVariant};
 
-use crate::lexer::DelimiterToken;
+use crate::token::DelimiterToken;
 
 /// Common delimiters used in lexing and parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, Display)]

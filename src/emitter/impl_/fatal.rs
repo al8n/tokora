@@ -3,7 +3,7 @@ use crate::{
     syntax::MissingSyntaxOf,
     token::{UnexpectedLeadingOf, UnexpectedToken, UnexpectedTrailingOf},
   },
-  utils::Spanned,
+  span::Spanned,
 };
 
 use super::super::{

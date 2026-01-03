@@ -6,7 +6,7 @@ use super::*;
 /// comments that should be skipped. It consumes trivia both **before** and **after** the
 /// inner parser runs, making the grammar whitespace-insensitive.
 ///
-/// Trivia is determined by the lexer's [`Token::is_trivia()`](crate::lexer::Token::is_trivia)
+/// Trivia is determined by the lexer's [`Token::is_trivia()`](crate::Token::is_trivia)
 /// method. Tokens marked as trivia are automatically skipped.
 ///
 /// # Type Parameters
@@ -106,7 +106,7 @@ use super::*;
 ///
 /// - [`PaddedLeft`] - Skip leading trivia only
 /// - [`PaddedRight`] - Skip trailing trivia only
-/// - [`Token::is_trivia()`](crate::lexer::Token::is_trivia) - Determines what counts as trivia
+/// - [`Token::is_trivia()`](crate::Token::is_trivia) - Determines what counts as trivia
 /// - [`then_ignore`](crate::parser::ParseInput::then_ignore) - Ignore specific tokens (not trivia)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Padded<P, O, L, Ctx, Lang: ?Sized = ()> {
@@ -199,7 +199,7 @@ where
 ///
 /// - [`Padded`] - Skip trivia on both sides (most common)
 /// - [`PaddedRight`] - Skip trailing trivia only
-/// - [`Token::is_trivia()`](crate::lexer::Token::is_trivia) - Determines trivia
+/// - [`Token::is_trivia()`](crate::Token::is_trivia) - Determines trivia
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PaddedLeft<P, O, L, Ctx, Lang: ?Sized = ()> {
   parser: P,
@@ -290,7 +290,7 @@ where
 ///
 /// - [`Padded`] - Skip trivia on both sides (most common)
 /// - [`PaddedLeft`] - Skip leading trivia only
-/// - [`Token::is_trivia()`](crate::lexer::Token::is_trivia) - Determines trivia
+/// - [`Token::is_trivia()`](crate::Token::is_trivia) - Determines trivia
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PaddedRight<P, O, L, Ctx, Lang: ?Sized = ()> {
   parser: P,

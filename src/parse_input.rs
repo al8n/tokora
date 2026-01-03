@@ -3,13 +3,15 @@ use core::mem::MaybeUninit;
 use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray, typenum};
 
 use crate::{
-  lexer::{InputRef, Peeked, PunctuatorToken},
+  cache::Peeked,
+  input::InputRef,
+  located::Located,
   parser::*,
   punct::*,
-  utils::{
-    Located, Sliced, Spanned,
-    marker::{PhantomLocated, PhantomSliced, PhantomSpan},
-  },
+  slice::Sliced,
+  span::Spanned,
+  token::PunctuatorToken,
+  utils::marker::{PhantomLocated, PhantomSliced, PhantomSpan},
 };
 
 use super::*;
@@ -82,16 +84,47 @@ where
   }
 }
 
+/// A trait for parsers that accumulate their results into a container.
+pub trait Accumulator<'inp, L, Container, Ctx, Lang: ?Sized = ()> {
+  /// Collects the parsed elements into the specified container.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn collect(self) -> Collect<Self, Container, Ctx, Lang>
+  where
+    Self: Sized,
+    Container: Default,
+    Collect<Self, Container, Ctx, Lang>: ParseInput<'inp, L, Container, Ctx, Lang>,
+  {
+    Collect::new(self, Container::default())
+  }
+
+  /// Collects the parsed elements with the given container.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn collect_with(self, container: Container) -> Collect<Self, Container, Ctx, Lang>
+  where
+    Self: Sized,
+    Collect<Self, Container, Ctx, Lang>: ParseInput<'inp, L, Container, Ctx, Lang>,
+  {
+    Collect::new(self, container)
+  }
+}
+
+impl<'inp, P, Container, L, Ctx, Lang: ?Sized> Accumulator<'inp, L, Container, Ctx, Lang> for P where
+  Collect<P, Container, Ctx, Lang>: ParseInput<'inp, L, Container, Ctx, Lang>
+{
+}
+
 macro_rules! define_separated_by {
   ($($name:ident),+$(,)?) => {
     paste::paste! {
       $(
-        #[doc = "Creates a `SeparatedBy` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
+        #[doc = "Creates a `SeparatedWhile` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
+        ///
+        /// See [`separated_while`](crate::ParseInput::separated_while) for details.
         #[cfg_attr(not(tarpaulin), inline(always))]
-        fn [< separated_on_condition_by_ $name:snake >]<Condition, W>(
+        fn [< separated_by_ $name:snake _while>]<Condition, W>(
           self,
           condition: Condition,
-        ) -> SeparatedBy<Self, $name, Condition, O, W, L, Ctx, Lang>
+        ) -> SeparatedWhile<Self, $name, Condition, O, W, L, Ctx, Lang>
         where
           Self: Sized,
           L: Lexer<'inp>,
@@ -100,7 +133,7 @@ macro_rules! define_separated_by {
           Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
           W: Window,
         {
-          SeparatedBy::new(self, <$name>::PHANTOM, condition)
+          SeparatedWhile::new(self, <$name>::PHANTOM, condition)
         }
       )*
     }
@@ -166,13 +199,33 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Ignore::new(self)
   }
 
-  /// Creates a `RepeatedOnCondition` combinator that applies this parser repeatedly
-  /// until the condition handler `Condition` returns [`Action::Stop`] or an fatal error.
+  /// Creates a `RepeatedWhile` combinator that applies this parser repeatedly, where **you
+  /// provide the lookahead logic**.
+  ///
+  /// The parser will be called repeatedly until:
+  /// - Your condition function returns `Action::Stop` - you decided to stop based on lookahead
+  /// - It returns `Err(e)` - fatal error
+  ///
+  /// ## Key Behavior
+  ///
+  /// Unlike [`repeated()`](TryParseInput::repeated), this parser doesn't need built-in lookahead:
+  /// - **You provide** a condition function that peeks ahead at tokens
+  /// - Condition decides `Continue` or `Stop` based on what it sees
+  /// - Element parser is only called when condition says `Continue`
+  ///
+  /// ## Type Parameters
+  ///
+  /// - `W`: Window size for lookahead (e.g., `U1` for 1 token, `U2` for 2 tokens)
+  ///
+  /// ## See Also
+  ///
+  /// - [`repeated`](TryParseInput::repeated) - Parser has lookahead, no separator
+  /// - [`Action`] - The decision type (`Continue` or `Stop`)
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn repeated_on_condition<Condition, W>(
+  fn repeated_while<Condition, W>(
     self,
     condition: Condition,
-  ) -> RepeatedOnCondition<Self, Condition, O, W, L, Ctx, Lang>
+  ) -> RepeatedWhile<Self, Condition, O, W, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -180,16 +233,39 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY>,
     W: Window,
   {
-    RepeatedOnCondition::new(self, condition)
+    RepeatedWhile::new(self, condition)
   }
 
-  /// Creates a `SeparatedBy` combinator that applies this parser repeatedly,
+  /// Creates a `SeparatedWhile` combinator that parses separated elements, where **you
+  /// provide the lookahead logic**.
+  ///
+  /// The parser will be called repeatedly to parse elements separated by the given separator,
+  /// until:
+  /// - Your condition function returns `Action::Stop` - you decided to stop based on lookahead
+  /// - It returns `Err(e)` - fatal error
+  ///
+  /// ## Key Behavior
+  ///
+  /// Unlike [`separated()`](TryParseInput::separated), this parser doesn't need built-in lookahead:
+  /// - **You provide** a condition function that peeks ahead at tokens
+  /// - Condition decides `Continue` or `Stop` based on what it sees
+  /// - Element parser is only called when condition says `Continue`
+  /// - Separator is parsed between elements
+  ///
+  /// ## Type Parameters
+  ///
+  /// - `W`: Window size for lookahead (e.g., `U1` for 1 token, `U2` for 2 tokens)
+  ///
+  /// ## See Also
+  ///
+  /// - [`separated`](TryParseInput::separated) - Parser has lookahead, with separator
+  /// - [`Action`] - The decision type (`Continue` or `Stop`)
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn separated_on_condition<SepClassifier, Condition, W>(
+  fn separated_while<SepClassifier, Condition, W>(
     self,
     sep_classifier: SepClassifier,
     condition: Condition,
-  ) -> SeparatedBy<Self, SepClassifier, Condition, O, W, L, Ctx, Lang>
+  ) -> SeparatedWhile<Self, SepClassifier, Condition, O, W, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -198,7 +274,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     SepClassifier: Check<L::Token>,
     W: Window,
   {
-    SeparatedBy::new(self, sep_classifier, condition)
+    SeparatedWhile::new(self, sep_classifier, condition)
   }
 
   define_separated_by!(
@@ -562,27 +638,6 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 }
 
-/// Extension trait for unwrapping `Option` outputs.
-pub trait ParseInputUnwrapExt<'inp, L, O, Ctx, Lang: ?Sized> {
-  /// Creates an `Unwrapped` parser that unwraps the `Option` result of this parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[track_caller]
-  fn unwrap(self) -> Unwrapped<Self, O, Ctx, Lang>
-  where
-    Self: Sized + ParseInput<'inp, L, Option<O>, Ctx, Lang>,
-  {
-    Unwrapped::new(self)
-  }
-}
-
-impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInputUnwrapExt<'inp, L, O, Ctx, Lang> for F
-where
-  F: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
-  L: Lexer<'inp>,
-  Ctx: ParseContext<'inp, L, Lang>,
-{
-}
-
 impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInput<'inp, L, O, Ctx, Lang> for F
 where
   F: FnMut(
@@ -675,4 +730,25 @@ where
       )
     })
   }
+}
+
+/// Extension trait for unwrapping `Option` outputs.
+pub trait ParseInputUnwrapExt<'inp, L, O, Ctx, Lang: ?Sized> {
+  /// Creates an `Unwrapped` parser that unwraps the `Option` result of this parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[track_caller]
+  fn unwrap(self) -> Unwrapped<Self, O, Ctx, Lang>
+  where
+    Self: Sized + ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+  {
+    Unwrapped::new(self)
+  }
+}
+
+impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInputUnwrapExt<'inp, L, O, Ctx, Lang> for F
+where
+  F: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
 }

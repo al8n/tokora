@@ -21,7 +21,7 @@ where
 
 #[cfg(test)]
 const _: () = {
-  use crate::lexer::{BlackHole, DummyLexer};
+  use crate::lexer::DummyLexer;
 
   const fn assert_noop_too_few_emitter<'a, L, Any, Error, E>()
   where
@@ -31,5 +31,4 @@ const _: () = {
   }
 
   assert_noop_too_few_emitter::<'_, DummyLexer, (), (), Verbose<()>>();
-  assert_noop_too_few_emitter::<'_, DummyLexer, (), _, Verbose<BlackHole>>();
 };

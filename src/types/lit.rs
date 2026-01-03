@@ -89,10 +89,7 @@
 
 use core::marker::PhantomData;
 
-use crate::{
-  error::ErrorNode,
-  utils::{AsSpan, IntoComponents},
-};
+use crate::{error::ErrorNode, span::AsSpan, utils::IntoComponents};
 
 /// A macro to generate literal type structures.
 ///
@@ -142,7 +139,7 @@ macro_rules! define_literal {
       #[doc = "let bad_lit = " $name "::<String, YulLang>::error(span);"]
       /// ```
       #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-      pub struct $name<D $( = $default)?, S = $crate::__private::utils::SimpleSpan, Lang = ()> {
+      pub struct $name<D $( = $default)?, S = $crate::__private::span::SimpleSpan, Lang = ()> {
         span: S,
         data: D,
         _lang: PhantomData<Lang>,
@@ -203,7 +200,7 @@ macro_rules! define_literal {
       #[cfg_attr(not(tarpaulin), inline(always))]
       pub fn bump(&mut self, by: &S::Offset) -> &mut Self
       where
-        S: $crate::lexer::Span,
+        S: $crate::__private::span::Span,
       {
         self.span.bump(by);
         self

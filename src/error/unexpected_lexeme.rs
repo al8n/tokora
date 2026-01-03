@@ -1,8 +1,10 @@
 use core::ops::{Add, AddAssign};
 
-use crate::utils::{
-  CharLen, Lexeme, PositionedChar, SimpleSpan, human_display::DisplayHuman,
-  knowledge::LineTerminator,
+use crate::{
+  span::SimpleSpan,
+  utils::{
+    CharLen, Lexeme, PositionedChar, human_display::DisplayHuman, knowledge::LineTerminator,
+  },
 };
 
 /// A specialized `UnexpectedLexeme` for line terminators.

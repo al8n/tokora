@@ -1,4 +1,4 @@
-use crate::lexer::Checkpoint;
+use crate::input::Checkpoint;
 
 use super::*;
 

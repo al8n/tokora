@@ -201,11 +201,12 @@ impl<Syntax: ?Sized, O, Lang: ?Sized> MissingSyntax<Syntax, O, Lang> {
   /// assert_eq!(error.offset(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn bump(&mut self, offset: &O)
+  pub fn bump(&mut self, offset: &O) -> &mut Self
   where
     O: for<'b> AddAssign<&'b O>,
   {
     self.offset += offset;
+    self
   }
 
   /// Consumes the error and returns its components.

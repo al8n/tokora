@@ -2,7 +2,9 @@ use core::ops::{Add, AddAssign};
 
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
-use super::{CharLen, PositionedChar, SimpleSpan};
+use super::{CharLen, PositionedChar};
+
+use crate::span::SimpleSpan;
 
 /// A compact, zero-copy description of a lexeme in source code.
 ///

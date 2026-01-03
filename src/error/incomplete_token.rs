@@ -1,7 +1,8 @@
 use crate::{
-  lexer::Span,
-  utils::{SimpleSpan, human_display::DisplayHuman},
+  span::{SimpleSpan, Span},
+  utils::human_display::DisplayHuman,
 };
+
 /// An incomplete token
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IncompleteToken<Knowledge, S = SimpleSpan> {

@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use logos::Logos;
 
-use crate::utils::SimpleSpan;
+use crate::span::SimpleSpan;
 
 use super::{IntoLexer, Lexer, Source, State, Token};
 
