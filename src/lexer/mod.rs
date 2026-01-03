@@ -1,10 +1,10 @@
-use core::{convert::Infallible, fmt, hash::Hash};
+use core::{fmt, hash::Hash};
 
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use crate::span::{Span, Spanned};
 
-use super::{Source, token::Token};
+use super::{Source, State, token::Token};
 
 #[cfg(feature = "logos")]
 pub use self::logos::{FromLogos, LogosLexer};
@@ -302,33 +302,6 @@ pub trait Lexable<I, Error> {
   fn lex(input: I) -> Result<Self, Error>
   where
     Self: Sized;
-}
-
-/// The state trait for lexers
-pub trait State: core::fmt::Debug + Clone {
-  /// The error type of the state.
-  type Error: Clone;
-
-  /// Checks the state for errors.
-  fn check(&self) -> Result<(), Self::Error>;
-}
-
-impl State for () {
-  type Error = ();
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check(&self) -> Result<(), Self::Error> {
-    Ok(())
-  }
-}
-
-impl State for Infallible {
-  type Error = Infallible;
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn check(&self) -> Result<(), Self::Error> {
-    Ok(())
-  }
 }
 
 #[cfg(test)]

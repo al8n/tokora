@@ -4,8 +4,8 @@ use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
-  Accumulator, Branch, Emitter, Lexed, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser,
-  Token as TokenT,
+  Accumulator, Branch, Emitter, InputRef, Lexed, Lexer, Parse, ParseChoice, ParseContext,
+  ParseInput, Parser, Token as TokenT,
   cache::Peeked,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
@@ -16,7 +16,6 @@ use tokit::{
     syntax::MissingSyntaxOf,
     token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
-  lexer::InputRef,
   parser::{Action, Expect},
   punct::{Brace, Bracket, Comma},
   span::Spanned,

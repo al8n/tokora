@@ -12,7 +12,7 @@ mod bstr;
 mod hipstr;
 
 /// The source trait for lexers
-pub trait Source<Cursor> {
+pub trait Source<Cursor>: core::fmt::Debug {
   /// A type this `Source` can be sliced into.
   type Slice<'source>: Slice<'source>
   where

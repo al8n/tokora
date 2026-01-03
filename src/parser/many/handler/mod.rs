@@ -17,6 +17,222 @@ mod require_surrounded;
 mod require_trailing;
 mod unbounded;
 
+/// A handler for separator events during parsing.
+pub trait SeparatorHandler<'inp, L> {
+  /// Called when a separator is encountered.
+  fn on_separator(&mut self, sep: Spanned<L::Token, L::Span>)
+  where
+    L: Lexer<'inp>;
+}
+
+impl<'inp, L, T> SeparatorHandler<'inp, L> for &mut T
+where
+  T: ?Sized + SeparatorHandler<'inp, L>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn on_separator(&mut self, sep: Spanned<L::Token, L::Span>)
+  where
+    L: Lexer<'inp>,
+  {
+    (**self).on_separator(sep)
+  }
+}
+
+macro_rules! blackhole_separator_handler {
+  ($ty:ty) => {
+    impl<'inp, L> SeparatorHandler<'inp, L> for $ty {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
+      where
+        L: Lexer<'inp>,
+      {
+      }
+    }
+  };
+  (@generic $ty:ty) => {
+    impl<'inp, L, T> SeparatorHandler<'inp, L> for $ty {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
+      where
+        L: Lexer<'inp>,
+      {
+      }
+    }
+  };
+}
+
+blackhole_separator_handler!(());
+blackhole_separator_handler!(@generic core::marker::PhantomData<T>);
+blackhole_separator_handler!(@generic crate::utils::marker::Ignored<T>);
+
+#[cfg(any(feature = "alloc", feature = "std"))]
+const _: () = {
+  use std::{collections::vec_deque::VecDeque, vec::Vec};
+
+  impl<'inp, L, T> SeparatorHandler<'inp, L> for Vec<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_separator(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+  }
+
+  impl<'inp, L, T> SeparatorHandler<'inp, L> for VecDeque<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_separator(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+  }
+
+  #[cfg(feature = "smallvec")]
+  impl<'inp, L, T, N> SeparatorHandler<'inp, L> for smallvec::SmallVec<N>
+  where
+    N: smallvec::Array<Item = T>,
+  {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_separator(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+  }
+};
+
+/// A handler for delimiter events during parsing.
+pub trait DelimiterHandler<'inp, L> {
+  /// Called when a delimiter is encountered.
+  fn on_open_delimiter(&mut self, open: Spanned<L::Token, L::Span>)
+  where
+    L: Lexer<'inp>;
+
+  /// Called when a closing delimiter is encountered.
+  fn on_close_delimiter(&mut self, close: Spanned<L::Token, L::Span>)
+  where
+    L: Lexer<'inp>;
+}
+
+impl<'inp, L, T> DelimiterHandler<'inp, L> for &mut T
+where
+  T: ?Sized + DelimiterHandler<'inp, L>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn on_open_delimiter(&mut self, open: Spanned<L::Token, L::Span>)
+  where
+    L: Lexer<'inp>,
+  {
+    (**self).on_open_delimiter(open);
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn on_close_delimiter(&mut self, close: Spanned<L::Token, L::Span>)
+  where
+    L: Lexer<'inp>,
+  {
+    (**self).on_close_delimiter(close);
+  }
+}
+
+macro_rules! blackhole_delimiter_handler {
+  ($ty:ty) => {
+    impl<'inp, L> DelimiterHandler<'inp, L> for $ty {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn on_open_delimiter(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+      where
+        L: Lexer<'inp>,
+      {
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn on_close_delimiter(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+      where
+        L: Lexer<'inp>,
+      {
+      }
+    }
+  };
+  (@generic $ty:ty) => {
+    impl<'inp, L, T> DelimiterHandler<'inp, L> for $ty {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn on_open_delimiter(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+      where
+        L: Lexer<'inp>,
+      {
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn on_close_delimiter(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+      where
+        L: Lexer<'inp>,
+      {
+      }
+    }
+  };
+}
+
+blackhole_delimiter_handler!(());
+blackhole_delimiter_handler!(@generic core::marker::PhantomData<T>);
+blackhole_delimiter_handler!(@generic crate::utils::marker::Ignored<T>);
+
+#[cfg(any(feature = "alloc", feature = "std"))]
+const _: () = {
+  use std::{collections::vec_deque::VecDeque, vec::Vec};
+
+  impl<'inp, L, T> DelimiterHandler<'inp, L> for Vec<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_open_delimiter(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_close_delimiter(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+  }
+
+  impl<'inp, L, T> DelimiterHandler<'inp, L> for VecDeque<T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_open_delimiter(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_close_delimiter(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+  }
+
+  #[cfg(feature = "smallvec")]
+  impl<'inp, L, T, N> DelimiterHandler<'inp, L> for smallvec::SmallVec<N>
+  where
+    N: smallvec::Array<Item = T>,
+  {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_open_delimiter(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn on_close_delimiter(&mut self, _: Spanned<<L>::Token, <L>::Span>)
+    where
+      L: Lexer<'inp>,
+    {
+    }
+  }
+};
+
 pub(super) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
   fn handle_start_state(
     &self,

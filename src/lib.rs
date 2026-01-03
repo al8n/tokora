@@ -19,15 +19,16 @@ pub use cache::{Cache, DefaultCache};
 pub use check::Check;
 pub use emitter::Emitter;
 pub use input::InputRef;
-pub use lexer::{Lexed, Lexer, State};
+pub use lexer::{Lexed, Lexer};
 pub use located::*;
 pub use parse_choice::*;
+pub use parse_context::{FatalContext, ParseContext, ParserContext};
 pub use parse_input::*;
-pub use parser::{Parse, ParseContext, Parser};
+pub use parser::{Parse, Parser};
 pub use require::Require;
-pub use separator_handler::SeparatorHandler;
 pub use slice::Slice;
 pub use source::Source;
+pub use state::State;
 pub use token::Token;
 pub use try_parse_input::TryParseInput;
 
@@ -72,6 +73,9 @@ pub mod span;
 /// Slice related structures and traits
 pub mod slice;
 
+/// The state related structures and traits
+pub mod state;
+
 /// The cache related structures and traits
 pub mod cache;
 
@@ -85,9 +89,9 @@ mod check;
 mod keyword;
 mod located;
 mod parse_choice;
+mod parse_context;
 mod parse_input;
 mod require;
-mod separator_handler;
 mod try_parse_input;
 
 #[doc(hidden)]

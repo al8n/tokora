@@ -1,11 +1,7 @@
-use crate::{
-  lexer::State,
-  utils::{recursion_tracker::RecursionLimiter, token_tracker::TokenLimiter},
-};
-
 use super::{
-  recursion_tracker::{RecursionLimitExceeded, RecursionTracker},
-  token_tracker::{TokenLimitExceeded, TokenTracker},
+  State,
+  recursion_tracker::{RecursionLimitExceeded, RecursionLimiter, RecursionTracker},
+  token_tracker::{TokenLimitExceeded, TokenLimiter, TokenTracker},
 };
 
 /// Error returned when either token or recursion limits are exceeded.

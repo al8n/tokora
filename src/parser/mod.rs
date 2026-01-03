@@ -163,6 +163,7 @@ use crate::{
   error::{UnexpectedEot, token::UnexpectedToken},
   input::{Cursor, Input, InputRef},
   located::Located,
+  parse_context::{FatalContext, ParseContext},
   parse_input::*,
   slice::Sliced,
   span::Spanned,
@@ -176,7 +177,6 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 pub use any::*;
 pub use collect::Collect;
-pub use ctx::{FatalContext, ParseContext, ParserContext};
 pub use empty::*;
 pub use expect::*;
 pub use filter::*;
@@ -201,7 +201,6 @@ pub use with::*;
 
 mod any;
 mod collect;
-mod ctx;
 mod empty;
 mod expect;
 mod filter;

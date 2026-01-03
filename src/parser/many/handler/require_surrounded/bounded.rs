@@ -8,7 +8,7 @@ use crate::{
     syntax::MissingSyntaxOf,
     token::{MissingLeadingOf, MissingTrailingOf},
   },
-  lexer::{Checkpoint, InputRef},
+  input::{Checkpoint, InputRef},
   parser::{
     Maximum, Minimum, RequireLeading, RequireTrailing, With,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},

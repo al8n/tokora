@@ -5,7 +5,7 @@ use crate::{
     syntax::MissingSyntaxOf,
     token::{MissingLeadingOf, MissingTrailingOf},
   },
-  lexer::{Checkpoint, InputRef},
+  input::{Checkpoint, InputRef},
   parser::{
     RequireLeading, RequireTrailing,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler, Unbounded},

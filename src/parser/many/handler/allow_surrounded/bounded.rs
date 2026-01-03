@@ -2,7 +2,7 @@ use crate::{
   Emitter, Lexer, ParseContext,
   emitter::{SeparatedEmitter, TooFewEmitter, TooManyEmitter},
   error::syntax::MissingSyntaxOf,
-  lexer::{Checkpoint, InputRef},
+  input::{Checkpoint, InputRef},
   parser::{
     AllowLeading, AllowTrailing, Maximum, Minimum, With,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},

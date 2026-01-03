@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use derive_more::IsVariant;
 
-use crate::SeparatorHandler;
+use crate::parser::SeparatorHandler;
 
 use super::*;
 
