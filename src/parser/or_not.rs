@@ -5,7 +5,7 @@
 /// - `Ok(None)` if the inner parser fails or condition returns `None`
 ///
 /// Unlike traditional `.or()` combinators that backtrack, `OrNot` uses **lookahead-based
-/// decisions** via [`peek_then_choice_or_not`](crate::parser::ParseChoice::peek_then_choice_or_not)
+/// decisions** via [`peek_then_choice_or_not`](crate::ParseChoice::peek_then_choice_or_not)
 /// to determine whether to parse or skip.
 ///
 /// # Type Parameters
@@ -80,7 +80,7 @@
 /// # See Also
 ///
 /// - [`unwrap`](crate::parser::ParseInputUnwrapExt::unwrap) - Convert `Option<T>` back to `T` (panics on None)
-/// - [`peek_then_choice_or_not`](crate::parser::ParseChoice::peek_then_choice_or_not) - Creates OrNot with lookahead
+/// - [`peek_then_choice_or_not`](crate::ParseChoice::peek_then_choice_or_not) - Creates OrNot with lookahead
 /// - [`filter_map`](crate::parser::FilterMap) - Transform and optionally filter
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct OrNot<P>(pub(super) P);

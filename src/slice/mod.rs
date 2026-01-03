@@ -124,7 +124,7 @@ impl<'source> Slice<'source> for &'source str {
 /// `Sliced<D, Src>` combines a value of type `D` with slice metadata of type `Src`.
 /// This is fundamental for tracking the origin of data, such as file names, URLs,
 /// module paths, or any other contextual information about where the data came from.
-/// Unlike [`Spanned`](super::Spanned) which tracks *location within* a slice,
+/// Unlike [`Spanned`](crate::span::Spanned) which tracks *location within* a slice,
 /// `Sliced` tracks *which* slice the data came from.
 ///
 /// # Design

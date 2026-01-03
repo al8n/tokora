@@ -5,7 +5,7 @@ use super::{Lexer, Span};
 /// A cursor representing a position in the input source.
 ///
 /// `Cursor` is a lightweight type that wraps a byte offset into the lexer's
-/// input source. It's used by [`Checkpoint`](crate::lexer::Checkpoint) to track positions and represents
+/// input source. It's used by [`Checkpoint`](crate::input::Checkpoint) to track positions and represents
 /// the current position in the input stream.
 ///
 /// The cursor position represents:

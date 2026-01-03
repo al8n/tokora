@@ -22,7 +22,7 @@ mod delim;
 /// # Type Parameters
 ///
 /// - `F`: The element parser
-/// - `SepClassifier`: Separator checker (e.g., [`Comma`], custom punctuator)
+/// - `SepClassifier`: Separator checker (e.g., comma punctuator, custom classifier)
 /// - `Condition`: Decision function that determines when to stop parsing
 /// - `O`: Output type of the element parser
 /// - `Window`: Lookahead window size for the condition
@@ -138,7 +138,7 @@ mod delim;
 ///
 /// - [`delimited_by`](Separated::delimited_by) - Wrap in delimiters (e.g., `[...]` or `{...}`)
 /// - [`repeated`](RepeatedWhile) - Repeat without separators
-/// - [`collect`](Separated::collect) - Collect into a container
+/// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Separated<F, SepClassifier, O, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
