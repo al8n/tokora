@@ -24,6 +24,7 @@ pub use located::*;
 pub use parse_choice::*;
 pub use parse_context::{FatalContext, ParseContext, ParserContext};
 pub use parse_input::*;
+pub use parse_state::ParseState;
 pub use parser::{Parse, Parser};
 pub use require::Require;
 pub use slice::Slice;
@@ -186,6 +187,7 @@ mod located;
 mod parse_choice;
 mod parse_context;
 mod parse_input;
+mod parse_state;
 mod require;
 
 #[doc(hidden)]

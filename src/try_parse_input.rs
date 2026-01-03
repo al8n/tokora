@@ -74,6 +74,18 @@ impl<O> ParseAttempt<O> {
       Self::Decline => ParseAttempt::Decline,
     }
   }
+
+  /// Maps the inner value using the given fallible function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn and_then<U, F, E>(self, f: F) -> Result<ParseAttempt<U>, E>
+  where
+    F: FnOnce(O) -> Result<U, E>,
+  {
+    match self {
+      Self::Accept(value) => Ok(ParseAttempt::Accept(f(value)?)),
+      Self::Decline => Ok(ParseAttempt::Decline),
+    }
+  }
 }
 
 macro_rules! define_separated_by {

@@ -1,5 +1,7 @@
 use core::marker::PhantomData;
 
+use crate::{TryParseInput, try_parse_input::ParseAttempt};
+
 use super::*;
 
 /// A parser that sequentially composes two parsers.
@@ -271,6 +273,26 @@ where
   }
 }
 
+impl<'inp, F, T, L, O, U, Ctx, Lang> TryParseInput<'inp, L, U, Ctx, Lang>
+  for AndThen<F, T, O, U, L, Ctx, Lang>
+where
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
+  T: FnMut(O) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<U>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    self
+      .parser
+      .try_parse_input(input)
+      .and_then(|val| val.and_then(&mut self.then))
+  }
+}
+
 /// A parser that sequentially composes two parsers.
 ///
 /// This combinator runs the first parser, then uses its output to determine
@@ -344,6 +366,30 @@ where
       .parser
       .parse_input(input)
       .and_then(|output| (self.then)(output, ParseState::new(input, start)))
+  }
+}
+
+impl<'inp, F, T, L, O, U, Ctx, Lang> TryParseInput<'inp, L, U, Ctx, Lang>
+  for AndThenWith<F, T, O, U, L, Ctx, Lang>
+where
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
+  T: FnMut(
+    O,
+    ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+  ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<U>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    let start = input.cursor().clone();
+    self
+      .parser
+      .try_parse_input(input)
+      .and_then(|val| val.and_then(|output| (self.then)(output, ParseState::new(input, start))))
   }
 }
 
