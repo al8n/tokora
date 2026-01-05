@@ -1,7 +1,8 @@
 use crate::{
-  Check,
+  Check, TryParseInput,
   error::{UnexpectedEot, token::UnexpectedToken},
   span::Span,
+  try_parse_input::ParseAttempt,
 };
 
 use super::*;
@@ -233,6 +234,35 @@ where
       },
       None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
     }
+  }
+}
+
+impl<'inp, L, Ctx, Lang, Classifier> TryParseInput<'inp, L, L::Token, Ctx, Lang>
+  for Expect<Classifier, Ctx, Lang>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<<L::Token as Token<'inp>>::Error>
+    + From<UnexpectedEot<L::Offset, Lang>>,
+  Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<L::Token>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    inp
+      .sync_until_token_inclusive_then_check(|tok, _| {
+        self
+          .is
+          .check(tok.data())
+          .map_err(|e| UnexpectedToken::with_expected_of(tok.span().clone(), e).into())
+      })
+      .map(|opt_tok| match opt_tok {
+        Some(Spanned { data: tok, .. }) => ParseAttempt::Accept(tok),
+        None => ParseAttempt::Decline,
+      })
   }
 }
 

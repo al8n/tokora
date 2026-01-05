@@ -704,6 +704,65 @@ where
   /// Returns the matched token (with consumption) along with the peeked tokens after the matched token.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
+  pub fn sync_until_token_inclusive_then_check<F>(
+    &mut self,
+    mut pred: F,
+  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    F: FnMut(
+      Spanned<&L::Token, &L::Span>,
+      &mut Ctx::Emitter,
+    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    if self.sync_matched_in_cache(|_, _| true, || None)? {
+      if let Some(tok) = self.cache_mut().pop_front() {
+        let (lexed, state) = tok.into_components();
+        let (span, tok) = lexed.into_components();
+        self.set_span_after_consume((&span).into());
+        *self.state = state;
+
+        let tok = Spanned::new(span, tok.expect_token(NOT_ERROR_TOKEN));
+        return Ok(Some(tok));
+      } else {
+        // matched token is not in cache, meaning end of input
+        return Ok(None);
+      }
+    }
+
+    let mut lexer = self.lexer();
+
+    while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
+      match tok {
+        Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
+          Ok(_) => {}
+          Err(e) => {
+            self.set_span_after_consume(lexer.span().into());
+            *self.state = lexer.into_state();
+            return Err(e);
+          }
+        },
+        Lexed::Token(tok) => {
+          let tok = Spanned::new(span, tok);
+          match pred(tok.as_ref(), self.emitter) {
+            Ok(_) => {
+              self.set_span_after_consume(tok.span_ref().into());
+              *self.state = lexer.into_state();
+              return Ok(Some(tok));
+            }
+            Err(e) => return Err(e),
+          }
+        }
+      }
+    }
+
+    Ok(None)
+  }
+
+  /// Skip tokens until the predicate matches, emitting lexer errors along the way.
+  ///
+  /// Returns the matched token (with consumption) along with the peeked tokens after the matched token.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(clippy::type_complexity)]
   pub fn sync_until_inclusive<F, Exp>(
     &mut self,
     mut pred: F,
