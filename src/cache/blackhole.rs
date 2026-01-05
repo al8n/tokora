@@ -68,12 +68,12 @@ macro_rules! blackhole {
       }
 
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn first(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
+      fn front(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
         None
       }
 
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn last(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
+      fn back(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
         None
       }
     }

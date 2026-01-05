@@ -194,7 +194,7 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
   where
     F: FnOnce(CachedTokenRefOf<'_, 'a, L>) -> bool,
   {
-    if let Some(peeked) = self.first() {
+    if let Some(peeked) = self.front() {
       if predicate(peeked) {
         return self.pop_front();
       }
@@ -270,15 +270,15 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
     toks.filter_map(move |tok| self.push_back(tok).err())
   }
 
-  /// Returns a reference to the first (oldest) cached token.
+  /// Returns a reference to the front (oldest) cached token.
   ///
   /// Returns `None` if the cache is empty. This does not remove the token.
-  fn first(&self) -> Option<CachedTokenRefOf<'_, 'a, L>>;
+  fn front(&self) -> Option<CachedTokenRefOf<'_, 'a, L>>;
 
-  /// Returns a reference to the last (newest) cached token.
+  /// Returns a reference to the back (newest) cached token.
   ///
   /// Returns `None` if the cache is empty. This does not remove the token.
-  fn last(&self) -> Option<CachedTokenRefOf<'_, 'a, L>>;
+  fn back(&self) -> Option<CachedTokenRefOf<'_, 'a, L>>;
 
   /// Returns the combined span covering all cached tokens.
   ///
@@ -288,7 +288,7 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
   /// This is useful for error reporting or understanding the range of lookahead.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn span(&self) -> Option<L::Span> {
-    match (self.first(), self.last()) {
+    match (self.front(), self.back()) {
       (Some(first), Some(last)) => Some(L::Span::new(
         first.token().span_ref().start(),
         last.token().span_ref().end(),
@@ -302,11 +302,11 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
   /// Returns `None` if the cache is empty. This is often used to determine
   /// where the next consumed token will come from.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn first_span<'s>(&'s self) -> Option<&'s L::Span>
+  fn front_span<'s>(&'s self) -> Option<&'s L::Span>
   where
     'a: 's,
   {
-    self.first().map(move |t| *t.token().span())
+    self.front().map(move |t| *t.token().span())
   }
 
   /// Returns the span of the last cached token.
@@ -314,11 +314,11 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
   /// Returns `None` if the cache is empty. This can be used to determine
   /// where the cache's lookahead ends.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn last_span<'s>(&'s self) -> Option<&'s L::Span>
+  fn back_span<'s>(&'s self) -> Option<&'s L::Span>
   where
     'a: 's,
   {
-    self.last().map(move |t| *t.token().span())
+    self.back().map(move |t| *t.token().span())
   }
 }
 

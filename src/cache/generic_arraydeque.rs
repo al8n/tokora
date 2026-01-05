@@ -118,12 +118,12 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn first(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
+  fn front(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
     self.front().map(|tok| tok.as_ref())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn last(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
+  fn back(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
     self.back().map(|tok| tok.as_ref())
   }
 }

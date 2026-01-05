@@ -144,6 +144,96 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
       .lex()
       .map(|res| Spanned::new(lexer.span(), res.into()))
   }
+
+  /// Returns the contained [`Lexed::Token`] value, consuming the `self` value.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the value is a [`Lexed::Error`] with a custom panic message provided by
+  /// `msg`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[track_caller]
+  pub fn expect_token(self, msg: &str) -> T {
+    match self {
+      Self::Token(tok) => tok,
+      Self::Error(_) => panic!("{msg}"),
+    }
+  }
+
+  /// Returns the contained [`Lexed::Error`] value, consuming the `self` value.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the value is a [`Lexed::Token`] with a custom panic message provided by
+  /// `msg`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[track_caller]
+  pub fn expect_error(self, msg: &str) -> T::Error {
+    match self {
+      Self::Token(_) => panic!("{msg}"),
+      Self::Error(err) => err,
+    }
+  }
+
+  /// Returns the reference of the contained [`Lexed::Token`] value.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the value is a [`Lexed::Error`] with a custom panic message provided by
+  /// `msg`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[track_caller]
+  pub fn expect_token_ref(&self, msg: &str) -> &T {
+    match self {
+      Self::Token(tok) => tok,
+      Self::Error(_) => panic!("{msg}"),
+    }
+  }
+
+  /// Returns the reference of the contained [`Lexed::Error`] value.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the value is a [`Lexed::Token`] with a custom panic message provided by
+  /// `msg`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[track_caller]
+  pub fn expect_error_ref(&self, msg: &str) -> &T::Error {
+    match self {
+      Self::Token(_) => panic!("{msg}"),
+      Self::Error(err) => err,
+    }
+  }
+
+  /// Returns the mutable reference of the contained [`Lexed::Token`] value.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the value is a [`Lexed::Error`] with a custom panic message provided by
+  /// `msg`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[track_caller]
+  pub fn expect_token_mut(&mut self, msg: &str) -> &mut T {
+    match self {
+      Self::Token(tok) => tok,
+      Self::Error(_) => panic!("{msg}"),
+    }
+  }
+
+  /// Returns the mutable reference of the contained [`Lexed::Error`] value.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the value is a [`Lexed::Token`] with a custom panic message provided by
+  /// `msg`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[track_caller]
+  pub fn expect_error_mut(&mut self, msg: &str) -> &mut T::Error {
+    match self {
+      Self::Token(_) => panic!("{msg}"),
+      Self::Error(err) => err,
+    }
+  }
 }
 
 impl<'a, T: 'a> core::fmt::Display for Lexed<'a, T>
