@@ -253,7 +253,7 @@ where
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<ParseAttempt<L::Token>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     inp
-      .sync_until_token_inclusive_then_check(|tok, _| {
+      .sync_until_token_then_try_consume(|tok, _| {
         self
           .is
           .check(tok.data())

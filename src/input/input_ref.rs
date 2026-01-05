@@ -699,12 +699,13 @@ where
     self.sync_until_inclusive(|_, _| true, || None)
   }
 
-  /// Skip tokens until the predicate matches, emitting lexer errors along the way.
+  /// Skip tokens until meets a valid token, emitting lexer errors along the way.
+  /// If the predicate matches, returns the matched token (with consumption), otherwise, no valid token is consumed.
   ///
   /// Returns the matched token (with consumption) along with the peeked tokens after the matched token.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
-  pub fn sync_until_token_inclusive_then_check<F>(
+  pub fn sync_until_token_then_try_consume<F>(
     &mut self,
     mut pred: F,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -749,7 +750,14 @@ where
               *self.state = lexer.into_state();
               return Ok(Some(tok));
             }
-            Err(e) => return Err(e),
+            Err(e) => {
+              // Cache the lexed token before returning error
+              let _ = self.cache_mut().push_back(CachedToken::new(
+                tok.map_data(Lexed::Token),
+                lexer.into_state(),
+              ));
+              return Err(e);
+            },
           }
         }
       }
