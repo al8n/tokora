@@ -178,11 +178,13 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 pub use accepted::*;
 pub use any::*;
+pub use by_ref::*;
 pub use collect::Collect;
 pub use empty::*;
 pub use expect::*;
 pub use filter::*;
 pub use filter_map::*;
+pub use ident_list::*;
 pub use ignore::*;
 pub use many::*;
 pub use map::*;
@@ -203,12 +205,14 @@ pub use with::*;
 
 mod accepted;
 mod any;
+mod by_ref;
 mod collect;
 mod empty;
 mod expect;
 mod filter;
 mod filter_map;
 mod ident;
+mod ident_list;
 mod ignore;
 mod keyword;
 mod many;

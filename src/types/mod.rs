@@ -83,10 +83,12 @@ use crate::{
 };
 
 pub use ident::*;
+pub use ident_list::*;
 pub use keyword::*;
 pub use lit::*;
 
 mod ident;
+mod ident_list;
 mod keyword;
 mod lit;
 

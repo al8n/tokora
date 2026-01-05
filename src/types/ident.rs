@@ -281,6 +281,16 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
     &mut self.span
   }
 
+  /// Bumps the span of the identifier by the given offset.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn bump(&mut self, by: &Span::Offset) -> &mut Self
+  where
+    Span: crate::span::Span,
+  {
+    self.span.bump(by);
+    self
+  }
+
   /// Returns a mutable reference to the source string.
   ///
   /// Use this to modify the identifier's text, for example during AST

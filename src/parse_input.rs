@@ -196,6 +196,12 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Ignore::new(self)
   }
 
+  /// Creates a parser over a mutable reference to this parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn by_ref(&mut self) -> &mut ByRef<Self> {
+    ByRef::from_ref_mut(self)
+  }
+
   /// Creates a `RepeatedWhile` combinator that applies this parser repeatedly, where **you
   /// provide the lookahead logic**.
   ///
@@ -649,6 +655,21 @@ where
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (self)(input)
+  }
+}
+
+impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInput<'inp, L, O, Ctx, Lang> for &mut ByRef<F>
+where
+  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    (**self).parse_input(input)
   }
 }
 

@@ -1,0 +1,123 @@
+use core::marker::PhantomData;
+
+use crate::{
+  span::{AsSpan, SimpleSpan},
+  types::Ident,
+};
+
+/// A list of identifiers.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct IdentList<S, Span = SimpleSpan, Container = Vec<Ident<S, Span>>, Lang: ?Sized = ()> {
+  span: Span,
+  identifiers: Container,
+  _m: PhantomData<S>,
+  _lang: PhantomData<Lang>,
+}
+
+impl<S, Span, Container, Lang> AsSpan<Span> for IdentList<S, Span, Container, Lang> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn as_span(&self) -> &Span {
+    self.span_ref()
+  }
+}
+
+impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
+  /// Returns `true` if all identifiers in the path are valid.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn is_valid(&self) -> bool
+  where
+    Container: AsRef<[Ident<S, Span, Lang>]>,
+  {
+    self.identifiers.as_ref().iter().all(|seg| seg.is_valid())
+  }
+
+  /// Returns `true` if any segment in the path is an error node.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn is_error(&self) -> bool
+  where
+    Container: AsRef<[Ident<S, Span, Lang>]>,
+  {
+    self.identifiers.as_ref().iter().any(|seg| seg.is_error())
+  }
+
+  /// Returns `true` if any segment in the path is a missing node.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn is_missing(&self) -> bool
+  where
+    Container: AsRef<[Ident<S, Span, Lang>]>,
+  {
+    self.identifiers.as_ref().iter().any(|seg| seg.is_missing())
+  }
+}
+
+impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
+  /// Create a new path.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn new(span: Span, identifiers: Container) -> Self {
+    Self {
+      span,
+      identifiers,
+      _m: PhantomData,
+      _lang: PhantomData,
+    }
+  }
+
+  /// Get the span of the path.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span(&self) -> Span
+  where
+    Span: Copy,
+  {
+    self.span
+  }
+
+  /// Get the reference to the span of the path.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_ref(&self) -> &Span {
+    &self.span
+  }
+
+  /// Get the mutable reference to the span of the path.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn span_mut(&mut self) -> &mut Span {
+    &mut self.span
+  }
+
+  /// Bump the span of the path by the given offset.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn bump(&mut self, by: &Span::Offset) -> &mut Self
+  where
+    Span: crate::span::Span,
+    Container: AsMut<[Ident<S, Span, Lang>]>,
+  {
+    self.span.bump(by);
+    self.identifiers.as_mut().iter_mut().for_each(|seg| {
+      seg.bump(by);
+    });
+    self
+  }
+
+  /// Get the identifiers of the path.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn identifiers(&self) -> &Container {
+    &self.identifiers
+  }
+
+  /// Returns the slice of the path identifiers.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn identifiers_slice(&self) -> &[Ident<S, Span, Lang>]
+  where
+    Container: AsRef<[Ident<S, Span, Lang>]>,
+  {
+    self.identifiers.as_ref()
+  }
+
+  /// Returns `true` if the path has no identifiers.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn is_empty(&self) -> bool
+  where
+    Container: AsRef<[Ident<S, Span, Lang>]>,
+  {
+    self.identifiers.as_ref().is_empty()
+  }
+}

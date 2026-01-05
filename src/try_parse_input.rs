@@ -2,7 +2,7 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use crate::{
   input::InputRef,
-  parser::{Accepted, Repeated, Separated},
+  parser::{Accepted, ByRef, Repeated, Separated},
   punct::*,
   token::PunctuatorToken,
 };
@@ -150,6 +150,12 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Accepted::new(self)
   }
 
+  /// Create a parser over a mutable reference to this parser.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn by_ref(&mut self) -> &mut ByRef<Self> {
+    ByRef::from_ref_mut(self)
+  }
+
   /// Creates a `Repeated` combinator that applies this parser repeatedly until it signals completion.
   ///
   /// The parser will be called repeatedly until:
@@ -243,7 +249,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   );
 }
 
-impl<'inp, L, F, O, Ctx, Lang: ?Sized> TryParseInput<'inp, L, O, Ctx, Lang> for &mut F
+impl<'inp, L, F, O, Ctx, Lang: ?Sized> TryParseInput<'inp, L, O, Ctx, Lang> for F
 where
   F: FnMut(
     &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -257,5 +263,20 @@ where
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (self)(input)
+  }
+}
+
+impl<'inp, L, F, O, Ctx, Lang: ?Sized> TryParseInput<'inp, L, O, Ctx, Lang> for &mut ByRef<F>
+where
+  F: TryParseInput<'inp, L, O, Ctx, Lang>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    (**self).try_parse_input(input)
   }
 }
