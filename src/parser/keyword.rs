@@ -44,7 +44,7 @@ impl Keyword<(), ()> {
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     let end = inp.cursor().as_inner().clone();
-    let tok = inp.sync_until_token()?;
+    let tok = inp.sync_errors()?;
 
     match tok {
       None => Err(UnexpectedEot::eot_of(end).into()),
@@ -108,7 +108,7 @@ impl Keyword<(), ()> {
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     let end = inp.cursor().as_inner().clone();
-    let tok = inp.sync_until_token()?;
+    let tok = inp.sync_errors()?;
 
     match tok {
       None => Err(UnexpectedEot::eot_of(end).into()),
@@ -169,7 +169,7 @@ impl Keyword<(), ()> {
   {
     move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
       let end = inp.cursor().as_inner().clone();
-      let tok = inp.sync_until_token()?;
+      let tok = inp.sync_errors()?;
 
       match tok {
         None => Err(UnexpectedEot::eot_of(end).into()),
@@ -247,7 +247,7 @@ impl Keyword<(), ()> {
   {
     move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
       let end = inp.cursor().as_inner().clone();
-      let tok = inp.sync_until_token()?;
+      let tok = inp.sync_errors()?;
 
       match tok {
         None => Err(UnexpectedEot::eot_of(end).into()),

@@ -62,7 +62,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let ckp = inp.save();
-    let first = inp.sync_until_token()?;
+    let first = inp.sync_errors()?;
 
     let state = match first {
       // End of input reached
@@ -118,7 +118,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
 
     let elems_start = inp.cursor().clone();
     let (elems_span, right) = loop {
-      let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+      let (peeked, emitter) = inp.sync_errors_then_peek_with_emitter::<W>()?;
 
       let peek_span = match peeked.front() {
         None => {
@@ -129,7 +129,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
           );
         }
         Some(tok) => {
-          // the sync_until_token_then_peek_with_emitter guarantees the first token is not a `Lexed::Error`
+          // the sync_errors_then_peek_with_emitter guarantees the first token is not a `Lexed::Error`
           let tok = tok
             .as_maybe_ref()
             .map(

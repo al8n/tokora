@@ -132,6 +132,29 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
   fn rewind(&mut self, checkpoint: &Checkpoint<'a, '_, L>)
   where
     Self: Sized;
+  
+  /// Attempts to add a token to the front of the cache.
+  ///
+  /// If successful, returns `Ok` with a reference to the cached token.
+  /// If the cache is full, returns `Err` with the token so the caller can handle it
+  /// (e.g., by processing it immediately without caching).
+  ///
+  /// # Example
+  ///
+  /// ```ignore
+  /// match cache.push_front(token) {
+  ///     Ok(cached_ref) => {
+  ///         // Token was cached successfully
+  ///     }
+  ///     Err(token) => {
+  ///         // Cache is full, handle token directly
+  ///     }
+  /// }
+  /// ```
+  fn push_front(
+    &mut self,
+    tok: CachedTokenOf<'a, L>,
+  ) -> Result<CachedTokenRefOf<'_, 'a, L>, CachedTokenOf<'a, L>>;
 
   /// Attempts to add a token to the back of the cache.
   ///
@@ -198,6 +221,25 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
       if predicate(peeked) {
         return self.pop_front();
       }
+    }
+    None
+  }
+
+  /// Conditionally removes and returns the front token if it matches a validation predicate.
+  ///
+  /// Peeks at the first token in the cache and checks if it satisfies the predicate.
+  /// If it does, removes and returns it. Otherwise, returns `None` without modifying
+  /// the cache.
+  #[allow(clippy::type_complexity)]
+  fn try_pop_front_if<E, F>(&mut self, predicate: F) -> Option<Result<CachedTokenOf<'a, L>, E>>
+  where
+    F: FnOnce(CachedTokenRefOf<'_, 'a, L>) -> Result<(), E>,
+  {
+    if let Some(peeked) = self.front() {
+      return match predicate(peeked) {
+        Ok(()) => self.pop_front().map(Ok),
+        Err(e) => Some(Err(e)),
+      };
     }
     None
   }

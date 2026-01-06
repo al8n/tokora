@@ -65,6 +65,20 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_front(
+    &mut self,
+    tok: CachedTokenOf<'a, L>,
+  ) -> Result<CachedTokenRefOf<'_, 'a, L>, CachedTokenOf<'a, L>> {
+    match self {
+      Some(_) => Err(tok),
+      None => {
+        *self = Some(tok);
+        Ok(self.as_ref().expect("there must be a token").as_ref())
+      }
+    }
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn push_back(
     &mut self,
     tok: CachedTokenOf<'a, L>,
@@ -115,3 +129,4 @@ where
     self.as_ref().map(|tok| tok.as_ref())
   }
 }
+

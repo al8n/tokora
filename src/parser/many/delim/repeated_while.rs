@@ -45,7 +45,7 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let ckp = inp.save();
-    let first = inp.sync_until_token()?;
+    let first = inp.sync_errors()?;
 
     let state = match first {
       // End of input reached
@@ -96,7 +96,7 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     let mut nums = 0;
 
     loop {
-      let (mut peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+      let (mut peeked, emitter) = inp.sync_errors_then_peek_with_emitter::<W>()?;
 
       if let Some(front) = peeked.front() {
         let tok = front

@@ -57,7 +57,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let ckp = inp.save();
-    let first = inp.sync_until_token()?;
+    let first = inp.sync_errors()?;
 
     let state = match first {
       // End of input reached
@@ -114,7 +114,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
     let elems_start = inp.cursor().clone();
     let mut cursor = elems_start.clone();
     let (elems_span, right) = loop {
-      let peeked = inp.sync_until_token()?;
+      let peeked = inp.sync_errors()?;
 
       let peek_span = match peeked {
         None => {

@@ -45,7 +45,7 @@ impl<'inp, L, P, Open, Close, O, Ctx, Delim, Lang: ?Sized>
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let ckp = inp.save();
-    let first = inp.sync_until_token()?;
+    let first = inp.sync_errors()?;
 
     let state = match first {
       // End of input reached
@@ -124,7 +124,7 @@ impl<'inp, L, P, Open, Close, O, Ctx, Delim, Lang: ?Sized>
         }
         // no more elemnts.
         Ok(Decline) => {
-          let nxt = inp.sync_until_token()?;
+          let nxt = inp.sync_errors()?;
           match nxt {
             None => on_missing_close(inp, inp.span_since(ckp.cursor()))?,
             Some(nxt) => {

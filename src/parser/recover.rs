@@ -119,7 +119,7 @@ where
 /// // Or use a closure (automatic implementation)
 /// parser.inplace_recover(|input, _ckp, _err| {
 ///     // Skip to semicolon from error position
-///     skip_until_semicolon(input)?;
+///     skip_to_semicolon(input)?;
 ///     Ok(Stmt::Error)
 /// })
 /// ```
@@ -214,7 +214,7 @@ where
 /// // Parse statement, recover by skipping to next semicolon
 /// let parser = parse_statement()
 ///     .recover(
-///         skip_until(|tok| matches!(tok, Token::Semicolon))
+///         skip_to(|tok| matches!(tok, Token::Semicolon))
 ///             .then_ignore(any())  // consume semicolon
 ///             .map(|_| Statement::Error)
 ///     );
@@ -367,7 +367,7 @@ where
 /// // Parse statement, skip to semicolon on error
 /// let parser = parse_statement()
 ///     .inplace_recover(
-///         skip_until(|tok| matches!(tok, Token::Semicolon))
+///         skip_to(|tok| matches!(tok, Token::Semicolon))
 ///             .then_ignore(any())
 ///             .map(|_| Statement::Error)
 ///     );
@@ -384,7 +384,7 @@ where
 /// // Parse block item, skip to next closing brace on error
 /// let parser = parse_block_item()
 ///     .inplace_recover(
-///         skip_until(|tok| matches!(tok, Token::RBrace | Token::Semicolon))
+///         skip_to(|tok| matches!(tok, Token::RBrace | Token::Semicolon))
 ///             .map(|_| Item::Error)
 ///     );
 ///
@@ -441,7 +441,7 @@ where
 /// # See Also
 ///
 /// - [`Recover`] - Error recovery with backtracking
-/// - [`skip_until`](crate::parser::InputRef::skip_until) - Common recovery pattern
+/// - [`skip_to`](crate::parser::InputRef::skip_to) - Common recovery pattern
 /// - [`or_not`](OrNot) - Optional parsing without error emission
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct InplaceRecover<P, R, O, L, Ctx, Lang: ?Sized = ()> {

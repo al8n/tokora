@@ -79,6 +79,17 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_front(
+    &mut self,
+    tok: CachedTokenOf<'a, L>,
+  ) -> Result<CachedTokenRefOf<'_, 'a, L>, CachedTokenOf<'a, L>> {
+    match self.push_front_mut(tok) {
+      Ok(tok) => Ok(tok.as_ref()),
+      Err(tok) => Err(tok),
+    }
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn push_back(
     &mut self,
     tok: CachedTokenOf<'a, L>,

@@ -53,7 +53,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     let mut num_elems = 0;
 
     loop {
-      let (peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+      let (peeked, emitter) = inp.sync_errors_then_peek_with_emitter::<W>()?;
 
       let peek_span = match peeked.front() {
         None => {
@@ -61,7 +61,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
           return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
         }
         Some(tok) => {
-          // the sync_until_token_then_peek_with_emitter guarantees the first token is not a `Lexed::Error`
+          // the sync_errors_then_peek_with_emitter guarantees the first token is not a `Lexed::Error`
           let tok = tok
             .as_maybe_ref()
             .map(

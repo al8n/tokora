@@ -53,14 +53,14 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     let mut num_elems = 0;
 
     loop {
-      let tok = inp.sync_until_token()?;
+      let tok = inp.sync_errors()?;
 
       let peek_span = match tok {
         None => {
           return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
         }
         Some(tok) => {
-          // the sync_until_token guarantees the first token is not a `Lexed::Error`
+          // the sync_errors guarantees the first token is not a `Lexed::Error`
           let tok = tok
             .as_maybe_ref()
             .map(|t| t.token().copied(), |t| t.token())

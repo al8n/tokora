@@ -16,8 +16,8 @@ use tokit::{
     syntax::MissingSyntaxOf,
     token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
-  parser::{Action, Expect},
-  punct::{Brace, Bracket, Comma},
+  parser::{Action, Expect, expect},
+  punct::{Brace, Bracket, Colon, Comma},
   span::Spanned,
   token::PunctuatorToken,
   try_parse_input::ParseAttempt,
@@ -382,7 +382,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
-  Expect::new(|t: &Token<'inp>| {
+  expect(|t: &Token<'inp>| {
     if matches!(t, Token::Bool(_)) {
       Ok(())
     } else {
@@ -400,7 +400,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
-  Expect::new(|t: &Token<'inp>| {
+  expect(|t: &Token<'inp>| {
     if matches!(t, Token::Null) {
       Ok(())
     } else {
@@ -418,7 +418,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
-  Expect::new(|t: &Token<'inp>| {
+  expect(|t: &Token<'inp>| {
     if matches!(t, Token::Number(_)) {
       Ok(())
     } else {
@@ -436,7 +436,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
-  Expect::new(|t: &Token<'inp>| {
+  expect(|t: &Token<'inp>| {
     if matches!(t, Token::String(_)) {
       Ok(())
     } else {
@@ -477,7 +477,7 @@ where
     + UnexpectedTrailingSeparatorEmitter<'inp, Comma, JsonLexer<'inp>>,
 {
   string
-    .then_ignore(Expect::new(expect_colon))
+    .then_ignore(Colon::try_parse)
     .then(json_value::<Ctx>)
     .parse_input(inp)
 }

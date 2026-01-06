@@ -392,11 +392,11 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     if self.flavor.clear_leading() {
-      inp.sync_until(|t, _| !t.is_trivia(), || None)?;
+      inp.sync_to(|t, _| !t.is_trivia(), || None)?;
     }
     let output = self.parser.parse_input(inp)?;
     if self.flavor.is_trailing() {
-      inp.sync_until(|t, _| !t.is_trivia(), || None)?;
+      inp.sync_to(|t, _| !t.is_trivia(), || None)?;
     }
     Ok(output)
   }
