@@ -713,10 +713,9 @@ where
       &mut Ctx::Emitter,
     ) -> Result<
       (),
-      UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
     >,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
-      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     let tok = self.sync_to_next_valid_then_try_match_in_cache(&mut pred)?;
 
@@ -739,7 +738,7 @@ where
                 // put back the token into cache as it was peeked
                 let ct = CachedToken::new(tok.map_data(Lexed::Token), self.state.clone());
                 let _ = self.cache_mut().push_back(ct);
-                Err(e.into())
+                Err(e)
               }
             }
           }
@@ -1231,10 +1230,8 @@ where
       &mut Ctx::Emitter,
     ) -> Result<
       (),
-      UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
     >,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
-      From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
   {
     // pop from cache if not matching
     while let Some(tok) = self.cache.pop_front() {
@@ -1255,7 +1252,7 @@ where
         Lexed::Token(tok) => {
           return match pred(Spanned::new(&span, &tok), self.emitter) {
             Ok(_) => Ok(Some(Spanned::new(span, tok))),
-            Err(e) => Err(e.into()),
+            Err(e) => Err(e),
           };
         }
       }

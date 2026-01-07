@@ -124,7 +124,7 @@ where
   ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     inp.expect_valid(|tok, _| match self.is.check(tok.data()) {
       Ok(_) => Ok(()),
-      Err(exp) => Err(UnexpectedToken::with_expected_of(tok.span().clone(), exp)),
+      Err(exp) => Err(UnexpectedToken::with_expected_of(tok.span().clone(), exp).into()),
     })
   }
 }
