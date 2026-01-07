@@ -16,7 +16,7 @@ use tokit::{
     syntax::MissingSyntaxOf,
     token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
-  parser::{Action, Expect, expect},
+  parser::{Action, expect},
   punct::{Brace, Bracket, Colon, Comma},
   span::Spanned,
   token::PunctuatorToken,
@@ -57,6 +57,7 @@ enum JsonError<'a> {
   UnexpectedTrailingComma(UnexpectedTrailingComma<'a, JsonLexer<'a>>),
   UnexpectedLeadingComma(UnexpectedLeadingComma<'a, JsonLexer<'a>>),
   MissingComma(MissingSeparatorOf<'a, Comma, JsonLexer<'a>>),
+  MissingColon(MissingSeparatorOf<'a, Colon, JsonLexer<'a>>),
   MissingElement(MissingSyntaxOf<'a, JsonLexer<'a>>),
   UnopenedBrace(UnopenedBrace<<JsonLexer<'a> as Lexer<'a>>::Span>),
   UnclosedBrace(UnclosedBrace<<JsonLexer<'a> as Lexer<'a>>::Span>),
@@ -112,6 +113,7 @@ impl core::fmt::Debug for JsonError<'_> {
       Self::UnexpectedLeadingComma(err) => err.debug_fmt(f),
       Self::UnexpectedTrailingComma(err) => err.debug_fmt(f),
       Self::MissingComma(err) => err.debug_fmt(f),
+      Self::MissingColon(err) => err.debug_fmt(f),
       Self::MissingElement(err) => err.debug_fmt(f),
       Self::Other(msg) => write!(f, "{}", msg),
     }
@@ -133,6 +135,7 @@ impl core::fmt::Display for JsonError<'_> {
       Self::UnexpectedLeadingComma(err) => err.display_fmt(f),
       Self::UnexpectedTrailingComma(err) => err.display_fmt(f),
       Self::MissingComma(err) => err.display_fmt(f),
+      Self::MissingColon(err) => err.display_fmt(f),
       Self::MissingElement(err) => err.display_fmt(f),
       Self::Other(msg) => write!(f, "{}", msg),
     }
@@ -298,6 +301,13 @@ impl<'inp> TokenT<'inp> for Token<'inp> {
   }
 }
 
+impl From<Colon> for TokenKind {
+  #[inline]
+  fn from(_: Colon) -> Self {
+    TokenKind::Colon
+  }
+}
+
 type JsonLexer<'a> = tokit::lexer::LogosLexer<'a, Token<'a>>;
 
 // Example of using map combinator to extract token values
@@ -364,14 +374,6 @@ fn close_bracket(t: &Token<'_>) -> Result<(), TokenKind> {
     Ok(())
   } else {
     Err(TokenKind::BracketClose)
-  }
-}
-
-fn expect_colon<'inp>(t: &Token<'inp>) -> Result<(), Expected<'inp, TokenKind>> {
-  if matches!(t, Token::Colon) {
-    Ok(())
-  } else {
-    Err(Expected::one(TokenKind::Colon))
   }
 }
 
@@ -477,7 +479,7 @@ where
     + UnexpectedTrailingSeparatorEmitter<'inp, Comma, JsonLexer<'inp>>,
 {
   string
-    .then_ignore(Colon::try_parse)
+    .then_ignore(Colon::parse_of)
     .then(json_value::<Ctx>)
     .parse_input(inp)
 }

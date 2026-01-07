@@ -132,7 +132,7 @@ pub trait Cache<'a, L: Lexer<'a>>: 'a {
   fn rewind(&mut self, checkpoint: &Checkpoint<'a, '_, L>)
   where
     Self: Sized;
-  
+
   /// Attempts to add a token to the front of the cache.
   ///
   /// If successful, returns `Ok` with a reference to the cached token.

@@ -711,7 +711,10 @@ where
     F: FnMut(
       Spanned<&L::Token, &L::Span>,
       &mut Ctx::Emitter,
-    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    ) -> Result<
+      (),
+      UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>,
+    >,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
       + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
   {
@@ -734,17 +737,14 @@ where
               // not matched, put back into cache and return error
               Err(e) => {
                 // put back the token into cache as it was peeked
-                let ct = CachedToken::new(
-                  tok.map_data(Lexed::Token),
-                  self.state.clone(),
-                );
+                let ct = CachedToken::new(tok.map_data(Lexed::Token), self.state.clone());
                 let _ = self.cache_mut().push_back(ct);
-                Err(e)
+                Err(e.into())
               }
             }
           }
         }
-      },
+      }
     }
   }
 
@@ -760,12 +760,14 @@ where
     mut pred: F,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    F: FnMut(
-      Spanned<&L::Token, &L::Span>,
-      &mut Ctx::Emitter,
-    ) -> bool,
+    F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
-    let tok = self.try_sync_to_next_valid_then_try_match_in_cache(&mut pred)?;
+    let (exhausted, tok) = self.try_sync_to_next_valid_then_try_match_in_cache(&mut pred)?;
+
+    if exhausted {
+      return Ok(None);
+    }
 
     match tok {
       // found the token in cache
@@ -784,17 +786,14 @@ where
               // not matched, put back into cache and return error
               false => {
                 // put back the token into cache as it was peeked
-                let ct = CachedToken::new(
-                  tok.map_data(Lexed::Token),
-                  self.state.clone(),
-                );
+                let ct = CachedToken::new(tok.map_data(Lexed::Token), self.state.clone());
                 let _ = self.cache_mut().push_back(ct);
                 Ok(None)
               }
             }
           }
         }
-      },
+      }
     }
   }
 
@@ -867,8 +866,7 @@ where
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
     W: Window,
   {
-    let (tok, peeked, _) =
-      self.sync_through_then_peek_with_emitter::<_, _, W>(pred, exp)?;
+    let (tok, peeked, _) = self.sync_through_then_peek_with_emitter::<_, _, W>(pred, exp)?;
     Ok((tok, peeked))
   }
 
@@ -1187,7 +1185,7 @@ where
       match t.token().data() {
         Lexed::Token(tok) => {
           *matched.borrow_mut() = pred(Spanned::new(span, tok), self.emitter);
-          *matched.borrow()
+          !*matched.borrow()
         }
         Lexed::Error(_) => true,
       }
@@ -1228,7 +1226,15 @@ where
     mut pred: P,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    P: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    P: FnMut(
+      Spanned<&L::Token, &L::Span>,
+      &mut Ctx::Emitter,
+    ) -> Result<
+      (),
+      UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>,
+    >,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+      From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
   {
     // pop from cache if not matching
     while let Some(tok) = self.cache.pop_front() {
@@ -1249,7 +1255,7 @@ where
         Lexed::Token(tok) => {
           return match pred(Spanned::new(&span, &tok), self.emitter) {
             Ok(_) => Ok(Some(Spanned::new(span, tok))),
-            Err(e) => Err(e),
+            Err(e) => Err(e.into()),
           };
         }
       }
@@ -1262,7 +1268,10 @@ where
   fn try_sync_to_next_valid_then_try_match_in_cache<P>(
     &mut self,
     mut pred: P,
-  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  ) -> Result<
+    (bool, Option<Spanned<L::Token, L::Span>>),
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  >
   where
     P: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
   {
@@ -1284,13 +1293,13 @@ where
         }
         Lexed::Token(tok) => {
           return match pred(Spanned::new(&span, &tok), self.emitter) {
-            true => Ok(Some(Spanned::new(span, tok))),
-            false => Ok(None),
+            true => Ok((false, Some(Spanned::new(span, tok)))),
+            false => Ok((false, None)),
           };
         }
       }
     }
-    Ok(None)
+    Ok((true, None))
   }
 }
 

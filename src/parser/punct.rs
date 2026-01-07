@@ -1,10 +1,7 @@
 use super::*;
 
 use crate::{
-  error::UnexpectedEot,
-  punct::*,
-  token::PunctuatorToken,
-  try_parse_input::ParseAttempt,
+  error::UnexpectedEot, punct::*, token::PunctuatorToken, try_parse_input::ParseAttempt,
 };
 
 macro_rules! define_parsers {
@@ -54,24 +51,29 @@ macro_rules! define_parsers {
             L: Lexer<'inp>,
             L::Token: PunctuatorToken<'inp>,
             Ctx: ParseContext<'inp, L>,
-            <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>,
+            <L::Token as Token<'inp>>::Kind: From<$name<()>>,
+            <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
+            + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
           {
             Self::parse_of(inp)
           }
 
           #[doc = "A parser that parses a token and returns `" $name " ` instance if matches for a specific language."]
-          pub fn parse_of<'inp, L, Ctx, Lang: ?Sized>(
-            inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+          pub fn parse_of<'inp, L, Ctx, Lang>(
+            inp: &mut InputRef<'inp, '_, L, Ctx, Lang>
           ) -> Result<$name<L::Span, (), Lang>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
           where
             L: Lexer<'inp>,
             L::Token: PunctuatorToken<'inp>,
+            <L::Token as Token<'inp>>::Kind: From<$name<()>>,
             Ctx: ParseContext<'inp, L, Lang>,
-            <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+            <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>> +
+            From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+            Lang: ?Sized,
           {
-            inp.try_expect_valid(|t, _| {
-              t.data.$fn()
-            }).map(|res| res.map(|tok| $name::new(tok.into_span()).change_language()))
+            (&crate::parser::expect_of(|t: &L::Token| if t.$fn() { Ok(()) } else { Err(Expected::one(<$name>::PHANTOM.into())) }))
+              .parse_input(inp)
+              .map(|spanned| $name::new(spanned.into_span()).change_language())
           }
         }
       )*
