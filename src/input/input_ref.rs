@@ -1,6 +1,7 @@
 #![allow(clippy::type_complexity)]
 
 use core::{
+  convert::identity,
   marker::PhantomData,
   mem::ManuallyDrop,
   ops::{Range, RangeBounds},
@@ -507,45 +508,78 @@ where
   /// Otherwise, the error is returned and the token remains in the cache.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
-  pub fn try_expect<F>(
+  pub fn expect_then_map<O, F, M>(
     &mut self,
     mut pred: F,
+    map: M,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    F: FnMut(
+      Spanned<&L::Token, &L::Span>,
+      &mut Ctx::Emitter,
+    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+    M: FnOnce(Spanned<L::Token, L::Span>) -> O,
+  {
+    let tok = self.sync_to_next_valid_then_try_match_in_cache(&mut pred)?;
+
+    match tok {
+      // found the token in cache
+      Some(tok) => Ok(map(tok)),
+      // need to lex from input
+      None => self.lex_next_valid(pred).and_then(|tok| match tok {
+        Some(tok) => Ok(map(tok)),
+        None => Err(UnexpectedEot::eot_of(self.span().end()).into()),
+      }),
+    }
+  }
+
+  /// Advances to the next valid token and expects it to satisfy the predicate.
+  ///
+  /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
+  /// If `pred` returns `Ok`, the token is consumed and returned.
+  /// Otherwise, the error is returned and the token remains in the cache.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(clippy::type_complexity)]
+  pub fn try_expect<F>(
+    &mut self,
+    pred: F,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
+    self.try_expect_then_map(pred, identity)
+  }
+
+  /// Advances to the next valid token and expects it to satisfy the predicate.
+  ///
+  /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
+  /// If `pred` returns `Ok`, the token is consumed and returned.
+  /// Otherwise, the error is returned and the token remains in the cache.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(clippy::type_complexity)]
+  pub fn try_expect_then_map<O, F, M>(
+    &mut self,
+    mut pred: F,
+    map: M,
+  ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
+    M: FnOnce(Spanned<L::Token, L::Span>) -> O,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+  {
     let (exhausted, tok) = self.try_sync_to_next_valid_then_try_match_in_cache(&mut pred)?;
 
-    if exhausted {
-      return Ok(None);
+    if !exhausted {
+      return Ok(tok.map(map));
     }
 
     match tok {
       // found the token in cache
-      Some(tok) => Ok(Some(tok)),
+      Some(tok) => Ok(Some(map(tok))),
       // need to lex from input
-      None => {
-        // find the next valid token
-        match self.sync_through(|_| true, || None)? {
-          // no more tokens, end of input
-          None => Err(UnexpectedEot::eot_of(self.span().end()).into()),
-          // got a valid token, try to match it
-          Some(tok) => {
-            match pred(tok.as_ref()) {
-              // matched, consume it
-              true => Ok(Some(tok)),
-              // not matched, put back into cache and return error
-              false => {
-                // put back the token into cache as it was peeked
-                let ct = CachedToken::new(tok, self.state.clone());
-                let _ = self.cache_mut().push_back(ct);
-                Ok(None)
-              }
-            }
-          }
-        }
-      }
+      None => self.lex_next_matches(pred).map(|tok| tok.map(map)),
     }
   }
 
@@ -737,8 +771,6 @@ where
     W: Window,
   {
     let mut peeked = GenericArrayDeque::new();
-    // let emitter = self.peek_with_emitter_inner::<W>(&mut peeked);
-
     self
       .peek_with_emitter_inner::<W>(&mut peeked)
       .map(|emitter| (peeked, emitter))
@@ -1016,6 +1048,91 @@ where
       };
     }
     Ok((true, None))
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn lex_next_valid<F>(
+    &mut self,
+    mut pred: F,
+  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    F: FnMut(
+      Spanned<&L::Token, &L::Span>,
+      &mut Ctx::Emitter,
+    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    let mut lexer = self.lexer();
+
+    while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
+      match tok {
+        Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
+          Ok(_) => {}
+          Err(e) => {
+            self.set_span_after_consume(lexer.span().into());
+            *self.state = lexer.into_state();
+            return Err(e);
+          }
+        },
+        Lexed::Token(tok) => {
+          let tok = Spanned::new(span, tok);
+
+          let s = tok.span_ref().clone();
+
+          // if the token matches, we return it
+          let res = match pred(tok.as_ref(), self.emitter) {
+            Ok(_) => Ok(Some(tok)),
+            Err(e) => Err(e),
+          };
+
+          self.set_span_after_consume(s.into());
+          *self.state = lexer.into_state();
+          return res;
+        }
+      }
+    }
+
+    Ok(None)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn lex_next_matches<F>(
+    &mut self,
+    mut pred: F,
+  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
+  {
+    let mut lexer = self.lexer();
+
+    while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
+      match tok {
+        Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
+          Ok(_) => {}
+          Err(e) => {
+            self.set_span_after_consume(lexer.span().into());
+            *self.state = lexer.into_state();
+            return Err(e);
+          }
+        },
+        Lexed::Token(tok) => {
+          let tok = Spanned::new(span, tok);
+          // if the token matches, we return it
+          if pred(tok.as_ref()) {
+            self.set_span_after_consume(tok.span_ref().into());
+            *self.state = lexer.into_state();
+            return Ok(Some(tok));
+          } else {
+            let (span, tok) = tok.into_components();
+            // put back the token into cache as it was peeked
+            let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
+            let _ = self.cache_mut().push_back(ct);
+            return Ok(None);
+          }
+        }
+      }
+    }
+
+    Ok(None)
   }
 }
 
