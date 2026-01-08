@@ -923,33 +923,7 @@ where
       return Ok(Some(Spanned::new(span, lexed)));
     }
 
-    self.next_inner()
-  }
-
-  /// Internal implementation for advancing to the next token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn next_inner(
-    &mut self,
-  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  {
-    let mut lexer = self.lexer();
-    loop {
-      match Lexed::lex_spanned(&mut lexer).inspect(|_| {
-        self.set_span_after_consume(lexer.span().into());
-        *self.state = lexer.state().clone();
-      }) {
-        Some(lexed) => {
-          let (span, lexed) = lexed.into_components();
-          match lexed {
-            Lexed::Token(t) => return Ok(Some(Spanned::new(span, t))),
-            Lexed::Error(e) => {
-              self.emitter().emit_lexer_error(Spanned::new(span, e))?;
-            }
-          }
-        }
-        None => return Ok(None),
-      }
-    }
+    self.lex_next_valid(|_, _| Ok(()))
   }
 
   /// Internal implementation for syncing tokens in the cache.
