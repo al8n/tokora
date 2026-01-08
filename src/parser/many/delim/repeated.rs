@@ -69,10 +69,7 @@ impl<'inp, L, P, Open, Close, O, Ctx, Delim, Lang: ?Sized>
           Ok(_) => {
             // consume the opening delimiter token
             let tok = match maybe_tok {
-              Ref(_) => inp
-                .next()
-                .expect("peeked guarantee there is a next token")
-                .map_data(|t| t.unwrap_token()),
+              Ref(_) => inp.next()?.expect("peeked guarantee there is a next token"),
               Owned(ct) => ct.into_token(),
             };
             Ok(tok)
@@ -134,7 +131,7 @@ impl<'inp, L, P, Open, Close, O, Ctx, Delim, Lang: ?Sized>
 
               if self.right_classifier.check(tok.data()).is_ok() {
                 container.on_close_delimiter(tok);
-                inp.skip_one();
+                inp.next()?;
               } else {
                 on_missing_close(inp, inp.span_since(ckp.cursor()))?;
               }

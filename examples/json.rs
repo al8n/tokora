@@ -4,8 +4,8 @@ use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
-  Accumulator, Branch, Emitter, InputRef, Lexed, Lexer, Parse, ParseChoice, ParseContext,
-  ParseInput, Parser, Token as TokenT, TryParseInput,
+  Accumulator, Branch, Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput,
+  Parser, Token as TokenT, TryParseInput,
   cache::Peeked,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
@@ -336,8 +336,8 @@ impl<'inp> JsonValue<'inp> {
           .as_maybe_ref()
           .map(|t| t.token().copied(), |t| t.token())
           .into_inner();
-        match tok.data() {
-          Lexed::Token(tok) if tok.is_value_start() => Action::Continue,
+        match tok.data().is_value_start() {
+          true => Action::Continue,
           _ => Action::Stop,
         }
       }
@@ -534,18 +534,15 @@ where
             .map(|t| t.token().copied(), |t| t.token())
             .into_inner();
 
-          match tok.data() {
-            Lexed::Token(tok) => Ok(Some(match tok {
-              Token::Bool(_) => Branch::B0,
-              Token::Null => Branch::B1,
-              Token::Number(_) => Branch::B2,
-              Token::String(_) => Branch::B3,
-              Token::BracketOpen => Branch::B4,
-              Token::BraceOpen => Branch::B5,
-              _ => return Ok(None),
-            })),
-            Lexed::Error(e) => Err(e.clone().into()),
-          }
+          Ok(Some(match tok.data() {
+            Token::Bool(_) => Branch::B0,
+            Token::Null => Branch::B1,
+            Token::Number(_) => Branch::B2,
+            Token::String(_) => Branch::B3,
+            Token::BracketOpen => Branch::B4,
+            Token::BraceOpen => Branch::B5,
+            _ => return Ok(None),
+          }))
         }
       },
     )
@@ -583,29 +580,26 @@ where
             .into_inner();
           let span = tok.span();
           match tok.data() {
-            Lexed::Token(tok) => match tok {
-              Token::Bool(_) => Ok(Branch::B0),
-              Token::Null => Ok(Branch::B1),
-              Token::Number(_) => Ok(Branch::B2),
-              Token::String(_) => Ok(Branch::B3),
-              Token::BracketOpen => Ok(Branch::B4),
-              Token::BraceOpen => Ok(Branch::B5),
-              tok => Err(JsonError::UnexpectedToken(
-                UnexpectedToken::expected_one_of(
-                  *span,
-                  &[
-                    TokenKind::Bool,
-                    TokenKind::Null,
-                    TokenKind::Number,
-                    TokenKind::String,
-                    TokenKind::BracketOpen,
-                    TokenKind::BraceOpen,
-                  ],
-                )
-                .with_found(tok.clone()),
-              )),
-            },
-            Lexed::Error(e) => Err(e.clone().into()),
+            Token::Bool(_) => Ok(Branch::B0),
+            Token::Null => Ok(Branch::B1),
+            Token::Number(_) => Ok(Branch::B2),
+            Token::String(_) => Ok(Branch::B3),
+            Token::BracketOpen => Ok(Branch::B4),
+            Token::BraceOpen => Ok(Branch::B5),
+            tok => Err(JsonError::UnexpectedToken(
+              UnexpectedToken::expected_one_of(
+                *span,
+                &[
+                  TokenKind::Bool,
+                  TokenKind::Null,
+                  TokenKind::Number,
+                  TokenKind::String,
+                  TokenKind::BracketOpen,
+                  TokenKind::BraceOpen,
+                ],
+              )
+              .with_found((*tok).clone()),
+            )),
           }
         }
       },

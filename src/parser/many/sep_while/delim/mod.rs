@@ -86,10 +86,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
           Ok(_) => {
             // consume the opening delimiter token
             let tok = match maybe_tok {
-              Ref(_) => inp
-                .next()
-                .expect("peeked guarantee there is a next token")
-                .map_data(|t| t.unwrap_token()),
+              Ref(_) => inp.next()?.expect("peeked guarantee there is a next token"),
               Owned(ct) => ct.into_token(),
             };
             Ok(tok)
@@ -132,10 +129,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
           // the sync_errors_then_peek_with_emitter guarantees the first token is not a `Lexed::Error`
           let tok = tok
             .as_maybe_ref()
-            .map(
-              |t| t.token().map(|t| *t, |t| t.unwrap_token_ref()),
-              |t| t.token().map_data(|t| t.unwrap_token_ref()),
-            )
+            .map(|t| t.token().copied(), |t| t.token())
             .into_inner();
 
           let peek_span = tok.span();
@@ -150,7 +144,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
               Ok(_) => {
                 drop(peeked);
 
-                let Ok(Some(tok)) = inp.next_token() else {
+                let Ok(Some(tok)) = inp.next() else {
                   unreachable!("peeked guarantee there is a next token")
                 };
 
@@ -183,24 +177,26 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
       }
     };
 
-    match right.or_else(|| match inp.peek_one() {
-      None => None,
-      Some(tok) => {
-        let t = tok
-          .as_maybe_ref()
-          .map(
-            |t| t.token().map(|t| *t, |t| t.unwrap_token_ref()),
-            |t| t.token().map_data(|t| t.unwrap_token_ref()),
-          )
-          .into_inner();
+    let right = match right {
+      Some(tok) => Some(tok),
+      None => match inp.peek_one()? {
+        None => None,
+        Some(tok) => {
+          let t = tok
+            .as_maybe_ref()
+            .map(|t| t.token().copied(), |t| t.token())
+            .into_inner();
 
-        if self.right_classifier.check(t.data()).is_ok() {
-          inp.next().map(|t| t.map_data(|t| t.unwrap_token()))
-        } else {
-          None
+          if self.right_classifier.check(t.data()).is_ok() {
+            inp.next()?
+          } else {
+            None
+          }
         }
-      }
-    }) {
+      },
+    };
+
+    match right {
       // missing closing delimiter
       None if has_open => {
         let span = inp.span_since(ckp.cursor());

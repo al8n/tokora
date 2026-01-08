@@ -69,10 +69,7 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
           Ok(_) => {
             // consume the opening delimiter token
             let tok = match maybe_tok {
-              Ref(_) => inp
-                .next()
-                .expect("peeked guarantee there is a next token")
-                .map_data(|t| t.unwrap_token()),
+              Ref(_) => inp.next()?.expect("peeked guarantee there is a next token"),
               Owned(ct) => ct.into_token(),
             };
             Ok(tok)
@@ -101,22 +98,16 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       if let Some(front) = peeked.front() {
         let tok = front
           .as_maybe_ref()
-          .map(
-            |t| t.token().data().unwrap_token_ref(),
-            |t| t.as_ref().token().data().unwrap_token_ref(),
-          )
+          .map(|t| t.token().copied(), |t| t.token())
           .into_inner();
 
         // find the ending delimiter
-        if self.right_classifier.check(tok).is_ok() {
+        if self.right_classifier.check(tok.data()).is_ok() {
           let front = peeked.pop_front().expect("just checked there is a front");
           drop(peeked);
           let close = match front {
-            Ref(_) => inp
-              .next()
-              .expect("peeked guarantee there is a next token")
-              .map_data(|t| t.unwrap_token()),
-            Owned(ct) => ct.into_token().map_data(|t| t.unwrap_token()),
+            Ref(_) => inp.next()?.expect("peeked guarantee there is a next token"),
+            Owned(ct) => ct.into_token(),
           };
           container.on_close_delimiter(close);
 

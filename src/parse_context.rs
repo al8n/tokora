@@ -16,7 +16,7 @@ pub trait ParseContext<'inp, L, Lang: ?Sized = ()> {
     L: Lexer<'inp>;
 
   /// The cache type used for lookahead.
-  type Cache: Cache<'inp, L>
+  type Cache: Cache<'inp, L, Lang>
   where
     L: Lexer<'inp>;
 
@@ -48,7 +48,7 @@ impl<'inp, L, E, C, Lang: ?Sized> ParseContext<'inp, L, Lang> for (E, C)
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L, Lang>,
-  C: Cache<'inp, L>,
+  C: Cache<'inp, L, Lang>,
 {
   type Emitter = E;
   type Cache = C;
@@ -70,7 +70,7 @@ pub struct ParserContext<'inp, L, E, C = DefaultCache<'inp, L>, Lang: ?Sized = (
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L, Lang>,
-  C: Cache<'inp, L>,
+  C: Cache<'inp, L, Lang>,
 {
   emitter: E,
   cache: Option<C::Options>,
@@ -101,7 +101,7 @@ impl<'inp, L, E, C, Lang: ?Sized> ParserContext<'inp, L, E, C, Lang>
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L, Lang>,
-  C: Cache<'inp, L>,
+  C: Cache<'inp, L, Lang>,
 {
   const fn new_in(emitter: E, opts: Option<C::Options>) -> Self {
     Self {
@@ -129,7 +129,7 @@ impl<'inp, L, E, C, Lang: ?Sized> ParseContext<'inp, L, Lang> for ParserContext<
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L, Lang>,
-  C: Cache<'inp, L>,
+  C: Cache<'inp, L, Lang>,
 {
   type Emitter = E;
   type Cache = C;

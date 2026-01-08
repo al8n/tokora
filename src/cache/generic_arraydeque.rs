@@ -1,6 +1,6 @@
 use mayber::Maybe;
 
-use crate::lexer::{Lexed, Lexer};
+use crate::lexer::Lexer;
 
 use super::{
   Cache, CachedToken, CachedTokenOf, CachedTokenRefOf, Checkpoint, MaybeRefCachedTokenOf, Span,
@@ -8,8 +8,8 @@ use super::{
 
 use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 
-impl<'a, L, N> Cache<'a, L>
-  for GenericArrayDeque<CachedToken<Lexed<'a, L::Token>, L::State, L::Span>, N>
+impl<'a, L, Lang: ?Sized, N> Cache<'a, L, Lang>
+  for GenericArrayDeque<CachedToken<L::Token, L::State, L::Span>, N>
 where
   L: Lexer<'a>,
   N: ArrayLength,

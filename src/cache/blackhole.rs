@@ -5,7 +5,7 @@ use super::{
 
 macro_rules! blackhole {
   ($ty:ty) => {
-    impl<'a, L> Cache<'a, L> for $ty
+    impl<'a, L, Lang: ?Sized> Cache<'a, L, Lang> for $ty
     where
       L: Lexer<'a> + 'a,
     {

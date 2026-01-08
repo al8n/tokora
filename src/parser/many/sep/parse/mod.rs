@@ -117,13 +117,13 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   {
     let sep_tok = inp
-      .next()
+      .next()?
       .expect("peeked token already confirmed there must be a token");
     match state {
       // happy path, we found a separator after an element
       State::Element => {
         // Change the current state to Separator.
-        state = State::Separator(sep_tok.map_data(|t| t.unwrap_token()));
+        state = State::Separator(sep_tok);
       }
       // First token is a separator, we found another leading separator
       State::Leading(_) => {
@@ -141,7 +141,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
         // So we push the new separator token into the container,
         // and change the state to Separator.
         // TODO(al8n): return error when separator container is full?
-        let sep = sep_tok.map_data(|t| t.unwrap_token());
+        let sep = sep_tok;
         container.on_separator(sep.clone());
         state = State::Separator(sep);
       }
@@ -149,7 +149,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
       State::Start => {
         // we do not need to check leading spec here, as we cached the leading separator token,
         // the check will be done when we find the first element or reach the end of input
-        let st = sep_tok.map_data(|t| t.unwrap_token());
+        let st = sep_tok;
         handler.handle_start_state(inp, &st)?;
         // TODO(al8n): return error when separator container is full?
         container.on_separator(st.clone());
@@ -165,7 +165,7 @@ impl<'c, 'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
           ))?;
 
         // TODO(al8n): return error when separator container is full?
-        let sep_tok = sep_tok.map_data(|t| t.unwrap_token());
+        let sep_tok = sep_tok;
         container.on_separator(sep_tok.clone());
         state = State::Separator(sep_tok);
       }

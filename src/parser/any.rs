@@ -182,11 +182,8 @@ where
   where
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    match inp.next() {
-      Some(Spanned { data: tok, .. }) => match tok {
-        Lexed::Token(tok) => Ok(tok),
-        Lexed::Error(err) => Err(err.into()),
-      },
+    match inp.next()? {
+      Some(Spanned { data: tok, .. }) => Ok(tok),
       None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
     }
   }
@@ -208,11 +205,8 @@ where
   where
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    match inp.next() {
-      Some(Spanned { data: tok, span }) => match tok {
-        Lexed::Token(tok) => Ok(Spanned::new(span, tok)),
-        Lexed::Error(err) => Err(err.into()),
-      },
+    match inp.next()? {
+      Some(Spanned { data: tok, span }) => Ok(Spanned::new(span, tok)),
       None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
     }
   }
@@ -238,11 +232,8 @@ where
   where
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    match inp.next() {
-      Some(Spanned { data: tok, .. }) => match tok {
-        Lexed::Token(tok) => Ok(Sliced::new(inp.slice(), tok)),
-        Lexed::Error(err) => Err(err.into()),
-      },
+    match inp.next()? {
+      Some(Spanned { data: tok, .. }) => Ok(Sliced::new(inp.slice(), tok)),
       None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
     }
   }
@@ -273,11 +264,8 @@ where
   where
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    match inp.next() {
-      Some(Spanned { data: tok, span }) => match tok {
-        Lexed::Token(tok) => Ok(Located::new(inp.slice(), span, tok)),
-        Lexed::Error(err) => Err(err.into()),
-      },
+    match inp.next()? {
+      Some(Spanned { data: tok, span }) => Ok(Located::new(inp.slice(), span, tok)),
       None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
     }
   }
