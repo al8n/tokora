@@ -351,7 +351,7 @@ where
   where
     W: Window,
   {
-    self.sync_to_then_peek_with_emitter::<_, _, W>(|_, _| true, || None)
+    self.sync_to_then_peek_with_emitter::<_, _, W>(|_| true, || None)
   }
 
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
@@ -371,7 +371,7 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
-    F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
     self
@@ -393,7 +393,7 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
-    F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
     W: Window,
   {
@@ -426,7 +426,7 @@ where
             Lexed::Token(tok) => {
               let tok = Spanned::new(span, tok);
               // if the token matches, we cache it and return it
-              if pred(tok.as_ref(), self.emitter) {
+              if pred(tok.as_ref()) {
                 self.set_span_after_consume(end.into());
                 *self.state = state;
                 return self.peek_with_emitter::<W>();
@@ -478,7 +478,7 @@ where
       // need to lex from input
       None => {
         // find the next valid token
-        match self.sync_through(|_, _| true, || None)? {
+        match self.sync_through(|_| true, || None)? {
           // no more tokens, end of input
           None => Err(UnexpectedEot::eot_of(self.span().end()).into()),
           // got a valid token, try to match it
@@ -512,7 +512,7 @@ where
     mut pred: F,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     let (exhausted, tok) = self.try_sync_to_next_valid_then_try_match_in_cache(&mut pred)?;
@@ -527,12 +527,12 @@ where
       // need to lex from input
       None => {
         // find the next valid token
-        match self.sync_through(|_, _| true, || None)? {
+        match self.sync_through(|_| true, || None)? {
           // no more tokens, end of input
           None => Err(UnexpectedEot::eot_of(self.span().end()).into()),
           // got a valid token, try to match it
           Some(tok) => {
-            match pred(tok.as_ref(), self.emitter) {
+            match pred(tok.as_ref()) {
               // matched, consume it
               true => Ok(Some(tok)),
               // not matched, put back into cache and return error
@@ -560,7 +560,7 @@ where
     mut exp: Exp,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
     if let Some(tok) = self.sync_matched_in_cache(&mut pred, &mut exp)? {
@@ -582,7 +582,7 @@ where
         Lexed::Token(tok) => {
           let tok = Spanned::new(span, tok);
           // if the token matches, we return it
-          if pred(tok.as_ref(), self.emitter) {
+          if pred(tok.as_ref()) {
             self.set_span_after_consume(tok.span_ref().into());
             *self.state = lexer.into_state();
             return Ok(Some(tok));
@@ -614,7 +614,7 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
-    F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
     W: Window,
   {
@@ -640,7 +640,7 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
-    F: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
     W: Window,
   {
@@ -673,7 +673,7 @@ where
             Lexed::Token(tok) => {
               let tok = Spanned::new(span, tok);
               // if the token matches, we cache it and return it
-              if pred(tok.as_ref(), self.emitter) {
+              if pred(tok.as_ref()) {
                 self.set_span_after_consume(tok.span_ref().into());
                 *self.state = lexer.into_state();
                 let (peeked, emitter) = self.peek_with_emitter::<W>()?;
@@ -928,14 +928,14 @@ where
     mut exp: Exp,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    P: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
+    P: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
     let matched = core::cell::RefCell::new(false);
     // pop from cache if not matching
     while let Some(tok) = self.cache.pop_front_if(|t| {
       let span = t.token().span();
-      *matched.borrow_mut() = pred(Spanned::new(span, t.token().data()), self.emitter);
+      *matched.borrow_mut() = pred(Spanned::new(span, t.token().data()));
       !*matched.borrow()
     }) {
       let (lexed, state) = tok.into_components();
@@ -998,7 +998,7 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
-    P: FnMut(Spanned<&L::Token, &L::Span>, &mut Ctx::Emitter) -> bool,
+    P: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
     // pop from cache if not matching
     if let Some(tok) = self.cache.pop_front() {
@@ -1010,7 +1010,7 @@ where
       // Note: cursor/state are updated before emission. If emission fails,
       // the error token has still been consumed (no backtracking here).
 
-      return match pred(Spanned::new(&span, &tok), self.emitter) {
+      return match pred(Spanned::new(&span, &tok)) {
         true => Ok((false, Some(Spanned::new(span, tok)))),
         false => Ok((false, None)),
       };

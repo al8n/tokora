@@ -222,7 +222,7 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   > {
     inp
-      .try_expect(|tok, _| self.is.check(tok.data()))
+      .try_expect(|tok| self.is.check(tok.data()))
       .map(|opt_tok| match opt_tok {
         Some(tok) => ParseAttempt::Accept(tok),
         None => ParseAttempt::Decline,
