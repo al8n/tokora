@@ -40,12 +40,10 @@ impl Ident<(), ()> {
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
-    inp
-      .try_expect_valid(|t, _| t.data.is_identifier())
-      .map(|res| {
-        res
-          .map(|tok| Ident::new(tok.into_span(), inp.slice()))
-          .into()
-      })
+    inp.try_expect(|t, _| t.data.is_identifier()).map(|res| {
+      res
+        .map(|tok| Ident::new(tok.into_span(), inp.slice()))
+        .into()
+    })
   }
 }

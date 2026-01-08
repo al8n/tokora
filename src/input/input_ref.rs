@@ -452,16 +452,6 @@ where
     }
   }
 
-  /// Advances the cursor and returns the next valid token, emitting errors encountered on the way.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[allow(clippy::type_complexity)]
-  pub fn next_valid(
-    &mut self,
-  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  {
-    self.sync_through(|_, _| true, || None)
-  }
-
   /// Advances to the next valid token and expects it to satisfy the predicate.
   ///
   /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
@@ -469,7 +459,7 @@ where
   /// Otherwise, the error is returned and the token remains in the cache.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
-  pub fn expect_valid<F>(
+  pub fn expect<F>(
     &mut self,
     mut pred: F,
   ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -488,7 +478,7 @@ where
       // need to lex from input
       None => {
         // find the next valid token
-        match self.next_valid()? {
+        match self.sync_through(|_, _| true, || None)? {
           // no more tokens, end of input
           None => Err(UnexpectedEot::eot_of(self.span().end()).into()),
           // got a valid token, try to match it
@@ -517,7 +507,7 @@ where
   /// Otherwise, the error is returned and the token remains in the cache.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
-  pub fn try_expect_valid<F>(
+  pub fn try_expect<F>(
     &mut self,
     mut pred: F,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -537,7 +527,7 @@ where
       // need to lex from input
       None => {
         // find the next valid token
-        match self.next_valid()? {
+        match self.sync_through(|_, _| true, || None)? {
           // no more tokens, end of input
           None => Err(UnexpectedEot::eot_of(self.span().end()).into()),
           // got a valid token, try to match it

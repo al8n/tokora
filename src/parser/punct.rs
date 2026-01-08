@@ -38,7 +38,7 @@ macro_rules! define_parsers {
             Ctx: ParseContext<'inp, L, Lang>,
             <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
           {
-            inp.try_expect_valid(|t, _| {
+            inp.try_expect(|t, _| {
               t.data.$fn()
             }).map(|res| res.map(|tok| $name::new(tok.into_span()).change_language()).into())
           }

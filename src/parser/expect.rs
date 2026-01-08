@@ -122,7 +122,7 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    inp.expect_valid(|tok, _| match self.is.check(tok.data()) {
+    inp.expect(|tok, _| match self.is.check(tok.data()) {
       Ok(_) => Ok(()),
       Err(exp) => Err(UnexpectedToken::with_expected_of(tok.span().clone(), exp).into()),
     })
@@ -222,7 +222,7 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   > {
     inp
-      .try_expect_valid(|tok, _| self.is.check(tok.data()))
+      .try_expect(|tok, _| self.is.check(tok.data()))
       .map(|opt_tok| match opt_tok {
         Some(tok) => ParseAttempt::Accept(tok),
         None => ParseAttempt::Decline,
