@@ -554,7 +554,6 @@ where
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     let (exhausted, tok) = self.try_expect_then_map_in_cache(&mut pred)?;
 
@@ -583,7 +582,6 @@ where
   ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> Option<O>,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     let (exhausted, tok) = self.try_expect_map_in_cache(&mut pred)?;
 
@@ -598,37 +596,6 @@ where
       None => self.try_expect_map_on_input(pred),
     }
   }
-
-  // /// Advances to the next valid token and expects it to satisfy the predicate.
-  // ///
-  // /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
-  // /// If `pred` returns `Ok`, the token is consumed and returned.
-  // /// Otherwise, the error is returned and the token remains in the cache.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // #[allow(clippy::type_complexity)]
-  // pub fn try_expect_then_map<O, F, M>(
-  //   &mut self,
-  //   mut pred: F,
-  //   map: M,
-  // ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  // where
-  //   F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
-  //   M: FnOnce(Spanned<L::Token, L::Span>) -> O,
-  //   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-  // {
-  //   let (exhausted, tok) = self.try_expect_then_map_in_cache(&mut pred)?;
-
-  //   if !exhausted {
-  //     return Ok(tok.map(map));
-  //   }
-
-  //   match tok {
-  //     // found the token in cache
-  //     Some(tok) => Ok(Some(map(tok))),
-  //     // need to lex from input
-  //     None => self.try_expect_then_map_on_input(pred).map(|tok| tok.map(map)),
-  //   }
-  // }
 
   /// Advances to the next valid token and expects it to satisfy the predicate.
   ///
@@ -645,7 +612,6 @@ where
     F: FnMut(
       Spanned<&L::Token, &L::Span>,
     ) -> Option<Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>>,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     let (exhausted, tok) = self.try_expect_then_in_cache(&mut pred)?;
 
@@ -660,37 +626,6 @@ where
       None => self.try_expect_then_on_input(pred),
     }
   }
-
-  // /// Advances to the next valid token and expects it to satisfy the predicate.
-  // ///
-  // /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
-  // /// If `pred` returns `Ok`, the token is consumed and returned.
-  // /// Otherwise, the error is returned and the token remains in the cache.
-  // #[cfg_attr(not(tarpaulin), inline(always))]
-  // #[allow(clippy::type_complexity)]
-  // pub fn try_expect_then_apply<O, F, A>(
-  //   &mut self,
-  //   mut pred: F,
-  //   apply: A,
-  // ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  // where
-  //   F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
-  //   A: FnOnce(Spanned<L::Token, L::Span>) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
-  //   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-  // {
-  //   let (exhausted, tok) = self.try_expect_then_map_in_cache(&mut pred)?;
-
-  //   if !exhausted {
-  //     return tok.map(apply).transpose();
-  //   }
-
-  //   match tok {
-  //     // found the token in cache
-  //     Some(tok) => apply(tok).map(Some),
-  //     // need to lex from input
-  //     None => self.try_expect_then_map_on_input(pred).and_then(|tok| tok.map(apply).transpose()),
-  //   }
-  // }
 
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
   ///

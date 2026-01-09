@@ -205,13 +205,30 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
-  TryParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang> for Expect<Classifier, Ctx, Lang>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized> TryParseInput<'inp, L, L::Token, Ctx, Lang>
+  for Expect<Classifier, Ctx, Lang>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
-  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<L::Token>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    (&*self)
+      .try_parse_input(inp)
+      .map(|opt_spanned| opt_spanned.map(|spanned| spanned.into_data()))
+  }
+}
+
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
+  TryParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang> for &Expect<Classifier, Ctx, Lang>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Classifier: Check<L::Token>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn try_parse_input(
@@ -223,10 +240,82 @@ where
   > {
     inp
       .try_expect(|tok| self.is.check(tok.data()))
-      .map(|opt_tok| match opt_tok {
-        Some(tok) => ParseAttempt::Accept(tok),
-        None => ParseAttempt::Decline,
+      .map(Into::into)
+  }
+}
+
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
+  TryParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang>
+  for With<Expect<Classifier, Ctx, Lang>, PhantomSpan>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Classifier: Check<L::Token>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<
+    ParseAttempt<Spanned<L::Token, L::Span>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  > {
+    self.primary().try_parse_input(inp)
+  }
+}
+
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
+  TryParseInput<'inp, L, Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang>
+  for With<Expect<Classifier, Ctx, Lang>, PhantomSliced>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Classifier: Check<L::Token>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<
+    ParseAttempt<Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  > {
+    self.primary().try_parse_input(inp).map(|opt_spanned| {
+      opt_spanned.map(|spanned| {
+        let slice = inp.slice();
+        Sliced::new(slice, spanned.into_data())
       })
+    })
+  }
+}
+
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
+  TryParseInput<
+    'inp,
+    L,
+    Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    Ctx,
+    Lang,
+  > for With<Expect<Classifier, Ctx, Lang>, PhantomLocated>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Classifier: Check<L::Token>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<
+    ParseAttempt<Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  > {
+    self.primary().try_parse_input(inp).map(|opt_spanned| {
+      opt_spanned.map(|spanned| {
+        let (span, tok) = spanned.into_components();
+        Located::new(inp.slice(), span, tok)
+      })
+    })
   }
 }
 
