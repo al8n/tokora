@@ -1,5 +1,5 @@
 use crate::{
-  Check, TryParseInput,
+  Check, Span, TryParseInput,
   error::{UnexpectedEot, token::UnexpectedToken},
   try_parse_input::ParseAttempt,
 };
@@ -122,10 +122,20 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    inp.expect(|tok, _| match self.is.check(tok.data()) {
-      Ok(_) => Ok(()),
-      Err(exp) => Err(UnexpectedToken::with_expected_of(tok.span().clone(), exp).into()),
-    })
+    match inp.next()? {
+      None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
+      Some(tok) => match self.is.check(tok.data()) {
+        Ok(_) => Ok(tok),
+        Err(exp) => {
+          let (span, found) = tok.into_components();
+          Err(
+            UnexpectedToken::<_, _, _, Lang>::with_expected_of(span, exp)
+              .with_found(found)
+              .into(),
+          )
+        }
+      },
+    }
   }
 }
 

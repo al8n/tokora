@@ -92,38 +92,36 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
     let elems_start = inp.cursor().clone();
     let mut cursor = elems_start.clone();
     let (elems_span, right) = loop {
-      let peeked = inp.sync_errors()?;
-
-      let peek_span = match peeked {
-        None => {
-          break (
-            parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
-            None,
-          );
-        }
-        Some(tok) => {
-          let tok = tok
-            .as_maybe_ref()
-            .map(|t| t.token().copied(), |t| t.token())
-            .into_inner();
-
-          let peek_span = tok.span();
-          match tok.data() {
-            t if parser.sep.check(t) => {
-              state = parser.handle_separator(state, inp, container, separator_state_handler)?;
-              cursor = inp.cursor().clone();
-              continue;
+      let mut ps = None;
+      let peek_span = match inp.try_expect_map(|t| {
+        if parser.sep.check(t.data()) {
+          Some(false)
+        } else {
+          match self.right_classifier.check(t.data()) {
+            Ok(_) => Some(true),
+            Err(_) => {
+              ps = Some(t.span().clone());
+              None
             }
-            t => match self.right_classifier.check(t) {
-              Ok(_) => {
-                let Ok(Some(tok)) = inp.next() else {
-                  unreachable!("peeked guarantee there is a next token")
-                };
-
-                break (inp.span_since(&elems_start), Some(tok));
-              }
-              Err(_) => peek_span.clone(),
-            },
+          }
+        }
+      })? {
+        None => match ps {
+          None => {
+            break (
+              parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
+              None,
+            );
+          }
+          Some(span) => span,
+        },
+        Some((is_closed, tok)) => {
+          if is_closed {
+            break (inp.span_since(&elems_start), Some(tok));
+          } else {
+            state = parser.handle_separator(state, inp, container, separator_state_handler, tok)?;
+            cursor = inp.cursor().clone();
+            continue;
           }
         }
       };

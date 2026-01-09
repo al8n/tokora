@@ -1,6 +1,4 @@
-use core::{convert::identity, mem};
-
-use mayber::Maybe::{Owned, Ref};
+use core::mem;
 
 use crate::{
   container::Container as ContainerT,
@@ -62,50 +60,33 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let ckp = inp.save();
-    let first = inp.sync_errors()?;
-
-    let state = match first {
-      // End of input reached
-      None => return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into()),
-      Some(maybe_tok) => {
-        let ct = maybe_tok.as_maybe_ref().map(identity, |t| t.as_ref());
-
-        let tok = ct.token().copied().into_data();
-        match self.left_classifier.check(tok) {
-          Err(knd) => {
-            let (span, tok) = maybe_tok
-              .map(|t| t.into_token().cloned(), |t| t.into_token())
-              .into_inner()
-              .into_components();
-
-            Err(
-              UnexpectedToken::<_, _, _, Lang>::with_expected_of(span, Expected::one(knd))
-                .with_found(tok),
-            )
-          }
-          Ok(_) => {
-            // consume the opening delimiter token
-            let tok = match maybe_tok {
-              Ref(_) => inp.next()?.expect("peeked guarantee there is a next token"),
-              Owned(ct) => ct.into_token(),
-            };
-            Ok(tok)
-          }
+    let mut first_kind = None;
+    let left_delimiter = inp.try_expect(|tok| {
+      let (span, tok) = tok.into_components();
+      match self.left_classifier.check(tok) {
+        Err(knd) => {
+          first_kind =
+            Some(UnexpectedToken::expected_one(span.clone(), knd).with_found(tok.clone()));
+          false
         }
+        Ok(_) => true,
       }
-    };
+    })?;
 
-    // we already handled the first token above
     let mut left_span = None;
-    let has_open = match state {
-      Ok(left) => {
-        left_span = Some(left.span_ref().clone());
-        container.on_open_delimiter(left);
-        true
+    let has_open = match left_delimiter {
+      None if inp.is_eoi() => {
+        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
-      Err(err) => {
-        inp.emitter().emit_unexpected_token(err)?;
+      None => {
+        // safe unwrap as we know when left_delimiter is None, first_kind is Some
+        inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
         false
+      }
+      Some(open) => {
+        left_span = Some(open.span_ref().clone());
+        container.on_open_delimiter(open);
+        true
       }
     };
 

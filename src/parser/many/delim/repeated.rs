@@ -103,20 +103,17 @@ impl<'inp, L, P, Open, Close, O, Ctx, Delim, Lang: ?Sized>
         }
         // no more elemnts.
         Ok(Decline) => {
-          let nxt = inp.sync_errors()?;
-          match nxt {
+          let mut close_kind = None;
+          match inp.try_expect(|t| match self.right_classifier.check(t.data()) {
+            Ok(_) => true,
+            Err(knd) => {
+              close_kind = Some(knd);
+              false
+            }
+          })? {
             None => on_missing_close(inp, inp.span_since(ckp.cursor()))?,
-            Some(nxt) => {
-              let tok = nxt
-                .map(|t| t.into_token().cloned(), |t| t.into_token())
-                .into_inner();
-
-              if self.right_classifier.check(tok.data()).is_ok() {
-                container.on_close_delimiter(tok);
-                inp.next()?;
-              } else {
-                on_missing_close(inp, inp.span_since(ckp.cursor()))?;
-              }
+            Some(close) => {
+              container.on_close_delimiter(close);
             }
           }
 
