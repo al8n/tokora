@@ -316,37 +316,6 @@ where
     Some(tok)
   }
 
-  /// Resynchronize by skipping and emitting lexer errors until a valid token or end of input.
-  ///
-  /// Returns peeked tokens (up to window size) after synchronization.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn sync_errors_then_peek<'p, W>(
-    &'p mut self,
-  ) -> Result<Peeked<'p, 'inp, L, W>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    W: Window,
-  {
-    self
-      .sync_errors_then_peek_with_emitter::<W>()
-      .map(|(out, _)| out)
-  }
-
-  /// Resynchronize by skipping and emitting lexer errors until a valid token or end of input.
-  ///
-  /// Returns peeked tokens and a mutable reference to the emitter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn sync_errors_then_peek_with_emitter<'p, W>(
-    &'p mut self,
-  ) -> Result<
-    (Peeked<'p, 'inp, L, W>, &'p mut Ctx::Emitter),
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
-  >
-  where
-    W: Window,
-  {
-    self.sync_to_then_peek_with_emitter::<_, _, W>(|_| true, || None)
-  }
-
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
   ///
   /// Advances through the stream, emitting each lexer error via the emitter. Stops

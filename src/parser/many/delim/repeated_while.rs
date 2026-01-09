@@ -76,7 +76,7 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     let mut nums = 0;
 
     loop {
-      let (mut peeked, emitter) = inp.sync_errors_then_peek_with_emitter::<W>()?;
+      let (mut peeked, emitter) = inp.peek_with_emitter::<W>()?;
 
       if let Some(front) = peeked.front() {
         let tok = front

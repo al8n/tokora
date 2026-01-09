@@ -290,7 +290,7 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
     let mut nums = 0;
 
     loop {
-      let (peeked, emitter) = inp.sync_errors_then_peek_with_emitter::<W>()?;
+      let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
 
       match self.condition.decide(peeked, emitter) {
         Err(err) => return Err(err),

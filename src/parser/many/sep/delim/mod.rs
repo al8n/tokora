@@ -4,7 +4,7 @@ use crate::{
   TryParseInput,
   container::Container as ContainerT,
   emitter::{DelimitedEmitter, SeparatedEmitter},
-  error::{Unclosed, Undelimited},
+  error::{Unclosed, Undelimited, Unopened},
   try_parse_input::{Accept, Decline},
 };
 
@@ -156,21 +156,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
 
     let right = match right {
       Some(tok) => Some(tok),
-      None => match inp.peek_one()? {
-        None => None,
-        Some(tok) => {
-          let t = tok
-            .as_maybe_ref()
-            .map(|t| t.token().copied(), |t| t.token())
-            .into_inner();
-
-          if self.right_classifier.check(t.data()).is_ok() {
-            inp.next()?
-          } else {
-            None
-          }
-        }
-      },
+      None => inp.try_expect(|t| self.right_classifier.check(t.data()).is_ok())?,
     };
 
     match right {
@@ -188,7 +174,14 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
           .emitter()
           .emit_undelimited(Undelimited::of(span, self.delimiter.clone()))?;
       }
+      Some(right) if has_open => {
+        container.on_close_delimiter(right);
+      }
       Some(right) => {
+        let span = inp.span_since(ckp.cursor());
+        inp
+          .emitter()
+          .emit_unopened(Unopened::of(span, self.delimiter.clone()))?;
         container.on_close_delimiter(right);
       }
     }

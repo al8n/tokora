@@ -96,7 +96,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
 
     let elems_start = inp.cursor().clone();
     let (elems_span, right) = loop {
-      let (peeked, emitter) = inp.sync_errors_then_peek_with_emitter::<W>()?;
+      let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
 
       let peek_span = match peeked.front() {
         None => {
@@ -107,7 +107,6 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
           );
         }
         Some(tok) => {
-          // the sync_errors_then_peek_with_emitter guarantees the first token is not a `Lexed::Error`
           let tok = tok
             .as_maybe_ref()
             .map(|t| t.token().copied(), |t| t.token())
@@ -160,21 +159,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
 
     let right = match right {
       Some(tok) => Some(tok),
-      None => match inp.peek_one()? {
-        None => None,
-        Some(tok) => {
-          let t = tok
-            .as_maybe_ref()
-            .map(|t| t.token().copied(), |t| t.token())
-            .into_inner();
-
-          if self.right_classifier.check(t.data()).is_ok() {
-            inp.next()?
-          } else {
-            None
-          }
-        }
-      },
+      None => inp.try_expect(|t| self.right_classifier.check(t.data()).is_ok())?,
     };
 
     match right {
