@@ -111,6 +111,15 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  fn pop_front_if<F>(&mut self, predicate: F) -> Option<CachedTokenOf<'a, L>>
+  where
+    F: FnOnce(CachedTokenRefOf<'_, 'a, L>) -> bool,
+    L: Lexer<'a>,
+  {
+    self.pop_front_if(|tok| predicate(tok.as_ref()))
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn clear(&mut self) {
     self.clear();
   }
