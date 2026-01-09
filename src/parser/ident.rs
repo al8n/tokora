@@ -1,8 +1,5 @@
 use crate::{
-  error::UnexpectedEot,
-  token::IdentifierToken,
-  try_parse_input::{Accept, Decline, ParseAttempt},
-  types::Ident,
+  error::UnexpectedEot, token::IdentifierToken, try_parse_input::ParseAttempt, types::Ident,
 };
 
 use super::*;
@@ -43,32 +40,10 @@ impl Ident<(), ()> {
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
-    let end = inp.cursor().as_inner().clone();
-    let tok = inp.sync_until_token()?;
-
-    match tok {
-      None => Err(UnexpectedEot::eot_of(end).into()),
-      Some(ct) => {
-        let (span, ident) = ct
-          .map(
-            |t| {
-              let (span, t) = t.into_token().into_components();
-              (span.clone(), t.is_identifier())
-            },
-            |t| {
-              let (span, t) = t.into_token().into_components();
-              (span, t.is_identifier())
-            },
-          )
-          .into_inner();
-
-        if !ident {
-          return Ok(Decline);
-        }
-
-        inp.skip_one();
-        Ok(Accept(Ident::new(span, inp.slice())))
-      }
-    }
+    inp.try_expect(|t| t.data.is_identifier()).map(|res| {
+      res
+        .map(|tok| Ident::new(tok.into_span(), inp.slice()))
+        .into()
+    })
   }
 }

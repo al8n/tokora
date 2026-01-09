@@ -5,7 +5,7 @@ use super::{
 
 macro_rules! blackhole {
   ($ty:ty) => {
-    impl<'a, L> Cache<'a, L> for $ty
+    impl<'a, L, Lang: ?Sized> Cache<'a, L, Lang> for $ty
     where
       L: Lexer<'a> + 'a,
     {
@@ -36,6 +36,14 @@ macro_rules! blackhole {
 
       #[cfg_attr(not(tarpaulin), inline(always))]
       fn rewind(&mut self, _: &Checkpoint<'a, '_, L>) {}
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push_front(
+        &mut self,
+        tok: CachedTokenOf<'a, L>,
+      ) -> Result<CachedTokenRefOf<'_, 'a, L>, CachedTokenOf<'a, L>> {
+        Err(tok)
+      }
 
       #[cfg_attr(not(tarpaulin), inline(always))]
       fn push_back(

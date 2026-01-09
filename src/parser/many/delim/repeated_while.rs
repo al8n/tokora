@@ -1,4 +1,4 @@
-use core::{convert::identity, mem};
+use core::mem;
 
 use mayber::Maybe::{Owned, Ref};
 
@@ -45,78 +45,52 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let ckp = inp.save();
-    let first = inp.sync_until_token()?;
-
-    let state = match first {
-      // End of input reached
-      None => return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into()),
-      Some(maybe_tok) => {
-        let ct = maybe_tok.as_maybe_ref().map(identity, |t| t.as_ref());
-
-        let tok = ct.token().copied().into_data();
-        match self.left_classifier.check(tok) {
-          Err(knd) => {
-            let (span, tok) = maybe_tok
-              .map(|t| t.into_token().cloned(), |t| t.into_token())
-              .into_inner()
-              .into_components();
-
-            Err(
-              UnexpectedToken::<_, _, _, Lang>::with_expected_of(span, Expected::one(knd))
-                .with_found(tok),
-            )
-          }
-          Ok(_) => {
-            // consume the opening delimiter token
-            let tok = match maybe_tok {
-              Ref(_) => inp
-                .next()
-                .expect("peeked guarantee there is a next token")
-                .map_data(|t| t.unwrap_token()),
-              Owned(ct) => ct.into_token(),
-            };
-            Ok(tok)
-          }
+    let mut first_kind = None;
+    let left_delimiter = inp.try_expect(|tok| {
+      let (span, tok) = tok.into_components();
+      match self.left_classifier.check(tok) {
+        Err(knd) => {
+          first_kind =
+            Some(UnexpectedToken::expected_one(span.clone(), knd).with_found(tok.clone()));
+          false
         }
+        Ok(_) => true,
       }
-    };
+    })?;
 
-    // we already handled the first token above
-    let has_open = match state {
-      Ok(left) => {
-        container.on_open_delimiter(left);
-        true
+    let has_open = match left_delimiter {
+      None if inp.is_eoi() => {
+        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
-      Err(err) => {
-        inp.emitter().emit_unexpected_token(err)?;
+      None => {
+        // safe unwrap as we know when left_delimiter is None, first_kind is Some
+        inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
         false
+      }
+      Some(open) => {
+        container.on_open_delimiter(open);
+        true
       }
     };
 
     let mut nums = 0;
 
     loop {
-      let (mut peeked, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+      let (mut peeked, emitter) = inp.peek_with_emitter::<W>()?;
 
       if let Some(front) = peeked.front() {
         let tok = front
           .as_maybe_ref()
-          .map(
-            |t| t.token().data().unwrap_token_ref(),
-            |t| t.as_ref().token().data().unwrap_token_ref(),
-          )
+          .map(|t| t.token().copied(), |t| t.token())
           .into_inner();
 
         // find the ending delimiter
-        if self.right_classifier.check(tok).is_ok() {
+        if self.right_classifier.check(tok.data()).is_ok() {
           let front = peeked.pop_front().expect("just checked there is a front");
           drop(peeked);
           let close = match front {
-            Ref(_) => inp
-              .next()
-              .expect("peeked guarantee there is a next token")
-              .map_data(|t| t.unwrap_token()),
-            Owned(ct) => ct.into_token().map_data(|t| t.unwrap_token()),
+            Ref(_) => inp.next()?.expect("peeked guarantee there is a next token"),
+            Owned(ct) => ct.into_token(),
           };
           container.on_close_delimiter(close);
 

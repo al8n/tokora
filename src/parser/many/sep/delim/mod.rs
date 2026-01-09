@@ -1,12 +1,10 @@
-use core::{convert::identity, mem};
-
-use mayber::Maybe::{Owned, Ref};
+use core::mem;
 
 use crate::{
   TryParseInput,
   container::Container as ContainerT,
   emitter::{DelimitedEmitter, SeparatedEmitter},
-  error::{Unclosed, Undelimited},
+  error::{Unclosed, Undelimited, Unopened},
   try_parse_input::{Accept, Decline},
 };
 
@@ -57,53 +55,33 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let ckp = inp.save();
-    let first = inp.sync_until_token()?;
-
-    let state = match first {
-      // End of input reached
-      None => return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into()),
-      Some(maybe_tok) => {
-        let ct = maybe_tok.as_maybe_ref().map(identity, |t| t.as_ref());
-
-        let tok = ct.token().copied().into_data();
-        match self.left_classifier.check(tok) {
-          Err(knd) => {
-            let (span, tok) = maybe_tok
-              .map(|t| t.into_token().cloned(), |t| t.into_token())
-              .into_inner()
-              .into_components();
-
-            Err(
-              UnexpectedToken::<_, _, _, Lang>::with_expected_of(span, Expected::one(knd))
-                .with_found(tok),
-            )
-          }
-          Ok(_) => {
-            // consume the opening delimiter token
-            let tok = match maybe_tok {
-              Ref(_) => inp
-                .next()
-                .expect("peeked guarantee there is a next token")
-                .map_data(|t| t.unwrap_token()),
-              Owned(ct) => ct.into_token(),
-            };
-            Ok(tok)
-          }
+    let mut first_kind = None;
+    let left_delimiter = inp.try_expect(|tok| {
+      let (span, tok) = tok.into_components();
+      match self.left_classifier.check(tok) {
+        Err(knd) => {
+          first_kind =
+            Some(UnexpectedToken::expected_one(span.clone(), knd).with_found(tok.clone()));
+          false
         }
+        Ok(_) => true,
       }
-    };
+    })?;
 
-    // we already handled the first token above
     let mut left_span = None;
-    let has_open = match state {
-      Ok(left) => {
-        left_span = Some(left.span_ref().clone());
-        container.on_open_delimiter(left);
-        true
+    let has_open = match left_delimiter {
+      None if inp.is_eoi() => {
+        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
-      Err(err) => {
-        inp.emitter().emit_unexpected_token(err)?;
+      None => {
+        // safe unwrap as we know when left_delimiter is None, first_kind is Some
+        inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
         false
+      }
+      Some(open) => {
+        left_span = Some(open.span_ref().clone());
+        container.on_open_delimiter(open);
+        true
       }
     };
 
@@ -114,38 +92,36 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
     let elems_start = inp.cursor().clone();
     let mut cursor = elems_start.clone();
     let (elems_span, right) = loop {
-      let peeked = inp.sync_until_token()?;
-
-      let peek_span = match peeked {
-        None => {
-          break (
-            parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
-            None,
-          );
-        }
-        Some(tok) => {
-          let tok = tok
-            .as_maybe_ref()
-            .map(|t| t.token().copied(), |t| t.token())
-            .into_inner();
-
-          let peek_span = tok.span();
-          match tok.data() {
-            t if parser.sep.check(t) => {
-              state = parser.handle_separator(state, inp, container, separator_state_handler)?;
-              cursor = inp.cursor().clone();
-              continue;
+      let mut ps = None;
+      let peek_span = match inp.try_expect_map(|t| {
+        if parser.sep.check(t.data()) {
+          Some(false)
+        } else {
+          match self.right_classifier.check(t.data()) {
+            Ok(_) => Some(true),
+            Err(_) => {
+              ps = Some(t.span().clone());
+              None
             }
-            t => match self.right_classifier.check(t) {
-              Ok(_) => {
-                let Ok(Some(tok)) = inp.next_token() else {
-                  unreachable!("peeked guarantee there is a next token")
-                };
-
-                break (inp.span_since(&elems_start), Some(tok));
-              }
-              Err(_) => peek_span.clone(),
-            },
+          }
+        }
+      })? {
+        None => match ps {
+          None => {
+            break (
+              parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
+              None,
+            );
+          }
+          Some(span) => span,
+        },
+        Some((is_closed, tok)) => {
+          if is_closed {
+            break (inp.span_since(&elems_start), Some(tok));
+          } else {
+            state = parser.handle_separator(state, inp, container, separator_state_handler, tok)?;
+            cursor = inp.cursor().clone();
+            continue;
           }
         }
       };
@@ -178,24 +154,12 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
       cursor = inp.cursor().clone();
     };
 
-    match right.or_else(|| match inp.peek_one() {
-      None => None,
-      Some(tok) => {
-        let t = tok
-          .as_maybe_ref()
-          .map(
-            |t| t.token().map(|t| *t, |t| t.unwrap_token_ref()),
-            |t| t.token().map_data(|t| t.unwrap_token_ref()),
-          )
-          .into_inner();
+    let right = match right {
+      Some(tok) => Some(tok),
+      None => inp.try_expect(|t| self.right_classifier.check(t.data()).is_ok())?,
+    };
 
-        if self.right_classifier.check(t.data()).is_ok() {
-          inp.next().map(|t| t.map_data(|t| t.unwrap_token()))
-        } else {
-          None
-        }
-      }
-    }) {
+    match right {
       // missing closing delimiter
       None if has_open => {
         let span = inp.span_since(ckp.cursor());
@@ -210,7 +174,14 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Ctx, Delim, Lang: ?Sized>
           .emitter()
           .emit_undelimited(Undelimited::of(span, self.delimiter.clone()))?;
       }
+      Some(right) if has_open => {
+        container.on_close_delimiter(right);
+      }
       Some(right) => {
+        let span = inp.span_since(ckp.cursor());
+        inp
+          .emitter()
+          .emit_unopened(Unopened::of(span, self.delimiter.clone()))?;
         container.on_close_delimiter(right);
       }
     }

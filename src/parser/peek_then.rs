@@ -165,7 +165,7 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+    let (output, emitter) = inp.peek_with_emitter::<W>()?;
     (self.handler)(output, emitter).and_then(|_| self.parser.parse_input(inp))
   }
 }
@@ -184,7 +184,7 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+    let (output, emitter) = inp.peek_with_emitter::<W>()?;
 
     if output.is_empty() {
       return Ok(ParseAttempt::Decline);

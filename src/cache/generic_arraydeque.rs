@@ -1,6 +1,6 @@
 use mayber::Maybe;
 
-use crate::lexer::{Lexed, Lexer};
+use crate::lexer::Lexer;
 
 use super::{
   Cache, CachedToken, CachedTokenOf, CachedTokenRefOf, Checkpoint, MaybeRefCachedTokenOf, Span,
@@ -8,8 +8,8 @@ use super::{
 
 use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 
-impl<'a, L, N> Cache<'a, L>
-  for GenericArrayDeque<CachedToken<Lexed<'a, L::Token>, L::State, L::Span>, N>
+impl<'a, L, Lang: ?Sized, N> Cache<'a, L, Lang>
+  for GenericArrayDeque<CachedToken<L::Token, L::State, L::Span>, N>
 where
   L: Lexer<'a>,
   N: ArrayLength,
@@ -79,6 +79,17 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_front(
+    &mut self,
+    tok: CachedTokenOf<'a, L>,
+  ) -> Result<CachedTokenRefOf<'_, 'a, L>, CachedTokenOf<'a, L>> {
+    match self.push_front_mut(tok) {
+      Ok(tok) => Ok(tok.as_ref()),
+      Err(tok) => Err(tok),
+    }
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn push_back(
     &mut self,
     tok: CachedTokenOf<'a, L>,
@@ -97,6 +108,15 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn pop_back(&mut self) -> Option<CachedTokenOf<'a, L>> {
     self.pop_back()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn pop_front_if<F>(&mut self, predicate: F) -> Option<CachedTokenOf<'a, L>>
+  where
+    F: FnOnce(CachedTokenRefOf<'_, 'a, L>) -> bool,
+    L: Lexer<'a>,
+  {
+    self.pop_front_if(|tok| predicate(tok.as_ref()))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

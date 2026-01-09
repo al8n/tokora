@@ -173,7 +173,7 @@ let parser = parse_function()
 // Parse statement, skip to semicolon on error
 let parser = parse_statement()
     .inplace_recover(
-        skip_until(|tok| matches!(tok, Token::Semicolon))
+        skip_to(|tok| matches!(tok, Token::Semicolon))
             .then_ignore(any())
             .map(|_| Statement::Error)
     );

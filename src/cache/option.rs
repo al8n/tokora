@@ -1,13 +1,13 @@
 use generic_arraydeque::GenericArrayDeque;
 use mayber::Maybe;
 
-use crate::lexer::{Lexed, Lexer};
+use crate::lexer::Lexer;
 
 use super::{
   Cache, CachedToken, CachedTokenOf, CachedTokenRefOf, Checkpoint, MaybeRefCachedTokenOf, Span,
 };
 
-impl<'a, L> Cache<'a, L> for Option<CachedToken<Lexed<'a, L::Token>, L::State, L::Span>>
+impl<'a, L, Lang: ?Sized> Cache<'a, L, Lang> for Option<CachedToken<L::Token, L::State, L::Span>>
 where
   L: Lexer<'a>,
 {
@@ -62,6 +62,20 @@ where
     }
 
     *self = None;
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push_front(
+    &mut self,
+    tok: CachedTokenOf<'a, L>,
+  ) -> Result<CachedTokenRefOf<'_, 'a, L>, CachedTokenOf<'a, L>> {
+    match self {
+      Some(_) => Err(tok),
+      None => {
+        *self = Some(tok);
+        Ok(self.as_ref().expect("there must be a token").as_ref())
+      }
+    }
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

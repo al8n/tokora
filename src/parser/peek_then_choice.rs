@@ -138,7 +138,7 @@ where
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let id = {
-      let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+      let (output, emitter) = inp.peek_with_emitter::<W>()?;
       (self.handler)(output, emitter)?
     };
     self.parser.parse_choice(inp, &id)
@@ -163,7 +163,7 @@ where
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let id = {
-      let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+      let (output, emitter) = inp.peek_with_emitter::<W>()?;
       (self.handler)(output, emitter)?
     };
     self.parser.try_parse_choice(inp, id.as_ref())
@@ -188,7 +188,7 @@ where
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let id = {
-      let (output, emitter) = inp.sync_until_token_then_peek_with_emitter::<W>()?;
+      let (output, emitter) = inp.peek_with_emitter::<W>()?;
 
       if output.is_empty() {
         return Ok(None);

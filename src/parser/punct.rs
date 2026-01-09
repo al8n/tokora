@@ -1,11 +1,7 @@
 use super::*;
 
 use crate::{
-  TryParseInput,
-  error::UnexpectedEot,
-  punct::*,
-  token::PunctuatorToken,
-  try_parse_input::{Accept, Decline, ParseAttempt},
+  error::UnexpectedEot, punct::*, token::PunctuatorToken, try_parse_input::ParseAttempt,
 };
 
 macro_rules! define_parsers {
@@ -42,53 +38,42 @@ macro_rules! define_parsers {
             Ctx: ParseContext<'inp, L, Lang>,
             <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
           {
-            <$name>::new(()).try_parse_input(inp)
+            inp.try_expect(|t| {
+              t.data.$fn()
+            }).map(|res| res.map(|tok| $name::new(tok.into_span()).change_language()).into())
           }
-        }
 
-        impl<'inp, L, Ctx, Lang> TryParseInput<'inp, L, $name<L::Span, (), Lang>, Ctx, Lang>
-          for $name
-        where
-          L: Lexer<'inp>,
-          L::Token: PunctuatorToken<'inp>,
-          Ctx: ParseContext<'inp, L, Lang>,
-          <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-          Lang: ?Sized,
-        {
-          #[cfg_attr(not(tarpaulin), inline(always))]
-          fn try_parse_input(
-            &mut self,
-            inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-          ) -> Result<
-            ParseAttempt<$name<L::Span, (), Lang>>,
-            <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
-          > {
-            let end = inp.cursor().as_inner().clone();
-            let tok = inp.sync_until_token()?;
+          #[doc = "A parser that parses a token and returns `" $name "` instance if matches."]
+          pub fn parse<'inp, L, Ctx>(
+            inp: &mut InputRef<'inp, '_, L, Ctx>,
+          ) -> Result<$name<L::Span, ()>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
+          where
+            L: Lexer<'inp>,
+            L::Token: PunctuatorToken<'inp>,
+            Ctx: ParseContext<'inp, L>,
+            <L::Token as Token<'inp>>::Kind: From<$name<()>>,
+            <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
+            + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
+          {
+            Self::parse_of(inp)
+          }
 
-            match tok {
-              None => Err(UnexpectedEot::eot_of(end).into()),
-              Some(ct) => {
-                let (span, matches) = ct
-                  .map(
-                    |t| {
-                      let (span, tok) = t.into_token().into_components();
-                      (span.clone(), tok.$fn())
-                    },
-                    |t| {
-                      let (span, tok) = t.into_token().into_components();
-                      (span, tok.$fn())
-                    },
-                  )
-                  .into_inner();
-                if matches {
-                  inp.skip_one();
-                  Ok(Accept($name::new(span).change_language()))
-                } else {
-                  Ok(Decline)
-                }
-              }
-            }
+          #[doc = "A parser that parses a token and returns `" $name " ` instance if matches for a specific language."]
+          pub fn parse_of<'inp, L, Ctx, Lang>(
+            inp: &mut InputRef<'inp, '_, L, Ctx, Lang>
+          ) -> Result<$name<L::Span, (), Lang>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+          where
+            L: Lexer<'inp>,
+            L::Token: PunctuatorToken<'inp>,
+            <L::Token as Token<'inp>>::Kind: From<$name<()>>,
+            Ctx: ParseContext<'inp, L, Lang>,
+            <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>> +
+            From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+            Lang: ?Sized,
+          {
+            (&crate::parser::expect_of(|t: &L::Token| if t.$fn() { Ok(()) } else { Err(Expected::one(<$name>::PHANTOM.into())) }))
+              .parse_input(inp)
+              .map(|spanned| $name::new(spanned.into_span()).change_language())
           }
         }
       )*

@@ -4,8 +4,8 @@ use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
 use logos::Logos;
 use tokit::{
-  Accumulator, Branch, Emitter, InputRef, Lexed, Lexer, Parse, ParseChoice, ParseContext,
-  ParseInput, Parser, Token as TokenT, TryParseInput,
+  Accumulator, Branch, Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput,
+  Parser, Token as TokenT, TryParseInput,
   cache::Peeked,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
@@ -16,8 +16,8 @@ use tokit::{
     syntax::MissingSyntaxOf,
     token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
-  parser::{Action, Expect},
-  punct::{Brace, Bracket, Comma},
+  parser::{Action, expect},
+  punct::{Brace, Bracket, Colon, Comma},
   span::Spanned,
   token::PunctuatorToken,
   try_parse_input::ParseAttempt,
@@ -57,6 +57,7 @@ enum JsonError<'a> {
   UnexpectedTrailingComma(UnexpectedTrailingComma<'a, JsonLexer<'a>>),
   UnexpectedLeadingComma(UnexpectedLeadingComma<'a, JsonLexer<'a>>),
   MissingComma(MissingSeparatorOf<'a, Comma, JsonLexer<'a>>),
+  MissingColon(MissingSeparatorOf<'a, Colon, JsonLexer<'a>>),
   MissingElement(MissingSyntaxOf<'a, JsonLexer<'a>>),
   UnopenedBrace(UnopenedBrace<<JsonLexer<'a> as Lexer<'a>>::Span>),
   UnclosedBrace(UnclosedBrace<<JsonLexer<'a> as Lexer<'a>>::Span>),
@@ -112,6 +113,7 @@ impl core::fmt::Debug for JsonError<'_> {
       Self::UnexpectedLeadingComma(err) => err.debug_fmt(f),
       Self::UnexpectedTrailingComma(err) => err.debug_fmt(f),
       Self::MissingComma(err) => err.debug_fmt(f),
+      Self::MissingColon(err) => err.debug_fmt(f),
       Self::MissingElement(err) => err.debug_fmt(f),
       Self::Other(msg) => write!(f, "{}", msg),
     }
@@ -133,6 +135,7 @@ impl core::fmt::Display for JsonError<'_> {
       Self::UnexpectedLeadingComma(err) => err.display_fmt(f),
       Self::UnexpectedTrailingComma(err) => err.display_fmt(f),
       Self::MissingComma(err) => err.display_fmt(f),
+      Self::MissingColon(err) => err.display_fmt(f),
       Self::MissingElement(err) => err.display_fmt(f),
       Self::Other(msg) => write!(f, "{}", msg),
     }
@@ -298,6 +301,13 @@ impl<'inp> TokenT<'inp> for Token<'inp> {
   }
 }
 
+impl From<Colon> for TokenKind {
+  #[inline]
+  fn from(_: Colon) -> Self {
+    TokenKind::Colon
+  }
+}
+
 type JsonLexer<'a> = tokit::lexer::LogosLexer<'a, Token<'a>>;
 
 // Example of using map combinator to extract token values
@@ -326,8 +336,8 @@ impl<'inp> JsonValue<'inp> {
           .as_maybe_ref()
           .map(|t| t.token().copied(), |t| t.token())
           .into_inner();
-        match tok.data() {
-          Lexed::Token(tok) if tok.is_value_start() => Action::Continue,
+        match tok.data().is_value_start() {
+          true => Action::Continue,
           _ => Action::Stop,
         }
       }
@@ -367,14 +377,6 @@ fn close_bracket(t: &Token<'_>) -> Result<(), TokenKind> {
   }
 }
 
-fn expect_colon<'inp>(t: &Token<'inp>) -> Result<(), Expected<'inp, TokenKind>> {
-  if matches!(t, Token::Colon) {
-    Ok(())
-  } else {
-    Err(Expected::one(TokenKind::Colon))
-  }
-}
-
 fn boolean<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
 ) -> Result<bool, JsonError<'inp>>
@@ -382,7 +384,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
-  Expect::new(|t: &Token<'inp>| {
+  expect(|t: &Token<'inp>| {
     if matches!(t, Token::Bool(_)) {
       Ok(())
     } else {
@@ -400,7 +402,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
-  Expect::new(|t: &Token<'inp>| {
+  expect(|t: &Token<'inp>| {
     if matches!(t, Token::Null) {
       Ok(())
     } else {
@@ -418,7 +420,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
-  Expect::new(|t: &Token<'inp>| {
+  expect(|t: &Token<'inp>| {
     if matches!(t, Token::Number(_)) {
       Ok(())
     } else {
@@ -436,7 +438,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>,
 {
-  Expect::new(|t: &Token<'inp>| {
+  expect(|t: &Token<'inp>| {
     if matches!(t, Token::String(_)) {
       Ok(())
     } else {
@@ -477,7 +479,7 @@ where
     + UnexpectedTrailingSeparatorEmitter<'inp, Comma, JsonLexer<'inp>>,
 {
   string
-    .then_ignore(Expect::new(expect_colon))
+    .then_ignore(Colon::parse_of)
     .then(json_value::<Ctx>)
     .parse_input(inp)
 }
@@ -532,18 +534,15 @@ where
             .map(|t| t.token().copied(), |t| t.token())
             .into_inner();
 
-          match tok.data() {
-            Lexed::Token(tok) => Ok(Some(match tok {
-              Token::Bool(_) => Branch::B0,
-              Token::Null => Branch::B1,
-              Token::Number(_) => Branch::B2,
-              Token::String(_) => Branch::B3,
-              Token::BracketOpen => Branch::B4,
-              Token::BraceOpen => Branch::B5,
-              _ => return Ok(None),
-            })),
-            Lexed::Error(e) => Err(e.clone().into()),
-          }
+          Ok(Some(match tok.data() {
+            Token::Bool(_) => Branch::B0,
+            Token::Null => Branch::B1,
+            Token::Number(_) => Branch::B2,
+            Token::String(_) => Branch::B3,
+            Token::BracketOpen => Branch::B4,
+            Token::BraceOpen => Branch::B5,
+            _ => return Ok(None),
+          }))
         }
       },
     )
@@ -581,29 +580,26 @@ where
             .into_inner();
           let span = tok.span();
           match tok.data() {
-            Lexed::Token(tok) => match tok {
-              Token::Bool(_) => Ok(Branch::B0),
-              Token::Null => Ok(Branch::B1),
-              Token::Number(_) => Ok(Branch::B2),
-              Token::String(_) => Ok(Branch::B3),
-              Token::BracketOpen => Ok(Branch::B4),
-              Token::BraceOpen => Ok(Branch::B5),
-              tok => Err(JsonError::UnexpectedToken(
-                UnexpectedToken::expected_one_of(
-                  *span,
-                  &[
-                    TokenKind::Bool,
-                    TokenKind::Null,
-                    TokenKind::Number,
-                    TokenKind::String,
-                    TokenKind::BracketOpen,
-                    TokenKind::BraceOpen,
-                  ],
-                )
-                .with_found(tok.clone()),
-              )),
-            },
-            Lexed::Error(e) => Err(e.clone().into()),
+            Token::Bool(_) => Ok(Branch::B0),
+            Token::Null => Ok(Branch::B1),
+            Token::Number(_) => Ok(Branch::B2),
+            Token::String(_) => Ok(Branch::B3),
+            Token::BracketOpen => Ok(Branch::B4),
+            Token::BraceOpen => Ok(Branch::B5),
+            tok => Err(JsonError::UnexpectedToken(
+              UnexpectedToken::expected_one_of(
+                *span,
+                &[
+                  TokenKind::Bool,
+                  TokenKind::Null,
+                  TokenKind::Number,
+                  TokenKind::String,
+                  TokenKind::BracketOpen,
+                  TokenKind::BraceOpen,
+                ],
+              )
+              .with_found((*tok).clone()),
+            )),
           }
         }
       },
