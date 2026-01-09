@@ -120,9 +120,6 @@ where
       self.set_span_after_consume((&span).into());
       *self.state = state;
 
-      // Note: cursor/state are updated before emission. If emission fails,
-      // the error token has still been consumed (no backtracking here).
-
       return match output {
         Some(res) => Ok((false, Some((res?, Spanned::new(span, tok))))),
         None => Ok((false, None)),
@@ -148,9 +145,6 @@ where
       let (span, tok) = lexed.into_components();
       self.set_span_after_consume((&span).into());
       *self.state = state;
-
-      // Note: cursor/state are updated before emission. If emission fails,
-      // the error token has still been consumed (no backtracking here).
 
       return Ok((false, Some(Spanned::new(span, tok))));
     }
