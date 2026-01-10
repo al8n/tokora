@@ -213,33 +213,33 @@ impl Token<'_> {
 
 impl<'inp> PunctuatorToken<'inp> for Token<'inp> {
   #[inline]
-  fn is_comma(&self) -> bool {
-    matches!(self, Token::Comma)
+  fn comma() -> Option<Self::Kind> {
+    Some(TokenKind::Comma)
   }
 
   #[inline]
-  fn is_colon(&self) -> bool {
-    matches!(self, Token::Colon)
+  fn colon() -> Option<Self::Kind> {
+    Some(TokenKind::Colon)
   }
 
   #[inline]
-  fn is_open_brace(&self) -> bool {
-    matches!(self, Token::BraceOpen)
+  fn open_brace() -> Option<Self::Kind> {
+    Some(TokenKind::BraceOpen)
   }
 
   #[inline]
-  fn is_close_brace(&self) -> bool {
-    matches!(self, Token::BraceClose)
+  fn close_brace() -> Option<Self::Kind> {
+    Some(TokenKind::BraceClose)
   }
 
   #[inline]
-  fn is_open_bracket(&self) -> bool {
-    matches!(self, Token::BracketOpen)
+  fn open_bracket() -> Option<Self::Kind> {
+    Some(TokenKind::BracketOpen)
   }
 
   #[inline]
-  fn is_close_bracket(&self) -> bool {
-    matches!(self, Token::BracketClose)
+  fn close_bracket() -> Option<Self::Kind> {
+    Some(TokenKind::BracketClose)
   }
 }
 

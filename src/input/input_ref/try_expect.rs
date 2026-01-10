@@ -1,11 +1,122 @@
 use super::*;
 
+use crate::{
+  error::UnexpectedEot,
+  token::{PunctuatorToken, PunctuatorTokenExt, SpannedPunctuatorToken},
+};
+
+macro_rules! try_expect_punct {
+  ($($punct:ident $(:$alias:ident)? :$punct_char:literal),+$(,)?) => {
+    paste::paste! {
+      $(
+        #[doc = "Tries to advance to the next valid token if it to be " $punct " (" $punct_char "). Otherwise leaves the input unchanged."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        pub fn [< try_expect_ $punct >](
+          &mut self,
+        ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+        where
+          L::Token: crate::token::PunctuatorToken<'inp>,
+        {
+          self.try_expect(|t| t.data.[<is_ $punct>]())
+        }
+
+        #[doc = "Advance to the next valid token if it to be " $punct " (" $punct_char "). Otherwise leaves the input unchanged."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        pub fn [< expect_ $punct >](
+          &mut self,
+        ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+        where
+          L::Token: PunctuatorToken<'inp>,
+          <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
+            + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+        {
+          match self.next()? {
+            Some(spanned) => {
+              <Spanned<L::Token, L::Span> as SpannedPunctuatorToken<'inp, L, Lang>>::[< expect_ $punct >](spanned).map_err(Into::into)
+            },
+            None => Err(UnexpectedEot::eot_of(self.span().end()).into()),
+          }
+        }
+
+        $(
+          #[doc = "Tries to advance to the next valid token if it to be " $alias " (" $punct_char "). Otherwise leaves the input unchanged."]
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          pub fn [< try_expect_ $alias >](
+            &mut self,
+          ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+          where
+            L::Token: PunctuatorToken<'inp>,
+          {
+            self.[< try_expect_ $punct >]()
+          }
+
+          #[doc = "Advance to the next valid token if it to be " $alias " (" $punct_char "). Otherwise leaves the input unchanged."]
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          pub fn [< expect_ $alias >](
+            &mut self,
+          ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+          where
+            L::Token: PunctuatorToken<'inp>,
+            <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
+              + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+          {
+            self.[< expect_ $punct >]()
+          }
+        )?
+      )*
+    }
+  };
+}
+
 impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
 {
+  try_expect_punct!(
+    open_angle:"<",
+    close_angle:">",
+    open_brace:"{",
+    close_brace:"}",
+    open_paren:"(",
+    close_paren:")",
+    open_bracket:"[",
+    close_bracket:"]",
+    comma:",",
+    semicolon:";",
+    colon:":",
+    dot:".",
+    tilde:"~",
+    underscore:"_",
+    equal:"=",
+    minus:hyphen:"-",
+    arrow:thin_arrow:"->",
+    fat_arrow:"=>",
+    double_colon:"::",
+    tab:"\t",
+    newline:"\n",
+    carriage_return:"\r",
+    crlf:"\r\n",
+    space:" ",
+    pipe:"|",
+    ampersand:"&",
+    percent:"%",
+    slash:"/",
+    backslash:"\\",
+    dollar:"$",
+    hash:"#",
+    at:"@",
+    asterisk:"*",
+    apostrophe:"'",
+    double_quote:"\"",
+    plus:"+",
+    exclamation:"!",
+    question:"?",
+    backtick:"`",
+    caret:"^",
+  );
+
   /// Advances to the next valid token and expects it to satisfy the predicate.
   ///
   /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.

@@ -6,7 +6,7 @@ where
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-    /// Peeks the next token without advancing the cursor.
+  /// Peeks the next token without advancing the cursor.
   #[inline]
   pub fn peek_one(
     &mut self,

@@ -241,7 +241,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     FatArrow,
     Tilde,
     Slash,
-    BackSlash,
+    Backslash,
     Percent,
     Dollar,
     Hash,

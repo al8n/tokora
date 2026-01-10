@@ -2,6 +2,10 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
 pub use logos::Logos;
 
+pub use punct::*;
+
+mod punct;
+
 /// The core trait for token types used with Tokit.
 ///
 /// `Token` defines the interface that all token types must implement to work with
@@ -262,432 +266,48 @@ impl<'a, T: Token<'a>> Token<'a> for &'a T {
   }
 }
 
-/// A trait for tokens that can classify punctuation without pattern matching on kinds.
-///
-/// [`PunctuatorToken`] builds on [`Token`] to provide ergonomic helpers for recognizing
-/// common punctuation lexemes. This is useful when:
-///
-/// - Building parsers that frequently branch on punctuation and benefit from readable predicates
-/// - Writing formatter or linter passes that need to treat punctuation uniformly regardless of kind names
-/// - Exposing a stable surface for downstream users so token-kind refactors do not cascade outward
-///
-/// # Relationship to [`Token`]
-///
-/// The base [`Token`] trait exposes [`Token::kind`], leaving higher-level classification to
-/// consumers. [`PunctuatorToken`] moves that logic into the token type itself, so downstream
-/// code can remain agnostic of `Kind` enums or their discriminants.
-///
-/// # Covered ASCII Punctuation
-///
-/// Every method maps to a single ASCII character and **returns `false` by default**—override only
-/// the ones that matter for your language, mapping them to your own token kinds. The provided
-/// predicates are:
-///
-/// - Structural: `is_open_paren` `(`, `is_close_paren` `)`, `is_open_brace` `{`, `is_close_brace` `}`,
-///   `is_open_bracket` `[`, `is_close_bracket` `]`
-/// - Separators: `is_comma` `,`, `is_dot` `.`, `is_colon` `:`, `is_semicolon` `;`
-/// - Quote markers: `is_double_quote` `"`, `is_apostrophe` `'`, `is_backtick` `` ` ``
-/// - Math / operators: `is_plus` `+`, `is_minus` `-`, `is_asterisk` `*`, `is_slash` `/`,
-///   `is_backslash` `\`, `is_percent` `%`, `is_ampersand` `&`, `is_pipe` `|`, `is_caret` `^`,
-///   `is_tilde` `~`, `is_underscore` `_`
-/// - Comparators: `is_lt` `<`, `is_gt` `>`, `is_equal` `=`
-/// - Misc punctuation: `is_exclamation` `!`, `is_question` `?`, `is_hash` `#`, `is_dollar` `$`,
-///   `is_at` `@`
-///
-/// ## Example
-///
-/// ```rust
-/// use tokit::{Token, PunctuatorToken, utils::cmp::Equivalent};
-/// use logos::Logos;
-///
-/// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
-/// enum MyTokens {
-///     #[token(".")]
-///     Dot,
-///     #[token(",")]
-///     Comma,
-///     #[token(":")]
-///     Colon,
-///     #[token(";")]
-///     SemiColon,
-/// }
-///
-/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// enum MyTokenKind {
-///     Dot,
-///     Comma,
-///     Colon,
-///     SemiColon,
-/// }
-///
-/// #[derive(Debug, Clone, PartialEq)]
-/// struct MyToken {
-///     kind: MyTokenKind,
-/// }
-///
-/// impl Token<'_> for MyToken {
-///     type Char = char;
-///     type Kind = MyTokenKind;
-///     type Logos = MyTokens;
-///
-///     fn kind(&self) -> Self::Kind {
-///         self.kind
-///     }
-/// }
-///
-/// impl From<MyTokens> for MyToken {
-///     fn from(logos: MyTokens) -> Self {
-///         let kind = match logos {
-///             MyTokens::Dot => MyTokenKind::Dot,
-///             MyTokens::Comma => MyTokenKind::Comma,
-///             MyTokens::Colon => MyTokenKind::Colon,
-///             MyTokens::SemiColon => MyTokenKind::SemiColon,
-///         };
-///         Self { kind }
-///     }
-/// }
-///
-/// impl Equivalent<MyToken> for str {
-///     fn equivalent(&self, other: &MyToken) -> bool {
-///         match other.kind {
-///             MyTokenKind::Dot => self == ".",
-///             MyTokenKind::Comma => self == ",",
-///             MyTokenKind::Colon => self == ":",
-///             MyTokenKind::SemiColon => self == ";",
-///         }
-///     }
-/// }
-///
-/// impl PunctuatorToken<'_> for MyToken {
-///     fn is_dot(&self) -> bool {
-///         matches!(self.kind, MyTokenKind::Dot)
-///     }
-///
-///     fn is_comma(&self) -> bool {
-///         matches!(self.kind, MyTokenKind::Comma)
-///     }
-///
-///     fn is_colon(&self) -> bool {
-///         matches!(self.kind, MyTokenKind::Colon)
-///     }
-///
-///     fn is_semicolon(&self) -> bool {
-///         matches!(self.kind, MyTokenKind::SemiColon)
-///     }
-///
-///     // Unhandled punctuation can keep the default `false`.
-/// }
-/// ```
-pub trait PunctuatorToken<'a>: Token<'a> {
-  /// Returns `true` when the token is a punctuator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_punctuator(&self) -> bool {
-    self.is_dot()
-      || self.is_comma()
-      || self.is_colon()
-      || self.is_semicolon()
-      || self.is_exclamation()
-      || self.is_double_quote()
-      || self.is_apostrophe()
-      || self.is_hash()
-      || self.is_dollar()
-      || self.is_percent()
-      || self.is_ampersand()
-      || self.is_asterisk()
-      || self.is_plus()
-      || self.is_minus()
-      || self.is_slash()
-      || self.is_backslash()
-      || self.is_open_angle()
-      || self.is_equal()
-      || self.is_close_angle()
-      || self.is_question()
-      || self.is_at()
-      || self.is_open_bracket()
-      || self.is_close_bracket()
-      || self.is_open_brace()
-      || self.is_close_brace()
-      || self.is_open_paren()
-      || self.is_close_paren()
-      || self.is_backtick()
-      || self.is_pipe()
-      || self.is_caret()
-      || self.is_underscore()
-      || self.is_tilde()
-      || self.is_space()
-      || self.is_tab()
-      || self.is_newline()
-      || self.is_carriage_return()
-      || self.is_crlf()
-  }
-
-  /// Returns `true` when the token is the dot punctuator (`.`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_dot(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the space punctuator (` `).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_space(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is a tab punctuator (`\t`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_tab(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the newline punctuator (`\n`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_newline(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the carriage return punctuator (`\r`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_carriage_return(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is carriage return + newline punctuator (`\r\n`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_crlf(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the comma punctuator (`,`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_comma(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the colon punctuator (`:`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_colon(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the semicolon punctuator (`;`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_semicolon(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the exclamation punctuator (`!`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_exclamation(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the double-quote punctuator (`"`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_double_quote(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the apostrophe/single-quote punctuator (`'`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_apostrophe(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the hash punctuator (`#`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_hash(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the dollar punctuator (`$`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_dollar(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the percent punctuator (`%`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_percent(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the ampersand punctuator (`&`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_ampersand(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the asterisk punctuator (`*`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_asterisk(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the plus punctuator (`+`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_plus(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the minus punctuator (`-`).
-  #[doc(alias = "is_dash")]
-  #[doc(alias = "is_hyphen")]
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_minus(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the slash punctuator (`/`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_slash(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the backslash punctuator (`\`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_backslash(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the angle open punctuator (`<`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_open_angle(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the equal punctuator (`=`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_equal(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the angle close punctuator (`>`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_close_angle(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the question punctuator (`?`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_question(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the at-sign punctuator (`@`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_at(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the bracket-open punctuator (`[`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_open_bracket(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the bracket-close punctuator (`]`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_close_bracket(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the brace-open punctuator (`{`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_open_brace(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the brace-close punctuator (`}`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_close_brace(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the paren-open punctuator (`(`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_open_paren(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the paren-close punctuator (`)`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_close_paren(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the backtick punctuator (`` ` ``).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_backtick(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the pipe punctuator (`|`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_pipe(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the caret punctuator (`^`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_caret(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the underscore punctuator (`_`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_underscore(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` when the token is the tilde punctuator (`~`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_tilde(&self) -> bool {
-    false
-  }
-}
-
 impl<'a, T> DelimiterToken<'a> for T
 where
   T: PunctuatorToken<'a>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_open_paren(&self) -> bool {
-    PunctuatorToken::is_open_paren(self)
+    PunctuatorTokenExt::is_open_paren(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_close_paren(&self) -> bool {
-    PunctuatorToken::is_close_paren(self)
+    PunctuatorTokenExt::is_close_paren(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_open_brace(&self) -> bool {
-    PunctuatorToken::is_open_brace(self)
+    PunctuatorTokenExt::is_open_brace(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_close_brace(&self) -> bool {
-    PunctuatorToken::is_close_brace(self)
+    PunctuatorTokenExt::is_close_brace(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_open_bracket(&self) -> bool {
-    PunctuatorToken::is_open_bracket(self)
+    PunctuatorTokenExt::is_open_bracket(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_close_bracket(&self) -> bool {
-    PunctuatorToken::is_close_bracket(self)
+    PunctuatorTokenExt::is_close_bracket(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_open_angle(&self) -> bool {
-    PunctuatorToken::is_open_angle(self)
+    PunctuatorTokenExt::is_open_angle(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_close_angle(&self) -> bool {
-    PunctuatorToken::is_close_angle(self)
+    PunctuatorTokenExt::is_close_angle(self)
   }
 }
 

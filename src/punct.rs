@@ -1,3 +1,8 @@
+use crate::{Lexer, Token, error::token::UnexpectedToken, span::Spanned};
+
+/// The carriage return newline (`\r\n`) punctuator.
+pub type Crnl<S, C = (), Lang = ()> = CarriageReturnNewline<S, C, Lang>;
+
 /// Defines the punctuators.
 ///
 /// # Examples
@@ -203,13 +208,13 @@ punctuator! {
   (Angle, "ANGLE", "<>"),
   (OpenBrace, "OPEN_BRACE", "{"),
   (CloseBrace, "CLOSE_BRACE", "}"),
-  (Brace, "BRACE", "{}"),
   (OpenParen, "OPEN_PAREN", "("),
   (CloseParen, "CLOSE_PAREN", ")"),
   (Paren, "PAREN", "()"),
+  (Brace, "BRACE", "{}"),
+  (Bracket, "BRACKET", "[]"),
   (OpenBracket, "OPEN_BRACKET", "["),
   (CloseBracket, "CLOSE_BRACKET", "]"),
-  (Bracket, "BRACKET", "[]"),
   (Comma, "COMMA", ","),
   (Semicolon, "SEMICOLON", ";"),
   (Colon, "COLON", ":"),
@@ -232,7 +237,7 @@ punctuator! {
   (Ampersand, "AMPERSAND", "&"),
   (Percent, "PERCENT", "%"),
   (Slash, "SLASH", "/"),
-  (BackSlash, "BACKSLASH", "\\"),
+  (Backslash, "BACKSLASH", "\\"),
   (Dollar, "DOLLAR", "$"),
   (Hash, "HASH", "#"),
   (At, "AT", "@"),
@@ -245,4 +250,79 @@ punctuator! {
   (Backtick, "BACKTICK", "`"),
   (Trivia, "TRIVIA", "any trivia characters"),
   (Caret, "CARET", "^"),
+}
+
+/// A trait for any punctuator.
+pub trait Punctuator<'inp, L, Lang: ?Sized = ()> {
+  /// Returns the kind of the punctuator.
+  fn kind() -> <L::Token as Token<'inp>>::Kind
+  where
+    L: Lexer<'inp>;
+
+  /// Evaluates whether the given token kind matches the punctuator's kind.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn eval(knd: &<L::Token as Token<'inp>>::Kind) -> bool
+  where
+    L: Lexer<'inp>,
+  {
+    Self::kind().eq(knd)
+  }
+
+  /// Creates an `UnexpectedToken` error for the punctuator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn unexpected_token(
+    tok: Spanned<L::Token, L::Span>,
+  ) -> UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>
+  where
+    L: Lexer<'inp>,
+  {
+    let (span, tok) = tok.into_components();
+    UnexpectedToken::expected_one(span, Self::kind()).with_found(tok)
+  }
+}
+
+macro_rules! impl_deref {
+  (@impl<$ty:ty>) => {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn kind() -> <L::Token as Token<'inp>>::Kind
+    where
+      L: Lexer<'inp>,
+    {
+      <$ty>::kind()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn eval(knd: &<<L>::Token as Token<'inp>>::Kind) -> bool
+    where
+      L: Lexer<'inp>,
+    {
+      <$ty>::eval(knd)
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn unexpected_token(
+      tok: Spanned<<L>::Token, <L>::Span>,
+    ) -> UnexpectedToken<'inp, <L>::Token, <<L>::Token as Token<'inp>>::Kind, <L>::Span, Lang>
+    where
+      L: Lexer<'inp>,
+    {
+      <$ty>::unexpected_token(tok)
+    }
+  };
+}
+
+impl<'inp, L, Lang: ?Sized, P> Punctuator<'inp, L, Lang> for &P
+where
+  L: Lexer<'inp>,
+  P: Punctuator<'inp, L, Lang>,
+{
+  impl_deref!(@impl<P>);
+}
+
+impl<'inp, L, Lang: ?Sized, P> Punctuator<'inp, L, Lang> for &mut P
+where
+  L: Lexer<'inp>,
+  P: Punctuator<'inp, L, Lang>,
+{
+  impl_deref!(@impl<P>);
 }

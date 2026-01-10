@@ -1,4 +1,4 @@
-use crate::{parser::ByRef, punct::*};
+use crate::{parser::ByRef, punct::*, token::PunctuatorTokenExt};
 
 /// A trait for checking
 pub trait Check<T: ?Sized, O = bool> {
@@ -81,7 +81,7 @@ check_punct!(
   Tilde::PunctuatorToken::is_tilde,
   Percent::PunctuatorToken::is_percent,
   Slash::PunctuatorToken::is_slash,
-  BackSlash::PunctuatorToken::is_backslash,
+  Backslash::PunctuatorToken::is_backslash,
   Dollar::PunctuatorToken::is_dollar,
   Hash::PunctuatorToken::is_hash,
   At::PunctuatorToken::is_at,

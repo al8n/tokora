@@ -5,7 +5,7 @@ use crate::{
 };
 
 macro_rules! define_parsers {
-  ($($name:ident::$fn:ident),+$(,)?) => {
+  ($($name:ident::$kind:ident),+$(,)?) => {
     paste::paste! {
       $(
         impl $name {
@@ -38,9 +38,7 @@ macro_rules! define_parsers {
             Ctx: ParseContext<'inp, L, Lang>,
             <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
           {
-            inp.try_expect(|t| {
-              t.data.$fn()
-            }).map(|res| res.map(|tok| $name::new(tok.into_span()).change_language()).into())
+            inp.[< try_expect_ $kind >]().map(|res| res.map(|tok| $name::new(tok.into_span()).change_language()).into())
           }
 
           #[doc = "A parser that parses a token and returns `" $name "` instance if matches."]
@@ -51,7 +49,6 @@ macro_rules! define_parsers {
             L: Lexer<'inp>,
             L::Token: PunctuatorToken<'inp>,
             Ctx: ParseContext<'inp, L>,
-            <L::Token as Token<'inp>>::Kind: From<$name<()>>,
             <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
             + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
           {
@@ -65,15 +62,23 @@ macro_rules! define_parsers {
           where
             L: Lexer<'inp>,
             L::Token: PunctuatorToken<'inp>,
-            <L::Token as Token<'inp>>::Kind: From<$name<()>>,
             Ctx: ParseContext<'inp, L, Lang>,
             <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>> +
             From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
             Lang: ?Sized,
           {
-            (&crate::parser::expect_of(|t: &L::Token| if t.$fn() { Ok(()) } else { Err(Expected::one(<$name>::PHANTOM.into())) }))
-              .parse_input(inp)
-              .map(|spanned| $name::new(spanned.into_span()).change_language())
+            inp.[<expect_ $kind>]().map(|tok| $name::new(tok.into_span()).change_language())
+          }
+        }
+
+        impl<'inp, L, S, C, Lang: ?Sized> Punctuator<'inp, L, Lang> for $name<S, C, Lang>
+        where
+          L: Lexer<'inp>,
+          <L::Token as Token<'inp>>::Kind: From<$name<(), (), ()>>,
+        {
+          #[inline]
+          fn kind() -> <L::Token as Token<'inp>>::Kind {
+            <<L::Token as Token<'inp>>::Kind as From<_>>::from(<$name>::PHANTOM)
           }
         }
       )*
@@ -82,41 +87,41 @@ macro_rules! define_parsers {
 }
 
 define_parsers!(
-  Dot::is_dot,
-  Comma::is_comma,
-  Colon::is_colon,
-  Semicolon::is_semicolon,
-  Exclamation::is_exclamation,
-  DoubleQuote::is_double_quote,
-  Apostrophe::is_apostrophe,
-  Hash::is_hash,
-  Dollar::is_dollar,
-  Percent::is_percent,
-  Ampersand::is_ampersand,
-  Asterisk::is_asterisk,
-  Plus::is_plus,
-  Hyphen::is_minus,
-  Slash::is_slash,
-  BackSlash::is_backslash,
-  OpenAngle::is_open_angle,
-  Equal::is_equal,
-  CloseAngle::is_close_angle,
-  Question::is_question,
-  At::is_at,
-  OpenBracket::is_open_bracket,
-  CloseBracket::is_close_bracket,
-  OpenBrace::is_open_brace,
-  CloseBrace::is_close_brace,
-  OpenParen::is_open_paren,
-  CloseParen::is_close_paren,
-  Backtick::is_backtick,
-  Pipe::is_pipe,
-  Caret::is_caret,
-  Underscore::is_underscore,
-  Tilde::is_tilde,
-  Space::is_space,
-  Tab::is_tab,
-  Newline::is_newline,
-  CarriageReturn::is_carriage_return,
-  CarriageReturnNewline::is_crlf,
+  Dot::dot,
+  Comma::comma,
+  Colon::colon,
+  Semicolon::semicolon,
+  Exclamation::exclamation,
+  DoubleQuote::double_quote,
+  Apostrophe::apostrophe,
+  Hash::hash,
+  Dollar::dollar,
+  Percent::percent,
+  Ampersand::ampersand,
+  Asterisk::asterisk,
+  Plus::plus,
+  Hyphen::minus,
+  Slash::slash,
+  Backslash::backslash,
+  OpenAngle::open_angle,
+  Equal::equal,
+  CloseAngle::close_angle,
+  Question::question,
+  At::at,
+  OpenBracket::open_bracket,
+  CloseBracket::close_bracket,
+  OpenBrace::open_brace,
+  CloseBrace::close_brace,
+  OpenParen::open_paren,
+  CloseParen::close_paren,
+  Backtick::backtick,
+  Pipe::pipe,
+  Caret::caret,
+  Underscore::underscore,
+  Tilde::tilde,
+  Space::space,
+  Tab::tab,
+  Newline::newline,
+  CarriageReturn::carriage_return,
+  CarriageReturnNewline::crlf,
 );

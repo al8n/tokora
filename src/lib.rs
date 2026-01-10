@@ -120,6 +120,12 @@ pub mod error;
 /// phantom (zero-size) and concrete instances for use in ASTs.
 pub mod punct;
 
+/// Delimiter types and utilities.
+///
+/// Defines common delimiter types (brackets, braces, parentheses) and utilities
+/// for working with delimited constructs in parsing.
+pub mod delimiter;
+
 /// Source text abstraction for lexers.
 ///
 /// Defines the [`Source`] trait for accessing source text during lexing.

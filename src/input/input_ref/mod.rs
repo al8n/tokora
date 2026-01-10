@@ -20,12 +20,12 @@ use crate::{
 
 use super::{Cache, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
 
-mod try_expect;
+mod consume_cached;
 mod fold;
 mod peek;
 mod sync_through;
 mod sync_to;
-mod consume_cached;
+mod try_expect;
 
 /// A reference to an `Input` instance.
 pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = ()>

@@ -1,5 +1,3 @@
-use core::ops::ControlFlow;
-
 use generic_arraydeque::typenum::Unsigned;
 
 use super::*;
@@ -11,26 +9,36 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
 {
   /// Folds over the input tokens using the provided accumulator function.
-  pub fn fold<O, Init, Op>(&mut self, init: Init, mut op: Op) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  pub fn fold<O, Pred, Init, Op>(
+    &mut self,
+    mut pred: Pred,
+    init: Init,
+    mut op: Op,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Init: FnOnce() -> O,
-    Op: FnMut(O, Spanned<L::Token, L::Span>) -> ControlFlow<O, O>,
+    Op: FnMut(O, Spanned<L::Token, L::Span>) -> O,
+    Pred: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
     let mut output = init();
 
     loop {
-      match self.next()? {
-        Some(spanned) => match op(output, spanned) {
-          ControlFlow::Continue(o) => output = o,
-          ControlFlow::Break(o) => return Ok(o),
-        },
+      match self.try_expect(&mut pred)? {
+        Some(spanned) => {
+          output = op(output, spanned);
+        }
         None => return Ok(output),
       }
     }
   }
 
-  /// Folds n tokens over the input using the provided accumulator function.
-  pub fn foldn<O, Init, Op>(&mut self, init: Init, mut op: Op, num: usize) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  /// Folds at most n tokens over the input using the provided accumulator function.
+  pub fn foldn<O, Init, Op>(
+    &mut self,
+    init: Init,
+    mut op: Op,
+    num: usize,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Init: FnOnce() -> O,
     Op: FnMut(O, Spanned<L::Token, L::Span>) -> O,
@@ -38,7 +46,7 @@ where
     let mut output = init();
 
     let mut n = 0;
-    
+
     loop {
       if n >= num {
         return Ok(output);
@@ -48,22 +56,28 @@ where
         Some(spanned) => {
           output = op(output, spanned);
           n += 1;
-        },
+        }
         None => return Ok(output),
       }
     }
   }
 
   /// Right-folds over the input tokens using the provided accumulator function.
-  /// 
+  ///
   /// The maximum number of tokens folded is determined by the capacity of the specified `W`.
-  /// 
+  ///
   /// See also [`foldrn`](Self::foldrn).
-  pub fn foldr_within<O, W, Init, Op>(&mut self, init: Init, mut op: Op) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  pub fn foldr_within<O, W, Pred, Init, Op>(
+    &mut self,
+    mut pred: Pred,
+    init: Init,
+    mut op: Op,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Init: FnOnce() -> O,
     Op: FnMut(O, Spanned<L::Token, L::Span>) -> O,
     W: Window,
+    Pred: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
     let mut output = init();
     let mut buf = GenericArrayDeque::<_, W::CAPACITY>::new();
@@ -73,10 +87,10 @@ where
         break;
       }
 
-      match self.next()? {
-        Some(spanned) =>{
+      match self.try_expect(&mut pred)? {
+        Some(spanned) => {
           buf.push_back(spanned);
-        },
+        }
         None => return Ok(output),
       }
     }
@@ -89,13 +103,18 @@ where
   }
 
   /// Right-folds over the input tokens using the provided accumulator function.
-  /// 
+  ///
   /// This method folds up to `num` tokens, and this will lead to implicit allocation.
-  /// 
+  ///
   /// See also [`foldr_within`](Self::foldr_within).
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
-  pub fn foldrn<O, Init, Op>(&mut self, init: Init, mut op: Op, num: usize) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  pub fn foldrn<O, Init, Op>(
+    &mut self,
+    init: Init,
+    mut op: Op,
+    num: usize,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Init: FnOnce() -> O,
     Op: FnMut(O, Spanned<L::Token, L::Span>) -> O,
@@ -110,10 +129,10 @@ where
       }
 
       match self.next()? {
-        Some(spanned) =>{
+        Some(spanned) => {
           buf.push(spanned);
           n += 1;
-        },
+        }
         None => break,
       }
     }
