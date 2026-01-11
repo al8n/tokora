@@ -23,13 +23,8 @@ mod require_leading_allow_trailing;
 mod require_surrounded;
 mod require_trailing;
 
-impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
-  DelimitedBy<
-    SeparatedWhile<&'c mut P, &'c mut Sep, &'c mut Condition, O, W, L, Ctx, Lang>,
-    &Open,
-    &Close,
-    &Delim,
-  >
+impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
+  DelimitedBy<SeparatedWhile<&'c mut P, &'c mut Sep, &'c mut Condition, O, W, L, Ctx, Lang>, Delim>
 {
   fn parse_separated<'closure, Container, CH, SP, EH>(
     &mut self,
@@ -42,9 +37,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-    Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-    Delim: Clone,
+    Delim: DelimiterSelector<'inp, L, Lang>,
     Sep: Check<L::Token>,
     L: Lexer<'inp>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
@@ -63,13 +56,15 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
     let mut first_kind = None;
     let left_delimiter = inp.try_expect(|tok| {
       let (span, tok) = tok.into_components();
-      match self.left_classifier.check(tok) {
-        Err(knd) => {
-          first_kind =
-            Some(UnexpectedToken::expected_one(span.clone(), knd).with_found(tok.clone()));
+      match Delim::is_open(&tok.kind()) {
+        false => {
+          first_kind = Some(Delim::unexpected_open_token(Spanned::new(
+            span.clone(),
+            tok.clone(),
+          )));
           false
         }
-        Ok(_) => true,
+        true => true,
       }
     })?;
 
@@ -120,8 +115,8 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
 
               continue;
             }
-            t => match self.right_classifier.check(t) {
-              Ok(_) => {
+            t => match Delim::is_close(&t.kind()) {
+              true => {
                 drop(peeked);
 
                 let Ok(Some(tok)) = inp.next() else {
@@ -130,7 +125,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
 
                 break (inp.span_since(&elems_start), Some(tok));
               }
-              Err(_) => peek_span.clone(),
+              false => peek_span.clone(),
             },
           }
         }
@@ -159,7 +154,7 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
 
     let right = match right {
       Some(tok) => Some(tok),
-      None => inp.try_expect(|t| self.right_classifier.check(t.data()).is_ok())?,
+      None => inp.try_expect(|t| Delim::is_close(&t.kind()))?,
     };
 
     match right {
@@ -176,6 +171,11 @@ impl<'c, 'inp, L, P, Open, Close, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized
         inp
           .emitter()
           .emit_undelimited(Undelimited::of(span, self.delimiter.clone()))?;
+      }
+      // no open, but found a close delimiter
+      Some(right) if has_open => {
+        // TODO(al8n): cleanup error delimiter handling
+        container.on_close_delimiter(right);
       }
       Some(right) => {
         container.on_close_delimiter(right);

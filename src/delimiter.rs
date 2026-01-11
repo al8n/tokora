@@ -1,7 +1,7 @@
 use crate::{Lexer, Token, error::token::UnexpectedToken, punct::Punctuator, span::Spanned};
 
 /// A trait for any delimiter consisting of an opening and a closing punctuator.
-pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
+pub trait DelimiterSelector<'inp, L, Lang: ?Sized = ()> {
   /// The opening punctuator.
   type Open: Punctuator<'inp, L, Lang>;
   /// The closing punctuator.
@@ -91,18 +91,18 @@ macro_rules! impl_deref {
   };
 }
 
-impl<'inp, L, Lang: ?Sized, D: ?Sized> Delimiter<'inp, L, Lang> for &D
+impl<'inp, L, Lang: ?Sized, D: ?Sized> DelimiterSelector<'inp, L, Lang> for &D
 where
   L: Lexer<'inp>,
-  D: Delimiter<'inp, L, Lang>,
+  D: DelimiterSelector<'inp, L, Lang>,
 {
   impl_deref!(@impl<D>);
 }
 
-impl<'inp, L, Lang: ?Sized, D: ?Sized> Delimiter<'inp, L, Lang> for &mut D
+impl<'inp, L, Lang: ?Sized, D: ?Sized> DelimiterSelector<'inp, L, Lang> for &mut D
 where
   L: Lexer<'inp>,
-  D: Delimiter<'inp, L, Lang>,
+  D: DelimiterSelector<'inp, L, Lang>,
 {
   impl_deref!(@impl<D>);
 }

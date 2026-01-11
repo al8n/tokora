@@ -5,15 +5,10 @@ use crate::emitter::{
 
 use super::*;
 
-impl<'inp, L, F, SepClassifier, Condition, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, L, F, SepClassifier, Condition, O, Delim, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<
-      Bounded<SeparatedWhile<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
-      Open,
-      Close,
-      Delim,
-    >,
+    DelimitedBy<Bounded<SeparatedWhile<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>, Delim>,
     Container,
     Ctx,
     Lang,
@@ -33,9 +28,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
-  Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Delim: Clone,
+  Delim: DelimiterSelector<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
@@ -52,16 +45,11 @@ where
   }
 }
 
-impl<'inp, L, F, SepClassifier, Condition, O, Open, Close, Delim, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, L, F, SepClassifier, Condition, O, Delim, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      DelimitedBy<
-        Bounded<SeparatedWhile<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
-        Open,
-        Close,
-        Delim,
-      >,
+      DelimitedBy<Bounded<SeparatedWhile<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>, Delim>,
       Container,
       Ctx,
       Lang,
@@ -83,9 +71,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
-  Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Delim: Clone,
+  Delim: DelimiterSelector<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
@@ -103,27 +89,11 @@ where
   }
 }
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  Condition,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-  W,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, Condition, O, Delim, Container, Ctx, Lang: ?Sized, W>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
       Bounded<SeparatedWhile<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
-      Open,
-      Close,
       Delim,
     >,
     &'c mut Container,
@@ -145,9 +115,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
-  Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Delim: Clone,
+  Delim: DelimiterSelector<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
@@ -169,23 +137,16 @@ where
               maximum,
               minimum,
             },
-          left_classifier,
-          right_classifier,
-          delimiter,
+          ..
         },
       container,
       ..
     } = self;
-    let parser = DelimitedBy::new_in(
-      Bounded::new(
-        SeparatedWhile::new(&mut **f, &mut **sep, &mut *condition),
-        maximum.get(),
-        minimum.get(),
-      ),
-      &*left_classifier,
-      &*right_classifier,
-      &*delimiter,
-    );
+    let parser = DelimitedBy::new_in(Bounded::new(
+      SeparatedWhile::new(&mut **f, &mut **sep, &mut *condition),
+      maximum.get(),
+      minimum.get(),
+    ));
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
   }
@@ -193,30 +154,14 @@ where
 
 struct Wrapper<T>(T);
 
-impl<
-  'inp,
-  'c,
-  L,
-  F,
-  SepClassifier,
-  Condition,
-  O,
-  Open,
-  Close,
-  Delim,
-  Container,
-  Ctx,
-  Lang: ?Sized,
-  W,
-> ParseInput<'inp, L, L::Span, Ctx, Lang>
+impl<'inp, 'c, L, F, SepClassifier, Condition, O, Delim, Container, Ctx, Lang: ?Sized, W>
+  ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
       DelimitedBy<
         Bounded<
           SeparatedWhile<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
         >,
-        &'c Open,
-        &'c Close,
         &'c Delim,
       >,
       &'c mut Container,
@@ -239,9 +184,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
-  Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Delim: Clone,
+  Delim: DelimiterSelector<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
@@ -258,17 +201,10 @@ where
       parser: SeparatedWhile {
         f, sep, condition, ..
       },
-      left_classifier,
-      right_classifier,
-      delimiter,
+      ..
     } = parser.map_parser_mut(|p| p.parser_mut());
 
-    DelimitedBy::new_in(
-      SeparatedWhile::new(&mut **f, &mut **sep, &mut **condition),
-      *left_classifier,
-      *right_classifier,
-      *delimiter,
-    )
-    .parse_separated(inp, container, &maximum, &maximum, &maximum)
+    DelimitedBy::new_in(SeparatedWhile::new(&mut **f, &mut **sep, &mut **condition))
+      .parse_separated(inp, container, &maximum, &maximum, &maximum)
   }
 }

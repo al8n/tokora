@@ -6,18 +6,10 @@ use crate::{
 
 use super::*;
 
-impl<'inp, L, P, Open, Close, O, Container, Ctx, Delim, Lang: ?Sized>
-  ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<
-    DelimitedBy<Bounded<Repeated<P, O, L, Ctx, Lang>>, Open, Close, Delim>,
-    Container,
-    Ctx,
-    Lang,
-  >
+impl<'inp, L, P, O, Container, Ctx, Delim, Lang: ?Sized> ParseInput<'inp, L, Container, Ctx, Lang>
+  for Collect<DelimitedBy<Bounded<Repeated<P, O, L, Ctx, Lang>>, Delim>, Container, Ctx, Lang>
 where
-  Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Delim: Clone,
+  Delim: DelimiterSelector<'inp, L, Lang>,
   L: Lexer<'inp>,
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang>
@@ -38,25 +30,23 @@ where
     let max = self.parser.parser.maximum().get();
     let min = self.parser.parser.minimum().get();
 
-    DelimitedBy::new_in(
-      self.parser.parser.parser_mut(),
-      &self.parser.left_classifier,
-      &self.parser.right_classifier,
-      &self.parser.delimiter,
-    )
-    .parse_repeated(inp, &mut self.container, |nums, inp, span| {
-      if min > nums {
-        inp
-          .emitter()
-          .emit_too_few(TooFew::of(span.clone(), nums, min))?;
-      }
+    DelimitedBy::new_in(self.parser.parser.parser_mut()).parse_repeated(
+      inp,
+      &mut self.container,
+      |nums, inp, span| {
+        if min > nums {
+          inp
+            .emitter()
+            .emit_too_few(TooFew::of(span.clone(), nums, min))?;
+        }
 
-      if nums > max {
-        inp
-          .emitter()
-          .emit_too_many(TooMany::of(span.clone(), nums, max))?;
-      }
-      Ok(())
-    })
+        if nums > max {
+          inp
+            .emitter()
+            .emit_too_many(TooMany::of(span.clone(), nums, max))?;
+        }
+        Ok(())
+      },
+    )
   }
 }

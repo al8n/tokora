@@ -1,5 +1,7 @@
 use core::marker::PhantomData;
 
+use crate::delimiter::DelimiterSelector;
+
 use super::*;
 
 mod at_least;
@@ -167,13 +169,11 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W,
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W, L, Ctx, Lang> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn delimited_by<Open, Close, Delim>(
-    self,
-    left: Open,
-    right: Close,
-    delim: Delim,
-  ) -> DelimitedBy<Self, Open, Close, Delim> {
-    DelimitedBy::new_in(self, left, right, delim)
+  pub const fn delimited<'inp, Delim>(self) -> DelimitedBy<Self, Delim>
+  where
+    Delim: DelimiterSelector<'inp, L, Lang>,
+  {
+    DelimitedBy::new_in(self)
   }
 }
 

@@ -6,18 +6,16 @@ use crate::{
 
 use super::*;
 
-impl<'inp, L, P, Open, Close, O, Condition, Container, Ctx, Delim, W, Lang: ?Sized>
+impl<'inp, L, P, O, Condition, Container, Ctx, Delim, W, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<AtLeast<RepeatedWhile<P, Condition, O, W, L, Ctx, Lang>>, Open, Close, Delim>,
+    DelimitedBy<AtLeast<RepeatedWhile<P, Condition, O, W, L, Ctx, Lang>>, Delim>,
     Container,
     Ctx,
     Lang,
   >
 where
-  Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Delim: Clone,
+  Delim: DelimiterSelector<'inp, L, Lang>,
   L: Lexer<'inp>,
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
@@ -37,20 +35,18 @@ where
   {
     let min = self.parser.parser.minimum().get();
 
-    DelimitedBy::new_in(
-      self.parser.parser.parser_mut(),
-      &self.parser.left_classifier,
-      &self.parser.right_classifier,
-      &self.parser.delimiter,
-    )
-    .parse_repeated(inp, &mut self.container, |nums, inp, span| {
-      if min > nums {
-        inp
-          .emitter()
-          .emit_too_few(TooFew::of(span.clone(), nums, min))?;
-      }
+    DelimitedBy::new_in(self.parser.parser.parser_mut()).parse_repeated(
+      inp,
+      &mut self.container,
+      |nums, inp, span| {
+        if min > nums {
+          inp
+            .emitter()
+            .emit_too_few(TooFew::of(span.clone(), nums, min))?;
+        }
 
-      Ok(())
-    })
+        Ok(())
+      },
+    )
   }
 }

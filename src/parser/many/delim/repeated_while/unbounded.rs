@@ -2,18 +2,16 @@ use crate::{container::Container as ContainerT, emitter::DelimitedEmitter};
 
 use super::*;
 
-impl<'inp, L, P, Open, Close, O, Condition, Container, Ctx, Delim, W, Lang: ?Sized>
+impl<'inp, L, P, O, Condition, Container, Ctx, Delim, W, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<RepeatedWhile<P, Condition, O, W, L, Ctx, Lang>, Open, Close, Delim>,
+    DelimitedBy<RepeatedWhile<P, Condition, O, W, L, Ctx, Lang>, Delim>,
     Container,
     Ctx,
     Lang,
   >
 where
-  Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-  Delim: Clone,
+  Delim: DelimiterSelector<'inp, L, Lang>,
   L: Lexer<'inp>,
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
@@ -31,12 +29,10 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    DelimitedBy::new_in(
-      &mut self.parser.parser,
-      &self.parser.left_classifier,
-      &self.parser.right_classifier,
-      &self.parser.delimiter,
+    DelimitedBy::new_in(&mut self.parser.parser).parse_repeated(
+      inp,
+      &mut self.container,
+      |_, _, _| Ok(()),
     )
-    .parse_repeated(inp, &mut self.container, |_, _, _| Ok(()))
   }
 }

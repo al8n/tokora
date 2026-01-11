@@ -162,13 +162,8 @@ impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
 impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn delimited_by<Open, Close, Delim>(
-    self,
-    left: Open,
-    right: Close,
-    delim: Delim,
-  ) -> DelimitedBy<Self, Open, Close, Delim> {
-    DelimitedBy::new_in(self, left, right, delim)
+  pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
+    DelimitedBy::new_in(self)
   }
 }
 

@@ -2,6 +2,8 @@ use core::marker::PhantomData;
 
 use derive_more::IsVariant;
 
+use crate::delimiter::DelimiterSelector;
+
 use super::*;
 
 mod parse;
@@ -262,13 +264,11 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
 
   /// Creates a new `Delimited` parser with the given delimiters and separator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn delimited_by<Open, Close, Delim>(
-    self,
-    left: Open,
-    right: Close,
-    delim: Delim,
-  ) -> DelimitedBy<Self, Open, Close, Delim> {
-    DelimitedBy::new_in(self, left, right, delim)
+  pub const fn delimited<'inp, Delim>(self) -> DelimitedBy<Self, Delim>
+  where
+    Delim: DelimiterSelector<'inp, L, Lang>,
+  {
+    DelimitedBy::new_in(self)
   }
 }
 

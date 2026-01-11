@@ -4,6 +4,7 @@ use mayber::Maybe::{Owned, Ref};
 
 use crate::{
   container::Container as ContainerT,
+  delimiter::DelimiterSelector,
   emitter::DelimitedEmitter,
   error::{Unclosed, Undelimited},
 };
@@ -15,8 +16,8 @@ mod at_most;
 mod bounded;
 mod unbounded;
 
-impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
-  DelimitedBy<&mut RepeatedWhile<P, Condition, O, W, L, Ctx, Lang>, &Open, &Close, &Delim>
+impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
+  DelimitedBy<&mut RepeatedWhile<P, Condition, O, W, L, Ctx, Lang>, Delim>
 {
   fn parse_repeated<Container>(
     &mut self,
@@ -31,9 +32,7 @@ impl<'inp, L, P, Open, Close, O, Condition, Ctx, Delim, W, Lang: ?Sized>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-    Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-    Delim: Clone,
+    Delim: DelimiterSelector<'inp, L, Lang>,
     L: Lexer<'inp>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,

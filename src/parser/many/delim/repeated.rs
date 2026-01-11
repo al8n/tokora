@@ -3,6 +3,7 @@ use core::mem;
 use crate::{
   TryParseInput,
   container::Container as ContainerT,
+  delimiter::DelimiterSelector,
   emitter::DelimitedEmitter,
   error::{Unclosed, Undelimited},
   try_parse_input::{Accept, Decline},
@@ -15,8 +16,8 @@ mod at_most;
 mod bounded;
 mod unbounded;
 
-impl<'inp, L, P, Open, Close, O, Ctx, Delim, Lang: ?Sized>
-  DelimitedBy<&mut Repeated<P, O, L, Ctx, Lang>, &Open, &Close, &Delim>
+impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
+  DelimitedBy<&mut Repeated<P, O, L, Ctx, Lang>, Delim>
 {
   fn parse_repeated<Container>(
     &mut self,
@@ -31,9 +32,7 @@ impl<'inp, L, P, Open, Close, O, Ctx, Delim, Lang: ?Sized>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Open: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-    Close: Check<L::Token, Result<(), <L::Token as Token<'inp>>::Kind>>,
-    Delim: Clone,
+    Delim: DelimiterSelector<'inp, L, Lang>,
     L: Lexer<'inp>,
     P: TryParseInput<'inp, L, O, Ctx, Lang>,
     Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang>,

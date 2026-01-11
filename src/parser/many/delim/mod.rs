@@ -140,38 +140,29 @@ mod repeated_while;
 /// - [`delimited_by`](RepeatedWhile::delimited_by) - How to create this combinator
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct DelimitedBy<P, Open, Close, Delim> {
+pub struct DelimitedBy<P, Delim> {
   pub(crate) parser: P,
-  pub(crate) left_classifier: Open,
-  pub(crate) right_classifier: Close,
-  pub(crate) delimiter: Delim,
+  pub(crate) _delim: PhantomData<Delim>,
 }
 
-impl<P, Open, Close, Delim> DelimitedBy<P, Open, Close, Delim> {
+impl<P, Delim> DelimitedBy<P, Delim> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new_in(parser: P, left: Open, right: Close, delim: Delim) -> Self {
+  pub(super) const fn new_in(parser: P) -> Self {
     Self {
       parser,
-      left_classifier: left,
-      right_classifier: right,
-      delimiter: delim,
+      _delim: PhantomData,
     }
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) fn map_parser_mut<'a, Q, F>(
-    &'a mut self,
-    f: F,
-  ) -> DelimitedBy<Q, &'a Open, &'a Close, &'a Delim>
+  pub(super) fn map_parser_mut<'a, Q, F>(&'a mut self, f: F) -> DelimitedBy<Q, &'a Delim>
   where
     F: FnOnce(&'a mut P) -> Q,
     Q: 'a,
   {
     DelimitedBy {
       parser: f(&mut self.parser),
-      left_classifier: &self.left_classifier,
-      right_classifier: &self.right_classifier,
-      delimiter: &self.delimiter,
+      _delim: PhantomData,
     }
   }
 }

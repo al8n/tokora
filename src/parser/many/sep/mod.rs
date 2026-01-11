@@ -248,13 +248,8 @@ impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Separated<F, SepClassifier, O, L
 
   /// Creates a new `Delimited` parser with the given delimiters and separator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn delimited_by<Open, Close, Delim>(
-    self,
-    left: Open,
-    right: Close,
-    delim: Delim,
-  ) -> DelimitedBy<Self, Open, Close, Delim> {
-    DelimitedBy::new_in(self, left, right, delim)
+  pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
+    DelimitedBy::new_in(self)
   }
 }
 

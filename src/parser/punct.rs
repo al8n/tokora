@@ -5,7 +5,7 @@ use crate::{
 };
 
 macro_rules! define_parsers {
-  ($($name:ident::$kind:ident),+$(,)?) => {
+  ($($name:ident::$kind:ident::$punct_char:literal),+$(,)?) => {
     paste::paste! {
       $(
         impl $name {
@@ -76,6 +76,16 @@ macro_rules! define_parsers {
           L: Lexer<'inp>,
           <L::Token as Token<'inp>>::Kind: From<$name<(), (), ()>>,
         {
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          fn name() -> &'static str {
+            stringify!($knd)
+          }
+
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          fn description() -> Option<&'static str> {
+            Some(concat!("The `", $punct_char, "` punctuator."))
+          }
+
           #[inline]
           fn kind() -> <L::Token as Token<'inp>>::Kind {
             <<L::Token as Token<'inp>>::Kind as From<_>>::from(<$name>::PHANTOM)
@@ -87,41 +97,41 @@ macro_rules! define_parsers {
 }
 
 define_parsers!(
-  Dot::dot,
-  Comma::comma,
-  Colon::colon,
-  Semicolon::semicolon,
-  Exclamation::exclamation,
-  DoubleQuote::double_quote,
-  Apostrophe::apostrophe,
-  Hash::hash,
-  Dollar::dollar,
-  Percent::percent,
-  Ampersand::ampersand,
-  Asterisk::asterisk,
-  Plus::plus,
-  Hyphen::minus,
-  Slash::slash,
-  Backslash::backslash,
-  OpenAngle::open_angle,
-  Equal::equal,
-  CloseAngle::close_angle,
-  Question::question,
-  At::at,
-  OpenBracket::open_bracket,
-  CloseBracket::close_bracket,
-  OpenBrace::open_brace,
-  CloseBrace::close_brace,
-  OpenParen::open_paren,
-  CloseParen::close_paren,
-  Backtick::backtick,
-  Pipe::pipe,
-  Caret::caret,
-  Underscore::underscore,
-  Tilde::tilde,
-  Space::space,
-  Tab::tab,
-  Newline::newline,
-  CarriageReturn::carriage_return,
-  CarriageReturnNewline::crlf,
+  Dot::dot::".",
+  Comma::comma::",",
+  Colon::colon::":",
+  Semicolon::semicolon::";",
+  Exclamation::exclamation::"!",
+  DoubleQuote::double_quote::"\"",
+  Apostrophe::apostrophe::"'",
+  Hash::hash::"#",
+  Dollar::dollar::"$",
+  Percent::percent::"%",
+  Ampersand::ampersand::"&",
+  Asterisk::asterisk::"*",
+  Plus::plus::"+",
+  Hyphen::minus::"-",
+  Slash::slash::"/",
+  Backslash::backslash::"\\",
+  OpenAngle::open_angle::"<",
+  Equal::equal::"=",
+  CloseAngle::close_angle::">",
+  Question::question::"?",
+  At::at::"@",
+  OpenBracket::open_bracket::"[",
+  CloseBracket::close_bracket::"]",
+  OpenBrace::open_brace::"{",
+  CloseBrace::close_brace::"}",
+  OpenParen::open_paren::"(",
+  CloseParen::close_paren::")",
+  Backtick::backtick::"`",
+  Pipe::pipe::"|",
+  Caret::caret::"^",
+  Underscore::underscore::"_",
+  Tilde::tilde::"~",
+  Space::space::" ",
+  Tab::tab::"\t",
+  Newline::newline::"\n",
+  CarriageReturn::carriage_return::"\r",
+  CarriageReturnNewline::crlf::"\r\n",
 );

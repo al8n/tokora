@@ -254,6 +254,15 @@ punctuator! {
 
 /// A trait for any punctuator.
 pub trait Punctuator<'inp, L, Lang: ?Sized = ()> {
+  /// Returns the name of the punctuator.
+  fn name() -> &'static str;
+
+  /// Returns the description of the punctuator.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn description() -> Option<&'static str> {
+    None
+  }
+
   /// Returns the kind of the punctuator.
   fn kind() -> <L::Token as Token<'inp>>::Kind
   where
@@ -283,6 +292,16 @@ pub trait Punctuator<'inp, L, Lang: ?Sized = ()> {
 
 macro_rules! impl_deref {
   (@impl<$ty:ty>) => {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn name() -> &'static str {
+      <$ty>::name()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn description() -> Option<&'static str> {
+      <$ty>::description()
+    }
+
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn kind() -> <L::Token as Token<'inp>>::Kind
     where
