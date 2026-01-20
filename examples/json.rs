@@ -7,6 +7,7 @@ use tokit::{
   Accumulator, Branch, Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput,
   Parser, Token as TokenT, TryParseInput,
   cache::Peeked,
+  delimiter::DelimiterSelector,
   emitter::{
     DelimitedEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
@@ -17,7 +18,7 @@ use tokit::{
     token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
   parser::{Action, expect},
-  punct::{Brace, Bracket, Colon, Comma},
+  punct::{Brace, Bracket, CloseBrace, CloseBracket, Colon, Comma, OpenBrace, OpenBracket},
   span::Spanned,
   token::PunctuatorToken,
   try_parse_input::ParseAttempt,
@@ -308,6 +309,34 @@ impl From<Colon> for TokenKind {
   }
 }
 
+impl From<OpenBrace> for TokenKind {
+  #[inline]
+  fn from(_: OpenBrace) -> Self {
+    TokenKind::BraceOpen
+  }
+}
+
+impl From<CloseBrace> for TokenKind {
+  #[inline]
+  fn from(_: CloseBrace) -> Self {
+    TokenKind::BraceClose
+  }
+}
+
+impl From<OpenBracket> for TokenKind {
+  #[inline]
+  fn from(_: OpenBracket) -> Self {
+    TokenKind::BracketOpen
+  }
+}
+
+impl From<CloseBracket> for TokenKind {
+  #[inline]
+  fn from(_: CloseBracket) -> Self {
+    TokenKind::BracketClose
+  }
+}
+
 type JsonLexer<'a> = tokit::lexer::LogosLexer<'a, Token<'a>>;
 
 // Example of using map combinator to extract token values
@@ -342,38 +371,6 @@ impl<'inp> JsonValue<'inp> {
         }
       }
     })
-  }
-}
-
-fn open_brace(t: &Token<'_>) -> Result<(), TokenKind> {
-  if matches!(t, Token::BraceOpen) {
-    Ok(())
-  } else {
-    Err(TokenKind::BraceOpen)
-  }
-}
-
-fn open_bracket(t: &Token<'_>) -> Result<(), TokenKind> {
-  if matches!(t, Token::BracketOpen) {
-    Ok(())
-  } else {
-    Err(TokenKind::BracketOpen)
-  }
-}
-
-fn close_brace(t: &Token<'_>) -> Result<(), TokenKind> {
-  if matches!(t, Token::BraceClose) {
-    Ok(())
-  } else {
-    Err(TokenKind::BraceClose)
-  }
-}
-
-fn close_bracket(t: &Token<'_>) -> Result<(), TokenKind> {
-  if matches!(t, Token::BracketClose) {
-    Ok(())
-  } else {
-    Err(TokenKind::BracketClose)
   }
 }
 
@@ -462,7 +459,7 @@ where
 {
   try_json_value
     .separated_by_comma()
-    .delimited_by(open_bracket, close_bracket, Bracket::PHANTOM)
+    .delimited::<Bracket>()
     .collect()
     .parse_input(inp)
 }
@@ -499,7 +496,7 @@ where
 {
   field
     .separated_by_comma_while::<_, U1>(JsonValue::decide::<Ctx>)
-    .delimited_by(open_brace, close_brace, Brace::PHANTOM)
+    .delimited::<Brace>()
     .collect()
     .parse_input(inp)
 }

@@ -1,6 +1,6 @@
 use core::mem;
 
-use mayber::Maybe::{Owned, Ref};
+// use mayber::Maybe::{Owned, Ref};
 
 use crate::{
   container::Container as ContainerT,
@@ -47,13 +47,15 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     let mut first_kind = None;
     let left_delimiter = inp.try_expect(|tok| {
       let (span, tok) = tok.into_components();
-      match self.left_classifier.check(tok) {
-        Err(knd) => {
-          first_kind =
-            Some(UnexpectedToken::expected_one(span.clone(), knd).with_found(tok.clone()));
+      match Delim::is_open(&tok.kind()) {
+        false => {
+          first_kind = Some(Delim::unexpected_open_token(Spanned::new(
+            span.clone(),
+            tok.clone(),
+          )));
           false
         }
-        Ok(_) => true,
+        true => true,
       }
     })?;
 
@@ -75,53 +77,40 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     let mut nums = 0;
 
     loop {
-      let (mut peeked, emitter) = inp.peek_with_emitter::<W>()?;
-
-      if let Some(front) = peeked.front() {
-        let tok = front
-          .as_maybe_ref()
-          .map(|t| t.token().copied(), |t| t.token())
-          .into_inner();
-
-        // find the ending delimiter
-        if self.right_classifier.check(tok.data()).is_ok() {
-          let front = peeked.pop_front().expect("just checked there is a front");
-          drop(peeked);
-          let close = match front {
-            Ref(_) => inp.next()?.expect("peeked guarantee there is a next token"),
-            Owned(ct) => ct.into_token(),
-          };
-          container.on_close_delimiter(close);
-
+      match inp.try_expect(|tok| Delim::is_close(&tok.kind()))? {
+        Some(closed) => {
+          container.on_close_delimiter(closed);
           let span = inp.span_since(ckp.cursor());
           return on_stop(nums, inp, &span).map(|_| mem::take(container));
         }
-      }
+        None => {
+          let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
+          match self.parser.condition.decide(peeked, emitter) {
+            Err(err) => return Err(err),
+            Ok(action) => match action {
+              // missing ending delimiter
+              Action::Stop => {
+                if has_open {
+                  let span = inp.span_since(ckp.cursor());
+                  inp
+                    .emitter()
+                    .emit_unclosed(Unclosed::of(span, Delim::name()))?;
+                } else {
+                  let span = inp.span_since(ckp.cursor());
+                  inp
+                    .emitter()
+                    .emit_undelimited(Undelimited::of(span, Delim::name()))?;
+                }
 
-      match self.parser.condition.decide(peeked, emitter) {
-        Err(err) => return Err(err),
-        Ok(action) => match action {
-          // missing ending delimiter
-          Action::Stop => {
-            if has_open {
-              let span = inp.span_since(ckp.cursor());
-              inp
-                .emitter()
-                .emit_unclosed(Unclosed::of(span, self.delimiter.clone()))?;
-            } else {
-              let span = inp.span_since(ckp.cursor());
-              inp
-                .emitter()
-                .emit_undelimited(Undelimited::of(span, self.delimiter.clone()))?;
-            }
-
-            return Ok(mem::take(container));
+                return Ok(mem::take(container));
+              }
+              Action::Continue => {
+                container.push(self.parser.f.parse_input(inp)?);
+                nums += 1;
+              }
+            },
           }
-          Action::Continue => {
-            container.push(self.parser.f.parse_input(inp)?);
-            nums += 1;
-          }
-        },
+        }
       }
     }
   }

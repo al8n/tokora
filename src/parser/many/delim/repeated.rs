@@ -6,6 +6,7 @@ use crate::{
   delimiter::DelimiterSelector,
   emitter::DelimitedEmitter,
   error::{Unclosed, Undelimited},
+  punct::Punctuator,
   try_parse_input::{Accept, Decline},
 };
 
@@ -46,13 +47,15 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
     let mut first_kind = None;
     let left_delimiter = inp.try_expect(|tok| {
       let (span, tok) = tok.into_components();
-      match self.left_classifier.check(tok) {
-        Err(knd) => {
-          first_kind =
-            Some(UnexpectedToken::expected_one(span.clone(), knd).with_found(tok.clone()));
+      match Delim::is_open(&tok.kind()) {
+        false => {
+          first_kind = Some(Delim::unexpected_open_token(Spanned::new(
+            span.clone(),
+            tok.clone(),
+          )));
           false
         }
-        Ok(_) => true,
+        true => true,
       }
     })?;
 
@@ -81,11 +84,11 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
       if has_open {
         inp
           .emitter()
-          .emit_unclosed(Unclosed::of(span, self.delimiter.clone()))?;
+          .emit_unclosed(Unclosed::of(span, Delim::name()))?;
       } else {
         inp
           .emitter()
-          .emit_undelimited(Undelimited::of(span, self.delimiter.clone()))?;
+          .emit_undelimited(Undelimited::of(span, Delim::name()))?;
       }
       Ok(())
     };
@@ -103,10 +106,10 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
         // no more elemnts.
         Ok(Decline) => {
           let mut close_kind = None;
-          match inp.try_expect(|t| match self.right_classifier.check(t.data()) {
-            Ok(_) => true,
-            Err(knd) => {
-              close_kind = Some(knd);
+          match inp.try_expect(|t| match Delim::is_close(&t.data.kind()) {
+            true => true,
+            false => {
+              close_kind = Some(Delim::Close::kind());
               false
             }
           })? {

@@ -106,6 +106,7 @@ use core::marker::PhantomData;
 use crate::{
   punct::{Angle, Brace, Bracket, Paren},
   span::{SimpleSpan, Span},
+  utils::Message,
 };
 
 /// A unclosed bracket error
@@ -171,10 +172,11 @@ pub type UnclosedAngle<S = SimpleSpan, Lang = ()> = Unclosed<Angle, S, Lang>;
 ///     eprintln!("Unclosed {} at {}", error.delimiter(), error.span());
 /// }
 /// ```
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Unclosed<Delimiter, S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,
-  delimiter: Delimiter,
+  name: Message,
+  _delimiter: PhantomData<Delimiter>,
   _lang: PhantomData<Lang>,
 }
 
@@ -184,7 +186,7 @@ where
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    write!(f, "unclosed delimiter '{}'", self.delimiter)
+    write!(f, "unclosed delimiter '{}'", self.name)
   }
 }
 
@@ -234,7 +236,7 @@ impl<S, Lang: ?Sized> Unclosed<Paren, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn paren_of(span: S) -> Self {
-    Self::of(span, Paren::PHANTOM)
+    Self::of(span, Message::from_static("()"))
   }
 }
 
@@ -276,7 +278,7 @@ impl<S, Lang: ?Sized> Unclosed<Bracket, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn bracket_of(span: S) -> Self {
-    Self::of(span, Bracket::PHANTOM)
+    Self::of(span, Message::from_static("[]"))
   }
 }
 
@@ -318,7 +320,7 @@ impl<S, Lang: ?Sized> Unclosed<Brace, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn brace_of(span: S) -> Self {
-    Self::of(span, Brace::PHANTOM)
+    Self::of(span, Message::from_static("{}"))
   }
 }
 
@@ -360,7 +362,7 @@ impl<S, Lang: ?Sized> Unclosed<Angle, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn angle_of(span: S) -> Self {
-    Self::of(span, Angle::PHANTOM)
+    Self::of(span, Message::from_static("<>"))
   }
 }
 
@@ -380,8 +382,8 @@ impl<Delimiter, S> Unclosed<Delimiter, S> {
   /// assert_eq!(error.delimiter(), '{');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: S, delimiter: Delimiter) -> Self {
-    Self::of(span, delimiter)
+  pub const fn new(span: S, name: Message) -> Self {
+    Self::of(span, name)
   }
 }
 
@@ -401,10 +403,11 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// assert_eq!(error.delimiter(), '{');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn of(span: S, delimiter: Delimiter) -> Self {
+  pub const fn of(span: S, name: Message) -> Self {
     Self {
       span,
-      delimiter,
+      name,
+      _delimiter: PhantomData,
       _lang: PhantomData,
     }
   }
@@ -441,7 +444,7 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
     &mut self.span
   }
 
-  /// Returns a reference to the unclosed delimiter.
+  /// Returns a reference to the name of the unclosed delimiter.
   ///
   /// # Examples
   ///
@@ -449,11 +452,11 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// use tokit::{error::Unclosed, utils::SimpleSpan};
   ///
   /// let error = Unclosed::new(SimpleSpan::new(5, 6), '{');
-  /// assert_eq!(error.delimiter_ref(), &'{');
+  /// assert_eq!(error.name_ref(), &'{');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn delimiter_ref(&self) -> &Delimiter {
-    &self.delimiter
+  pub const fn name_ref(&self) -> &str {
+    self.name.as_str()
   }
 
   /// Returns the unclosed delimiter.
@@ -469,11 +472,9 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// assert_eq!(error.delimiter(), '[');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn delimiter(&self) -> Delimiter
-  where
-    Delimiter: Copy,
-  {
-    self.delimiter
+  #[cfg(not(any(feature = "alloc", feature = "std")))]
+  pub const fn name(&self) -> Message {
+    self.name
   }
 
   /// Bumps the span by the given offset.
@@ -513,8 +514,8 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// assert_eq!(delimiter, '"');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (S, Delimiter) {
-    (self.span, self.delimiter)
+  pub fn into_components(self) -> (S, Message) {
+    (self.span, self.name)
   }
 }
 

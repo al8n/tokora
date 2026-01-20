@@ -53,45 +53,45 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     let mut num_elems = 0;
 
     loop {
-      let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
-
-      let peek_span = match peeked.front() {
-        None => {
-          drop(peeked);
-          return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
-        }
+      match inp.try_expect(|tok| self.sep.check(tok.data))? {
         Some(tok) => {
-          let tok = tok
-            .as_maybe_ref()
-            .map(|t| t.token().copied(), |t| t.token())
-            .into_inner();
-          let peek_span = tok.span();
-          match tok.data() {
-            tok if self.sep.check(tok) => {
-              drop(peeked);
-              state = self.handle_separator(state, inp, container, separator_state_handler)?;
+          state = self.handle_separator(state, inp, tok, container, separator_state_handler)?;
 
-              continue;
-            }
-            _ => peek_span.clone(),
+          continue;
+        }
+        None => {
+          let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
+
+          if peeked.is_empty() {
+            drop(peeked);
+            return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
           }
-        }
-      };
 
-      match self.condition.decide(peeked, emitter)? {
-        Action::Stop => {
-          return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
-        }
-        Action::Continue => {
-          // if the peeked token belongs to an element, check the current state
-          state = self.handle_continue(
-            state,
-            inp,
-            &peek_span,
-            &mut num_elems,
-            container,
-            continue_state_handler,
-          )?;
+          let first_span = {
+            let tok = peeked
+              .front()
+              .expect("peeked token already confirmed there must be a token")
+              .as_maybe_ref()
+              .map(|t| t.token().copied(), |t| t.token())
+              .into_inner();
+            tok.span().clone()
+          };
+          match self.condition.decide(peeked, emitter)? {
+            Action::Stop => {
+              return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
+            }
+            Action::Continue => {
+              // if the peeked token belongs to an element, check the current state
+              state = self.handle_continue(
+                state,
+                inp,
+                &first_span,
+                &mut num_elems,
+                container,
+                continue_state_handler,
+              )?;
+            }
+          }
         }
       }
     }
@@ -101,6 +101,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     &mut self,
     mut state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    sep_tok: Spanned<L::Token, L::Span>,
     container: &mut Container,
     handler: &Handler,
   ) -> Result<State<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -112,9 +113,6 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     Handler: SeparatorStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   {
-    let sep_tok = inp
-      .next()?
-      .expect("peeked token already confirmed there must be a token");
     match state {
       // happy path, we found a separator after an element
       State::Element => {

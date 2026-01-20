@@ -1,3 +1,5 @@
+// use either::Either;
+
 use super::*;
 
 use crate::{
@@ -129,19 +131,65 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
-    let (exhausted, tok) = self.try_expect_in_cache(&mut pred)?;
-
-    if !exhausted {
-      return Ok(tok);
+    // if cache is empty, directly try expect on input
+    if self.cache.is_empty() {
+      return self.try_expect_on_input(pred);
     }
 
-    match tok {
-      // found the token in cache
-      Some(tok) => Ok(Some(tok)),
-      // need to lex from input
-      None => self.try_expect_on_input(pred),
-    }
+    // pop from cache if matching
+    Ok(self.cache.pop_front_if(|t| pred(t.token)).map(|tok| {
+      let (lexed, state) = tok.into_components();
+      let (span, tok) = lexed.into_components();
+      self.set_span_after_consume((&span).into());
+      *self.state = state;
+
+      Spanned::new(span, tok)
+    }))
   }
+
+  // /// Advances to the next valid token and expects it to satisfy the predicate.
+  // ///
+  // /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
+  // /// If `pred` returns `Ok`, the token is consumed and returned.
+  // /// Otherwise, the error is returned and the token remains in the cache.
+  // pub fn try_expect_either<F>(
+  //   &mut self,
+  //   mut pred: F,
+  // ) -> Result<Option<Either<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  // where
+  //   F: FnMut(Spanned<&L::Token, &L::Span>) -> Option<Either<(), ()>>,
+  // {
+  //   // if cache is empty, directly try expect on input
+  //   if self.cache.is_empty() {
+  //     return self.try_expect_on_input(pred);
+  //   }
+
+  //   // pop from cache if matching
+  //   let mut is_left = false;
+  //   Ok(self.cache.pop_front_if(|t| {
+  //     match pred(t.token) {
+  //       Some(Either::Left(_)) => {
+  //         is_left = true;
+  //         true
+  //       }
+  //       Some(Either::Right(_)) => {
+  //         true
+  //       }
+  //       None => false,
+  //     }
+  //   }).map(|tok| {
+  //     let (lexed, state) = tok.into_components();
+  //     let (span, tok) = lexed.into_components();
+  //     self.set_span_after_consume((&span).into());
+  //     *self.state = state;
+
+  //     if is_left {
+  //       Either::Left(Spanned::new(span, tok))
+  //     } else {
+  //       Either::Right(Spanned::new(span, tok))
+  //     }
+  //   }))
+  // }
 
   /// Advances to the next valid token and expects it to satisfy the predicate.
   ///
@@ -158,18 +206,30 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> Option<O>,
   {
-    let (exhausted, tok) = self.try_expect_map_in_cache(&mut pred)?;
-
-    if !exhausted {
-      return Ok(tok);
+    // if cache is empty, directly try expect on input
+    if self.cache.is_empty() {
+      return self.try_expect_map_on_input(pred);
     }
 
-    match tok {
-      // found the token in cache
-      Some(tok) => Ok(Some(tok)),
-      // need to lex from input
-      None => self.try_expect_map_on_input(pred),
-    }
+    let mut output = None;
+    Ok(
+      self
+        .cache
+        .pop_front_if(|t| match pred(t.token().copied()) {
+          Some(out) => {
+            output = Some(out);
+            true
+          }
+          None => false,
+        })
+        .map(|tok| {
+          let (lexed, state) = tok.into_components();
+          let (span, tok) = lexed.into_components();
+          self.set_span_after_consume((&span).into());
+          *self.state = state;
+          (output.unwrap(), Spanned::new(span, tok))
+        }),
+    )
   }
 
   /// Advances to the next valid token and expects it to satisfy the predicate.
@@ -189,35 +249,11 @@ where
       Spanned<&L::Token, &L::Span>,
     ) -> Option<Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>>,
   {
-    let (exhausted, tok) = self.try_expect_and_then_in_cache(&mut pred)?;
-
-    if !exhausted {
-      return Ok(tok);
+    // if cache is empty, directly try expect on input
+    if self.cache.is_empty() {
+      return self.try_expect_and_then_on_input(pred);
     }
 
-    match tok {
-      // found the token in cache
-      Some(tok) => Ok(Some(tok)),
-      // need to lex from input
-      None => self.try_expect_and_then_on_input(pred),
-    }
-  }
-
-  /// Internal implementation for syncing tokens in the cache.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn try_expect_and_then_in_cache<O, P>(
-    &mut self,
-    mut pred: P,
-  ) -> Result<
-    (bool, Option<(O, Spanned<L::Token, L::Span>)>),
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
-  >
-  where
-    P: FnMut(
-      Spanned<&L::Token, &L::Span>,
-    ) -> Option<Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>>,
-  {
-    // pop from cache if not matching
     let mut output = None;
     if let Some(tok) = self.cache.pop_front_if(|t| match pred(t.token().copied()) {
       Some(res) => {
@@ -232,63 +268,12 @@ where
       *self.state = state;
 
       return match output {
-        Some(res) => Ok((false, Some((res?, Spanned::new(span, tok))))),
-        None => Ok((false, None)),
+        Some(res) => res.map(|o| Some((o, Spanned::new(span, tok)))),
+        None => Ok(None),
       };
     }
-    Ok((true, None))
-  }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn try_expect_in_cache<P>(
-    &mut self,
-    mut pred: P,
-  ) -> Result<
-    (bool, Option<Spanned<L::Token, L::Span>>),
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
-  >
-  where
-    P: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
-  {
-    // pop from cache if not matching
-    if let Some(tok) = self.cache.pop_front_if(|t| pred(t.token)) {
-      let (lexed, state) = tok.into_components();
-      let (span, tok) = lexed.into_components();
-      self.set_span_after_consume((&span).into());
-      *self.state = state;
-
-      return Ok((false, Some(Spanned::new(span, tok))));
-    }
-    Ok((true, None))
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn try_expect_map_in_cache<O, P>(
-    &mut self,
-    mut pred: P,
-  ) -> Result<
-    (bool, Option<(O, Spanned<L::Token, L::Span>)>),
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
-  >
-  where
-    P: FnMut(Spanned<&L::Token, &L::Span>) -> Option<O>,
-  {
-    // pop from cache if not matching
-    let mut output = None;
-    if let Some(tok) = self.cache.pop_front_if(|t| match pred(t.token().copied()) {
-      Some(out) => {
-        output = Some(out);
-        true
-      }
-      None => false,
-    }) {
-      let (lexed, state) = tok.into_components();
-      let (span, tok) = lexed.into_components();
-      self.set_span_after_consume((&span).into());
-      *self.state = state;
-      return Ok((false, output.map(|out| (out, Spanned::new(span, tok)))));
-    }
-    Ok((true, None))
+    Ok(None)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

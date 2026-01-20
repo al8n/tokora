@@ -1,4 +1,10 @@
-use crate::{Lexer, Token, error::token::UnexpectedToken, punct::Punctuator, span::Spanned};
+use crate::{
+  Lexer, Token,
+  error::token::UnexpectedToken,
+  punct::{Brace, Bracket, CloseBrace, CloseBracket, OpenBrace, OpenBracket, Punctuator},
+  span::Spanned,
+  utils::Message,
+};
 
 /// A trait for any delimiter consisting of an opening and a closing punctuator.
 pub trait DelimiterSelector<'inp, L, Lang: ?Sized = ()> {
@@ -6,6 +12,9 @@ pub trait DelimiterSelector<'inp, L, Lang: ?Sized = ()> {
   type Open: Punctuator<'inp, L, Lang>;
   /// The closing punctuator.
   type Close: Punctuator<'inp, L, Lang>;
+
+  /// The name of the delimiter.
+  fn name() -> Message;
 
   /// Checks if the given token kind is the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -48,10 +57,45 @@ pub trait DelimiterSelector<'inp, L, Lang: ?Sized = ()> {
   }
 }
 
+impl<'inp, S, C, L, Lang: ?Sized> DelimiterSelector<'inp, L, Lang> for Brace<S, C, Lang>
+where
+  L: Lexer<'inp>,
+  OpenBrace<S, C, Lang>: Punctuator<'inp, L, Lang>,
+  CloseBrace<S, C, Lang>: Punctuator<'inp, L, Lang>,
+{
+  type Open = OpenBrace<S, C, Lang>;
+
+  type Close = CloseBrace<S, C, Lang>;
+
+  fn name() -> Message {
+    Message::from_static("{}")
+  }
+}
+
+impl<'inp, S, C, L, Lang: ?Sized> DelimiterSelector<'inp, L, Lang> for Bracket<S, C, Lang>
+where
+  L: Lexer<'inp>,
+  OpenBracket<S, C, Lang>: Punctuator<'inp, L, Lang>,
+  CloseBracket<S, C, Lang>: Punctuator<'inp, L, Lang>,
+{
+  type Open = OpenBracket<S, C, Lang>;
+
+  type Close = CloseBracket<S, C, Lang>;
+
+  fn name() -> Message {
+    Message::from_static("[]")
+  }
+}
+
 macro_rules! impl_deref {
   (@impl<$ty:ty>) => {
     type Open = <$ty>::Open;
     type Close = <$ty>::Close;
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn name() -> Message {
+      <$ty>::name()
+    }
 
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn is_open(knd: &<<L>::Token as Token<'inp>>::Kind) -> bool

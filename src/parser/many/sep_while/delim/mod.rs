@@ -69,13 +69,13 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     })?;
 
     let mut left_span = None;
-    let has_open = match left_delimiter {
+    let _has_open = match left_delimiter {
       None if inp.is_eoi() => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
       None => {
         // safe unwrap as we know when left_delimiter is None, first_kind is Some
-        inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
+        // inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
         false
       }
       Some(open) => {
@@ -90,98 +90,83 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     let mut num_elems = 0;
 
     let elems_start = inp.cursor().clone();
-    let (elems_span, right) = loop {
-      let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
-
-      let peek_span = match peeked.front() {
-        None => {
-          drop(peeked);
-          break (
-            parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
-            None,
-          );
+    loop {
+      let mut is_sep = false;
+      match inp.try_expect(|tok| {
+        if parser.sep.check(tok.data) {
+          is_sep = true;
+          true
+        } else {
+          Delim::is_close(&tok.kind())
         }
+      })? {
         Some(tok) => {
-          let tok = tok
+          if is_sep {
+            state = parser.handle_separator(state, inp, tok, container, separator_state_handler)?;
+            continue;
+          }
+
+          parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?;
+          container.on_close_delimiter(tok);
+          return Ok(inp.span_since(ckp.cursor()));
+        }
+        None => {
+          let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
+
+          if peeked.is_empty() {
+            drop(peeked);
+            parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?;
+
+            let span = inp.span_since(ckp.cursor());
+            inp
+              .emitter()
+              .emit_unclosed(Unclosed::of(span, Delim::name()))?;
+
+            return Ok(inp.span_since(&elems_start));
+          }
+
+          let first_span = peeked
+            .front()
+            .unwrap()
             .as_maybe_ref()
             .map(|t| t.token().copied(), |t| t.token())
-            .into_inner();
+            .into_inner()
+            .span()
+            .clone();
 
-          let peek_span = tok.span();
-          match tok.data() {
-            t if parser.sep.check(t) => {
-              drop(peeked);
-              state = parser.handle_separator(state, inp, container, separator_state_handler)?;
+          match parser.condition.decide(peeked, emitter)? {
+            Action::Stop => {
+              parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?;
 
-              continue;
+              return match inp.try_expect(|tok| Delim::is_close(&tok.kind()))? {
+                Some(closed) => {
+                  container.on_close_delimiter(closed);
+                  Ok(inp.span_since(&elems_start))
+                }
+                None => {
+                  let span = inp.span_since(ckp.cursor());
+                  inp
+                    .emitter()
+                    .emit_undelimited(Undelimited::of(span, Delim::name()))?;
+
+                  Ok(inp.span_since(&elems_start))
+                }
+              };
             }
-            t => match Delim::is_close(&t.kind()) {
-              true => {
-                drop(peeked);
-
-                let Ok(Some(tok)) = inp.next() else {
-                  unreachable!("peeked guarantee there is a next token")
-                };
-
-                break (inp.span_since(&elems_start), Some(tok));
-              }
-              false => peek_span.clone(),
-            },
+            Action::Continue => {
+              // if the peeked token belongs to an element, check the current state
+              state = parser.handle_continue(
+                state,
+                inp,
+                &first_span,
+                &mut num_elems,
+                container,
+                continue_state_handler,
+              )?;
+            }
           }
         }
-      };
-
-      match parser.condition.decide(peeked, emitter)? {
-        Action::Stop => {
-          break (
-            parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
-            None,
-          );
-        }
-        Action::Continue => {
-          // if the peeked token belongs to an element, check the current state
-          state = parser.handle_continue(
-            state,
-            inp,
-            &peek_span,
-            &mut num_elems,
-            container,
-            continue_state_handler,
-          )?;
-        }
-      }
-    };
-
-    let right = match right {
-      Some(tok) => Some(tok),
-      None => inp.try_expect(|t| Delim::is_close(&t.kind()))?,
-    };
-
-    match right {
-      // missing closing delimiter
-      None if has_open => {
-        let span = inp.span_since(ckp.cursor());
-        inp
-          .emitter()
-          .emit_unclosed(Unclosed::of(span, self.delimiter.clone()))?;
-      }
-      // no open and close delimiters
-      None => {
-        let span = inp.span_since(ckp.cursor());
-        inp
-          .emitter()
-          .emit_undelimited(Undelimited::of(span, self.delimiter.clone()))?;
-      }
-      // no open, but found a close delimiter
-      Some(right) if has_open => {
-        // TODO(al8n): cleanup error delimiter handling
-        container.on_close_delimiter(right);
-      }
-      Some(right) => {
-        container.on_close_delimiter(right);
       }
     }
-
-    Ok(elems_span)
   }
 }

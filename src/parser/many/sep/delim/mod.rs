@@ -57,13 +57,15 @@ impl<'c, 'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
     let mut first_kind = None;
     let left_delimiter = inp.try_expect(|tok| {
       let (span, tok) = tok.into_components();
-      match self.left_classifier.check(tok) {
-        Err(knd) => {
-          first_kind =
-            Some(UnexpectedToken::expected_one(span.clone(), knd).with_found(tok.clone()));
+      match Delim::is_open(&tok.kind()) {
+        false => {
+          first_kind = Some(Delim::unexpected_open_token(Spanned::new(
+            span.clone(),
+            tok.clone(),
+          )));
           false
         }
-        Ok(_) => true,
+        true => true,
       }
     })?;
 
@@ -96,9 +98,9 @@ impl<'c, 'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
         if parser.sep.check(t.data()) {
           Some(false)
         } else {
-          match self.right_classifier.check(t.data()) {
-            Ok(_) => Some(true),
-            Err(_) => {
+          match Delim::is_close(&t.data.kind()) {
+            true => Some(true),
+            false => {
               ps = Some(t.span().clone());
               None
             }
@@ -155,7 +157,7 @@ impl<'c, 'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
 
     let right = match right {
       Some(tok) => Some(tok),
-      None => inp.try_expect(|t| self.right_classifier.check(t.data()).is_ok())?,
+      None => inp.try_expect(|t| Delim::is_close(&t.data.kind()))?,
     };
 
     match right {
@@ -164,14 +166,14 @@ impl<'c, 'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
         let span = inp.span_since(ckp.cursor());
         inp
           .emitter()
-          .emit_unclosed(Unclosed::of(span, self.delimiter.clone()))?;
+          .emit_unclosed(Unclosed::of(span, Delim::name()))?;
       }
       // no open and close delimiters
       None => {
         let span = inp.span_since(ckp.cursor());
         inp
           .emitter()
-          .emit_undelimited(Undelimited::of(span, self.delimiter.clone()))?;
+          .emit_undelimited(Undelimited::of(span, Delim::name()))?;
       }
       Some(right) if has_open => {
         container.on_close_delimiter(right);
@@ -180,7 +182,7 @@ impl<'c, 'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
         let span = inp.span_since(ckp.cursor());
         inp
           .emitter()
-          .emit_unopened(Unopened::of(span, self.delimiter.clone()))?;
+          .emit_unopened(Unopened::of(span, Delim::name()))?;
         container.on_close_delimiter(right);
       }
     }
