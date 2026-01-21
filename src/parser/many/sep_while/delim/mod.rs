@@ -1,10 +1,6 @@
 use core::mem;
 
-use crate::{
-  container::Container as ContainerT,
-  emitter::{DelimitedEmitter, SeparatedEmitter},
-  error::{Unclosed, Undelimited},
-};
+use crate::{container::Container as ContainerT, emitter::SeparatedEmitter};
 
 use super::*;
 
@@ -43,7 +39,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + SeparatedEmitter<'inp, Sep, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     Container: DelimiterHandler<'inp, L> + SeparatorHandler<'inp, L> + ContainerT<O>,
@@ -69,19 +65,17 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     })?;
 
     let mut left_span = None;
-    let _has_open = match left_delimiter {
+    match left_delimiter {
       None if inp.is_eoi() => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
       None => {
         // safe unwrap as we know when left_delimiter is None, first_kind is Some
-        // inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
-        false
+        inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
       }
       Some(open) => {
         left_span = Some(open.span_ref().clone());
         container.on_open_delimiter(open);
-        true
       }
     };
 
@@ -92,12 +86,19 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     let elems_start = inp.cursor().clone();
     loop {
       let mut is_sep = false;
+      let mut err = None;
       match inp.try_expect(|tok| {
         if parser.sep.check(tok.data) {
           is_sep = true;
           true
         } else {
-          Delim::is_close(&tok.kind())
+          match Delim::is_close(&tok.data.kind()) {
+            true => true,
+            false => {
+              err = Some(Delim::unexpected_close_token(tok.cloned()));
+              false
+            }
+          }
         }
       })? {
         Some(tok) => {
@@ -113,41 +114,40 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
         None => {
           let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
 
-          if peeked.is_empty() {
-            drop(peeked);
-            parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?;
+          let front_span = match peeked.front() {
+            None => {
+              drop(peeked);
+              parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?;
 
-            let span = inp.span_since(ckp.cursor());
-            inp
-              .emitter()
-              .emit_unclosed(Unclosed::of(span, Delim::name()))?;
+              inp.emitter().emit_unexpected_token(err.unwrap())?;
 
-            return Ok(inp.span_since(&elems_start));
-          }
-
-          let first_span = peeked
-            .front()
-            .unwrap()
-            .as_maybe_ref()
-            .map(|t| t.token().copied(), |t| t.token())
-            .into_inner()
-            .span()
-            .clone();
+              return Ok(inp.span_since(&elems_start));
+            }
+            Some(front) => front
+              .as_maybe_ref()
+              .map(|t| t.token().copied(), |t| t.token())
+              .into_inner()
+              .span()
+              .clone(),
+          };
 
           match parser.condition.decide(peeked, emitter)? {
             Action::Stop => {
               parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?;
-
-              return match inp.try_expect(|tok| Delim::is_close(&tok.kind()))? {
+              let mut err = None;
+              return match inp.try_expect(|tok| match Delim::is_close(&tok.data.kind()) {
+                true => true,
+                false => {
+                  err = Some(Delim::unexpected_close_token(tok.cloned()));
+                  false
+                }
+              })? {
                 Some(closed) => {
                   container.on_close_delimiter(closed);
                   Ok(inp.span_since(&elems_start))
                 }
                 None => {
-                  let span = inp.span_since(ckp.cursor());
-                  inp
-                    .emitter()
-                    .emit_undelimited(Undelimited::of(span, Delim::name()))?;
+                  inp.emitter().emit_unexpected_token(err.unwrap())?;
 
                   Ok(inp.span_since(&elems_start))
                 }
@@ -158,7 +158,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
               state = parser.handle_continue(
                 state,
                 inp,
-                &first_span,
+                &front_span,
                 &mut num_elems,
                 container,
                 continue_state_handler,

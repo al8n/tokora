@@ -4,9 +4,6 @@ use crate::{
   TryParseInput,
   container::Container as ContainerT,
   delimiter::DelimiterSelector,
-  emitter::DelimitedEmitter,
-  error::{Unclosed, Undelimited},
-  punct::Punctuator,
   try_parse_input::{Accept, Decline},
 };
 
@@ -36,7 +33,6 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
     Delim: DelimiterSelector<'inp, L, Lang>,
     L: Lexer<'inp>,
     P: TryParseInput<'inp, L, O, Ctx, Lang>,
-    Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
@@ -59,39 +55,21 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
       }
     })?;
 
-    let has_open = match left_delimiter {
+    match left_delimiter {
       None if inp.is_eoi() => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
       None => {
         // safe unwrap as we know when left_delimiter is None, first_kind is Some
         inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
-        false
       }
       Some(open) => {
         container.on_open_delimiter(open);
-        true
       }
     };
 
     let mut nums = 0;
-
     let mut elem_cur = inp.cursor().clone();
-
-    let on_missing_close = |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-                            span: L::Span|
-     -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-      if has_open {
-        inp
-          .emitter()
-          .emit_unclosed(Unclosed::of(span, Delim::name()))?;
-      } else {
-        inp
-          .emitter()
-          .emit_undelimited(Undelimited::of(span, Delim::name()))?;
-      }
-      Ok(())
-    };
 
     loop {
       match self.parser.f.try_parse_input(inp) {
@@ -105,15 +83,17 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
         }
         // no more elemnts.
         Ok(Decline) => {
-          let mut close_kind = None;
+          let mut err = None;
           match inp.try_expect(|t| match Delim::is_close(&t.data.kind()) {
             true => true,
             false => {
-              close_kind = Some(Delim::Close::kind());
+              err = Some(Delim::unexpected_close_token(t.cloned()));
               false
             }
           })? {
-            None => on_missing_close(inp, inp.span_since(ckp.cursor()))?,
+            None => {
+              inp.emitter().emit_unexpected_token(err.unwrap())?;
+            }
             Some(close) => {
               container.on_close_delimiter(close);
             }

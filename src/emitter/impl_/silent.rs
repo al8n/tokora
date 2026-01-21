@@ -4,7 +4,6 @@ use crate::{error::syntax::MissingSyntaxOf, span::Spanned};
 
 use super::super::*;
 
-mod delimiter;
 mod full_container;
 mod separator;
 mod too_few;

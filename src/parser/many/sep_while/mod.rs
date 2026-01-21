@@ -268,7 +268,7 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
   where
     Delim: DelimiterSelector<'inp, L, Lang>,
   {
-    DelimitedBy::new_in(self)
+    DelimitedBy::<_, Delim>::new_in(self)
   }
 }
 

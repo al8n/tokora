@@ -18,7 +18,6 @@ where
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + DelimitedEmitter<'inp, Delim, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
@@ -58,7 +57,6 @@ where
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + DelimitedEmitter<'inp, Delim, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
@@ -98,7 +96,6 @@ where
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + DelimitedEmitter<'inp, Delim, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
@@ -131,7 +128,7 @@ where
       container,
       ..
     } = self;
-    let parser = DelimitedBy::new_in(RequireTrailing::new(AtMost::new(
+    let parser = DelimitedBy::<_, Delim>::new_in(RequireTrailing::new(AtMost::new(
       Separated::new(&mut **f, &mut **sep),
       maximum.get(),
     )));
@@ -148,7 +145,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
     Collect<
       DelimitedBy<
         RequireTrailing<AtMost<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
-        &'c Delim,
+        Delim,
       >,
       &'c mut Container,
       Ctx,
@@ -161,7 +158,6 @@ where
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + DelimitedEmitter<'inp, Delim, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
@@ -188,7 +184,7 @@ where
       ..
     } = parser.map_parser_mut(|p| p.parser_mut());
 
-    DelimitedBy::new_in(Separated::new(&mut **f, &mut **sep))
+    DelimitedBy::<_, Delim>::new_in(Separated::new(&mut **f, &mut **sep))
       .parse_separated(inp, container, &maximum, &maximum, &maximum)
   }
 }

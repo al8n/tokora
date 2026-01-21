@@ -1,13 +1,6 @@
 use core::mem;
 
-// use mayber::Maybe::{Owned, Ref};
-
-use crate::{
-  container::Container as ContainerT,
-  delimiter::DelimiterSelector,
-  emitter::DelimitedEmitter,
-  error::{Unclosed, Undelimited},
-};
+use crate::{container::Container as ContainerT, delimiter::DelimiterSelector};
 
 use super::*;
 
@@ -37,7 +30,6 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
@@ -59,25 +51,30 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       }
     })?;
 
-    let has_open = match left_delimiter {
+    match left_delimiter {
       None if inp.is_eoi() => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
       None => {
         // safe unwrap as we know when left_delimiter is None, first_kind is Some
         inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
-        false
       }
       Some(open) => {
         container.on_open_delimiter(open);
-        true
       }
-    };
+    }
 
     let mut nums = 0;
 
     loop {
-      match inp.try_expect(|tok| Delim::is_close(&tok.kind()))? {
+      let mut err = None;
+      match inp.try_expect(|tok| match Delim::is_close(&tok.kind()) {
+        true => true,
+        false => {
+          err = Some(Delim::unexpected_close_token(tok.cloned()));
+          false
+        }
+      })? {
         Some(closed) => {
           container.on_close_delimiter(closed);
           let span = inp.span_since(ckp.cursor());
@@ -90,19 +87,10 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
             Ok(action) => match action {
               // missing ending delimiter
               Action::Stop => {
-                if has_open {
-                  let span = inp.span_since(ckp.cursor());
-                  inp
-                    .emitter()
-                    .emit_unclosed(Unclosed::of(span, Delim::name()))?;
-                } else {
-                  let span = inp.span_since(ckp.cursor());
-                  inp
-                    .emitter()
-                    .emit_undelimited(Undelimited::of(span, Delim::name()))?;
-                }
-
-                return Ok(mem::take(container));
+                return inp
+                  .emitter()
+                  .emit_unexpected_token(err.unwrap())
+                  .map(|_| mem::take(container));
               }
               Action::Continue => {
                 container.push(self.parser.f.parse_input(inp)?);

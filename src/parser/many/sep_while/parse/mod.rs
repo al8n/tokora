@@ -62,20 +62,19 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
         None => {
           let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
 
-          if peeked.is_empty() {
-            drop(peeked);
-            return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
-          }
-
-          let first_span = {
-            let tok = peeked
-              .front()
-              .expect("peeked token already confirmed there must be a token")
+          let front_span = match peeked.front() {
+            None => {
+              drop(peeked);
+              return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
+            }
+            Some(front) => front
               .as_maybe_ref()
               .map(|t| t.token().copied(), |t| t.token())
-              .into_inner();
-            tok.span().clone()
+              .into_inner()
+              .span()
+              .clone(),
           };
+
           match self.condition.decide(peeked, emitter)? {
             Action::Stop => {
               return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
@@ -85,7 +84,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
               state = self.handle_continue(
                 state,
                 inp,
-                &first_span,
+                &front_span,
                 &mut num_elems,
                 container,
                 continue_state_handler,

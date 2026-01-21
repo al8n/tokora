@@ -1,7 +1,6 @@
 use crate::{
   Lexer,
   error::{
-    Unclosed, Undelimited, Unopened,
     syntax::{FullContainer, TooFew, TooMany},
     token::{
       MissingLeadingOf, MissingSeparatorOf, MissingTrailingOf, UnexpectedLeadingOf,
@@ -14,12 +13,10 @@ use crate::{
 
 use super::Token;
 
-pub use delimited::*;
 pub use impl_::*;
 pub use repeated::*;
 pub use separated::*;
 
-mod delimited;
 mod impl_;
 mod repeated;
 mod separated;

@@ -74,7 +74,7 @@ impl<P> RequireLeading<P> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::new_in(self)
+    DelimitedBy::<_, Delim>::new_in(self)
   }
 
   /// Maps the inner parser to a new parser using the given function.

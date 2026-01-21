@@ -15,7 +15,6 @@ use std::collections::BTreeMap;
 
 use core::marker::PhantomData;
 
-mod delimiter;
 mod full_container;
 mod separator;
 mod too_few;

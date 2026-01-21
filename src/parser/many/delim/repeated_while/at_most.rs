@@ -1,8 +1,4 @@
-use crate::{
-  container::Container as ContainerT,
-  emitter::{DelimitedEmitter, TooManyEmitter},
-  error::syntax::TooMany,
-};
+use crate::{container::Container as ContainerT, emitter::TooManyEmitter, error::syntax::TooMany};
 
 use super::*;
 
@@ -20,7 +16,7 @@ where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + TooManyEmitter<'inp, L, Lang>,
+  Ctx::Emitter: TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
@@ -35,7 +31,7 @@ where
   {
     let max = self.parser.parser.maximum().get();
 
-    DelimitedBy::new_in(self.parser.parser.parser_mut()).parse_repeated(
+    DelimitedBy::<_, Delim>::new_in(self.parser.parser.parser_mut()).parse_repeated(
       inp,
       &mut self.container,
       |nums, inp, span| {

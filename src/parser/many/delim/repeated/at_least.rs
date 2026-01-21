@@ -1,8 +1,4 @@
-use crate::{
-  container::Container as ContainerT,
-  emitter::{DelimitedEmitter, TooFewEmitter},
-  error::syntax::TooFew,
-};
+use crate::{container::Container as ContainerT, emitter::TooFewEmitter, error::syntax::TooFew};
 
 use super::*;
 
@@ -12,7 +8,7 @@ where
   Delim: DelimiterSelector<'inp, L, Lang>,
   L: Lexer<'inp>,
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
-  Ctx::Emitter: DelimitedEmitter<'inp, Delim, L, Lang> + TooFewEmitter<'inp, L, Lang>,
+  Ctx::Emitter: TooFewEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
@@ -27,7 +23,7 @@ where
   {
     let min = self.parser.parser.minimum().get();
 
-    DelimitedBy::new_in(self.parser.parser.parser_mut()).parse_repeated(
+    DelimitedBy::<_, Delim>::new_in(self.parser.parser.parser_mut()).parse_repeated(
       inp,
       &mut self.container,
       |nums, inp, span| {

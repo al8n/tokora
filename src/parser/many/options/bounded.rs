@@ -34,7 +34,7 @@ impl<P> Bounded<P> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::new_in(self)
+    DelimitedBy::<_, Delim>::new_in(self)
   }
 
   /// Returns a mutable reference to the inner parser.

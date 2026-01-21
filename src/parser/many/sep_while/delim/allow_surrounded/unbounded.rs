@@ -17,8 +17,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
@@ -61,8 +60,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
@@ -104,8 +102,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
@@ -138,11 +135,9 @@ where
       container,
       ..
     } = self;
-    let parser = DelimitedBy::new_in(AllowLeading::new(AllowTrailing::new(SeparatedWhile::new(
-      &mut **f,
-      &mut **sep,
-      &mut *condition,
-    ))));
+    let parser = DelimitedBy::<_, Delim>::new_in(AllowLeading::new(AllowTrailing::new(
+      SeparatedWhile::new(&mut **f, &mut **sep, &mut *condition),
+    )));
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
   }
@@ -160,7 +155,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Delim, Container, Ctx, Lang: ?
             SeparatedWhile<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
           >,
         >,
-        &'c Delim,
+        Delim,
       >,
       &'c mut Container,
       Ctx,
@@ -173,8 +168,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Check<L::Token>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, SepClassifier, L, Lang> + DelimitedEmitter<'inp, Delim, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
@@ -205,7 +199,7 @@ where
       ..
     } = parser.map_parser_mut(|p| p.as_mut());
 
-    DelimitedBy::new_in(SeparatedWhile::new(&mut **f, &mut **sep, &mut **condition))
+    DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new(&mut **f, &mut **sep, &mut **condition))
       .parse_separated(inp, container, UNBOUNDED, UNBOUNDED, UNBOUNDED)
   }
 }
