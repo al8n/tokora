@@ -1,19 +1,21 @@
+use crate::{error::token::MissingTokenOf, utils::CowStr};
+
 use super::*;
 
-impl<'inp, L, Sep, E, Lang: ?Sized> SeparatedEmitter<'inp, Sep, L, Lang> for Fatal<E, Lang>
+impl<'inp, L, E, Lang: ?Sized> SeparatedEmitter<'inp, L, Lang> for Fatal<E, Lang>
 where
-  L: Lexer<'inp>,
-  E: FromSeparatedError<'inp, Sep, L, Lang>,
+  E: FromSeparatedError<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_separator(
     &mut self,
-    err: MissingSeparatorOf<'inp, Sep, L, Lang>,
+    name: CowStr,
+    err: MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    Err(E::from_missing_separator(err))
+    Err(E::from_missing_separator(name, err))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

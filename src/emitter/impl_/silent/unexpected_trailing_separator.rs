@@ -1,14 +1,13 @@
+use crate::utils::CowStr;
+
 use super::*;
 
-impl<'a, Sep: ?Sized, L, E, Lang: ?Sized> UnexpectedTrailingSeparatorEmitter<'a, Sep, L, Lang>
-  for Silent<E, Lang>
-where
-  L: Lexer<'a>,
-{
+impl<'a, L, E, Lang: ?Sized> UnexpectedTrailingSeparatorEmitter<'a, L, Lang> for Silent<E, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_trailing_separator(
     &mut self,
-    _: UnexpectedTrailingOf<'a, Sep, L, Lang>,
+    _: CowStr,
+    _: UnexpectedTokenOf<'a, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,

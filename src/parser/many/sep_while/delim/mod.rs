@@ -39,7 +39,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     Container: DelimiterHandler<'inp, L> + SeparatorHandler<'inp, L> + ContainerT<O>,

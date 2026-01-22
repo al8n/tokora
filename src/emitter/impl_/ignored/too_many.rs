@@ -1,9 +1,6 @@
 use super::*;
 
-impl<'a, L, Lang: ?Sized> TooManyEmitter<'a, L, Lang> for Ignored
-where
-  L: Lexer<'a>,
-{
+impl<'a, L, Lang: ?Sized> TooManyEmitter<'a, L, Lang> for Ignored {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_too_many(&mut self, _: TooMany<L::Span, Lang>) -> Result<(), Self::Error>
   where

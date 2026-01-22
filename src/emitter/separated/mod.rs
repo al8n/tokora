@@ -1,4 +1,7 @@
-use crate::error::syntax::MissingSyntaxOf;
+use crate::{
+  error::{syntax::MissingSyntaxOf, token::MissingTokenOf},
+  utils::CowStr,
+};
 
 use super::*;
 
@@ -13,15 +16,12 @@ mod unexpected_leading;
 mod unexpected_trailing;
 
 /// An emitter that handles missing separator or repeated separators found during parsing.
-pub trait SeparatedEmitter<'inp, Sep: ?Sized, L, Lang: ?Sized = ()>:
-  Emitter<'inp, L, Lang>
-where
-  L: Lexer<'inp>,
-{
+pub trait SeparatedEmitter<'inp, L, Lang: ?Sized = ()>: Emitter<'inp, L, Lang> {
   /// Emits an error or warning for a missing separator found during parsing.
   fn emit_missing_separator(
     &mut self,
-    err: MissingSeparatorOf<'inp, Sep, L, Lang>,
+    name: CowStr,
+    err: MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>;
@@ -35,22 +35,21 @@ where
     L: Lexer<'inp>;
 }
 
-impl<'inp, L, Sep, U, Lang> SeparatedEmitter<'inp, Sep, L, Lang> for &mut U
+impl<'inp, L, U, Lang> SeparatedEmitter<'inp, L, Lang> for &mut U
 where
-  L: Lexer<'inp>,
-  U: SeparatedEmitter<'inp, Sep, L, Lang>,
-  Sep: ?Sized,
+  U: SeparatedEmitter<'inp, L, Lang>,
   Lang: ?Sized,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_separator(
     &mut self,
-    err: MissingSeparatorOf<'inp, Sep, L, Lang>,
+    name: CowStr,
+    err: MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    (**self).emit_missing_separator(err)
+    (**self).emit_missing_separator(name, err)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -63,13 +62,9 @@ where
 }
 
 /// A trait bound for converting separated-by emitter errors into emitter errors.
-pub trait FromSeparatedError<'inp, Sep, L, Lang: ?Sized = ()>:
-  FromEmitterError<'inp, L, Lang>
-where
-  L: Lexer<'inp>,
-{
+pub trait FromSeparatedError<'inp, L, Lang: ?Sized = ()>: FromEmitterError<'inp, L, Lang> {
   /// Creates an emitter error from a missing separator error.
-  fn from_missing_separator(err: MissingSeparatorOf<'inp, Sep, L, Lang>) -> Self
+  fn from_missing_separator(name: CowStr, err: MissingTokenOf<'inp, L, Lang>) -> Self
   where
     L: Lexer<'inp>;
 
@@ -79,26 +74,25 @@ where
     L: Lexer<'inp>;
 }
 
-impl<'inp, T, Sep, L, Lang: ?Sized> FromSeparatedError<'inp, Sep, L, Lang> for T
-where
-  L: Lexer<'inp>,
-  T: From<MissingSeparatorOf<'inp, Sep, L, Lang>>
-    + From<MissingSyntaxOf<'inp, L, Lang>>
-    + FromEmitterError<'inp, L, Lang>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from_missing_separator(err: MissingSeparatorOf<'inp, Sep, L, Lang>) -> Self
-  where
-    L: Lexer<'inp>,
-  {
-    err.into()
-  }
+// impl<'inp, T, L, Lang: ?Sized> FromSeparatedError<'inp, L, Lang> for T
+// where
+//   T: From<MissingTokenOf<'inp, L, Lang>>
+//     + From<MissingSyntaxOf<'inp, L, Lang>>
+//     + FromEmitterError<'inp, L, Lang>,
+// {
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn from_missing_separator(nerr: MissingTokenOf<'inp, L, Lang>) -> Self
+//   where
+//     L: Lexer<'inp>,
+//   {
+//     err.into()
+//   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from_missing_element(err: MissingSyntaxOf<'inp, L, Lang>) -> Self
-  where
-    L: Lexer<'inp>,
-  {
-    err.into()
-  }
-}
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn from_missing_element(err: MissingSyntaxOf<'inp, L, Lang>) -> Self
+//   where
+//     L: Lexer<'inp>,
+//   {
+//     err.into()
+//   }
+// }

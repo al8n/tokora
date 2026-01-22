@@ -2,7 +2,7 @@ use crate::{
   TryParseInput,
   container::Container as ContainerT,
   emitter::SeparatedEmitter,
-  error::{syntax::MissingSyntaxOf, token::MissingSeparatorOf},
+  error::{syntax::MissingSyntaxOf, token::MissingTokenOf},
   input::Checkpoint,
   punct::Punctuator,
   span::Span,
@@ -41,7 +41,7 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     L: Lexer<'inp>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
     SepClassifier: Punctuator<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
     EH: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
@@ -110,7 +110,7 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     'inp: 'closure,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
     Handler: SeparatorStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   {
@@ -185,7 +185,7 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     Ctx: ParseContext<'inp, L, Lang>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
     SepClassifier: Punctuator<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
     Handler: ContinueStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
   {
@@ -214,9 +214,10 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
       // and emit it via the emitter, and let the emitter decide whether to return early
       State::Element => {
         let off = peek_span.start();
-        inp
-          .emitter()
-          .emit_missing_separator(MissingSeparatorOf::<'_, SepClassifier, L, Lang>::of(off))?;
+        inp.emitter().emit_missing_separator(
+          SepClassifier::name(),
+          MissingTokenOf::<'_, SepClassifier, L, Lang>::of(off),
+        )?;
 
         // parse the next element
         push(num_elems, container, element);
@@ -241,7 +242,7 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     Ctx: ParseContext<'inp, L, Lang>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
     SepClassifier: Punctuator<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
     Handler: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
   {
     Ok(match state {

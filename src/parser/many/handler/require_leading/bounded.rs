@@ -6,7 +6,7 @@ use crate::{
   },
   error::{
     syntax::MissingSyntaxOf,
-    token::{MissingLeadingOf, UnexpectedTrailingOf},
+    token::{MissingTokenOf, UnexpectedTokenOf},
   },
   input::{Checkpoint, InputRef},
   parser::{
@@ -21,8 +21,8 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, Sep, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
 {
@@ -87,7 +87,7 @@ where
     // emit unexpected trailing separator
     let (span, tok) = sep.into_components();
     inp.emitter().emit_unexpected_trailing_separator(
-      UnexpectedTrailingOf::<'_, Sep, L, Lang>::of(span).with_found(tok),
+      UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok),
     )?;
 
     self.parser.check(inp, ckp, num_elems)
@@ -100,8 +100,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, Sep, L, Lang> + MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + MissingLeadingSeparatorEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -115,7 +114,7 @@ where
   {
     inp
       .emitter()
-      .emit_missing_leading_separator(MissingLeadingOf::<'_, Sep, L, Lang>::of(off))
+      .emit_missing_leading_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(off))
   }
 }
 
@@ -125,8 +124,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, Sep, L, Lang> + UnexpectedTrailingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(

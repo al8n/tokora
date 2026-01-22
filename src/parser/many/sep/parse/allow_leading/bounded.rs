@@ -14,8 +14,8 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -51,8 +51,8 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -86,8 +86,8 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -148,8 +148,8 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,

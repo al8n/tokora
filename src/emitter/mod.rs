@@ -2,10 +2,7 @@ use crate::{
   Lexer,
   error::{
     syntax::{FullContainer, TooFew, TooMany},
-    token::{
-      MissingLeadingOf, MissingSeparatorOf, MissingTrailingOf, UnexpectedLeadingOf,
-      UnexpectedToken, UnexpectedTrailingOf,
-    },
+    token::UnexpectedTokenOf,
   },
   input::Cursor,
   span::Spanned,
@@ -133,7 +130,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// Emits an unexpected token error encountered during parsing.
   fn emit_unexpected_token(
     &mut self,
-    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>,
+    err: UnexpectedTokenOf<'a, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>;
@@ -182,7 +179,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_token(
     &mut self,
-    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>,
+    err: UnexpectedTokenOf<'a, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -215,9 +212,7 @@ pub trait FromEmitterError<'a, L, Lang: ?Sized = ()> {
     L: Lexer<'a>;
 
   /// Creates an emitter error from an unexpected token error.
-  fn from_unexpected_token(
-    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>,
-  ) -> Self
+  fn from_unexpected_token(err: UnexpectedTokenOf<'a, L, Lang>) -> Self
   where
     L: Lexer<'a>;
 }
@@ -225,8 +220,7 @@ pub trait FromEmitterError<'a, L, Lang: ?Sized = ()> {
 impl<'a, T, L, Lang: ?Sized> FromEmitterError<'a, L, Lang> for T
 where
   L: Lexer<'a>,
-  T: From<<L::Token as Token<'a>>::Error>
-    + From<UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>,
+  T: From<<L::Token as Token<'a>>::Error> + From<UnexpectedTokenOf<'a, L, Lang>>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from_lexer_error(err: Spanned<<L::Token as Token<'a>>::Error, L::Span>) -> Self
@@ -237,9 +231,7 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from_unexpected_token(
-    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>,
-  ) -> Self
+  fn from_unexpected_token(err: UnexpectedTokenOf<'a, L, Lang>) -> Self
   where
     L: Lexer<'a>,
   {

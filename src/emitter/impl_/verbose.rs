@@ -4,10 +4,7 @@ use crate::{
 };
 
 use super::super::{
-  separated::{
-    FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
-    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
-  },
+  separated::{UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter},
   *,
 };
 
@@ -179,7 +176,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_token(
     &mut self,
-    err: UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>,
+    err: UnexpectedTokenOf<'inp, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,

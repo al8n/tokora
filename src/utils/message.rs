@@ -1,6 +1,6 @@
 //! Flexible message container that adapts to `no_std` and `alloc` environments.
 //!
-//! `Message` provides a single abstraction for short, human-readable strings that may be
+//! `CowStr` provides a single abstraction for short, human-readable strings that may be
 //! either static literals or owned allocations depending on the available features. In
 //! `no_std` + `no_alloc` builds the type degenerates to a lightweight wrapper around a
 //! `&'static str`, while in `alloc`/`std` builds it stores a `Cow<'static, str>` to balance
@@ -34,7 +34,7 @@ type Inner = Cow<'static, str>;
 #[cfg_attr(not(any(feature = "std", feature = "alloc")), derive(Copy))]
 #[repr(transparent)]
 #[display("{inner}")]
-pub struct Message {
+pub struct CowStr {
   #[deref]
   #[deref_mut]
   #[as_ref]
@@ -42,15 +42,15 @@ pub struct Message {
   inner: Inner,
 }
 
-impl Message {
+impl CowStr {
   /// Creates a new message from the provided representation.
   ///
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::Message;
+  /// use tokit::utils::CowStr;
   ///
-  /// let msg = Message::new("greeting");
+  /// let msg = CowStr::new("greeting");
   /// assert_eq!(msg.as_str(), "greeting");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -65,9 +65,9 @@ impl Message {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::Message;
+  /// use tokit::utils::CowStr;
   ///
-  /// const MSG: Message = Message::from_static("hello");
+  /// const MSG: CowStr = CowStr::from_static("hello");
   /// assert_eq!(MSG.as_str(), "hello");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -82,9 +82,9 @@ impl Message {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::Message;
+  /// use tokit::utils::CowStr;
   ///
-  /// let msg = Message::from_static("world");
+  /// let msg = CowStr::from_static("world");
   /// assert_eq!(msg.as_str(), "world");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -97,12 +97,12 @@ impl Message {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::Message;
+  /// use tokit::utils::CowStr;
   /// # #[cfg(any(feature = "std", feature = "alloc"))]
   /// # {
   /// use std::borrow::Cow;
   ///
-  /// let msg = Message::from_static("inner");
+  /// let msg = CowStr::from_static("inner");
   /// assert!(matches!(msg.as_inner(), &Cow::Borrowed("inner")));
   /// # }
   /// ```
@@ -116,12 +116,12 @@ impl Message {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::Message;
+  /// use tokit::utils::CowStr;
   /// # #[cfg(any(feature = "std", feature = "alloc"))]
   /// # {
   /// use std::borrow::Cow;
   ///
-  /// let msg = Message::from_static("consume");
+  /// let msg = CowStr::from_static("consume");
   /// let inner = msg.into_inner();
   /// assert_eq!(inner, Cow::Borrowed("consume"));
   /// # }
@@ -132,21 +132,21 @@ impl Message {
   }
 }
 
-impl From<&'static str> for Message {
+impl From<&'static str> for CowStr {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(value: &'static str) -> Self {
     Self::from_static(value)
   }
 }
 
-impl AsRef<str> for Message {
+impl AsRef<str> for CowStr {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn as_ref(&self) -> &str {
     self.as_str()
   }
 }
 
-impl core::borrow::Borrow<str> for Message {
+impl core::borrow::Borrow<str> for CowStr {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn borrow(&self) -> &str {
     self.as_str()
@@ -155,7 +155,7 @@ impl core::borrow::Borrow<str> for Message {
 
 #[cfg(not(any(feature = "std", feature = "alloc")))]
 const _: () = {
-  impl Message {
+  impl CowStr {
     #[cfg_attr(not(tarpaulin), inline(always))]
     const fn borrow_const(value: &'static str) -> Inner {
       value
@@ -167,16 +167,16 @@ const _: () = {
     }
   }
 
-  impl From<Message> for &'static str {
+  impl From<CowStr> for &'static str {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn from(value: Message) -> Self {
+    fn from(value: CowStr) -> Self {
       value.inner
     }
   }
 
-  impl From<&Message> for &'static str {
+  impl From<&CowStr> for &'static str {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn from(value: &Message) -> Self {
+    fn from(value: &CowStr) -> Self {
       value.inner
     }
   }
@@ -184,7 +184,7 @@ const _: () = {
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 const _: () = {
-  impl Message {
+  impl CowStr {
     #[cfg_attr(not(tarpaulin), inline(always))]
     const fn borrow_const(value: &'static str) -> Inner {
       Cow::Borrowed(value)
@@ -203,9 +203,9 @@ const _: () = {
     /// ## Examples
     ///
     /// ```
-    /// use tokit::utils::Message;
+    /// use tokit::utils::CowStr;
     ///
-    /// let msg = Message::from_string(std::string::String::from("owned"));
+    /// let msg = CowStr::from_string(std::string::String::from("owned"));
     /// assert_eq!(msg.as_str(), "owned");
     /// ```
     #[cfg_attr(not(tarpaulin), inline(always))]
@@ -220,9 +220,9 @@ const _: () = {
     /// ## Examples
     ///
     /// ```
-    /// use tokit::utils::Message;
+    /// use tokit::utils::CowStr;
     ///
-    /// let mut msg = Message::from_static("grow");
+    /// let mut msg = CowStr::from_static("grow");
     /// msg.to_mut().push('!');
     /// assert_eq!(msg.as_str(), "grow!");
     /// ```
@@ -232,35 +232,35 @@ const _: () = {
     }
   }
 
-  impl From<String> for Message {
+  impl From<String> for CowStr {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn from(value: String) -> Self {
-      Message::from_string(value)
+      CowStr::from_string(value)
     }
   }
 
-  impl From<Cow<'static, str>> for Message {
+  impl From<Cow<'static, str>> for CowStr {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn from(value: Cow<'static, str>) -> Self {
       Self { inner: value }
     }
   }
 
-  impl From<Message> for Cow<'static, str> {
+  impl From<CowStr> for Cow<'static, str> {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn from(value: Message) -> Self {
+    fn from(value: CowStr) -> Self {
       value.inner
     }
   }
 
-  impl From<&Message> for Cow<'static, str> {
+  impl From<&CowStr> for Cow<'static, str> {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn from(value: &Message) -> Self {
+    fn from(value: &CowStr) -> Self {
       value.inner.clone()
     }
   }
 
-  impl AsMut<str> for Message {
+  impl AsMut<str> for CowStr {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn as_mut(&mut self) -> &mut str {
       self.inner.to_mut()

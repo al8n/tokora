@@ -48,18 +48,20 @@
 use core::marker::PhantomData;
 
 use crate::{
+  Lexer, Token,
   error::token::{Leading, RepeatedWhile, Trailing},
   span::{SimpleSpan, Span},
   utils::Expected,
 };
 
-pub use unexpected_leading::*;
-// pub use unexpected_repeated::*;
-pub use unexpected_trailing::*;
-
-mod unexpected_leading;
-// mod unexpected_repeated;
-mod unexpected_trailing;
+/// A type alias for an `UnexpectedToken` error for a given lexer and language.
+pub type UnexpectedTokenOf<'inp, L, Lang = ()> = UnexpectedToken<
+  'inp,
+  <L as Lexer<'inp>>::Token,
+  <<L as Lexer<'inp>>::Token as Token<'inp>>::Kind,
+  <L as Lexer<'inp>>::Span,
+  Lang,
+>;
 
 /// An error representing an unexpected token encountered during parsing.
 ///

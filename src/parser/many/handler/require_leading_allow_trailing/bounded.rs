@@ -1,7 +1,7 @@
 use crate::{
   Emitter, Lexer, ParseContext,
   emitter::{MissingLeadingSeparatorEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter},
-  error::{syntax::MissingSyntaxOf, token::MissingLeadingOf},
+  error::{syntax::MissingSyntaxOf, token::MissingTokenOf},
   input::{Checkpoint, InputRef},
   parser::{
     AllowTrailing, Maximum, Minimum, RequireLeading, With,
@@ -16,8 +16,8 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
-    + MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
 {
@@ -89,8 +89,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, Sep, L, Lang> + MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + MissingLeadingSeparatorEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -104,7 +103,7 @@ where
   {
     inp
       .emitter()
-      .emit_missing_leading_separator(MissingLeadingOf::<'_, Sep, L, Lang>::of(off))
+      .emit_missing_leading_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(off))
   }
 }
 
@@ -114,7 +113,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(

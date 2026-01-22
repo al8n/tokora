@@ -1,7 +1,7 @@
 use crate::{
   Emitter, Lexer, ParseContext,
   emitter::{SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedTrailingSeparatorEmitter},
-  error::{syntax::MissingSyntaxOf, token::UnexpectedTrailingOf},
+  error::{syntax::MissingSyntaxOf, token::UnexpectedTokenOf},
   input::{Checkpoint, InputRef},
   parser::{
     AllowLeading, Maximum, Minimum, With,
@@ -15,8 +15,8 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, Sep, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
 {
@@ -81,7 +81,7 @@ where
     // emit unexpected trailing separator
     let (span, tok) = sep.into_components();
     inp.emitter().emit_unexpected_trailing_separator(
-      UnexpectedTrailingOf::<'_, Sep, L, Lang>::of(span).with_found(tok),
+      UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok),
     )?;
 
     self.parser.check(inp, ckp, num_elems)
@@ -94,7 +94,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -116,7 +116,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(

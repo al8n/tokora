@@ -49,22 +49,16 @@ use core::{marker::PhantomData, ops::AddAssign};
 
 use crate::{
   Lexer, Token,
-  error::token::{Leading, Separator, Trailing},
-  utils::{Expected, Message},
+  error::token::{Leading, Trailing},
+  utils::{CowStr, Expected},
 };
 
-pub use missing_leading::*;
-pub use missing_trailing::*;
-
-mod missing_leading;
-mod missing_trailing;
-
 /// A type alias for a `MissingToken` error for a given lexer and separator.
-pub type MissingSeparatorOf<'inp, Sep, L, Lang = ()> = MissingToken<
+pub type MissingTokenOf<'inp, L, Lang = ()> = MissingToken<
   'inp,
   <<L as Lexer<'inp>>::Token as Token<'inp>>::Kind,
   <L as Lexer<'inp>>::Offset,
-  Separator<Sep, Lang>,
+  Lang,
 >;
 
 /// An error representing an missing token encountered during parsing.
@@ -114,7 +108,7 @@ pub type MissingSeparatorOf<'inp, Sep, L, Lang = ()> = MissingToken<
 pub struct MissingToken<'a, Kind: Clone, O = usize, Lang: ?Sized = ()> {
   offset: O,
   expected: Option<Expected<'a, Kind>>,
-  message: Option<Message>,
+  message: Option<CowStr>,
   _lang: PhantomData<Lang>,
 }
 
@@ -127,7 +121,7 @@ impl<Kind: Clone, O, Data> MissingToken<'_, Kind, O, Trailing<Data>> {
 
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing_with_message(offset: O, message: Message) -> Self {
+  pub const fn trailing_with_message(offset: O, message: CowStr) -> Self {
     Self::trailing_with_message_of(offset, message)
   }
 }
@@ -141,7 +135,7 @@ impl<Kind: Clone, O, Data, Lang> MissingToken<'_, Kind, O, Leading<Data, Lang>> 
 
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading_with_message(offset: O, message: Message) -> Self {
+  pub const fn leading_with_message(offset: O, message: CowStr) -> Self {
     Self::leading_with_message_of(offset, message)
   }
 }
@@ -155,7 +149,7 @@ impl<Kind: Clone, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<Data
 
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing_with_message_of(offset: O, message: Message) -> Self {
+  pub const fn trailing_with_message_of(offset: O, message: CowStr) -> Self {
     Self::with_message_of(offset, message)
   }
 }
@@ -169,7 +163,7 @@ impl<Kind: Clone, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<Data,
 
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading_with_message_of(offset: O, message: Message) -> Self {
+  pub const fn leading_with_message_of(offset: O, message: CowStr) -> Self {
     Self::with_message_of(offset, message)
   }
 }
@@ -189,7 +183,7 @@ impl<Kind: Clone, O> MissingToken<'_, Kind, O> {
   /// This method allows attaching additional context or information
   /// to the error, which can be useful for debugging or reporting.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_message(offset: O, message: Message) -> Self {
+  pub const fn with_message(offset: O, message: CowStr) -> Self {
     Self::with_message_of(offset, message)
   }
 }
@@ -199,7 +193,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   pub(super) const fn new_in(
     offset: O,
     expected: Option<Expected<'a, Kind>>,
-    message: Option<Message>,
+    message: Option<CowStr>,
   ) -> Self {
     Self {
       offset,
@@ -223,7 +217,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// This method allows attaching additional context or information
   /// to the error, which can be useful for debugging or reporting.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_message_of(offset: O, message: Message) -> Self {
+  pub const fn with_message_of(offset: O, message: CowStr) -> Self {
     Self::new_in(offset, None, Some(message))
   }
 
@@ -408,13 +402,13 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
 
   /// Returns a reference to the custom message, if any.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn message(&self) -> Option<&Message> {
+  pub const fn message(&self) -> Option<&CowStr> {
     self.message.as_ref()
   }
 
   /// Returns a mutable reference to the custom message, if any.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn message_mut(&mut self) -> Option<&mut Message> {
+  pub fn message_mut(&mut self) -> Option<&mut CowStr> {
     self.message.as_mut()
   }
 
@@ -522,7 +516,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// assert_eq!(expected, Expected::one("{"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (O, Option<Expected<'a, Kind>>, Option<Message>) {
+  pub fn into_components(self) -> (O, Option<Expected<'a, Kind>>, Option<CowStr>) {
     (self.offset, self.expected, self.message)
   }
 }

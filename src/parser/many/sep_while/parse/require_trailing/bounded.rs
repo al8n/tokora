@@ -17,9 +17,9 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -57,9 +57,9 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -97,9 +97,9 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -158,9 +158,9 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,

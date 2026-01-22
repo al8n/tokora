@@ -1,10 +1,4 @@
-use crate::{
-  Lexer, Token,
-  error::token::UnexpectedToken,
-  punct::*,
-  span::Spanned,
-  utils::Message,
-};
+use crate::{Lexer, Token, error::token::UnexpectedToken, punct::*, span::Spanned, utils::CowStr};
 
 /// A trait for any delimiter consisting of an opening and a closing punctuator.
 pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
@@ -14,7 +8,7 @@ pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
   type Close: Punctuator<'inp, L, Lang>;
 
   /// The name of the delimiter.
-  fn name() -> Message;
+  fn name() -> CowStr;
 
   /// Checks if the given token kind is the opening delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -71,8 +65,8 @@ macro_rules! impl_builtin_delimiter {
         type Close = $close<S, C, Lang>;
 
         #[cfg_attr(not(tarpaulin), inline(always))]
-        fn name() -> Message {
-          Message::from_static($description)
+        fn name() -> CowStr {
+          CowStr::from_static($description)
         }
       }
     )*
@@ -92,7 +86,7 @@ macro_rules! impl_deref {
     type Close = <$ty>::Close;
 
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn name() -> Message {
+    fn name() -> CowStr {
       <$ty>::name()
     }
 

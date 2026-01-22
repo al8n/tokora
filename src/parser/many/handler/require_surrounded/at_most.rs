@@ -4,10 +4,7 @@ use crate::{
     MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter, SeparatedEmitter,
     TooManyEmitter,
   },
-  error::{
-    syntax::MissingSyntaxOf,
-    token::{MissingLeadingOf, MissingTrailingOf},
-  },
+  error::{syntax::MissingSyntaxOf, token::MissingTokenOf},
   input::{Checkpoint, InputRef},
   parser::{
     Maximum, RequireLeading, RequireTrailing,
@@ -21,9 +18,9 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, Sep, L, Lang>
-    + MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -54,7 +51,7 @@ where
     let span = inp.span_since(ckp.cursor());
     inp
       .emitter()
-      .emit_missing_trailing_separator(MissingTrailingOf::<'_, Sep, L, Lang>::of(span.end()))
+      .emit_missing_trailing_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(span.end()))
       .and_then(|_| self.parser.parser.check(inp, ckp, num_elems))
   }
 
@@ -98,8 +95,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, Sep, L, Lang> + MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + MissingLeadingSeparatorEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -113,7 +109,7 @@ where
   {
     inp
       .emitter()
-      .emit_missing_leading_separator(MissingLeadingOf::<'_, Sep, L, Lang>::of(off))
+      .emit_missing_leading_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(off))
   }
 }
 
@@ -123,9 +119,9 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
-    + MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, L, Lang>
+    + MissingTrailingSeparatorEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(

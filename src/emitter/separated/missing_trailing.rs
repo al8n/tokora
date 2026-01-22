@@ -1,56 +1,68 @@
 use super::*;
 
 /// An emitter that handles missing trailing separator.
-pub trait MissingTrailingSeparatorEmitter<'inp, Sep, L, Lang: ?Sized = ()>:
-  SeparatedEmitter<'inp, Sep, L, Lang>
+pub trait MissingTrailingSeparatorEmitter<'inp, L, Lang: ?Sized = ()>:
+  SeparatedEmitter<'inp, L, Lang>
 where
   L: Lexer<'inp>,
 {
   /// Emits an error or warning for a missing a trailing separator found during parsing.
   fn emit_missing_trailing_separator(
     &mut self,
-    err: MissingTrailingOf<'inp, Sep, L, Lang>,
+    name: CowStr,
+    err: MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>;
 }
 
-impl<'inp, Sep, L, Lang, U> MissingTrailingSeparatorEmitter<'inp, Sep, L, Lang> for &mut U
+impl<'inp, L, Lang, U> MissingTrailingSeparatorEmitter<'inp, L, Lang> for &mut U
 where
-  U: MissingTrailingSeparatorEmitter<'inp, Sep, L, Lang>,
+  U: MissingTrailingSeparatorEmitter<'inp, L, Lang>,
   L: Lexer<'inp>,
   Lang: ?Sized,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_trailing_separator(
     &mut self,
-    err: MissingTrailingOf<'inp, Sep, L, Lang>,
+    name: CowStr,
+    err: MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
   {
-    (**self).emit_missing_trailing_separator(err)
+    (**self).emit_missing_trailing_separator(name, err)
   }
 }
 
-/// A trait bound for creating emitter errors from missing trailing separator errors.
-pub trait FromMissingTrailingSeparatorError<'a, Sep, L, Lang: ?Sized = ()> {
-  /// Creates an emitter error from a missing trailing separator error.
-  fn from_missing_trailing_separator(err: MissingTrailingOf<'a, Sep, L, Lang>) -> Self
-  where
-    L: Lexer<'a>;
-}
+// /// A trait bound for creating emitter errors from missing trailing separator errors.
+// pub trait FromMissingTrailingSeparatorError<'a, L, Lang: ?Sized = ()> {
+//   /// Creates an emitter error from a missing trailing separator error.
+//   fn from_missing_trailing_separator(name: CowStr, err: MissingToken<
+//       'a,
+//       <L::Token as Token<'a>>::Kind,
+//       L::Offset,
+//       Lang,
+//     >) -> Self
+//   where
+//     L: Lexer<'a>;
+// }
 
-impl<'a, T, Sep, L, Lang: ?Sized> FromMissingTrailingSeparatorError<'a, Sep, L, Lang> for T
-where
-  L: Lexer<'a>,
-  T: From<MissingTrailingOf<'a, Sep, L, Lang>>,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from_missing_trailing_separator(err: MissingTrailingOf<'a, Sep, L, Lang>) -> Self
-  where
-    L: Lexer<'a>,
-  {
-    err.into()
-  }
-}
+// impl<'a, T, L, Lang: ?Sized> FromMissingTrailingSeparatorError<'a, L, Lang> for T
+// where
+//   L: Lexer<'a>,
+//   T: From<MissingTokenOf<'a, L, Lang>>,
+// {
+//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   fn from_missing_trailing_separator(name: CowStr, err: MissingToken<
+//       'a,
+//       <L::Token as Token<'a>>::Kind,
+//       L::Offset,
+//       Lang,
+//     >) -> Self
+//   where
+//     L: Lexer<'a>,
+//   {
+//     err.into()
+//   }
+// }

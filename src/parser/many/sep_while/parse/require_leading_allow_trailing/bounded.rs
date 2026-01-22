@@ -17,8 +17,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -58,8 +58,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -98,8 +98,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -162,8 +162,8 @@ where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,

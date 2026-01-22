@@ -44,7 +44,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
     Sep: Punctuator<'inp, L, Lang>,
     L: Lexer<'inp>,
     P: TryParseInput<'inp, L, O, Ctx, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     Container: DelimiterHandler<'inp, L> + SeparatorHandler<'inp, L> + ContainerT<O>,

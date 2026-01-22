@@ -27,16 +27,16 @@ where
   L::Token: IdentifierToken<'inp>,
   Sep: Punctuator<'inp, L>,
   Ctx: ParseContext<'inp, L>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L>
-    + UnexpectedLeadingSeparatorEmitter<'inp, Sep, L>
-    + UnexpectedTrailingSeparatorEmitter<'inp, Sep, L>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L>,
   <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>,
   Container: Default
     + crate::container::Container<Ident<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>>
     + SeparatorHandler<'inp, L>
     + 'inp,
 {
-  try_ident_list_of()
+  try_ident_list_of::<Sep, _, _, _, _>()
 }
 
 /// Returns a parser for the a list of identifiers separated by the given separator for the specified language.
@@ -55,9 +55,9 @@ where
   L::Token: IdentifierToken<'inp>,
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, Sep, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default
     + crate::container::Container<Ident<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>>
@@ -66,7 +66,7 @@ where
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
     Ident::try_parse_of
-      .separated()
+      .separated::<Sep>()
       .collect()
       .spanned()
       .parse_input(inp)

@@ -15,7 +15,7 @@
 
 use core::{marker::PhantomData, ops::AddAssign};
 
-use crate::{Lexer, utils::Message};
+use crate::{Lexer, utils::CowStr};
 
 /// A type alias for a `MissingSyntax` error for a given lexer and separator.
 pub type MissingSyntaxOf<'inp, L, Lang = ()> = MissingSyntax<<L as Lexer<'inp>>::Offset, Lang>;
@@ -66,7 +66,7 @@ pub type MissingSyntaxOf<'inp, L, Lang = ()> = MissingSyntax<<L as Lexer<'inp>>:
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct MissingSyntax<Offset = usize, Lang: ?Sized = ()> {
   offset: Offset,
-  msg: Option<Message>,
+  msg: Option<CowStr>,
   _lang: PhantomData<Lang>,
 }
 
@@ -82,14 +82,14 @@ impl<O> MissingSyntax<O> {
 
   /// Sets a custom message for the error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_message(offset: O, message: Message) -> Self {
+  pub const fn with_message(offset: O, message: CowStr) -> Self {
     Self::with_message_of(offset, message)
   }
 }
 
 impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new_in(offset: O, message: Option<Message>) -> Self {
+  pub(super) const fn new_in(offset: O, message: Option<CowStr>) -> Self {
     Self {
       offset,
       msg: message,
@@ -105,7 +105,7 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
 
   /// Sets a custom message for the error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_message_of(offset: O, msg: Message) -> Self {
+  pub const fn with_message_of(offset: O, msg: CowStr) -> Self {
     Self::new_in(offset, Some(msg))
   }
 
@@ -169,13 +169,13 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
 
   /// Returns the custom message associated with the error, if any.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn message(&self) -> Option<&Message> {
+  pub const fn message(&self) -> Option<&CowStr> {
     self.msg.as_ref()
   }
 
   /// Returns the custom message associated with the error, if any.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn message_mut(&mut self) -> Option<&mut Message> {
+  pub fn message_mut(&mut self) -> Option<&mut CowStr> {
     self.msg.as_mut()
   }
 
@@ -226,7 +226,7 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
   /// assert_eq!(msg, None);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (O, Option<Message>) {
+  pub fn into_components(self) -> (O, Option<CowStr>) {
     (self.offset, self.msg)
   }
 }

@@ -1,11 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::{
-  lexer::Lexer,
-  span::{SimpleSpan, Span},
-};
-
-use super::RepeatedWhile;
+use crate::span::{SimpleSpan, Span};
 
 /// An error indicating that an unexpected repeated tokens were found during parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -82,10 +77,3 @@ impl<T, S, Lang: ?Sized> From<UnexpectedRepeatedToken<T, S, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: UnexpectedRepeatedToken<T, S, Lang>) -> Self {}
 }
-
-/// A type alias for an `UnexpectedPrefix` error indicating a repeated punctuator was found for a given lexer and separator.
-pub type UnexpectedRepeatedOf<'inp, Sep, L, Lang = ()> = UnexpectedRepeatedToken<
-  <L as Lexer<'inp>>::Token,
-  <L as Lexer<'inp>>::Span,
-  RepeatedWhile<Sep, Lang>,
->;

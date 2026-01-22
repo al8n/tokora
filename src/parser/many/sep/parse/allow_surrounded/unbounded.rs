@@ -12,7 +12,7 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
 {
@@ -46,7 +46,7 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
 {
@@ -78,7 +78,7 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L>,
 {
@@ -123,7 +123,7 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L>,
 {

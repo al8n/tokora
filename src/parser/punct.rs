@@ -2,6 +2,7 @@ use super::*;
 
 use crate::{
   error::UnexpectedEot, punct::*, token::PunctuatorToken, try_parse_input::ParseAttempt,
+  utils::CowStr,
 };
 
 macro_rules! define_parsers {
@@ -77,13 +78,13 @@ macro_rules! define_parsers {
           <L::Token as Token<'inp>>::Kind: From<$name<(), (), ()>>,
         {
           #[cfg_attr(not(tarpaulin), inline(always))]
-          fn name() -> &'static str {
-            stringify!($knd)
+          fn name() -> CowStr {
+            CowStr::from_static(stringify!($knd))
           }
 
           #[cfg_attr(not(tarpaulin), inline(always))]
-          fn description() -> Option<&'static str> {
-            Some(concat!("The `", $punct_char, "` punctuator."))
+          fn description() -> Option<CowStr> {
+            Some(CowStr::from_static(concat!("The `", $punct_char, "` punctuator.")))
           }
 
           #[inline]

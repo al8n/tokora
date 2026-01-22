@@ -1,13 +1,13 @@
+use crate::{error::token::MissingTokenOf, utils::CowStr};
+
 use super::*;
 
-impl<'inp, L, Sep, Lang: ?Sized> SeparatedEmitter<'inp, Sep, L, Lang> for Ignored
-where
-  L: Lexer<'inp>,
-{
+impl<'inp, L, Lang: ?Sized> SeparatedEmitter<'inp, L, Lang> for Ignored {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_missing_separator(
     &mut self,
-    _: MissingSeparatorOf<'inp, Sep, L, Lang>,
+    _: CowStr,
+    _: MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,

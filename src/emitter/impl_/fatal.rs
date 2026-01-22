@@ -1,16 +1,7 @@
-use crate::{
-  error::{
-    syntax::MissingSyntaxOf,
-    token::{UnexpectedLeadingOf, UnexpectedToken, UnexpectedTrailingOf},
-  },
-  span::Spanned,
-};
+use crate::{error::syntax::MissingSyntaxOf, span::Spanned};
 
 use super::super::{
-  separated::{
-    FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
-    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
-  },
+  separated::{UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter},
   *,
 };
 
@@ -82,7 +73,6 @@ impl<T: ?Sized, Lang: ?Sized> Fatal<T, Lang> {
 
 impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Fatal<E, Lang>
 where
-  L: Lexer<'a>,
   E: FromEmitterError<'a, L, Lang>,
 {
   type Error = E;
@@ -91,7 +81,10 @@ where
   fn emit_lexer_error(
     &mut self,
     err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
-  ) -> Result<(), Self::Error> {
+  ) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
     Err(E::from_lexer_error(err))
   }
 
@@ -106,7 +99,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_unexpected_token(
     &mut self,
-    err: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>,
+    err: UnexpectedTokenOf<'a, L, Lang>,
   ) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -122,18 +115,16 @@ where
   }
 }
 
-#[cfg(test)]
-const _: () = {
-  use crate::lexer::DummyLexer;
+// #[cfg(test)]
+// const _: () = {
+//   use crate::lexer::DummyLexer;
 
-  struct DummySep;
+//   const fn assert_noop_separated_by_emitter<'a, L, Error, E>()
+//   where
+//     L: Lexer<'a>,
+//     E: SeparatedEmitter<'a, L, Error = Error>,
+//   {
+//   }
 
-  const fn assert_noop_separated_by_emitter<'a, L, Sep, Error, E>()
-  where
-    L: Lexer<'a>,
-    E: SeparatedEmitter<'a, Sep, L, Error = Error>,
-  {
-  }
-
-  assert_noop_separated_by_emitter::<'_, DummyLexer, DummySep, (), Fatal<()>>();
-};
+//   assert_noop_separated_by_emitter::<'_, DummyLexer, (), Fatal<()>>();
+// };

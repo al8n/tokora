@@ -19,8 +19,8 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -63,8 +63,8 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -106,8 +106,8 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -174,8 +174,8 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,

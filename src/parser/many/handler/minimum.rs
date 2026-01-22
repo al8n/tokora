@@ -3,8 +3,9 @@ use crate::{
     SeparatedEmitter, TooFewEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
   },
-  error::token::{UnexpectedLeadingOf, UnexpectedTrailingOf},
+  error::token::UnexpectedTokenOf,
   parser::Minimum,
+  punct::Punctuator,
 };
 
 use super::*;
@@ -14,9 +15,10 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, Sep, L, Lang>
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -76,7 +78,8 @@ where
     // emit unexpected trailing separator
     let (span, tok) = sep.into_components();
     inp.emitter().emit_unexpected_trailing_separator(
-      UnexpectedTrailingOf::<'_, Sep, L, Lang>::of(span).with_found(tok),
+      Sep::name(),
+      UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok),
     )?;
 
     self.check(inp, ckp, num_elems)
@@ -88,8 +91,8 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, Sep, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -110,8 +113,8 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, Sep, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -125,7 +128,8 @@ where
   {
     let (span, tok) = sep_tok.clone().into_components();
     inp.emitter().emit_unexpected_leading_separator(
-      UnexpectedLeadingOf::<'_, Sep, L, Lang>::of(span).with_found(tok),
+      Sep::name(),
+      UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok),
     )
   }
 }

@@ -106,7 +106,7 @@ use core::marker::PhantomData;
 use crate::{
   punct::{Angle, Brace, Bracket, Paren},
   span::{SimpleSpan, Span},
-  utils::Message,
+  utils::CowStr,
 };
 
 /// A unclosed bracket error
@@ -175,7 +175,7 @@ pub type UnclosedAngle<S = SimpleSpan, Lang = ()> = Unclosed<Angle, S, Lang>;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Unclosed<Delimiter, S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,
-  name: Message,
+  name: CowStr,
   _delimiter: PhantomData<Delimiter>,
   _lang: PhantomData<Lang>,
 }
@@ -236,7 +236,7 @@ impl<S, Lang: ?Sized> Unclosed<Paren, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn paren_of(span: S) -> Self {
-    Self::of(span, Message::from_static("()"))
+    Self::of(span, CowStr::from_static("()"))
   }
 }
 
@@ -278,7 +278,7 @@ impl<S, Lang: ?Sized> Unclosed<Bracket, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn bracket_of(span: S) -> Self {
-    Self::of(span, Message::from_static("[]"))
+    Self::of(span, CowStr::from_static("[]"))
   }
 }
 
@@ -320,7 +320,7 @@ impl<S, Lang: ?Sized> Unclosed<Brace, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn brace_of(span: S) -> Self {
-    Self::of(span, Message::from_static("{}"))
+    Self::of(span, CowStr::from_static("{}"))
   }
 }
 
@@ -362,7 +362,7 @@ impl<S, Lang: ?Sized> Unclosed<Angle, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn angle_of(span: S) -> Self {
-    Self::of(span, Message::from_static("<>"))
+    Self::of(span, CowStr::from_static("<>"))
   }
 }
 
@@ -382,7 +382,7 @@ impl<Delimiter, S> Unclosed<Delimiter, S> {
   /// assert_eq!(error.delimiter(), '{');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new(span: S, name: Message) -> Self {
+  pub const fn new(span: S, name: CowStr) -> Self {
     Self::of(span, name)
   }
 }
@@ -403,7 +403,7 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// assert_eq!(error.delimiter(), '{');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn of(span: S, name: Message) -> Self {
+  pub const fn of(span: S, name: CowStr) -> Self {
     Self {
       span,
       name,
@@ -473,7 +473,7 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[cfg(not(any(feature = "alloc", feature = "std")))]
-  pub const fn name(&self) -> Message {
+  pub const fn name(&self) -> CowStr {
     self.name
   }
 
@@ -514,7 +514,7 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// assert_eq!(delimiter, '"');
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (S, Message) {
+  pub fn into_components(self) -> (S, CowStr) {
     (self.span, self.name)
   }
 }

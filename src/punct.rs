@@ -1,4 +1,4 @@
-use crate::{Lexer, Token, error::token::UnexpectedToken, span::Spanned};
+use crate::{Lexer, Token, error::token::UnexpectedToken, span::Spanned, utils::CowStr};
 
 /// The carriage return newline (`\r\n`) punctuator.
 pub type Crnl<S, C = (), Lang = ()> = CarriageReturnNewline<S, C, Lang>;
@@ -261,11 +261,11 @@ punctuator! {
 /// A trait for any punctuator.
 pub trait Punctuator<'inp, L, Lang: ?Sized = ()> {
   /// Returns the name of the punctuator.
-  fn name() -> &'static str;
+  fn name() -> CowStr;
 
   /// Returns the description of the punctuator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn description() -> Option<&'static str> {
+  fn description() -> Option<CowStr> {
     None
   }
 
@@ -299,12 +299,12 @@ pub trait Punctuator<'inp, L, Lang: ?Sized = ()> {
 macro_rules! impl_deref {
   (@impl<$ty:ty>) => {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn name() -> &'static str {
+    fn name() -> CowStr {
       <$ty>::name()
     }
 
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn description() -> Option<&'static str> {
+    fn description() -> Option<CowStr> {
       <$ty>::description()
     }
 

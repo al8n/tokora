@@ -3,13 +3,14 @@ use crate::{
   emitter::{MissingLeadingSeparatorEmitter, SeparatedEmitter, UnexpectedTrailingSeparatorEmitter},
   error::{
     syntax::MissingSyntaxOf,
-    token::{MissingLeadingOf, UnexpectedTrailingOf},
+    token::{MissingTokenOf, UnexpectedTokenOf},
   },
   input::{Checkpoint, InputRef},
   parser::{
     RequireLeading,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler, Unbounded},
   },
+  punct::Punctuator,
   span::{Span, Spanned},
 };
 
@@ -18,9 +19,10 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
-    + MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang>
-    + UnexpectedTrailingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + MissingLeadingSeparatorEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -82,7 +84,8 @@ where
   {
     let (span, tok) = sep.into_components();
     inp.emitter().emit_unexpected_trailing_separator(
-      UnexpectedTrailingOf::<'_, Sep, L, Lang>::of(span).with_found(tok),
+      Sep::name(),
+      UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok),
     )?;
 
     Ok(inp.span_since(ckp.cursor()))
@@ -94,8 +97,8 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, Sep, L, Lang> + MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + MissingLeadingSeparatorEmitter<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -109,7 +112,7 @@ where
   {
     inp
       .emitter()
-      .emit_missing_leading_separator(MissingLeadingOf::<'_, Sep, L, Lang>::of(off))
+      .emit_missing_leading_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(off))
   }
 }
 
@@ -118,8 +121,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter:
-    SeparatedEmitter<'inp, Sep, L, Lang> + MissingLeadingSeparatorEmitter<'inp, Sep, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + MissingLeadingSeparatorEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(

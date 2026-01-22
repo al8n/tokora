@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use derive_more::Display;
 
-use crate::utils::Message;
+use crate::utils::CowStr;
 
 /// A zero-sized marker indicating the parser expected more bytes when the file ended.
 ///
@@ -75,7 +75,7 @@ pub struct CharacterHint;
 /// `UnexpectedEnd` represents situations where the parser or lexer expected more input
 /// but encountered the end of the stream instead (EOF, EOT, EOS, etc.). It's designed to:
 ///
-/// - Avoid allocations by using [`Message`] for names
+/// - Avoid allocations by using [`CowStr`] for names
 /// - Provide natural-reading error messages
 /// - Be composable with custom hint types
 /// - Implement `Error` trait for standard error handling
@@ -90,7 +90,7 @@ pub struct CharacterHint;
 ///
 /// # Components
 ///
-/// 1. **Name** (`Option<Message>`): What ended (e.g., "file", "block comment")
+/// 1. **Name** (`Option<CowStr>`): What ended (e.g., "file", "block comment")
 /// 2. **Hint** (generic `Hint`): What was expected next
 ///
 /// Together, these create error messages like:
@@ -100,7 +100,7 @@ pub struct CharacterHint;
 ///
 /// # Zero-Copy Design
 ///
-/// `UnexpectedEnd` uses [`Message`] for the name field, which means:
+/// `UnexpectedEnd` uses [`CowStr`] for the name field, which means:
 /// - Static strings (`&'static str`) involve no allocation
 /// - Dynamic strings (`String`) are only allocated when necessary
 /// - Most common cases (EOF, EOT, EOS) use compile-time constants
@@ -185,7 +185,7 @@ pub struct CharacterHint;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnexpectedEnd<Hint, O = usize, Lang: ?Sized = ()> {
   offset: O,
-  name: Option<Message>,
+  name: Option<CowStr>,
   hint: Hint,
   _lang: PhantomData<Lang>,
 }
@@ -225,7 +225,7 @@ impl<O> UnexpectedEnd<FileHint, O> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eof(offset: O) -> Self {
-    Self::maybe_name(offset, Some(Message::from_static("file")), FileHint)
+    Self::maybe_name(offset, Some(CowStr::from_static("file")), FileHint)
   }
 }
 
@@ -243,7 +243,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<FileHint, O, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eof_of(offset: O) -> Self {
-    Self::maybe_name_of(offset, Some(Message::from_static("file")), FileHint)
+    Self::maybe_name_of(offset, Some(CowStr::from_static("file")), FileHint)
   }
 }
 
@@ -261,11 +261,7 @@ impl<O> UnexpectedEnd<TokenHint, O> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eot(offset: O) -> Self {
-    Self::maybe_name(
-      offset,
-      Some(Message::from_static("token stream")),
-      TokenHint,
-    )
+    Self::maybe_name(offset, Some(CowStr::from_static("token stream")), TokenHint)
   }
 }
 
@@ -283,11 +279,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<TokenHint, O, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eot_of(offset: O) -> Self {
-    Self::maybe_name_of(
-      offset,
-      Some(Message::from_static("token stream")),
-      TokenHint,
-    )
+    Self::maybe_name_of(offset, Some(CowStr::from_static("token stream")), TokenHint)
   }
 }
 
@@ -305,7 +297,7 @@ impl<O> UnexpectedEnd<CharacterHint, O> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eos(offset: O) -> Self {
-    Self::maybe_name(offset, Some(Message::from_static("string")), CharacterHint)
+    Self::maybe_name(offset, Some(CowStr::from_static("string")), CharacterHint)
   }
 }
 
@@ -323,7 +315,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<CharacterHint, O, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eos_of(offset: O) -> Self {
-    Self::maybe_name_of(offset, Some(Message::from_static("string")), CharacterHint)
+    Self::maybe_name_of(offset, Some(CowStr::from_static("string")), CharacterHint)
   }
 }
 
@@ -351,15 +343,15 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// ```rust
   ///
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{CowStr, Span}};
   ///
-  /// let error = UnexpectedEnd::maybe_name(SimpleSpan::new(10, 10), Some(Message::from_static("string")), FileHint);
+  /// let error = UnexpectedEnd::maybe_name(SimpleSpan::new(10, 10), Some(CowStr::from_static("string")), FileHint);
   /// assert_eq!(error.name(), Some("string"));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 10));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn maybe_name(offset: O, name: Option<Message>, hint: Hint) -> Self {
+  pub const fn maybe_name(offset: O, name: Option<CowStr>, hint: Hint) -> Self {
     Self::maybe_name_of(offset, name, hint)
   }
 
@@ -369,15 +361,15 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   ///
   /// ```rust
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{CowStr, Span}};
   ///
-  /// let error = UnexpectedEnd::with_name(SimpleSpan::new(20, 20), Message::from_static("block"), FileHint);
+  /// let error = UnexpectedEnd::with_name(SimpleSpan::new(20, 20), CowStr::from_static("block"), FileHint);
   /// assert_eq!(error.name(), Some("block"));
   /// assert_eq!(error.span(), SimpleSpan::new(20, 20));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_name(offset: O, name: Message, hint: Hint) -> Self {
+  pub const fn with_name(offset: O, name: CowStr, hint: Hint) -> Self {
     Self::with_name_of(offset, name, hint)
   }
 
@@ -422,15 +414,15 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ```rust
   ///
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{CowStr, Span}};
   ///
-  /// let error = UnexpectedEnd::maybe_name(SimpleSpan::new(10, 10), Some(Message::from_static("string")), FileHint);
+  /// let error = UnexpectedEnd::maybe_name(SimpleSpan::new(10, 10), Some(CowStr::from_static("string")), FileHint);
   /// assert_eq!(error.name(), Some("string"));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 10));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn maybe_name_of(offset: O, name: Option<Message>, hint: Hint) -> Self {
+  pub const fn maybe_name_of(offset: O, name: Option<CowStr>, hint: Hint) -> Self {
     Self {
       offset,
       name,
@@ -445,15 +437,15 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   ///
   /// ```rust
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{CowStr, Span}};
   ///
-  /// let error = UnexpectedEnd::with_name(SimpleSpan::new(20, 20), Message::from_static("block"), FileHint);
+  /// let error = UnexpectedEnd::with_name(SimpleSpan::new(20, 20), CowStr::from_static("block"), FileHint);
   /// assert_eq!(error.name(), Some("block"));
   /// assert_eq!(error.span(), SimpleSpan::new(20, 20));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_name_of(offset: O, name: Message, hint: Hint) -> Self {
+  pub const fn with_name_of(offset: O, name: CowStr, hint: Hint) -> Self {
     Self::maybe_name_of(offset, Some(name), hint)
   }
 
@@ -490,7 +482,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// assert_eq!(error.name(), Some("expression"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn set_name(&mut self, name: impl Into<Message>) -> &mut Self {
+  pub fn set_name(&mut self, name: impl Into<CowStr>) -> &mut Self {
     self.name = Some(name.into());
     self
   }
@@ -501,15 +493,15 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   ///
   /// ```rust
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{CowStr, Span}};
   ///
-  /// let mut error = UnexpectedEnd::with_name(SimpleSpan::new(10, 11), Message::from_static("old"), FileHint);
+  /// let mut error = UnexpectedEnd::with_name(SimpleSpan::new(10, 11), CowStr::from_static("old"), FileHint);
   /// error.update_name(Some("new"));
   /// assert_eq!(error.name(), Some("new"));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn update_name(&mut self, name: Option<impl Into<Message>>) -> &mut Self {
+  pub fn update_name(&mut self, name: Option<impl Into<CowStr>>) -> &mut Self {
     self.name = name.map(Into::into);
     self
   }
@@ -520,9 +512,9 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   ///
   /// ```rust
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{Message, Span}};
+  /// use tokit::{error::{FileHint, UnexpectedEnd}, utils::{CowStr, Span}};
   ///
-  /// let mut error = UnexpectedEnd::with_name(SimpleSpan::new(10, 11), Message::from_static("block"), FileHint);
+  /// let mut error = UnexpectedEnd::with_name(SimpleSpan::new(10, 11), CowStr::from_static("block"), FileHint);
   /// error.clear_name();
   /// assert_eq!(error.name(), None);
   /// # }
@@ -623,7 +615,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn reconstruct<F, NewHint>(
     self,
-    name: Option<impl Into<Message>>,
+    name: Option<impl Into<CowStr>>,
     f: F,
   ) -> UnexpectedEnd<NewHint, O, Lang>
   where
@@ -647,7 +639,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn reconstruct_with_name<F, NewHint>(
     self,
-    name: impl Into<Message>,
+    name: impl Into<CowStr>,
     f: F,
   ) -> UnexpectedEnd<NewHint, O, Lang>
   where
@@ -662,9 +654,9 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   ///
   /// ```rust
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::{Message, Span}};
+  /// use tokit::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::{CowStr, Span}};
   ///
-  /// let file_error = UnexpectedEnd::with_name(SimpleSpan::new(10, 10), Message::from_static("file"), FileHint);
+  /// let file_error = UnexpectedEnd::with_name(SimpleSpan::new(10, 10), CowStr::from_static("file"), FileHint);
   /// let token_error = file_error.reconstruct_without_name(|_| TokenHint);
   /// assert_eq!(token_error.name(), None);
   /// assert_eq!(token_error.span(), SimpleSpan::new(10, 10));
@@ -744,7 +736,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// assert_eq!(name, Some("file".into()));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn into_components(self) -> (O, Option<Message>, Hint) {
+  pub fn into_components(self) -> (O, Option<CowStr>, Hint) {
     (self.offset, self.name, self.hint)
   }
 }

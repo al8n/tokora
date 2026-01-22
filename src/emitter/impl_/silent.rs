@@ -64,30 +64,30 @@ impl<T: ?Sized, Lang: ?Sized> Clone for Silent<T, Lang> {
 
 impl<T: ?Sized, Lang: ?Sized> Copy for Silent<T, Lang> {}
 
-impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Silent<E, Lang>
-where
-  L: Lexer<'a>,
-{
+impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Silent<E, Lang> {
   type Error = E;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_lexer_error(
     &mut self,
     _: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
-  ) -> Result<(), Self::Error> {
-    Ok(())
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_error(&mut self, _: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error> {
-    Ok(())
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn emit_unexpected_token(
-    &mut self,
-    _: UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>,
   ) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    Ok(())
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_error(&mut self, _: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    Ok(())
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'a, L, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
@@ -107,14 +107,12 @@ where
 const _: () = {
   use crate::lexer::DummyLexer;
 
-  struct DummySep;
-
-  const fn assert_noop_separated_by_emitter<'a, L, Sep, Error, E>()
+  const fn assert_noop_separated_by_emitter<'a, L, Error, E>()
   where
     L: Lexer<'a>,
-    E: SeparatedEmitter<'a, Sep, L, Error = Error>,
+    E: SeparatedEmitter<'a, L, Error = Error>,
   {
   }
 
-  assert_noop_separated_by_emitter::<'_, DummyLexer, DummySep, (), Silent<()>>();
+  assert_noop_separated_by_emitter::<'_, DummyLexer, (), Silent<()>>();
 };

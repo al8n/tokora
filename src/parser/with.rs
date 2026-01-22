@@ -91,7 +91,7 @@ impl With<Minimum, Maximum> {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
       + TooFewEmitter<'inp, L, Lang>
       + TooManyEmitter<'inp, L, Lang>,
   {
@@ -124,7 +124,7 @@ impl Minimum {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang> + TooFewEmitter<'inp, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + TooFewEmitter<'inp, L, Lang>,
   {
     let full_span = inp.span_since(ckp.cursor());
     let minimum = self.get();
@@ -148,7 +148,7 @@ impl Maximum {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang> + TooManyEmitter<'inp, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + TooManyEmitter<'inp, L, Lang>,
   {
     let full_span = inp.span_since(ckp.cursor());
     let maximum = self.get();

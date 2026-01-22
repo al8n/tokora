@@ -13,7 +13,7 @@ use tokit::{
   error::{
     UnexpectedEot,
     syntax::MissingSyntaxOf,
-    token::{MissingSeparatorOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
+    token::{MissingTokenOf, UnexpectedLeadingComma, UnexpectedToken, UnexpectedTrailingComma},
   },
   parser::{Action, expect},
   punct::{Brace, Bracket, CloseBrace, CloseBracket, Colon, Comma, OpenBrace, OpenBracket},
@@ -55,8 +55,8 @@ enum JsonError<'a> {
   Parse(Spanned<ParseFloatError>),
   UnexpectedTrailingComma(UnexpectedTrailingComma<'a, JsonLexer<'a>>),
   UnexpectedLeadingComma(UnexpectedLeadingComma<'a, JsonLexer<'a>>),
-  MissingComma(MissingSeparatorOf<'a, Comma, JsonLexer<'a>>),
-  MissingColon(MissingSeparatorOf<'a, Colon, JsonLexer<'a>>),
+  MissingComma(MissingTokenOf<'a, Comma, JsonLexer<'a>>),
+  MissingColon(MissingTokenOf<'a, Colon, JsonLexer<'a>>),
   MissingElement(MissingSyntaxOf<'a, JsonLexer<'a>>),
   UnexpectedToken(
     UnexpectedToken<

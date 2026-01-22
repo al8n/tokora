@@ -2,7 +2,6 @@ use super::*;
 
 impl<'a, L, E, Lang: ?Sized> TooFewEmitter<'a, L, Lang> for Fatal<E, Lang>
 where
-  L: Lexer<'a>,
   E: FromTooFewError<'a, L, Lang> + FromEmitterError<'a, L, Lang>,
   Fatal<E, Lang>: Emitter<'a, L, Lang, Error = E>,
 {
