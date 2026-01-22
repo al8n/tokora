@@ -20,7 +20,7 @@ mod require_surrounded;
 mod require_trailing;
 
 impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
-  DelimitedBy<SeparatedWhile<&'c mut P, &'c mut Sep, &'c mut Condition, O, W, L, Ctx, Lang>, Delim>
+  DelimitedBy<SeparatedWhile<&'c mut P, Sep, &'c mut Condition, O, W, L, Ctx, Lang>, Delim>
 {
   fn parse_separated<'closure, Container, CH, SP, EH>(
     &mut self,
@@ -34,7 +34,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Delim: DelimiterSelector<'inp, L, Lang>,
-    Sep: Check<L::Token>,
+    Sep: Punctuator<'inp, L, Lang>,
     L: Lexer<'inp>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
@@ -88,7 +88,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       let mut is_sep = false;
       let mut err = None;
       match inp.try_expect(|tok| {
-        if parser.sep.check(tok.data) {
+        if Sep::eval(&tok.data.kind()) {
           is_sep = true;
           true
         } else {

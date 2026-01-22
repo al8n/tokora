@@ -16,7 +16,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -55,7 +55,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -84,7 +84,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut RequireLeading<
-      AtMost<SeparatedWhile<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      AtMost<SeparatedWhile<&'c mut F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
     >,
     &'c mut Container,
     Ctx,
@@ -94,7 +94,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -117,9 +117,7 @@ where
         RequireLeading {
           parser:
             AtMost {
-              parser: SeparatedWhile {
-                f, sep, condition, ..
-              },
+              parser: SeparatedWhile { f, condition, .. },
               maximum,
             },
         },
@@ -127,16 +125,7 @@ where
       ..
     } = self;
     let parser = RequireLeading::new(AtMost::new(
-      SeparatedWhile {
-        f: &mut **f,
-        sep: &mut **sep,
-        condition: &mut *condition,
-        _m: PhantomData,
-        _decision_window: PhantomData,
-        _ctx: PhantomData,
-        _l: PhantomData,
-        _lang: PhantomData,
-      },
+      SeparatedWhile::new(&mut **f, &mut *condition),
       maximum.get(),
     ));
 
@@ -151,9 +140,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
   for Wrapper<
     Collect<
       RequireLeading<
-        AtMost<
-          SeparatedWhile<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
-        >,
+        AtMost<SeparatedWhile<&'c mut F, SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>>,
       >,
       &'c mut Container,
       Ctx,
@@ -164,7 +151,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>

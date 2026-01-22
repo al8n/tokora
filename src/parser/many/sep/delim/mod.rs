@@ -5,6 +5,7 @@ use crate::{
   container::Container as ContainerT,
   delimiter::DelimiterSelector,
   emitter::SeparatedEmitter,
+  punct::Punctuator,
   try_parse_input::{Accept, Decline},
 };
 
@@ -25,8 +26,8 @@ mod require_leading_allow_trailing;
 mod require_surrounded;
 mod require_trailing;
 
-impl<'c, 'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
-  DelimitedBy<Separated<&'c mut P, &'c mut Sep, O, L, Ctx, Lang>, Delim>
+impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
+  DelimitedBy<Separated<&mut P, Sep, O, L, Ctx, Lang>, Delim>
 {
   fn parse_separated<'closure, Container, CH, SP, EH>(
     &mut self,
@@ -40,7 +41,7 @@ impl<'c, 'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Delim: DelimiterSelector<'inp, L, Lang>,
-    Sep: Check<L::Token>,
+    Sep: Punctuator<'inp, L, Lang>,
     L: Lexer<'inp>,
     P: TryParseInput<'inp, L, O, Ctx, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>,
@@ -93,7 +94,7 @@ impl<'c, 'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
     let (elems_span, right) = loop {
       let mut ps = None;
       let peek_span = match inp.try_expect_map(|t| {
-        if parser.sep.check(t.data()) {
+        if Sep::eval(&t.data.kind()) {
           Some(false)
         } else {
           match Delim::is_close(&t.data.kind()) {

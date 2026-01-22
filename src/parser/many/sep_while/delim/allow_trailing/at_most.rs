@@ -17,7 +17,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -60,7 +60,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -90,7 +90,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Delim, Container, Ctx, Lang: ?
   for Collect<
     &'c mut DelimitedBy<
       AllowTrailing<
-        AtMost<SeparatedWhile<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+        AtMost<SeparatedWhile<&'c mut F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
       >,
       Delim,
     >,
@@ -102,7 +102,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -128,10 +128,7 @@ where
             AllowTrailing {
               parser:
                 AtMost {
-                  parser:
-                    SeparatedWhile {
-                      f, sep, condition, ..
-                    },
+                  parser: SeparatedWhile { f, condition, .. },
                   maximum,
                 },
             },
@@ -141,7 +138,7 @@ where
       ..
     } = self;
     let parser = DelimitedBy::<_, Delim>::new_in(AllowTrailing::new(AtMost::new(
-      SeparatedWhile::new(&mut **f, &mut **sep, &mut *condition),
+      SeparatedWhile::new(&mut **f, &mut *condition),
       maximum.get(),
     )));
 
@@ -157,9 +154,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Delim, Container, Ctx, Lang: ?
     Collect<
       DelimitedBy<
         AllowTrailing<
-          AtMost<
-            SeparatedWhile<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
-          >,
+          AtMost<SeparatedWhile<&'c mut F, SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>>,
         >,
         Delim,
       >,
@@ -172,7 +167,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -194,17 +189,14 @@ where
     let maximum = AllowTrailing::new(parser.parser.parser.maximum());
 
     let DelimitedBy {
-      parser:
-        AtMost {
-          parser: SeparatedWhile {
-            f, sep, condition, ..
-          },
-          ..
-        },
+      parser: AtMost {
+        parser: SeparatedWhile { f, condition, .. },
+        ..
+      },
       ..
     } = parser.map_parser_mut(|p| p.parser_mut());
 
-    DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new(&mut **f, &mut **sep, &mut **condition))
+    DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new(&mut **f, &mut **condition))
       .parse_separated(inp, container, &maximum, &maximum, &maximum)
   }
 }

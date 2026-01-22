@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use derive_more::IsVariant;
 
-use crate::delimiter::DelimiterSelector;
+use crate::{delimiter::DelimiterSelector, punct::Punctuator};
 
 use super::*;
 
@@ -142,8 +142,8 @@ mod delim;
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SeparatedWhile<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
-  pub(super) sep: SepClassifier,
   pub(super) condition: Condition,
+  pub(super) _sep: PhantomData<SepClassifier>,
   pub(super) _m: PhantomData<O>,
   pub(super) _decision_window: PhantomData<Window>,
   pub(super) _l: PhantomData<L>,
@@ -171,8 +171,8 @@ where
   fn clone(&self) -> Self {
     Self {
       f: self.f.clone(),
-      sep: self.sep.clone(),
       condition: self.condition.clone(),
+      _sep: PhantomData,
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
@@ -187,11 +187,12 @@ impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
 {
   /// Creates a new `SeparatedWhile` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new(f: F, sep_classifier: SepClassifier, condition: Condition) -> Self {
+  pub(crate) const fn new(f: F, condition: Condition) -> Self {
     Self {
       f,
-      sep: sep_classifier,
       condition,
+      _sep: PhantomData,
+
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,
@@ -207,11 +208,11 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn as_mut(
     &mut self,
-  ) -> SeparatedWhile<&mut F, &mut SepClassifier, &mut Condition, O, Window, L, Ctx, Lang> {
+  ) -> SeparatedWhile<&mut F, SepClassifier, &mut Condition, O, Window, L, Ctx, Lang> {
     SeparatedWhile {
       f: &mut self.f,
-      sep: &mut self.sep,
       condition: &mut self.condition,
+      _sep: PhantomData,
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,

@@ -1,10 +1,11 @@
 use crate::{
-  Accumulator, Check, Emitter, InputRef, Lexer, ParseContext, ParseInput, Source, TryParseInput,
+  Accumulator, Emitter, InputRef, Lexer, ParseContext, ParseInput, Source, TryParseInput,
   emitter::{
     SeparatedEmitter, UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::UnexpectedEot,
   parser::SeparatorHandler,
+  punct::Punctuator,
   span::Spanned,
   token::IdentifierToken,
   try_parse_input::Accept,
@@ -14,9 +15,7 @@ use crate::{
 /// Returns a parser for the a list of identifiers separated by the given separator.
 ///
 /// The parser will not consume any valid token if it is not a valid ident list.
-pub fn try_ident_list<'inp, Sep, L, Container, Ctx>(
-  sep: Sep,
-) -> impl TryParseInput<
+pub fn try_ident_list<'inp, Sep, L, Container, Ctx>() -> impl TryParseInput<
   'inp,
   L,
   IdentList<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Container>,
@@ -26,7 +25,7 @@ where
   L: Lexer<'inp>,
   L::Source: Source<L::Offset>,
   L::Token: IdentifierToken<'inp>,
-  Sep: Check<L::Token> + Clone + 'inp,
+  Sep: Punctuator<'inp, L>,
   Ctx: ParseContext<'inp, L>,
   Ctx::Emitter: SeparatedEmitter<'inp, Sep, L>
     + UnexpectedLeadingSeparatorEmitter<'inp, Sep, L>
@@ -37,15 +36,13 @@ where
     + SeparatorHandler<'inp, L>
     + 'inp,
 {
-  try_ident_list_of(sep)
+  try_ident_list_of()
 }
 
 /// Returns a parser for the a list of identifiers separated by the given separator for the specified language.
 ///
 /// The parser will not consume any valid token if it is not a valid ident list.
-pub fn try_ident_list_of<'inp, Sep, L, Container, Ctx, Lang>(
-  sep: Sep,
-) -> impl TryParseInput<
+pub fn try_ident_list_of<'inp, Sep, L, Container, Ctx, Lang>() -> impl TryParseInput<
   'inp,
   L,
   IdentList<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Container, Lang>,
@@ -56,7 +53,7 @@ where
   L: Lexer<'inp>,
   L::Source: Source<L::Offset>,
   L::Token: IdentifierToken<'inp>,
-  Sep: Check<L::Token> + Clone + 'inp,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, Sep, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, Sep, L, Lang>
@@ -69,7 +66,7 @@ where
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
     Ident::try_parse_of
-      .separated(sep.clone())
+      .separated()
       .collect()
       .spanned()
       .parse_input(inp)

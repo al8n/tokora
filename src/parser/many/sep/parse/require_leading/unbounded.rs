@@ -8,7 +8,7 @@ impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>,
@@ -39,7 +39,7 @@ impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>,
@@ -73,7 +73,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>,
@@ -90,20 +90,13 @@ where
   {
     let Self {
       parser: RequireLeading {
-        parser: Separated { f, sep, .. },
+        parser: Separated { f, .. },
       },
       container,
       ..
     } = self;
 
-    let parser = RequireLeading::new(Separated {
-      f: &mut *f,
-      sep: &mut *sep,
-      _m: PhantomData,
-      _ctx: PhantomData,
-      _l: PhantomData,
-      _lang: PhantomData,
-    });
+    let parser = RequireLeading::new(Separated::new(&mut *f));
 
     Wrapper(Collect::new(parser, container)).parse_input(input)
   }
@@ -115,7 +108,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      RequireLeading<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
+      RequireLeading<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>>,
       &'c mut Container,
       Ctx,
       Lang,
@@ -124,7 +117,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>,

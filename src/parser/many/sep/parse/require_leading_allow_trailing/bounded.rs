@@ -13,7 +13,7 @@ impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
@@ -50,7 +50,7 @@ impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
@@ -77,7 +77,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut RequireLeading<
-      AllowTrailing<Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
+      AllowTrailing<Bounded<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>>>,
     >,
     &'c mut Container,
     Ctx,
@@ -86,7 +86,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
@@ -110,7 +110,7 @@ where
             AllowTrailing {
               parser:
                 Bounded {
-                  parser: Separated { f, sep, .. },
+                  parser: Separated { f, .. },
                   maximum,
                   minimum,
                 },
@@ -122,7 +122,7 @@ where
     let parser = RequireLeading::new(AllowTrailing::new(Bounded::new(
       Separated {
         f: &mut **f,
-        sep: &mut **sep,
+        _sep: PhantomData,
         _m: PhantomData,
         _ctx: PhantomData,
         _l: PhantomData,
@@ -142,9 +142,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      RequireLeading<
-        AllowTrailing<Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
-      >,
+      RequireLeading<AllowTrailing<Bounded<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>>>>,
       &'c mut Container,
       Ctx,
       Lang,
@@ -153,7 +151,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, L, Lang>

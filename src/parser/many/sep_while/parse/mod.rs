@@ -1,5 +1,4 @@
 use crate::{
-  Check,
   container::Container as ContainerT,
   emitter::SeparatedEmitter,
   error::{syntax::MissingSyntaxOf, token::MissingSeparatorOf},
@@ -25,7 +24,7 @@ mod require_trailing;
 mod unbounded;
 
 impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
-  SeparatedWhile<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>
+  SeparatedWhile<&'c mut F, SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>
 {
   fn parse<'closure, Container, CH, SP, EH>(
     &mut self,
@@ -39,7 +38,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     L: Lexer<'inp>,
     F: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-    SepClassifier: Check<L::Token>,
+    SepClassifier: Punctuator<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
@@ -53,7 +52,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     let mut num_elems = 0;
 
     loop {
-      match inp.try_expect(|tok| self.sep.check(tok.data))? {
+      match inp.try_expect(|tok| SepClassifier::eval(&tok.data.kind()))? {
         Some(tok) => {
           state = self.handle_separator(state, inp, tok, container, separator_state_handler)?;
 
@@ -182,7 +181,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     F: ParseInput<'inp, L, O, Ctx, Lang>,
     W: Window,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-    SepClassifier: Check<L::Token>,
+    SepClassifier: Punctuator<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
     Handler: ContinueStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
@@ -247,7 +246,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
     F: ParseInput<'inp, L, O, Ctx, Lang>,
     W: Window,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-    SepClassifier: Check<L::Token>,
+    SepClassifier: Punctuator<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>,
     Handler: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
   {

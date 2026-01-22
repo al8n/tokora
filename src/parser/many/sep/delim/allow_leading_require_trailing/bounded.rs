@@ -16,7 +16,7 @@ impl<'inp, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -58,7 +58,7 @@ impl<'inp, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -87,9 +87,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
-      AllowLeading<
-        RequireTrailing<Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
-      >,
+      AllowLeading<RequireTrailing<Bounded<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>>>>,
       Delim,
     >,
     &'c mut Container,
@@ -99,7 +97,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -127,7 +125,7 @@ where
                 RequireTrailing {
                   parser:
                     Bounded {
-                      parser: Separated { f, sep, .. },
+                      parser: Separated { f, .. },
                       maximum,
                       minimum,
                     },
@@ -139,12 +137,9 @@ where
       container,
       ..
     } = self;
-    let parser =
-      DelimitedBy::<_, Delim>::new_in(AllowLeading::new(RequireTrailing::new(Bounded::new(
-        Separated::new(&mut **f, &mut **sep),
-        maximum.get(),
-        minimum.get(),
-      ))));
+    let parser = DelimitedBy::<_, Delim>::new_in(AllowLeading::new(RequireTrailing::new(
+      Bounded::new(Separated::new(&mut **f), maximum.get(), minimum.get()),
+    )));
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
   }
@@ -158,7 +153,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
     Collect<
       DelimitedBy<
         AllowLeading<
-          RequireTrailing<Bounded<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>>,
+          RequireTrailing<Bounded<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>>>,
         >,
         Delim,
       >,
@@ -170,7 +165,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -195,14 +190,14 @@ where
       parser:
         RequireTrailing {
           parser: Bounded {
-            parser: Separated { f, sep, .. },
+            parser: Separated { f, .. },
             ..
           },
         },
       ..
     } = parser.map_parser_mut(|p| p.parser_mut());
 
-    DelimitedBy::<_, Delim>::new_in(Separated::new(&mut **f, &mut **sep)).parse_separated(
+    DelimitedBy::<_, Delim>::new_in(Separated::new(&mut **f)).parse_separated(
       inp,
       container,
       &limitation,

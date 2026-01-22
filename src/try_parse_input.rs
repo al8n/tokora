@@ -105,7 +105,7 @@ macro_rules! define_separated_by {
           L::Token: PunctuatorToken<'inp>,
           Ctx: ParseContext<'inp, L, Lang>,
         {
-          Separated::new(self, <$name>::PHANTOM)
+          Separated::new(self)
         }
       )*
     }
@@ -214,17 +214,14 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// - [`separated_while`](crate::ParseInput::separated_while) - When you want to provide the lookahead/stopping logic externally
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn separated<SepClassifier>(
-    self,
-    sep_classifier: SepClassifier,
-  ) -> Separated<Self, SepClassifier, O, L, Ctx, Lang>
+  fn separated<SepClassifier>(self) -> Separated<Self, SepClassifier, O, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    SepClassifier: Check<L::Token>,
+    SepClassifier: Punctuator<'inp, L, Lang>,
   {
-    Separated::new(self, sep_classifier)
+    Separated::new(self)
   }
 
   define_separated_by!(

@@ -282,6 +282,13 @@ impl<'inp> TokenT<'inp> for Token<'inp> {
   }
 }
 
+impl From<Comma> for TokenKind {
+  #[inline]
+  fn from(_: Comma) -> Self {
+    TokenKind::Comma
+  }
+}
+
 impl From<Colon> for TokenKind {
   #[inline]
   fn from(_: Colon) -> Self {

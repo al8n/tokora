@@ -181,7 +181,6 @@ macro_rules! define_punctuator_token_traits {
       where
         L::Token: PunctuatorToken<'a>,
       {
-
         #[doc = "Returns `Some(_)` when the token is hyphen (`-`)."]
         #[cfg_attr(not(tarpaulin), inline(always))]
         fn expect_hyphen(self) -> Result<Spanned<L::Token, L::Span>, crate::error::token::UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>

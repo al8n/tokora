@@ -13,7 +13,7 @@ impl<'inp, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -46,7 +46,7 @@ impl<'inp, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -74,7 +74,7 @@ where
 impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut DelimitedBy<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>, Delim>,
+    &'c mut DelimitedBy<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>, Delim>,
     &'c mut Container,
     Ctx,
     Lang,
@@ -82,7 +82,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -102,13 +102,13 @@ where
   {
     let Self {
       parser: DelimitedBy {
-        parser: Separated { f, sep, .. },
+        parser: Separated { f, .. },
         ..
       },
       container,
       ..
     } = self;
-    let parser = DelimitedBy::<_, Delim>::new_in(Separated::new(&mut **f, &mut **sep));
+    let parser = DelimitedBy::<_, Delim>::new_in(Separated::new(&mut **f));
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
   }
@@ -120,7 +120,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      DelimitedBy<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>, Delim>,
+      DelimitedBy<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>, Delim>,
       &'c mut Container,
       Ctx,
       Lang,
@@ -129,7 +129,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -150,11 +150,11 @@ where
     } = &mut self.0;
 
     let DelimitedBy {
-      parser: Separated { f, sep, .. },
+      parser: Separated { f, .. },
       ..
     } = parser.map_parser_mut(|p| p.as_mut());
 
-    DelimitedBy::<_, Delim>::new_in(Separated::new(&mut **f, &mut **sep))
+    DelimitedBy::<_, Delim>::new_in(Separated::new(&mut **f))
       .parse_separated(inp, container, UNBOUNDED, UNBOUNDED, UNBOUNDED)
   }
 }

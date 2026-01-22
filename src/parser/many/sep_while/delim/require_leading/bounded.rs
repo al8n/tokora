@@ -19,7 +19,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -64,7 +64,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -96,7 +96,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Delim, Container, Ctx, Lang: ?
   for Collect<
     &'c mut DelimitedBy<
       RequireLeading<
-        Bounded<SeparatedWhile<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+        Bounded<SeparatedWhile<&'c mut F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
       >,
       Delim,
     >,
@@ -108,7 +108,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -136,10 +136,7 @@ where
             RequireLeading {
               parser:
                 Bounded {
-                  parser:
-                    SeparatedWhile {
-                      f, sep, condition, ..
-                    },
+                  parser: SeparatedWhile { f, condition, .. },
                   maximum,
                   minimum,
                 },
@@ -150,7 +147,7 @@ where
       ..
     } = self;
     let parser = DelimitedBy::<_, Delim>::new_in(RequireLeading::new(Bounded::new(
-      SeparatedWhile::new(&mut **f, &mut **sep, &mut *condition),
+      SeparatedWhile::new(&mut **f, &mut *condition),
       maximum.get(),
       minimum.get(),
     )));
@@ -167,9 +164,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Delim, Container, Ctx, Lang: ?
     Collect<
       DelimitedBy<
         RequireLeading<
-          Bounded<
-            SeparatedWhile<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
-          >,
+          Bounded<SeparatedWhile<&'c mut F, SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>>,
         >,
         Delim,
       >,
@@ -182,7 +177,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -206,17 +201,14 @@ where
     let limitation = RequireLeading::new(parser.parser.parser.to_with());
 
     let DelimitedBy {
-      parser:
-        Bounded {
-          parser: SeparatedWhile {
-            f, sep, condition, ..
-          },
-          ..
-        },
+      parser: Bounded {
+        parser: SeparatedWhile { f, condition, .. },
+        ..
+      },
       ..
     } = parser.map_parser_mut(|p| p.parser_mut());
 
-    DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new(&mut **f, &mut **sep, &mut **condition))
+    DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new(&mut **f, &mut **condition))
       .parse_separated(inp, container, &limitation, &limitation, &limitation)
   }
 }

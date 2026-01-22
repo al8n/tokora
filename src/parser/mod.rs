@@ -157,7 +157,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-  Check, Emitter, Lexer, Source, Token,
+  Emitter, Lexer, Source, Token,
   cache::Peeked,
   emitter::{Fatal, FromEmitterError},
   error::{UnexpectedEot, token::UnexpectedToken},

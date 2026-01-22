@@ -13,7 +13,7 @@ impl<'inp, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -51,7 +51,7 @@ impl<'inp, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -80,7 +80,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
-      RequireLeading<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
+      RequireLeading<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>>,
       Delim,
     >,
     &'c mut Container,
@@ -90,7 +90,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -112,15 +112,14 @@ where
       parser:
         DelimitedBy {
           parser: RequireLeading {
-            parser: Separated { f, sep, .. },
+            parser: Separated { f, .. },
           },
           ..
         },
       container,
       ..
     } = self;
-    let parser =
-      DelimitedBy::<_, Delim>::new_in(RequireLeading::new(Separated::new(&mut **f, &mut **sep)));
+    let parser = DelimitedBy::<_, Delim>::new_in(RequireLeading::new(Separated::new(&mut **f)));
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
   }
@@ -132,10 +131,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      DelimitedBy<
-        RequireLeading<Separated<&'c mut F, &'c mut SepClassifier, O, L, Ctx, Lang>>,
-        Delim,
-      >,
+      DelimitedBy<RequireLeading<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>>, Delim>,
       &'c mut Container,
       Ctx,
       Lang,
@@ -144,7 +140,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
@@ -166,12 +162,12 @@ where
 
     let DelimitedBy {
       parser: RequireLeading {
-        parser: Separated { f, sep, .. },
+        parser: Separated { f, .. },
       },
       ..
     } = parser.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()));
 
-    DelimitedBy::<_, Delim>::new_in(Separated::new(&mut **f, &mut **sep))
+    DelimitedBy::<_, Delim>::new_in(Separated::new(&mut **f))
       .parse_separated(inp, container, UNBOUNDED, UNBOUNDED, UNBOUNDED)
   }
 }

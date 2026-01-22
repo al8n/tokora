@@ -12,7 +12,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>,
@@ -41,7 +41,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>,
@@ -63,7 +63,7 @@ where
 impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut SeparatedWhile<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>,
+    &'c mut SeparatedWhile<&'c mut F, SepClassifier, Condition, O, W, L, Ctx, Lang>,
     &'c mut Container,
     Ctx,
     Lang,
@@ -72,7 +72,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>,
@@ -89,9 +89,7 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     let Self {
-      parser: SeparatedWhile {
-        f, sep, condition, ..
-      },
+      parser: SeparatedWhile { f, condition, .. },
       container,
       ..
     } = self;
@@ -99,8 +97,8 @@ where
     let parser = Collect::new(
       SeparatedWhile {
         f: &mut **f,
-        sep: &mut **sep,
         condition: &mut *condition,
+        _sep: PhantomData,
         _m: PhantomData,
         _decision_window: PhantomData,
         _ctx: PhantomData,
@@ -120,7 +118,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      SeparatedWhile<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
+      SeparatedWhile<&'c mut F, SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
       &'c mut Container,
       Ctx,
       Lang,
@@ -130,7 +128,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, SepClassifier, L, Lang>,

@@ -16,7 +16,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
@@ -56,7 +56,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
@@ -84,7 +84,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
   for Collect<
     &'c mut RequireLeading<
       AllowTrailing<
-        AtLeast<SeparatedWhile<&'c mut F, &'c mut SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+        AtLeast<SeparatedWhile<&'c mut F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
       >,
     >,
     &'c mut Container,
@@ -95,7 +95,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
@@ -119,10 +119,7 @@ where
             AllowTrailing {
               parser:
                 AtLeast {
-                  parser:
-                    SeparatedWhile {
-                      f, sep, condition, ..
-                    },
+                  parser: SeparatedWhile { f, condition, .. },
                   minimum,
                 },
             },
@@ -131,16 +128,7 @@ where
       ..
     } = self;
     let parser = RequireLeading::new(AllowTrailing::new(AtLeast::new(
-      SeparatedWhile {
-        f: &mut **f,
-        sep: &mut **sep,
-        condition: &mut *condition,
-        _m: PhantomData,
-        _decision_window: PhantomData,
-        _ctx: PhantomData,
-        _l: PhantomData,
-        _lang: PhantomData,
-      },
+      SeparatedWhile::new(&mut **f, &mut *condition),
       minimum.get(),
     )));
 
@@ -156,9 +144,7 @@ impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, 
     Collect<
       RequireLeading<
         AllowTrailing<
-          AtLeast<
-            SeparatedWhile<&'c mut F, &'c mut SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
-          >,
+          AtLeast<SeparatedWhile<&'c mut F, SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>>,
         >,
       >,
       &'c mut Container,
@@ -170,7 +156,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Check<L::Token>,
+  SepClassifier: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, SepClassifier, L, Lang>
     + MissingLeadingSeparatorEmitter<'inp, SepClassifier, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,

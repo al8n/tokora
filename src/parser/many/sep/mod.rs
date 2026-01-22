@@ -142,7 +142,7 @@ mod delim;
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Separated<F, SepClassifier, O, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
-  pub(super) sep: SepClassifier,
+  pub(super) _sep: PhantomData<SepClassifier>,
   pub(super) _m: PhantomData<O>,
   pub(super) _l: PhantomData<L>,
   pub(super) _ctx: PhantomData<Ctx>,
@@ -167,7 +167,7 @@ where
   fn clone(&self) -> Self {
     Self {
       f: self.f.clone(),
-      sep: self.sep.clone(),
+      _sep: PhantomData,
       _m: PhantomData,
       _l: PhantomData,
       _ctx: PhantomData,
@@ -179,10 +179,10 @@ where
 impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Separated<F, SepClassifier, O, L, Ctx, Lang> {
   /// Creates a new `Separated` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new(f: F, sep_classifier: SepClassifier) -> Self {
+  pub(crate) const fn new(f: F) -> Self {
     Self {
       f,
-      sep: sep_classifier,
+      _sep: PhantomData,
       _m: PhantomData,
       _l: PhantomData,
       _ctx: PhantomData,
@@ -193,10 +193,10 @@ impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Separated<F, SepClassifier, O, L
 
 impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Separated<F, SepClassifier, O, L, Ctx, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn as_mut(&mut self) -> Separated<&mut F, &mut SepClassifier, O, L, Ctx, Lang> {
+  pub(super) const fn as_mut(&mut self) -> Separated<&mut F, SepClassifier, O, L, Ctx, Lang> {
     Separated {
       f: &mut self.f,
-      sep: &mut self.sep,
+      _sep: PhantomData,
       _m: PhantomData,
       _l: PhantomData,
       _ctx: PhantomData,

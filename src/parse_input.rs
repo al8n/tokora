@@ -133,7 +133,7 @@ macro_rules! define_separated_by {
           Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
           W: Window,
         {
-          SeparatedWhile::new(self, <$name>::PHANTOM, condition)
+          SeparatedWhile::new(self, condition)
         }
       )*
     }
@@ -266,7 +266,6 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn separated_while<SepClassifier, Condition, W>(
     self,
-    sep_classifier: SepClassifier,
     condition: Condition,
   ) -> SeparatedWhile<Self, SepClassifier, Condition, O, W, L, Ctx, Lang>
   where
@@ -274,10 +273,10 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-    SepClassifier: Check<L::Token>,
+    SepClassifier: Punctuator<'inp, L, Lang>,
     W: Window,
   {
-    SeparatedWhile::new(self, sep_classifier, condition)
+    SeparatedWhile::new(self, condition)
   }
 
   define_separated_by!(
