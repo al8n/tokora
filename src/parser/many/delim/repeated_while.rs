@@ -1,6 +1,6 @@
 use core::mem;
 
-use crate::{container::Container as ContainerT, delimiter::DelimiterSelector};
+use crate::{container::Container as ContainerT, delimiter::Delimiter};
 
 use super::*;
 
@@ -25,7 +25,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Delim: DelimiterSelector<'inp, L, Lang>,
+    Delim: Delimiter<'inp, L, Lang>,
     L: Lexer<'inp>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,

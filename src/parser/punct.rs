@@ -88,7 +88,7 @@ macro_rules! define_parsers {
 
           #[inline]
           fn kind() -> <L::Token as Token<'inp>>::Kind {
-            <<L::Token as Token<'inp>>::Kind as From<_>>::from(<$name>::PHANTOM)
+            <<L::Token as Token<'inp>>::Kind as From<_>>::from(<$name>::unit())
           }
         }
       )*

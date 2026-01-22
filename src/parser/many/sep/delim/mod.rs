@@ -3,7 +3,7 @@ use core::mem;
 use crate::{
   TryParseInput,
   container::Container as ContainerT,
-  delimiter::DelimiterSelector,
+  delimiter::Delimiter,
   emitter::SeparatedEmitter,
   punct::Punctuator,
   try_parse_input::{Accept, Decline},
@@ -40,7 +40,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Delim: DelimiterSelector<'inp, L, Lang>,
+    Delim: Delimiter<'inp, L, Lang>,
     Sep: Punctuator<'inp, L, Lang>,
     L: Lexer<'inp>,
     P: TryParseInput<'inp, L, O, Ctx, Lang>,

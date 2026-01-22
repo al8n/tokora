@@ -1,13 +1,13 @@
 use crate::{
   Lexer, Token,
   error::token::UnexpectedToken,
-  punct::{Brace, Bracket, CloseBrace, CloseBracket, OpenBrace, OpenBracket, Punctuator},
+  punct::*,
   span::Spanned,
   utils::Message,
 };
 
 /// A trait for any delimiter consisting of an opening and a closing punctuator.
-pub trait DelimiterSelector<'inp, L, Lang: ?Sized = ()> {
+pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
   /// The opening punctuator.
   type Open: Punctuator<'inp, L, Lang>;
   /// The closing punctuator.
@@ -57,34 +57,33 @@ pub trait DelimiterSelector<'inp, L, Lang: ?Sized = ()> {
   }
 }
 
-impl<'inp, S, C, L, Lang: ?Sized> DelimiterSelector<'inp, L, Lang> for Brace<S, C, Lang>
-where
-  L: Lexer<'inp>,
-  OpenBrace<S, C, Lang>: Punctuator<'inp, L, Lang>,
-  CloseBrace<S, C, Lang>: Punctuator<'inp, L, Lang>,
-{
-  type Open = OpenBrace<S, C, Lang>;
+macro_rules! impl_builtin_delimiter {
+  ($($name:ident { description: $description:literal, open: $open:ident, close: $close:ident $(,)? }),+$(,)?) => {
+    $(
+      impl<'inp, S, C, L, Lang: ?Sized> Delimiter<'inp, L, Lang> for $name<S, C, Lang>
+      where
+        L: Lexer<'inp>,
+        $open<S, C, Lang>: Punctuator<'inp, L, Lang>,
+        $close<S, C, Lang>: Punctuator<'inp, L, Lang>,
+      {
+        type Open = $open<S, C, Lang>;
 
-  type Close = CloseBrace<S, C, Lang>;
+        type Close = $close<S, C, Lang>;
 
-  fn name() -> Message {
-    Message::from_static("{}")
-  }
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn name() -> Message {
+          Message::from_static($description)
+        }
+      }
+    )*
+  };
 }
 
-impl<'inp, S, C, L, Lang: ?Sized> DelimiterSelector<'inp, L, Lang> for Bracket<S, C, Lang>
-where
-  L: Lexer<'inp>,
-  OpenBracket<S, C, Lang>: Punctuator<'inp, L, Lang>,
-  CloseBracket<S, C, Lang>: Punctuator<'inp, L, Lang>,
-{
-  type Open = OpenBracket<S, C, Lang>;
-
-  type Close = CloseBracket<S, C, Lang>;
-
-  fn name() -> Message {
-    Message::from_static("[]")
-  }
+impl_builtin_delimiter! {
+  Paren { description: "()", open: OpenParen, close: CloseParen },
+  Angle { description: "<>", open: OpenAngle, close: CloseAngle },
+  Bracket { description: "[]", open: OpenBracket, close: CloseBracket },
+  Brace { description: "{}", open: OpenBrace, close: CloseBrace },
 }
 
 macro_rules! impl_deref {
@@ -135,18 +134,18 @@ macro_rules! impl_deref {
   };
 }
 
-impl<'inp, L, Lang: ?Sized, D: ?Sized> DelimiterSelector<'inp, L, Lang> for &D
+impl<'inp, L, Lang: ?Sized, D: ?Sized> Delimiter<'inp, L, Lang> for &D
 where
   L: Lexer<'inp>,
-  D: DelimiterSelector<'inp, L, Lang>,
+  D: Delimiter<'inp, L, Lang>,
 {
   impl_deref!(@impl<D>);
 }
 
-impl<'inp, L, Lang: ?Sized, D: ?Sized> DelimiterSelector<'inp, L, Lang> for &mut D
+impl<'inp, L, Lang: ?Sized, D: ?Sized> Delimiter<'inp, L, Lang> for &mut D
 where
   L: Lexer<'inp>,
-  D: DelimiterSelector<'inp, L, Lang>,
+  D: Delimiter<'inp, L, Lang>,
 {
   impl_deref!(@impl<D>);
 }

@@ -32,13 +32,19 @@ macro_rules! punctuator {
         }
 
         impl $name<()> {
-          #[doc = "A phantom instance of the `" $punct "` punctuator."]
-          pub const PHANTOM: Self = {
+          #[doc = "A unit instance of the `" $punct "` punctuator."]
+          pub const UNIT: Self = {
             ::core::assert!(::core::mem::size_of::<Self>() == 0);
             ::core::assert!(::core::mem::align_of::<Self>() == 1);
 
             Self::new(())
           };
+
+          #[doc = "Returns a unit instance of the `" $punct "` punctuator."]
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          pub const fn unit() -> Self {
+            Self::UNIT
+          }
         }
 
         impl $name {

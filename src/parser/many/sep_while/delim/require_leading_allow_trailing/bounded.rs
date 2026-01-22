@@ -28,7 +28,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
-  Delim: DelimiterSelector<'inp, L, Lang>,
+  Delim: Delimiter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
@@ -74,7 +74,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
-  Delim: DelimiterSelector<'inp, L, Lang>,
+  Delim: Delimiter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
@@ -119,7 +119,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
-  Delim: DelimiterSelector<'inp, L, Lang>,
+  Delim: Delimiter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
@@ -195,7 +195,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
   W: Window,
-  Delim: DelimiterSelector<'inp, L, Lang>,
+  Delim: Delimiter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(

@@ -11,7 +11,7 @@ impl<'inp, L, P, O, Condition, Container, Ctx, Delim, W, Lang: ?Sized>
     Lang,
   >
 where
-  Delim: DelimiterSelector<'inp, L, Lang>,
+  Delim: Delimiter<'inp, L, Lang>,
   L: Lexer<'inp>,
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,

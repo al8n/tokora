@@ -5,7 +5,7 @@ use super::*;
 impl<'inp, L, P, O, Container, Delim, Ctx, Lang: ?Sized> ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<DelimitedBy<AtLeast<Repeated<P, O, L, Ctx, Lang>>, Delim>, Container, Ctx, Lang>
 where
-  Delim: DelimiterSelector<'inp, L, Lang>,
+  Delim: Delimiter<'inp, L, Lang>,
   L: Lexer<'inp>,
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx::Emitter: TooFewEmitter<'inp, L, Lang>,

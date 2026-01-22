@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use derive_more::IsVariant;
 
-use crate::{delimiter::DelimiterSelector, punct::Punctuator};
+use crate::{delimiter::Delimiter, punct::Punctuator};
 
 use super::*;
 
@@ -267,7 +267,7 @@ impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<'inp, Delim>(self) -> DelimitedBy<Self, Delim>
   where
-    Delim: DelimiterSelector<'inp, L, Lang>,
+    Delim: Delimiter<'inp, L, Lang>,
   {
     DelimitedBy::<_, Delim>::new_in(self)
   }

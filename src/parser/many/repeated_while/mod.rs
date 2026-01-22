@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::delimiter::DelimiterSelector;
+use crate::delimiter::Delimiter;
 
 use super::*;
 
@@ -171,7 +171,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W,
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<'inp, Delim>(self) -> DelimitedBy<Self, Delim>
   where
-    Delim: DelimiterSelector<'inp, L, Lang>,
+    Delim: Delimiter<'inp, L, Lang>,
   {
     DelimitedBy::<_, Delim>::new_in(self)
   }

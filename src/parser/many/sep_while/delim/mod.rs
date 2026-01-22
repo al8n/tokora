@@ -33,7 +33,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Delim: DelimiterSelector<'inp, L, Lang>,
+    Delim: Delimiter<'inp, L, Lang>,
     Sep: Punctuator<'inp, L, Lang>,
     L: Lexer<'inp>,
     P: ParseInput<'inp, L, O, Ctx, Lang>,
