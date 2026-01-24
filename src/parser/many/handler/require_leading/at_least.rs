@@ -13,6 +13,7 @@ use crate::{
     Minimum, RequireLeading,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},
   },
+  punct::Punctuator,
   span::{Span, Spanned},
 };
 
@@ -24,6 +25,7 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -86,6 +88,7 @@ where
     // emit unexpected trailing separator
     let (span, tok) = sep.into_components();
     inp.emitter().emit_unexpected_trailing_separator(
+      Sep::name(),
       UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok),
     )?;
 
@@ -99,6 +102,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + MissingLeadingSeparatorEmitter<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(

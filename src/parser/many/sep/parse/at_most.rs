@@ -102,17 +102,7 @@ where
       container,
       ..
     } = self;
-    let parser = AtMost::new(
-      Separated {
-        f: &mut **f,
-        _sep: PhantomData,
-        _m: PhantomData,
-        _ctx: PhantomData,
-        _l: PhantomData,
-        _lang: PhantomData,
-      },
-      maximum.get(),
-    );
+    let parser = AtMost::new(Separated::new::<SepClassifier>(&mut **f), maximum.get());
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
   }

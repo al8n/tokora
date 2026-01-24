@@ -7,6 +7,7 @@ use crate::{
     AllowTrailing, Maximum, Minimum, With,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},
   },
+  punct::Punctuator,
   span::{Span, Spanned},
 };
 
@@ -113,6 +114,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -125,8 +127,9 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     let (span, tok) = sep_tok.clone().into_components();
-    inp
-      .emitter()
-      .emit_unexpected_leading_separator(UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok))
+    inp.emitter().emit_unexpected_leading_separator(
+      Sep::name(),
+      UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok),
+    )
   }
 }

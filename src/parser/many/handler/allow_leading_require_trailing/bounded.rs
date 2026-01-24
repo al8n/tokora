@@ -7,6 +7,7 @@ use crate::{
     AllowLeading, Maximum, Minimum, RequireTrailing, With,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},
   },
+  punct::Punctuator,
   span::{Span, Spanned},
 };
 
@@ -20,6 +21,7 @@ where
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(

@@ -110,14 +110,7 @@ where
       ..
     } = self;
     let parser = AllowLeading::new(AllowTrailing::new(AtLeast::new(
-      Separated {
-        f: &mut **f,
-        _sep: PhantomData,
-        _m: PhantomData,
-        _ctx: PhantomData,
-        _l: PhantomData,
-        _lang: PhantomData,
-      },
+      Separated::new::<SepClassifier>(&mut **f),
       minimum.get(),
     )));
 

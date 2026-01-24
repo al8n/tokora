@@ -122,7 +122,7 @@ where
       ..
     } = self;
     let parser = AllowLeading::new(AllowTrailing::new(AtLeast::new(
-      SeparatedWhile::new(&mut **f, &mut *condition),
+      SeparatedWhile::new::<SepClassifier>(&mut **f, &mut *condition),
       minimum.get(),
     )));
 

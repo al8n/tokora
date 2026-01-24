@@ -90,7 +90,7 @@ where
       ..
     } = self;
 
-    let parser = AllowTrailing::new(Separated::new(&mut *f));
+    let parser = AllowTrailing::new(Separated::new::<SepClassifier>(&mut *f));
 
     Wrapper(Collect::new(parser, container)).parse_input(input)
   }

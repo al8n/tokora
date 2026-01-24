@@ -122,7 +122,10 @@ where
       container,
       ..
     } = self;
-    let parser = DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new(&mut **f, &mut *condition));
+    let parser = DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new::<SepClassifier>(
+      &mut **f,
+      &mut *condition,
+    ));
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
   }
@@ -173,7 +176,10 @@ where
       ..
     } = parser.map_parser_mut(|p| p.as_mut());
 
-    DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new(&mut **f, &mut **condition))
-      .parse_separated(inp, container, UNBOUNDED, UNBOUNDED, UNBOUNDED)
+    DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new::<SepClassifier>(
+      &mut **f,
+      &mut **condition,
+    ))
+    .parse_separated(inp, container, UNBOUNDED, UNBOUNDED, UNBOUNDED)
   }
 }

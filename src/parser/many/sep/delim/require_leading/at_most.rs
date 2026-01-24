@@ -129,7 +129,7 @@ where
       ..
     } = self;
     let parser = DelimitedBy::<_, Delim>::new_in(RequireLeading::new(AtMost::new(
-      Separated::new(&mut **f),
+      Separated::new::<SepClassifier>(&mut **f),
       maximum.get(),
     )));
 
@@ -184,7 +184,7 @@ where
       ..
     } = parser.map_parser_mut(|p| p.parser_mut());
 
-    DelimitedBy::<_, Delim>::new_in(Separated::new(&mut **f))
+    DelimitedBy::<_, Delim>::new_in(Separated::new::<SepClassifier>(&mut **f))
       .parse_separated(inp, container, &maximum, &maximum, &maximum)
   }
 }

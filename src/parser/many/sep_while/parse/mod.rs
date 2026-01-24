@@ -219,7 +219,7 @@ impl<'c, 'inp, F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
         let off = peek_span.start();
         inp.emitter().emit_missing_separator(
           SepClassifier::name(),
-          MissingTokenOf::<'_, SepClassifier, L, Lang>::of(off),
+          MissingTokenOf::<'_, L, Lang>::of(off),
         )?;
 
         // parse the next element

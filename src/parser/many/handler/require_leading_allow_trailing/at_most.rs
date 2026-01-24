@@ -7,6 +7,7 @@ use crate::{
     AllowTrailing, Maximum, RequireLeading,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},
   },
+  punct::Punctuator,
   span::{Span, Spanned},
 };
 
@@ -88,6 +89,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + MissingLeadingSeparatorEmitter<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(

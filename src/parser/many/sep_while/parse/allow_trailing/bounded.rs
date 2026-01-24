@@ -124,7 +124,7 @@ where
       ..
     } = self;
     let parser = AllowTrailing::new(Bounded::new(
-      SeparatedWhile::new(&mut **f, &mut *condition),
+      SeparatedWhile::new::<SepClassifier>(&mut **f, &mut *condition),
       maximum.get(),
       minimum.get(),
     ));

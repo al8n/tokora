@@ -109,7 +109,9 @@ where
       ..
     } = self;
 
-    let parser = RequireLeading::new(RequireTrailing::new(Separated::new(&mut *f)));
+    let parser = RequireLeading::new(RequireTrailing::new(Separated::new::<SepClassifier>(
+      &mut *f,
+    )));
 
     Wrapper(Collect::new(parser, container)).parse_input(input)
   }

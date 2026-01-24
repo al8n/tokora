@@ -125,14 +125,7 @@ where
       ..
     } = self;
     let parser = RequireLeading::new(RequireTrailing::new(Bounded::new(
-      Separated {
-        f: &mut **f,
-        _sep: PhantomData,
-        _m: PhantomData,
-        _ctx: PhantomData,
-        _l: PhantomData,
-        _lang: PhantomData,
-      },
+      Separated::new::<SepClassifier>(&mut **f),
       maximum.get(),
       minimum.get(),
     )));

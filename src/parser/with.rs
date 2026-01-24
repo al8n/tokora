@@ -82,7 +82,7 @@ impl<P, S> With<P, S> {
 
 impl With<Minimum, Maximum> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn check<'inp, 'closure, Sep, L, Ctx, Lang: ?Sized>(
+  pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,
@@ -115,7 +115,7 @@ impl With<Minimum, Maximum> {
 
 impl Minimum {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn check<'inp, 'closure, Sep, L, Ctx, Lang: ?Sized>(
+  pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,
@@ -139,7 +139,7 @@ impl Minimum {
 
 impl Maximum {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn check<'inp, 'closure, Sep, L, Ctx, Lang: ?Sized>(
+  pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     ckp: &Checkpoint<'inp, 'closure, L>,

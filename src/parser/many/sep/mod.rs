@@ -176,11 +176,11 @@ where
   }
 }
 
-impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Separated<F, SepClassifier, O, L, Ctx, Lang> {
+impl<F, O, L, Ctx, Lang: ?Sized> Separated<F, (), O, L, Ctx, Lang> {
   /// Creates a new `Separated` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new(f: F) -> Self {
-    Self {
+  pub(crate) const fn new<SepClassifier>(f: F) -> Separated<F, SepClassifier, O, L, Ctx, Lang> {
+    Separated {
       f,
       _sep: PhantomData,
       _m: PhantomData,

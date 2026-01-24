@@ -112,7 +112,10 @@ where
       ..
     } = self;
 
-    let parser = RequireTrailing::new(SeparatedWhile::new(&mut *f, &mut *condition));
+    let parser = RequireTrailing::new(SeparatedWhile::new::<SepClassifier>(
+      &mut *f,
+      &mut *condition,
+    ));
     Wrapper(Collect::new(parser, container)).parse_input(input)
   }
 }

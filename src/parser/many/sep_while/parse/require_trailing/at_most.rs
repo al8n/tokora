@@ -125,7 +125,7 @@ where
       ..
     } = self;
     let parser = RequireTrailing::new(AtMost::new(
-      SeparatedWhile::new(&mut **f, &mut *condition),
+      SeparatedWhile::new::<SepClassifier>(&mut **f, &mut *condition),
       maximum.get(),
     ));
 

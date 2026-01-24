@@ -182,17 +182,19 @@ where
   }
 }
 
-impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized>
-  SeparatedWhile<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
+  SeparatedWhile<F, (), Condition, O, W, L, Ctx, Lang>
 {
   /// Creates a new `SeparatedWhile` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new(f: F, condition: Condition) -> Self {
-    Self {
+  pub(crate) const fn new<Sep>(
+    f: F,
+    condition: Condition,
+  ) -> SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang> {
+    SeparatedWhile {
       f,
       condition,
       _sep: PhantomData,
-
       _m: PhantomData,
       _decision_window: PhantomData,
       _l: PhantomData,

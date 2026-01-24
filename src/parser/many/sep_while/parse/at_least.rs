@@ -121,16 +121,7 @@ where
     } = self;
 
     let parser = AtLeast::new(
-      SeparatedWhile {
-        f: &mut **f,
-        condition: &mut *condition,
-        _sep: PhantomData,
-        _m: PhantomData,
-        _decision_window: PhantomData,
-        _ctx: PhantomData,
-        _l: PhantomData,
-        _lang: PhantomData,
-      },
+      SeparatedWhile::new::<SepClassifier>(&mut **f, &mut *condition),
       minimum.get(),
     );
 

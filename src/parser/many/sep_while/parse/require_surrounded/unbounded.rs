@@ -122,7 +122,7 @@ where
       ..
     } = self;
 
-    let parser = RequireLeading::new(RequireTrailing::new(SeparatedWhile::new(
+    let parser = RequireLeading::new(RequireTrailing::new(SeparatedWhile::new::<SepClassifier>(
       &mut *f,
       &mut *condition,
     )));

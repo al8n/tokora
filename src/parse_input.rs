@@ -133,7 +133,7 @@ macro_rules! define_separated_by {
           Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
           W: Window,
         {
-          SeparatedWhile::new(self, condition)
+          SeparatedWhile::new::<$name>(self, condition)
         }
       )*
     }
@@ -276,7 +276,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     SepClassifier: Punctuator<'inp, L, Lang>,
     W: Window,
   {
-    SeparatedWhile::new(self, condition)
+    SeparatedWhile::new::<SepClassifier>(self, condition)
   }
 
   define_separated_by!(

@@ -102,17 +102,7 @@ where
       container,
       ..
     } = self;
-    let parser = AtLeast::new(
-      Separated {
-        f: &mut **f,
-        _sep: PhantomData,
-        _m: PhantomData,
-        _ctx: PhantomData,
-        _l: PhantomData,
-        _lang: PhantomData,
-      },
-      minimum.get(),
-    );
+    let parser = AtLeast::new(Separated::new::<SepClassifier>(&mut **f), minimum.get());
 
     Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
   }
