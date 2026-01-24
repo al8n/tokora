@@ -158,6 +158,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
               state = parser.handle_continue(
                 state,
                 inp,
+                &ckp,
                 &front_span,
                 &mut num_elems,
                 container,

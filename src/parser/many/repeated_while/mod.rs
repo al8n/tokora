@@ -267,15 +267,11 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
 impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
   RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>
 {
-  fn parse<Container>(
+  fn parse<Container, RH>(
     &mut self,
     inp: &mut InputRef<'inp, 'c, L, Ctx, Lang>,
     container: &mut Container,
-    on_stop: impl FnOnce(
-      usize,
-      &mut InputRef<'inp, 'c, L, Ctx, Lang>,
-      &L::Span,
-    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    rh: &RH,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -285,6 +281,7 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
     Ctx::Emitter: Emitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: crate::container::Container<O>,
+    RH: RepeatedHandler<'inp, 'c, O, L, Ctx, Lang>,
   {
     let ckp = inp.save();
     let mut nums = 0;
@@ -297,9 +294,10 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
         Ok(action) => match action {
           Action::Stop => {
             let span = inp.span_since(ckp.cursor());
-            return on_stop(nums, inp, &span).map(|_| span);
+            return rh.on_stop(nums, inp, &ckp).map(|_| span);
           }
           Action::Continue => {
+            rh.on_element(nums, inp, &ckp)?;
             container.push(self.f.parse_input(inp)?);
             nums += 1;
           }

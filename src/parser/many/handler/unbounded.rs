@@ -128,3 +128,38 @@ where
     )
   }
 }
+
+impl<'inp, 'closure, O, L, Ctx, Lang: ?Sized> RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang>
+  for Unbounded
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn on_element(
+    &self,
+    _: usize,
+    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    _: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    Ok(())
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn on_stop(
+    &self,
+    _: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    Ok(inp.span_since(ckp.cursor()))
+  }
+}

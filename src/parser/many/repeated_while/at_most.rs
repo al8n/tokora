@@ -1,4 +1,4 @@
-use crate::{emitter::TooManyEmitter, error::syntax::TooMany};
+use crate::emitter::TooManyEmitter;
 
 use super::*;
 
@@ -83,18 +83,9 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let max = self.parser.maximum().get();
-
     self
       .parser
       .parser
-      .parse(inp, &mut self.container, |nums, inp, span| {
-        if nums > max {
-          inp
-            .emitter()
-            .emit_too_many(TooMany::of(span.clone(), nums, max))?;
-        }
-        Ok(())
-      })
+      .parse(inp, &mut self.container, &self.parser.maximum)
   }
 }

@@ -88,7 +88,7 @@ impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
+  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + TooManyEmitter<'inp, L, Lang>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn handle_start_state(
@@ -101,6 +101,25 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     Ok(())
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn handle_too_many_element(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    <Maximum as ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>>::handle_too_many_element(
+      &self.parser.parser,
+      num_elems,
+      inp,
+      ckp,
+    )
   }
 }
 

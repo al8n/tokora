@@ -3,7 +3,7 @@ use crate::{
     SeparatedEmitter, TooFewEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
   },
-  error::token::UnexpectedTokenOf,
+  error::{syntax::TooFew, token::UnexpectedTokenOf},
   parser::Minimum,
   punct::Punctuator,
 };
@@ -131,5 +131,47 @@ where
       Sep::name(),
       UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok),
     )
+  }
+}
+
+impl<'inp, 'closure, O, L, Ctx, Lang: ?Sized> RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang>
+  for Minimum
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Ctx::Emitter: TooFewEmitter<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn on_element(
+    &self,
+    _: usize,
+    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    _: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    Ok(())
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn on_stop(
+    &self,
+    nums: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    let min = self.get();
+    if nums < min {
+      let span = inp.span_since(ckp.cursor());
+      inp.emitter().emit_too_few(TooFew::of(span, nums, min))?;
+    }
+
+    Ok(inp.span_since(ckp.cursor()))
   }
 }

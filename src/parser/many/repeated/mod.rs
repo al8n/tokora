@@ -237,15 +237,11 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Repeated<F, O, L, Ctx, Lang>>>
 }
 
 impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
-  pub(super) fn parse<Container>(
+  pub(super) fn parse<Container, RH>(
     &mut self,
     inp: &mut InputRef<'inp, 'c, L, Ctx, Lang>,
     container: &mut Container,
-    on_stop: impl FnOnce(
-      usize,
-      &mut InputRef<'inp, 'c, L, Ctx, Lang>,
-      &L::Span,
-    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    rh: &RH,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -253,6 +249,7 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
     Ctx::Emitter: Emitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: crate::container::Container<O>,
+    RH: RepeatedHandler<'inp, 'c, O, L, Ctx, Lang>,
   {
     let mut num = 0;
     let ckp = inp.save();
@@ -261,6 +258,7 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
     loop {
       match self.f.try_parse_input(inp) {
         Ok(Accept(item)) => {
+          rh.on_element(num, inp, &ckp)?;
           container.push(item);
           num += 1;
         }
@@ -273,7 +271,6 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
       cursor = inp.cursor().clone();
     }
 
-    let span = inp.span_since(ckp.cursor());
-    on_stop(num, inp, &span).map(|_| span)
+    rh.on_stop(num, inp, &ckp)
   }
 }

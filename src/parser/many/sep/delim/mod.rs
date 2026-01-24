@@ -143,6 +143,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
           state = parser.handle_continue(
             state,
             inp,
+            &ckp,
             peek_span,
             elem,
             &mut num_elems,

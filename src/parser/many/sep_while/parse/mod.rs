@@ -83,6 +83,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
               state = self.handle_continue(
                 state,
                 inp,
+                &ckp,
                 &front_span,
                 &mut num_elems,
                 container,
@@ -169,6 +170,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
     &mut self,
     mut state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
     peek_span: &L::Span,
     num_elems: &mut usize,
     container: &mut Container,
@@ -220,6 +222,8 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
         inp
           .emitter()
           .emit_missing_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(off))?;
+
+        handler.handle_too_many_element(*num_elems, inp, ckp)?;
 
         // parse the next element
         let element = self.f.parse_input(inp)?;

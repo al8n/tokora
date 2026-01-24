@@ -65,8 +65,6 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self
-      .parser
-      .parse(inp, &mut self.container, |_, _, _| Ok(()))
+    self.parser.parse(inp, &mut self.container, &Unbounded)
   }
 }

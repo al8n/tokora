@@ -1,4 +1,4 @@
-use crate::{emitter::TooFewEmitter, error::syntax::TooFew};
+use crate::emitter::TooFewEmitter;
 
 use super::*;
 
@@ -83,18 +83,9 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let min = self.parser.minimum().get();
-
     self
       .parser
       .parser
-      .parse(inp, &mut self.container, |nums, inp, span| {
-        if min > nums {
-          inp
-            .emitter()
-            .emit_too_few(TooFew::of(span.clone(), nums, min))?;
-        }
-        Ok(())
-      })
+      .parse(inp, &mut self.container, &self.parser.minimum)
   }
 }

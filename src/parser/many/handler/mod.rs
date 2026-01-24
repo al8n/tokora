@@ -286,6 +286,20 @@ pub(super) trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Siz
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn handle_too_many_element(
+    &self,
+    _: usize,
+    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    _: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    Ok(())
+  }
 }
 
 pub(super) trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
@@ -294,6 +308,28 @@ pub(super) trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Si
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     sep_tok: &Spanned<L::Token, L::Span>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+}
+
+pub(super) trait RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang: ?Sized> {
+  fn on_element(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+
+  fn on_stop(
+    &self,
+    num_elems: usize,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    ckp: &Checkpoint<'inp, 'closure, L>,
+  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>;
