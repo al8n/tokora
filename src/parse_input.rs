@@ -264,19 +264,19 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// - [`separated`](TryParseInput::separated) - Parser has lookahead, with separator
   /// - [`Action`] - The decision type (`Continue` or `Stop`)
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn separated_while<SepClassifier, Condition, W>(
+  fn separated_while<Sep, Condition, W>(
     self,
     condition: Condition,
-  ) -> SeparatedWhile<Self, SepClassifier, Condition, O, W, L, Ctx, Lang>
+  ) -> SeparatedWhile<Self, Sep, Condition, O, W, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-    SepClassifier: Punctuator<'inp, L, Lang>,
+    Sep: Punctuator<'inp, L, Lang>,
     W: Window,
   {
-    SeparatedWhile::new::<SepClassifier>(self, condition)
+    SeparatedWhile::new::<Sep>(self, condition)
   }
 
   define_separated_by!(

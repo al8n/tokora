@@ -214,12 +214,12 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// - [`separated_while`](crate::ParseInput::separated_while) - When you want to provide the lookahead/stopping logic externally
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn separated<SepClassifier>(self) -> Separated<Self, SepClassifier, O, L, Ctx, Lang>
+  fn separated<Sep>(self) -> Separated<Self, Sep, O, L, Ctx, Lang>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    SepClassifier: Punctuator<'inp, L, Lang>,
+    Sep: Punctuator<'inp, L, Lang>,
   {
     Separated::new(self)
   }

@@ -2,10 +2,10 @@ use crate::emitter::UnexpectedLeadingSeparatorEmitter;
 
 use super::*;
 
-impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, L, F, Sep, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    AllowTrailing<SeparatedWhile<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+    AllowTrailing<SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>>,
     Container,
     Ctx,
     Lang,
@@ -14,7 +14,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
@@ -35,11 +35,11 @@ where
   }
 }
 
-impl<'inp, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, L, F, Sep, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      AllowTrailing<SeparatedWhile<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+      AllowTrailing<SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>>,
       Container,
       Ctx,
       Lang,
@@ -50,7 +50,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
@@ -72,10 +72,10 @@ where
   }
 }
 
-impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, 'c, L, F, Sep, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
-    &'c mut AllowTrailing<SeparatedWhile<F, SepClassifier, Condition, O, W, L, Ctx, Lang>>,
+    &'c mut AllowTrailing<SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>>,
     &'c mut Container,
     Ctx,
     Lang,
@@ -84,7 +84,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L>,
@@ -106,10 +106,7 @@ where
       ..
     } = self;
 
-    let parser = AllowTrailing::new(SeparatedWhile::new::<SepClassifier>(
-      &mut *f,
-      &mut *condition,
-    ));
+    let parser = AllowTrailing::new(SeparatedWhile::new::<Sep>(&mut *f, &mut *condition));
 
     Wrapper(Collect::new(parser, container)).parse_input(input)
   }
@@ -117,13 +114,11 @@ where
 
 struct Wrapper<T>(T);
 
-impl<'inp, 'c, L, F, SepClassifier, Condition, O, Container, Ctx, Lang: ?Sized, W>
+impl<'inp, 'c, L, F, Sep, Condition, O, Container, Ctx, Lang: ?Sized, W>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      AllowTrailing<
-        SeparatedWhile<&'c mut F, SepClassifier, &'c mut Condition, O, W, L, Ctx, Lang>,
-      >,
+      AllowTrailing<SeparatedWhile<&'c mut F, Sep, &'c mut Condition, O, W, L, Ctx, Lang>>,
       &'c mut Container,
       Ctx,
       Lang,
@@ -133,7 +128,7 @@ where
   L: Lexer<'inp>,
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L>,

@@ -26,9 +26,7 @@ mod require_surrounded;
 mod require_trailing;
 mod unbounded;
 
-impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
-  Separated<&mut F, SepClassifier, O, L, Ctx, Lang>
-{
+impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, Lang> {
   fn parse<'closure, Container, CH, SP, EH>(
     &mut self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -40,13 +38,13 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
   where
     L: Lexer<'inp>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
-    SepClassifier: Punctuator<'inp, L, Lang>,
+    Sep: Punctuator<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
-    EH: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
-    CH: ContinueStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
-    SP: SeparatorStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
+    EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
+    CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
+    SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
     let mut state = State::Start;
     let ckp = inp.save();
@@ -56,7 +54,7 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     loop {
       let mut ps = None;
       let peek_span = match inp.try_expect(|t| {
-        if SepClassifier::eval(&t.data.kind()) {
+        if Sep::eval(&t.data.kind()) {
           true
         } else {
           ps = Some(t.span().clone());
@@ -111,7 +109,7 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
-    Handler: SeparatorStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
+    Handler: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   {
     match state {
@@ -184,10 +182,10 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
-    SepClassifier: Punctuator<'inp, L, Lang>,
+    Sep: Punctuator<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
-    Handler: ContinueStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
+    Handler: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
     match state {
       // happy path, we found a separator before an element
@@ -214,10 +212,9 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
       // and emit it via the emitter, and let the emitter decide whether to return early
       State::Element => {
         let off = peek_span.start();
-        inp.emitter().emit_missing_separator(
-          SepClassifier::name(),
-          MissingTokenOf::<'_, L, Lang>::of(off),
-        )?;
+        inp
+          .emitter()
+          .emit_missing_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(off))?;
 
         // parse the next element
         push(num_elems, container, element);
@@ -241,9 +238,9 @@ impl<'inp, F, SepClassifier, O, L, Ctx, Lang: ?Sized>
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
-    SepClassifier: Punctuator<'inp, L, Lang>,
+    Sep: Punctuator<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
-    Handler: EndStateHandler<'inp, 'closure, SepClassifier, O, L, Ctx, Lang>,
+    Handler: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
     Ok(match state {
       // we are in the start state, so no elements were found

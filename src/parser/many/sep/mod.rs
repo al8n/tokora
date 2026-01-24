@@ -22,7 +22,7 @@ mod delim;
 /// # Type Parameters
 ///
 /// - `F`: The element parser
-/// - `SepClassifier`: Separator checker (e.g., comma punctuator, custom classifier)
+/// - `Sep`: Separator checker (e.g., comma punctuator, custom classifier)
 /// - `Condition`: Decision function that determines when to stop parsing
 /// - `O`: Output type of the element parser
 /// - `Window`: Lookahead window size for the condition
@@ -140,28 +140,26 @@ mod delim;
 /// - [`repeated`](RepeatedWhile) - Repeat without separators
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Separated<F, SepClassifier, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Separated<F, Sep, O, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
-  pub(super) _sep: PhantomData<SepClassifier>,
+  pub(super) _sep: PhantomData<Sep>,
   pub(super) _m: PhantomData<O>,
   pub(super) _l: PhantomData<L>,
   pub(super) _ctx: PhantomData<Ctx>,
   pub(super) _lang: PhantomData<Lang>,
 }
 
-impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Copy
-  for Separated<F, SepClassifier, O, L, Ctx, Lang>
+impl<F, Sep, O, L, Ctx, Lang: ?Sized> Copy for Separated<F, Sep, O, L, Ctx, Lang>
 where
   F: Copy,
-  SepClassifier: Copy,
+  Sep: Copy,
 {
 }
 
-impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Clone
-  for Separated<F, SepClassifier, O, L, Ctx, Lang>
+impl<F, Sep, O, L, Ctx, Lang: ?Sized> Clone for Separated<F, Sep, O, L, Ctx, Lang>
 where
   F: Clone,
-  SepClassifier: Clone,
+  Sep: Clone,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn clone(&self) -> Self {
@@ -179,7 +177,7 @@ where
 impl<F, O, L, Ctx, Lang: ?Sized> Separated<F, (), O, L, Ctx, Lang> {
   /// Creates a new `Separated` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new<SepClassifier>(f: F) -> Separated<F, SepClassifier, O, L, Ctx, Lang> {
+  pub(crate) const fn new<Sep>(f: F) -> Separated<F, Sep, O, L, Ctx, Lang> {
     Separated {
       f,
       _sep: PhantomData,
@@ -191,9 +189,9 @@ impl<F, O, L, Ctx, Lang: ?Sized> Separated<F, (), O, L, Ctx, Lang> {
   }
 }
 
-impl<F, SepClassifier, O, L, Ctx, Lang: ?Sized> Separated<F, SepClassifier, O, L, Ctx, Lang> {
+impl<F, Sep, O, L, Ctx, Lang: ?Sized> Separated<F, Sep, O, L, Ctx, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn as_mut(&mut self) -> Separated<&mut F, SepClassifier, O, L, Ctx, Lang> {
+  pub(super) const fn as_mut(&mut self) -> Separated<&mut F, Sep, O, L, Ctx, Lang> {
     Separated {
       f: &mut self.f,
       _sep: PhantomData,

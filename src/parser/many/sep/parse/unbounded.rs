@@ -5,13 +5,12 @@ use crate::{
 
 use super::*;
 
-impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
-  ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<Separated<F, SepClassifier, O, L, Ctx, Lang>, Container, Ctx, Lang>
+impl<'inp, L, F, Sep, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, Container, Ctx, Lang>
+  for Collect<Separated<F, Sep, O, L, Ctx, Lang>, Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>,
@@ -29,13 +28,13 @@ where
   }
 }
 
-impl<'inp, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
+impl<'inp, L, F, Sep, O, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-  for With<Collect<Separated<F, SepClassifier, O, L, Ctx, Lang>, Container, Ctx, Lang>, PhantomSpan>
+  for With<Collect<Separated<F, Sep, O, L, Ctx, Lang>, Container, Ctx, Lang>, PhantomSpan>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>,
@@ -53,18 +52,12 @@ where
   }
 }
 
-impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
-  ParseInput<'inp, L, L::Span, Ctx, Lang>
-  for Collect<
-    &'c mut Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>,
-    &'c mut Container,
-    Ctx,
-    Lang,
-  >
+impl<'inp, 'c, L, F, Sep, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, L::Span, Ctx, Lang>
+  for Collect<&'c mut Separated<&'c mut F, Sep, O, L, Ctx, Lang>, &'c mut Container, Ctx, Lang>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>,
@@ -84,7 +77,7 @@ where
       container,
       ..
     } = self;
-    let parser = Collect::new(Separated::new::<SepClassifier>(&mut **f), &mut *container);
+    let parser = Collect::new(Separated::new::<Sep>(&mut **f), &mut *container);
 
     Wrapper(parser).parse_input(input)
   }
@@ -92,15 +85,12 @@ where
 
 struct Wrapper<T>(T);
 
-impl<'inp, 'c, L, F, SepClassifier, O, Container, Ctx, Lang: ?Sized>
-  ParseInput<'inp, L, L::Span, Ctx, Lang>
-  for Wrapper<
-    Collect<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>, &'c mut Container, Ctx, Lang>,
-  >
+impl<'inp, 'c, L, F, Sep, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, L::Span, Ctx, Lang>
+  for Wrapper<Collect<Separated<&'c mut F, Sep, O, L, Ctx, Lang>, &'c mut Container, Ctx, Lang>>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>,

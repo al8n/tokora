@@ -22,7 +22,7 @@ mod delim;
 /// # Type Parameters
 ///
 /// - `F`: The element parser
-/// - `SepClassifier`: Separator checker (e.g., comma punctuator, custom classifier)
+/// - `Sep`: Separator checker (e.g., comma punctuator, custom classifier)
 /// - `Condition`: Decision function that determines when to stop parsing
 /// - `O`: Output type of the element parser
 /// - `Window`: Lookahead window size for the condition
@@ -140,10 +140,10 @@ mod delim;
 /// - [`repeated`](RepeatedWhile) - Repeat without separators
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct SeparatedWhile<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {
+pub struct SeparatedWhile<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {
   pub(super) f: F,
   pub(super) condition: Condition,
-  pub(super) _sep: PhantomData<SepClassifier>,
+  pub(super) _sep: PhantomData<Sep>,
   pub(super) _m: PhantomData<O>,
   pub(super) _decision_window: PhantomData<Window>,
   pub(super) _l: PhantomData<L>,
@@ -151,20 +151,20 @@ pub struct SeparatedWhile<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: 
   pub(super) _lang: PhantomData<Lang>,
 }
 
-impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Copy
-  for SeparatedWhile<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+impl<F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized> Copy
+  for SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>
 where
   F: Copy,
-  SepClassifier: Copy,
+  Sep: Copy,
   Condition: Copy,
 {
 }
 
-impl<F, SepClassifier, Condition, O, W, L, Ctx, Lang: ?Sized> Clone
-  for SeparatedWhile<F, SepClassifier, Condition, O, W, L, Ctx, Lang>
+impl<F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized> Clone
+  for SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>
 where
   F: Clone,
-  SepClassifier: Clone,
+  Sep: Clone,
   Condition: Clone,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -204,13 +204,13 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
   }
 }
 
-impl<F, SepClassifier, Condition, O, Window, L, Ctx, Lang: ?Sized>
-  SeparatedWhile<F, SepClassifier, Condition, O, Window, L, Ctx, Lang>
+impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized>
+  SeparatedWhile<F, Sep, Condition, O, Window, L, Ctx, Lang>
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) const fn as_mut(
     &mut self,
-  ) -> SeparatedWhile<&mut F, SepClassifier, &mut Condition, O, Window, L, Ctx, Lang> {
+  ) -> SeparatedWhile<&mut F, Sep, &mut Condition, O, Window, L, Ctx, Lang> {
     SeparatedWhile {
       f: &mut self.f,
       condition: &mut self.condition,

@@ -4,10 +4,10 @@ use crate::emitter::{
 
 use super::*;
 
-impl<'inp, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
+impl<'inp, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Container, Ctx, Lang>
   for Collect<
-    DelimitedBy<RequireTrailing<AtLeast<Separated<F, SepClassifier, O, L, Ctx, Lang>>>, Delim>,
+    DelimitedBy<RequireTrailing<AtLeast<Separated<F, Sep, O, L, Ctx, Lang>>>, Delim>,
     Container,
     Ctx,
     Lang,
@@ -15,7 +15,7 @@ impl<'inp, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
@@ -40,11 +40,11 @@ where
   }
 }
 
-impl<'inp, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
+impl<'inp, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
   for With<
     Collect<
-      DelimitedBy<RequireTrailing<AtLeast<Separated<F, SepClassifier, O, L, Ctx, Lang>>>, Delim>,
+      DelimitedBy<RequireTrailing<AtLeast<Separated<F, Sep, O, L, Ctx, Lang>>>, Delim>,
       Container,
       Ctx,
       Lang,
@@ -54,7 +54,7 @@ impl<'inp, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
@@ -79,11 +79,11 @@ where
   }
 }
 
-impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
+impl<'inp, 'c, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Collect<
     &'c mut DelimitedBy<
-      RequireTrailing<AtLeast<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>>>,
+      RequireTrailing<AtLeast<Separated<&'c mut F, Sep, O, L, Ctx, Lang>>>,
       Delim,
     >,
     &'c mut Container,
@@ -93,7 +93,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
@@ -129,7 +129,7 @@ where
       ..
     } = self;
     let parser = DelimitedBy::<_, Delim>::new_in(RequireTrailing::new(AtLeast::new(
-      Separated::new::<SepClassifier>(&mut **f),
+      Separated::new::<Sep>(&mut **f),
       minimum.get(),
     )));
 
@@ -139,14 +139,11 @@ where
 
 struct Wrapper<T>(T);
 
-impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
+impl<'inp, 'c, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized>
   ParseInput<'inp, L, L::Span, Ctx, Lang>
   for Wrapper<
     Collect<
-      DelimitedBy<
-        RequireTrailing<AtLeast<Separated<&'c mut F, SepClassifier, O, L, Ctx, Lang>>>,
-        Delim,
-      >,
+      DelimitedBy<RequireTrailing<AtLeast<Separated<&'c mut F, Sep, O, L, Ctx, Lang>>>, Delim>,
       &'c mut Container,
       Ctx,
       Lang,
@@ -155,7 +152,7 @@ impl<'inp, 'c, L, F, SepClassifier, O, Delim, Container, Ctx, Lang: ?Sized>
 where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
-  SepClassifier: Punctuator<'inp, L, Lang>,
+  Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
@@ -184,7 +181,7 @@ where
       ..
     } = parser.map_parser_mut(|p| p.parser_mut());
 
-    DelimitedBy::<_, Delim>::new_in(Separated::new::<SepClassifier>(&mut **f))
+    DelimitedBy::<_, Delim>::new_in(Separated::new::<Sep>(&mut **f))
       .parse_separated(inp, container, &minimum, &minimum, &minimum)
   }
 }
