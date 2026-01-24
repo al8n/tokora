@@ -64,7 +64,6 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       }
     })?;
 
-    let mut left_span = None;
     match left_delimiter {
       None if inp.is_eoi() => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
@@ -74,7 +73,6 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
         inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
       }
       Some(open) => {
-        left_span = Some(open.span_ref().clone());
         container.on_open_delimiter(open);
       }
     };
