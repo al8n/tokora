@@ -1,16 +1,13 @@
 use core::marker::PhantomData;
 
-use crate::{
-  span::{AsSpan, SimpleSpan},
-  types::Ident,
-};
+use crate::{span::AsSpan, types::Ident};
 
 /// A list of identifiers.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg(any(feature = "alloc", feature = "std"))]
 pub struct IdentList<
   S,
-  Span = SimpleSpan,
+  Span = crate::span::SimpleSpan,
   Container = std::vec::Vec<Ident<S, Span>>,
   Lang: ?Sized = (),
 > {
@@ -23,7 +20,7 @@ pub struct IdentList<
 /// A list of identifiers.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg(not(any(feature = "alloc", feature = "std")))]
-pub struct IdentList<S, Span = SimpleSpan, Container, Lang: ?Sized = ()> {
+pub struct IdentList<S, Span, Container, Lang: ?Sized = ()> {
   span: Span,
   identifiers: Container,
   _m: PhantomData<S>,
