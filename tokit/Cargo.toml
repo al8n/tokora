@@ -24,10 +24,7 @@ std = [
   "mayber/default",
 ]
 
-unstable = ["generic-arraydeque/unstable"]
-
 logos = ["dep:logos"]
-
 rowan = ["dep:rowan", "std"]
 
 among = ["dep:among"]
@@ -57,18 +54,14 @@ paste = "1"
 seq-macro = { version = "0.3", default-features = false }
 thiserror = { version = "2", default-features = false }
 
-rowan = { version = "0.16", optional = true }
-
-
 among = { version = "0.1", default-features = false, optional = true }
 bstr = { version = "1", default-features = false, optional = true }
 bytes = { version = "1", default-features = false, optional = true }
 hipstr = { version = "0.8", default-features = false, optional = true }
-
 logos = { version = "0.16", default-features = false, optional = true, features = [
   "export_derive",
 ] }
-
+rowan = { version = "0.16", optional = true }
 smallvec = { version = "1", default-features = false, optional = true, features = [
   "const_new",
 ] }
@@ -76,7 +69,6 @@ smallvec = { version = "1", default-features = false, optional = true, features 
 [dev-dependencies]
 criterion = "0.8"
 tempfile = "3"
-thiserror = { version = "2", default-features = false }
 
 [[example]]
 name = "json"
@@ -87,3 +79,7 @@ required-features = ["std", "logos"]
 rust_2018_idioms = "warn"
 single_use_lifetimes = "warn"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin)'] }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

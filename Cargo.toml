@@ -22,6 +22,3 @@ debug-assertions = false
 overflow-checks = false
 rpath = false
 
-[workspace.package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
