@@ -26,44 +26,20 @@ use super::*;
 ///
 /// # Examples
 ///
-/// ## Basic Choice Between Token Types
-///
 /// ```ignore
-/// use tokit::parser::{Expect, ParseChoice};
-/// use generic_arraydeque::typenum::U1;
-///
-/// // Choose based on the first token
-/// let parser = (
-///     Expect::new(|t| matches!(t, Token::Number(_))).map(extract_number),
-///     Expect::new(|t| matches!(t, Token::String(_))).map(extract_string),
-/// ).peek_then_choice::<_, U1>(|mut peeked, _emitter| {
-///     match peeked.pop_front() {
-///         None => Err(UnexpectedEot::new()),
-///         Some(tok) => match tok.token() {
-///             Token::Number(_) => Ok(deranged::RangedU8::new(0).unwrap()),  // Choose first parser
-///             Token::String(_) => Ok(deranged::RangedU8::new(1).unwrap()),  // Choose second parser
-///             _ => Err(UnexpectedToken::new(...)),
-///         }
-///     }
-/// });
-/// ```
-///
-/// ## Multi-Token Lookahead
-///
-/// ```ignore
-/// use generic_arraydeque::typenum::U2;
+/// use tokit::{utils::typenum::U2, Branch};
 ///
 /// // Peek at 2 tokens to distinguish `let x` from `let mut x`
 /// let parser = (
 ///     parse_let_binding(),
 ///     parse_let_mut_binding(),
 /// ).peek_then_choice::<_, U2>(|mut peeked, _emitter| {
-///     let tok1 = peeked.get(0);
-///     let tok2 = peeked.get(1);
+///     let tok1 = peeked.pop_front();
+///     let tok2 = peeked.pop_front();
 ///
 ///     match (tok1, tok2) {
-///         (Some(Token::Let), Some(Token::Mut)) => Ok(1),  // let mut
-///         (Some(Token::Let), _) => Ok(0),                 // let
+///         (Some(Token::Let), Some(Token::Mut)) => Ok(Branch::B1),  // let mut
+///         (Some(Token::Let), _) => Ok(Branch::B0),                 // let
 ///         _ => Err(...),
 ///     }
 /// });
