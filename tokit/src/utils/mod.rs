@@ -23,9 +23,6 @@ pub mod sdl_display;
 /// A module for displaying in syntax trees.
 pub mod syntax_tree_display;
 
-/// Common delimiters used in lexing and parsing.
-pub mod delimiter;
-
 /// Common knowledge types for lexing and parsing.
 pub mod knowledge;
 
