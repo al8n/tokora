@@ -7,7 +7,23 @@ use crate::{
 
 /// A list of identifiers.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct IdentList<S, Span = SimpleSpan, Container = Vec<Ident<S, Span>>, Lang: ?Sized = ()> {
+#[cfg(any(feature = "alloc", feature = "std"))]
+pub struct IdentList<
+  S,
+  Span = SimpleSpan,
+  Container = std::vec::Vec<Ident<S, Span>>,
+  Lang: ?Sized = (),
+> {
+  span: Span,
+  identifiers: Container,
+  _m: PhantomData<S>,
+  _lang: PhantomData<Lang>,
+}
+
+/// A list of identifiers.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg(not(any(feature = "alloc", feature = "std")))]
+pub struct IdentList<S, Span = SimpleSpan, Container, Lang: ?Sized = ()> {
   span: Span,
   identifiers: Container,
   _m: PhantomData<S>,
