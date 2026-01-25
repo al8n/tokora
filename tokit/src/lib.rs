@@ -1,0 +1,208 @@
+#![doc = include_str!("../README.md")]
+#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, allow(unused_attributes))]
+#![allow(clippy::double_parens, clippy::type_complexity)]
+#![deny(missing_docs, warnings)]
+
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+extern crate alloc as std;
+
+#[cfg(feature = "std")]
+extern crate std;
+
+#[cfg(feature = "logos")]
+#[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
+pub use logos;
+
+pub use cache::{Cache, DefaultCache};
+pub use check::Check;
+pub use emitter::Emitter;
+pub use input::InputRef;
+pub use lexer::{Lexed, Lexer};
+pub use located::*;
+pub use parse_choice::*;
+pub use parse_context::{FatalContext, ParseContext, ParserContext};
+pub use parse_input::*;
+pub use parse_state::ParseState;
+pub use parser::{Parse, Parser};
+pub use require::Require;
+pub use slice::Slice;
+pub use source::Source;
+pub use span::{SimpleSpan, Span};
+pub use state::State;
+pub use token::Token;
+pub use try_parse_input::TryParseInput;
+
+/// Concrete Syntax Tree (CST) representations and utilities.
+///
+/// Provides integration with the `rowan` library for building lossless CSTs that preserve
+/// all source information including whitespace and comments. Useful for building tools
+/// like formatters, refactoring engines, and language servers.
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+pub mod cst;
+
+/// Lexical analysis and token extraction.
+///
+/// Contains the [`Lexer`] trait and [`Lexed`] type for converting source text into tokens.
+/// Tokens flow on-demand to parsers without intermediate buffering.
+pub mod lexer;
+
+/// Parser combinators with zero-copy streaming and deterministic parsing.
+///
+/// A unique parser combinator framework combining:
+/// - **Parse-while-lexing architecture**: Zero-copy streaming without token buffering
+/// - **Deterministic LALR-style parsing**: Explicit lookahead, no hidden backtracking
+/// - **Flexible error handling**: Same parser adapts for fail-fast or greedy diagnostics
+///
+/// See the module documentation for architecture details and quick start guide.
+pub mod parser;
+
+/// Common AST building blocks for programming languages.
+///
+/// Provides generic, reusable types for building Abstract Syntax Trees across different
+/// programming languages. Includes identifiers, literals (numeric, string, character),
+/// and other common AST nodes. All types support span tracking and are generic over
+/// string representation (zero-copy `&str`, owned `String`, or interned strings).
+pub mod types;
+
+/// Syntax definition and incomplete syntax error tracking.
+///
+/// Provides the [`Syntax`](syntax::Syntax) trait for representing syntax elements with a
+/// known number of components, and error types for tracking missing components during
+/// parsing. Enables collecting all missing parts rather than failing on the first error,
+/// providing better diagnostics.
+pub mod syntax;
+
+/// Utility types and helpers for lexing and parsing.
+///
+/// Contains common utilities including:
+/// - Generic array deque and type-level numbers (re-exported from `generic-arraydeque`)
+/// - Delimited and escaped sequence helpers
+/// - Display traits for human-readable, SDL, and syntax tree output
+/// - Positioned character iterators
+/// - Message and knowledge types for error reporting
+pub mod utils;
+
+/// Container trait for accumulating parsed results.
+///
+/// Defines the [`Container`](container::Container) trait for types that can accumulate
+/// parsing results. Implemented for standard collections like `Vec`, arrays, and
+/// `GenericArrayDeque`, enabling parsers to collect multiple elements into containers.
+pub mod container;
+
+/// Atomically composable error handling and reporting.
+///
+/// Provides the [`Emitter`] trait and related traits for flexible error handling during
+/// parsing. The atomic design allows implementing only needed traits for specific use
+/// cases. Includes pre-built emitters:
+/// - [`Fatal`](emitter::Fatal): Fail-fast on first error (for runtime/REPL)
+/// - [`Verbose`](emitter::Verbose): Collect all errors (for compiler diagnostics)
+/// - [`Silent`](emitter::Silent): Suppress errors (for speculative parsing)
+pub mod emitter;
+
+/// Comprehensive error types for lexer and parser diagnostics.
+///
+/// Contains detailed error types organized by category:
+/// - **Token errors**: Unexpected tokens, missing/extra separators
+/// - **Lexer errors**: Unknown lexemes, malformed literals, invalid escape sequences
+/// - **Syntax errors**: Incomplete syntax, too few/many elements, container overflow
+/// - **Delimiter errors**: Unclosed/unopened/undelimited constructs
+///
+/// All errors carry span information for precise diagnostic reporting.
+pub mod error;
+
+/// Macro for defining punctuator types.
+///
+/// Provides the [`punctuator!`] macro for generating zero-sized punctuator types with
+/// span tracking. Punctuators are generic over span and source types, enabling both
+/// phantom (zero-size) and concrete instances for use in ASTs.
+pub mod punct;
+
+/// Delimiter types and utilities.
+///
+/// Defines common delimiter types (brackets, braces, parentheses) and utilities
+/// for working with delimited constructs in parsing.
+pub mod delimiter;
+
+/// Source text abstraction for lexers.
+///
+/// Defines the [`Source`] trait for accessing source text during lexing.
+/// Supports both string (`&str`) and byte (`&[u8]`) sources with proper boundary
+/// checking. Handles UTF-8 character boundaries for string sources and byte boundaries
+/// for binary sources.
+pub mod source;
+
+/// Source location tracking and span types.
+///
+/// Defines the [`span::Span`] trait for representing source code ranges with
+/// start and end offsets. Provides operations for creating, manipulating, and querying
+/// spans. Implemented for `Range<usize>` and custom span types.
+pub mod span;
+
+/// Slice abstractions for different string types.
+///
+/// Defines the [`Slice`] trait for working with string slices in a
+/// generic way. Supports multiple string types through feature flags:
+/// - `bytes`: `&[u8]` (byte slices)
+/// - `bstr`: `bstr::BStr` (byte strings)
+/// - `hipstr`: `hipstr::HipStr` (inline/heap strings)
+pub mod slice;
+
+/// State management for lexers.
+///
+/// Provides state tracking types for lexers:
+/// - [`State`]: Base trait for lexer state
+/// - [`recursion_tracker`](state::recursion_tracker): Prevent infinite recursion
+/// - [`token_tracker`](state::token_tracker): Track token occurrences
+/// - [`tracker`](state::tracker): Combined recursion and token tracking
+pub mod state;
+
+/// Token caching for lookahead and backtracking.
+///
+/// Defines the [`Cache`] trait for buffering tokens to enable lookahead
+/// and backtracking operations. Provides implementations for:
+/// - Fixed-size arrays: Bounded lookahead with known maximum capacity
+/// - Dynamic buffers: Unlimited lookahead (when `alloc` feature is enabled)
+/// - Black hole cache: No caching for streaming-only scenarios
+pub mod cache;
+
+/// Token trait and related types.
+///
+/// Defines the [`Token`] trait that bridges lexical analysis (Logos) and
+/// structured token representation for parsing. Separates raw lexer output from the
+/// token type used in parsing, allowing custom data and behavior beyond what Logos
+/// provides.
+pub mod token;
+
+/// Input stream abstraction for parsers.
+///
+/// Provides the [`InputRef`] type that bridges lexers and parsers,
+/// implementing zero-copy token streaming. Maintains cursor position and checkpoint/
+/// rewind capabilities for backtracking. Pulls tokens on-demand from the lexer without
+/// intermediate buffering.
+pub mod input;
+
+/// Tentative parsing trait
+pub mod try_parse_input;
+
+mod check;
+mod keyword;
+mod located;
+mod parse_choice;
+mod parse_context;
+mod parse_input;
+mod parse_state;
+mod require;
+
+#[doc(hidden)]
+pub mod __private {
+  pub use super::{check::Check, error, lexer::*, require::Require, span, syntax, token, utils};
+  #[cfg(feature = "logos")]
+  pub use logos;
+  pub use paste;
+
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  pub use std::{boxed::Box, string::String, vec::Vec};
+}

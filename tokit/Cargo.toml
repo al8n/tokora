@@ -1,0 +1,89 @@
+[package]
+name = "tokit"
+version = "0.0.0"
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Blazing fast parser combinators: parse-while-lexing (zero-copy), deterministic LALR-style parsing, no backtracking. Flexible emitters for fail-fast runtime or greedy compiler diagnostics"
+categories = ["parsing", "text-processing", "no-std"]
+keywords = ["parser", "combinator", "token", "logos", "error-recovery"]
+
+[features]
+default = ["std"]
+alloc = ["generic-arraydeque/alloc", "mayber/alloc"]
+std = [
+  "generic-arraydeque/default",
+  "thiserror/default",
+  "bytes?/default",
+  "hipstr?/default",
+  "bstr?/default",
+  "logos?/default",
+  "mayber/default",
+]
+
+unstable = ["generic-arraydeque/unstable"]
+
+logos = ["dep:logos"]
+
+rowan = ["dep:rowan", "std"]
+
+among = ["dep:among"]
+hipstr = ["dep:hipstr"]
+bytes = ["dep:bytes"]
+bstr = ["dep:bstr"]
+smallvec = ["dep:smallvec", "alloc"]
+
+[dependencies]
+ascii = { version = "1", default-features = false }
+deranged = { version = "0.5", default-features = false }
+either = { version = "1", default-features = false }
+mayber = { version = "0.1", default-features = false }
+derive_more = { version = "2", default-features = false, features = [
+  "display",
+  "deref",
+  "deref_mut",
+  "as_ref",
+  "from",
+  "into",
+  "unwrap",
+  "try_unwrap",
+  "is_variant",
+] }
+generic-arraydeque = { version = "0.1", default-features = false, features = ["unstable"] }
+paste = "1"
+seq-macro = { version = "0.3", default-features = false }
+thiserror = { version = "2", default-features = false }
+
+rowan = { version = "0.16", optional = true }
+
+
+among = { version = "0.1", default-features = false, optional = true }
+bstr = { version = "1", default-features = false, optional = true }
+bytes = { version = "1", default-features = false, optional = true }
+hipstr = { version = "0.8", default-features = false, optional = true }
+
+logos = { version = "0.16", default-features = false, optional = true, features = [
+  "export_derive",
+] }
+
+smallvec = { version = "1", default-features = false, optional = true, features = [
+  "const_new",
+] }
+
+[dev-dependencies]
+criterion = "0.8"
+tempfile = "3"
+thiserror = { version = "2", default-features = false }
+
+[[example]]
+name = "json"
+path = "examples/json.rs"
+required-features = ["std", "logos"]
+
+[lints.rust]
+rust_2018_idioms = "warn"
+single_use_lifetimes = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin)'] }

@@ -1,0 +1,40 @@
+use crate::{container::Container as ContainerT, emitter::TooFewEmitter, error::syntax::TooFew};
+
+use super::*;
+
+impl<'inp, L, P, O, Container, Delim, Ctx, Lang: ?Sized> ParseInput<'inp, L, Container, Ctx, Lang>
+  for Collect<DelimitedBy<AtLeast<Repeated<P, O, L, Ctx, Lang>>, Delim>, Container, Ctx, Lang>
+where
+  Delim: Delimiter<'inp, L, Lang>,
+  L: Lexer<'inp>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  Ctx::Emitter: TooFewEmitter<'inp, L, Lang>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+  Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
+{
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    let min = self.parser.parser.minimum().get();
+
+    DelimitedBy::<_, Delim>::new_in(self.parser.parser.parser_mut()).parse_repeated(
+      inp,
+      &mut self.container,
+      |nums, inp, span| {
+        if min > nums {
+          inp
+            .emitter()
+            .emit_too_few(TooFew::of(span.clone(), nums, min))?;
+        }
+
+        Ok(())
+      },
+    )
+  }
+}
