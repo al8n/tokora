@@ -221,6 +221,7 @@ mod or_not;
 mod padded;
 mod peek_then;
 mod peek_then_choice;
+mod pratt;
 mod punct;
 mod recover;
 mod then;
