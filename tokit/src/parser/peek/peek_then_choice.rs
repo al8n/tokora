@@ -146,39 +146,6 @@ where
   }
 }
 
-impl<'inp, P, H, L, O, Ctx, Lang, W: Window> ParseInput<'inp, L, Option<O>, Ctx, Lang>
-  for OrNot<PeekThenChoice<P, H, L, Ctx, W>>
-where
-  P: ParseChoice<'inp, L, O, Ctx, Lang>,
-  H: FnMut(
-    Peeked<'_, 'inp, L, W>,
-    &mut Ctx::Emitter,
-  ) -> Result<Option<P::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
-  L: Lexer<'inp>,
-  Ctx: ParseContext<'inp, L, Lang>,
-  Lang: ?Sized,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(
-    &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-  ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let id = {
-      let (output, emitter) = inp.peek_with_emitter::<W>()?;
-
-      if output.is_empty() {
-        return Ok(None);
-      }
-
-      (self.0.handler)(output, emitter)?
-    };
-    match id {
-      Some(id) => self.0.parser.parse_choice(inp, &id).map(Some),
-      None => Ok(None),
-    }
-  }
-}
-
 #[cfg(test)]
 mod tests {
   use generic_arraydeque::typenum::U2;

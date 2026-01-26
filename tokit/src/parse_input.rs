@@ -464,6 +464,18 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     ThenIgnore::new(self, second)
   }
 
+  /// Sequence this parser with a fixed value, ignoring the output of the first.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn then_value<F, U>(self, value: F) -> ThenValue<Self, F, O, U, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    F: FnMut() -> U,
+  {
+    ThenValue::new(self, value)
+  }
+
   /// Sequence this parser with another, using the first result to determine the second parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn and_then<T, U>(self, then: T) -> AndThen<Self, T, O, U, L, Ctx, Lang>
