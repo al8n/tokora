@@ -2,7 +2,7 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use crate::{
   input::InputRef,
-  parser::{Accepted, ByRef, Repeated, Separated},
+  parser::{Accepted, ByRef, Fold, Repeated, Separated, TryFold},
   punct::*,
   token::PunctuatorToken,
 };
@@ -187,6 +187,36 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Ctx: ParseContext<'inp, L, Lang>,
   {
     Repeated::new(self)
+  }
+
+  /// Creates a `Fold` combinator that accumulates results using the provided initializer and accumulator.
+  ///
+  /// See also [`try_fold`](TryParseInput::try_fold), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn fold<Init, Acc>(self, init: Init, acc: Acc) -> Fold<Self, Init, Acc, L, O, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(O, O) -> O,
+  {
+    Fold::new(self, init, acc)
+  }
+
+  /// Creates a `TryFold` combinator that accumulates results using the provided initializer and fallible accumulator.
+  ///
+  /// See also [`fold`](Self::fold), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_fold<Init, Acc>(self, init: Init, acc: Acc) -> TryFold<Self, Init, Acc, L, O, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(O, O) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    TryFold::new(self, init, acc)
   }
 
   /// Creates a `Separated` combinator that parses separated elements, where **this parser

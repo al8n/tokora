@@ -202,6 +202,44 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     ByRef::from_ref_mut(self)
   }
 
+  /// Creates a `FoldWhile` combinator that accumulates results while a condition is met.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn fold_while<Condition, Init, Acc, W>(
+    self,
+    pred: Condition,
+    init: Init,
+    acc: Acc,
+  ) -> FoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+    W: Window,
+    FoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+  {
+    FoldWhile::new(self, pred, init, acc)
+  }
+
+  /// Creates a `TryFoldWhile` combinator that accumulates results while a condition is met.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_fold_while<Condition, Init, Acc, W>(
+    self,
+    pred: Condition,
+    init: Init,
+    acc: Acc,
+  ) -> TryFoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+    W: Window,
+    TryFoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+  {
+    TryFoldWhile::new(self, pred, init, acc)
+  }
+
   /// Creates a `RepeatedWhile` combinator that applies this parser repeatedly, where **you
   /// provide the lookahead logic**.
   ///
