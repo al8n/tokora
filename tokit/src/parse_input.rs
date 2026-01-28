@@ -222,6 +222,8 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Creates a `TryFoldWhile` combinator that accumulates results while a condition is met.
+  ///
+  /// See also [`try_fold_while_with`](Self::try_fold_while_with).
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn try_fold_while<Condition, Init, Acc, W>(
     self,
@@ -233,11 +235,68 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(O, O) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
     TryFoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     TryFoldWhile::new(self, pred, init, acc)
+  }
+
+  /// Creates a `TryFoldWhileWith` combinator that accumulates results while a condition is met,
+  /// with access to parsing state.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_fold_while_with<Condition, Init, Acc, W>(
+    self,
+    pred: Condition,
+    init: Init,
+    acc: Acc,
+  ) -> TryFoldWhileWith<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(
+      O,
+      O,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+    W: Window,
+    TryFoldWhileWith<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>:
+      ParseInput<'inp, L, O, Ctx, Lang>,
+  {
+    TryFoldWhileWith::new(self, pred, init, acc)
+  }
+
+  /// Creates a `RFoldWhile` combinator that applies this parser repeatedly,
+  /// while a condition is met, and folds results in reverse order.
+  ///
+  /// This buffers all parsed outputs before folding them from right to left.
+  ///
+  /// See also [`fold_while`](Self::fold_while).
+  #[cfg(any(feature = "alloc", feature = "std"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "alloc", feature = "std"))))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn rfold_while<Condition, Init, Acc, W>(
+    self,
+    condition: Condition,
+    init: Init,
+    acc: Acc,
+  ) -> RFoldWhile<Self, Condition, Init, Acc, L, O, W, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(O, O) -> O,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+    W: Window,
+    RFoldWhile<Self, Condition, Init, Acc, L, O, W, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+  {
+    RFoldWhile::new(self, condition, init, acc)
   }
 
   /// Creates a `RepeatedWhile` combinator that applies this parser repeatedly, where **you

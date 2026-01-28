@@ -2,10 +2,13 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use crate::{
   input::InputRef,
-  parser::{Accepted, ByRef, Fold, Repeated, Separated, TryFold},
+  parser::{Accepted, ByRef, Fold, Repeated, Separated, TryFold, TryFoldWith},
   punct::*,
   token::PunctuatorToken,
 };
+
+#[cfg(any(feature = "alloc", feature = "std"))]
+use crate::parser::RFold;
 
 use super::*;
 
@@ -206,7 +209,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Creates a `TryFold` combinator that accumulates results using the provided initializer and fallible accumulator.
   ///
-  /// See also [`fold`](Self::fold), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
+  /// See also [`try_fold_with`](Self::try_fold_with), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn try_fold<Init, Acc>(self, init: Init, acc: Acc) -> TryFold<Self, Init, Acc, L, O, Ctx, Lang>
   where
@@ -217,6 +220,51 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Acc: FnMut(O, O) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     TryFold::new(self, init, acc)
+  }
+
+  /// Creates a `TryFoldWith` combinator that accumulates results using the provided initializer,
+  /// fallible accumulator, and parsing state.
+  ///
+  /// See also [`try_fold`](Self::try_fold), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_fold_with<Init, Acc>(
+    self,
+    init: Init,
+    acc: Acc,
+  ) -> TryFoldWith<Self, Init, Acc, L, O, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(
+      O,
+      O,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    TryFoldWith::new(self, init, acc)
+  }
+
+  /// Creates a `RFold` combinator that accumulates results in reverse order using the provided
+  /// initializer and accumulator.
+  ///
+  /// This buffers all parsed outputs before folding them from right to left.
+  /// Parsing stops when this parser returns `Ok(ParseAttempt::Decline)`.
+  ///
+  /// See also [`fold`](Self::fold).
+  #[cfg(any(feature = "alloc", feature = "std"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "alloc", feature = "std"))))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn rfold<Init, Acc>(self, init: Init, acc: Acc) -> RFold<Self, Init, Acc, L, O, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(O, O) -> O,
+  {
+    RFold::new(self, init, acc)
   }
 
   /// Creates a `Separated` combinator that parses separated elements, where **this parser
