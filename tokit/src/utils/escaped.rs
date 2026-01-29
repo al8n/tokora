@@ -40,7 +40,7 @@
 //! ## Representing a Simple Escape
 //!
 //! ```
-//! use tokit::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
+//! use tokit::{SimpleSpan, utils::{SingleCharEscape, PositionedChar}};
 //!
 //! // For the escape sequence `\n` at position 10-12:
 //! let escape = SingleCharEscape::from_positioned_char(
@@ -56,7 +56,7 @@
 //! ## Representing a Hex Escape
 //!
 //! ```
-//! use tokit::utils::{MultiCharEscape, SimpleSpan};
+//! use tokit::{SimpleSpan, utils::MultiCharEscape};
 //!
 //! // For the escape sequence `\xFF` at position 5-9:
 //! let escape = MultiCharEscape::new(
@@ -99,7 +99,7 @@ use super::PositionedChar;
 /// # Examples
 ///
 /// ```
-/// use tokit::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
+/// use tokit::{SimpleSpan, utils::{SingleCharEscape, PositionedChar}};
 ///
 /// // Escape sequence `\n` at positions 10-12
 /// let newline = SingleCharEscape::from_positioned_char(
@@ -141,7 +141,7 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{SingleCharEscape, PositionedChar}};
   ///
   /// let escape = SingleCharEscape::from_char(
   ///     SimpleSpan::new(14, 16),
@@ -160,7 +160,7 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{SingleCharEscape, PositionedChar}};
   ///
   /// let escape = SingleCharEscape::from_positioned_char(
   ///     SimpleSpan::new(14, 16),
@@ -183,7 +183,7 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{SingleCharEscape, PositionedChar}};
   ///
   /// let escape = SingleCharEscape::from_positioned_char(
   ///     SimpleSpan::new(4, 6),
@@ -204,7 +204,7 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{SingleCharEscape, PositionedChar}};
   ///
   /// let escape = SingleCharEscape::from_positioned_char(
   ///     SimpleSpan::new(9, 11),
@@ -227,7 +227,7 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{SingleCharEscape, PositionedChar}};
   ///
   /// // Escape `\n` at positions 10-12: '\' at 10, 'n' at 11
   /// let escape = SingleCharEscape::from_positioned_char(
@@ -249,7 +249,7 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{SingleCharEscape, PositionedChar}};
   ///
   /// // Escape `\n` at positions 10-12: '\' at 10, 'n' at 11
   /// let escape = SingleCharEscape::from_positioned_char(
@@ -270,7 +270,7 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{SingleCharEscape, PositionedChar}};
   ///
   /// let escape = SingleCharEscape::from_positioned_char(
   ///     SimpleSpan::new(4, 6),
@@ -306,7 +306,7 @@ impl<Char, O> SingleCharEscape<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{SingleCharEscape, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{SingleCharEscape, PositionedChar}};
   ///
   /// let mut escape = SingleCharEscape::from_positioned_char(
   ///     SimpleSpan::new(10, 12),
@@ -347,7 +347,7 @@ impl<Char, O> SingleCharEscape<Char, O> {
 /// # Examples
 ///
 /// ```
-/// use tokit::utils::{MultiCharEscape, SimpleSpan};
+/// use tokit::{SimpleSpan, utils::MultiCharEscape};
 ///
 /// // Hex escape `\xFF` at positions 5-9
 /// let hex = MultiCharEscape::new(
@@ -392,7 +392,7 @@ impl<S> MultiCharEscape<S> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{MultiCharEscape, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::MultiCharEscape};
   ///
   /// let escape = MultiCharEscape::new(
   ///     SimpleSpan::new(6, 9),  // "xFF"
@@ -411,7 +411,7 @@ impl<S> MultiCharEscape<S> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{MultiCharEscape, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::MultiCharEscape};
   ///
   /// let escape = MultiCharEscape::new(
   ///     SimpleSpan::new(6, 9),
@@ -446,7 +446,7 @@ impl<S> MultiCharEscape<S> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{MultiCharEscape, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::MultiCharEscape};
   ///
   /// let escape = MultiCharEscape::new(
   ///     SimpleSpan::new(6, 9),
@@ -482,7 +482,7 @@ impl<S> MultiCharEscape<S> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{MultiCharEscape, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::MultiCharEscape};
   ///
   /// let mut escape = MultiCharEscape::new(
   ///     SimpleSpan::new(6, 9),
@@ -530,7 +530,7 @@ impl<S> MultiCharEscape<S> {
 /// ## Creating from a Single Character
 ///
 /// ```
-/// use tokit::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
+/// use tokit::{SimpleSpan, utils::{EscapedLexeme, PositionedChar}};
 ///
 /// let escape = EscapedLexeme::from_positioned_char(
 ///     SimpleSpan::new(10, 12),                       // Full span `\n`
@@ -544,7 +544,7 @@ impl<S> MultiCharEscape<S> {
 /// ## Creating from a Sequence
 ///
 /// ```
-/// use tokit::utils::{EscapedLexeme, SimpleSpan};
+/// use tokit::{SimpleSpan, utils::EscapedLexeme};
 ///
 /// let escape: EscapedLexeme = EscapedLexeme::from_sequence(
 ///     SimpleSpan::new(5, 9),   // Full span `\xFF`
@@ -584,7 +584,7 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{EscapedLexeme, Lexeme, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{EscapedLexeme, Lexeme, PositionedChar}};
   ///
   /// let lexeme = Lexeme::from(PositionedChar::with_position('n', 11));
   /// let escape = EscapedLexeme::new(SimpleSpan::new(10, 12), lexeme);
@@ -601,7 +601,7 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{EscapedLexeme, PositionedChar}};
   ///
   /// let escape = EscapedLexeme::from_positioned_char(
   ///     SimpleSpan::new(10, 12),
@@ -622,7 +622,7 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{EscapedLexeme, PositionedChar}};
   ///
   /// let escape = EscapedLexeme::from_char(
   ///     SimpleSpan::new(10, 12),
@@ -644,7 +644,7 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{EscapedLexeme, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::EscapedLexeme};
   ///
   /// let escape: EscapedLexeme = EscapedLexeme::from_sequence(
   ///     SimpleSpan::new(5, 9),   // Full `\xFF`
@@ -663,7 +663,7 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{EscapedLexeme, PositionedChar}};
   ///
   /// let escape = EscapedLexeme::from_positioned_char(
   ///     SimpleSpan::new(10, 12),
@@ -696,7 +696,7 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{EscapedLexeme, PositionedChar}};
   ///
   /// let escape = EscapedLexeme::from_positioned_char(
   ///     SimpleSpan::new(10, 12),
@@ -720,7 +720,7 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{EscapedLexeme, PositionedChar}};
   ///
   /// let escape = EscapedLexeme::from_positioned_char(
   ///     SimpleSpan::new(10, 12),
@@ -747,7 +747,7 @@ impl<Char, O> EscapedLexeme<Char, O> {
   /// ## Examples
   ///
   /// ```
-  /// use tokit::utils::{EscapedLexeme, PositionedChar, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{EscapedLexeme, PositionedChar}};
   ///
   /// let mut escape = EscapedLexeme::from_positioned_char(
   ///     SimpleSpan::new(10, 12),

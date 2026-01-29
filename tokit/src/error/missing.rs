@@ -36,7 +36,7 @@ use crate::{
 /// use tokit::{
 ///     error::Missing,
 ///     syntax::{Language, Syntax},
-///     utils::SimpleSpan,
+///     SimpleSpan,
 /// };
 ///
 /// // Suppose `ParameterListSyntax` implements `Syntax<KIND = SyntaxKind::ParameterList>`

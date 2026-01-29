@@ -38,7 +38,7 @@ pub type UnexpectedLineTerminator<Char, O = usize> = UnexpectedLexeme<Char, Line
 ///
 /// # Deref Behavior
 ///
-/// `UnexpectedLexeme` implements `Deref` to `Lexeme<Char>`, so you can call all
+/// `UnexpectedLexeme` implements `Deref` to `Lexeme<Char, O>`, so you can call all
 /// `Lexeme` methods directly on an `UnexpectedLexeme` instance.
 ///
 /// # Use Cases
@@ -68,7 +68,7 @@ pub type UnexpectedLineTerminator<Char, O = usize> = UnexpectedLexeme<Char, Line
 /// ## With Token Kind Hint
 ///
 /// ```rust,ignore
-/// use tokit::{error::UnexpectedLexeme, utils::SimpleSpan};
+/// use tokit::{error::UnexpectedLexeme, SimpleSpan};
 ///
 /// #[derive(Debug, Clone)]
 /// enum Expected {
@@ -88,7 +88,7 @@ pub type UnexpectedLineTerminator<Char, O = usize> = UnexpectedLexeme<Char, Line
 /// }
 /// ```
 ///
-/// ## Mapping Hints
+/// ## Mapping Hint
 ///
 /// ```rust
 /// use tokit::{error::UnexpectedLexeme, utils::PositionedChar};
@@ -205,7 +205,7 @@ impl<Char, O> UnexpectedLexeme<Char, LineTerminator, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedLexeme, utils::{SimpleSpan, knowledge::LineTerminator}};
+  /// use tokit::{error::UnexpectedLexeme, SimpleSpan, utils::{knowledge::LineTerminator}};
   ///
   /// let error = UnexpectedLexeme::<char, _>::carriage_return_new_line((5..7).into());
   ///
@@ -283,7 +283,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedLexeme, utils::SimpleSpan};
+  /// use tokit::{error::UnexpectedLexeme, SimpleSpan};
   ///
   /// let error: UnexpectedLexeme<char, _> = UnexpectedLexeme::from_range_const(
   ///     SimpleSpan::new(10, 15),
@@ -487,7 +487,7 @@ impl<Char, Hint, O> UnexpectedLexeme<Char, Hint, O> {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedLexeme, utils::{PositionedChar, SimpleSpan}};
+  /// use tokit::{error::UnexpectedLexeme, SimpleSpan, utils::{PositionedChar}};
   ///
   /// let error = UnexpectedLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 10),

@@ -1,6 +1,6 @@
 use super::*;
 
-/// A parser that matches its inner parser at most `maximum` times.
+/// A parser that matches its inner parser between `minimum` and `maximum` times.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Bounded<P> {
   pub(in crate::parser) maximum: Maximum,
@@ -9,7 +9,7 @@ pub struct Bounded<P> {
 }
 
 impl<P> Bounded<P> {
-  /// Creates a new `Bounded` parser that matches its inner parser at most `maximum` times.
+  /// Creates a new `Bounded` parser that matches its inner parser between `minimum` and `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(in crate::parser) const fn new(parser: P, maximum: usize, minimum: usize) -> Self {
     Self {

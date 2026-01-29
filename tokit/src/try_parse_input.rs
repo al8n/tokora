@@ -119,11 +119,11 @@ macro_rules! define_separated_by {
 ///
 /// Unlike [`ParseInput`] which must produce a value or error, `TryParseInput` allows parsers
 /// to inspect the input and decide whether to consume it based on lookahead. If the parser
-/// returns `Ok(None)`, **no valid tokens are consumed** - the input position only advances
+/// returns `Ok(ParseAttempt::Decline)`, **no valid tokens are consumed** - the input position only advances
 /// past any error tokens that were consumed by the emitter.
 ///
 /// **IMPORTANT:**
-/// Implicit backtracking may occur when a parser returns `Ok(None)`.
+/// Implicit backtracking may occur when a parser returns `Ok(ParseAttempt::Decline)`.
 pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Attempts to parse `O` from the input without committing.
   ///
@@ -272,7 +272,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// This parser (the element parser) will be called repeatedly to parse elements separated
   /// by the given separator. Since this parser implements [`TryParseInput`], it can peek ahead
-  /// and return `Ok(None)` when it doesn't match, **without consuming any tokens**.
+  /// and return `Ok(ParseAttempt::Decline)` when it doesn't match, **without consuming any tokens**.
   ///
   /// ## Key Behavior
   ///

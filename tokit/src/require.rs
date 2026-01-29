@@ -9,7 +9,7 @@
 /// ## Example
 ///
 /// ```rust
-/// use tokit::{Require, IdentifierToken};
+/// use tokit::Require;
 ///
 /// #[derive(Debug, Clone)]
 /// pub enum Punct {
@@ -23,6 +23,10 @@
 ///
 /// impl Require<Dot> for Punct {
 ///     type Err = Self;
+///
+///     fn matched(&self) -> bool {
+///         matches!(self, Punct::Dot)
+///     }
 ///
 ///     fn require(self) -> Result<Dot, Self::Err> {
 ///         match &self {

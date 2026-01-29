@@ -183,7 +183,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{PositionedChar, Span};
+  /// use tokit::{Span, utils::PositionedChar};
   ///
   ///
   /// let pc = PositionedChar::with_position('x', 42);
@@ -226,7 +226,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// use tokit::utils::PositionedChar;
   ///
   /// let mut pc = PositionedChar::with_position('x', 10);
-  /// pc.bump_position(5);
+  /// pc.bump_position(&5);
   /// assert_eq!(pc.position(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -248,7 +248,7 @@ impl<Char, Offset> PositionedChar<Char, Offset> {
   /// let pc = PositionedChar::with_position('x', 10);
   /// let pc_ref = pc.as_ref();
   /// assert_eq!(**pc_ref.char_ref(), 'x');
-  /// assert_eq!(pc_ref.position(), 10);
+  /// assert_eq!(pc_ref.position(), &10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn as_ref(&self) -> PositionedChar<&Char, &Offset> {

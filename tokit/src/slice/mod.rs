@@ -140,7 +140,7 @@ impl<'source> Slice<'source> for &'source str {
 /// Thanks to `Deref`, you can call methods on the wrapped value directly:
 ///
 /// ```rust
-/// use tokit::utils::Sliced;
+/// use tokit::slice::Sliced;
 ///
 /// let sliced_str = Sliced::new("main.rs", "hello world");
 ///
@@ -155,7 +155,7 @@ impl<'source> Slice<'source> for &'source str {
 /// ## Tracking File Origins
 ///
 /// ```rust,ignore
-/// use tokit::utils::Sliced;
+/// use tokit::slice::Sliced;
 /// use std::path::PathBuf;
 ///
 /// // Parse configuration from different slices
@@ -178,7 +178,7 @@ impl<'source> Slice<'source> for &'source str {
 /// ## Multi-File Compilation
 ///
 /// ```rust,ignore
-/// use tokit::utils::Sliced;
+/// use tokit::slice::Sliced;
 ///
 /// struct Module {
 ///     name: String,
@@ -205,12 +205,12 @@ impl<'source> Slice<'source> for &'source str {
 /// ## Mapping Values While Preserving Source
 ///
 /// ```rust
-/// use tokit::utils::Sliced;
+/// use tokit::slice::Sliced;
 ///
 /// let sliced_str = Sliced::new("input.txt", "42");
 ///
 /// // Parse the string, keeping the same slice
-/// let parsed: Sliced<i32, &str> = sliced_str.map_data(|s| s.parse().unwrap());
+/// let parsed: Sliced<i32, &str> = sliced_str.map_data(|s| s.parse::<i32>().unwrap());
 ///
 /// assert_eq!(*parsed, 42);
 /// assert_eq!(parsed.slice(), "input.txt");
@@ -219,7 +219,9 @@ impl<'source> Slice<'source> for &'source str {
 /// ## Building AST with File Context
 ///
 /// ```rust,ignore
-/// use tokit::utils::{Sliced, Spanned, Span};
+/// use tokit::slice::Sliced;
+/// use tokit::{Span};
+/// use tokit::span::Spanned;
 /// use std::path::PathBuf;
 ///
 /// // Combine Sliced and Spanned for complete location tracking
@@ -267,7 +269,7 @@ impl<'source> Slice<'source> for &'source str {
 /// ## Incremental Compilation
 ///
 /// ```rust,ignore
-/// use tokit::utils::Sliced;
+/// use tokit::slice::Sliced;
 /// use std::collections::HashMap;
 /// use std::time::SystemTime;
 ///
@@ -310,7 +312,7 @@ impl<'source> Slice<'source> for &'source str {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokit::utils::Sliced;
+/// use tokit::slice::Sliced;
 ///
 /// let sliced = Sliced::new("config.toml", "debug = true");
 ///
@@ -322,7 +324,7 @@ impl<'source> Slice<'source> for &'source str {
 /// ## Destructuring
 ///
 /// ```rust
-/// use tokit::utils::Sliced;
+/// use tokit::slice::Sliced;
 ///
 /// let sliced = Sliced::new("file.txt", 42);
 ///
@@ -334,7 +336,7 @@ impl<'source> Slice<'source> for &'source str {
 /// ## Mutable Access
 ///
 /// ```rust
-/// use tokit::utils::Sliced;
+/// use tokit::slice::Sliced;
 ///
 /// let mut sliced = Sliced::new("input", 10);
 ///
@@ -415,7 +417,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::Sliced;
+  /// use tokit::slice::Sliced;
   ///
   /// let sliced = Sliced::new("file.rs", "data");
   /// assert_eq!(sliced.slice(), "file.rs");
@@ -433,7 +435,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::Sliced;
+  /// use tokit::slice::Sliced;
   ///
   /// let sliced = Sliced::new("config.toml", "data");
   /// assert_eq!(sliced.slice_ref(), &"config.toml");
@@ -448,7 +450,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::Sliced;
+  /// use tokit::slice::Sliced;
   ///
   /// let mut sliced = Sliced::new("old.txt", "data");
   /// *sliced.slice_mut() = "new.txt";
@@ -464,7 +466,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::Sliced;
+  /// use tokit::slice::Sliced;
   ///
   /// let sliced = Sliced::new("file.txt", 42);
   /// assert_eq!(*sliced.data(), 42);
@@ -479,7 +481,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::Sliced;
+  /// use tokit::slice::Sliced;
   ///
   /// let mut sliced = Sliced::new("file.txt", 42);
   /// *sliced.data_mut() = 100;
@@ -495,7 +497,7 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::Sliced;
+  /// use tokit::slice::Sliced;
   ///
   /// let sliced = Sliced::new(String::from("file.txt"), String::from("hello"));
   /// let borrowed: Sliced<&String, &String> = sliced.as_ref();
@@ -514,11 +516,11 @@ impl<D, Src> Sliced<D, Src> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::Sliced;
+  /// use tokit::slice::Sliced;
   ///
   /// let mut sliced = Sliced::new(String::from("file.txt"), String::from("hello"));
-  /// let borrowed: Sliced<&mut String, &mut String> = sliced.as_mut();
-  /// borrowed.data.push_str(" world");
+  /// let mut borrowed: Sliced<&mut String, &mut String> = sliced.as_mut();
+  /// borrowed.data_mut().push_str(" world");
   /// assert_eq!(sliced.data(), &"hello world");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

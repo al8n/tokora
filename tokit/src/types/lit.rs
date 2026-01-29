@@ -51,23 +51,23 @@
 //!
 //! ```rust,ignore
 //! use tokit::types::{Lit, LitDecimal, LitString};
-//! use tokit::utils::SimpleSpan;
+//! use tokit::SimpleSpan;
 //!
 //! // Parse literals without allocating
-//! type YulLit<'a> = Lit<&'a str, YulLang>;
-//! type YulDecimal<'a> = LitDecimal<&'a str, YulLang>;
-//! type YulString<'a> = LitString<&'a str, YulLang>;
+//! type YulLit<'a> = Lit<&'a str, SimpleSpan, YulLang>;
+//! type YulDecimal<'a> = LitDecimal<&'a str, SimpleSpan, YulLang>;
+//! type YulString<'a> = LitString<&'a str, SimpleSpan, YulLang>;
 //!
-//! let generic = YulLit::new(Span::new(0, 2), "42");
-//! let num = YulDecimal::new(Span::new(0, 2), "42");
-//! let str = YulString::new(Span::new(5, 12), "\"hello\"");
+//! let generic = YulLit::new(SimpleSpan::new(0, 2), "42");
+//! let num = YulDecimal::new(SimpleSpan::new(0, 2), "42");
+//! let str = YulString::new(SimpleSpan::new(5, 12), "\"hello\"");
 //! ```
 //!
 //! ## Owned Literals
 //!
 //! ```rust,ignore
 //! // Store literals in AST nodes
-//! type OwnedDecimal = LitDecimal<String, MyLang>;
+//! type OwnedDecimal = LitDecimal<String, SimpleSpan, MyLang>;
 //!
 //! let lit = OwnedDecimal::new(span, source.to_string());
 //! ```
@@ -81,10 +81,10 @@
 //! use tokit::error::ErrorNode;
 //!
 //! // Create placeholder for malformed literal
-//! let bad_lit = LitDecimal::<String, YulLang>::error(span);
+//! let bad_lit = LitDecimal::<String, SimpleSpan, YulLang>::error(span);
 //!
 //! // Create placeholder for missing literal
-//! let missing_lit = LitDecimal::<String, YulLang>::missing(span);
+//! let missing_lit = LitDecimal::<String, SimpleSpan, YulLang>::missing(span);
 //! ```
 
 use core::marker::PhantomData;
@@ -118,15 +118,15 @@ macro_rules! define_literal {
       ///
       /// ```rust
       #[doc = "use tokit::types::" $name ";"]
-      /// use tokit::utils::SimpleSpan;
+      /// use tokit::SimpleSpan;
       /// # struct MyLang;
       ///
-      #[doc = "let lit = " $name "::<&str, MyLang>::new("]
-      #[doc = "    Span::new(0, 4),"]
+      #[doc = "let lit = " $name "::<&str, SimpleSpan, MyLang>::new("]
+      #[doc = "    SimpleSpan::new(0, 4),"]
       #[doc = "    " $example_str ]
       /// );
       ///
-      #[doc = "assert_eq!(lit.source_ref(), &" $example_str ");"]
+      #[doc = "assert_eq!(lit.data_ref(), &" $example_str ");"]
       /// ```
       ///
       /// ## With Error Recovery
@@ -136,7 +136,7 @@ macro_rules! define_literal {
       /// use tokit::error::ErrorNode;
       ///
       #[doc = "// " $example_desc]
-      #[doc = "let bad_lit = " $name "::<String, YulLang>::error(span);"]
+      #[doc = "let bad_lit = " $name "::<String, SimpleSpan, YulLang>::error(span);"]
       /// ```
       #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
       pub struct $name<D $( = $default)?, S = $crate::__private::span::SimpleSpan, Lang = ()> {

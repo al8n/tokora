@@ -8,7 +8,7 @@
 //! While [`UnexpectedToken`](super::UnexpectedToken) is general-purpose, `UnexpectedKeyword`
 //! is optimized for the common case of keyword-based languages where:
 //! - The found value is always a string (or string-like type)
-//! - The expected values are always known string literals (keyword)
+//! - The expected values are always known string literals (keywords)
 //! - There's always a found value (unlike tokens which might hit end-of-input)
 //!
 //! # Common Use Cases
@@ -21,7 +21,7 @@
 //! # Example
 //!
 //! ```
-//! use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
+//! use tokit::{SimpleSpan, error::UnexpectedKeyword};
 //!
 //! // Parser expected "async" but found "sync"
 //! let error = UnexpectedKeyword::expected_one(
@@ -56,7 +56,7 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedKeyword};
+/// use tokit::{SimpleSpan, utils::{Expected}, error::UnexpectedKeyword};
 ///
 /// // Error when expecting a specific keyword
 /// let error = UnexpectedKeyword::expected_one(
@@ -68,7 +68,7 @@ use crate::{
 /// assert_eq!(error.span(), SimpleSpan::new(10, 16));
 /// assert_eq!(format!("{}", error), "unexpected 'return', expected 'fn' keyword");
 ///
-/// // Error when expecting one of multiple keyword
+/// // Error when expecting one of multiple keywords
 /// let error = UnexpectedKeyword::expected_one_of(
 ///     SimpleSpan::new(0, 5),
 ///     "class",
@@ -95,7 +95,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedKeyword};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::new(
   ///     SimpleSpan::new(5, 8),
@@ -122,7 +122,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(0, 3),
@@ -144,7 +144,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one_of(
   ///     SimpleSpan::new(10, 18),
@@ -167,7 +167,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(20, 26),
@@ -189,7 +189,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(20, 26),
@@ -208,7 +208,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(0, 6),
@@ -227,7 +227,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedKeyword};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::UnexpectedKeyword};
   ///
   /// let error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(5, 11),
@@ -252,7 +252,7 @@ impl<'a, F, S> UnexpectedKeyword<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedKeyword};
+  /// use tokit::{SimpleSpan, error::UnexpectedKeyword};
   ///
   /// let mut error = UnexpectedKeyword::expected_one(
   ///     SimpleSpan::new(10, 13),

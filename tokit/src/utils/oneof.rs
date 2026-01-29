@@ -35,15 +35,15 @@ pub struct OneOf<'a, T: Clone> {
 }
 
 impl<'a, T: Clone> OneOf<'a, T> {
-  /// Creates a new message from the provided representation.
+  /// Creates a new `OneOf` from the provided representation.
   ///
   /// ## Examples
   ///
   /// ```
   /// use tokit::utils::OneOf;
   ///
-  /// let msg = OneOf::new("greeting");
-  /// assert_eq!(msg.as_str(), "greeting");
+  /// let values = OneOf::new(&["greeting", "salutation"]);
+  /// assert_eq!(values.as_slice(), &["greeting", "salutation"]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn new(inner: impl Into<Inner<'a, T>>) -> Self {
@@ -52,15 +52,15 @@ impl<'a, T: Clone> OneOf<'a, T> {
     }
   }
 
-  /// Creates a message from a `'static` string without allocation.
+  /// Creates a `OneOf` from a slice without allocation.
   ///
   /// ## Examples
   ///
   /// ```
   /// use tokit::utils::OneOf;
   ///
-  /// const MSG: OneOf = OneOf::from_static("hello");
-  /// assert_eq!(MSG.as_str(), "hello");
+  /// const MSG: OneOf<'static, &str> = OneOf::from_slice(&["hello"]);
+  /// assert_eq!(MSG.as_slice(), &["hello"]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn from_slice(value: &'a [T]) -> Self {
@@ -69,15 +69,15 @@ impl<'a, T: Clone> OneOf<'a, T> {
     }
   }
 
-  /// Returns the message as a string slice.
+  /// Returns the inner slice.
   ///
   /// ## Examples
   ///
   /// ```
   /// use tokit::utils::OneOf;
   ///
-  /// let msg = OneOf::from_static("world");
-  /// assert_eq!(msg.as_str(), "world");
+  /// let msg = OneOf::from_slice(&["world"]);
+  /// assert_eq!(msg.as_slice(), &["world"]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn as_slice(&self) -> &[T] {
@@ -94,8 +94,8 @@ impl<'a, T: Clone> OneOf<'a, T> {
   /// # {
   /// use std::borrow::Cow;
   ///
-  /// let msg = OneOf::from_static("inner");
-  /// assert!(matches!(msg.as_inner(), &Cow::Borrowed("inner")));
+  /// let msg = OneOf::from_slice(&["inner"]);
+  /// assert!(matches!(msg.as_inner(), &Cow::Borrowed(&["inner"])));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -113,9 +113,9 @@ impl<'a, T: Clone> OneOf<'a, T> {
   /// # {
   /// use std::borrow::Cow;
   ///
-  /// let msg = OneOf::from_static("consume");
+  /// let msg = OneOf::from_slice(&["consume"]);
   /// let inner = msg.into_inner();
-  /// assert_eq!(inner, Cow::Borrowed("consume"));
+  /// assert_eq!(inner, Cow::Borrowed(&["consume"]));
   /// # }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -199,8 +199,8 @@ const _: () = {
     /// ```
     /// use tokit::utils::OneOf;
     ///
-    /// let msg = OneOf::from_string(std::string::String::from("owned"));
-    /// assert_eq!(msg.as_str(), "owned");
+    /// let values = OneOf::from_vec(vec!["owned", "slice"]);
+    /// assert_eq!(values.as_slice(), &["owned", "slice"]);
     /// ```
     #[cfg_attr(not(tarpaulin), inline(always))]
     pub fn from_vec(value: Vec<T>) -> Self {
@@ -216,9 +216,9 @@ const _: () = {
     /// ```
     /// use tokit::utils::OneOf;
     ///
-    /// let mut msg = OneOf::from_static("grow");
-    /// msg.to_mut().push('!');
-    /// assert_eq!(msg.as_str(), "grow!");
+    /// let mut values = OneOf::from_vec(vec![1, 2, 3]);
+    /// values.to_mut()[1] = 42;
+    /// assert_eq!(values.as_slice(), &[1, 42, 3]);
     /// ```
     #[cfg_attr(not(tarpaulin), inline(always))]
     pub fn to_mut(&mut self) -> &mut [T] {

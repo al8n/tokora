@@ -38,19 +38,19 @@ impl<Knowledge, S> IncompleteToken<Knowledge, S> {
     Self { span, knowledge }
   }
 
-  /// Create a new IncompleteToken knowledge from a SimpleSpan
+  /// Create a new `IncompleteToken` without any knowledge.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(span: S) -> Self {
     Self::new_in(span, None)
   }
 
-  /// Create a new IncompleteToken knowledge from a SimpleSpan and Knowledge
+  /// Create a new `IncompleteToken` with knowledge.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_knowledge(span: S, knowledge: Knowledge) -> Self {
     Self::new_in(span, Some(knowledge))
   }
 
-  /// Get the span of the incomplete knowledge
+  /// Get the span of the incomplete token.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span(&self) -> S
   where
@@ -59,13 +59,13 @@ impl<Knowledge, S> IncompleteToken<Knowledge, S> {
     self.span
   }
 
-  /// Get the knowledge of the incomplete knowledge, if any
+  /// Get the knowledge for the incomplete token, if any.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn knowledge(&self) -> Option<&Knowledge> {
     self.knowledge.as_ref()
   }
 
-  /// Decompose the IncompleteToken knowledge into its components
+  /// Decompose the `IncompleteToken` into its components.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn into_components(self) -> (S, Option<Knowledge>) {
     (self.span, self.knowledge)

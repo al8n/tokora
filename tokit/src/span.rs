@@ -250,7 +250,7 @@ pub trait IntoSpan<Span>: AsSpan<Span> {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokit::utils::SimpleSpan;
+/// use tokit::SimpleSpan;
 ///
 /// // Create a span covering characters 10-20
 /// let span = SimpleSpan::new(10, 20);
@@ -264,7 +264,7 @@ pub trait IntoSpan<Span>: AsSpan<Span> {
 /// ## Safe Creation
 ///
 /// ```rust
-/// use tokit::utils::SimpleSpan;
+/// use tokit::SimpleSpan;
 ///
 /// // try_new returns None for invalid spans
 /// assert!(SimpleSpan::try_new(10, 5).is_none());  // end < start
@@ -275,7 +275,7 @@ pub trait IntoSpan<Span>: AsSpan<Span> {
 /// ## SimpleSpan Manipulation
 ///
 /// ```rust
-/// use tokit::utils::SimpleSpan;
+/// use tokit::SimpleSpan;
 ///
 /// let mut span = SimpleSpan::new(10, 20);
 ///
@@ -296,7 +296,7 @@ pub trait IntoSpan<Span>: AsSpan<Span> {
 /// ## Builder-Style Methods
 ///
 /// ```rust
-/// use tokit::utils::SimpleSpan;
+/// use tokit::SimpleSpan;
 ///
 /// let span = SimpleSpan::new(0, 10)
 ///     .with_start(5)
@@ -309,7 +309,7 @@ pub trait IntoSpan<Span>: AsSpan<Span> {
 /// ## Error Reporting Example
 ///
 /// ```rust,ignore
-/// use tokit::utils::SimpleSpan;
+/// use tokit::SimpleSpan;
 ///
 /// fn report_error(message: &str, span: SimpleSpan, source: &str) {
 ///     let line_start = source[..span.start()].rfind('\n')
@@ -391,7 +391,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_start(3);
@@ -412,7 +412,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_end(5);
@@ -429,7 +429,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump(&10);
@@ -447,7 +447,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_start(10);
@@ -464,7 +464,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_end(20);
@@ -481,7 +481,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15).with_start(10);
   /// assert_eq!(span, SimpleSpan::new(10, 15));
@@ -497,7 +497,7 @@ impl SimpleSpan {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15).with_end(20);
   /// assert_eq!(span, SimpleSpan::new(5, 20));
@@ -515,12 +515,12 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   /// let span_ref = span.as_ref();
-  /// assert_eq!(*span_ref.start, 5);
-  /// assert_eq!(*span_ref.end, 15);
+  /// assert_eq!(**span_ref.start_ref(), 5);
+  /// assert_eq!(**span_ref.end_ref(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn as_ref(&self) -> SimpleSpan<&O> {
@@ -535,12 +535,12 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
-  /// let span_mut = span.as_mut();
-  /// *span_mut.start = 10;
-  /// *span_mut.end = 20;
+  /// let mut span_mut = span.as_mut();
+  /// **span_mut.start_mut() = 10;
+  /// **span_mut.end_mut() = 20;
   /// assert_eq!(span, SimpleSpan::new(10, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -589,7 +589,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_start(3);
@@ -613,7 +613,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump_end(5);
@@ -633,7 +633,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.bump(&10);
@@ -654,7 +654,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_start(10);
@@ -671,7 +671,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// span.set_end(20);
@@ -688,7 +688,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15).with_start(10);
   /// assert_eq!(span, SimpleSpan::new(10, 15));
@@ -704,7 +704,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15).with_end(20);
   /// assert_eq!(span, SimpleSpan::new(5, 20));
@@ -720,7 +720,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.start(), 5);
@@ -738,7 +738,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   ///
@@ -754,7 +754,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// *span.start_mut() = 10;
@@ -770,7 +770,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.end(), 15);
@@ -788,7 +788,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   ///
@@ -804,7 +804,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut span = SimpleSpan::new(5, 15);
   /// *span.end_mut() = 20;
@@ -820,7 +820,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.len(), 10);
@@ -838,7 +838,7 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let empty = SimpleSpan::new(5, 5);
   /// assert!(empty.is_empty());
@@ -859,10 +859,10 @@ impl<O> SimpleSpan<O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let span = SimpleSpan::new(5, 15);
-  /// assert_eq!(span.range(), 5..15);
+  /// assert_eq!(span.range(), (&5..&15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn range(&self) -> Range<&O> {
@@ -924,9 +924,10 @@ impl<O> From<SimpleSpan<O>> for (O, O) {
 /// Thanks to `Deref`, you can call methods on the wrapped value directly:
 ///
 /// ```rust
-/// use tokit::utils::{Span, Spanned};
+/// use tokit::SimpleSpan;
+/// use tokit::span::Spanned;
 ///
-/// let spanned_str = Spanned::new(Span::new(0, 5), "hello");
+/// let spanned_str = Spanned::new(SimpleSpan::new(0, 5), "hello");
 ///
 /// // Can call str methods directly
 /// assert_eq!(spanned_str.len(), 5);
@@ -939,9 +940,10 @@ impl<O> From<SimpleSpan<O>> for (O, O) {
 /// ## Mapping Values While Preserving Spans
 ///
 /// ```rust,ignore
-/// use tokit::utils::{Span, Spanned};
+/// use tokit::SimpleSpan;
+/// use tokit::span::Spanned;
 ///
-/// let spanned_num = Spanned::new(Span::new(10, 12), "42");
+/// let spanned_num = Spanned::new(SimpleSpan::new(10, 12), "42");
 ///
 /// // Parse the string, keeping the same span
 /// let parsed: Spanned<i32> = Spanned::new(
@@ -956,7 +958,8 @@ impl<O> From<SimpleSpan<O>> for (O, O) {
 /// ## Building AST Nodes with Locations
 ///
 /// ```rust,ignore
-/// use tokit::utils::{Span, Spanned};
+/// use tokit::SimpleSpan;
+/// use tokit::span::Spanned;
 ///
 /// enum Expr {
 ///     Number(i64),
@@ -964,11 +967,11 @@ impl<O> From<SimpleSpan<O>> for (O, O) {
 /// }
 ///
 /// // Each AST node knows its source location
-/// let left = Spanned::new(Span::new(0, 2), Expr::Number(1));
-/// let right = Spanned::new(Span::new(5, 7), Expr::Number(2));
+/// let left = Spanned::new(SimpleSpan::new(0, 2), Expr::Number(1));
+/// let right = Spanned::new(SimpleSpan::new(5, 7), Expr::Number(2));
 ///
 /// let add = Spanned::new(
-///     Span::new(0, 7), // Covers the whole expression
+///     SimpleSpan::new(0, 7), // Covers the whole expression
 ///     Expr::Add(Box::new(left), Box::new(right))
 /// );
 /// ```
@@ -1000,12 +1003,13 @@ impl<O> From<SimpleSpan<O>> for (O, O) {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokit::utils::{Span, Spanned};
+/// use tokit::SimpleSpan;
+/// use tokit::span::Spanned;
 ///
-/// let span = Span::new(10, 15);
+/// let span = SimpleSpan::new(10, 15);
 /// let spanned = Spanned::new(span, "hello");
 ///
-/// assert_eq!(spanned.span(), &span);
+/// assert_eq!(spanned.span(), span);
 /// assert_eq!(spanned.data(), &"hello");
 /// assert_eq!(*spanned, "hello"); // Via Deref
 /// ```
@@ -1013,9 +1017,10 @@ impl<O> From<SimpleSpan<O>> for (O, O) {
 /// ## Destructuring
 ///
 /// ```rust
-/// use tokit::utils::{Span, Spanned};
+/// use tokit::SimpleSpan;
+/// use tokit::span::Spanned;
 ///
-/// let spanned = Spanned::new(Span::new(0, 5), 42);
+/// let spanned = Spanned::new(SimpleSpan::new(0, 5), 42);
 ///
 /// let (span, value) = spanned.into_components();
 /// assert_eq!(span.start(), 0);
@@ -1025,9 +1030,10 @@ impl<O> From<SimpleSpan<O>> for (O, O) {
 /// ## Mutable Access
 ///
 /// ```rust
-/// use tokit::utils::{Span, Spanned};
+/// use tokit::SimpleSpan;
+/// use tokit::span::Spanned;
 ///
-/// let mut spanned = Spanned::new(Span::new(0, 1), 10);
+/// let mut spanned = Spanned::new(SimpleSpan::new(0, 1), 10);
 ///
 /// // Modify the data
 /// *spanned += 5;
@@ -1152,10 +1158,11 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Span, Spanned};
+  /// use tokit::SimpleSpan;
+  /// use tokit::span::Spanned;
   ///
-  /// let spanned = Spanned::new(Span::new(5, 10), "data");
-  /// assert_eq!(spanned.span(), Span::new(5, 10));
+  /// let spanned = Spanned::new(SimpleSpan::new(5, 10), "data");
+  /// assert_eq!(spanned.span(), SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span(&self) -> S
@@ -1170,10 +1177,11 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Span, Spanned};
+  /// use tokit::SimpleSpan;
+  /// use tokit::span::Spanned;
   ///
-  /// let spanned = Spanned::new(Span::new(5, 10), "data");
-  /// assert_eq!(spanned.span_ref(), &Span::new(5, 10));
+  /// let spanned = Spanned::new(SimpleSpan::new(5, 10), "data");
+  /// assert_eq!(spanned.span_ref(), &SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span_ref(&self) -> &S {
@@ -1185,9 +1193,10 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Span, Spanned};
+  /// use tokit::SimpleSpan;
+  /// use tokit::span::Spanned;
   ///
-  /// let mut spanned = Spanned::new(Span::new(5, 10), "data");
+  /// let mut spanned = Spanned::new(SimpleSpan::new(5, 10), "data");
   /// spanned.span_mut().set_end(15);
   /// assert_eq!(spanned.span().end(), 15);
   /// ```
@@ -1201,9 +1210,10 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Span, Spanned};
+  /// use tokit::SimpleSpan;
+  /// use tokit::span::Spanned;
   ///
-  /// let spanned = Spanned::new(Span::new(5, 10), 42);
+  /// let spanned = Spanned::new(SimpleSpan::new(5, 10), 42);
   /// assert_eq!(*spanned.data(), 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -1216,9 +1226,10 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Span, Spanned};
+  /// use tokit::SimpleSpan;
+  /// use tokit::span::Spanned;
   ///
-  /// let mut spanned = Spanned::new(Span::new(5, 10), 42);
+  /// let mut spanned = Spanned::new(SimpleSpan::new(5, 10), 42);
   /// *spanned.data_mut() = 100;
   /// assert_eq!(*spanned.data(), 100);
   /// ```
@@ -1232,10 +1243,11 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Span, Spanned};
+  /// use tokit::SimpleSpan;
+  /// use tokit::span::Spanned;
   ///
-  /// let spanned = Spanned::new(Span::new(5, 10), String::from("hello"));
-  /// let borrowed: Spanned<&String> = spanned.as_ref();
+  /// let spanned = Spanned::new(SimpleSpan::new(5, 10), String::from("hello"));
+  /// let borrowed: Spanned<&String, &SimpleSpan> = spanned.as_ref();
   /// assert_eq!(borrowed.data(), &"hello");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -1251,10 +1263,11 @@ impl<D, S> Spanned<D, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Span, Spanned};
+  /// use tokit::SimpleSpan;
+  /// use tokit::span::Spanned;
   ///
-  /// let mut spanned = Spanned::new(Span::new(5, 10), String::from("hello"));
-  /// let borrowed: Spanned<&mut String> = spanned.as_mut();
+  /// let mut spanned = Spanned::new(SimpleSpan::new(5, 10), String::from("hello"));
+  /// let mut borrowed: Spanned<&mut String, &mut SimpleSpan> = spanned.as_mut();
   /// borrowed.data.push_str(" world");
   /// assert_eq!(spanned.data(), &"hello world");
   /// ```

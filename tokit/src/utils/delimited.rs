@@ -22,7 +22,7 @@ use super::IntoComponents;
 /// Thanks to `Deref`, you can call methods on the wrapped value directly:
 ///
 /// ```rust
-/// use tokit::utils::{SimpleSpan, Delimited};
+/// use tokit::{SimpleSpan, utils::Delimited};
 ///
 /// let delimited = Delimited::new('(', ')', "hello", SimpleSpan::new(0, 7));
 ///
@@ -38,7 +38,7 @@ use super::IntoComponents;
 /// ## Parsing Parenthesized Expressions
 ///
 /// ```rust,ignore
-/// use tokit::utils::{SimpleSpan, Delimited};
+/// use tokit::{SimpleSpan, utils::Delimited};
 ///
 /// enum Expr {
 ///     Number(i64),
@@ -56,7 +56,7 @@ use super::IntoComponents;
 /// ## String Literals with Quote Tracking
 ///
 /// ```rust,ignore
-/// use tokit::utils::{SimpleSpan, Delimited};
+/// use tokit::{SimpleSpan, utils::Delimited};
 ///
 /// // Track which quote style was used
 /// let single_quoted = Delimited::new('\'', '\'', "hello", SimpleSpan::new(0, 7));
@@ -73,7 +73,7 @@ use super::IntoComponents;
 /// ## Generic Bracket Types
 ///
 /// ```rust,ignore
-/// use tokit::utils::{SimpleSpan, Delimited};
+/// use tokit::{SimpleSpan, utils::Delimited};
 ///
 /// #[derive(Debug, Clone, Copy)]
 /// enum BracketType {
@@ -95,7 +95,7 @@ use super::IntoComponents;
 /// ## Mapping Values While Preserving Delimiters
 ///
 /// ```rust
-/// use tokit::utils::{SimpleSpan, Delimited};
+/// use tokit::{SimpleSpan, utils::Delimited};
 ///
 /// let delimited_str = Delimited::new('"', '"', "42", SimpleSpan::new(0, 4));
 ///
@@ -142,7 +142,7 @@ use super::IntoComponents;
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokit::utils::{SimpleSpan, Delimited};
+/// use tokit::{SimpleSpan, utils::Delimited};
 ///
 /// let delimited = Delimited::new('(', ')', "content", SimpleSpan::new(0, 9));
 ///
@@ -155,7 +155,7 @@ use super::IntoComponents;
 /// ## Destructuring
 ///
 /// ```rust
-/// use tokit::utils::{SimpleSpan, Delimited};
+/// use tokit::{SimpleSpan, utils::Delimited};
 ///
 /// let delimited = Delimited::new('[', ']', 42, SimpleSpan::new(5, 8));
 ///
@@ -169,7 +169,7 @@ use super::IntoComponents;
 /// ## Mutable Access
 ///
 /// ```rust
-/// use tokit::utils::{SimpleSpan, Delimited};
+/// use tokit::{SimpleSpan, utils::Delimited};
 ///
 /// let mut delimited = Delimited::new('(', ')', 10, SimpleSpan::new(0, 3));
 ///
@@ -316,7 +316,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let delimited = Delimited::new('(', ')', "data", SimpleSpan::new(0, 6));
   /// assert_eq!(delimited.open(), '(');
@@ -334,7 +334,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let delimited = Delimited::new(String::from("("), String::from(")"), "data", SimpleSpan::new(0, 6));
   /// assert_eq!(delimited.open_ref(), &"(");
@@ -349,7 +349,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let mut delimited = Delimited::new('(', ')', "data", SimpleSpan::new(0, 6));
   /// *delimited.open_mut() = '[';
@@ -365,7 +365,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let delimited = Delimited::new('(', ')', "data", SimpleSpan::new(0, 6));
   /// assert_eq!(delimited.close(), ')');
@@ -383,7 +383,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let delimited = Delimited::new(String::from("("), String::from(")"), "data", SimpleSpan::new(0, 6));
   /// assert_eq!(delimited.close_ref(), &")");
@@ -398,7 +398,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let mut delimited = Delimited::new('(', ')', "data", SimpleSpan::new(0, 6));
   /// *delimited.close_mut() = ']';
@@ -414,7 +414,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let delimited = Delimited::new('(', ')', "data", SimpleSpan::new(5, 10));
   /// assert_eq!(delimited.span(), SimpleSpan::new(5, 10));
@@ -432,7 +432,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let delimited = Delimited::new('(', ')', "data", SimpleSpan::new(5, 10));
   /// assert_eq!(delimited.span_ref(), &SimpleSpan::new(5, 10));
@@ -447,7 +447,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let mut delimited = Delimited::new('(', ')', "data", SimpleSpan::new(5, 10));
   /// delimited.span_mut().set_end(15);
@@ -463,7 +463,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let delimited = Delimited::new('(', ')', 42, SimpleSpan::new(0, 4));
   /// assert_eq!(*delimited.data(), 42);
@@ -478,7 +478,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let mut delimited = Delimited::new('(', ')', 42, SimpleSpan::new(0, 4));
   /// *delimited.data_mut() = 100;
@@ -494,7 +494,7 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let delimited = Delimited::new('(', ')', String::from("hello"), SimpleSpan::new(0, 7));
   /// let borrowed: Delimited<&char, &char, &String, &SimpleSpan> = delimited.as_ref();
@@ -515,11 +515,11 @@ impl<Open, Close, Data, S> Delimited<Open, Close, Data, S> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{SimpleSpan, Delimited};
+  /// use tokit::{SimpleSpan, utils::Delimited};
   ///
   /// let mut delimited = Delimited::new('(', ')', String::from("hello"), SimpleSpan::new(0, 7));
-  /// let borrowed: Delimited<&mut char, &mut char, &mut String, &mut SimpleSpan> = delimited.as_mut();
-  /// borrowed.data.push_str(" world");
+  /// let mut borrowed: Delimited<&mut char, &mut char, &mut String, &mut SimpleSpan> = delimited.as_mut();
+  /// borrowed.data_mut().push_str(" world");
   /// assert_eq!(delimited.data(), &"hello world");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]

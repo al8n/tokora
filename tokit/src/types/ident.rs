@@ -21,11 +21,10 @@
 //! ## Zero-Copy Parsing
 //!
 //! ```rust,ignore
-//! use tokit::types::Ident;
-//! use tokit::utils::SimpleSimpleSpan;
+//! use tokit::{SimpleSpan, types::Ident};
 //!
 //! // Parse identifiers without allocating
-//! type YulIdent<'a> = Ident<&'a str, YulLang>;
+//! type YulIdent<'a> = Ident<&'a str, SimpleSpan, YulLang>;
 //!
 //! let ident = YulIdent::new(SimpleSpan::new(0, 3), "foo");
 //! assert_eq!(ident.source_ref(), &"foo");
@@ -35,7 +34,7 @@
 //!
 //! ```rust,ignore
 //! // Store identifiers in AST nodes that outlive the source
-//! type OwnedIdent = Ident<String, MyLang>;
+//! type OwnedIdent = Ident<String, SimpleSpan, MyLang>;
 //!
 //! let ident = OwnedIdent::new(span, source_str.to_string());
 //! ```
@@ -44,7 +43,7 @@
 //!
 //! ```rust,ignore
 //! // Use interned strings for memory efficiency
-//! type InternedIdent = Ident<Symbol, MyLang>;
+//! type InternedIdent = Ident<Symbol, SimpleSpan, MyLang>;
 //!
 //! let ident = InternedIdent::new(span, interner.intern("identifier"));
 //! ```
@@ -58,10 +57,10 @@
 //! use tokit::error::ErrorNode;
 //!
 //! // Create placeholder for malformed identifier
-//! let bad_ident = Ident::<String, YulLang>::error(span);
+//! let bad_ident = Ident::<String, SimpleSpan, YulLang>::error(span);
 //!
 //! // Create placeholder for missing identifier
-//! let missing_ident = Ident::<String, YulLang>::missing(span);
+//! let missing_ident = Ident::<String, SimpleSpan, YulLang>::missing(span);
 //! ```
 
 use core::marker::PhantomData;
@@ -105,8 +104,8 @@ enum Status {
 ///
 /// The `Lang` parameter prevents mixing identifiers from different languages:
 /// ```rust,ignore
-/// let yul_ident: Ident<&str, YulLang> = ...;
-/// let sol_ident: Ident<&str, SolidityLang> = ...;
+/// let yul_ident: Ident<&str, SimpleSpan, YulLang> = ...;
+/// let sol_ident: Ident<&str, SimpleSpan, SolidityLang> = ...;
 ///
 /// // Compile error: type mismatch
 /// // let mixed = vec![yul_ident, sol_ident];
@@ -117,13 +116,12 @@ enum Status {
 /// ## Creating Identifiers
 ///
 /// ```rust
-/// use tokit::types::Ident;
-/// use tokit::utils::SimpleSimpleSpan;
+/// use tokit::{SimpleSpan, types::Ident};
 /// # struct MyLang;
 ///
 /// // Zero-copy identifier
 /// let span = SimpleSpan::new(5, 11);
-/// let ident = Ident::<&str, MyLang>::new(span, "my_var");
+/// let ident = Ident::<&str, SimpleSpan, MyLang>::new(span, "my_var");
 ///
 /// assert_eq!(ident.span(), span);
 /// assert_eq!(ident.source_ref(), &"my_var");
@@ -132,11 +130,10 @@ enum Status {
 /// ## Extracting Components
 ///
 /// ```rust
-/// # use tokit::types::Ident;
-/// # use tokit::utils::{SimpleSpan, IntoComponents};
+/// # use tokit::{SimpleSpan, types::Ident, utils::IntoComponents};
 /// # struct MyLang;
 /// # let span = SimpleSpan::new(0, 3);
-/// let ident = Ident::<&str, MyLang>::new(span, "foo");
+/// let ident = Ident::<&str, SimpleSpan, MyLang>::new(span, "foo");
 ///
 /// // Destructure into span and source
 /// let (span, source) = ident.into_components();
@@ -146,11 +143,10 @@ enum Status {
 /// ## Mutable Access
 ///
 /// ```rust
-/// # use tokit::types::Ident;
-/// # use tokit::utils::SimpleSimpleSpan;
+/// # use tokit::{SimpleSpan, types::Ident};
 /// # struct MyLang;
 /// # let span = SimpleSpan::new(0, 3);
-/// let mut ident = Ident::<String, MyLang>::new(span, "original".to_string());
+/// let mut ident = Ident::<String, SimpleSpan, MyLang>::new(span, "original".to_string());
 ///
 /// // Update the source string
 /// *ident.source_mut() = "modified".to_string();
@@ -196,11 +192,11 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   ///
   /// ```rust
   /// use tokit::types::Ident;
-  /// use tokit::utils::SimpleSimpleSpan;
+  /// use tokit::SimpleSpan;
   /// # struct YulLang;
   ///
   /// let span = SimpleSpan::new(10, 15);
-  /// let ident = Ident::<&str, YulLang>::new(span, "count");
+  /// let ident = Ident::<&str, SimpleSpan, YulLang>::new(span, "count");
   ///
   /// assert_eq!(ident.span(), span);
   /// assert_eq!(ident.source_ref(), &"count");
@@ -226,9 +222,9 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Ident;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(5, 10), "value");
+  /// let ident = Ident::<&str, SimpleSpan, MyLang>::new(SimpleSpan::new(5, 10), "value");
   ///
   /// assert_eq!(ident.span(), SimpleSpan::new(5, 10));
   /// ```
@@ -248,9 +244,9 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Ident;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
+  /// let ident = Ident::<&str, SimpleSpan, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
   /// let span_ref = ident.span_ref();
   /// assert_eq!(*span_ref, SimpleSpan::new(0, 3));
@@ -269,9 +265,9 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Ident;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let mut ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
+  /// let mut ident = Ident::<&str, SimpleSpan, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
   /// *ident.span_mut() = SimpleSpan::new(10, 13);
   /// assert_eq!(ident.span(), SimpleSpan::new(10, 13));
@@ -300,9 +296,9 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Ident;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let mut ident = Ident::<String, MyLang>::new(SimpleSpan::new(0, 3), "foo".to_string());
+  /// let mut ident = Ident::<String, SimpleSpan, MyLang>::new(SimpleSpan::new(0, 3), "foo".to_string());
   ///
   /// *ident.source_mut() = "bar".to_string();
   /// assert_eq!(ident.source_ref(), "bar");
@@ -321,9 +317,9 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Ident;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 8), "variable");
+  /// let ident = Ident::<&str, SimpleSpan, MyLang>::new(SimpleSpan::new(0, 8), "variable");
   ///
   /// assert_eq!(ident.source_ref(), &"variable");
   /// assert_eq!(ident.source_ref().len(), 8);
@@ -346,9 +342,9 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Ident;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let ident = Ident::<&str, MyLang>::new(SimpleSpan::new(0, 2), "id");
+  /// let ident = Ident::<&str, SimpleSpan, MyLang>::new(SimpleSpan::new(0, 2), "id");
   ///
   /// let source: &str = ident.source(); // Copy
   /// assert_eq!(source, "id");
@@ -405,7 +401,7 @@ where
   /// use tokit::error::ErrorNode;
   ///
   /// // Parser found "123abc" where an identifier was expected
-  /// let bad_ident = Ident::<String, YulLang>::error(span);
+  /// let bad_ident = Ident::<String, SimpleSpan, YulLang>::error(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn error(span: Span) -> Self {
@@ -427,7 +423,7 @@ where
   /// // Parser expected identifier after "let" but found "="
   /// // Correct: let name = 5;
   /// // Found:   let = 5;
-  /// let missing_ident = Ident::<String, YulLang>::missing(span);
+  /// let missing_ident = Ident::<String, SimpleSpan, YulLang>::missing(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn missing(span: Span) -> Self {

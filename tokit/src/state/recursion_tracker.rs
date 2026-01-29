@@ -9,7 +9,7 @@ use crate::State;
 /// # Example
 ///
 /// ```rust
-/// use tokit::utils::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
+/// use tokit::state::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
 ///
 /// let mut limiter = RecursionLimiter::with_limitation(10);
 ///
@@ -37,7 +37,7 @@ impl RecursionLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
+  /// use tokit::state::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
   ///
   /// let mut limiter = RecursionLimiter::with_limitation(3);
   /// limiter.increase();
@@ -53,7 +53,7 @@ impl RecursionLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
+  /// use tokit::state::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
   ///
   /// let mut limiter = RecursionLimiter::with_limitation(3);
   /// assert_eq!(limiter.limitation(), 3);
@@ -94,7 +94,7 @@ impl RecursionLimitExceeded {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokit::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::state::recursion_tracker::RecursionLimiter;
 ///
 /// let mut limiter = RecursionLimiter::new();
 ///
@@ -114,7 +114,7 @@ impl RecursionLimitExceeded {
 /// ## Custom Limit
 ///
 /// ```rust
-/// use tokit::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::state::recursion_tracker::RecursionLimiter;
 ///
 /// // Allow deeper nesting for complex grammars
 /// let mut limiter = RecursionLimiter::with_limitation(1000);
@@ -125,7 +125,7 @@ impl RecursionLimitExceeded {
 /// ## Checking Limits
 ///
 /// ```rust
-/// use tokit::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::state::recursion_tracker::RecursionLimiter;
 ///
 /// let mut limiter = RecursionLimiter::with_limitation(5);
 ///
@@ -141,7 +141,7 @@ impl RecursionLimitExceeded {
 /// ## Recursive Parser Example
 ///
 /// ```rust,ignore
-/// use tokit::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::state::recursion_tracker::RecursionLimiter;
 ///
 /// fn parse_expr(input: &str, limiter: &mut RecursionLimiter) -> Result<Expr, Error> {
 ///     limiter.increase();
@@ -166,7 +166,7 @@ impl RecursionLimitExceeded {
 ///
 /// ```rust,ignore
 /// use logos::Logos;
-/// use tokit::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::state::recursion_tracker::RecursionLimiter;
 ///
 /// #[derive(Default)]
 /// struct LexerState {

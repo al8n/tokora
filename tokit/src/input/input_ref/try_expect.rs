@@ -11,7 +11,7 @@ macro_rules! try_expect_punct {
   ($($punct:ident $(:$alias:ident)? :$punct_char:literal),+$(,)?) => {
     paste::paste! {
       $(
-        #[doc = "Tries to advance to the next valid token if it to be " $punct " (" $punct_char "). Otherwise leaves the input unchanged."]
+        #[doc = "Tries to advance to the next valid token if it is " $punct " (" $punct_char "). Otherwise leaves the input unchanged."]
         #[cfg_attr(not(tarpaulin), inline(always))]
         pub fn [< try_expect_ $punct >](
           &mut self,
@@ -22,7 +22,7 @@ macro_rules! try_expect_punct {
           self.try_expect(|t| t.data.[<is_ $punct>]())
         }
 
-        #[doc = "Advance to the next valid token if it to be " $punct " (" $punct_char "). Otherwise leaves the input unchanged."]
+        #[doc = "Advances to the next valid token and expects it to be " $punct " (" $punct_char ")."]
         #[cfg_attr(not(tarpaulin), inline(always))]
         pub fn [< expect_ $punct >](
           &mut self,
@@ -41,7 +41,7 @@ macro_rules! try_expect_punct {
         }
 
         $(
-          #[doc = "Tries to advance to the next valid token if it to be " $alias " (" $punct_char "). Otherwise leaves the input unchanged."]
+          #[doc = "Tries to advance to the next valid token if it is " $alias " (" $punct_char "). Otherwise leaves the input unchanged."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub fn [< try_expect_ $alias >](
             &mut self,
@@ -52,7 +52,7 @@ macro_rules! try_expect_punct {
             self.[< try_expect_ $punct >]()
           }
 
-          #[doc = "Advance to the next valid token if it to be " $alias " (" $punct_char "). Otherwise leaves the input unchanged."]
+          #[doc = "Advances to the next valid token and expects it to be " $alias " (" $punct_char ")."]
           #[cfg_attr(not(tarpaulin), inline(always))]
           pub fn [< expect_ $alias >](
             &mut self,
@@ -122,8 +122,8 @@ where
   /// Advances to the next valid token and expects it to satisfy the predicate.
   ///
   /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
-  /// If `pred` returns `Ok`, the token is consumed and returned.
-  /// Otherwise, the error is returned and the token remains in the cache.
+  /// If `pred` returns `true`, the token is consumed and returned.
+  /// Otherwise, the token remains in the cache and `Ok(None)` is returned.
   pub fn try_expect<F>(
     &mut self,
     mut pred: F,
@@ -194,8 +194,8 @@ where
   /// Advances to the next valid token and expects it to satisfy the predicate.
   ///
   /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
-  /// If `pred` returns `Ok`, the token is consumed and returned.
-  /// Otherwise, the error is returned and the token remains in the cache.
+  /// If `pred` returns `Some(output)`, the token is consumed and `(output, token)` is returned.
+  /// If `pred` returns `None`, the token remains in the cache and `Ok(None)` is returned.
   pub fn try_expect_map<O, F>(
     &mut self,
     mut pred: F,
@@ -235,8 +235,9 @@ where
   /// Advances to the next valid token and expects it to satisfy the predicate.
   ///
   /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
-  /// If `pred` returns `Ok`, the token is consumed and returned.
-  /// Otherwise, the error is returned and the token remains in the cache.
+  /// If `pred` returns `Some(Ok(output))`, the token is consumed and `(output, token)` is returned.
+  /// If `pred` returns `Some(Err(error))`, the token is consumed and `Err(error)` is returned.
+  /// If `pred` returns `None`, the token remains in the cache and `Ok(None)` is returned.
   pub fn try_expect_and_then<O, F>(
     &mut self,
     mut pred: F,

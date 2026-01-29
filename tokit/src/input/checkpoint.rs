@@ -20,7 +20,7 @@ use super::{Cursor, Lexer};
 /// let checkpoint = tokenizer.save();
 /// // Try parsing something that might fail...
 /// if should_backtrack {
-///     tokenizer.go(checkpoint); // Restore to saved state
+///     tokenizer.restore(checkpoint); // Restore to saved state
 /// }
 /// ```
 pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {

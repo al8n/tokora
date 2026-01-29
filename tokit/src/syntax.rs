@@ -17,11 +17,15 @@
 //!
 //! ```rust
 //! # {
-//! use tokit::{utils::{typenum::{self, U3}, GenericArrayDeque, Span}, syntax::Syntax, error::IncompleteSyntax};
+//! use tokit::{SimpleSpan, utils::{typenum::{self, U3}, GenericArrayDeque}, syntax::{Syntax, Language}, error::IncompleteSyntax};
 //! use core::fmt;
 //!
-//! #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+//! #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 //! struct MyLanguage;
+//!
+//! impl Language for MyLanguage {
+//!   type SyntaxKind = (); // () is a placeholder
+//! }
 //!
 //! #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 //! enum WhileComponent {
@@ -44,12 +48,13 @@
 //!
 //! impl Syntax for WhileLoop {
 //!     type Lang = MyLanguage;
+//!     const KIND: () = (); // () is a placeholder
 //!     type Component = WhileComponent;
 //!     type COMPONENTS = U3;
 //!     type REQUIRED = U3;
 //!
 //!     fn possible_components() -> &'static GenericArrayDeque<Self::Component, U3> {
-//!         static COMPONENTS: GenericArrayDeque<WhileComponent, tokit::utils::typenum::U3> = {
+//!         static COMPONENTS: GenericArrayDeque<WhileComponent, U3> = {
 //!             let mut deque = GenericArrayDeque::new();
 //!             deque.push_back(WhileComponent::WhileKeyword);
 //!             deque.push_back(WhileComponent::Condition);
@@ -60,7 +65,7 @@
 //!     }
 //!
 //!     fn required_components() -> &'static GenericArrayDeque<Self::Component, Self::REQUIRED> {
-//!         static REQUIRED: GenericArrayDeque<WhileComponent, tokit::utils::typenum::U3> = {
+//!         static REQUIRED: GenericArrayDeque<WhileComponent, U3> = {
 //!             let mut deque = GenericArrayDeque::new();
 //!             deque.push_back(WhileComponent::WhileKeyword);
 //!             deque.push_back(WhileComponent::Condition);
@@ -71,7 +76,7 @@
 //!     }
 //! }
 //!
-//! let mut error = IncompleteSyntax::<WhileLoop>::new(Span::new(10, 15), WhileComponent::Condition);
+//! let mut error = IncompleteSyntax::<WhileLoop>::new(SimpleSpan::new(10, 15), WhileComponent::Condition);
 //! assert_eq!(error.len(), 1);
 //! # }
 //! ```
@@ -101,6 +106,7 @@ use core::{
 /// use typenum::U5;
 /// use core::fmt;
 ///
+/// #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// struct MyLanguage;
 ///
 /// impl Language for MyLanguage {
@@ -317,11 +323,11 @@ pub trait Syntax {
 ///
 /// ```rust
 /// # {
-/// use tokit::{utils::{GenericArrayDeque, typenum::U2, Span}, syntax::{Syntax, AstNode, Language}, error::IncompleteSyntax};
+/// use tokit::{SimpleSpan, utils::{GenericArrayDeque, typenum::U2}, syntax::{Syntax, AstNode, Language}, error::IncompleteSyntax};
 /// use core::fmt;
 ///
 /// // Define a language
-/// #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// struct MyLanguage;
 ///
 /// impl Language for MyLanguage {
@@ -376,7 +382,7 @@ pub trait Syntax {
 /// }
 ///
 /// // Now generic code can use T::Syntax automatically
-/// fn create_incomplete_error<T>(span: Span, component: <T::Syntax as Syntax>::Component) -> IncompleteSyntax<T::Syntax>
+/// fn create_incomplete_error<T>(span: SimpleSpan, component: <T::Syntax as Syntax>::Component) -> IncompleteSyntax<T::Syntax>
 /// where
 ///     T: AstNode<MyLanguage>,
 /// {
@@ -384,7 +390,7 @@ pub trait Syntax {
 /// }
 ///
 /// let error = create_incomplete_error::<Variable>(
-///     Span::new(0, 3),
+///     SimpleSpan::new(0, 3),
 ///     VariableComponent::Dollar
 /// );
 /// # }

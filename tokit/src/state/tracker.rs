@@ -27,7 +27,7 @@ use super::{
 /// ## Pattern Matching
 ///
 /// ```rust
-/// use tokit::utils::tracker::{Limiter, LimitExceeded};
+/// use tokit::state::tracker::{Limiter, LimitExceeded};
 ///
 /// let mut tracker = Limiter::new();
 /// // ... use tracker ...
@@ -47,8 +47,8 @@ use super::{
 /// ## Using Derived Methods
 ///
 /// ```rust
-/// use tokit::utils::tracker::{Limiter, LimitExceeded};
-/// use tokit::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::state::tracker::{Limiter, LimitExceeded};
+/// use tokit::state::recursion_tracker::RecursionLimiter;
 ///
 /// let mut tracker = Limiter::with_recursion_tracker(
 ///     RecursionLimiter::with_limitation(2)
@@ -59,6 +59,7 @@ use super::{
 /// tracker.increase_recursion(); // Exceeds limit
 ///
 /// if let Err(error) = tracker.check() {
+///     let error: LimitExceeded = error;
 ///     assert!(error.is_recursion());
 ///     let recursion_error = error.unwrap_recursion();
 ///     assert_eq!(recursion_error.depth(), 3);
@@ -120,7 +121,7 @@ pub enum LimitExceeded {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokit::utils::tracker::Limiter;
+/// use tokit::state::tracker::Limiter;
 ///
 /// let mut tracker = Limiter::new();
 ///
@@ -139,9 +140,9 @@ pub enum LimitExceeded {
 /// ## Configuring Limits
 ///
 /// ```rust
-/// use tokit::utils::tracker::Limiter;
-/// use tokit::utils::token_tracker::TokenLimiter;
-/// use tokit::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::state::tracker::Limiter;
+/// use tokit::state::token_tracker::TokenLimiter;
+/// use tokit::state::recursion_tracker::RecursionLimiter;
 ///
 /// let tracker = Limiter::with_trackers(
 ///     TokenLimiter::with_limitation(10000),
@@ -155,8 +156,8 @@ pub enum LimitExceeded {
 /// ## Checking Limits
 ///
 /// ```rust
-/// use tokit::utils::tracker::Limiter;
-/// use tokit::utils::token_tracker::TokenLimiter;
+/// use tokit::state::tracker::Limiter;
+/// use tokit::state::token_tracker::TokenLimiter;
 ///
 /// let mut tracker = Limiter::with_token_tracker(
 ///     TokenLimiter::with_limitation(5)
@@ -175,9 +176,9 @@ pub enum LimitExceeded {
 ///
 /// ```rust,ignore
 /// use logos::Logos;
-/// use tokit::utils::tracker::Limiter;
-/// use tokit::utils::token_tracker::TokenLimiter;
-/// use tokit::utils::recursion_tracker::RecursionLimiter;
+/// use tokit::state::tracker::Limiter;
+/// use tokit::state::token_tracker::TokenLimiter;
+/// use tokit::state::recursion_tracker::RecursionLimiter;
 ///
 /// #[derive(Default)]
 /// struct LexerState {
@@ -223,7 +224,7 @@ pub enum LimitExceeded {
 /// ## Parser Integration
 ///
 /// ```rust,ignore
-/// use tokit::utils::tracker::Limiter;
+/// use tokit::state::tracker::Limiter;
 ///
 /// struct Parser {
 ///     tracker: Limiter,
@@ -273,7 +274,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
+  /// use tokit::state::tracker::Limiter;
   ///
   /// let tracker = Limiter::new();
   /// assert_eq!(tracker.recursion().limitation(), 500);
@@ -289,8 +290,8 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
-  /// use tokit::utils::token_tracker::TokenLimiter;
+  /// use tokit::state::tracker::Limiter;
+  /// use tokit::state::token_tracker::TokenLimiter;
   ///
   /// let tracker = Limiter::with_token_tracker(
   ///     TokenLimiter::with_limitation(10000)
@@ -309,8 +310,8 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
-  /// use tokit::utils::recursion_tracker::RecursionLimiter;
+  /// use tokit::state::tracker::Limiter;
+  /// use tokit::state::recursion_tracker::RecursionLimiter;
   ///
   /// let tracker = Limiter::with_recursion_tracker(
   ///     RecursionLimiter::with_limitation(100)
@@ -329,9 +330,9 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
-  /// use tokit::utils::token_tracker::TokenLimiter;
-  /// use tokit::utils::recursion_tracker::RecursionLimiter;
+  /// use tokit::state::tracker::Limiter;
+  /// use tokit::state::token_tracker::TokenLimiter;
+  /// use tokit::state::recursion_tracker::RecursionLimiter;
   ///
   /// let tracker = Limiter::with_trackers(
   ///     TokenLimiter::with_limitation(5000),
@@ -357,7 +358,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
+  /// use tokit::state::tracker::Limiter;
   ///
   /// let tracker = Limiter::new();
   /// assert_eq!(tracker.token().tokens(), 0);
@@ -372,7 +373,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
+  /// use tokit::state::tracker::Limiter;
   ///
   /// let mut tracker = Limiter::new();
   /// tracker.token_mut().increase();
@@ -388,7 +389,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
+  /// use tokit::state::tracker::Limiter;
   ///
   /// let tracker = Limiter::new();
   /// assert_eq!(tracker.recursion().depth(), 0);
@@ -403,7 +404,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
+  /// use tokit::state::tracker::Limiter;
   ///
   /// let mut tracker = Limiter::new();
   /// tracker.recursion_mut().increase();
@@ -421,7 +422,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
+  /// use tokit::state::tracker::Limiter;
   ///
   /// let mut tracker = Limiter::new();
   /// tracker.increase_token();
@@ -439,7 +440,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
+  /// use tokit::state::tracker::Limiter;
   ///
   /// let mut tracker = Limiter::new();
   /// tracker.increase_recursion();
@@ -457,7 +458,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
+  /// use tokit::state::tracker::Limiter;
   ///
   /// let mut tracker = Limiter::new();
   /// tracker.increase_recursion();
@@ -480,8 +481,8 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::tracker::Limiter;
-  /// use tokit::utils::token_tracker::TokenLimiter;
+  /// use tokit::state::tracker::Limiter;
+  /// use tokit::state::token_tracker::TokenLimiter;
   ///
   /// let mut tracker = Limiter::with_token_tracker(
   ///     TokenLimiter::with_limitation(3)
