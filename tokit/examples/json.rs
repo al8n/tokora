@@ -607,6 +607,6 @@ where
 const SRC: &str = include_str!("sample.json");
 
 fn main() {
-  let output = Parser::new().apply(json_value).parse(SRC).unwrap();
+  let output = Parser::new().apply(json_value).parse_str(SRC).unwrap();
   println!("{:#?}", output);
 }
