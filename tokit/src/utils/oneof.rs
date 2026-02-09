@@ -42,7 +42,7 @@ impl<'a, T: Clone> OneOf<'a, T> {
   /// ```
   /// use tokit::utils::OneOf;
   ///
-  /// let values = OneOf::new(&["greeting", "salutation"]);
+  /// let values = OneOf::from_slice(&["greeting", "salutation"]);
   /// assert_eq!(values.as_slice(), &["greeting", "salutation"]);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
