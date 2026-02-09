@@ -127,7 +127,6 @@ macro_rules! define_punctuator_token_traits {
         )*
       }
 
-
       /// Extension trait providing default implementations for punctuator token methods.
       pub trait PunctuatorTokenExt<'a>: PunctuatorToken<'a> {
         /// Returns `true` when the token is a punctuator.
@@ -227,11 +226,18 @@ define_punctuator_token_traits!(
   tilde: "~",
   underscore: "_",
   equal: "=",
+  #[doc(alias = "hyphen")]
   minus: "-",
   #[doc(alias = "thin_arrow")]
   arrow: "->",
   fat_arrow: "=>",
+  #[doc(alias = "pipe_forward")]
+  pipe_arrow: "|>",
   double_colon: "::",
+  #[doc(alias = "colon_assign")]
+  #[doc(alias = "short_declaration")]
+  #[doc(alias = "colon_equals")]
+  colon_eq: ":=",
   tab: "\t",
   newline: "\n",
   carriage_return: "\r",
@@ -249,6 +255,7 @@ define_punctuator_token_traits!(
   apostrophe: "'",
   double_quote: "\"",
   plus: "+",
+  #[doc(alias = "bang")]
   exclamation: "!",
   question: "?",
   backtick: "`",

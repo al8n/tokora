@@ -704,8 +704,7 @@ impl<'a, T: KeywordToken<'a>> KeywordToken<'a> for &'a T {
 /// - Logical: `is_logical`, `is_logical_and`, `is_logical_or`, `is_logical_xor`, `is_logical_not`
 /// - Comparison: `is_comparison`, `is_eq`, `is_strict_eq`, `is_ne`, `is_strict_ne`, `is_le`, etc.
 /// - Shift / bitwise: `is_shift`, `is_shl`, `is_shr`, plus bitwise forms
-/// - Miscellaneous: `pow`, `is_arrow`, `is_fat_arrow`, `is_pipe_forward`,
-///   `is_backslash`
+/// - Miscellaneous: `pow`, `is_arrow`, `is_fat_arrow`, `is_backslash`
 ///
 /// ## Example
 ///
@@ -1034,12 +1033,6 @@ pub trait OperatorToken<'a>: Token<'a> {
   /// Returns `true` for the fat-arrow operator.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_fat_arrow(&self) -> bool {
-    false
-  }
-
-  /// Returns `true` for pipe-forward operators.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn is_pipe_forward(&self) -> bool {
     false
   }
 

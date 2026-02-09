@@ -228,10 +228,16 @@ punctuator! {
   (Tilde, "TILDE", "~"),
   (Underscore, "UNDERSCORE", "_"),
   (Equal, "EQUAL", "="),
+  #[doc(alias = "Minus")]
   (Hyphen, "HYPHEN", "-"),
   #[doc(alias = "ThinArrow")]
   (Arrow, "ARROW", "->"),
   (FatArrow, "FAT_ARROW", "=>"),
+  #[doc(alias = "PipeForward")]
+  (PipeArrow, "PIPE_ARROW", "|>"),
+  #[doc(alias = "ColonAssign")]
+  #[doc(alias = "ShortDeclaration")]
+  #[doc(alias = "ColonEquals")]
   (ColonEq, "COLON_EQ", ":="),
   (DoubleColon, "DOUBLE_COLON", "::"),
   (Tab, "TAB", "\t"),
@@ -251,6 +257,7 @@ punctuator! {
   (Apostrophe, "APOSTROPHE", "'"),
   (DoubleQuote, "DOUBLE_QUOTE", "\""),
   (Plus, "PLUS", "+"),
+  #[doc(alias = "Bang")]
   (Exclamation, "EXCLAMATION", "!"),
   (Question, "QUESTION", "?"),
   (Backtick, "BACKTICK", "`"),
