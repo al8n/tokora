@@ -24,16 +24,14 @@ mod punct;
 ///
 /// # Required Associated Types
 ///
-/// - **`Char`**: The character type used by the lexer (typically `char` for UTF-8 or `u8` for bytes)
 /// - **`Kind`**: An enum representing token categories (e.g., `Identifier`, `Number`, `Plus`)
-/// - **`Logos`**: The Logos enum that this token type wraps
+/// - **`Error`**: The error type produced by the lexer for invalid tokens
 ///
 /// # Required Traits
 ///
 /// Implementors must also implement:
 /// - `Clone`: Tokens need to be cloneable for backtracking in parsers
 /// - `Debug`: For debugging and error messages
-/// - `From<Self::Logos>`: Convert from the raw Logos token to the structured token
 ///
 /// ## Examples
 ///
@@ -197,17 +195,7 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   ///
   /// ```rust
   /// use tokit::Token;
-  /// use logos::Logos;
-  ///
-  /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
-  /// enum MyTokens {
-  ///     #[regex(r"[ \t\n]+")]
-  ///     Whitespace,
-  ///     #[regex(r"//[^\n]*")]
-  ///     Comment,
-  ///     #[regex(r"[0-9]+")]
-  ///     Number,
-  /// }
+  /// use core::fmt;
   ///
   /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
   /// enum TokenKind {
@@ -216,37 +204,37 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   ///     Number,
   /// }
   ///
+  /// impl fmt::Display for TokenKind {
+  ///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+  ///         let name = match self {
+  ///             Self::Whitespace => "whitespace",
+  ///             Self::Comment => "comment",
+  ///             Self::Number => "number",
+  ///         };
+  ///         f.write_str(name)
+  ///     }
+  /// }
+  ///
   /// #[derive(Debug, Clone, PartialEq)]
   /// struct MyToken {
   ///     kind: TokenKind,
   /// }
   ///
   /// impl Token<'_> for MyToken {
-  ///     type Char = char;
   ///     type Kind = TokenKind;
-  ///     type Logos = MyTokens;
+  ///     type Error = ();
   ///
-  ///     #[inline(always)]
   ///     fn kind(&self) -> Self::Kind {
   ///         self.kind
   ///     }
   ///
-  ///     #[inline(always)]
   ///     fn is_trivia(&self) -> bool {
   ///         matches!(self.kind, TokenKind::Whitespace | TokenKind::Comment)
   ///     }
   /// }
   ///
-  /// impl From<MyTokens> for MyToken {
-  ///     fn from(logos: MyTokens) -> Self {
-  ///         let kind = match logos {
-  ///             MyTokens::Whitespace => TokenKind::Whitespace,
-  ///             MyTokens::Comment => TokenKind::Comment,
-  ///             MyTokens::Number => TokenKind::Number,
-  ///         };
-  ///         MyToken { kind }
-  ///     }
-  /// }
+  /// let token = MyToken { kind: TokenKind::Whitespace };
+  /// assert!(token.is_trivia());
   /// ```
   fn is_trivia(&self) -> bool;
 }
@@ -336,20 +324,8 @@ where
 /// ## Example
 ///
 /// ```rust
-/// use tokit::{Token, LitToken};
-/// use logos::Logos;
-///
-/// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
-/// enum MyTokens {
-///     #[regex(r"[0-9]+")]
-///     Integer,
-///     #[regex(r"[0-9]+\.[0-9]+")]
-///     Float,
-///     #[regex(r#""([^"\\]|\\.)*""#)]
-///     String,
-///     #[regex(r"true|false")]
-///     Boolean,
-/// }
+/// use tokit::{Token, token::LitToken};
+/// use core::fmt;
 ///
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// enum MyTokenKind {
@@ -359,30 +335,33 @@ where
 ///     Boolean,
 /// }
 ///
+/// impl fmt::Display for MyTokenKind {
+///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+///         let name = match self {
+///             Self::Integer => "integer",
+///             Self::Float => "float",
+///             Self::String => "string",
+///             Self::Boolean => "boolean",
+///         };
+///         f.write_str(name)
+///     }
+/// }
+///
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct MyToken {
 ///     kind: MyTokenKind,
 /// }
 ///
 /// impl Token<'_> for MyToken {
-///     type Char = char;
 ///     type Kind = MyTokenKind;
-///     type Logos = MyTokens;
+///     type Error = ();
 ///
 ///     fn kind(&self) -> Self::Kind {
 ///         self.kind
 ///     }
-/// }
 ///
-/// impl From<MyTokens> for MyToken {
-///     fn from(logos: MyTokens) -> Self {
-///         let kind = match logos {
-///             MyTokens::Integer => MyTokenKind::Integer,
-///             MyTokens::Float => MyTokenKind::Float,
-///             MyTokens::String => MyTokenKind::String,
-///             MyTokens::Boolean => MyTokenKind::Boolean,
-///         };
-///         Self { kind }
+///     fn is_trivia(&self) -> bool {
+///         false
 ///     }
 /// }
 ///
@@ -403,6 +382,9 @@ where
 ///         matches!(self.kind, MyTokenKind::Boolean)
 ///     }
 /// }
+///
+/// let token = MyToken { kind: MyTokenKind::Integer };
+/// assert!(token.is_integer_literal());
 /// ```
 pub trait LitToken<'a>: Token<'a> {
   /// Returns `true` if the token is any literal (number, string, boolean, etc.).
@@ -544,24 +526,25 @@ pub trait LitToken<'a>: Token<'a> {
 /// ## Example
 ///
 /// ```rust
-/// use tokit::{Token, IdentifierToken};
-/// use logos::Logos;
-///
-/// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
-/// enum MyTokens<'a> {
-///     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
-///     Identifier(&'a str),
-///     #[token("if")]
-///     If,
-///     #[token("else")]
-///     Else,
-/// }
+/// use tokit::{Token, token::IdentifierToken};
+/// use core::fmt;
 ///
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// enum MyTokenKind {
 ///     Identifier,
 ///     KeywordIf,
 ///     KeywordElse,
+/// }
+///
+/// impl fmt::Display for MyTokenKind {
+///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+///         let name = match self {
+///             Self::Identifier => "identifier",
+///             Self::KeywordIf => "if",
+///             Self::KeywordElse => "else",
+///         };
+///         f.write_str(name)
+///     }
 /// }
 ///
 /// #[derive(Debug, Clone, PartialEq)]
@@ -572,7 +555,7 @@ pub trait LitToken<'a>: Token<'a> {
 /// }
 ///
 /// impl<'a> Token<'a> for MyToken<'a> {
-///     type Char = char;
+///     type Kind = MyTokenKind;
 ///     type Error = ();
 ///
 ///     fn kind(&self) -> Self::Kind {
@@ -588,32 +571,14 @@ pub trait LitToken<'a>: Token<'a> {
 ///     }
 /// }
 ///
-/// impl<'a> From<MyTokens<'a>> for MyToken<'a> {
-///     fn from(logos: MyTokens<'a>) -> Self {
-///         match logos {
-///             MyTokens::Identifier(s) => MyToken::Identifier(s),
-///             MyTokens::If => MyToken::If,
-///             MyTokens::Else => MyToken::Else,
-///         }
-///     }
-/// }
-///
 /// impl<'a> IdentifierToken<'a> for MyToken<'a> {
-///     fn identifier(&self) -> Option<&&'a str> {
-///         if let MyToken::Identifier(name) = self {
-///             Some(name)
-///         } else {
-///             None
-///         }
-///     }
-///
-///     fn try_into_identifier(self) -> Result<&'a str, Self> {
-///         match &self {
-///             MyToken::Identifier(name) => Ok(*name),
-///             _ => Err(self),
-///         }
+///     fn is_identifier(&self) -> bool {
+///         matches!(self, MyToken::Identifier(_))
 ///     }
 /// }
+///
+/// let token = MyToken::Identifier("name");
+/// assert!(token.is_identifier());
 /// ```
 pub trait IdentifierToken<'a>: Token<'a> {
   /// Returns `true` when the token is an identifier (user-defined name).
@@ -632,24 +597,25 @@ impl<'a, T: IdentifierToken<'a>> IdentifierToken<'a> for &'a T {
 /// ## Example
 ///
 /// ```rust
-/// use tokit::{Token, KeywordToken, utils::cmp::Equivalent};
-/// use logos::Logos;
-///
-/// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
-/// enum MyTokens<'a> {
-///     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
-///     Identifier(&'a str),
-///     #[token("if")]
-///     If,
-///     #[token("else")]
-///     Else,
-/// }
+/// use tokit::{Token, token::KeywordToken};
+/// use core::fmt;
 ///
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// enum MyTokenKind {
 ///     Identifier,
 ///     KeywordIf,
 ///     KeywordElse,
+/// }
+///
+/// impl fmt::Display for MyTokenKind {
+///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+///         let name = match self {
+///             Self::Identifier => "identifier",
+///             Self::KeywordIf => "if",
+///             Self::KeywordElse => "else",
+///         };
+///         f.write_str(name)
+///     }
 /// }
 ///
 /// #[derive(Debug, Clone, PartialEq)]
@@ -660,9 +626,8 @@ impl<'a, T: IdentifierToken<'a>> IdentifierToken<'a> for &'a T {
 /// }
 ///
 /// impl<'a> Token<'a> for MyToken<'a> {
-///     type Char = char;
 ///     type Kind = MyTokenKind;
-///     type Logos = MyTokens<'a>;
+///     type Error = ();
 ///
 ///     fn kind(&self) -> Self::Kind {
 ///         match self {
@@ -671,21 +636,9 @@ impl<'a, T: IdentifierToken<'a>> IdentifierToken<'a> for &'a T {
 ///            MyToken::Else => MyTokenKind::KeywordElse,
 ///         }
 ///     }
-/// }
 ///
-/// impl<'a> From<MyTokens<'a>> for MyToken<'a> {
-///     fn from(logos: MyTokens<'a>) -> Self {
-///         match logos {
-///             MyTokens::Identifier(s) => MyToken::Identifier(s),
-///             MyTokens::If => MyToken::If,
-///             MyTokens::Else => MyToken::Else,
-///         }
-///     }
-/// }
-///
-/// impl<'a> Equivalent<MyToken<'a>> for str {
-///     fn equivalent(&self, other: &MyToken<'a>) -> bool {
-///         other.keyword().is_some_and(|kw| kw == self)
+///     fn is_trivia(&self) -> bool {
+///         false
 ///     }
 /// }
 ///
@@ -698,6 +651,10 @@ impl<'a, T: IdentifierToken<'a>> IdentifierToken<'a> for &'a T {
 ///         }
 ///     }
 /// }
+///
+/// let token = MyToken::If;
+/// assert!(token.is_keyword());
+/// assert_eq!(token.keyword(), Some("if"));
 /// ```
 pub trait KeywordToken<'a>: Token<'a> {
   /// Returns `true` when the token is any reserved keyword.
@@ -753,18 +710,8 @@ impl<'a, T: KeywordToken<'a>> KeywordToken<'a> for &'a T {
 /// ## Example
 ///
 /// ```rust
-/// use tokit::{Token, OperatorToken, utils::cmp::Equivalent};
-/// use logos::Logos;
-///
-/// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
-/// enum MyTokens {
-///     #[token("+")]
-///     Plus,
-///     #[token("++")]
-///     Increment,
-///     #[token("+=")]
-///     PlusAssign,
-/// }
+/// use tokit::{Token, token::OperatorToken};
+/// use core::fmt;
 ///
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// enum MyTokenKind {
@@ -773,39 +720,32 @@ impl<'a, T: KeywordToken<'a>> KeywordToken<'a> for &'a T {
 ///     PlusAssign,
 /// }
 ///
+/// impl fmt::Display for MyTokenKind {
+///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+///         let name = match self {
+///             Self::Plus => "+",
+///             Self::Increment => "++",
+///             Self::PlusAssign => "+=",
+///         };
+///         f.write_str(name)
+///     }
+/// }
+///
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct MyToken {
 ///     kind: MyTokenKind,
 /// }
 ///
 /// impl Token<'_> for MyToken {
-///     type Char = char;
 ///     type Kind = MyTokenKind;
-///     type Logos = MyTokens;
+///     type Error = ();
 ///
 ///     fn kind(&self) -> Self::Kind {
 ///         self.kind
 ///     }
-/// }
 ///
-/// impl From<MyTokens> for MyToken {
-///     fn from(logos: MyTokens) -> Self {
-///         let kind = match logos {
-///             MyTokens::Plus => MyTokenKind::Plus,
-///             MyTokens::Increment => MyTokenKind::Increment,
-///             MyTokens::PlusAssign => MyTokenKind::PlusAssign,
-///         };
-///         Self { kind }
-///     }
-/// }
-///
-/// impl Equivalent<MyToken> for str {
-///     fn equivalent(&self, other: &MyToken) -> bool {
-///         match other.kind {
-///             MyTokenKind::Plus => self == "+",
-///             MyTokenKind::Increment => self == "++",
-///             MyTokenKind::PlusAssign => self == "+=",
-///         }
+///     fn is_trivia(&self) -> bool {
+///         false
 ///     }
 /// }
 ///
@@ -822,6 +762,9 @@ impl<'a, T: KeywordToken<'a>> KeywordToken<'a> for &'a T {
 ///         matches!(self.kind, MyTokenKind::PlusAssign)
 ///     }
 /// }
+///
+/// let token = MyToken { kind: MyTokenKind::PlusAssign };
+/// assert!(token.is_add_assign());
 /// ```
 pub trait OperatorToken<'a>: Token<'a> {
   /// Returns `true` when the token is the simple assignment operator.
@@ -1127,21 +1070,23 @@ pub trait OperatorToken<'a>: Token<'a> {
 /// ## Example
 ///
 /// ```rust
-/// use tokit::{Token, DelimiterToken, utils::cmp::Equivalent};
-/// use logos::Logos;
-///
-/// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
-/// enum MyTokens {
-///     #[token("(")]
-///     LParen,
-///     #[token(")")]
-///     RParen,
-/// }
+/// use tokit::{Token, token::DelimiterToken};
+/// use core::fmt;
 ///
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// enum MyTokenKind {
 ///     ParenOpen,
 ///     ParenClose,
+/// }
+///
+/// impl fmt::Display for MyTokenKind {
+///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+///         let name = match self {
+///             Self::ParenOpen => "(",
+///             Self::ParenClose => ")",
+///         };
+///         f.write_str(name)
+///     }
 /// }
 ///
 /// #[derive(Debug, Clone, PartialEq)]
@@ -1150,31 +1095,15 @@ pub trait OperatorToken<'a>: Token<'a> {
 /// }
 ///
 /// impl Token<'_> for MyToken {
-///     type Char = char;
 ///     type Kind = MyTokenKind;
-///     type Logos = MyTokens;
+///     type Error = ();
 ///
 ///     fn kind(&self) -> Self::Kind {
 ///         self.kind
 ///     }
-/// }
 ///
-/// impl From<MyTokens> for MyToken {
-///     fn from(logos: MyTokens) -> Self {
-///         let kind = match logos {
-///             MyTokens::LParen => MyTokenKind::ParenOpen,
-///             MyTokens::RParen => MyTokenKind::ParenClose,
-///         };
-///         Self { kind }
-///     }
-/// }
-///
-/// impl Equivalent<MyToken> for str {
-///     fn equivalent(&self, other: &MyToken) -> bool {
-///         match other.kind {
-///             MyTokenKind::ParenOpen => self == "(",
-///             MyTokenKind::ParenClose => self == ")",
-///         }
+///     fn is_trivia(&self) -> bool {
+///         false
 ///     }
 /// }
 ///
@@ -1187,6 +1116,9 @@ pub trait OperatorToken<'a>: Token<'a> {
 ///         matches!(self.kind, MyTokenKind::ParenClose)
 ///     }
 /// }
+///
+/// let token = MyToken { kind: MyTokenKind::ParenOpen };
+/// assert!(token.is_opening_delimiter());
 /// ```
 pub trait DelimiterToken<'a>: Token<'a> {
   /// Returns `true` if the token is any delimiter (opening or closing).

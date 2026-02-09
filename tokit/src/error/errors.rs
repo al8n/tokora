@@ -4,7 +4,7 @@
 //! or validation. The container automatically adapts based on available features:
 //!
 //! - **no_std (no alloc)**: Uses `ConstGenericArrayDeque<E, 2>` with fixed capacity of 2 errors
-//! - **alloc/std**: Uses `Vec<E>` for unlimited error collection
+//! - **alloc/std**: Uses `VecDeque<E>` for unlimited error collection
 //!
 //! # Examples
 //!
@@ -52,7 +52,7 @@ pub type DefaultContainer<E> = ConstGenericArrayDeque<E, 2>;
 
 /// Default error container for alloc/std environments.
 ///
-/// Uses a heap-allocated `Vec` for unlimited error collection.
+/// Uses a heap-allocated `VecDeque` for unlimited error collection.
 #[cfg(any(feature = "alloc", feature = "std"))]
 pub type DefaultContainer<E> = VecDeque<E>;
 
@@ -137,12 +137,12 @@ impl<E> Errors<E> {
   }
 }
 
-// Implementation for alloc/std environments (Vec)
+// Implementation for alloc/std environments (VecDeque)
 #[cfg(any(feature = "alloc", feature = "std"))]
 impl<E> Errors<E> {
   /// Creates a new empty error collection.
   ///
-  /// In alloc/std environments, this creates an empty `Vec`.
+  /// In alloc/std environments, this creates an empty `VecDeque`.
   ///
   /// # Examples
   ///

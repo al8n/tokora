@@ -52,20 +52,8 @@ macro_rules! define_punctuator_token_traits {
       /// ## Example
       ///
       /// ```rust
-      /// use tokit::{Token, PunctuatorToken, utils::cmp::Equivalent};
-      /// use logos::Logos;
-      ///
-      /// #[derive(Logos, Debug, Clone, Copy, PartialEq, Eq)]
-      /// enum MyTokens {
-      ///     #[token(".")]
-      ///     Dot,
-      ///     #[token(",")]
-      ///     Comma,
-      ///     #[token(":")]
-      ///     Colon,
-      ///     #[token(";")]
-      ///     SemiColon,
-      /// }
+      /// use tokit::{Token, token::{PunctuatorToken, PunctuatorTokenExt}};
+      /// use core::fmt;
       ///
       /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
       /// enum MyTokenKind {
@@ -75,63 +63,58 @@ macro_rules! define_punctuator_token_traits {
       ///     SemiColon,
       /// }
       ///
+      /// impl fmt::Display for MyTokenKind {
+      ///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      ///         let name = match self {
+      ///             Self::Dot => ".",
+      ///             Self::Comma => ",",
+      ///             Self::Colon => ":",
+      ///             Self::SemiColon => ";",
+      ///         };
+      ///         f.write_str(name)
+      ///     }
+      /// }
+      ///
       /// #[derive(Debug, Clone, PartialEq)]
       /// struct MyToken {
       ///     kind: MyTokenKind,
       /// }
       ///
       /// impl Token<'_> for MyToken {
-      ///     type Char = char;
       ///     type Kind = MyTokenKind;
-      ///     type Logos = MyTokens;
+      ///     type Error = ();
       ///
       ///     fn kind(&self) -> Self::Kind {
       ///         self.kind
       ///     }
-      /// }
       ///
-      /// impl From<MyTokens> for MyToken {
-      ///     fn from(logos: MyTokens) -> Self {
-      ///         let kind = match logos {
-      ///             MyTokens::Dot => MyTokenKind::Dot,
-      ///             MyTokens::Comma => MyTokenKind::Comma,
-      ///             MyTokens::Colon => MyTokenKind::Colon,
-      ///             MyTokens::SemiColon => MyTokenKind::SemiColon,
-      ///         };
-      ///         Self { kind }
-      ///     }
-      /// }
-      ///
-      /// impl Equivalent<MyToken> for str {
-      ///     fn equivalent(&self, other: &MyToken) -> bool {
-      ///         match other.kind {
-      ///             MyTokenKind::Dot => self == ".",
-      ///             MyTokenKind::Comma => self == ",",
-      ///             MyTokenKind::Colon => self == ":",
-      ///             MyTokenKind::SemiColon => self == ";",
-      ///         }
+      ///     fn is_trivia(&self) -> bool {
+      ///         false
       ///     }
       /// }
       ///
       /// impl PunctuatorToken<'_> for MyToken {
-      ///     fn is_dot(&self) -> bool {
-      ///         matches!(self.kind, MyTokenKind::Dot)
+      ///     fn dot() -> Option<Self::Kind> {
+      ///         Some(MyTokenKind::Dot)
       ///     }
       ///
-      ///     fn is_comma(&self) -> bool {
-      ///         matches!(self.kind, MyTokenKind::Comma)
+      ///     fn comma() -> Option<Self::Kind> {
+      ///         Some(MyTokenKind::Comma)
       ///     }
       ///
-      ///     fn is_colon(&self) -> bool {
-      ///         matches!(self.kind, MyTokenKind::Colon)
+      ///     fn colon() -> Option<Self::Kind> {
+      ///         Some(MyTokenKind::Colon)
       ///     }
       ///
-      ///     fn is_semicolon(&self) -> bool {
-      ///         matches!(self.kind, MyTokenKind::SemiColon)
+      ///     fn semicolon() -> Option<Self::Kind> {
+      ///         Some(MyTokenKind::SemiColon)
       ///     }
       ///
-      ///     // Unhandled punctuation can keep the default `false`.
+      ///     // Unhandled punctuation can keep the default `None`.
       /// }
+      ///
+      /// let token = MyToken { kind: MyTokenKind::Dot };
+      /// assert!(token.is_dot());
       /// ```
       pub trait PunctuatorToken<'a>: Token<'a> {
         $(

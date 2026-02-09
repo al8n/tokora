@@ -22,10 +22,10 @@
 //!
 //! ```rust,ignore
 //! use tokit::types::Keyword;
-//! use tokit::utils::SimpleSimpleSpan;
+//! use tokit::SimpleSpan;
 //!
 //! // Parse keywords without allocating
-//! type YulKeyword<'a> = Keyword<&'a str, YulLang>;
+//! type YulKeyword<'a> = Keyword<&'a str, SimpleSpan, YulLang>;
 //!
 //! let ident = YulKeyword::new(SimpleSpan::new(0, 3), "foo");
 //! assert_eq!(ident.source_ref(), &"foo");
@@ -35,7 +35,7 @@
 //!
 //! ```rust,ignore
 //! // Store keywords in AST nodes that outlive the source
-//! type OwnedKeyword = Keyword<String, MyLang>;
+//! type OwnedKeyword = Keyword<String, SimpleSpan, MyLang>;
 //!
 //! let ident = OwnedKeyword::new(span, source_str.to_string());
 //! ```
@@ -58,10 +58,10 @@
 //! use tokit::error::ErrorNode;
 //!
 //! // Create placeholder for malformed identifier
-//! let bad_ident = Keyword::<String, YulLang>::error(span);
+//! let bad_ident = Keyword::<String, SimpleSpan, YulLang>::error(span);
 //!
 //! // Create placeholder for missing identifier
-//! let missing_ident = Keyword::<String, YulLang>::missing(span);
+//! let missing_ident = Keyword::<String, SimpleSpan, YulLang>::missing(span);
 //! ```
 
 use core::marker::PhantomData;
@@ -96,8 +96,8 @@ use crate::{
 ///
 /// The `Lang` parameter prevents mixing keywords from different languages:
 /// ```rust,ignore
-/// let yul_ident: Keyword<&str, YulLang> = ...;
-/// let sol_ident: Keyword<&str, SolidityLang> = ...;
+/// let yul_ident: Keyword<&str, SimpleSpan, YulLang> = ...;
+/// let sol_ident: Keyword<&str, SimpleSpan, SolidityLang> = ...;
 ///
 /// // Compile error: type mismatch
 /// // let mixed = vec![yul_ident, sol_ident];
@@ -109,12 +109,12 @@ use crate::{
 ///
 /// ```rust
 /// use tokit::types::Keyword;
-/// use tokit::utils::SimpleSimpleSpan;
+/// use tokit::SimpleSpan;
 /// # struct MyLang;
 ///
 /// // Zero-copy identifier
 /// let span = SimpleSpan::new(5, 11);
-/// let ident = Keyword::<&str, MyLang>::new(span, "my_var");
+/// let ident = Keyword::<&str, SimpleSpan, MyLang>::new(span, "my_var");
 ///
 /// assert_eq!(ident.span(), span);
 /// assert_eq!(ident.source_ref(), &"my_var");
@@ -124,10 +124,11 @@ use crate::{
 ///
 /// ```rust
 /// # use tokit::types::Keyword;
-/// # use tokit::utils::{SimpleSpan, IntoComponents};
+/// # use tokit::SimpleSpan;
+/// # use tokit::utils::IntoComponents;
 /// # struct MyLang;
 /// # let span = SimpleSpan::new(0, 3);
-/// let ident = Keyword::<&str, MyLang>::new(span, "foo");
+/// let ident = Keyword::<&str, SimpleSpan, MyLang>::new(span, "foo");
 ///
 /// // Destructure into span and source
 /// let (span, source) = ident.into_components();
@@ -138,10 +139,10 @@ use crate::{
 ///
 /// ```rust
 /// # use tokit::types::Keyword;
-/// # use tokit::utils::SimpleSimpleSpan;
+/// # use tokit::SimpleSpan;
 /// # struct MyLang;
 /// # let span = SimpleSpan::new(0, 3);
-/// let mut ident = Keyword::<String, MyLang>::new(span, "original".to_string());
+/// let mut ident = Keyword::<String, SimpleSpan, MyLang>::new(span, "original".to_string());
 ///
 /// // Update the source string
 /// *ident.source_mut() = "modified".to_string();
@@ -193,11 +194,11 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   ///
   /// ```rust
   /// use tokit::types::Keyword;
-  /// use tokit::utils::SimpleSimpleSpan;
+  /// use tokit::SimpleSpan;
   /// # struct YulLang;
   ///
   /// let span = SimpleSpan::new(10, 15);
-  /// let ident = Keyword::<&str, YulLang>::new(span, "count");
+  /// let ident = Keyword::<&str, SimpleSpan, YulLang>::new(span, "count");
   ///
   /// assert_eq!(ident.span(), span);
   /// assert_eq!(ident.source_ref(), &"count");
@@ -217,9 +218,9 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Keyword;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(5, 10), "value");
+  /// let ident = Keyword::<&str, SimpleSpan, MyLang>::new(SimpleSpan::new(5, 10), "value");
   ///
   /// assert_eq!(ident.span(), SimpleSpan::new(5, 10));
   /// ```
@@ -239,9 +240,9 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Keyword;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
+  /// let ident = Keyword::<&str, SimpleSpan, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
   /// let span_ref = ident.span_ref();
   /// assert_eq!(*span_ref, SimpleSpan::new(0, 3));
@@ -260,9 +261,9 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Keyword;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let mut ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 3), "foo");
+  /// let mut ident = Keyword::<&str, SimpleSpan, MyLang>::new(SimpleSpan::new(0, 3), "foo");
   ///
   /// *ident.span_mut() = SimpleSpan::new(10, 13);
   /// assert_eq!(ident.span(), SimpleSpan::new(10, 13));
@@ -281,9 +282,9 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Keyword;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let mut ident = Keyword::<String, MyLang>::new(SimpleSpan::new(0, 3), "foo".to_string());
+  /// let mut ident = Keyword::<String, SimpleSpan, MyLang>::new(SimpleSpan::new(0, 3), "foo".to_string());
   ///
   /// *ident.source_mut() = "bar".to_string();
   /// assert_eq!(ident.source_ref(), "bar");
@@ -302,9 +303,9 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Keyword;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 8), "variable");
+  /// let ident = Keyword::<&str, SimpleSpan, MyLang>::new(SimpleSpan::new(0, 8), "variable");
   ///
   /// assert_eq!(ident.source_ref(), &"variable");
   /// assert_eq!(ident.source_ref().len(), 8);
@@ -327,9 +328,9 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   ///
   /// ```rust
   /// # use tokit::types::Keyword;
-  /// # use tokit::utils::SimpleSimpleSpan;
+  /// # use tokit::SimpleSpan;
   /// # struct MyLang;
-  /// let ident = Keyword::<&str, MyLang>::new(SimpleSpan::new(0, 2), "id");
+  /// let ident = Keyword::<&str, SimpleSpan, MyLang>::new(SimpleSpan::new(0, 2), "id");
   ///
   /// let source: &str = ident.source(); // Copy
   /// assert_eq!(source, "id");
@@ -374,7 +375,7 @@ where
   /// use tokit::error::ErrorNode;
   ///
   /// // Parser found "123abc" where an identifier was expected
-  /// let bad_ident = Keyword::<String, YulLang>::error(span);
+  /// let bad_ident = Keyword::<String, SimpleSpan, YulLang>::error(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn error(span: Span) -> Self {
@@ -396,7 +397,7 @@ where
   /// // Parser expected identifier after "let" but found "="
   /// // Correct: let name = 5;
   /// // Found:   let = 5;
-  /// let missing_ident = Keyword::<String, YulLang>::missing(span);
+  /// let missing_ident = Keyword::<String, SimpleSpan, YulLang>::missing(span);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn missing(span: Span) -> Self {

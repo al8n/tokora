@@ -1,15 +1,14 @@
-//! Unexpected token error type for parser error reporting.
+//! Missing syntax error type for parser error reporting.
 //!
 //! This module provides the [`MissingSyntax`] type, which represents parser errors
-//! when an missing token is encountered. It captures both the location of the error,
-//! what token was found (if any), and what tokens were expected.
+//! when a missing token is encountered. It captures the offset of the error and
+//! an optional custom message.
 //!
 //! # Design Philosophy
 //!
 //! `MissingSyntax` is designed to provide rich, actionable error messages:
-//! - **Location tracking**: The `span` field pinpoints exactly where the error occurred
-//! - **Optional found token**: Distinguishes between missing tokens and end-of-input
-//! - **Flexible expectations**: Can express single or multiple alternative expected tokens
+//! - **Location tracking**: The `offset` field pinpoints exactly where the error occurred
+//! - **Optional message**: Attach custom context to the missing syntax
 //! - **Position adjustment**: The `bump()` method allows adjusting error positions when
 //!   combining errors from different parsing contexts
 
@@ -20,48 +19,26 @@ use crate::{Lexer, utils::CowStr};
 /// A type alias for a `MissingSyntax` error for a given lexer and separator.
 pub type MissingSyntaxOf<'inp, L, Lang = ()> = MissingSyntax<<L as Lexer<'inp>>::Offset, Lang>;
 
-/// An error representing an missing token encountered during parsing.
+/// An error representing a missing token encountered during parsing.
 ///
-/// This error type captures the location (span), what token was found (if any),
-/// and what token(s) were expected. It's commonly used in parsers to provide
+/// This error type captures the location (offset) and an optional message.
+/// It's commonly used in parsers to provide
 /// detailed error messages when the input doesn't match the expected syntax.
 ///
 /// # Type Parameters
 ///
-/// * `T` - The type of the actual token that was found
-/// * `Kind` - The type of the expected token (often an enum of token kinds)
-///
 /// # Examples
 ///
 /// ```ignore
-/// use tokit::{utils::{Expected, SimpleSpan}, error::syntax::MissingSyntax};
+/// use tokit::error::syntax::MissingSyntax;
 ///
-/// // Error when expecting a specific token but got something else
-/// let error = MissingSyntax::expected_one_with_found(
-///     SimpleSpan::new(10, 15),
-///     "}",
-///     "{"
-/// );
-/// assert_eq!(error.span(), SimpleSpan::new(10, 15));
-/// assert_eq!(format!("{}", error), "missing token '}', expected '{'");
+/// // Basic missing syntax error with no message
+/// let error = MissingSyntax::new(10);
+/// assert_eq!(error.offset(), 10);
 ///
-/// // Error when expecting one of multiple tokens
-/// let error = MissingSyntax::expected_one_of_with_found(
-///     SimpleSpan::new(0, 10),
-///     "identifier",
-///     &["if", "while", "for"]
-/// );
-/// assert_eq!(
-///     format!("{}", error),
-///     "missing token 'identifier', expected one of: 'if', 'while', 'for'"
-/// );
-///
-/// // Error when reaching end of input missingly
-/// let error: MissingSyntax<&str, &str> = MissingSyntax::expected_one(
-///     SimpleSpan::new(100, 100),
-///     "}"
-/// );
-/// assert_eq!(format!("{}", error), "missing end of input, expected '}'");
+/// // Attach a custom message
+/// let error = MissingSyntax::with_message(20, "expected expression".into());
+/// assert_eq!(error.message().unwrap(), "expected expression");
 /// ```
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct MissingSyntax<Offset = usize, Lang: ?Sized = ()> {
@@ -73,7 +50,7 @@ pub struct MissingSyntax<Offset = usize, Lang: ?Sized = ()> {
 impl<O> MissingSyntax<O> {
   /// Creates a new missing token error.
   ///
-  /// This error indicates that an missing token was encountered,
+  /// This error indicates that a missing token was encountered,
   /// without specifying what token was found or expected.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(offset: O) -> Self {
@@ -109,16 +86,14 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
     Self::new_in(offset, Some(msg))
   }
 
-  /// Returns the span of the missing token.
+  /// Returns the offset of the missing token.
   ///
   /// # Examples
   ///
   /// ```
   /// use tokit::error::syntax::MissingSyntax;
   ///
-  /// struct Lit;
-  ///
-  /// let error: MissingSyntax<Lit, usize> = MissingSyntax::new(10);
+  /// let error = MissingSyntax::new(10);
   /// assert_eq!(error.offset(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -129,18 +104,14 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
     self.offset
   }
 
-  /// Returns the span of the missing token.
+  /// Returns the offset of the missing token.
   ///
   /// # Examples
   ///
   /// ```
   /// use tokit::error::syntax::MissingSyntax;
   ///
-  /// struct Lit;
-  ///
-  /// let error: MissingSyntax<Lit, usize> = MissingSyntax::new(
-  ///     10,
-  /// );
+  /// let error = MissingSyntax::new(10);
   /// assert_eq!(error.offset_ref(), &10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -148,19 +119,16 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
     &self.offset
   }
 
-  /// Returns the span of the missing token.
+  /// Returns the offset of the missing token.
   ///
   /// # Examples
   ///
   /// ```
   /// use tokit::error::syntax::MissingSyntax;
   ///
-  /// struct Lit;
-  ///
-  /// let mut error: MissingSyntax<Lit, usize> = MissingSyntax::new(
-  ///     10,
-  /// );
-  /// assert_eq!(error.offset_mut(), &mut 10);
+  /// let mut error = MissingSyntax::new(10);
+  /// *error.offset_mut() = 12;
+  /// assert_eq!(error.offset(), 12);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn offset_mut(&mut self) -> &mut O {
@@ -179,21 +147,17 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
     self.msg.as_mut()
   }
 
-  /// Bumps both the start and end positions of the span by the given offset.
+  /// Bumps the offset by the given amount.
   ///
   /// This is useful when adjusting error positions after processing or
-  /// when combining spans from different contexts.
+  /// when combining offsets from different contexts.
   ///
   /// # Examples
   ///
   /// ```
   /// use tokit::error::syntax::MissingSyntax;
   ///
-  /// struct Lit;
-  ///
-  /// let mut error: MissingSyntax<Lit, usize> = MissingSyntax::new(
-  ///    10
-  /// );
+  /// let mut error = MissingSyntax::new(10);
   /// error.bump(&5);
   /// assert_eq!(error.offset(), 15);
   /// ```
@@ -209,18 +173,14 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
   /// Consumes the error and returns its components.
   ///
   /// This method deconstructs the error into its constituent parts:
-  /// the span, the found token (if any), and the expected token(s).
+  /// the offset and the optional message.
   ///
   /// # Examples
   ///
   /// ```
   /// use tokit::error::syntax::MissingSyntax;
   ///
-  /// struct Lit;
-  ///
-  /// let error: MissingSyntax<Lit, usize> = MissingSyntax::new(
-  ///     10,
-  /// );
+  /// let error = MissingSyntax::new(10);
   /// let (offset, msg) = error.into_components();
   /// assert_eq!(offset, 10);
   /// assert_eq!(msg, None);

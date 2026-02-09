@@ -93,7 +93,7 @@
 //! }
 //!
 //! let mut error = IncompleteSyntax::<WhileLoop>::new(
-//!     tokit::utils::SimpleSpan::new(10, 15),
+//!     tokit::SimpleSpan::new(10, 15),
 //!     WhileComponent::Condition
 //! );
 //! assert_eq!(error.len(), 1);
@@ -129,12 +129,21 @@ use core::{
 ///
 /// ```rust
 /// # {
-/// use tokit::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+/// use tokit::{utils::{typenum, GenericArrayDeque}, syntax::{Language, Syntax}, error::IncompleteSyntax};
 /// use typenum::U3;
 /// use core::fmt;
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// struct MyLanguage;
+///
+/// #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// enum MySyntaxKind {
+///     IfStatement,
+/// }
+///
+/// impl Language for MyLanguage {
+///     type SyntaxKind = MySyntaxKind;
+/// }
 ///
 /// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// enum IfStatementComponent {
@@ -160,6 +169,7 @@ use core::{
 ///     type Component = IfStatementComponent;
 ///     type COMPONENTS = U3;
 ///     type REQUIRED = U3;
+///     const KIND: MySyntaxKind = MySyntaxKind::IfStatement;
 ///
 ///     fn possible_components() -> &'static GenericArrayDeque<Self::Component, U3> {
 ///         const COMPONENTS: &GenericArrayDeque<IfStatementComponent, U3> = &GenericArrayDeque::from_array([
@@ -182,7 +192,7 @@ use core::{
 ///
 /// // Report a missing component at a specific location
 /// let error = IncompleteSyntax::<IfStatement>::new(
-///     tokit::utils::SimpleSpan::new(10, 15),
+///     tokit::SimpleSpan::new(10, 15),
 ///     IfStatementComponent::Condition
 /// );
 /// assert_eq!(error.len(), 1);
@@ -230,7 +240,7 @@ use core::{
 /// #     }
 /// # }
 /// let mut error = IncompleteSyntax::<MySyntax>::new(
-///     tokit::utils::SimpleSpan::new(10, 15),
+///     tokit::SimpleSpan::new(10, 15),
 ///     Component::A
 /// );
 /// assert_eq!(format!("{}", error), "incomplete syntax: component A is missing");
@@ -311,7 +321,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, GenericArrayDeque}};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -366,7 +376,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, GenericArrayDeque}};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -489,7 +499,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     tokit::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert_eq!(error.len(), 1);
@@ -539,7 +549,7 @@ where
   /// #     }
   /// # }
   /// let error = IncompleteSyntax::<MySyntax>::new(
-  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     tokit::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert_eq!(error.capacity(), 3);
@@ -588,7 +598,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     tokit::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(!error.is_full());
@@ -646,7 +656,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     tokit::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push(Component::B);
@@ -707,7 +717,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     tokit::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push_front(Component::B);
@@ -763,7 +773,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     tokit::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(error.try_push(Component::B).is_none()); // Success
@@ -815,7 +825,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     tokit::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// assert!(error.try_push_front(Component::B).is_none()); // Success
@@ -865,7 +875,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     tokit::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.push(Component::B);
@@ -915,7 +925,7 @@ where
   /// #     }
   /// # }
   /// let mut error = IncompleteSyntax::<MySyntax>::new(
-  ///     tokit::utils::SimpleSpan::new(10, 15),
+  ///     tokit::SimpleSpan::new(10, 15),
   ///     Component::A
   /// );
   /// error.as_mut_slice()[0] = Component::B;
@@ -933,7 +943,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, GenericArrayDeque}};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -981,7 +991,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, GenericArrayDeque}};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1043,7 +1053,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokit::{utils::{typenum, SimpleSpan, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokit::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, GenericArrayDeque}};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]

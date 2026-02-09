@@ -64,7 +64,7 @@ impl<'a, L: Lexer<'a>> Cursor<'a, '_, L> {
     self.span.end_ref()
   }
 
-  /// Returns a the actual cursor.
+  /// Returns the actual cursor.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn into_inner(self) -> L::Offset {
     self.span.into_range().end

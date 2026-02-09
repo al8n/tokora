@@ -129,7 +129,7 @@ impl<Char, const N: usize, O> InvalidHexDigits<Char, N, O>
 where
   Const<N>: IntoArrayLength,
 {
-  /// Creates a new empty `InvalidHexDigits`.
+  /// Creates a new `InvalidHexDigits` containing a single invalid digit.
   ///
   /// ## Panics
   ///
@@ -151,7 +151,7 @@ where
     Self(vec)
   }
 
-  /// Creates a new empty `InvalidHexDigits`.
+  /// Creates a new `InvalidHexDigits` containing a single invalid digit.
   ///
   /// ## Panics
   ///

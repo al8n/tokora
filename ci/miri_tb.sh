@@ -22,6 +22,6 @@ cargo miri setup
 export MIRIFLAGS="-Zmiri-strict-provenance -Zmiri-disable-isolation -Zmiri-symbolic-alignment-check -Zmiri-tree-borrows"
 export RUSTFLAGS="--cfg test_$CONFIG_FLAGS"
 
-cargo miri test --tests --target $TARGET --lib --features chumsky
-cargo miri test --target $TARGET --doc --features chumsky
+cargo miri test --tests --target $TARGET --lib --features logos 
+cargo miri test --target $TARGET --doc --features logos
 

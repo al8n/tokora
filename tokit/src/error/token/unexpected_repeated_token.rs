@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use crate::span::{SimpleSpan, Span};
 
-/// An error indicating that an unexpected repeated tokens were found during parsing.
+/// An error indicating that unexpected repeated tokens were found during parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnexpectedRepeatedToken<T, S = SimpleSpan, Lang: ?Sized = ()> {
   span: S,

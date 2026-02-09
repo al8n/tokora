@@ -40,7 +40,7 @@
 //!
 //! ```
 //! use tokit::error::HexEscapeError;
-//! use tokit::utils::{Lexeme, SimpleSpan};
+//! use tokit::{SimpleSpan, utils::{Lexeme}};
 //!
 //! // Incomplete: \xA (only 1 digit)
 //! let error = HexEscapeError::<char>::incomplete(
@@ -53,7 +53,7 @@
 //!
 //! ```
 //! use tokit::error::{HexEscapeError, InvalidHexDigits};
-//! use tokit::utils::{SimpleSpan, PositionedChar};
+//! use tokit::{SimpleSpan, utils::{PositionedChar}};
 //!
 //! // Invalid hex digit 'G' at position 12
 //! let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -83,7 +83,7 @@ pub type InvalidHexEscapeDigits<Char, Offset> = InvalidHexDigits<Char, 2, Offset
 ///
 /// ```
 /// use tokit::error::IncompleteHexEscape;
-/// use tokit::utils::SimpleSpan;
+/// use tokit::SimpleSpan;
 ///
 /// // Incomplete: \xA (only 1 hex digit)
 /// let error = IncompleteHexEscape::new(
@@ -116,7 +116,7 @@ impl<O> IncompleteHexEscape<O> {
   ///
   /// ```
   /// use tokit::error::IncompleteHexEscape;
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let error = IncompleteHexEscape::new(SimpleSpan::new(10, 12));
   /// ```
@@ -131,7 +131,7 @@ impl<O> IncompleteHexEscape<O> {
   ///
   /// ```
   /// use tokit::error::IncompleteHexEscape;
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let error = IncompleteHexEscape::new(SimpleSpan::new(10, 13));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 13));
@@ -150,7 +150,7 @@ impl<O> IncompleteHexEscape<O> {
   ///
   /// ```
   /// use tokit::error::IncompleteHexEscape;
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let error = IncompleteHexEscape::new(SimpleSpan::new(10, 13));
   /// assert_eq!(error.span_ref(), SimpleSpan::new(&10, &13));
@@ -169,7 +169,7 @@ impl<O> IncompleteHexEscape<O> {
   ///
   /// ```
   /// use tokit::error::IncompleteHexEscape;
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut error = IncompleteHexEscape::new(SimpleSpan::new(10, 12));
   /// error.bump(&5);
@@ -199,7 +199,7 @@ impl<O> IncompleteHexEscape<O> {
 ///
 /// ```
 /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
-/// use tokit::utils::{SimpleSpan, PositionedChar};
+/// use tokit::{SimpleSpan, utils::{PositionedChar}};
 ///
 /// // Create error for malformed escape like \xGH
 /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -247,7 +247,7 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// ```
   /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use tokit::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::{SimpleSpan, utils::{PositionedChar}};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('Z', 12));
   /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
@@ -266,7 +266,7 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   // ///
   // /// ```
   // /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
-  // /// use tokit::utils::SimpleSpan;
+  // /// use tokit::SimpleSpan;
   // ///
   // /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
   // /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
@@ -284,7 +284,7 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// ```
   /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use tokit::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::{SimpleSpan, utils::{PositionedChar}};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
   /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
@@ -305,7 +305,7 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// ```
   /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use tokit::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::{SimpleSpan, utils::{PositionedChar}};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
   /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
@@ -328,7 +328,7 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// ```
   /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use tokit::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::{SimpleSpan, utils::{PositionedChar}};
   ///
   /// let error = MalformedHexEscape::new(
   ///     InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12)),
@@ -365,7 +365,7 @@ impl<Char, O> MalformedHexEscape<Char, O> {
   ///
   /// ```
   /// use tokit::error::{MalformedHexEscape, InvalidHexDigits};
-  /// use tokit::utils::{SimpleSpan, PositionedChar};
+  /// use tokit::{SimpleSpan, utils::{PositionedChar}};
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
   /// let mut error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 14));
@@ -399,7 +399,7 @@ impl<Char, O> MalformedHexEscape<Char, O> {
 ///
 /// ```
 /// use tokit::error::HexEscapeError;
-/// use tokit::utils::SimpleSpan;
+/// use tokit::SimpleSpan;
 ///
 /// // Incomplete: \xA (only 1 digit)
 /// let error = HexEscapeError::<char>::incomplete(
@@ -412,7 +412,7 @@ impl<Char, O> MalformedHexEscape<Char, O> {
 ///
 /// ```
 /// use tokit::error::{HexEscapeError, InvalidHexDigits};
-/// use tokit::utils::{SimpleSpan, PositionedChar};
+/// use tokit::{SimpleSpan, utils::{PositionedChar}};
 ///
 /// // Invalid hex: \xGG
 /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_positioned_char(PositionedChar::with_position('G', 12));
@@ -476,7 +476,7 @@ impl<Char, O> HexEscapeError<Char, O> {
   ///
   /// ```
   /// use tokit::error::HexEscapeError;
-  /// use tokit::utils::{Lexeme, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{Lexeme}};
   ///
   /// let error = HexEscapeError::<char>::incomplete(
   ///     SimpleSpan::new(10, 12)
@@ -494,7 +494,7 @@ impl<Char, O> HexEscapeError<Char, O> {
   ///
   /// ```
   /// use tokit::error::{HexEscapeError, InvalidHexDigits};
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
   /// let error = HexEscapeError::malformed(digits, SimpleSpan::new(10, 13));
@@ -514,7 +514,7 @@ impl<Char, O> HexEscapeError<Char, O> {
   ///
   /// ```
   /// use tokit::error::HexEscapeError;
-  /// use tokit::utils::SimpleSpan;
+  /// use tokit::SimpleSpan;
   ///
   /// let error = HexEscapeError::<char>::incomplete(SimpleSpan::new(10, 12));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 12));
@@ -539,7 +539,7 @@ impl<Char, O> HexEscapeError<Char, O> {
   ///
   /// ```
   /// use tokit::error::HexEscapeError;
-  /// use tokit::utils::{Lexeme, SimpleSpan};
+  /// use tokit::{SimpleSpan, utils::{Lexeme}};
   ///
   /// let mut error = HexEscapeError::<char>::incomplete(
   ///     SimpleSpan::new(10, 12)

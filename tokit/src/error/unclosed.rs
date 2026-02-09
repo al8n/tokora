@@ -11,7 +11,7 @@
 //! but the corresponding closing delimiter is missing. This error type captures both:
 //!
 //! - **Where** the opening delimiter was found (via [`SimpleSpan`])
-//! - **What** delimiter was left unclosed (via the generic `Delimiter` parameter)
+//! - **What** delimiter name was left unclosed (stored as a [`CowStr`])
 //!
 //! # Unclosed vs Unterminated
 //!
@@ -27,28 +27,27 @@
 //!
 //! # Type Parameter
 //!
-//! - `Delimiter`: The type representing the delimiter (typically `char`, `&'static str`, or a custom enum)
+//! - `Delimiter`: A type-level tag for the delimiter (typically `char`, `&'static str`, or a custom enum)
 //!
 //! # Examples
 //!
 //! ## Basic Usage with Character Delimiters
 //!
 //! ```rust
-//! use tokit::{error::Unclosed, utils::SimpleSpan};
+//! use tokit::{error::Unclosed, SimpleSpan};
 //!
 //! // Opening parenthesis at position 10, never closed
-//! let error = Unclosed::new(SimpleSpan::new(10, 11), '(');
+//! let error = Unclosed::<char>::new(SimpleSpan::new(10, 11), "(".into());
 //!
 //! assert_eq!(error.span(), SimpleSpan::new(10, 11));
-//! assert_eq!(error.delimiter(), '(');
+//! assert_eq!(error.name_ref(), "(");
 //! assert_eq!(error.to_string(), "unclosed delimiter '('");
 //! ```
 //!
 //! ## Custom Delimiter Enum
 //!
 //! ```rust
-//! use tokit::{error::Unclosed, utils::SimpleSpan};
-//! use core::fmt;
+//! use tokit::{error::Unclosed, SimpleSpan};
 //!
 //! #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 //! enum Delimiter {
@@ -59,30 +58,18 @@
 //!     BlockComment, // /**/
 //! }
 //!
-//! impl fmt::Display for Delimiter {
-//!     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//!         match self {
-//!             Self::Paren => write!(f, "("),
-//!             Self::Bracket => write!(f, "["),
-//!             Self::Brace => write!(f, "{{"),
-//!             Self::Quote => write!(f, "\""),
-//!             Self::BlockComment => write!(f, "/*"),
-//!         }
-//!     }
-//! }
-//!
-//! let error = Unclosed::new(SimpleSpan::new(5, 6), Delimiter::BlockComment);
-//! assert_eq!(error.to_string(), "unclosed delimiter '/*'");
+//! let error: Unclosed<Delimiter> = Unclosed::new(SimpleSpan::new(5, 6), "/*".into());
+//! assert_eq!(error.name_ref(), "/*");
 //! ```
 //!
 //! ## Tracking Nested Delimiters
 //!
 //! ```rust
-//! use tokit::{error::Unclosed, utils::SimpleSpan};
+//! use tokit::{error::Unclosed, SimpleSpan};
 //!
 //! // When parsing: "{ foo: [ bar, baz }"
 //! // The '[' at position 7 is never closed
-//! let error = Unclosed::new(SimpleSpan::new(7, 8), '[');
+//! let error = Unclosed::<char>::new(SimpleSpan::new(7, 8), "[".into());
 //!
 //! // Error reporting can show:
 //! // "error at 7..8: unclosed delimiter '['"
@@ -91,10 +78,10 @@
 //! ## Position Adjustment
 //!
 //! ```rust
-//! use tokit::{error::Unclosed, utils::SimpleSpan};
+//! use tokit::{error::Unclosed, SimpleSpan};
 //!
 //! // Error from a nested parsing context
-//! let mut error = Unclosed::new(SimpleSpan::new(5, 6), '{');
+//! let mut error = Unclosed::<char>::new(SimpleSpan::new(5, 6), "{".into());
 //!
 //! // Adjust to absolute position in the larger document
 //! error.bump(&100);
@@ -109,13 +96,13 @@ use crate::{
   utils::CowStr,
 };
 
-/// A unclosed bracket error
+/// An unclosed bracket error
 pub type UnclosedBracket<S = SimpleSpan, Lang = ()> = Unclosed<Bracket, S, Lang>;
-/// A unclosed parenthesis error
+/// An unclosed parenthesis error
 pub type UnclosedParen<S = SimpleSpan, Lang = ()> = Unclosed<Paren, S, Lang>;
-/// A unclosed brace error
+/// An unclosed brace error
 pub type UnclosedBrace<S = SimpleSpan, Lang = ()> = Unclosed<Brace, S, Lang>;
-/// A unclosed angle bracket error
+/// An unclosed angle bracket error
 pub type UnclosedAngle<S = SimpleSpan, Lang = ()> = Unclosed<Angle, S, Lang>;
 
 /// A zero-copy error type representing an unclosed delimiter.
@@ -147,11 +134,11 @@ pub type UnclosedAngle<S = SimpleSpan, Lang = ()> = Unclosed<Angle, S, Lang>;
 /// ## Detecting Unclosed Parentheses
 ///
 /// ```rust
-/// use tokit::{error::Unclosed, utils::SimpleSpan};
+/// use tokit::{error::Unclosed, SimpleSpan};
 ///
 /// // Parse error: (1 + 2
 /// //              ^--- unclosed
-/// let error = Unclosed::new(SimpleSpan::new(0, 1), '(');
+/// let error = Unclosed::<char>::new(SimpleSpan::new(0, 1), "(".into());
 ///
 /// println!("Error: {} at position {}", error, error.span().start());
 /// // Output: "Error: unclosed delimiter '(' at position 0"
@@ -160,16 +147,16 @@ pub type UnclosedAngle<S = SimpleSpan, Lang = ()> = Unclosed<Angle, S, Lang>;
 /// ## Tracking Multiple Unclosed Delimiters
 ///
 /// ```rust
-/// use tokit::{error::Unclosed, utils::SimpleSpan};
+/// use tokit::{error::Unclosed, SimpleSpan};
 ///
 /// let errors = vec![
-///     Unclosed::new(SimpleSpan::new(5, 6), '{'),
-///     Unclosed::new(SimpleSpan::new(10, 11), '['),
-///     Unclosed::new(SimpleSpan::new(15, 16), '('),
+///     Unclosed::<char>::new(SimpleSpan::new(5, 6), "{".into()),
+///     Unclosed::<char>::new(SimpleSpan::new(10, 11), "[".into()),
+///     Unclosed::<char>::new(SimpleSpan::new(15, 16), "(".into()),
 /// ];
 ///
 /// for error in errors {
-///     eprintln!("Unclosed {} at {}", error.delimiter(), error.span());
+///     eprintln!("Unclosed {} at {}", error.name_ref(), error.span());
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -206,12 +193,12 @@ impl<S> Unclosed<Paren, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::{SimpleSpan, delimiter::Paren}};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
   /// // Opening parenthesis at position 3
   /// let error = Unclosed::paren(SimpleSpan::new(3, 4));
   /// assert_eq!(error.span(), SimpleSpan::new(3, 4));
-  /// assert_eq!(error.delimiter(), Paren);
+  /// assert_eq!(error.name_ref(), "()");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn paren(span: S) -> Self {
@@ -227,12 +214,12 @@ impl<S, Lang: ?Sized> Unclosed<Paren, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::{SimpleSpan, delimiter::Paren}};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
   /// // Opening parenthesis at position 3
   /// let error = Unclosed::paren(SimpleSpan::new(3, 4));
   /// assert_eq!(error.span(), SimpleSpan::new(3, 4));
-  /// assert_eq!(error.delimiter(), Paren);
+  /// assert_eq!(error.name_ref(), "()");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn paren_of(span: S) -> Self {
@@ -248,12 +235,12 @@ impl<S> Unclosed<Bracket, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::{SimpleSpan, delimiter::Bracket}};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
   /// // Opening bracket at position 8
   /// let error = Unclosed::bracket(SimpleSpan::new(8, 9));
   /// assert_eq!(error.span(), SimpleSpan::new(8, 9));
-  /// assert_eq!(error.delimiter(), Bracket);
+  /// assert_eq!(error.name_ref(), "[]");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn bracket(span: S) -> Self {
@@ -269,12 +256,12 @@ impl<S, Lang: ?Sized> Unclosed<Bracket, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::{SimpleSpan, delimiter::Bracket}};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
   /// // Opening bracket at position 8
   /// let error = Unclosed::bracket(SimpleSpan::new(8, 9));
   /// assert_eq!(error.span(), SimpleSpan::new(8, 9));
-  /// assert_eq!(error.delimiter(), Bracket);
+  /// assert_eq!(error.name_ref(), "[]");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn bracket_of(span: S) -> Self {
@@ -290,12 +277,12 @@ impl<S> Unclosed<Brace, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::{SimpleSpan, delimiter::Brace}};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
   /// // Opening brace at position 12
   /// let error = Unclosed::brace(SimpleSpan::new(12, 13));
   /// assert_eq!(error.span(), SimpleSpan::new(12, 13));
-  /// assert_eq!(error.delimiter(), Brace);
+  /// assert_eq!(error.name_ref(), "{}");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn brace(span: S) -> Self {
@@ -311,12 +298,12 @@ impl<S, Lang: ?Sized> Unclosed<Brace, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::{SimpleSpan, delimiter::Brace}};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
   /// // Opening brace at position 12
   /// let error = Unclosed::brace(SimpleSpan::new(12, 13));
   /// assert_eq!(error.span(), SimpleSpan::new(12, 13));
-  /// assert_eq!(error.delimiter(), Brace);
+  /// assert_eq!(error.name_ref(), "{}");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn brace_of(span: S) -> Self {
@@ -332,12 +319,12 @@ impl<S> Unclosed<Angle, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::{SimpleSpan, delimiter::Angle}};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
   /// // Opening angle bracket at position 20
   /// let error = Unclosed::angle(SimpleSpan::new(20, 21));
   /// assert_eq!(error.span(), SimpleSpan::new(20, 21));
-  /// assert_eq!(error.delimiter(), Angle);
+  /// assert_eq!(error.name_ref(), "<>");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn angle(span: S) -> Self {
@@ -353,12 +340,12 @@ impl<S, Lang: ?Sized> Unclosed<Angle, S, Lang> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::{SimpleSpan, delimiter::Angle}};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
   /// // Opening angle bracket at position 20
   /// let error = Unclosed::angle(SimpleSpan::new(20, 21));
   /// assert_eq!(error.span(), SimpleSpan::new(20, 21));
-  /// assert_eq!(error.delimiter(), Angle);
+  /// assert_eq!(error.name_ref(), "<>");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn angle_of(span: S) -> Self {
@@ -374,12 +361,12 @@ impl<Delimiter, S> Unclosed<Delimiter, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::SimpleSpan};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
   /// // Opening brace at position 5
-  /// let error = Unclosed::new(SimpleSpan::new(5, 6), '{');
+  /// let error = Unclosed::<char>::new(SimpleSpan::new(5, 6), "{".into());
   /// assert_eq!(error.span(), SimpleSpan::new(5, 6));
-  /// assert_eq!(error.delimiter(), '{');
+  /// assert_eq!(error.name_ref(), "{");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(span: S, name: CowStr) -> Self {
@@ -395,12 +382,12 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::SimpleSpan};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
   /// // Opening brace at position 5
-  /// let error = Unclosed::of(SimpleSpan::new(5, 6), '{');
+  /// let error = Unclosed::<char>::of(SimpleSpan::new(5, 6), "{".into());
   /// assert_eq!(error.span(), SimpleSpan::new(5, 6));
-  /// assert_eq!(error.delimiter(), '{');
+  /// assert_eq!(error.name_ref(), "{");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn of(span: S, name: CowStr) -> Self {
@@ -419,9 +406,9 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::SimpleSpan};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
-  /// let error = Unclosed::new(S::new(10, 11), '(');
+  /// let error = Unclosed::<char>::new(SimpleSpan::new(10, 11), "(".into());
   /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -449,10 +436,10 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::SimpleSpan};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
-  /// let error = Unclosed::new(SimpleSpan::new(5, 6), '{');
-  /// assert_eq!(error.name_ref(), &'{');
+  /// let error = Unclosed::<char>::new(SimpleSpan::new(5, 6), "{".into());
+  /// assert_eq!(error.name_ref(), "{");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn name_ref(&self) -> &str {
@@ -466,10 +453,10 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::SimpleSpan};
+  /// use tokit::{error::Unclosed, utils::CowStr, SimpleSpan};
   ///
-  /// let error = Unclosed::new(SimpleSpan::new(5, 6), '[');
-  /// assert_eq!(error.delimiter(), '[');
+  /// let error = Unclosed::<char>::new(SimpleSpan::new(5, 6), "[".into());
+  /// assert_eq!(error.name(), CowStr::from_static("["));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[cfg(not(any(feature = "alloc", feature = "std")))]
@@ -486,9 +473,9 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::SimpleSpan};
+  /// use tokit::{error::Unclosed, SimpleSpan};
   ///
-  /// let mut error = Unclosed::new(SimpleSpan::new(5, 6), '(');
+  /// let mut error = Unclosed::<char>::new(SimpleSpan::new(5, 6), "(".into());
   /// error.bump(&100);
   /// assert_eq!(error.span(), SimpleSpan::new(105, 106));
   /// ```
@@ -506,12 +493,12 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unclosed, utils::SimpleSpan};
+  /// use tokit::{error::Unclosed, utils::CowStr, SimpleSpan};
   ///
-  /// let error = Unclosed::new(SimpleSpan::new(10, 11), '"');
+  /// let error = Unclosed::<char>::new(SimpleSpan::new(10, 11), "\"".into());
   /// let (span, delimiter) = error.into_components();
   /// assert_eq!(span, SimpleSpan::new(10, 11));
-  /// assert_eq!(delimiter, '"');
+  /// assert_eq!(delimiter, CowStr::from_static("\""));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn into_components(self) -> (S, CowStr) {
