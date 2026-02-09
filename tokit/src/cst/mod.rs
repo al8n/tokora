@@ -15,12 +15,11 @@
 //! The CST infrastructure has several key components:
 //!
 //! 1. **[`SyntaxTreeBuilder`](crate::cst::SyntaxTreeBuilder)**: Constructs CSTs from tokens using rowan's green tree builder
-//! 2. **[`Parseable`](crate::cst::Parseable)**: Trait for types that can produce CST parsers
-//! 3. **[`CstElement`](crate::cst::CstElement)**: Base trait for all typed CST elements (nodes and tokens)
-//! 4. **[`CstNode`](crate::cst::CstNode)**: Trait for typed CST nodes with zero-cost conversions
-//! 5. **[`CstToken`](crate::cst::CstToken)**: Trait for typed CST tokens (terminal elements)
-//! 6. **[`cast`](crate::cst::cast)**: Utility functions for working with CST nodes and tokens
-//! 7. **[`error`](crate::cst::error)**: Error types for CST operations
+//! 2. **[`CstElement`](crate::cst::CstElement)**: Base trait for all typed CST elements (nodes and tokens)
+//! 3. **[`CstNode`](crate::cst::CstNode)**: Trait for typed CST nodes with zero-cost conversions
+//! 4. **[`CstToken`](crate::cst::CstToken)**: Trait for typed CST tokens (terminal elements)
+//! 5. **[`cast`](crate::cst::cast)**: Utility functions for working with CST nodes and tokens
+//! 6. **[`error`](crate::cst::error)**: Error types for CST operations
 //!
 //! # Design Philosophy
 //!
@@ -29,116 +28,9 @@
 //! - **Immutable**: Trees are immutable by default (use `clone_for_update()` for mutations)
 //! - **Type-safe**: Compile-time guarantees about node types and relationships
 //!
-//! # Basic Usage
-//!
-//! ```rust,ignore
-//! use tokit::cst::{SyntaxTreeBuilder, Node, Parseable};
-//! use rowan::Language;
-//!
-//! // 1. Define your language
-//! #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-//! enum SyntaxKind {
-//!     Root,
-//!     Identifier,
-//!     Number,
-//!     // ... other kinds
-//! }
-//!
-//! #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-//! struct MyLanguage;
-//!
-//! impl Language for MyLanguage {
-//!     type Kind = SyntaxKind;
-//!
-//!     fn kind_from_raw(raw: rowan::SyntaxKind) -> Self::Kind {
-//!         // Convert from rowan's raw kind
-//!         todo!()
-//!     }
-//!
-//!     fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind {
-//!         // Convert to rowan's raw kind
-//!         todo!()
-//!     }
-//! }
-//!
-//! // 2. Create a builder
-//! let builder = SyntaxTreeBuilder::<MyLanguage>::new();
-//!
-//! // 3. Build the tree (usually done by a parser)
-//! builder.start_node(SyntaxKind::Root);
-//! builder.token(SyntaxKind::Identifier, "foo");
-//! builder.finish_node();
-//!
-//! let green = builder.finish();
-//! let root = SyntaxNode::new_root(green);
-//! ```
-//!
-//! # Integration with Parsers
-//!
-//! The [`Parseable`](crate::cst::Parseable) trait integrates CST building with Chumsky parsers:
-//!
-//! ```rust,ignore
-//! use tokit::cst::{Parseable, SyntaxTreeBuilder};
-//!
-//! struct Expression;
-//!
-//! impl<'a, I, T, Error> Parseable<'a, I, T, Error> for Expression
-//! where
-//!     I: Tokenizer<'a, T>,
-//!     T: TriviaToken<'a>,
-//! {
-//!     type Language = MyLanguage;
-//!
-//!     fn parser<E>(
-//!         builder: &'a SyntaxTreeBuilder<Self::Language>,
-//!     ) -> impl chumsky::Parser<'a, I, (), E> + Clone
-//!     where
-//!         E: chumsky::extra::ParserExtra<'a, I, Error = Error>,
-//!     {
-//!         // Return a parser that builds CST nodes
-//!         todo!()
-//!     }
-//! }
-//! ```
-//!
-//! # Working with Typed Nodes
-//!
-//! The [`Node`](crate::cst::Node) trait provides zero-cost typed wrappers around syntax nodes:
-//!
-//! ```rust,ignore
-//! use tokit::cst::Node;
-//!
-//! #[derive(Debug)]
-//! struct IdentifierNode {
-//!     syntax: SyntaxNode<MyLanguage>,
-//! }
-//!
-//! impl Node for IdentifierNode {
-//!     type Language = MyLanguage;
-//!     const KIND: SyntaxKind = SyntaxKind::Identifier;
-//!
-//!     fn can_cast(kind: SyntaxKind) -> bool {
-//!         kind == Self::KIND
-//!     }
-//!
-//!     fn try_cast_node(syntax: SyntaxNode<Self::Language>) -> Result<Self, error::CstNodeMismatch<Self>> {
-//!         if Self::can_cast(syntax.kind()) {
-//!             Ok(Self { syntax })
-//!         } else {
-//!             Err(error::CstNodeMismatch::new(Self::KIND, syntax))
-//!         }
-//!     }
-//!
-//!     fn syntax(&self) -> &SyntaxNode<Self::Language> {
-//!         &self.syntax
-//!     }
-//! }
-//! ```
-//!
 //! # See Also
 //!
 //! - [rowan documentation](https://docs.rs/rowan) - The underlying CST library
-//! - [`TriviaToken`](crate::TriviaToken) - For handling trivia in CSTs
 
 use core::{cell::RefCell, marker::PhantomData};
 
@@ -427,86 +319,7 @@ where
 ///
 /// # Type Parameters
 ///
-/// - `Language`: The rowan [`Language`] type defining syntax kinds
-///
-/// # Implementation
-///
-/// You typically don't implement this trait directly. Instead:
-/// - For nodes: implement [`CstNode`] (which extends this trait)
-/// - For tokens: implement [`CstToken`] (which extends this trait)
-///
-/// # Examples
-///
-/// ## Simple Token Implementation
-///
-/// ```rust,ignore
-/// use tokit::cst::{CstElement, CstToken};
-///
-/// #[derive(Debug)]
-/// struct Comma {
-///     syntax: SyntaxToken<MyLanguage>,
-/// }
-///
-/// impl CstElement for Comma {
-///     type Language = MyLanguage;
-///     const KIND: SyntaxKind = SyntaxKind::Comma;
-///
-///     fn can_cast(kind: SyntaxKind) -> bool {
-///         kind == SyntaxKind::Comma
-///     }
-/// }
-///
-/// impl CstToken for Comma {
-///     // ... implement token-specific methods
-/// }
-/// ```
-///
-/// ## Node with Multiple Variants
-///
-/// ```rust,ignore
-/// use tokit::cst::{CstElement, CstNode};
-///
-/// #[derive(Debug)]
-/// enum Literal {
-///     Number(NumberLiteral),
-///     String(StringLiteral),
-///     Boolean(BooleanLiteral),
-/// }
-///
-/// impl CstElement for Literal {
-///     type Language = MyLanguage;
-///     const KIND: SyntaxKind = SyntaxKind::Literal; // Marker
-///
-///     fn can_cast(kind: SyntaxKind) -> bool {
-///         matches!(
-///             kind,
-///             SyntaxKind::NumberLiteral
-///             | SyntaxKind::StringLiteral
-///             | SyntaxKind::BooleanLiteral
-///         )
-///     }
-/// }
-///
-/// impl CstNode for Literal {
-///     // ... implement node-specific methods
-/// }
-/// ```
-///
-/// ## Generic Functions Using Elements
-///
-/// ```rust,ignore
-/// use tokit::cst::CstElement;
-///
-/// fn element_kind<T: CstElement>(element: &T) -> String {
-///     format!("{:?}", T::KIND)
-/// }
-///
-/// // Works with both nodes and tokens
-/// let comma: Comma = ...;
-/// let expr: Expression = ...;
-/// println!("Token kind: {}", element_kind(&comma));
-/// println!("Node kind: {}", element_kind(&expr));
-/// ```
+/// - `Lang`: The rowan [`Language`] type defining syntax kinds
 pub trait CstElement<Lang: Language>: core::fmt::Debug {
   /// The syntax kind of this CST element.
   ///
@@ -533,10 +346,9 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
   /// use tokit::cst::CstElement;
   ///
   /// impl CstElement for Comma {
-  ///     type Language = MyLanguage;
   ///     const KIND: SyntaxKind = SyntaxKind::Comma;
   ///
-  ///     fn can_cast(kind: SyntaxKind) -> bool {
+  ///     fn castable(kind: SyntaxKind) -> bool {
   ///         kind == SyntaxKind::Comma
   ///     }
   /// }
@@ -548,10 +360,9 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
   /// use tokit::cst::CstElement;
   ///
   /// impl CstElement for BinaryOperator {
-  ///     type Language = MyLanguage;
   ///     const KIND: SyntaxKind = SyntaxKind::BinaryOp; // Marker
   ///
-  ///     fn can_cast(kind: SyntaxKind) -> bool {
+  ///     fn castable(kind: SyntaxKind) -> bool {
   ///         matches!(
   ///             kind,
   ///             SyntaxKind::Plus
@@ -569,11 +380,11 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
   /// use tokit::cst::CstElement;
   ///
   /// // Check before casting
-  /// if Comma::can_cast(token.kind()) {
+  /// if Comma::castable(token.kind()) {
   ///     let comma = Comma::try_cast_node(token).unwrap();
   /// }
   /// ```
-  fn can_cast(kind: Lang::Kind) -> bool
+  fn castable(kind: Lang::Kind) -> bool
   where
     Self: Sized;
 }
@@ -593,133 +404,7 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
 ///
 /// # Type Parameters
 ///
-/// - `Language`: The rowan [`Language`] type defining syntax kinds
-///
-/// # Implementation
-///
-/// To implement `CstToken`, you need to:
-/// 1. Implement [`CstElement`] to define the token's kind and casting logic
-/// 2. Implement [`try_cast_token()`](Self::try_cast_token) to convert from untyped tokens
-/// 3. Implement [`syntax()`](Self::syntax) to access the underlying token
-/// 4. Optionally override [`text()`](Self::text) if custom text extraction is needed
-///
-/// # Examples
-///
-/// ## Simple Token Implementation
-///
-/// ```rust,ignore
-/// use tokit::cst::{CstElement, CstToken, error};
-/// use rowan::SyntaxToken;
-///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// struct Comma {
-///     syntax: SyntaxToken<MyLanguage>,
-/// }
-///
-/// impl CstElement for Comma {
-///     type Language = MyLanguage;
-///     const KIND: SyntaxKind = SyntaxKind::Comma;
-///
-///     fn can_cast(kind: SyntaxKind) -> bool {
-///         kind == SyntaxKind::Comma
-///     }
-/// }
-///
-/// impl CstToken for Comma {
-///     fn try_cast_token(
-///         syntax: SyntaxToken<Self::Language>
-///     ) -> Result<Self, error::CstTokenMismatch<Self>> {
-///         if Self::can_cast(syntax.kind()) {
-///             Ok(Self { syntax })
-///         } else {
-///             Err(error::CstTokenMismatch::new(Self::KIND, syntax))
-///         }
-///     }
-///
-///     fn syntax(&self) -> &SyntaxToken<Self::Language> {
-///         &self.syntax
-///     }
-/// }
-/// ```
-///
-/// ## Token with Multiple Variants (Enum)
-///
-/// ```rust,ignore
-/// use tokit::cst::{CstElement, CstToken};
-///
-/// #[derive(Debug, Clone)]
-/// enum BinaryOperator {
-///     Plus(PlusToken),
-///     Minus(MinusToken),
-///     Star(StarToken),
-///     Slash(SlashToken),
-/// }
-///
-/// impl CstElement for BinaryOperator {
-///     type Language = MyLanguage;
-///     const KIND: SyntaxKind = SyntaxKind::BinaryOp; // Marker
-///
-///     fn can_cast(kind: SyntaxKind) -> bool {
-///         matches!(
-///             kind,
-///             SyntaxKind::Plus | SyntaxKind::Minus
-///             | SyntaxKind::Star | SyntaxKind::Slash
-///         )
-///     }
-/// }
-///
-/// impl CstToken for BinaryOperator {
-///     fn try_cast_token(
-///         syntax: SyntaxToken<Self::Language>
-///     ) -> Result<Self, error::CstTokenMismatch<Self>> {
-///         match syntax.kind() {
-///             SyntaxKind::Plus => Ok(BinaryOperator::Plus(PlusToken { syntax })),
-///             SyntaxKind::Minus => Ok(BinaryOperator::Minus(MinusToken { syntax })),
-///             SyntaxKind::Star => Ok(BinaryOperator::Star(StarToken { syntax })),
-///             SyntaxKind::Slash => Ok(BinaryOperator::Slash(SlashToken { syntax })),
-///             _ => Err(error::CstTokenMismatch::new(Self::KIND, syntax)),
-///         }
-///     }
-///
-///     fn syntax(&self) -> &SyntaxToken<Self::Language> {
-///         match self {
-///             BinaryOperator::Plus(t) => &t.syntax,
-///             BinaryOperator::Minus(t) => &t.syntax,
-///             BinaryOperator::Star(t) => &t.syntax,
-///             BinaryOperator::Slash(t) => &t.syntax,
-///         }
-///     }
-/// }
-/// ```
-///
-/// ## Using Tokens
-///
-/// ```rust,ignore
-/// use tokit::cst::{CstToken, cast};
-///
-/// // Cast from untyped token
-/// let comma = Comma::try_cast_token(syntax_token)?;
-///
-/// // Access token text
-/// assert_eq!(comma.text(), ",");
-///
-/// // Get underlying syntax token for rowan APIs
-/// let parent = comma.syntax().parent();
-/// ```
-///
-/// ## Finding Tokens in Nodes
-///
-/// ```rust,ignore
-/// use tokit::cst::cast;
-///
-/// // Find a specific token in a node
-/// let equals_token = cast::token(&assignment_node, &SyntaxKind::Equals);
-///
-/// // Check if a token exists
-/// if let Some(async_kw) = cast::token(&function_node, &SyntaxKind::AsyncKeyword) {
-///     println!("Function is async");
-/// }
-/// ```
+/// - `Lang`: The rowan [`Language`] type defining syntax kinds
 pub trait CstToken<Lang: Language>: CstElement<Lang> {
   /// Attempts to cast the given syntax token to this typed token.
   ///
@@ -730,21 +415,6 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
   /// Returns [`CstTokenMismatch`](error::CstTokenMismatch) if:
   /// - The token's kind doesn't match the expected kind for this type
   /// - For enum tokens, the kind is not one of the valid variants
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::CstToken;
-  ///
-  /// // Try to cast a token
-  /// match Comma::try_cast_token(syntax_token) {
-  ///     Ok(comma) => println!("Found comma at: {:?}", comma.syntax().text_range()),
-  ///     Err(e) => eprintln!("Not a comma: {}", e),
-  /// }
-  ///
-  /// // Unwrap if you're sure it's the right type
-  /// let plus = PlusToken::try_cast_token(syntax_token).unwrap();
-  /// ```
   fn try_cast_token(syntax: SyntaxToken<Lang>) -> Result<Self, error::CstTokenMismatch<Self, Lang>>
   where
     Self: Sized;
@@ -753,44 +423,12 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
   ///
   /// This provides access to rowan's token APIs for inspecting position,
   /// text, and tree structure.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::CstToken;
-  ///
-  /// let comma: Comma = ...;
-  ///
-  /// // Get text range
-  /// let range = comma.syntax().text_range();
-  ///
-  /// // Get parent node
-  /// let parent = comma.syntax().parent();
-  ///
-  /// // Get next sibling
-  /// let next = comma.syntax().next_sibling_or_token();
-  /// ```
   fn syntax(&self) -> &SyntaxToken<Lang>;
 
   /// Returns the source text of this token.
   ///
   /// This is a convenience method that extracts the text from the underlying
   /// [`SyntaxToken`]. The text is always valid UTF-8.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::CstToken;
-  ///
-  /// let identifier: IdentifierToken = ...;
-  /// assert_eq!(identifier.text(), "my_variable");
-  ///
-  /// let comma: Comma = ...;
-  /// assert_eq!(comma.text(), ",");
-  ///
-  /// let number: NumberToken = ...;
-  /// let value: i32 = number.text().parse()?;
-  /// ```
   fn text(&self) -> &str
   where
     Lang: 'static,
@@ -816,124 +454,11 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
 ///
 /// # Type Parameters
 ///
-/// - `Language`: The rowan [`Language`] type defining syntax kinds
-///
-/// # Implementation
-///
-/// To implement `Node`, you need to:
-/// 1. Define a struct wrapping [`SyntaxNode<Language>`](SyntaxNode)
-/// 2. Specify the [`KIND`](Self::KIND) constant
-/// 3. Implement [`can_cast()`](Self::can_cast) to check if a kind matches
-/// 4. Implement [`try_cast_node()`](Self::try_cast_node) to convert from untyped nodes
-/// 5. Implement [`syntax()`](Self::syntax) to access the underlying node
-///
-/// # Examples
-///
-/// ## Basic Node Implementation
-///
-/// ```rust,ignore
-/// use tokit::cst::{Node, error};
-/// use rowan::SyntaxNode;
-///
-/// #[derive(Debug, Clone)]
-/// struct IdentifierNode {
-///     syntax: SyntaxNode<MyLanguage>,
-/// }
-///
-/// impl Node for IdentifierNode {
-///     type Language = MyLanguage;
-///     const KIND: SyntaxKind = SyntaxKind::Identifier;
-///
-///     fn can_cast(kind: SyntaxKind) -> bool {
-///         kind == Self::KIND
-///     }
-///
-///     fn try_cast_node(
-///         syntax: SyntaxNode<Self::Language>
-///     ) -> Result<Self, error::CstNodeMismatch<Self>> {
-///         if Self::can_cast(syntax.kind()) {
-///             Ok(Self { syntax })
-///         } else {
-///             Err(error::CstNodeMismatch::new(Self::KIND, syntax))
-///         }
-///     }
-///
-///     fn syntax(&self) -> &SyntaxNode<Self::Language> {
-///         &self.syntax
-///     }
-/// }
-/// ```
-///
-/// ## Using Nodes
-///
-/// ```rust,ignore
-/// use tokit::cst::CstNode;
-///
-/// // Try to cast an untyped node
-/// let identifier = IdentifierNode::try_cast_node(syntax_node)?;
-///
-/// // Access the source text
-/// let text = identifier.source_string();
-///
-/// // Clone for mutation
-/// let mutable = identifier.clone_for_update();
-/// ```
-///
-/// ## Enum Nodes for Variants
-///
-/// ```rust,ignore
-/// use tokit::cst::CstNode;
-///
-/// #[derive(Debug, Clone)]
-/// enum Expression {
-///     Binary(BinaryExpr),
-///     Unary(UnaryExpr),
-///     Literal(LiteralExpr),
-/// }
-///
-/// impl CstNode for Expression {
-///     type Language = MyLanguage;
-///     const KIND: SyntaxKind = SyntaxKind::Expression; // Marker, not used
-///
-///     fn can_cast(kind: SyntaxKind) -> bool {
-///         matches!(
-///             kind,
-///             SyntaxKind::BinaryExpr | SyntaxKind::UnaryExpr | SyntaxKind::Literal
-///         )
-///     }
-///
-///     fn try_cast_node(
-///         syntax: SyntaxNode<Self::Language>
-///     ) -> Result<Self, error::CstNodeMismatch<Self>> {
-///         match syntax.kind() {
-///             SyntaxKind::BinaryExpr => Ok(Expression::Binary(BinaryExpr { syntax })),
-///             SyntaxKind::UnaryExpr => Ok(Expression::Unary(UnaryExpr { syntax })),
-///             SyntaxKind::Literal => Ok(Expression::Literal(LiteralExpr { syntax })),
-///             _ => Err(error::CstNodeMismatch::new(Self::KIND, syntax)),
-///         }
-///     }
-///
-///     fn syntax(&self) -> &SyntaxNode<Self::Language> {
-///         match self {
-///             Expression::Binary(e) => &e.syntax,
-///             Expression::Unary(e) => &e.syntax,
-///             Expression::Literal(e) => &e.syntax,
-///         }
-///     }
-/// }
-/// ```
+/// - `Lang`: The rowan [`Language`] type defining syntax kinds
 pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
   /// Attempts to cast the given syntax node to this CST node.
   ///
   /// Returns an error if the node's kind doesn't match this type.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::Node;
-  ///
-  /// let identifier = IdentifierNode::try_cast_node(syntax_node)?;
-  /// ```
   fn try_cast_node(syntax: SyntaxNode<Lang>) -> Result<Self, error::SyntaxError<Self, Lang>>
   where
     Self: Sized;
@@ -941,30 +466,11 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
   /// Returns a reference to the underlying syntax node.
   ///
   /// This provides access to rowan's tree traversal APIs.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::Node;
-  ///
-  /// let node: IdentifierNode = ...;
-  /// let parent = node.syntax().parent();
-  /// let children = node.syntax().children();
-  /// ```
   fn syntax(&self) -> &SyntaxNode<Lang>;
 
   /// Returns the source string of this CST node.
   ///
   /// This includes all text spanned by this node, including whitespace and trivia.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::Node;
-  ///
-  /// let identifier: IdentifierNode = ...;
-  /// assert_eq!(identifier.source_string(), "my_variable");
-  /// ```
   fn source_string(&self) -> String {
     self.syntax().to_string()
   }
@@ -973,18 +479,6 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
   ///
   /// This creates a mutable copy of the node that can be modified using rowan's
   /// mutation APIs. The original tree remains unchanged.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::Node;
-  ///
-  /// let original: IdentifierNode = ...;
-  /// let mut mutable = original.clone_for_update();
-  ///
-  /// // Modify the mutable copy
-  /// // (using rowan's mutation APIs)
-  /// ```
   fn clone_for_update(&self) -> Self
   where
     Self: Sized,
@@ -996,17 +490,6 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
   ///
   /// This creates a deep copy of this node and all its descendants, detached
   /// from the original tree.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::Node;
-  ///
-  /// let original: ExpressionNode = ...;
-  /// let copy = original.clone_subtree();
-  ///
-  /// // copy is independent of original
-  /// ```
   fn clone_subtree(&self) -> Self
   where
     Self: Sized,
@@ -1019,24 +502,6 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
 ///
 /// `CstNodeChildren` filters and casts child nodes to a specific typed node type,
 /// skipping any children that cannot be cast to the target type.
-///
-/// # Type Parameters
-///
-/// - `N`: The typed [`Node`] type to iterate over
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// use tokit::cst::{Node, cast};
-///
-/// // Get all Identifier children of a function
-/// let identifiers: Vec<IdentifierNode> = cast::children(&function_node.syntax())
-///     .collect();
-///
-/// // Filter by kind within the same type
-/// let params = cast::children::<Parameter>(&function_node.syntax())
-///     .by_kind(|k| k == SyntaxKind::Parameter);
-/// ```
 #[derive(Debug, From, Into)]
 #[repr(transparent)]
 pub struct CstNodeChildren<N, Lang: Language> {
@@ -1067,16 +532,6 @@ impl<N, Lang: Language> CstNodeChildren<N, Lang> {
   ///
   /// This allows further filtering of children based on their syntax kind,
   /// returning the underlying [`SyntaxNode`] instead of typed nodes.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::cast;
-  ///
-  /// // Get all expression children, filtered by specific kinds
-  /// let binary_exprs = cast::children::<Expression>(&node)
-  ///     .by_kind(|k| k == SyntaxKind::BinaryExpr);
-  /// ```
   pub fn by_kind<F>(self, f: F) -> impl Iterator<Item = SyntaxNode<Lang>>
   where
     F: Fn(Lang::Kind) -> bool,
@@ -1102,21 +557,6 @@ where
 ///
 /// This module provides convenient functions for working with typed CST nodes,
 /// including finding children, accessing tokens, and casting between types.
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// use tokit::cst::cast;
-///
-/// // Get the first identifier child
-/// let identifier = cast::child::<IdentifierNode>(&parent_node);
-///
-/// // Get all statement children
-/// let statements: Vec<Statement> = cast::children(&function_node).collect();
-///
-/// // Get a specific token
-/// let equals_token = cast::token(&assignment_node, &SyntaxKind::Equals);
-/// ```
 pub mod cast;
 
 /// Error types for CST operations.

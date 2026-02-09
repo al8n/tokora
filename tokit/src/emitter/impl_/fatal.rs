@@ -20,7 +20,6 @@ mod unexpected_trailing_separator;
 /// `Fatal` is a **complete implementation** of all atomic emitter traits, providing a pre-built bundle
 /// for fail-fast parsing. It implements all emitter traits ([`Emitter`](super::super::Emitter),
 /// [`TooFewEmitter`](super::super::TooFewEmitter), [`TooManyEmitter`](super::super::TooManyEmitter),
-/// [`DelimitedEmitter`](super::super::DelimitedEmitter), etc.) with consistent fail-fast behavior.
 ///
 /// For custom error handling, you can implement only the atomic emitter traits you need rather than
 /// using this pre-built bundle.

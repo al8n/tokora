@@ -285,7 +285,6 @@ where
 /// # See Also
 ///
 /// - [`InplaceRecover`] - Error recovery without backtracking
-/// - [`or_not`](OrNot) - Optional parsing (doesn't emit errors)
 /// - [`PeekThenChoice`] - Deterministic choice (no error recovery)
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Recover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
@@ -441,8 +440,6 @@ where
 /// # See Also
 ///
 /// - [`Recover`] - Error recovery with backtracking
-/// - [`skip_to`](crate::parser::InputRef::skip_to) - Common recovery pattern
-/// - [`or_not`](OrNot) - Optional parsing without error emission
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct InplaceRecover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
   parser: P,

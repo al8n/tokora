@@ -127,18 +127,6 @@ use super::*;
 ///     });
 /// ```
 ///
-/// ## Combining with or_not
-/// ```ignore
-/// // Transform with optional success
-/// let parser = parse_token()
-///     .filter_map(|tok| {
-///         match tok.try_as_keyword() {
-///             Some(kw) => Ok(Some(kw)),
-///             None => Ok(None),  // Not a keyword, but not an error
-///         }
-///     });
-/// ```
-///
 /// # Performance
 ///
 /// - **Memory**: O(1) overhead (just the mapper closure)

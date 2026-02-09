@@ -96,7 +96,6 @@ Tokit's emitter system uses **atomically composable traits** - small, focused tr
 - **Core**: `Emitter` - Base error handling (lexer errors, unexpected tokens)
 - **Repetition**: `TooFewEmitter`, `TooManyEmitter`, `FullContainerEmitter`
 - **Separation**: `SeparatedEmitter`, `UnexpectedLeadingSeparatorEmitter`, `UnexpectedTrailingSeparatorEmitter`
-- **Delimiters**: `DelimitedEmitter`
 
 This design provides:
 

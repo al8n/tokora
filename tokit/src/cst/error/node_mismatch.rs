@@ -6,45 +6,6 @@ use rowan::SyntaxNode;
 ///
 /// This error occurs when attempting to cast a [`SyntaxNode`] to a typed [`CstNode`](crate::cst::CstNode)
 /// type, but the node's kind doesn't match the expected kind for that type.
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// use tokit::cst::{CstNode, error};
-///
-/// let result = IdentifierNode::try_cast_node(syntax_node);
-///
-/// match result {
-///     Ok(identifier) => {
-///         // Successfully cast
-///         println!("Identifier: {}", identifier.source_string());
-///     }
-///     Err(mismatch) => {
-///         // Cast failed
-///         eprintln!("Type mismatch: {}", mismatch);
-///         eprintln!("Expected: {:?}", mismatch.expected());
-///         eprintln!("Found: {:?}", mismatch.found().kind());
-///     }
-/// }
-/// ```
-///
-/// ## Recovering from Errors
-///
-/// ```rust,ignore
-/// use tokit::cst::error::CstNodeMismatch;
-///
-/// let result = Expression::try_cast_node(syntax_node);
-///
-/// let node = match result {
-///     Ok(expr) => expr,
-///     Err(mismatch) => {
-///         // Recover the original syntax node
-///         let (expected_kind, original_node) = mismatch.into_components();
-///         // Try a different type
-///         Statement::try_cast_node(original_node)?
-///     }
-/// };
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, Into)]
 pub struct CstNodeMismatch<N, Lang: Language> {
   found: SyntaxNode<Lang>,
@@ -75,16 +36,6 @@ where
 
 impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   /// Creates a new syntax node mismatch error.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::error::CstNodeMismatch;
-  ///
-  /// let error = CstNodeMismatch::new(
-  ///     SyntaxKind::Identifier,
-  ///     syntax_node
-  /// );
   /// ```
   #[inline]
   pub const fn new(found: SyntaxNode<Lang>) -> Self {
@@ -95,16 +46,6 @@ impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   }
 
   /// Returns the expected syntax node kind.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::Node;
-  ///
-  /// if let Err(mismatch) = IdentifierNode::try_cast_node(node) {
-  ///     println!("Expected kind: {:?}", mismatch.expected());
-  /// }
-  /// ```
   #[inline]
   pub const fn expected(&self) -> Lang::Kind
   where
@@ -114,17 +55,6 @@ impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   }
 
   /// Returns a reference to the syntax node that was found.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::CstNode;
-  ///
-  /// if let Err(mismatch) = IdentifierNode::try_cast_node(node) {
-  ///     println!("Found kind: {:?}", mismatch.found().kind());
-  ///     println!("Found text: {}", mismatch.found().text());
-  /// }
-  /// ```
   #[inline]
   pub const fn found(&self) -> &SyntaxNode<Lang> {
     &self.found
@@ -134,20 +64,6 @@ impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   ///
   /// This is useful for recovering the original syntax node after a failed cast,
   /// allowing you to try casting to a different type.
-  ///
-  /// # Examples
-  ///
-  /// ```rust,ignore
-  /// use tokit::cst::CstNode;
-  ///
-  /// let result = IdentifierNode::try_cast_node(syntax_node);
-  ///
-  /// if let Err(mismatch) = result {
-  ///     let (expected, node) = mismatch.into_components();
-  ///     // Try casting to a different type
-  ///     let keyword = KeywordNode::try_cast_node(node)?;
-  /// }
-  /// ```
   #[inline]
   pub fn into_components(self) -> (Lang::Kind, SyntaxNode<Lang>)
   where

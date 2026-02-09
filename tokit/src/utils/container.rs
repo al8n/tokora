@@ -46,8 +46,6 @@ pub type FourOrMore<T> = SmallVec<T, 4>;
 /// A small vector which inlines up to `N` elements to avoid allocations.
 /// It uses the [`smallvec`](https://docs.rs/smallvec) crate internally.
 ///
-/// Also implements [`Container`] trait from `chumsky` crate, so it can be used as a container for `chumsky` parsers.
-///
 /// ## Example
 ///
 /// ```rust

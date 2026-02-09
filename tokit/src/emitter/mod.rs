@@ -34,7 +34,6 @@ mod separated;
 /// - **Core**: [`Emitter`] - Base error handling (lexer errors, unexpected tokens)
 /// - **Repetition**: [`TooFewEmitter`], [`TooManyEmitter`], [`FullContainerEmitter`]
 /// - **Separation**: [`SeparatedEmitter`], [`UnexpectedLeadingSeparatorEmitter`], [`UnexpectedTrailingSeparatorEmitter`]
-/// - **Delimiters**: [`DelimitedEmitter`]
 ///
 /// This atomic design provides:
 /// - ✅ **Fine-grained control**: Implement only the traits you need for your use case

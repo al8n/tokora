@@ -124,7 +124,6 @@
 //!
 //! - `peek_then` - Peek ahead with fixed window, make deterministic decision
 //! - `peek_then_choice` - Choose between alternatives based on lookahead
-//! - `or_not` - Optional parsing
 //!
 //! ## Transformation
 //!

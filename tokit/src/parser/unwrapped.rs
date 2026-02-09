@@ -9,7 +9,7 @@ use super::*;
 /// # When to Use
 ///
 /// Use this when:
-/// - You've already validated that a value must be present (e.g., with [`or_not`](OrNot))
+/// - You've already validated that a value must be present
 /// - During development/debugging to find logic errors
 /// - In situations where `None` represents a programming error, not a parsing error
 ///
@@ -28,7 +28,7 @@ use super::*;
 /// ## Basic Usage
 ///
 /// ```ignore
-/// use tokit::parser::{ParseInput, OrNot};
+/// use tokit::parser::ParseInput;
 ///
 /// // Parse an optional element, then unwrap it
 /// let parser = optional_element()
@@ -39,20 +39,6 @@ use super::*;
 ///     .map(|opt| opt.unwrap());
 /// ```
 ///
-/// ## With `or_not`
-///
-/// ```ignore
-/// // Parse optional whitespace, default to empty if not found
-/// let parser = whitespace()
-///     .or_not()           // Returns Option<Whitespace>
-///     .unwrap_or_default();  // Better than .unwrapped() - no panic
-///
-/// // Or use unwrapped if you know it must be present:
-/// let parser = required_element()
-///     .or_not()           // Made optional for some reason
-///     .unwrapped();       // Convert back to required
-/// ```
-///
 /// # Panics
 ///
 /// Panics if the inner parser returns `Ok(None)`. The panic message includes the
@@ -60,7 +46,6 @@ use super::*;
 ///
 /// # See Also
 ///
-/// - [`or_not`](OrNot) - Makes a parser optional (returns `Option<T>`)
 /// - [`filter_map`](FilterMap) - Transform and filter with error handling
 /// - [`map`](Map) - Transform output without unwrapping
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

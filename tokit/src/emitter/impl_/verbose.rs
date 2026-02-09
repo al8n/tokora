@@ -31,7 +31,6 @@ mod unexpected_trailing_separator;
 /// - [`Emitter`](super::super::Emitter) - Core error handling
 /// - [`TooFewEmitter`](super::super::TooFewEmitter) - "Too few elements" errors
 /// - [`TooManyEmitter`](super::super::TooManyEmitter) - "Too many elements" errors
-/// - [`DelimitedEmitter`](super::super::DelimitedEmitter) - Delimiter errors
 /// - [`SeparatedEmitter`](super::super::SeparatedEmitter) - Separator errors
 /// - And other atomic traits for specific parsing scenarios
 ///

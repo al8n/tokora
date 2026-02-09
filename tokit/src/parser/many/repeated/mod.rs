@@ -134,7 +134,7 @@ mod unbounded;
 /// # See Also
 ///
 /// - [`SeparatedWhile`] - Parse elements with separators (e.g., commas)
-/// - [`delimited_by`](Repeated::delimited_by) - Wrap in delimiters
+/// - [`delimited`](Repeated::delimited) - Wrap in delimiters
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Repeated<F, O, L, Ctx, Lang: ?Sized = ()> {
