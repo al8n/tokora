@@ -1,5 +1,3 @@
-// use either::Either;
-
 use super::*;
 
 use crate::{

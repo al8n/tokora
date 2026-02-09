@@ -62,8 +62,9 @@ tokit = "0.0.0"
 - `rowan` - Enable CST (Concrete Syntax Tree) support with rowan integration
 - `bytes` - Support for `bytes::Bytes` as token source
 - `bstr` - Support for `bstr::BStr` as token source
-- `hipstr` - Support for `hipstr::HipStr` as token source
+- `hipstr` - Support for `hipstr::HipStr` and `hipstr::HipByt` as token source
 - `among` - Enable `Among<L, M, R>` parseable support
+- `either` - Enable `Either<L, R>` parseable support
 - `smallvec` - Enable small vector optimization utilities
 
 ## Core Components
