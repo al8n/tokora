@@ -1,13 +1,13 @@
 use super::*;
 
-/// A parser that matches its inner parser at most `maximum` times.
+/// A parser that allows leading separators.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct AllowLeading<P> {
   pub(in crate::parser) parser: P,
 }
 
 impl<P> AllowLeading<P> {
-  /// Creates a new `AllowLeading` parser that matches its inner parser at most `maximum` times.
+  /// Creates a new `AllowLeading` parser that allows leading separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(in crate::parser) const fn new(parser: P) -> Self {
     Self { parser }

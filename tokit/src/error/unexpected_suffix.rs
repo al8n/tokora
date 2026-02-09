@@ -22,7 +22,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
   ///     SimpleSpan::new(0, 5),
@@ -54,7 +54,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, PositionedChar}, error::UnexpectedSuffix};
+  /// use tokit::{SimpleSpan, utils::{PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::from_char(
   ///    SimpleSpan::new(0, 5),
@@ -78,7 +78,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, PositionedChar}, error::UnexpectedSuffix};
+  /// use tokit::{SimpleSpan, utils::{PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::from_positioned_char(
   ///    SimpleSpan::new(0, 5),
@@ -118,7 +118,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme}, error::UnexpectedSuffix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::from_suffix(
   ///   SimpleSpan::new(0, 5),
@@ -138,7 +138,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
   ///   SimpleSpan::new(0, 5),
@@ -168,7 +168,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
   ///     SimpleSpan::new(0, 5),
@@ -189,7 +189,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
   ///     SimpleSpan::new(0, 5),
@@ -207,7 +207,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
   ///    SimpleSpan::new(0, 5),
@@ -229,7 +229,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
   ///   SimpleSpan::new(0, 5),
@@ -255,7 +255,7 @@ impl<Char, Knowledge, O> UnexpectedSuffix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedSuffix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedSuffix};
   ///
   /// let mut error: UnexpectedSuffix<char, ()> = UnexpectedSuffix::new(
   ///   SimpleSpan::new(0, 5),

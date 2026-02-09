@@ -182,16 +182,16 @@ pub use by_ref::*;
 pub use collect::Collect;
 pub use empty::*;
 pub use expect::*;
+pub use fail::*;
 pub use filter::*;
 pub use filter_map::*;
+pub use fold::*;
 pub use ident_list::*;
 pub use ignore::*;
 pub use many::*;
 pub use map::*;
-pub use or_not::*;
 pub use padded::*;
-pub use peek_then::*;
-pub use peek_then_choice::*;
+pub use peek::*;
 pub use recover::*;
 pub use then::*;
 pub use todo::*;
@@ -209,19 +209,18 @@ mod by_ref;
 mod collect;
 mod empty;
 mod expect;
+mod fail;
 mod filter;
 mod filter_map;
+mod fold;
 mod ident;
 mod ident_list;
 mod ignore;
 mod keyword;
 mod many;
 mod map;
-mod or_not;
 mod padded;
-mod peek_then;
-mod peek_then_choice;
-mod pratt;
+mod peek;
 mod punct;
 mod recover;
 mod then;
@@ -270,13 +269,15 @@ pub struct WithEmitter<E: ?Sized>(E);
 /// let p = Parser::with(|inp| inp.next())
 ///     .with_emitter(MyEmitter::new());
 /// ```
-pub struct Parser<F, L, O, Error, Context> {
+pub struct Parser<F, L: ?Sized, O: ?Sized, Context, Error: ?Sized> {
   f: F,
   ctx: Context,
-  _marker: PhantomData<(L, O, Error)>,
+  _l: PhantomData<L>,
+  _o: PhantomData<O>,
+  _e: PhantomData<Error>,
 }
 
-impl<F, L, O, Error, Context> core::ops::Deref for Parser<F, L, O, Error, Context> {
+impl<F, L, O, Context, Error> core::ops::Deref for Parser<F, L, O, Context, Error> {
   type Target = F;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -285,14 +286,14 @@ impl<F, L, O, Error, Context> core::ops::Deref for Parser<F, L, O, Error, Contex
   }
 }
 
-impl<F, L, O, Error, Context> core::ops::DerefMut for Parser<F, L, O, Error, Context> {
+impl<F, L, O, Context, Error> core::ops::DerefMut for Parser<F, L, O, Context, Error> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.f
   }
 }
 
-impl<'inp, L, O, Error> Default for Parser<(), L, O, Error, FatalContext<'inp, L, Error>>
+impl<'inp, L, O, Error> Default for Parser<(), L, O, FatalContext<'inp, L, Error>, Error>
 where
   L: Lexer<'inp>,
   Error: FromEmitterError<'inp, L>,
@@ -306,7 +307,7 @@ where
 impl Parser<(), (), (), (), ()> {
   /// A parser without any behavior.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn new<'inp, L, O, Error>() -> Parser<(), L, O, Error, FatalContext<'inp, L, Error>>
+  pub const fn new<'inp, L, O, Error>() -> Parser<(), L, O, FatalContext<'inp, L, Error>, Error>
   where
     L: Lexer<'inp>,
     Error: FromEmitterError<'inp, L>,
@@ -316,7 +317,7 @@ impl Parser<(), (), (), (), ()> {
 
   /// Creates a parser with the given context.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_context<'inp, L, O, Error, Ctx>(ctx: Ctx) -> Parser<(), L, O, Error, Ctx>
+  pub const fn with_context<'inp, L, O, Ctx, Error>(ctx: Ctx) -> Parser<(), L, O, Ctx, Error>
   where
     L: Lexer<'inp>,
     Error: FromEmitterError<'inp, L>,
@@ -329,7 +330,7 @@ impl Parser<(), (), (), (), ()> {
   /// A parser without any behavior.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn of<'inp, L, O, Error, Lang>()
-  -> Parser<(), L, O, Error, FatalContext<'inp, L, Error, Lang>>
+  -> Parser<(), L, O, FatalContext<'inp, L, Error, Lang>, Error>
   where
     L: Lexer<'inp>,
     Error: FromEmitterError<'inp, L, Lang>,
@@ -342,7 +343,7 @@ impl Parser<(), (), (), (), ()> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_context_of<'inp, L, O, Error, Ctx, Lang>(
     ctx: Ctx,
-  ) -> Parser<(), L, O, Error, Ctx>
+  ) -> Parser<(), L, O, Ctx, Error>
   where
     L: Lexer<'inp>,
     Error: FromEmitterError<'inp, L, Lang>,
@@ -353,7 +354,9 @@ impl Parser<(), (), (), (), ()> {
     Parser {
       f: (),
       ctx,
-      _marker: PhantomData,
+      _l: PhantomData,
+      _o: PhantomData,
+      _e: PhantomData,
     }
   }
 
@@ -361,7 +364,7 @@ impl Parser<(), (), (), (), ()> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_parser<'inp, L, O, Error, F>(
     f: F,
-  ) -> Parser<F, L, O, Error, FatalContext<'inp, L, Error>>
+  ) -> Parser<F, L, O, FatalContext<'inp, L, Error>, Error>
   where
     L: Lexer<'inp>,
     F: ParseInput<'inp, L, O, FatalContext<'inp, L, Error>>,
@@ -374,7 +377,7 @@ impl Parser<(), (), (), (), ()> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_parser_of<'inp, L, O, Error, F, Lang>(
     f: F,
-  ) -> Parser<F, L, O, Error, FatalContext<'inp, L, Error, Lang>>
+  ) -> Parser<F, L, O, FatalContext<'inp, L, Error, Lang>, Error>
   where
     L: Lexer<'inp>,
     F: ParseInput<'inp, L, O, FatalContext<'inp, L, Error, Lang>>,
@@ -389,7 +392,7 @@ impl Parser<(), (), (), (), ()> {
   pub const fn with_parser_and_context<'inp, L, O, Error, Ctx, F>(
     f: F,
     ctx: Ctx,
-  ) -> Parser<F, L, O, Error, Ctx>
+  ) -> Parser<F, L, O, Ctx, Error>
   where
     L: Lexer<'inp>,
     F: ParseInput<'inp, L, O, Ctx>,
@@ -404,7 +407,7 @@ impl Parser<(), (), (), (), ()> {
   pub const fn with_parser_and_context_of<'inp, L, O, Error, Ctx, F, Lang>(
     f: F,
     ctx: Ctx,
-  ) -> Parser<F, L, O, Error, Ctx>
+  ) -> Parser<F, L, O, Ctx, Error>
   where
     L: Lexer<'inp>,
     F: ParseInput<'inp, L, O, Ctx>,
@@ -415,18 +418,20 @@ impl Parser<(), (), (), (), ()> {
     Parser {
       f,
       ctx,
-      _marker: PhantomData,
+      _l: PhantomData,
+      _o: PhantomData,
+      _e: PhantomData,
     }
   }
 }
 
-impl<'inp, L, O, Error, Ctx> Parser<(), L, O, Error, Ctx>
+impl<'inp, L, O, Ctx, Error> Parser<(), L, O, Ctx, Error>
 where
   L: Lexer<'inp>,
 {
   /// Apply a new parsing function to the parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn apply<F>(self, f: F) -> Parser<F, L, O, Error, Ctx>
+  pub fn apply<F>(self, f: F) -> Parser<F, L, O, Ctx, Error>
   where
     Ctx: ParseContext<'inp, L>,
     F: ParseInput<'inp, L, O, Ctx>,
@@ -436,7 +441,7 @@ where
 
   /// Apply a new parsing function to the parser for a specific language.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn apply_of<F, Lang>(self, f: F) -> Parser<F, L, O, Error, Ctx>
+  pub fn apply_of<F, Lang>(self, f: F) -> Parser<F, L, O, Ctx, Error>
   where
     Ctx: ParseContext<'inp, L, Lang>,
     F: ParseInput<'inp, L, O, Ctx>,
@@ -444,7 +449,9 @@ where
     Parser {
       f,
       ctx: self.ctx,
-      _marker: PhantomData,
+      _l: PhantomData,
+      _o: PhantomData,
+      _e: PhantomData,
     }
   }
 }
@@ -469,10 +476,71 @@ pub trait Parse<'inp, L, O, Error, Lang: ?Sized = ()>: Sized {
   fn parse_with_state(self, src: &'inp L::Source, state: L::State) -> Result<O, Error>
   where
     L: Lexer<'inp>;
+
+  /// Parse from a raw string source.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_str(self, src: &'inp str) -> Result<O, Error>
+  where
+    L: Lexer<'inp, Source = str>,
+    L::State: Default,
+  {
+    self.parse_str_with_state(src, Default::default())
+  }
+
+  /// Parse from a raw string source with an explicit lexer state.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_str_with_state(self, src: &'inp str, state: L::State) -> Result<O, Error>
+  where
+    L: Lexer<'inp, Source = str>,
+  {
+    self.parse_with_state(src, state)
+  }
+
+  /// Parse from a raw byte slice source.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_slice(self, src: &'inp [u8]) -> Result<O, Error>
+  where
+    L: Lexer<'inp, Source = [u8]>,
+    L::State: Default,
+  {
+    self.parse_slice_with_state(src, Default::default())
+  }
+
+  /// Parse from a raw byte slice source with an explicit lexer state.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_slice_with_state(self, src: &'inp [u8], state: L::State) -> Result<O, Error>
+  where
+    L: Lexer<'inp, Source = [u8]>,
+  {
+    self.parse_with_state(src, state)
+  }
+
+  /// Parse from [`bytes::Bytes`](https://docs.rs/bytes/latest/bytes/struct.Bytes.html) source.
+  #[cfg(feature = "bytes")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "bytes")))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_bytes(self, src: &'inp bytes::Bytes) -> Result<O, Error>
+  where
+    L: Lexer<'inp, Source = [u8]>,
+    L::State: Default,
+  {
+    self.parse_bytes_with_state(src, Default::default())
+  }
+
+  /// Parse from [`bytes::Bytes`](https://docs.rs/bytes/latest/bytes/struct.Bytes.html) source with an explicit lexer state.
+  #[cfg(feature = "bytes")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "bytes")))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_bytes_with_state(self, src: &'inp bytes::Bytes, state: L::State) -> Result<O, Error>
+  where
+    L: Lexer<'inp, Source = [u8]>,
+  {
+    self.parse_with_state(src.as_ref(), state)
+  }
 }
 
 impl<'inp, F, L, O, Error, Ctx, Lang: ?Sized> Parse<'inp, L, O, Error, Lang>
-  for Parser<F, L, O, Error, Ctx>
+  for Parser<F, L, O, Ctx, Error>
 where
   F: ParseInput<'inp, L, O, Ctx, Lang>,
   L: Lexer<'inp>,

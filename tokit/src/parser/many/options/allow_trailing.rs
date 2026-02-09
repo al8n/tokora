@@ -1,13 +1,13 @@
 use super::*;
 
-/// A parser that matches its inner parser at most `maximum` times.
+/// A parser that allows trailing separators.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct AllowTrailing<P> {
   pub(in crate::parser) parser: P,
 }
 
 impl<P> AllowTrailing<P> {
-  /// Creates a new `AllowTrailing` parser that matches its inner parser at most `maximum` times.
+  /// Creates a new `AllowTrailing` parser that allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(in crate::parser) const fn new(parser: P) -> Self {
     Self { parser }

@@ -46,7 +46,7 @@
 //! ## Malformed Number Literals
 //!
 //! ```rust
-//! use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::IntLiteral}};
+//! use tokit::{error::Malformed, SimpleSpan, utils::{knowledge::IntLiteral}};
 //!
 //! // Found "123abc" - mixed digits and letters
 //! let error = Malformed::int(SimpleSpan::new(10, 16));
@@ -56,7 +56,7 @@
 //! ## Malformed Float Literals
 //!
 //! ```rust
-//! use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::FloatLiteral}};
+//! use tokit::{error::Malformed, SimpleSpan, utils::{knowledge::FloatLiteral}};
 //!
 //! // Found "12.34.56" - multiple decimal points
 //! let error = Malformed::float(SimpleSpan::new(5, 13));
@@ -66,7 +66,7 @@
 //! ## Generic Malformed Token
 //!
 //! ```rust
-//! use tokit::{error::Malformed, utils::SimpleSpan};
+//! use tokit::{error::Malformed, SimpleSpan};
 //!
 //! // Malformed with no specific knowledge
 //! let error: Malformed<()> = Malformed::new(SimpleSpan::new(20, 25));
@@ -76,7 +76,7 @@
 //! ## With Custom Knowledge
 //!
 //! ```rust
-//! use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::HexLiteral}};
+//! use tokit::{error::Malformed, SimpleSpan, utils::{knowledge::HexLiteral}};
 //!
 //! // Found "0x" without any digits
 //! let error = Malformed::with_knowledge(SimpleSpan::new(15, 17), HexLiteral::default());
@@ -180,7 +180,7 @@ pub type MalformedHexFloatLiteral = Malformed<HexFloatLiteral>;
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokit::{error::Malformed, utils::SimpleSpan};
+/// use tokit::{error::Malformed, SimpleSpan};
 ///
 /// // Malformed token at position 10-15
 /// let error: Malformed<()> = Malformed::new(SimpleSpan::new(10, 15));
@@ -191,7 +191,7 @@ pub type MalformedHexFloatLiteral = Malformed<HexFloatLiteral>;
 /// ## With Knowledge Context
 ///
 /// ```rust
-/// use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::IntLiteral}};
+/// use tokit::{error::Malformed, SimpleSpan, utils::{knowledge::IntLiteral}};
 ///
 /// // Found "123abc" when parsing integer
 /// let error = Malformed::int(SimpleSpan::new(5, 11));
@@ -234,7 +234,7 @@ impl<S> Malformed<BooleanLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::BooleanLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::BooleanLiteral};
   ///
   /// let error = Malformed::boolean(SimpleSpan::new(10, 14));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 14));
@@ -252,7 +252,7 @@ impl<S> Malformed<NullLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::NullLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::NullLiteral};
   ///
   /// let error = Malformed::null(SimpleSpan::new(20, 24));
   /// assert_eq!(error.span(), SimpleSpan::new(20, 24));
@@ -270,7 +270,7 @@ impl<S> Malformed<EnumLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::EnumLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::EnumLiteral};
   ///
   /// let error = Malformed::enumeration(SimpleSpan::new(30, 40));
   /// assert_eq!(error.span(), SimpleSpan::new(30, 40));
@@ -288,7 +288,7 @@ impl<S> Malformed<EnumValueLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::EnumValueLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::EnumValueLiteral};
   ///
   /// let error = Malformed::enum_value(SimpleSpan::new(45, 49));
   /// assert_eq!(error.span(), SimpleSpan::new(45, 49));
@@ -306,7 +306,7 @@ impl<S> Malformed<DecimalLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::DecimalLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::DecimalLiteral};
   ///
   /// let error = Malformed::decimal(SimpleSpan::new(150, 160));
   /// assert_eq!(error.span(), SimpleSpan::new(150, 160));
@@ -324,7 +324,7 @@ impl<S> Malformed<OctalLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::OctalLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::OctalLiteral};
   ///
   /// let error = Malformed::octal(SimpleSpan::new(50, 60));
   /// assert_eq!(error.span(), SimpleSpan::new(50, 60));
@@ -342,7 +342,7 @@ impl<S> Malformed<StringLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::StringLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::StringLiteral};
   ///
   /// let error = Malformed::string(SimpleSpan::new(70, 80));
   /// assert_eq!(error.span(), SimpleSpan::new(70, 80));
@@ -360,7 +360,7 @@ impl<S> Malformed<HexLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::HexLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::HexLiteral};
   ///
   /// let error = Malformed::hex(SimpleSpan::new(90, 100));
   /// assert_eq!(error.span(), SimpleSpan::new(90, 100));
@@ -378,7 +378,7 @@ impl<S> Malformed<IntLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::IntLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::IntLiteral};
   ///
   /// let error = Malformed::int(SimpleSpan::new(105, 110));
   /// assert_eq!(error.span(), SimpleSpan::new(105, 110));
@@ -396,7 +396,7 @@ impl<S> Malformed<BinaryLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::BinaryLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::BinaryLiteral};
   ///
   /// let error = Malformed::binary(SimpleSpan::new(115, 120));
   /// assert_eq!(error.span(), SimpleSpan::new(115, 120));
@@ -414,7 +414,7 @@ impl<S> Malformed<FloatLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::FloatLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::FloatLiteral};
   ///
   /// let error = Malformed::float(SimpleSpan::new(125, 130));
   /// assert_eq!(error.span(), SimpleSpan::new(125, 130));
@@ -432,7 +432,7 @@ impl<S> Malformed<HexFloatLiteral, S> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan, utils::knowledge::HexFloatLiteral};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::knowledge::HexFloatLiteral};
   ///
   /// let error = Malformed::hex_float(SimpleSpan::new(135, 140));
   /// assert_eq!(error.span(), SimpleSpan::new(135, 140));
@@ -450,7 +450,7 @@ impl<Knowledge, S> Malformed<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan};
+  /// use tokit::{error::Malformed, SimpleSpan};
   ///
   /// let error: Malformed<()> = Malformed::new(SimpleSpan::new(10, 15));
   /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
@@ -469,7 +469,7 @@ impl<Knowledge, S> Malformed<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::IntLiteral}};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::{knowledge::IntLiteral}};
   ///
   /// let error = Malformed::with_knowledge(SimpleSpan::new(5, 10), IntLiteral::default());
   /// assert_eq!(error.knowledge().is_some(), true);
@@ -487,7 +487,7 @@ impl<Knowledge, S> Malformed<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan};
+  /// use tokit::{error::Malformed, SimpleSpan};
   ///
   /// let error: Malformed<()> = Malformed::new(SimpleSpan::new(20, 25));
   /// assert_eq!(error.span(), SimpleSpan::new(20, 25));
@@ -517,7 +517,7 @@ impl<Knowledge, S> Malformed<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::{SimpleSpan, knowledge::FloatLiteral}};
+  /// use tokit::{error::Malformed, SimpleSpan, utils::{knowledge::FloatLiteral}};
   ///
   /// let error = Malformed::float(SimpleSpan::new(10, 15));
   /// assert!(error.knowledge().is_some());
@@ -532,7 +532,7 @@ impl<Knowledge, S> Malformed<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan};
+  /// use tokit::{error::Malformed, SimpleSpan};
   ///
   /// let error: Malformed<()> = Malformed::new(SimpleSpan::new(15, 20));
   /// let (span, knowledge) = error.into_components();
@@ -553,7 +553,7 @@ impl<Knowledge, S> Malformed<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Malformed, utils::SimpleSpan};
+  /// use tokit::{error::Malformed, SimpleSpan};
   ///
   /// let mut error: Malformed<()> = Malformed::new(SimpleSpan::new(10, 15));
   /// error.bump(&100);

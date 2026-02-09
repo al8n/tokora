@@ -10,9 +10,9 @@ macro_rules! define_parsers {
     paste::paste! {
       $(
         impl $name {
-          #[doc = "A parser that parses a token and returns `" $name "` instance if matches."]
+          #[doc = "A parser that parses a token and returns a `" $name "` instance if it matches."]
           ///
-          /// If the function returns `Ok(None)`, it means the next token does not match,
+          /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token does not match,
           /// and promises no valid token is consumed.
           pub fn try_parse<'inp, L, Ctx>(
             inp: &mut InputRef<'inp, '_, L, Ctx>,
@@ -26,9 +26,9 @@ macro_rules! define_parsers {
             Self::try_parse_of(inp)
           }
 
-          #[doc = "A parser that parses a token and returns `" $name " ` instance if matches for a specific language."]
+          #[doc = "A parser that parses a token and returns a `" $name " ` instance if it matches for a specific language."]
           ///
-          /// If the function returns `Ok(None)`, it means the next token does not match,
+          /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token does not match,
           /// and promises no valid token is consumed.
           pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized>(
             inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -42,7 +42,7 @@ macro_rules! define_parsers {
             inp.[< try_expect_ $kind >]().map(|res| res.map(|tok| $name::new(tok.into_span()).change_language()).into())
           }
 
-          #[doc = "A parser that parses a token and returns `" $name "` instance if matches."]
+          #[doc = "A parser that parses a token and returns a `" $name "` instance if it matches."]
           pub fn parse<'inp, L, Ctx>(
             inp: &mut InputRef<'inp, '_, L, Ctx>,
           ) -> Result<$name<L::Span, ()>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
@@ -56,7 +56,7 @@ macro_rules! define_parsers {
             Self::parse_of(inp)
           }
 
-          #[doc = "A parser that parses a token and returns `" $name " ` instance if matches for a specific language."]
+          #[doc = "A parser that parses a token and returns a `" $name " ` instance if it matches for a specific language."]
           pub fn parse_of<'inp, L, Ctx, Lang>(
             inp: &mut InputRef<'inp, '_, L, Ctx, Lang>
           ) -> Result<$name<L::Span, (), Lang>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>

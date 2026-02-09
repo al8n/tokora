@@ -8,20 +8,19 @@
 //! While [`UnexpectedToken`](super::UnexpectedToken) is general-purpose, `UnexpectedIdentifier`
 //! is optimized for the common case of identifier-based languages where:
 //! - The found value is always a string (or string-like type)
-//! - The expected values are always known string literals (identifier)
+//! - The expected values are always known string literals (identifiers)
 //! - There's always a found value (unlike tokens which might hit end-of-input)
 //!
 //! # Common Use Cases
 //!
-//! - Language identifier: `if`, `while`, `for`, `class`, `fn`, etc.
-//! - Control flow identifier: `break`, `continue`, `return`
-//! - Declaration identifier: `let`, `const`, `var`, `type`
-//! - Access modifiers: `pub`, `private`, `protected`
+//! - Required identifiers: `main`, `self`, `this`, `super`
+//! - Fixed-name hooks: `init`, `start`, `cleanup`
+//! - DSL-specific identifiers with a small fixed set of names
 //!
 //! # Example
 //!
 //! ```
-//! use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
+//! use tokit::{SimpleSpan, error::UnexpectedIdentifier};
 //!
 //! // Parser expected "async" but found "sync"
 //! let error = UnexpectedIdentifier::expected_one(
@@ -46,7 +45,7 @@ use crate::{
 /// An error representing an unexpected identifier encountered during parsing.
 ///
 /// This error type is specifically designed for identifier-based parsing where the
-/// expected values are known string literals (identifier). Unlike `UnexpectedToken`,
+/// expected values are known string literals (identifiers). Unlike `UnexpectedToken`,
 /// this type always has a found value and the expected values are always static strings.
 ///
 /// # Type Parameters
@@ -56,7 +55,7 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
+/// use tokit::{SimpleSpan, utils::{Expected}, error::UnexpectedIdentifier};
 ///
 /// // Error when expecting a specific identifier
 /// let error = UnexpectedIdentifier::expected_one(
@@ -68,7 +67,7 @@ use crate::{
 /// assert_eq!(error.span(), SimpleSpan::new(10, 16));
 /// assert_eq!(format!("{}", error), "unexpected 'return', expected 'fn' identifier");
 ///
-/// // Error when expecting one of multiple identifier
+/// // Error when expecting one of multiple identifiers
 /// let error = UnexpectedIdentifier::expected_one_of(
 ///     SimpleSpan::new(0, 5),
 ///     "class",
@@ -95,7 +94,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::new(
   ///     SimpleSpan::new(5, 8),
@@ -122,7 +121,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
+  /// use tokit::{SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
   ///     SimpleSpan::new(0, 3),
@@ -144,7 +143,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
+  /// use tokit::{SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one_of(
   ///     SimpleSpan::new(10, 18),
@@ -167,7 +166,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
+  /// use tokit::{SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
   ///     SimpleSpan::new(20, 26),
@@ -189,7 +188,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
+  /// use tokit::{SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
   ///     SimpleSpan::new(0, 6),
@@ -208,7 +207,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::UnexpectedIdentifier};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::UnexpectedIdentifier};
   ///
   /// let error = UnexpectedIdentifier::expected_one(
   ///     SimpleSpan::new(5, 11),
@@ -233,7 +232,7 @@ impl<'a, F, S> UnexpectedIdentifier<'a, F, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::UnexpectedIdentifier};
+  /// use tokit::{SimpleSpan, error::UnexpectedIdentifier};
   ///
   /// let mut error = UnexpectedIdentifier::expected_one(
   ///     SimpleSpan::new(10, 13),

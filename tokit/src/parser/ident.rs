@@ -5,10 +5,10 @@ use crate::{
 use super::*;
 
 impl Ident<(), ()> {
-  /// A parser that parses a token and returns an `Ident` instance if matches.
+  /// A parser that parses a token and returns an `Ident` instance if it matches.
   ///
-  /// If the function returns `Ok(None)`, it means the next token is not an identifier,
-  /// and promise no valid token is consumed.
+  /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not an identifier,
+  /// and promises no valid token is consumed.
   pub fn try_parse<'inp, L, Ctx>(
     inp: &mut InputRef<'inp, '_, L, Ctx>,
   ) -> Result<
@@ -24,10 +24,10 @@ impl Ident<(), ()> {
     Self::try_parse_of(inp)
   }
 
-  /// A parser that parses a token and returns an `Ident` instance if matches for a specific language.
+  /// A parser that parses a token and returns an `Ident` instance if it matches for a specific language.
   ///
-  /// If the function returns `Ok(None)`, it means the next token is not an identifier,
-  /// and promise no valid token is consumed.
+  /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not an identifier,
+  /// and promises no valid token is consumed.
   pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized>(
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<

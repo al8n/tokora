@@ -55,9 +55,9 @@ use crate::span::SimpleSpan;
 /// ## Span Lexeme
 ///
 /// ```rust
-/// use tokit::utils::{Lexeme, Span};
+/// use tokit::{SimpleSpan, utils::Lexeme};
 ///
-/// let span = Span::new(10, 15); // bytes 10-15
+/// let span = SimpleSpan::new(10, 15); // bytes 10-15
 /// let lexeme: Lexeme<char> = Lexeme::from(span);
 ///
 /// assert!(lexeme.is_range());
@@ -129,7 +129,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Example
   ///
   /// ```
-  /// use tokit::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}};
   ///
   /// let char_lexeme = Lexeme::from_char(5, 'x');
   /// assert_eq!(char_lexeme.start(), 5);
@@ -144,7 +144,7 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Example
   ///
   /// ```
-  /// use tokit::utils::{Lexeme, Span};
+  /// use tokit::{SimpleSpan, utils::Lexeme};
   ///
   /// let l = Lexeme::<char>::from_range(5..10);
   /// assert_eq!(l.start(), 5);
@@ -161,9 +161,9 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Example
   ///
   /// ```
-  /// use tokit::utils::{Lexeme, Span};
+  /// use tokit::{SimpleSpan, utils::Lexeme};
   ///
-  /// let l = Lexeme::<char>::from_range_const(5, 10);
+  /// let l = Lexeme::<char>::from_range_const(SimpleSpan::new(5, 10));
   /// assert_eq!(l.start(), 5);
   /// assert_eq!(l.end(), 10);
   /// assert!(l.is_range());
@@ -178,12 +178,12 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}};
   ///
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
   /// assert_eq!(char_lexeme.start(), 5);
   ///
-  /// let span_lexeme: Lexeme<char> = Lexeme::from(Span::new(10, 15));
+  /// let span_lexeme: Lexeme<char> = Lexeme::from(SimpleSpan::new(10, 15));
   /// assert_eq!(span_lexeme.start(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -202,12 +202,12 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}};
   ///
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
   /// assert_eq!(char_lexeme.start(), 5);
   ///
-  /// let span_lexeme: Lexeme<char> = Lexeme::from(Span::new(10, 15));
+  /// let span_lexeme: Lexeme<char> = Lexeme::from(SimpleSpan::new(10, 15));
   /// assert_eq!(span_lexeme.start(), 10);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -223,12 +223,12 @@ impl<Char, O> Lexeme<Char, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}};
   ///
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
   /// assert_eq!(char_lexeme.end(), 6);
   ///
-  /// let span_lexeme: Lexeme<char> = Lexeme::from(Span::new(10, 15));
+  /// let span_lexeme: Lexeme<char> = Lexeme::from(SimpleSpan::new(10, 15));
   /// assert_eq!(span_lexeme.end(), 15);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -315,15 +315,15 @@ impl<Char, O> Lexeme<Char, O> {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::utils::{Lexeme, PositionedChar, Span};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}};
   ///
   /// // Single character
   /// let char_lexeme = Lexeme::from(PositionedChar::with_position('x', 5));
-  /// assert_eq!(char_lexeme.span(), Span::new(5, 6));
+  /// assert_eq!(char_lexeme.span(), SimpleSpan::new(5, 6));
   ///
   /// // Span
-  /// let span_lexeme: Lexeme<char> = Lexeme::from(Span::new(10, 15));
-  /// assert_eq!(span_lexeme.span(), Span::new(10, 15));
+  /// let span_lexeme: Lexeme<char> = Lexeme::from(SimpleSpan::new(10, 15));
+  /// assert_eq!(span_lexeme.span(), SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn span(&self) -> SimpleSpan<O>

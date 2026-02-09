@@ -26,9 +26,9 @@ use super::{
 /// Thanks to `Deref`, you can call methods on the wrapped value directly:
 ///
 /// ```rust
-/// use tokit::utils::{Located, Span};
+/// use tokit::{Located, SimpleSpan};
 ///
-/// let located = Located::new("main.rs", Span::new(10, 15), "hello");
+/// let located = Located::new("main.rs", SimpleSpan::new(10, 15), "hello");
 ///
 /// // Can call str methods directly
 /// assert_eq!(located.len(), 5);
@@ -42,10 +42,10 @@ use super::{
 /// ## Multi-File Error Reporting
 ///
 /// ```rust,ignore
-/// use tokit::utils::{Located, Span};
+/// use tokit::{Located, SimpleSpan};
 /// use std::path::PathBuf;
 ///
-/// fn report_error<T>(loc: &Located<T, Span, PathBuf>, message: &str)
+/// fn report_error<T>(loc: &Located<T, SimpleSpan, PathBuf>, message: &str)
 /// where
 ///     T: core::fmt::Debug
 /// {
@@ -63,10 +63,10 @@ use super::{
 /// ## Building Complete AST Nodes
 ///
 /// ```rust,ignore
-/// use tokit::utils::{Located, Span};
+/// use tokit::{Located, SimpleSpan};
 /// use std::path::PathBuf;
 ///
-/// type Loc<T> = Located<T, Span, PathBuf>;
+/// type Loc<T> = Located<T, SimpleSpan, PathBuf>;
 ///
 /// enum Expr {
 ///     Number(i64),
@@ -80,7 +80,7 @@ use super::{
 /// // Each expression knows exactly where it came from
 /// let expr = Loc::new(
 ///     PathBuf::from("src/calc.rs"),
-///     Span::new(45, 52),
+///     SimpleSpan::new(45, 52),
 ///     Expr::Number(42)
 /// );
 ///
@@ -90,11 +90,11 @@ use super::{
 /// ## Cross-File Reference Checking
 ///
 /// ```rust,ignore
-/// use tokit::utils::{Located, Span};
+/// use tokit::{Located, SimpleSpan};
 ///
 /// fn check_reference(
-///     reference: &Located<String, Span, String>,
-///     definition: &Located<String, Span, String>
+///     reference: &Located<String, SimpleSpan, String>,
+///     definition: &Located<String, SimpleSpan, String>
 /// ) -> Result<(), String> {
 ///     if reference.slice() != definition.slice() {
 ///         Err(format!(
@@ -113,12 +113,12 @@ use super::{
 /// ## Mapping Values While Preserving Full Location
 ///
 /// ```rust
-/// use tokit::utils::{Located, Span};
+/// use tokit::{Located, SimpleSpan};
 ///
-/// let located_str = Located::new("input.txt", Span::new(5, 7), "42");
+/// let located_str = Located::new("input.txt", SimpleSpan::new(5, 7), "42");
 ///
 /// // Parse the string, keeping both source and position
-/// let parsed: Located<i32, Span, &str> = located_str.map_data(|s| s.parse().unwrap());
+/// let parsed: Located<i32, SimpleSpan, &str> = located_str.map_data(|s| s.parse().unwrap());
 ///
 /// assert_eq!(*parsed, 42);
 /// assert_eq!(parsed.slice(), "input.txt");
@@ -128,17 +128,17 @@ use super::{
 /// ## IDE Integration
 ///
 /// ```rust,ignore
-/// use tokit::utils::{Located, Span};
+/// use tokit::{Located, SimpleSpan};
 /// use std::path::PathBuf;
 ///
 /// struct Diagnostic {
 ///     severity: Severity,
 ///     message: String,
-///     location: Located<(), Span, PathBuf>,
+///     location: Located<(), SimpleSpan, PathBuf>,
 /// }
 ///
 /// // Generate diagnostics with complete location info
-/// fn undefined_variable(name: &Located<String, Span, PathBuf>) -> Diagnostic {
+/// fn undefined_variable(name: &Located<String, SimpleSpan, PathBuf>) -> Diagnostic {
 ///     Diagnostic {
 ///         severity: Severity::Error,
 ///         message: format!("Undefined variable '{}'", name.data()),
@@ -154,12 +154,12 @@ use super::{
 /// ## Incremental Compilation with Position Tracking
 ///
 /// ```rust,ignore
-/// use tokit::utils::{Located, Span};
+/// use tokit::{Located, SimpleSpan};
 /// use std::collections::HashMap;
 ///
 /// struct Definition {
 ///     name: String,
-///     location: Located<(), Span, String>,
+///     location: Located<(), SimpleSpan, String>,
 /// }
 ///
 /// // Track where each definition is located
@@ -183,12 +183,12 @@ use super::{
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokit::utils::{Located, Span};
+/// use tokit::{Located, SimpleSpan};
 ///
-/// let located = Located::new("file.rs", Span::new(0, 5), "hello");
+/// let located = Located::new("file.rs", SimpleSpan::new(0, 5), "hello");
 ///
 /// assert_eq!(located.slice(), "file.rs");
-/// assert_eq!(located.span(), Span::new(0, 5));
+/// assert_eq!(located.span(), SimpleSpan::new(0, 5));
 /// assert_eq!(located.data(), &"hello");
 /// assert_eq!(*located, "hello"); // Via Deref
 /// ```
@@ -196,22 +196,22 @@ use super::{
 /// ## Destructuring
 ///
 /// ```rust
-/// use tokit::utils::{Located, Span};
+/// use tokit::{Located, SimpleSpan};
 ///
-/// let located = Located::new("main.rs", Span::new(10, 20), 42);
+/// let located = Located::new("main.rs", SimpleSpan::new(10, 20), 42);
 ///
 /// let (slice, span, value) = located.into_components();
 /// assert_eq!(slice, "main.rs");
-/// assert_eq!(span, Span::new(10, 20));
+/// assert_eq!(span, SimpleSpan::new(10, 20));
 /// assert_eq!(value, 42);
 /// ```
 ///
 /// ## Mutable Access
 ///
 /// ```rust
-/// use tokit::utils::{Located, Span};
+/// use tokit::{Located, SimpleSpan};
 ///
-/// let mut located = Located::new("input", Span::new(0, 2), 10);
+/// let mut located = Located::new("input", SimpleSpan::new(0, 2), 10);
 ///
 /// // Modify the data
 /// *located += 5;
@@ -229,15 +229,17 @@ use super::{
 /// ## Conversion from Spanned or Sliced
 ///
 /// ```rust
-/// use tokit::utils::{Located, Span, Spanned, Sliced};
+/// use tokit::{Located, SimpleSpan};
+/// use tokit::slice::Sliced;
+/// use tokit::span::Spanned;
 ///
 /// // From Spanned by adding slice info
-/// let spanned = Spanned::new(Span::new(5, 10), "data");
+/// let spanned = Spanned::new(SimpleSpan::new(5, 10), "data");
 /// let located = Located::new("file.rs", spanned.span(), spanned.into_data());
 ///
 /// // From Sliced by adding span info
 /// let sliced = Sliced::new("config.toml", "value");
-/// let located = Located::new(sliced.into_slice(), Span::new(0, 5), "value");
+/// let located = Located::new(sliced.into_slice(), SimpleSpan::new(0, 5), "value");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct Located<D, Sp = SimpleSpan, Sl = ()> {
@@ -298,11 +300,11 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
-  /// let located = Located::new("file.rs", Span::new(10, 15), "hello");
+  /// let located = Located::new("file.rs", SimpleSpan::new(10, 15), "hello");
   /// assert_eq!(located.slice(), "file.rs");
-  /// assert_eq!(located.span(), Span::new(10, 15));
+  /// assert_eq!(located.span(), SimpleSpan::new(10, 15));
   /// assert_eq!(located.data(), &"hello");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -315,9 +317,9 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
-  /// let located = Located::new("main.rs", Span::new(0, 5), "data");
+  /// let located = Located::new("main.rs", SimpleSpan::new(0, 5), "data");
   /// assert_eq!(located.slice(), "main.rs");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -333,9 +335,9 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
-  /// let located = Located::new("config.toml", Span::new(5, 10), "data");
+  /// let located = Located::new("config.toml", SimpleSpan::new(5, 10), "data");
   /// assert_eq!(located.slice_ref(), &"config.toml");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -348,9 +350,9 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
-  /// let mut located = Located::new("old.txt", Span::new(0, 3), "data");
+  /// let mut located = Located::new("old.txt", SimpleSpan::new(0, 3), "data");
   /// *located.slice_mut() = "new.txt";
   /// assert_eq!(located.slice(), "new.txt");
   /// ```
@@ -364,10 +366,10 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
-  /// let located = Located::new("file.rs", Span::new(5, 10), "data");
-  /// assert_eq!(located.span(), Span::new(5, 10));
+  /// let located = Located::new("file.rs", SimpleSpan::new(5, 10), "data");
+  /// assert_eq!(located.span(), SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span(&self) -> Sp
@@ -382,10 +384,10 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
-  /// let located = Located::new("file.rs", Span::new(5, 10), "data");
-  /// assert_eq!(located.span_ref(), &Span::new(5, 10));
+  /// let located = Located::new("file.rs", SimpleSpan::new(5, 10), "data");
+  /// assert_eq!(located.span_ref(), &SimpleSpan::new(5, 10));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn span_ref(&self) -> &Sp {
@@ -397,9 +399,9 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
-  /// let mut located = Located::new("file.rs", Span::new(0, 5), "data");
+  /// let mut located = Located::new("file.rs", SimpleSpan::new(0, 5), "data");
   /// located.span_mut().set_end(10);
   /// assert_eq!(located.span().end(), 10);
   /// ```
@@ -413,9 +415,9 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
-  /// let located = Located::new("file.txt", Span::new(0, 2), 42);
+  /// let located = Located::new("file.txt", SimpleSpan::new(0, 2), 42);
   /// assert_eq!(*located.data(), 42);
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -428,9 +430,9 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
-  /// let mut located = Located::new("file.txt", Span::new(0, 2), 42);
+  /// let mut located = Located::new("file.txt", SimpleSpan::new(0, 2), 42);
   /// *located.data_mut() = 100;
   /// assert_eq!(*located.data(), 100);
   /// ```
@@ -444,14 +446,14 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
   /// let located = Located::new(
   ///     String::from("file.txt"),
-  ///     Span::new(0, 5),
+  ///     SimpleSpan::new(0, 5),
   ///     String::from("hello")
   /// );
-  /// let borrowed: Located<&String, &Span, &String> = located.as_ref();
+  /// let borrowed: Located<&String, &SimpleSpan, &String> = located.as_ref();
   /// assert_eq!(borrowed.data(), &"hello");
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -468,14 +470,14 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::utils::{Located, Span};
+  /// use tokit::{Located, SimpleSpan};
   ///
   /// let mut located = Located::new(
   ///     String::from("file.txt"),
-  ///     Span::new(0, 5),
+  ///     SimpleSpan::new(0, 5),
   ///     String::from("hello")
   /// );
-  /// let mut borrowed: Located<&mut String, &mut Span, &mut String> = located.as_mut();
+  /// let mut borrowed: Located<&mut String, &mut SimpleSpan, &mut String> = located.as_mut();
   /// borrowed.data_mut().push_str(" world");
   /// assert_eq!(located.data(), &"hello world");
   /// ```

@@ -29,7 +29,7 @@ use crate::{
 ///
 /// # Deref Behavior
 ///
-/// `UnknownLexeme` implements `Deref` to `Lexeme<Char>`, so you can call all
+/// `UnknownLexeme` implements `Deref` to `Lexeme<Char, O>`, so you can call all
 /// `Lexeme` methods directly on an `UnknownLexeme` instance.
 ///
 /// # Use Cases
@@ -59,7 +59,7 @@ use crate::{
 /// ## With Token Kind Knowledge
 ///
 /// ```rust,ignore
-/// use tokit::{utils::SimpleSpan, error::UnknownLexeme};
+/// use tokit::{SimpleSpan, error::UnknownLexeme};
 ///
 /// #[derive(Debug, Clone)]
 /// enum ValidTokens {
@@ -79,7 +79,7 @@ use crate::{
 /// }
 /// ```
 ///
-/// ## Mapping Knowledges
+/// ## Mapping Knowledge
 ///
 /// ```rust
 /// use tokit::{utils::PositionedChar, error::UnknownLexeme};
@@ -166,7 +166,7 @@ impl<Char, O> UnknownLexeme<Char, crate::utils::knowledge::Characters, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, knowledge::Characters}, error::UnknownLexeme};
+  /// use tokit::{SimpleSpan, utils::{knowledge::Characters}, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::<char, Characters>::unknown_characters(
   ///     SimpleSpan::new(7, 9)     
@@ -267,7 +267,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::{utils::SimpleSpan, error::UnknownLexeme};
+  /// use tokit::{SimpleSpan, error::UnknownLexeme};
   ///
   /// let error: UnknownLexeme<char, _> = UnknownLexeme::from_range_const(
   ///     SimpleSpan::new(10, 15),
@@ -471,7 +471,7 @@ impl<Char, Knowledge, O> UnknownLexeme<Char, Knowledge, O> {
   /// # Example
   ///
   /// ```rust
-  /// use tokit::{utils::{PositionedChar, SimpleSpan}, error::UnknownLexeme};
+  /// use tokit::{SimpleSpan, utils::{PositionedChar}, error::UnknownLexeme};
   ///
   /// let error = UnknownLexeme::from_positioned_char(
   ///     PositionedChar::with_position('x', 10),

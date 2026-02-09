@@ -12,7 +12,7 @@ use crate::{
   types::{Ident, IdentList},
 };
 
-/// Returns a parser for the a list of identifiers separated by the given separator.
+/// Returns a parser for a list of identifiers separated by the given separator.
 ///
 /// The parser will not consume any valid token if it is not a valid ident list.
 pub fn try_ident_list<'inp, Sep, L, Container, Ctx>() -> impl TryParseInput<
@@ -39,7 +39,7 @@ where
   try_ident_list_of::<Sep, _, _, _, _>()
 }
 
-/// Returns a parser for the a list of identifiers separated by the given separator for the specified language.
+/// Returns a parser for a list of identifiers separated by the given separator for the specified language.
 ///
 /// The parser will not consume any valid token if it is not a valid ident list.
 pub fn try_ident_list_of<'inp, Sep, L, Container, Ctx, Lang>() -> impl TryParseInput<

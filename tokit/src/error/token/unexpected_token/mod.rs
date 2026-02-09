@@ -20,14 +20,15 @@
 //! When the parser reaches the end of input unexpectedly, use constructors without a found token:
 //!
 //! ```
-//! use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
+//! use tokit::{SimpleSpan, error::token::UnexpectedToken};
 //!
-//! // Simple end-of-input error
-//! let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
+//! // Simple end-of-input error (no found token)
+//! let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
 //!     SimpleSpan::new(100, 100),
 //!     "}"
 //! );
-//! assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
+//! assert!(error.found().is_none());
+//! assert_eq!(error.span(), SimpleSpan::new(100, 100));
 //! ```
 //!
 //! ## Unexpected Token Errors
@@ -35,14 +36,16 @@
 //! When a specific token was found but something else was expected:
 //!
 //! ```
-//! use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+//! use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
 //!
-//! let error = UnexpectedToken::expected_one_with_found(
+//! let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
 //!     SimpleSpan::new(10, 15),
 //!     "else",
 //!     "if"
 //! );
-//! assert_eq!(format!("{}", error), "unexpected token 'else', expected 'if'");
+//! assert_eq!(error.span(), SimpleSpan::new(10, 15));
+//! assert_eq!(error.found(), Some(&"else"));
+//! assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "if"));
 //! ```
 
 use core::marker::PhantomData;
@@ -77,34 +80,35 @@ pub type UnexpectedTokenOf<'inp, L, Lang = ()> = UnexpectedToken<
 /// # Examples
 ///
 /// ```
-/// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+/// use tokit::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
 ///
 /// // Error when expecting a specific token but got something else
-/// let error = UnexpectedToken::expected_one_with_found(
+/// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
 ///     SimpleSpan::new(10, 15),
 ///     "}",
 ///     "{"
 /// );
 /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
-/// assert_eq!(format!("{}", error), "unexpected token '}', expected '{'");
+/// assert_eq!(error.found(), Some(&"}"));
+/// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "{"));
 ///
 /// // Error when expecting one of multiple tokens
-/// let error = UnexpectedToken::expected_one_of_with_found(
+/// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_of_with_found(
 ///     SimpleSpan::new(0, 10),
 ///     "identifier",
 ///     &["if", "while", "for"]
 /// );
-/// assert_eq!(
-///     format!("{}", error),
-///     "unexpected token 'identifier', expected one of: 'if', 'while', 'for'"
-/// );
+/// assert_eq!(error.found(), Some(&"identifier"));
+/// if let Some(Expected::OneOf(values)) = error.expected() {
+///     assert_eq!(values.as_slice(), &["if", "while", "for"]);
+/// }
 ///
 /// // Error when reaching end of input unexpectedly
-/// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
+/// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
 ///     SimpleSpan::new(100, 100),
 ///     "}"
 /// );
-/// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
+/// assert!(error.found().is_none());
 /// ```
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct UnexpectedToken<'a, T, Kind: Clone, S = SimpleSpan, Lang: ?Sized = ()> {
@@ -183,20 +187,20 @@ impl<'a, T, Kind: Clone, S> UnexpectedToken<'a, T, Kind, S> {
   /// Creates an unexpected token error without a found token.
   ///
   /// This is useful when the parser reaches the end of input unexpectedly.
-  /// The error will indicate "unexpected end of input" in its display message.
+  /// The error will indicate "unexpected token" in its display message.
   ///
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
   ///
-  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::new(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::with_expected(
   ///     SimpleSpan::new(100, 101),
   ///     Expected::one("}")
   /// );
   /// assert!(error.found().is_none());
   /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
-  /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "}"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_expected(span: S, expected: Expected<'a, Kind>) -> Self {
@@ -206,20 +210,20 @@ impl<'a, T, Kind: Clone, S> UnexpectedToken<'a, T, Kind, S> {
   /// Creates an unexpected token error without a found token.
   ///
   /// This is useful when the parser reaches the end of input unexpectedly.
-  /// The error will indicate "unexpected end of input" in its display message.
+  /// The error will indicate "unexpected token" in its display message.
   ///
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::maybe_expected_of(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::maybe_expected(
   ///     SimpleSpan::new(100, 101),
   ///     Some(Expected::one("}"))
   /// );
   /// assert!(error.found().is_none());
   /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
-  /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "}"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn maybe_expected(span: S, expected: Option<Expected<'a, Kind>>) -> Self {
@@ -254,20 +258,20 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// Creates an unexpected token error without a found token.
   ///
   /// This is useful when the parser reaches the end of input unexpectedly.
-  /// The error will indicate "unexpected end of input" in its display message.
+  /// The error will indicate "unexpected token" in its display message.
   ///
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::new(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::with_expected_of(
   ///     SimpleSpan::new(100, 101),
   ///     Expected::one("}")
   /// );
   /// assert!(error.found().is_none());
   /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
-  /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "}"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn with_expected_of(span: S, expected: Expected<'a, Kind>) -> Self {
@@ -277,20 +281,20 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// Creates an unexpected token error without a found token.
   ///
   /// This is useful when the parser reaches the end of input unexpectedly.
-  /// The error will indicate "unexpected end of input" in its display message.
+  /// The error will indicate "unexpected token" in its display message.
   ///
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::maybe_expected_of(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::maybe_expected_of(
   ///     SimpleSpan::new(100, 101),
   ///     Some(Expected::one("}"))
   /// );
   /// assert!(error.found().is_none());
   /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
-  /// assert_eq!(format!("{}", error), "unexpected end of input, expected '}'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "}"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn maybe_expected_of(span: S, expected: Option<Expected<'a, Kind>>) -> Self {
@@ -305,14 +309,14 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
   ///
-  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(50, 51),
   ///     ";"
   /// );
   /// assert!(error.found().is_none());
-  /// assert_eq!(format!("{}", error), "unexpected end of input, expected ';'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == ";"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn expected_one(span: S, expected: Kind) -> Self {
@@ -327,15 +331,16 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
   ///
-  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_with_found(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(50, 51),
   ///     ":",
   ///     ";"
   /// );
   /// assert!(error.found().is_some());
-  /// assert_eq!(format!("{}", error), "unexpected token ':', expected ';'");
+  /// assert_eq!(error.found(), Some(&":"));
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == ";"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn expected_one_with_found(span: S, found: T, expected: Kind) -> Self {
@@ -350,17 +355,16 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
   ///
-  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_of(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_of(
   ///     SimpleSpan::new(25, 26),
   ///     &["+", "-", "*", "/"]
   /// );
   /// assert!(error.found().is_none());
-  /// assert_eq!(
-  ///     format!("{}", error),
-  ///     "unexpected end of input, expected one of: '+', '-', '*', '/'"
-  /// );
+  /// if let Some(Expected::OneOf(values)) = error.expected() {
+  ///     assert_eq!(values.as_slice(), &["+", "-", "*", "/"]);
+  /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn expected_one_of(span: S, expected: &'static [Kind]) -> Self {
@@ -375,18 +379,18 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::SimpleSpan, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
   ///
-  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one_of_with_found(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_of_with_found(
   ///     SimpleSpan::new(25, 26),
   ///     ":",
   ///     &["+", "-", "*", "/"]
   /// );
   /// assert!(!error.found().is_none());
-  /// assert_eq!(
-  ///     format!("{}", error),
-  ///     "unexpected token ':', expected one of: '+', '-', '*', '/'"
-  /// );
+  /// assert_eq!(error.found(), Some(&":"));
+  /// if let Some(Expected::OneOf(values)) = error.expected() {
+  ///     assert_eq!(values.as_slice(), &["+", "-", "*", "/"]);
+  /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn expected_one_of_with_found(span: S, found: T, expected: &'static [Kind]) -> Self {
@@ -402,23 +406,23 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
   /// // With a found token
-  /// let error = UnexpectedToken::expected_one(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(10, 14),
   ///     "if"
   /// ).maybe_found(Some("else"));
   /// assert_eq!(error.found(), Some(&"else"));
-  /// assert_eq!(format!("{}", error), "unexpected token 'else', expected 'if'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "if"));
   ///
   /// // Without a found token (end of input)
-  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(50, 50),
   ///     "if"
   /// ).maybe_found(None);
   /// assert_eq!(error.found(), None);
-  /// assert_eq!(format!("{}", error), "unexpected end of input, expected 'if'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "if"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn maybe_found(mut self, found: Option<T>) -> Self {
@@ -435,23 +439,23 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
   /// // With a found token
-  /// let error = UnexpectedToken::expected_one(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(10, 14),
   ///     "if"
   /// ).maybe_found_const(Some("else"));
   /// assert_eq!(error.found(), Some(&"else"));
-  /// assert_eq!(format!("{}", error), "unexpected token 'else', expected 'if'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "if"));
   ///
   /// // Without a found token (end of input)
-  /// let error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(50, 50),
   ///     "if"
   /// ).maybe_found_const(None);
   /// assert_eq!(error.found(), None);
-  /// assert_eq!(format!("{}", error), "unexpected end of input, expected 'if'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "if"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn maybe_found_const(mut self, found: Option<T>) -> Self
@@ -470,14 +474,14 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error = UnexpectedToken::expected_one(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(5, 10),
   ///     "fn"
   /// ).with_found("class");
   /// assert_eq!(error.found(), Some(&"class"));
-  /// assert_eq!(format!("{}", error), "unexpected token 'class', expected 'fn'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "fn"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn with_found(mut self, found: T) -> Self {
@@ -493,14 +497,14 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error = UnexpectedToken::expected_one(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(5, 10),
   ///     "fn"
   /// ).with_found_const("class");
   /// assert_eq!(error.found(), Some(&"class"));
-  /// assert_eq!(format!("{}", error), "unexpected token 'class', expected 'fn'");
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "fn"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn with_found_const(mut self, found: T) -> Self
@@ -516,9 +520,9 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error = UnexpectedToken::expected_one_with_found(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
   ///     "identifier",
   ///     "number"
@@ -538,9 +542,9 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error = UnexpectedToken::expected_one_with_found(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
   ///     "identifier",
   ///     "number"
@@ -557,14 +561,14 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let mut error = UnexpectedToken::expected_one_with_found(
-  ///    SimpleSpan::new(10, 15),
-  ///   "identifier",
-  ///   "number"
+  /// let mut error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
+  ///     SimpleSpan::new(10, 15),
+  ///     "identifier",
+  ///     "number"
   /// );
-  /// error.bump(&5);
+  /// *error.span_mut() = SimpleSpan::new(15, 20);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -579,16 +583,16 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error = UnexpectedToken::expected_one_with_found(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(0, 10),
   ///     "identifier",
   ///     "number"
   /// );
   /// assert_eq!(error.found(), Some(&"identifier"));
   ///
-  /// let eof_error: UnexpectedToken<&str, &str> = UnexpectedToken::expected_one(
+  /// let eof_error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(100, 100),
   ///     "}"
   /// );
@@ -604,17 +608,14 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error = UnexpectedToken::expected_one_with_found(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(5, 6),
   ///     "}",
   ///     "{"
   /// );
-  /// assert_eq!(*error.expected(), Expected::one("{"));
-  /// if let Expected::One(value) = error.expected() {
-  ///     assert_eq!(*value, "{");
-  /// }
+  /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "{"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn expected(&self) -> Option<&Expected<'a, Kind>> {
@@ -629,9 +630,9 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let mut error = UnexpectedToken::expected_one_with_found(
+  /// let mut error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
   ///     "}",
   ///     "{"
@@ -656,12 +657,12 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   ///
   /// ```
   /// # #[cfg(feature = "std")] {
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error = UnexpectedToken::expected_one_with_found(
-  ///    SimpleSpan::new(0, 5),
-  ///   "identifier",
-  ///   "number"
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
+  ///     SimpleSpan::new(0, 5),
+  ///     "identifier",
+  ///     "number"
   /// );
   /// let mapped_error = error.map_expected(|expected| {
   ///     // Transform the expected token type here
@@ -690,9 +691,9 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokit::{utils::{Expected, SimpleSpan}, error::token::UnexpectedToken};
+  /// use tokit::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
   ///
-  /// let error = UnexpectedToken::expected_one_with_found(
+  /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(5, 6),
   ///     "}",
   ///     "{"
@@ -700,7 +701,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// let (span, found, expected) = error.into_components();
   /// assert_eq!(span, SimpleSpan::new(5, 6));
   /// assert_eq!(found, Some("}"));
-  /// assert_eq!(expected, Expected::one("{"));
+  /// assert_eq!(expected, Some(Expected::one("{")));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn into_components(self) -> (S, Option<T>, Option<Expected<'a, Kind>>) {

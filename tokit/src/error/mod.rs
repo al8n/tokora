@@ -116,7 +116,7 @@ mod unicode_escape;
 /// ## Basic Implementation
 ///
 /// ```rust
-/// use tokit::{error::ErrorNode, utils::SimpleSpan};
+/// use tokit::{error::ErrorNode, SimpleSpan};
 ///
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct Identifier(String);
@@ -279,7 +279,7 @@ pub trait ErrorNode<S = SimpleSpan> {
   /// # Implementation
   ///
   /// ```rust
-  /// use tokit::{error::ErrorNode, utils::SimpleSpan};
+  /// use tokit::{error::ErrorNode, SimpleSpan};
   ///
   /// struct Identifier(String);
   ///
@@ -320,7 +320,7 @@ pub trait ErrorNode<S = SimpleSpan> {
   /// # Implementation
   ///
   /// ```rust
-  /// use tokit::{error::ErrorNode, utils::SimpleSpan};
+  /// use tokit::{error::ErrorNode, SimpleSpan};
   ///
   /// struct FunctionName(String);
   ///

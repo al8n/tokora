@@ -17,12 +17,12 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// Create a new `UnexpectedPrefix` error indicating a leading zero was found.
   ///
   /// ## Panics
-  /// - If the positioned character's position is before the token span ends.
+  /// - If the prefix overlaps the token span (i.e., if it ends after the token span starts).
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, knowledge::IntLiteral}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{knowledge::IntLiteral}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, IntLiteral> = UnexpectedPrefix::leading_zero(
   ///   SimpleSpan::new(1, 5),
@@ -44,12 +44,12 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// Create a new `UnexpectedPrefix` error from the given token span and the prefix span
   ///
   /// ## Panics
-  /// - If the prefix span starts before the token span ends.
+  /// - If the prefix span ends after the token span starts.
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, knowledge::IntLiteral}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{knowledge::IntLiteral}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, IntLiteral> = UnexpectedPrefix::leading_zeros(
   ///   SimpleSpan::new(6, 10),
@@ -77,7 +77,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///     SimpleSpan::new(1, 5),
@@ -106,12 +106,12 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// Create a new `UnexpectedPrefix` error from the given token span and character with position.
   ///
   /// ## Panics
-  /// - If the positioned character's position is before the token span ends.
+  /// - If the prefix overlaps the token span (i.e., if it ends after the token span starts).
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{PositionedChar, SimpleSpan}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::from_char(
   ///    SimpleSpan::new(1, 5),
@@ -132,12 +132,12 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// Create a new `UnexpectedPrefix` error from the given token span and character with position.
   ///
   /// ## Panics
-  /// - If the positioned character's position is before the token span ends.
+  /// - If the prefix overlaps the token span (i.e., if it ends after the token span starts).
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{PositionedChar, SimpleSpan}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::from_positioned_char(
   ///    SimpleSpan::new(1, 5),
@@ -174,12 +174,12 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// Create a new `UnexpectedPrefix` error from the given token span and the prefix span
   ///
   /// ## Panics
-  /// - If the prefix span starts before the token span ends.
+  /// - If the prefix span ends after the token span starts.
   ///
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::from_prefix(
   ///   SimpleSpan::new(6, 10),
@@ -201,7 +201,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///   SimpleSpan::new(1, 5),
@@ -228,7 +228,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///     SimpleSpan::new(1, 5),
@@ -249,7 +249,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///    SimpleSpan::new(1, 5),
@@ -271,7 +271,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///   SimpleSpan::new(1, 5),
@@ -297,7 +297,7 @@ impl<Char, Knowledge, O> UnexpectedPrefix<Char, Knowledge, O> {
   /// ## Examples
   ///
   /// ```rust
-  /// use tokit::{utils::{SimpleSpan, Lexeme, PositionedChar}, error::UnexpectedPrefix};
+  /// use tokit::{SimpleSpan, utils::{Lexeme, PositionedChar}, error::UnexpectedPrefix};
   ///
   /// let mut error: UnexpectedPrefix<char, ()> = UnexpectedPrefix::new(
   ///   SimpleSpan::new(1, 5),

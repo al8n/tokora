@@ -2,10 +2,13 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use crate::{
   input::InputRef,
-  parser::{Accepted, ByRef, Repeated, Separated},
+  parser::{Accepted, ByRef, Fold, Repeated, Separated, TryFold, TryFoldWith},
   punct::*,
   token::PunctuatorToken,
 };
+
+#[cfg(any(feature = "alloc", feature = "std"))]
+use crate::parser::RFold;
 
 use super::*;
 
@@ -116,11 +119,11 @@ macro_rules! define_separated_by {
 ///
 /// Unlike [`ParseInput`] which must produce a value or error, `TryParseInput` allows parsers
 /// to inspect the input and decide whether to consume it based on lookahead. If the parser
-/// returns `Ok(None)`, **no valid tokens are consumed** - the input position only advances
+/// returns `Ok(ParseAttempt::Decline)`, **no valid tokens are consumed** - the input position only advances
 /// past any error tokens that were consumed by the emitter.
 ///
 /// **IMPORTANT:**
-/// Implicit backtracking may occur when a parser returns `Ok(None)`.
+/// Implicit backtracking may occur when a parser returns `Ok(ParseAttempt::Decline)`.
 pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Attempts to parse `O` from the input without committing.
   ///
@@ -189,12 +192,87 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Repeated::new(self)
   }
 
+  /// Creates a `Fold` combinator that accumulates results using the provided initializer and accumulator.
+  ///
+  /// See also [`try_fold`](TryParseInput::try_fold), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn fold<Init, Acc>(self, init: Init, acc: Acc) -> Fold<Self, Init, Acc, L, O, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(O, O) -> O,
+  {
+    Fold::new(self, init, acc)
+  }
+
+  /// Creates a `TryFold` combinator that accumulates results using the provided initializer and fallible accumulator.
+  ///
+  /// See also [`try_fold_with`](Self::try_fold_with), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_fold<Init, Acc>(self, init: Init, acc: Acc) -> TryFold<Self, Init, Acc, L, O, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(O, O) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    TryFold::new(self, init, acc)
+  }
+
+  /// Creates a `TryFoldWith` combinator that accumulates results using the provided initializer,
+  /// fallible accumulator, and parsing state.
+  ///
+  /// See also [`try_fold`](Self::try_fold), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn try_fold_with<Init, Acc>(
+    self,
+    init: Init,
+    acc: Acc,
+  ) -> TryFoldWith<Self, Init, Acc, L, O, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(
+      O,
+      O,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    TryFoldWith::new(self, init, acc)
+  }
+
+  /// Creates a `RFold` combinator that accumulates results in reverse order using the provided
+  /// initializer and accumulator.
+  ///
+  /// This buffers all parsed outputs before folding them from right to left.
+  /// Parsing stops when this parser returns `Ok(ParseAttempt::Decline)`.
+  ///
+  /// See also [`fold`](Self::fold).
+  #[cfg(any(feature = "alloc", feature = "std"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "alloc", feature = "std"))))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn rfold<Init, Acc>(self, init: Init, acc: Acc) -> RFold<Self, Init, Acc, L, O, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    Init: FnMut() -> O,
+    Acc: FnMut(O, O) -> O,
+  {
+    RFold::new(self, init, acc)
+  }
+
   /// Creates a `Separated` combinator that parses separated elements, where **this parser
   /// handles the lookahead**.
   ///
   /// This parser (the element parser) will be called repeatedly to parse elements separated
   /// by the given separator. Since this parser implements [`TryParseInput`], it can peek ahead
-  /// and return `Ok(None)` when it doesn't match, **without consuming any tokens**.
+  /// and return `Ok(ParseAttempt::Decline)` when it doesn't match, **without consuming any tokens**.
   ///
   /// ## Key Behavior
   ///

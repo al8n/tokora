@@ -119,15 +119,6 @@ pub struct PeekThen<P, D, T, Window> {
   _capacity: PhantomData<Window>,
 }
 
-impl<P, D, T, Window> Apply<OrNot<Self>> for PeekThen<P, D, T, Window> {
-  type Options = ();
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn apply(self, _: Self::Options) -> OrNot<Self> {
-    OrNot::new(self)
-  }
-}
-
 impl<P, D, T, W: Window> PeekThen<P, D, T, W> {
   /// Creates a new `PeekThen` combinator for the specified language.
   #[cfg_attr(not(tarpaulin), inline(always))]

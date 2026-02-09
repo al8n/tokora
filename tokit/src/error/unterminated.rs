@@ -36,7 +36,7 @@
 //! ## GraphQL Spread Operator
 //!
 //! ```rust
-//! use tokit::{error::Unterminated, utils::SimpleSpan};
+//! use tokit::{error::Unterminated, SimpleSpan};
 //!
 //! // In GraphQL, '...' is the spread operator
 //! // If we find only '.' or '..' at EOF, it's unterminated
@@ -50,7 +50,7 @@
 //! ## Custom Knowledge Enum
 //!
 //! ```rust
-//! use tokit::{error::Unterminated, utils::SimpleSpan};
+//! use tokit::{error::Unterminated, SimpleSpan};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,7 +80,7 @@
 //! ## Incomplete Multi-Character Operators
 //!
 //! ```rust
-//! use tokit::{error::Unterminated, utils::SimpleSpan};
+//! use tokit::{error::Unterminated, SimpleSpan};
 //!
 //! // Source: "if x < "
 //! //           pos: 5^
@@ -91,7 +91,7 @@
 //! ## Position Adjustment
 //!
 //! ```rust
-//! use tokit::{error::Unterminated, utils::SimpleSpan};
+//! use tokit::{error::Unterminated, SimpleSpan};
 //!
 //! // Error from a nested parsing context
 //! let mut error = Unterminated::new(SimpleSpan::new(5, 7), "string escape sequence");
@@ -133,7 +133,7 @@ use crate::span::{SimpleSpan, Span};
 /// ## Detecting Incomplete Operators
 ///
 /// ```rust
-/// use tokit::{error::Unterminated, utils::SimpleSpan};
+/// use tokit::{error::Unterminated, SimpleSpan};
 ///
 /// // Found '&' at position 10, expected '&&'
 /// let error = Unterminated::new(SimpleSpan::new(10, 11), "logical AND operator");
@@ -145,7 +145,7 @@ use crate::span::{SimpleSpan, Span};
 /// ## Tracking Multiple Unterminated Sequences
 ///
 /// ```rust
-/// use tokit::{error::Unterminated, utils::SimpleSpan};
+/// use tokit::{error::Unterminated, SimpleSpan};
 ///
 /// let errors = vec![
 ///     Unterminated::new(SimpleSpan::new(5, 7), "spread operator"),    // .. instead of ...
@@ -188,7 +188,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, SimpleSpan};
   ///
   /// // Found '..' instead of '...' at positions 5-7
   /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
@@ -207,7 +207,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, SimpleSpan};
   ///
   /// let error = Unterminated::new(SimpleSpan::new(10, 11), "logical AND");
   /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
@@ -237,7 +237,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, SimpleSpan};
   ///
   /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// assert_eq!(error.knowledge_ref(), &"spread operator");
@@ -254,7 +254,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, SimpleSpan};
   ///
   /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// assert_eq!(error.knowledge(), "spread operator");
@@ -276,7 +276,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, SimpleSpan};
   ///
   /// let mut error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// error.bump(&100);
@@ -296,7 +296,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokit::{error::Unterminated, utils::SimpleSpan};
+  /// use tokit::{error::Unterminated, SimpleSpan};
   ///
   /// let error = Unterminated::new(SimpleSpan::new(10, 12), "escape sequence");
   /// let (span, knowledge) = error.into_components();
