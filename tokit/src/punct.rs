@@ -209,7 +209,10 @@ macro_rules! punctuator {
 }
 
 punctuator! {
+  // Delimiters
+  #[doc(alias = "LessThan")]
   (OpenAngle, "OPEN_ANGLE", "<"),
+  #[doc(alias = "GreaterThan")]
   (CloseAngle, "CLOSE_ANGLE", ">"),
   (Angle, "ANGLE", "<>"),
   (OpenBrace, "OPEN_BRACE", "{"),
@@ -221,41 +224,110 @@ punctuator! {
   (Bracket, "BRACKET", "[]"),
   (OpenBracket, "OPEN_BRACKET", "["),
   (CloseBracket, "CLOSE_BRACKET", "]"),
+
+  // ASCII Punctuation
+  (At, "AT", "@"),
+  (Asterisk, "ASTERISK", "*"),
+  #[doc(alias = "And")]
+  (Ampersand, "AMPERSAND", "&"),
+  (Apostrophe, "APOSTROPHE", "'"),
+  (Backtick, "BACKTICK", "`"),
+  (Backslash, "BACKSLASH", "\\"),
+  #[doc(alias = "BitXor")]
+  (Caret, "CARET", "^"),
   (Comma, "COMMA", ","),
-  (Semicolon, "SEMICOLON", ";"),
   (Colon, "COLON", ":"),
   (Dot, "DOT", "."),
+  (Dollar, "DOLLAR", "$"),
+  (DoubleQuote, "DOUBLE_QUOTE", "\""),
+  (Equal, "EQUAL", "="),
+  #[doc(alias = "Bang")]
+  (Exclamation, "EXCLAMATION", "!"),
+  (Hash, "HASH", "#"),
+  #[doc(alias = "Minus")]
+  (Hyphen, "HYPHEN", "-"),
+  (Pipe, "PIPE", "|"),
+  (Plus, "PLUS", "+"),
+  (Percent, "PERCENT", "%"),
+  (Question, "QUESTION", "?"),
+  (Slash, "SLASH", "/"),
+  (Semicolon, "SEMICOLON", ";"),
   (Tilde, "TILDE", "~"),
   (Underscore, "UNDERSCORE", "_"),
-  (Equal, "EQUAL", "="),
-  (Hyphen, "HYPHEN", "-"),
+
+  // Multi-character Punctuators
   #[doc(alias = "ThinArrow")]
   (Arrow, "ARROW", "->"),
   (FatArrow, "FAT_ARROW", "=>"),
-  (ColonEq, "COLON_EQ", ":="),
+  #[doc(alias = "PipeForward")]
+  (PipeArrow, "PIPE_ARROW", "|>"),
+
+  // Equal related
+  #[doc(alias = "ColonAssign")]
+  #[doc(alias = "ShortDeclaration")]
+  #[doc(alias = "ColonEquals")]
+  (ColonEqual, "COLON_EQUAL", ":="),
+  (LogicalEqual, "LOGICAL_EQUAL", "=="),
+  (LogicalNotEqual, "LOGICAL_NOT_EQUAL", "!="),
+  (StrictEqual, "STRICT_EQUAL", "==="),
+  (StrictNotEqual, "STRICT_NOT_EQUAL", "!=="),
+  (LessThanOrEqual, "LESS_THAN_OR_EQUAL", "<="),
+  (GreaterThanOrEqual, "GREATER_THAN_OR_EQUAL", ">="),
+  (StrictLessThanOrEqual, "STRICT_LESS_THAN", "<=="),
+  (StrictGreaterThanOrEqual, "STRICT_GREATER_THAN_OR_EQUAL", ">=="),
+
+  #[doc(alias = "AddAssign")]
+  (PlusEqual, "PLUS_EQUAL", "+="),
+  #[doc(alias = "SubAssign")]
+  (HyphenEqual, "HYPHEN_EQUAL", "-="),
+  #[doc(alias = "MulAssign")]
+  (AsteriskEqual, "ASTERISK_EQUAL", "*="),
+  #[doc(alias = "ExponentiationAssign")]
+  (ExponentiationEqual, "EXPONENTIATION_EQUAL", "**="),
+  #[doc(alias = "DivAssign")]
+  (SlashEqual, "SLASH_EQUAL", "/="),
+  (BackslashEqual, "BACKSLASH_EQUAL", "\\="),
+  #[doc(alias = "RemAssign")]
+  (PercentEqual, "PERCENT_EQUAL", "%="),
+  #[doc(alias = "AndAssign")]
+  (AmpersandEqual, "AMPERSAND_EQUAL", "&="),
+  #[doc(alias = "OrAssign")]
+  (PipeEqual, "PIPE_EQUAL", "|="),
+  #[doc(alias = "XorAssign")]
+  (CaretEqual, "CARET_EQUAL", "^="),
+  #[doc(alias = "ShlAssign")]
+  (ShlEqual, "SHL_EQUAL", "<<="),
+  #[doc(alias = "ShrAssign")]
+  (ShrEqual, "SHR_EQUAL", ">>="),
+  #[doc(alias = "SarAssign")]
+  (SarEqual, "SAR_EQUAL", ">>>="),
+
+
+  (ShiftLeft, "SHIFT_LEFT", "<<"),
+  (ShiftRight, "SHIFT_RIGHT", ">>"),
+  (ShiftArithmeticRight, "SHIFT_ARITHMETIC_RIGHT", ">>>"),
+
+  (Increment, "INCREMENT", "++"),
+  (Decrement, "DECREMENT", "--"),
+  (Exponentiation, "EXPONENTIATION", "**"),
+
+  (LogicalAnd, "LOGICAL_AND", "&&"),
+  (LogicalOr, "LOGICAL_OR", "||"),
+
   (DoubleColon, "DOUBLE_COLON", "::"),
+
+  (Spread, "SPREAD", "..."),
+  #[doc(alias = "NullishCoalescing")]
+  (NullCoalesce, "NULL_COALESCE", "??"),
+  (OptionalChain, "OPTIONAL_CHAIN", "?."),
+
+  // Trivia
   (Tab, "TAB", "\t"),
   (Newline, "NEWLINE", "\n"),
   (CarriageReturn, "CARRIAGE_RETURN", "\r"),
   (CarriageReturnNewline, "CARRIAGE_RETURN_NEWLINE", "\r\n"),
   (Space, "SPACE", " "),
-  (Pipe, "PIPE", "|"),
-  (Ampersand, "AMPERSAND", "&"),
-  (Percent, "PERCENT", "%"),
-  (Slash, "SLASH", "/"),
-  (Backslash, "BACKSLASH", "\\"),
-  (Dollar, "DOLLAR", "$"),
-  (Hash, "HASH", "#"),
-  (At, "AT", "@"),
-  (Asterisk, "ASTERISK", "*"),
-  (Apostrophe, "APOSTROPHE", "'"),
-  (DoubleQuote, "DOUBLE_QUOTE", "\""),
-  (Plus, "PLUS", "+"),
-  (Exclamation, "EXCLAMATION", "!"),
-  (Question, "QUESTION", "?"),
-  (Backtick, "BACKTICK", "`"),
   (Trivia, "TRIVIA", "any trivia characters"),
-  (Caret, "CARET", "^"),
 }
 
 /// A trait for any punctuator.

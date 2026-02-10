@@ -18,7 +18,7 @@ mod unexpected_trailing_separator;
 /// `Silent` is a **complete implementation** of all atomic emitter traits, providing a pre-built bundle
 /// for error-ignoring behavior. It implements all emitter traits ([`Emitter`](super::super::Emitter),
 /// [`TooFewEmitter`](super::super::TooFewEmitter), [`TooManyEmitter`](super::super::TooManyEmitter),
-/// [`DelimitedEmitter`](super::super::DelimitedEmitter), etc.) with consistent silent behavior.
+/// etc.) with consistent silent behavior.
 ///
 /// For custom error handling, you can implement only the atomic emitter traits you need rather than
 /// using this pre-built bundle.

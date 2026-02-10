@@ -58,25 +58,6 @@ use super::*;
 ///     });
 /// ```
 ///
-/// ## Optional Parsing with `or_not`
-///
-/// ```ignore
-/// use generic_arraydeque::typenum::U1;
-///
-/// // Parse optional visibility modifier
-/// let parser = visibility_parser()
-///     .peek_then::<_, U1>(|mut peeked, _| {
-///         match peeked.front() {
-///             Some(Token::Pub) => Ok(()),
-///             _ => Err(()),  // Not an error, just skip
-///         }
-///     })
-///     .or_not();  // Converts to Option<Visibility>
-///
-/// // Input: "pub fn" → Ok(Some(Visibility::Public))
-/// // Input: "fn"     → Ok(None)
-/// ```
-///
 /// ## Context-Aware Parsing
 ///
 /// ```ignore
@@ -109,7 +90,6 @@ use super::*;
 /// # See Also
 ///
 /// - [`PeekThenChoice`] - Choose between multiple parsers based on lookahead
-/// - [`or_not`](PeekThen::or_not) - Convert to optional parsing (returns `Option<T>`)
 /// - [`filter`](crate::parser::Filter) - Validate after parsing (no lookahead)
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PeekThen<P, D, T, Window> {

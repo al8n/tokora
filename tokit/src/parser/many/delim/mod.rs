@@ -137,7 +137,7 @@ mod repeated_while;
 /// # See Also
 ///
 /// - [`RepeatedWhile`] - The underlying repetition parser
-/// - [`delimited_by`](RepeatedWhile::delimited_by) - How to create this combinator
+/// - [`delimited`](RepeatedWhile::delimited) - How to create this combinator
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DelimitedBy<P, Delim> {
