@@ -404,7 +404,7 @@ pub(crate) struct DummyToken;
 
 #[cfg(test)]
 const _: () = {
-  use crate::token::{LitToken, OperatorToken, PunctuatorToken};
+  use crate::token::{LitToken, PunctuatorToken};
 
   impl Token<'_> for DummyToken {
     type Kind = Self;
@@ -424,8 +424,6 @@ const _: () = {
   impl PunctuatorToken<'_> for DummyToken {}
 
   impl LitToken<'_> for DummyToken {}
-
-  impl OperatorToken<'_> for DummyToken {}
 
   impl<'inp> Lexer<'inp> for DummyLexer {
     type State = ();

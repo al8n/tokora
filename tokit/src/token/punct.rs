@@ -13,7 +13,7 @@ macro_rules! define_punctuator_token_traits {
   (
     $(
       $(#[$meta:meta])*
-      $punct:ident: $punct_char:literal
+      $name:ident::$punct:ident: $punct_char:literal
     ), +$(,)?
   ) => {
     paste::paste! {
@@ -127,12 +127,43 @@ macro_rules! define_punctuator_token_traits {
         )*
       }
 
+      $(
+        impl<'inp, T, S, C, Lang> $crate::__private::Check<T, ::core::primitive::bool> for $crate::punct::$name<S, C, Lang>
+        where
+          T: $crate::__private::token::PunctuatorToken<'inp> + ?::core::marker::Sized + 'inp,
+          Lang: ?::core::marker::Sized,
+        {
+          #[cfg_attr(not(tarpaulin), inline(always))]
+          fn check(&self, target: &T) -> ::core::primitive::bool {
+            target.[< is_ $punct >]()
+          }
+        }
+      )*
+
       /// Extension trait providing default implementations for punctuator token methods.
       pub trait PunctuatorTokenExt<'a>: PunctuatorToken<'a> {
         /// Returns `true` when the token is a punctuator.
         #[cfg_attr(not(tarpaulin), inline(always))]
         fn is_punctuator(&self) -> bool {
           is_punctuator!(self($($punct), +))
+        }
+
+        #[doc = "Returns `true` when the token is the less than punctuator (`<`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_less_than(&self) -> bool {
+          self.is_open_angle()
+        }
+
+        #[doc = "Returns `true` when the token is the greater than punctuator (`>`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_greater_than(&self) -> bool {
+          self.is_close_angle()
+        }
+
+        #[doc = "Returns `true` when the token is the bang punctuator (`!`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_bang(&self) -> bool {
+          self.is_exclamation()
         }
 
         #[doc = "Returns `true` when the token is the hyphen punctuator (`-`)."]
@@ -145,6 +176,72 @@ macro_rules! define_punctuator_token_traits {
         #[cfg_attr(not(tarpaulin), inline(always))]
         fn is_thin_arrow(&self) -> bool {
           self.is_arrow()
+        }
+
+        #[doc = "Returns `true` when the token is the add assign punctuator (`+=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_add_assign(&self) -> bool {
+          self.is_plus_equal()
+        }
+
+        #[doc = "Returns `true` when the token is the sub assign punctuator (`-=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_sub_assign(&self) -> bool {
+          self.is_hyphen_equal()
+        }
+
+        #[doc = "Returns `true` when the token is the mul assign punctuator (`*=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_mul_assign(&self) -> bool {
+          self.is_asterisk_equal()
+        }
+
+        #[doc = "Returns `true` when the token is the exponentiation assign punctuator (`**=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_exponentiation_assign(&self) -> bool {
+          self.is_exponentiation_equal()
+        }
+
+        #[doc = "Returns `true` when the token is the div assign punctuator (`/=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_div_assign(&self) -> bool {
+          self.is_slash_equal()
+        }
+
+        #[doc = "Returns `true` when the token is the and assign punctuator (`&=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_bitand_assign(&self) -> bool {
+          self.is_ampersand_equal()
+        }
+
+        #[doc = "Returns `true` when the token is the or assign punctuator (`|=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_bitor_assign(&self) -> bool {
+          self.is_pipe_equal()
+        }
+
+        #[doc = "Returns `true` when the token is the xor assign punctuator (`^=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_bitxor_assign(&self) -> bool {
+          self.is_caret_equal()
+        }
+
+        #[doc = "Returns `true` when the token is the shl assign punctuator (`<<=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_shl_assign(&self) -> bool {
+          self.is_shl_equal()
+        }
+
+        #[doc = "Returns `true` when the token is the shr assign punctuator (`>>=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_shr_assign(&self) -> bool {
+          self.is_shr_equal()
+        }
+
+        #[doc = "Returns `true` when the token is the sar assign punctuator (`>>>=`)."]
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn is_sar_assign(&self) -> bool {
+          self.is_sar_equal()
         }
 
         $(
@@ -211,53 +308,117 @@ macro_rules! define_punctuator_token_traits {
 }
 
 define_punctuator_token_traits!(
-  open_angle: "<",
-  close_angle: ">",
-  open_brace: "{",
-  close_brace: "}",
-  open_paren: "(",
-  close_paren: ")",
-  open_bracket: "[",
-  close_bracket: "]",
-  comma: ",",
-  semicolon: ";",
-  colon: ":",
-  dot: ".",
-  tilde: "~",
-  underscore: "_",
-  equal: "=",
+  // Delimiters
+  #[doc(alias = "less_than")]
+  OpenAngle::open_angle: "<",
+  #[doc(alias = "greater_than")]
+  CloseAngle::close_angle: ">",
+  OpenBrace::open_brace: "{",
+  CloseBrace::close_brace: "}",
+  OpenParen::open_paren: "(",
+  CloseParen::close_paren: ")",
+  OpenBracket::open_bracket: "[",
+  CloseBracket::close_bracket: "]",
+
+  // ASCII Punctuation
+  At::at: "@",
+  Asterisk::asterisk: "*",
+  Ampersand::ampersand: "&",
+  Apostrophe::apostrophe: "'",
+  Backtick::backtick: "`",
+  Backslash::backslash: "\\",
+  Caret::caret: "^",
+  Comma::comma: ",",
+  Colon::colon: ":",
+  Dot::dot: ".",
+  Dollar::dollar: "$",
+  DoubleQuote::double_quote: "\"",
+  Equal::equal: "=",
+  #[doc(alias = "bang")]
+  Exclamation::exclamation: "!",
+  Hash::hash: "#",
   #[doc(alias = "hyphen")]
-  minus: "-",
+  Hyphen::minus: "-",
+  Pipe::pipe: "|",
+  Plus::plus: "+",
+  Percent::percent: "%",
+  Question::question: "?",
+  Slash::slash: "/",
+  Semicolon::semicolon: ";",
+  Tilde::tilde: "~",
+  Underscore::underscore: "_",
+
+  // Multi-character Punctuators
   #[doc(alias = "thin_arrow")]
-  arrow: "->",
-  fat_arrow: "=>",
+  Arrow::arrow: "->",
+  FatArrow::fat_arrow: "=>",
   #[doc(alias = "pipe_forward")]
-  pipe_arrow: "|>",
-  double_colon: "::",
+  PipeArrow::pipe_arrow: "|>",
+
+  // Equal related
   #[doc(alias = "colon_assign")]
   #[doc(alias = "short_declaration")]
   #[doc(alias = "colon_equals")]
-  colon_eq: ":=",
-  tab: "\t",
-  newline: "\n",
-  carriage_return: "\r",
-  crlf: "\r\n",
-  space: " ",
-  pipe: "|",
-  ampersand: "&",
-  percent: "%",
-  slash: "/",
-  backslash: "\\",
-  dollar: "$",
-  hash: "#",
-  at: "@",
-  asterisk: "*",
-  apostrophe: "'",
-  double_quote: "\"",
-  plus: "+",
-  #[doc(alias = "bang")]
-  exclamation: "!",
-  question: "?",
-  backtick: "`",
-  caret: "^",
+  ColonEqual::colon_equal: ":=",
+  LogicalEqual::logical_equal: "==",
+  LogicalNotEqual::logical_not_equal: "!=",
+  StrictEqual::strict_equal: "===",
+  StrictNotEqual::strict_not_equal: "!==",
+  LessThanOrEqual::less_than_or_equal: "<=",
+  GreaterThanOrEqual::greater_than_or_equal: ">=",
+  StrictLessThanOrEqual::strict_less_than_or_equal: "<==",
+  StrictGreaterThanOrEqual::strict_greater_than_or_equal: ">==",
+
+  #[doc(alias = "add_assign")]
+  PlusEqual::plus_equal: "+=",
+  #[doc(alias = "sub_assign")]
+  HyphenEqual::hyphen_equal: "-=",
+  #[doc(alias = "mul_assign")]
+  AsteriskEqual::asterisk_equal: "*=",
+  #[doc(alias = "exponentiation_assign")]
+  ExponentiationEqual::exponentiation_equal: "**=",
+  #[doc(alias = "div_assign")]
+  SlashEqual::slash_equal: "/=",
+  BackslashEqual::backslash_equal: "\\=",
+  #[doc(alias = "mod_assign")]
+  #[doc(alias = "percent_assign")]
+  PercentEqual::percent_equal: "%=",
+
+  #[doc(alias = "and_assign")]
+  AmpersandEqual::ampersand_equal: "&=",
+  #[doc(alias = "or_assign")]
+  PipeEqual::pipe_equal: "|=",
+  #[doc(alias = "xor_assign")]
+  CaretEqual::caret_equal: "^=",
+
+  #[doc(alias = "shl_assign")]
+  ShlEqual::shl_equal: "<<=",
+  #[doc(alias = "shr_assign")]
+  ShrEqual::shr_equal: ">>=",
+  #[doc(alias = "sar_assign")]
+  SarEqual::sar_equal: ">>>=",
+
+  ShiftLeft::shl: "<<",
+  ShiftRight::shr: ">>",
+  ShiftArithmeticRight::sar: ">>>",
+
+  Increment::increment: "++",
+  Decrement::decrement: "--",
+  Exponentiation::exponentiation: "**",
+
+  LogicalAnd::logical_and: "&&",
+  LogicalOr::logical_or: "||",
+
+  DoubleColon::double_colon: "::",
+  Spread::spread: "...",
+  #[doc(alias = "nullish_coalescing")]
+  NullCoalesce::null_coalesce: "??",
+  OptionalChain::optional_chain: "?.",
+
+  // Trivia
+  Tab::tab: "\t",
+  Newline::newline: "\n",
+  CarriageReturn::carriage_return: "\r",
+  CarriageReturnNewline::crlf: "\r\n",
+  Space::space: " ",
 );
