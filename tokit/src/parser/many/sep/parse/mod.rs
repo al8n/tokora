@@ -200,7 +200,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
-            Container::max_capacity(),
+            container.max_capacity(),
           ))?;
         }
         state = State::Element;
@@ -212,7 +212,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
-            Container::max_capacity(),
+            container.max_capacity(),
           ))?;
         }
         state = State::Element;
@@ -227,7 +227,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
-            Container::max_capacity(),
+            container.max_capacity(),
           ))?;
         }
 
@@ -250,7 +250,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
-            Container::max_capacity(),
+            container.max_capacity(),
           ))?;
         }
         state = State::Element;

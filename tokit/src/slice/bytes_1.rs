@@ -1,8 +1,8 @@
-use bstr::BStr;
+use bytes_1::Bytes;
 
 use super::Slice;
 
-impl Slice<'_> for BStr {
+impl Slice<'_> for Bytes {
   type Char = u8;
 
   type Iter<'a>
@@ -33,6 +33,6 @@ impl Slice<'_> for BStr {
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
-    <[u8]>::len(self)
+    Bytes::len(self)
   }
 }

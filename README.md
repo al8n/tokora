@@ -58,15 +58,21 @@ tokit = "0.0.0"
 
 - `std` (default) - Enable standard library support
 - `alloc` - Enable allocator support for no-std environments
-- `logos` - Enable `LogosLexer` adapter for Logos integration
 - `rowan` - Enable CST (Concrete Syntax Tree) support with rowan integration
-- `bytes` - Support for `bytes::Bytes` as token source
-- `bstr` - Support for `bstr::BStr` as token source
-- `hipstr` - Support for `hipstr::HipStr` and `hipstr::HipByt` as token source
-- `among` - Enable `Among<L, M, R>` parseable support
-- `either` - Enable `Either<L, R>` parseable support
-- `smallvec` - Enable `Container` implementation for `smallvec::SmallVec`
-- `heapless` - Enable `Container` implementation for heapless structures
+- `logos` - Enable integration with latest `logos` crate
+  - `logos_0_16` - Enable integration with `logos@0.16`
+  - `logos_0_15` - Enable integration with `logos@0.15`
+  - `logos_0_14` - Enable integration with `logos@0.14`
+- `bytes` - Enable integration with latest `bytes` crate
+  - `bytes_1` - Enable integration with latest `bytes@1`
+- `bstr` - Enable integration with latest `bstr` crate
+  - `bstr_1` - Enable integration with `bstr@1`
+- `hipstr` - Enable integration with latest `hipstr` crate
+  - `hipstr_0_8` - Enable integration with `hipstr@0.8`
+- `smallvec` - Enable integration with latest `smallvec` crate
+  - `smallvec_1` - Enable integration with `smallvec_1@1`
+- `heapless` - Enable integration with latest `heapless` crate
+  - `heapless_0_9` - Enable integration with `heapless@0.9`
 
 ## Core Components
 

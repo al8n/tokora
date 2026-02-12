@@ -266,7 +266,7 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
             inp.emitter().emit_full_container(FullContainer::of(
               span,
               num,
-              Container::max_capacity(),
+              container.max_capacity(),
             ))?;
           }
           num += 1;

@@ -26,11 +26,6 @@ pub mod syntax_tree_display;
 /// Common knowledge types for lexing and parsing.
 pub mod knowledge;
 
-/// A module for container types with small size optimizations.
-#[cfg(feature = "smallvec")]
-#[cfg_attr(docsrs, doc(cfg(feature = "smallvec")))]
-pub mod container;
-
 /// Marker types used in various utilities.
 pub mod marker;
 
@@ -228,8 +223,9 @@ impl IsAsciiChar for [u8] {
   }
 }
 
-#[cfg(feature = "bstr")]
-impl IsAsciiChar for bstr::BStr {
+#[cfg(feature = "bstr_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
+impl IsAsciiChar for bstr_1::BStr {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     <[u8] as IsAsciiChar>::is_ascii_char(self, ch)
@@ -241,8 +237,9 @@ impl IsAsciiChar for bstr::BStr {
   }
 }
 
-#[cfg(feature = "bytes")]
-impl IsAsciiChar for bytes::Bytes {
+#[cfg(feature = "bytes_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
+impl IsAsciiChar for bytes_1::Bytes {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     <[u8] as IsAsciiChar>::is_ascii_char(self, ch)
@@ -254,8 +251,9 @@ impl IsAsciiChar for bytes::Bytes {
   }
 }
 
-#[cfg(feature = "hipstr")]
-impl IsAsciiChar for hipstr::HipByt<'_> {
+#[cfg(feature = "hipstr_0_8")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
+impl IsAsciiChar for hipstr_0_8::HipByt<'_> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     <[u8] as IsAsciiChar>::is_ascii_char(self, ch)
@@ -267,8 +265,9 @@ impl IsAsciiChar for hipstr::HipByt<'_> {
   }
 }
 
-#[cfg(feature = "hipstr")]
-impl IsAsciiChar for hipstr::HipStr<'_> {
+#[cfg(feature = "hipstr_0_8")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
+impl IsAsciiChar for hipstr_0_8::HipStr<'_> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     <str as IsAsciiChar>::is_ascii_char(self, ch)

@@ -13,30 +13,46 @@ keywords = ["parser", "combinator", "token", "logos", "error-recovery"]
 
 [features]
 default = ["std"]
-alloc = ["generic-arraydeque/alloc", "mayber/alloc"]
+alloc = ["generic-arraydeque/alloc", "mayber/alloc", "tinyvec_1?/alloc"]
 std = [
   "generic-arraydeque/default",
   "thiserror/default",
 
-  "among?/std",
-  "either?/std",
-  "bytes?/default",
-  "hipstr?/default",
-  "bstr?/default",
-  "logos?/default",
+  "bytes_1?/default",
+  "hipstr_0_8?/default",
+  "bstr_1?/default",
+  "tinyvec_1?/default",
+
+  "logos_0_14?/default",
+  "logos_0_15?/default",
+  "logos_0_16?/default",
   "mayber/default",
 ]
 
-logos = ["dep:logos"]
+logos = ["logos_0_16"]
+logos_0_14 = ["dep:logos_0_14"]
+logos_0_15 = ["dep:logos_0_15"]
+logos_0_16 = ["dep:logos_0_16"]
+
 rowan = ["dep:rowan", "std"]
 
-among = ["dep:among"]
-either = ["dep:either"]
-hipstr = ["dep:hipstr"]
-bytes = ["dep:bytes"]
-bstr = ["dep:bstr"]
-smallvec = ["dep:smallvec", "alloc"]
-heapless = ["dep:heapless"]
+bytes = ["bytes_1"]
+bytes_1 = ["dep:bytes_1"]
+
+bstr = ["bstr_1"]
+bstr_1 = ["dep:bstr_1"]
+
+hipstr = ["hipstr_0_8"]
+hipstr_0_8 = ["dep:hipstr_0_8"]
+
+smallvec = ["smallvec_1"]
+smallvec_1 = ["dep:smallvec_1", "alloc"]
+
+heapless = ["heapless_0_9"]
+heapless_0_9 = ["dep:heapless_0_9"]
+
+tinyvec = ["tinyvec_1"]
+tinyvec_1 = ["dep:tinyvec_1"]
 
 [dependencies]
 ascii = { version = "1", default-features = false }
@@ -58,19 +74,29 @@ paste = "1"
 seq-macro = { version = "0.3", default-features = false }
 thiserror = { version = "2", default-features = false }
 
-among = { version = "0.1", default-features = false, optional = true }
-either = { version = "1", default-features = false, optional = true }
-bstr = { version = "1", default-features = false, optional = true }
-bytes = { version = "1", default-features = false, optional = true }
-heapless = { version = "0.9", default-features = false, optional = true }
-hipstr = { version = "0.8", default-features = false, optional = true }
-logos = { version = "0.16", default-features = false, optional = true, features = [
+# Third-party Source Types
+bstr_1 = { package = "bstr", version = "1", default-features = false, optional = true }
+bytes_1 = { package = "bytes", version = "1", default-features = false, optional = true }
+hipstr_0_8 = { package = "hipstr", version = "0.8", default-features = false, optional = true }
+
+# Third-party Container Types
+heapless_0_9 = { package = "heapless", version = "0.9", default-features = false, optional = true }
+smallvec_1 = { package = "smallvec", version = "1", default-features = false, optional = true, features = [
+  "const_new",
+] }
+tinyvec_1 = { package = "tinyvec", version = "1", default-features = false, optional = true }
+
+# Third-party Parser/Lexer Tools
+logos_0_14 = { package = "logos", version = "0.14", default-features = false, optional = true, features = [
+  "export_derive",
+] }
+logos_0_15 = { package = "logos", version = "0.15", default-features = false, optional = true, features = [
+  "export_derive",
+] }
+logos_0_16 = { package = "logos", version = "0.16", default-features = false, optional = true, features = [
   "export_derive",
 ] }
 rowan = { version = "0.16", optional = true }
-smallvec = { version = "1", default-features = false, optional = true, features = [
-  "const_new",
-] }
 
 [dev-dependencies]
 criterion = "0.8"

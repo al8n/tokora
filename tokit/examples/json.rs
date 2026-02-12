@@ -2,7 +2,7 @@ use std::num::ParseFloatError;
 
 use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
-use logos::Logos;
+
 use tokit::{
   Accumulator, Branch, Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput,
   Parser, Token as TokenT, TryParseInput,
@@ -17,6 +17,7 @@ use tokit::{
     syntax::{FullContainer, MissingSyntaxOf},
     token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
   },
+  logos::Logos,
   parser::{Action, expect},
   punct::{Brace, Bracket, CloseBrace, CloseBracket, Colon, Comma, OpenBrace, OpenBracket},
   span::Spanned,
@@ -155,7 +156,10 @@ impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, JsonLexer<'inp>> for JsonE
 }
 
 #[derive(Debug, Logos, Clone, Unwrap)]
-#[logos(skip r"[ \t\r\n\f]+", error = JsonLexerError)]
+#[logos(
+  crate = logos_0_16,
+  skip r"[ \t\r\n\f]+", error = JsonLexerError
+)]
 enum Token<'a> {
   #[token("false", |_| false)]
   #[token("true", |_| true)]

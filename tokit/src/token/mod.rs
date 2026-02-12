@@ -1,7 +1,3 @@
-#[cfg(feature = "logos")]
-#[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
-pub use logos::Logos;
-
 pub use lit::*;
 pub use punct::*;
 

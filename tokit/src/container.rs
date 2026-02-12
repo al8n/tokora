@@ -24,7 +24,7 @@ pub trait Container<T> {
   ///
   /// If the container has no fixed maximum capacity, returns `usize::MAX`, e.g., for `Vec<T>`.
   /// Otherwise, returns the actual maximum capacity.
-  fn max_capacity() -> usize;
+  fn max_capacity(&self) -> usize;
 }
 
 impl<T, U> Container<T> for &mut U
@@ -32,8 +32,8 @@ where
   U: Container<T>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn max_capacity() -> usize {
-    U::max_capacity()
+  fn max_capacity(&self) -> usize {
+    U::max_capacity(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -61,7 +61,7 @@ macro_rules! blackhole {
   ($ty:ty) => {
     impl<T> Container<T> for $ty {
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn max_capacity() -> usize {
+      fn max_capacity(&self) -> usize {
         usize::MAX
       }
 
@@ -94,7 +94,7 @@ blackhole!(crate::utils::marker::Ignored<T>);
 
 impl<T> Container<T> for Option<T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn max_capacity() -> usize {
+  fn max_capacity(&self) -> usize {
     1
   }
 
@@ -129,7 +129,7 @@ where
   N: ArrayLength,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn max_capacity() -> usize {
+  fn max_capacity(&self) -> usize {
     N::to_usize()
   }
 
@@ -164,7 +164,7 @@ const _: () = {
 
   impl<T> Container<T> for Vec<T> {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn max_capacity() -> usize {
+    fn max_capacity(&self) -> usize {
       usize::MAX
     }
 
@@ -192,7 +192,7 @@ const _: () = {
 
   impl<T> Container<T> for VecDeque<T> {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn max_capacity() -> usize {
+    fn max_capacity(&self) -> usize {
       usize::MAX
     }
 
@@ -219,17 +219,17 @@ const _: () = {
   }
 };
 
-#[cfg(feature = "smallvec")]
-#[cfg_attr(docsrs, doc(cfg(feature = "smallvec")))]
+#[cfg(feature = "smallvec_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "smallvec_1")))]
 const _: () = {
-  use smallvec::SmallVec;
+  use smallvec_1::SmallVec;
 
   impl<A, T> Container<T> for SmallVec<A>
   where
-    A: smallvec::Array<Item = T>,
+    A: smallvec_1::Array<Item = T>,
   {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn max_capacity() -> usize {
+    fn max_capacity(&self) -> usize {
       usize::MAX
     }
 
@@ -256,17 +256,121 @@ const _: () = {
   }
 };
 
-#[cfg(feature = "heapless")]
-#[cfg_attr(docsrs, doc(cfg(feature = "heapless")))]
+#[cfg(feature = "tinyvec_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tinyvec_1")))]
 const _: () = {
-  use heapless::{Deque, Vec};
+  use tinyvec_1::{Array, ArrayVec, SliceVec};
+
+  impl<T> Container<T> for SliceVec<'_, T> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn max_capacity(&self) -> usize {
+      self.capacity()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, item: T) -> Result<(), T> {
+      SliceVec::push(self, item);
+      Ok(())
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn first(&self) -> Option<&T> {
+      self.as_slice().first()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn last(&self) -> Option<&T> {
+      self.as_slice().last()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn len(&self) -> usize {
+      SliceVec::len(self)
+    }
+  }
+
+  impl<A, T> Container<T> for ArrayVec<A>
+  where
+    A: Array<Item = T>,
+  {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn max_capacity(&self) -> usize {
+      A::CAPACITY
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, item: T) -> Result<(), T> {
+      match self.try_push(item) {
+        Some(t) => Err(t),
+        None => Ok(()),
+      }
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn first(&self) -> Option<&T> {
+      self.as_slice().first()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn last(&self) -> Option<&T> {
+      self.as_slice().last()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn len(&self) -> usize {
+      ArrayVec::len(self)
+    }
+  }
+
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+  {
+    use tinyvec_1::TinyVec;
+
+    impl<A, T> Container<T> for TinyVec<A>
+    where
+      A: Array<Item = T>,
+    {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn max_capacity(&self) -> usize {
+        usize::MAX
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push(&mut self, item: T) -> Result<(), T> {
+        TinyVec::push(self, item);
+        Ok(())
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn first(&self) -> Option<&T> {
+        self.as_slice().first()
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn last(&self) -> Option<&T> {
+        self.as_slice().last()
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn len(&self) -> usize {
+        TinyVec::len(self)
+      }
+    }
+  }
+};
+
+#[cfg(feature = "heapless_0_9")]
+#[cfg_attr(docsrs, doc(cfg(feature = "heapless_0_9")))]
+const _: () = {
+  use heapless_0_9::{Deque, LenType, Vec};
 
   impl<T, LenT, const N: usize> Container<T> for Vec<T, N, LenT>
   where
-    LenT: heapless::LenType,
+    LenT: LenType,
   {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn max_capacity() -> usize {
+    fn max_capacity(&self) -> usize {
       N
     }
 
@@ -298,7 +402,7 @@ const _: () = {
 
   impl<T, const N: usize> Container<T> for Deque<T, N> {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn max_capacity() -> usize {
+    fn max_capacity(&self) -> usize {
       N
     }
 

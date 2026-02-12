@@ -198,7 +198,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
-            Container::max_capacity(),
+            container.max_capacity(),
           ))?;
         }
         state = State::Element;
@@ -212,7 +212,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
-            Container::max_capacity(),
+            container.max_capacity(),
           ))?;
         }
         state = State::Element;
@@ -229,7 +229,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
-            Container::max_capacity(),
+            container.max_capacity(),
           ))?;
         }
         state = State::Element;
@@ -252,7 +252,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
-            Container::max_capacity(),
+            container.max_capacity(),
           ))?;
         }
         state = State::Element;
