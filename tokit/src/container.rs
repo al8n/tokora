@@ -259,7 +259,7 @@ const _: () = {
 #[cfg(feature = "heapless")]
 #[cfg_attr(docsrs, doc(cfg(feature = "heapless")))]
 const _: () = {
-  use heapless::{Vec, Deque};
+  use heapless::{Deque, Vec};
 
   impl<T, LenT, const N: usize> Container<T> for Vec<T, N, LenT>
   where
