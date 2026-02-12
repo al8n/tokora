@@ -87,7 +87,7 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
             inp.emitter().emit_full_container(FullContainer::of(
               span,
               nums,
-              Container::max_capacity(),
+              container.max_capacity(),
             ))?;
           }
           nums += 1;
