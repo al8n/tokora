@@ -317,64 +317,86 @@ impl RecursionTracker for RecursionLimiter {
   }
 }
 
-#[cfg(feature = "logos")]
 const _: () = {
-  use crate::lexer::{FromLogos, LogosLexer};
-  use logos::{Lexer, Logos};
+  #[allow(dead_code)]
+  macro_rules! bail {
+    ($lib:ident) => {
+      use crate::lexer::$lib::{FromLogos, LogosLexer};
+      use $lib::{Lexer, Logos};
 
-  impl<'a, T> RecursionTracker for Lexer<'a, T>
-  where
-    T: Logos<'a>,
-    T::Extras: RecursionTracker,
-  {
-    type Error = <T::Extras as RecursionTracker>::Error;
+      impl<'a, T> RecursionTracker for Lexer<'a, T>
+      where
+        T: Logos<'a>,
+        T::Extras: RecursionTracker,
+      {
+        type Error = <T::Extras as RecursionTracker>::Error;
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn increase(&mut self) {
-      self.extras.increase();
-    }
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn increase(&mut self) {
+          self.extras.increase();
+        }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn decrease(&mut self) {
-      self.extras.decrease();
-    }
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn decrease(&mut self) {
+          self.extras.decrease();
+        }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn check(&self) -> Result<(), Self::Error> {
-      self.extras.check()
-    }
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn check(&self) -> Result<(), Self::Error> {
+          self.extras.check()
+        }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn increase_and_check(&mut self) -> Result<(), Self::Error> {
-      self.extras.increase_and_check()
-    }
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn increase_and_check(&mut self) -> Result<(), Self::Error> {
+          self.extras.increase_and_check()
+        }
+      }
+
+      impl<'a, T> RecursionTracker for LogosLexer<'a, T>
+      where
+        T: FromLogos<'a>,
+        <T::Logos as Logos<'a>>::Extras: RecursionTracker,
+      {
+        type Error = <<T::Logos as Logos<'a>>::Extras as RecursionTracker>::Error;
+
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn increase(&mut self) {
+          self.inner_mut().increase();
+        }
+
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn decrease(&mut self) {
+          self.inner_mut().decrease();
+        }
+
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn check(&self) -> Result<(), Self::Error> {
+          self.inner().check()
+        }
+
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn increase_and_check(&mut self) -> Result<(), Self::Error> {
+          self.inner_mut().increase_and_check()
+        }
+      }
+    };
   }
 
-  impl<'a, T> RecursionTracker for LogosLexer<'a, T>
-  where
-    T: FromLogos<'a>,
-    <T::Logos as Logos<'a>>::Extras: RecursionTracker,
+  #[cfg(feature = "logos_0_14")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_14")))]
   {
-    type Error = <<T::Logos as Logos<'a>>::Extras as RecursionTracker>::Error;
+    bail!(logos_0_14);
+  }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn increase(&mut self) {
-      self.inner_mut().increase();
-    }
+  #[cfg(feature = "logos_0_15")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_15")))]
+  {
+    bail!(logos_0_15);
+  }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn decrease(&mut self) {
-      self.inner_mut().decrease();
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn check(&self) -> Result<(), Self::Error> {
-      self.inner().check()
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn increase_and_check(&mut self) -> Result<(), Self::Error> {
-      self.inner_mut().increase_and_check()
-    }
+  #[cfg(feature = "logos_0_16")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_16")))]
+  {
+    bail!(logos_0_16);
   }
 };

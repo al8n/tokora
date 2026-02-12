@@ -219,14 +219,14 @@ const _: () = {
   }
 };
 
-#[cfg(feature = "smallvec")]
-#[cfg_attr(docsrs, doc(cfg(feature = "smallvec")))]
+#[cfg(feature = "smallvec_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "smallvec_1")))]
 const _: () = {
-  use smallvec::SmallVec;
+  use smallvec_1::SmallVec;
 
   impl<A, T> Container<T> for SmallVec<A>
   where
-    A: smallvec::Array<Item = T>,
+    A: smallvec_1::Array<Item = T>,
   {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn max_capacity() -> usize {
@@ -256,14 +256,14 @@ const _: () = {
   }
 };
 
-#[cfg(feature = "heapless")]
-#[cfg_attr(docsrs, doc(cfg(feature = "heapless")))]
+#[cfg(feature = "heapless_0_9")]
+#[cfg_attr(docsrs, doc(cfg(feature = "heapless_0_9")))]
 const _: () = {
-  use heapless::{Deque, Vec};
+  use heapless_0_9::{Deque, LenType, Vec};
 
   impl<T, LenT, const N: usize> Container<T> for Vec<T, N, LenT>
   where
-    LenT: heapless::LenType,
+    LenT: LenType,
   {
     #[cfg_attr(not(tarpaulin), inline(always))]
     fn max_capacity() -> usize {

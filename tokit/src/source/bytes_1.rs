@@ -1,6 +1,6 @@
 use core::ops::RangeBounds;
 
-use bytes::Bytes;
+use bytes_1::Bytes;
 
 use super::Source;
 
