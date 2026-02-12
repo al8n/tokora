@@ -18,6 +18,7 @@ where
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
@@ -57,6 +58,7 @@ where
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
@@ -96,6 +98,7 @@ where
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,
@@ -155,6 +158,7 @@ where
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>,

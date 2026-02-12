@@ -4,6 +4,8 @@ use crate::{
   TryParseInput,
   container::Container as ContainerT,
   delimiter::Delimiter,
+  emitter::FullContainerEmitter,
+  error::syntax::FullContainer,
   try_parse_input::{Accept, Decline},
 };
 
@@ -34,6 +36,7 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
     L: Lexer<'inp>,
     P: TryParseInput<'inp, L, O, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
   {
@@ -78,7 +81,15 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
           inp.emitter().emit_error(Spanned::new(span, err))?;
         }
         Ok(Accept(nxt)) => {
-          container.push(nxt);
+          // TODO(al8n): tracing dropped element
+          if let Err(_e) = container.push(nxt) {
+            let span = inp.span_since(ckp.cursor());
+            inp.emitter().emit_full_container(FullContainer::of(
+              span,
+              nums,
+              Container::max_capacity(),
+            ))?;
+          }
           nums += 1;
         }
         // no more elemnts.

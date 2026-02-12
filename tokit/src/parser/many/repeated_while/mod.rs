@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::delimiter::Delimiter;
+use crate::{delimiter::Delimiter, emitter::FullContainerEmitter, error::syntax::FullContainer};
 
 use super::*;
 
@@ -278,7 +278,7 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
     F: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    Ctx::Emitter: Emitter<'inp, L, Lang>,
+    Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: crate::container::Container<O>,
     RH: RepeatedHandler<'inp, 'c, O, L, Ctx, Lang>,
@@ -298,7 +298,14 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
           }
           Action::Continue => {
             rh.on_element(nums, inp, &ckp)?;
-            container.push(self.f.parse_input(inp)?);
+            if container.push(self.f.parse_input(inp)?).is_err() {
+              let span = inp.span_since(ckp.cursor());
+              inp.emitter().emit_full_container(FullContainer::of(
+                span,
+                nums + 1,
+                Container::max_capacity(),
+              ))?;
+            }
             nums += 1;
           }
         },

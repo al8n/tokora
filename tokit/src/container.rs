@@ -3,7 +3,7 @@ use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 /// Trait for container types used in parsers.
 pub trait Container<T> {
   /// Push an item into the container.
-  fn push(&mut self, item: T);
+  fn push(&mut self, item: T) -> Result<(), T>;
 
   /// Returns the first item in the container, if any.
   fn first(&self) -> Option<&T>;
@@ -19,6 +19,12 @@ pub trait Container<T> {
   fn is_empty(&self) -> bool {
     self.len() == 0
   }
+
+  /// Returns the maximum capacity of the container.
+  ///
+  /// If the container has no fixed maximum capacity, returns `usize::MAX`, e.g., for `Vec<T>`.
+  /// Otherwise, returns the actual maximum capacity.
+  fn max_capacity() -> usize;
 }
 
 impl<T, U> Container<T> for &mut U
@@ -26,7 +32,12 @@ where
   U: Container<T>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn push(&mut self, item: T) {
+  fn max_capacity() -> usize {
+    U::max_capacity()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push(&mut self, item: T) -> Result<(), T> {
     U::push(self, item)
   }
 
@@ -50,7 +61,14 @@ macro_rules! blackhole {
   ($ty:ty) => {
     impl<T> Container<T> for $ty {
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn push(&mut self, _: T) {}
+      fn max_capacity() -> usize {
+        usize::MAX
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push(&mut self, _: T) -> Result<(), T> {
+        Ok(())
+      }
 
       #[cfg_attr(not(tarpaulin), inline(always))]
       fn first(&self) -> Option<&T> {
@@ -76,8 +94,18 @@ blackhole!(crate::utils::marker::Ignored<T>);
 
 impl<T> Container<T> for Option<T> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn push(&mut self, item: T) {
-    *self = Some(item);
+  fn max_capacity() -> usize {
+    1
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push(&mut self, item: T) -> Result<(), T> {
+    if self.is_none() {
+      *self = Some(item);
+      Ok(())
+    } else {
+      Err(item)
+    }
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -101,8 +129,16 @@ where
   N: ArrayLength,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn push(&mut self, item: T) {
-    GenericArrayDeque::push_back(self, item);
+  fn max_capacity() -> usize {
+    N::to_usize()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push(&mut self, item: T) -> Result<(), T> {
+    match GenericArrayDeque::push_back(self, item) {
+      None => Ok(()),
+      Some(e) => Err(e),
+    }
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -127,8 +163,14 @@ const _: () = {
 
   impl<T> Container<T> for Vec<T> {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn push(&mut self, item: T) {
+    fn max_capacity() -> usize {
+      usize::MAX
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, item: T) -> Result<(), T> {
       Vec::push(self, item);
+      Ok(())
     }
 
     #[cfg_attr(not(tarpaulin), inline(always))]
@@ -149,8 +191,14 @@ const _: () = {
 
   impl<T> Container<T> for VecDeque<T> {
     #[cfg_attr(not(tarpaulin), inline(always))]
-    fn push(&mut self, item: T) {
+    fn max_capacity() -> usize {
+      usize::MAX
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, item: T) -> Result<(), T> {
       VecDeque::push_back(self, item);
+      Ok(())
     }
 
     #[cfg_attr(not(tarpaulin), inline(always))]
@@ -178,8 +226,14 @@ const _: () = {
       A: smallvec::Array<Item = T>,
     {
       #[cfg_attr(not(tarpaulin), inline(always))]
-      fn push(&mut self, item: T) {
+      fn max_capacity() -> usize {
+        usize::MAX
+      }
+
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn push(&mut self, item: T) -> Result<(), T> {
         SmallVec::push(self, item);
+        Ok(())
       }
 
       #[cfg_attr(not(tarpaulin), inline(always))]

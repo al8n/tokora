@@ -20,7 +20,9 @@ where
   P: ParseInput<'inp, L, O, Ctx, Lang>,
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
-  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + TooFewEmitter<'inp, L, Lang>,
+  Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>
+    + SeparatedEmitter<'inp, L, Lang>
+    + TooFewEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
