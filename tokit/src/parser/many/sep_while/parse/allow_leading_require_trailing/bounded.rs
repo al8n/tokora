@@ -15,6 +15,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>,
@@ -54,6 +55,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>,
@@ -92,6 +94,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>,
@@ -156,6 +159,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   Sep: Punctuator<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>,

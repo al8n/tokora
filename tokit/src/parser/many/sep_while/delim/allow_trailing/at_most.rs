@@ -20,6 +20,7 @@ where
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -63,6 +64,7 @@ where
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -103,6 +105,7 @@ where
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
@@ -168,6 +171,7 @@ where
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,

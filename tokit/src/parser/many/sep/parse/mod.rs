@@ -1,8 +1,11 @@
 use crate::{
   TryParseInput,
   container::Container as ContainerT,
-  emitter::SeparatedEmitter,
-  error::{syntax::MissingSyntaxOf, token::MissingTokenOf},
+  emitter::{FullContainerEmitter, SeparatedEmitter},
+  error::{
+    syntax::{FullContainer, MissingSyntaxOf},
+    token::MissingTokenOf,
+  },
   input::Checkpoint,
   punct::Punctuator,
   span::Span,
@@ -39,7 +42,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
     L: Lexer<'inp>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
     Sep: Punctuator<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + FullContainerEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
     EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
@@ -185,19 +188,33 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
     Ctx: ParseContext<'inp, L, Lang>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
     Sep: Punctuator<'inp, L, Lang>,
-    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + FullContainerEmitter<'inp, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
     Handler: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
     match state {
       // happy path, we found a separator before an element
       State::Separator(_) => {
-        push(num_elems, container, element);
+        if push(num_elems, container, element).is_err() {
+          let span = inp.span_since(ckp.cursor());
+          inp.emitter().emit_full_container(FullContainer::of(
+            span,
+            *num_elems,
+            Container::max_capacity(),
+          ))?;
+        }
         state = State::Element;
       }
       // we are in leading state,
       State::Leading(_) => {
-        push(num_elems, container, element);
+        if push(num_elems, container, element).is_err() {
+          let span = inp.span_since(ckp.cursor());
+          inp.emitter().emit_full_container(FullContainer::of(
+            span,
+            *num_elems,
+            Container::max_capacity(),
+          ))?;
+        }
         state = State::Element;
       }
       // nothing before element, parse the first element
@@ -205,7 +222,14 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
         // let the passing handler deal with the start state
         handler.handle_start_state(inp, peek_span.start())?;
 
-        push(num_elems, container, element);
+        if push(num_elems, container, element).is_err() {
+          let span = inp.span_since(ckp.cursor());
+          inp.emitter().emit_full_container(FullContainer::of(
+            span,
+            *num_elems,
+            Container::max_capacity(),
+          ))?;
+        }
 
         state = State::Element;
       }
@@ -221,7 +245,14 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
         handler.handle_too_many_element(*num_elems, inp, ckp)?;
 
         // parse the next element
-        push(num_elems, container, element);
+        if push(num_elems, container, element).is_err() {
+          let span = inp.span_since(ckp.cursor());
+          inp.emitter().emit_full_container(FullContainer::of(
+            span,
+            *num_elems,
+            Container::max_capacity(),
+          ))?;
+        }
         state = State::Element;
       }
     }
@@ -259,10 +290,9 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
 }
 
 #[cfg_attr(not(tarpaulin), inline(always))]
-fn push<C, T>(nums: &mut usize, container: &mut C, item: T)
+fn push<C, T>(nums: &mut usize, container: &mut C, item: T) -> Result<(), T>
 where
   C: crate::container::Container<T>,
 {
-  container.push(item);
-  *nums += 1;
+  container.push(item).inspect(|_| *nums += 1)
 }
