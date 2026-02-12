@@ -36,6 +36,7 @@ hipstr = ["dep:hipstr"]
 bytes = ["dep:bytes"]
 bstr = ["dep:bstr"]
 smallvec = ["dep:smallvec", "alloc"]
+heapless = ["dep:heapless"]
 
 [dependencies]
 ascii = { version = "1", default-features = false }
@@ -61,6 +62,7 @@ among = { version = "0.1", default-features = false, optional = true }
 either = { version = "1", default-features = false, optional = true }
 bstr = { version = "1", default-features = false, optional = true }
 bytes = { version = "1", default-features = false, optional = true }
+heapless = { version = "0.9", default-features = false, optional = true }
 hipstr = { version = "0.8", default-features = false, optional = true }
 logos = { version = "0.16", default-features = false, optional = true, features = [
   "export_derive",

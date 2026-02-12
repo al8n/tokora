@@ -65,7 +65,8 @@ tokit = "0.0.0"
 - `hipstr` - Support for `hipstr::HipStr` and `hipstr::HipByt` as token source
 - `among` - Enable `Among<L, M, R>` parseable support
 - `either` - Enable `Either<L, R>` parseable support
-- `smallvec` - Enable small vector optimization utilities
+- `smallvec` - Enable `Container` implementation for `smallvec::SmallVec`
+- `heapless` - Enable `Container` implementation for heapless structures
 
 ## Core Components
 

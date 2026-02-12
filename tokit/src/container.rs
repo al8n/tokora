@@ -158,6 +158,7 @@ where
 }
 
 #[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 const _: () = {
   use std::{collections::VecDeque, vec::Vec};
 
@@ -216,40 +217,114 @@ const _: () = {
       VecDeque::len(self)
     }
   }
+};
 
-  #[cfg(feature = "smallvec")]
-  const _: () = {
-    use smallvec::SmallVec;
+#[cfg(feature = "smallvec")]
+#[cfg_attr(docsrs, doc(cfg(feature = "smallvec")))]
+const _: () = {
+  use smallvec::SmallVec;
 
-    impl<A, T> Container<T> for SmallVec<A>
-    where
-      A: smallvec::Array<Item = T>,
-    {
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn max_capacity() -> usize {
-        usize::MAX
-      }
-
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn push(&mut self, item: T) -> Result<(), T> {
-        SmallVec::push(self, item);
-        Ok(())
-      }
-
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn first(&self) -> Option<&T> {
-        self.as_slice().first()
-      }
-
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn last(&self) -> Option<&T> {
-        self.as_slice().last()
-      }
-
-      #[cfg_attr(not(tarpaulin), inline(always))]
-      fn len(&self) -> usize {
-        SmallVec::len(self)
-      }
+  impl<A, T> Container<T> for SmallVec<A>
+  where
+    A: smallvec::Array<Item = T>,
+  {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn max_capacity() -> usize {
+      usize::MAX
     }
-  };
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, item: T) -> Result<(), T> {
+      SmallVec::push(self, item);
+      Ok(())
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn first(&self) -> Option<&T> {
+      self.as_slice().first()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn last(&self) -> Option<&T> {
+      self.as_slice().last()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn len(&self) -> usize {
+      SmallVec::len(self)
+    }
+  }
+};
+
+#[cfg(feature = "heapless")]
+#[cfg_attr(docsrs, doc(cfg(feature = "heapless")))]
+const _: () = {
+  use heapless::{Vec, Deque};
+
+  impl<T, LenT, const N: usize> Container<T> for Vec<T, N, LenT>
+  where
+    LenT: heapless::LenType,
+  {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn max_capacity() -> usize {
+      N
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, item: T) -> Result<(), T> {
+      Vec::push(self, item)
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn first(&self) -> Option<&T> {
+      self.as_slice().first()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn last(&self) -> Option<&T> {
+      self.as_slice().last()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn len(&self) -> usize {
+      self.as_slice().len()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn is_empty(&self) -> bool {
+      Vec::is_empty(self)
+    }
+  }
+
+  impl<T, const N: usize> Container<T> for Deque<T, N> {
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn max_capacity() -> usize {
+      N
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, item: T) -> Result<(), T> {
+      Deque::push_back(self, item)
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn first(&self) -> Option<&T> {
+      self.front()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn last(&self) -> Option<&T> {
+      self.back()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn len(&self) -> usize {
+      Deque::len(self)
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn is_empty(&self) -> bool {
+      Deque::is_empty(self)
+    }
+  }
 };
