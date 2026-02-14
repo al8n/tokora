@@ -1,5 +1,3 @@
-// use either::Either;
-
 use super::*;
 
 use crate::{
@@ -77,46 +75,97 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
 {
   try_expect_punct!(
-    open_angle:"<",
-    close_angle:">",
+    // Delimiters
+    open_angle:less_than:"<",
+    close_angle:greater_than:">",
     open_brace:"{",
     close_brace:"}",
     open_paren:"(",
     close_paren:")",
     open_bracket:"[",
     close_bracket:"]",
+
+    // ASCII Punctuation
+    at:"@",
+    asterisk:"*",
+    ampersand: "&",
+    apostrophe:"'",
+    backtick:"`",
+    backslash:"\\",
+    caret:"^",
     comma:",",
-    semicolon:";",
     colon:":",
     dot:".",
+    dollar:"$",
+    double_quote:"\"",
+    equal:"=",
+    exclamation:bang:"!",
+    hash:"#",
+    hyphen:minus:"-",
+    pipe:"|",
+    plus:"+",
+    percent:"%",
+    question:"?",
+    slash:"/",
+    semicolon:";",
     tilde:"~",
     underscore:"_",
-    equal:"=",
-    minus:hyphen:"-",
+
+    // Multi-character Punctuators
     arrow:thin_arrow:"->",
     fat_arrow:"=>",
+    pipe_arrow:pipe_forward:"|>",
+
+    // Equal related
+    colon_equal:colon_assign:":=",
+    logical_equal: "==",
+    logical_not_equal: "!=",
+    strict_equal: "===",
+    strict_not_equal: "!==",
+    less_than_or_equal: "<=",
+    greater_than_or_equal: ">=",
+    strict_less_than_or_equal: "<==",
+    strict_greater_than_or_equal: ">==",
+
+    plus_equal:add_assign: "+=",
+    hyphen_equal:sub_assign: "-=",
+    asterisk_equal:mul_assign: "*=",
+    exponentiation_equal:exponentiation_assign: "**=",
+    slash_equal:div_assign: "/=",
+    backslash_equal: "\\=",
+
+    percent_equal:rem_assign: "%=",
+
+    ampersand_equal:bitand_assign: "&=",
+    pipe_equal:bitor_assign: "|=",
+    caret_equal:xor_assign: "^=",
+
+    shl_equal:shl_assign: "<<=",
+    shr_equal:shr_assign: ">>=",
+    sar_equal:sar_assign: ">>>=",
+
+    shl: "<<",
+    shr: ">>",
+    sar: ">>>",
+
+    increment: "++",
+    decrement: "--",
+    exponentiation: "**",
+
+    logical_and: "&&",
+    logical_or: "||",
+
     double_colon:"::",
+    spread: "...",
+    null_coalesce: "??",
+    optional_chain: "?.",
+
+    // Trivia
     tab:"\t",
     newline:"\n",
     carriage_return:"\r",
     crlf:"\r\n",
     space:" ",
-    pipe:"|",
-    ampersand:"&",
-    percent:"%",
-    slash:"/",
-    backslash:"\\",
-    dollar:"$",
-    hash:"#",
-    at:"@",
-    asterisk:"*",
-    apostrophe:"'",
-    double_quote:"\"",
-    plus:"+",
-    exclamation:"!",
-    question:"?",
-    backtick:"`",
-    caret:"^",
   );
 
   /// Advances to the next valid token and expects it to satisfy the predicate.

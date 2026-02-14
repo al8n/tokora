@@ -364,24 +364,24 @@ impl ErrorNode for &[u8] {
   }
 }
 
-#[cfg(feature = "bytes")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bytes")))]
-impl ErrorNode for bytes::Bytes {
+#[cfg(feature = "bytes_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
+impl ErrorNode for bytes_1::Bytes {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn error(_span: SimpleSpan) -> Self {
-    bytes::Bytes::from_static(b"<error>")
+    bytes_1::Bytes::from_static(b"<error>")
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn missing(_span: SimpleSpan) -> Self {
-    bytes::Bytes::from_static(b"<missing>")
+    bytes_1::Bytes::from_static(b"<missing>")
   }
 }
 
-#[cfg(feature = "hipstr")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hipstr")))]
+#[cfg(feature = "hipstr_0_8")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
 const _: () = {
-  use hipstr::{HipByt, HipStr};
+  use hipstr_0_8::{HipByt, HipStr};
 
   impl ErrorNode for HipStr<'_> {
     #[cfg_attr(not(tarpaulin), inline(always))]

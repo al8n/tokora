@@ -1,4 +1,4 @@
-use hipstr::{HipByt, HipStr};
+use hipstr_0_8::{HipByt, HipStr};
 
 use super::Slice;
 

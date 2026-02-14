@@ -89,9 +89,10 @@ impl<'de: 'a, 'a> IntoEquivalent<&'a [u8]> for &'de [u8] {
   }
 }
 
-#[cfg(feature = "bytes")]
+#[cfg(feature = "bytes_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
 const _: () = {
-  use bytes::Bytes;
+  use bytes_1::Bytes;
   use sealed::Sealed;
 
   impl Sealed<Bytes> for [u8] {}
@@ -126,9 +127,10 @@ const _: () = {
   }
 };
 
-#[cfg(feature = "hipstr")]
+#[cfg(feature = "hipstr_0_8")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
 const _: () = {
-  use hipstr::{HipByt, HipStr};
+  use hipstr_0_8::{HipByt, HipStr};
   use sealed::Sealed;
 
   impl Sealed<HipStr<'_>> for str {}

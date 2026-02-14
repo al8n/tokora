@@ -2,20 +2,22 @@ use std::num::ParseFloatError;
 
 use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
-use logos::Logos;
+
 use tokit::{
   Accumulator, Branch, Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput,
   Parser, Token as TokenT, TryParseInput,
   cache::Peeked,
   emitter::{
     FromSeparatedError, FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
-    SeparatedEmitter, UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
+    FullContainerEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
+    UnexpectedTrailingSeparatorEmitter,
   },
   error::{
     UnexpectedEot,
-    syntax::MissingSyntaxOf,
+    syntax::{FullContainer, MissingSyntaxOf},
     token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
   },
+  logos::Logos,
   parser::{Action, expect},
   punct::{Brace, Bracket, CloseBrace, CloseBracket, Colon, Comma, OpenBrace, OpenBracket},
   span::Spanned,
@@ -57,6 +59,7 @@ enum JsonError<'a> {
   MissingSeparator(MissingTokenOf<'a, JsonLexer<'a>>),
   MissingElement(MissingSyntaxOf<'a, JsonLexer<'a>>),
   UnexpectedToken(UnexpectedTokenOf<'a, JsonLexer<'a>>),
+  FullContainer(FullContainer),
   Eot(UnexpectedEot),
   Other(&'a str),
 }
@@ -90,6 +93,7 @@ impl core::fmt::Debug for JsonError<'_> {
       Self::Eot(err) => write!(f, "{err:?}"),
       Self::MissingSeparator(err) => err.debug_fmt(f),
       Self::MissingElement(err) => err.debug_fmt(f),
+      Self::FullContainer(err) => write!(f, "{err:?}"),
       Self::Other(msg) => write!(f, "{}", msg),
     }
   }
@@ -103,6 +107,7 @@ impl core::fmt::Display for JsonError<'_> {
       Self::Eot(err) => write!(f, "{}", err),
       Self::MissingSeparator(err) => err.display_fmt(f),
       Self::MissingElement(err) => err.display_fmt(f),
+      Self::FullContainer(err) => err.display_fmt(f),
       Self::Other(msg) => write!(f, "{}", msg),
     }
   }
@@ -151,7 +156,10 @@ impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, JsonLexer<'inp>> for JsonE
 }
 
 #[derive(Debug, Logos, Clone, Unwrap)]
-#[logos(skip r"[ \t\r\n\f]+", error = JsonLexerError)]
+#[logos(
+  crate = logos_0_16,
+  skip r"[ \t\r\n\f]+", error = JsonLexerError
+)]
 enum Token<'a> {
   #[token("false", |_| false)]
   #[token("true", |_| true)]
@@ -464,6 +472,7 @@ fn list<'inp, Ctx>(
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: SeparatedEmitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + FullContainerEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, JsonLexer<'inp>>,
 {
@@ -480,6 +489,7 @@ fn field<'inp, Ctx>(
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: SeparatedEmitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + FullContainerEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, JsonLexer<'inp>>,
 {
@@ -495,6 +505,7 @@ fn object<'inp, Ctx>(
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: SeparatedEmitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + FullContainerEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, JsonLexer<'inp>>,
 {
@@ -511,6 +522,7 @@ fn try_json_value<'inp, Ctx>(
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: SeparatedEmitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + FullContainerEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, JsonLexer<'inp>>,
 {
@@ -554,6 +566,7 @@ fn json_value<'inp, Ctx>(
 where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: SeparatedEmitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>
+    + FullContainerEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, JsonLexer<'inp>>,
 {

@@ -6,11 +6,20 @@ use crate::span::{Span, Spanned};
 
 use super::{Source, State, token::Token};
 
-#[cfg(feature = "logos")]
-pub use self::logos::{FromLogos, LogosLexer};
-
-#[cfg(feature = "logos")]
+/// A module containing integrations with the `logos` lexer library.
+#[cfg(any(feature = "logos_0_16", feature = "logos_0_15", feature = "logos_0_14"))]
+#[cfg_attr(
+  docsrs,
+  doc(cfg(any(feature = "logos_0_16", feature = "logos_0_15", feature = "logos_0_14")))
+)]
 mod logos;
+
+#[cfg(any(feature = "logos_0_16", feature = "logos_0_15", feature = "logos_0_14"))]
+#[cfg_attr(
+  docsrs,
+  doc(cfg(any(feature = "logos_0_16", feature = "logos_0_15", feature = "logos_0_14")))
+)]
+pub use logos::*;
 
 /// The result of lexing a single token: either a successful token or an error.
 ///
@@ -404,7 +413,7 @@ pub(crate) struct DummyToken;
 
 #[cfg(test)]
 const _: () = {
-  use crate::token::{LitToken, OperatorToken, PunctuatorToken};
+  use crate::token::{LitToken, PunctuatorToken};
 
   impl Token<'_> for DummyToken {
     type Kind = Self;
@@ -424,8 +433,6 @@ const _: () = {
   impl PunctuatorToken<'_> for DummyToken {}
 
   impl LitToken<'_> for DummyToken {}
-
-  impl OperatorToken<'_> for DummyToken {}
 
   impl<'inp> Lexer<'inp> for DummyLexer {
     type State = ();

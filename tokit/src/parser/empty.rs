@@ -10,26 +10,6 @@ use super::*;
 ///
 /// # Examples
 ///
-/// ## Optional Prefix
-///
-/// ```ignore
-/// use tokit::parser::{empty, ParseInput};
-///
-/// // Parse optional 'pub' keyword
-/// let parser = parse_pub()
-///     .or_not()  // Returns Option<PubKeyword>
-///     .unwrap_or_else(|| empty());  // Default to empty if absent
-///
-/// // Or simpler with peek_then_choice_or_not
-/// let parser = (parse_pub(),)
-///     .peek_then_choice_or_not(|peeked, _| {
-///         match peeked.front() {
-///             Some(Token::Pub) => Ok(Some(0)),
-///             _ => Ok(None),  // Use empty implicitly
-///         }
-///     });
-/// ```
-///
 /// ## Placeholder in Choices
 ///
 /// ```ignore
@@ -78,7 +58,6 @@ use super::*;
 /// # See Also
 ///
 /// - [`Todo`] - Placeholder that panics (for unimplemented parsers)
-/// - [`or_not`](OrNot) - Make parsers optional
 /// - [`map`](crate::parser::ParseInput::map) - Transform `()` to other types
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct Empty(());

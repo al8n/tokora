@@ -136,7 +136,7 @@ mod delim;
 ///
 /// # See Also
 ///
-/// - [`delimited_by`](SeparatedWhile::delimited_by) - Wrap in delimiters (e.g., `[...]` or `{...}`)
+/// - [`delimited`](SeparatedWhile::delimited) - Wrap in delimiters (e.g., `[...]` or `{...}`)
 /// - [`repeated`](RepeatedWhile) - Repeat without separators
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Debug, PartialEq, Eq, Hash)]

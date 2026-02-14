@@ -150,9 +150,10 @@ const _: () = {
   __assert_equivalent_impl::<&[u8], &[u8]>();
 };
 
-#[cfg(feature = "bytes")]
+#[cfg(feature = "bytes_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
 const _: () = {
-  use bytes::Bytes;
+  use bytes_1::Bytes;
 
   impl Equivalent<str> for Bytes {
     #[cfg_attr(test, inline)]
@@ -184,9 +185,10 @@ const _: () = {
   __assert_equivalent_impl::<[u8], Bytes>();
 };
 
-#[cfg(feature = "hipstr")]
+#[cfg(feature = "hipstr_0_8")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
 const _: () = {
-  use hipstr::{HipByt, HipStr};
+  use hipstr_0_8::{HipByt, HipStr};
 
   const _: () = __assert_equivalent_impl::<HipStr<'_>, str>();
   const _: () = __assert_equivalent_impl::<HipByt<'_>, str>();

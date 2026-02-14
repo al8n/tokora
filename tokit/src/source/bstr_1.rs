@@ -1,4 +1,4 @@
-use bstr::BStr;
+use bstr_1::BStr;
 
 use super::Source;
 

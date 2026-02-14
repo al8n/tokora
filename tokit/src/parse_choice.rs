@@ -171,6 +171,7 @@ where
 }
 
 #[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 const _: () = {
   use std::boxed::Box;
 

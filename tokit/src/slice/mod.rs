@@ -1,13 +1,15 @@
 use super::utils::IntoComponents;
 
-#[cfg(feature = "bytes")]
-mod bytes;
+#[cfg(feature = "bytes_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
+mod bytes_1;
 
-#[cfg(feature = "bstr")]
-mod bstr;
+#[cfg(feature = "bstr_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
+mod bstr_1;
 
 #[cfg(feature = "hipstr")]
-mod hipstr;
+mod hipstr_0_8;
 
 /// The slice type returned by lexers' sources.
 pub trait Slice<'source>: PartialEq + Eq + core::fmt::Debug {

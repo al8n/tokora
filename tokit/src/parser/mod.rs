@@ -124,7 +124,6 @@
 //!
 //! - `peek_then` - Peek ahead with fixed window, make deterministic decision
 //! - `peek_then_choice` - Choose between alternatives based on lookahead
-//! - `or_not` - Optional parsing
 //!
 //! ## Transformation
 //!
@@ -519,7 +518,7 @@ pub trait Parse<'inp, L, O, Error, Lang: ?Sized = ()>: Sized {
   #[cfg(feature = "bytes")]
   #[cfg_attr(docsrs, doc(cfg(feature = "bytes")))]
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_bytes(self, src: &'inp bytes::Bytes) -> Result<O, Error>
+  fn parse_bytes(self, src: &'inp bytes_1::Bytes) -> Result<O, Error>
   where
     L: Lexer<'inp, Source = [u8]>,
     L::State: Default,
@@ -531,7 +530,7 @@ pub trait Parse<'inp, L, O, Error, Lang: ?Sized = ()>: Sized {
   #[cfg(feature = "bytes")]
   #[cfg_attr(docsrs, doc(cfg(feature = "bytes")))]
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_bytes_with_state(self, src: &'inp bytes::Bytes, state: L::State) -> Result<O, Error>
+  fn parse_bytes_with_state(self, src: &'inp bytes_1::Bytes, state: L::State) -> Result<O, Error>
   where
     L: Lexer<'inp, Source = [u8]>,
   {

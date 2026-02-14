@@ -6,6 +6,7 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -31,6 +32,7 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -55,6 +57,7 @@ where
   L: Lexer<'inp>,
   F: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
   Container: crate::container::Container<O>,
 {
   fn parse_input(

@@ -396,31 +396,6 @@ pub trait Syntax {
 /// # }
 /// ```
 ///
-/// ## Generic Parser with AstNode
-///
-/// ```rust,ignore
-/// use tokit::{
-///     chumsky::{Parser, extra::ParserExtra},
-///     syntax::AstNode,
-///     error::IncompleteSyntax,
-/// };
-///
-/// // Generic parser that works for any AST node type
-/// fn parse_node<'a, T, I, Token, Error, E>() -> impl Parser<'a, I, T, E>
-/// where
-///     T: AstNode<Lang> + Parseable<'a, I, Token, Error>,
-///     Error: From<IncompleteSyntax<T::Syntax>>,
-///     E: ParserExtra<'a, I, Error = Error>,
-/// {
-///     // Parser automatically knows how to construct errors using T::Syntax
-///     T::parser()
-///         .recover_with(|error| {
-///             // Error recovery using T::Syntax automatically
-///             // ...
-///         })
-/// }
-/// ```
-///
 /// ## Language Polymorphism
 ///
 /// ```rust,ignore

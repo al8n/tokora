@@ -370,48 +370,70 @@ impl TokenTracker for TokenLimiter {
   }
 }
 
-#[cfg(feature = "logos")]
 const _: () = {
-  use logos::{Lexer, Logos};
+  #[allow(dead_code)]
+  macro_rules! bail {
+    ($lib:ident) => {
+      use $lib::{Lexer, Logos};
 
-  use crate::{
-    Token,
-    lexer::{FromLogos, LogosLexer},
+      use crate::{
+        Token,
+        lexer::$lib::{FromLogos, LogosLexer},
+      };
+
+      impl<'a, T> TokenTracker for Lexer<'a, T>
+      where
+        T: Logos<'a>,
+        T::Extras: TokenTracker,
+      {
+        type Error = <T::Extras as TokenTracker>::Error;
+
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn increase(&mut self) {
+          self.extras.increase();
+        }
+
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn check(&self) -> Result<(), Self::Error> {
+          self.extras.check()
+        }
+      }
+
+      impl<'a, T> TokenTracker for LogosLexer<'a, T>
+      where
+        T: FromLogos<'a> + Token<'a>,
+        <T::Logos as Logos<'a>>::Extras: TokenTracker,
+      {
+        type Error = <<T::Logos as Logos<'a>>::Extras as TokenTracker>::Error;
+
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn increase(&mut self) {
+          self.inner_mut().extras.increase();
+        }
+
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn check(&self) -> Result<(), Self::Error> {
+          self.inner().extras.check()
+        }
+      }
+    };
+  }
+
+  #[cfg(feature = "logos_0_14")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_14")))]
+  {
+    bail!(logos_0_14);
+  }
+
+  #[cfg(feature = "logos_0_15")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_15")))]
+  {
+    bail!(logos_0_15);
   };
 
-  impl<'a, T> TokenTracker for Lexer<'a, T>
-  where
-    T: Logos<'a>,
-    T::Extras: TokenTracker,
+  #[cfg(feature = "logos_0_16")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_16")))]
   {
-    type Error = <T::Extras as TokenTracker>::Error;
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn increase(&mut self) {
-      self.extras.increase();
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn check(&self) -> Result<(), Self::Error> {
-      self.extras.check()
-    }
-  }
-
-  impl<'a, T> TokenTracker for LogosLexer<'a, T>
-  where
-    T: FromLogos<'a> + Token<'a>,
-    <T::Logos as Logos<'a>>::Extras: TokenTracker,
-  {
-    type Error = <<T::Logos as Logos<'a>>::Extras as TokenTracker>::Error;
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn increase(&mut self) {
-      self.inner_mut().extras.increase();
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn check(&self) -> Result<(), Self::Error> {
-      self.inner().extras.check()
-    }
-  }
+    bail!(logos_0_16);
+  };
 };

@@ -193,7 +193,7 @@ impl<T: DisplayHuman> DisplayHuman for PositionedChar<T> {
 }
 
 impl DisplayHuman for [u8] {
-  #[cfg(not(feature = "bstr"))]
+  #[cfg(not(feature = "bstr_1"))]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match core::str::from_utf8(self) {
@@ -202,10 +202,10 @@ impl DisplayHuman for [u8] {
     }
   }
 
-  #[cfg(feature = "bstr")]
+  #[cfg(feature = "bstr_1")]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    bstr::BStr::new(self).fmt(f)
+    bstr_1::BStr::new(self).fmt(f)
   }
 }
 
@@ -243,25 +243,28 @@ impl<const N: usize> DisplayHuman for [char; N] {
   }
 }
 
-#[cfg(feature = "bytes")]
-impl DisplayHuman for bytes::Bytes {
+#[cfg(feature = "bytes_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
+impl DisplayHuman for bytes_1::Bytes {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     self.as_ref().fmt(f)
   }
 }
 
-#[cfg(feature = "bstr")]
-impl DisplayHuman for bstr::BStr {
+#[cfg(feature = "bstr_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
+impl DisplayHuman for bstr_1::BStr {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     fmt::Display::fmt(self, f)
   }
 }
 
-#[cfg(feature = "hipstr")]
+#[cfg(feature = "hipstr_0_8")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
 const _: () = {
-  use hipstr::{HipByt, HipStr};
+  use hipstr_0_8::{HipByt, HipStr};
 
   impl DisplayHuman for HipStr<'_> {
     #[cfg_attr(test, inline)]

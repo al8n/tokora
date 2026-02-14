@@ -1,7 +1,8 @@
 use crate::{
   Accumulator, Emitter, InputRef, Lexer, ParseContext, ParseInput, Source, TryParseInput,
   emitter::{
-    SeparatedEmitter, UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
+    FullContainerEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
+    UnexpectedTrailingSeparatorEmitter,
   },
   error::UnexpectedEot,
   parser::SeparatorHandler,
@@ -28,6 +29,7 @@ where
   Sep: Punctuator<'inp, L>,
   Ctx: ParseContext<'inp, L>,
   Ctx::Emitter: SeparatedEmitter<'inp, L>
+    + FullContainerEmitter<'inp, L>
     + UnexpectedLeadingSeparatorEmitter<'inp, L>
     + UnexpectedTrailingSeparatorEmitter<'inp, L>,
   <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>,
@@ -56,6 +58,7 @@ where
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,

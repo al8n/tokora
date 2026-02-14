@@ -1,6 +1,9 @@
 use core::mem;
 
-use crate::{container::Container as ContainerT, delimiter::Delimiter};
+use crate::{
+  container::Container as ContainerT, delimiter::Delimiter, emitter::FullContainerEmitter,
+  error::syntax::FullContainer,
+};
 
 use super::*;
 
@@ -31,6 +34,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
     Ctx: ParseContext<'inp, L, Lang>,
+    Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
   {
@@ -93,7 +97,15 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                   .map(|_| mem::take(container));
               }
               Action::Continue => {
-                container.push(self.parser.f.parse_input(inp)?);
+                // TODO(al8n): tracing dropped element
+                if let Err(_e) = container.push(self.parser.f.parse_input(inp)?) {
+                  let span = inp.span_since(ckp.cursor());
+                  inp.emitter().emit_full_container(FullContainer::of(
+                    span,
+                    nums,
+                    container.max_capacity(),
+                  ))?;
+                }
                 nums += 1;
               }
             },

@@ -2,6 +2,8 @@ use core::marker::PhantomData;
 
 use crate::{
   TryParseInput,
+  emitter::FullContainerEmitter,
+  error::syntax::FullContainer,
   try_parse_input::{Accept, Decline},
 };
 
@@ -134,7 +136,7 @@ mod unbounded;
 /// # See Also
 ///
 /// - [`SeparatedWhile`] - Parse elements with separators (e.g., commas)
-/// - [`delimited_by`](Repeated::delimited_by) - Wrap in delimiters
+/// - [`delimited`](Repeated::delimited) - Wrap in delimiters
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Repeated<F, O, L, Ctx, Lang: ?Sized = ()> {
@@ -246,7 +248,7 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   where
     L: Lexer<'inp>,
     F: TryParseInput<'inp, L, O, Ctx, Lang>,
-    Ctx::Emitter: Emitter<'inp, L, Lang>,
+    Ctx::Emitter: Emitter<'inp, L, Lang> + FullContainerEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Container: crate::container::Container<O>,
     RH: RepeatedHandler<'inp, 'c, O, L, Ctx, Lang>,
@@ -259,7 +261,14 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
       match self.f.try_parse_input(inp) {
         Ok(Accept(item)) => {
           rh.on_element(num, inp, &ckp)?;
-          container.push(item);
+          if container.push(item).is_err() {
+            let span = inp.span_since(&cursor);
+            inp.emitter().emit_full_container(FullContainer::of(
+              span,
+              num,
+              container.max_capacity(),
+            ))?;
+          }
           num += 1;
         }
         Ok(Decline) => break,

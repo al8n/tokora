@@ -9,6 +9,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
   Ctx: ParseContext<'inp, L, Lang>,
+  Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -36,6 +37,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
   Ctx: ParseContext<'inp, L, Lang>,
+  Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
   Container: Default + crate::container::Container<O>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -63,6 +65,7 @@ where
   Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
   W: Window,
   Ctx: ParseContext<'inp, L, Lang>,
+  Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
   Container: crate::container::Container<O>,
 {
   fn parse_input(
