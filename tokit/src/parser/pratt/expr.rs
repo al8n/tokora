@@ -106,9 +106,9 @@ where
 
 /// A Pratt parser combinator.
 ///
-/// Built via [`pratt_of(lhs, rhs, fold_prefix, fold_infix, fold_postfix)`](pratt_of)
-/// or [`pratt_of(lhs, rhs, fold_prefix, fold_infix, fold_postfix)`](pratt) and configured with
-/// `.prefix(...)`, `.postfix(...)`, `.infix(...)`, and `min_power` methods.
+/// Built via [`pratt(lhs, rhs, fold_prefix, fold_infix, fold_postfix)`](pratt)
+/// or [`pratt_of(lhs, rhs, fold_prefix, fold_infix, fold_postfix)`](pratt_of) and configured with
+/// `.prefix(...)`, `.postfix(...)`, `.infix(...)`, and `.min_power(...)` methods.
 pub struct Pratt<
   Power,
   Lhs,
@@ -536,11 +536,8 @@ where
   };
 
   // Step 2: parse rhs -- either an infix/postfix operator or the end of this pratt expression
-  loop {
-    if inp.is_eoi() {
-      break;
-    }
-
+  let mut prev_op_is_neither: Option<Power> = None;
+  while !inp.is_eoi() {
     let ckp = inp.save();
     match parse_rhs.parse_pratt_rhs(inp)? {
       PrattRHS::Postfix(precedenced) => {
@@ -560,11 +557,18 @@ where
           PrattInfix::Neither(_) => lpower.next(),
         };
 
-        if lpower.lt(&min_power) {
+        if lpower.lt(&min_power) || prev_op_is_neither.as_ref() == Some(lpower) {
           inp.restore(ckp);
           break;
         }
 
+        let is_neither = matches!(infix.token_ref(), PrattInfix::Neither(_));
+        // Clone lpower (a &Power reference into infix) before infix is consumed by fold_infix.
+        let next_neither = if is_neither {
+          Some((*lpower).clone())
+        } else {
+          None
+        };
         let rhs = parse(
           inp,
           parse_lhs,
@@ -575,6 +579,7 @@ where
           rpower,
         )?;
         lhs = fold_infix.fold_infix(inp, lhs, rhs, infix)?;
+        prev_op_is_neither = next_neither;
       }
     }
   }

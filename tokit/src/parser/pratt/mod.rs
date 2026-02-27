@@ -435,6 +435,6 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self(operand, operator, emitter)
+    self(operator, operand, emitter)
   }
 }

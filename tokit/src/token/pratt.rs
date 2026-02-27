@@ -7,6 +7,7 @@ pub trait PrattToken<'a, Expr: ?Sized, Power = i64>: Token<'a> {
   /// Returns `true` if the token is kind of an operand token or a prefix token of the `Expr`.
   fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), Power>>;
 
-  /// Returns `true` if the token is kind of an operand token or a prefix token of the `Expr`.
+  /// Returns `Some(rhs)` if the token is an infix or postfix operator of the `Expr`,
+  /// or `None` if it is not part of the expression at this position.
   fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), Power>>;
 }

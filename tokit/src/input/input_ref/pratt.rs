@@ -16,12 +16,85 @@ where
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  /// a
+  /// Runs a token-level Pratt expression parse over this input.
+  ///
+  /// This is the low-level, token-centric Pratt API. It requires the token type to implement
+  /// [`PrattToken`], which classifies each token as an operand, prefix, infix, or postfix
+  /// operator. The fold closures receive raw [`Spanned`] tokens rather than typed AST nodes.
+  ///
+  /// Equivalent to calling [`pratt_with_min_power`](Self::pratt_with_min_power) with
+  /// `Power::default()` as the minimum binding power.
+  ///
+  /// For a more ergonomic higher-level API that works with any AST node type, prefer
+  /// [`expression`](crate::parser::expression) instead.
+  ///
+  /// # Parameters
+  ///
+  /// - `fold_prefix` – called with `(operator_tok, operand_tok, emitter)` when a prefix
+  ///   operator and its operand have been successfully parsed.
+  /// - `fold_infix` – called with `(lhs_tok, rhs_tok, operator_tok, emitter)` when an infix
+  ///   operator and both operands have been parsed.
+  /// - `fold_postfix` – called with `(operand_tok, operator_tok, emitter)` when a postfix
+  ///   operator has been applied.
+  ///
+  /// # Returns
+  ///
+  /// `Ok(Some(tok))` with the combined expression token on success, `Ok(None)` if the
+  /// input cursor did not see an LHS token, or `Err(e)` on a fatal emitter error.
   pub fn pratt<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power>(
+    &mut self,
+    fold_prefix: FoldPrefix,
+    fold_infix: FoldInfix,
+    fold_postfix: FoldPostfix,
+  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L::Token: PrattToken<'inp, Expr, Power>,
+    Ctx::Emitter: PrattEmitter<'inp, L, Lang>,
+    Power: PrattPower,
+    FoldPrefix: PrattFoldTokenPrefix<'inp, Power, L, Ctx, Lang>,
+    FoldInfix: PrattFoldTokenInfix<'inp, Power, L, Ctx, Lang>,
+    FoldPostfix: PrattFoldTokenPostfix<'inp, Power, L, Ctx, Lang>,
+  {
+    self.pratt_with_min_power(fold_prefix, fold_infix, fold_postfix, Power::default())
+  }
+
+  /// Runs a token-level Pratt expression parse over this input starting at a given minimum
+  /// binding power.
+  ///
+  /// This is the low-level, token-centric Pratt API. It requires the token type to implement
+  /// [`PrattToken`], which classifies each token as an operand, prefix, infix, or postfix
+  /// operator. The fold closures receive raw [`Spanned`] tokens rather than typed AST nodes.
+  ///
+  /// Only operators whose binding power is **greater than or equal to** `min_power` will be
+  /// consumed. Operators below the threshold are left in the input for the surrounding
+  /// context to handle. This is useful when embedding a Pratt expression inside a larger
+  /// grammar — for example, parsing only the right-hand side of an infix operator at a
+  /// specific precedence level.
+  ///
+  /// Use [`pratt`](Self::pratt) instead when you want to parse a full expression starting
+  /// from `Power::default()`.
+  ///
+  /// # Parameters
+  ///
+  /// - `fold_prefix` – called with `(operator_tok, operand_tok, emitter)` when a prefix
+  ///   operator and its operand have been successfully parsed.
+  /// - `fold_infix` – called with `(lhs_tok, rhs_tok, operator_tok, emitter)` when an infix
+  ///   operator and both operands have been parsed.
+  /// - `fold_postfix` – called with `(operand_tok, operator_tok, emitter)` when a postfix
+  ///   operator has been applied.
+  /// - `min_power` – the minimum binding power; operators strictly below this level are not
+  ///   consumed.
+  ///
+  /// # Returns
+  ///
+  /// `Ok(Some(tok))` with the combined expression token on success, `Ok(None)` if the
+  /// input cursor did not see an LHS token, or `Err(e)` on a fatal emitter error.
+  pub fn pratt_with_min_power<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power>(
     &mut self,
     mut fold_prefix: FoldPrefix,
     mut fold_infix: FoldInfix,
     mut fold_postfix: FoldPostfix,
+    min_power: Power,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L::Token: PrattToken<'inp, Expr, Power>,
@@ -32,13 +105,14 @@ where
     FoldPostfix: PrattFoldTokenPostfix<'inp, Power, L, Ctx, Lang>,
   {
     self.pratt_in(
-      Power::default(),
+      min_power,
       &mut fold_prefix,
       &mut fold_infix,
       &mut fold_postfix,
     )
   }
 
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn pratt_in<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power>(
     &mut self,
     min_power: Power,
@@ -74,11 +148,8 @@ where
     };
 
     // Step 2: parse rhs -- either an infix/postfix operator or the end of this pratt expression
-    loop {
-      if self.is_eoi() {
-        break;
-      }
-
+    let mut prev_op_is_neither: Option<Power> = None;
+    while !self.is_eoi() {
       let Some((rhs, tok)) = self.try_expect_map(|tok| {
         tok.try_pratt_rhs().and_then(|rhs| match rhs {
           PrattRHS::Postfix(precedenced) => {
@@ -97,7 +168,7 @@ where
               PrattInfix::Neither(_) => lpower.next(),
             };
 
-            if lpower.lt(&min_power) {
+            if lpower.lt(&min_power) || prev_op_is_neither.as_ref() == Some(&lpower) {
               None
             } else {
               Some(PrattRHS::Infix(Precedenced::new(infix, rpower)))
@@ -113,6 +184,12 @@ where
         PrattRHS::Postfix(_) => lhs = fold_postfix.fold_postfix(lhs, tok, self.emitter())?,
         PrattRHS::Infix(infix) => {
           let (infix, power) = infix.into_components();
+          let is_neither = matches!(infix, PrattInfix::Neither(_));
+          let lpower = if matches!(infix, PrattInfix::Right(_)) {
+            power.next()
+          } else {
+            power.prev()
+          };
           let Some(rhs) = self.pratt_in(power, fold_prefix, fold_infix, fold_postfix)? else {
             self
               .emitter
@@ -129,6 +206,7 @@ where
             Spanned::new(span, infix)
           };
           lhs = fold_infix.fold_infix(lhs, rhs, infix, self.emitter())?;
+          prev_op_is_neither = if is_neither { Some(lpower) } else { None };
         }
       }
     }
