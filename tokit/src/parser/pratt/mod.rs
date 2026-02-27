@@ -1,7 +1,6 @@
-use crate::{Emitter, InputRef, Lexer, ParseContext, ParseInput};
+use crate::{Emitter, InputRef, Lexer, ParseContext, ParseInput, span::Spanned};
 
-pub use token::*;
-
+pub use expr::*;
 mod expr;
 mod token;
 
@@ -52,6 +51,18 @@ impl<T, Power> Precedenced<T, Power> {
     &self.precedence
   }
 
+  /// Decomposes this `Precedenced` into its precedence.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_precedence(self) -> Power {
+    self.precedence
+  }
+
+  /// Decomposes this `Precedenced` into its data.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn into_data(self) -> T {
+    self.token
+  }
+
   /// Decomposes this `Precedenced` into its token and precedence components.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn into_components(self) -> (T, Power) {
@@ -70,25 +81,13 @@ pub enum PrattLHS<Op, Pre, Power = i64> {
 
 /// An infix operator for Pratt parsing, which can be left-associative, right-associative, or non-associative with its precedence level.
 #[derive(Debug, Clone, Copy)]
-pub enum PrattInfix<L, R, N, Power = i64> {
+pub enum PrattInfix<L, R, N> {
   /// A left-associative infix operator with its precedence level and operator type.
-  Left(Precedenced<L, Power>),
+  Left(L),
   /// A right-associative infix operator with its precedence level and operator type.
-  Right(Precedenced<R, Power>),
+  Right(R),
   /// A non-associative infix operator with its precedence level and operator type.
-  Neither(Precedenced<N, Power>),
-}
-
-impl<L, R, N, Power> PrattInfix<L, R, N, Power> {
-  /// Returns the precedence level of this infix operator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn precedence(&self) -> &Power {
-    match self {
-      Self::Left(prec) => prec.precedence(),
-      Self::Right(prec) => prec.precedence(),
-      Self::Neither(prec) => prec.precedence(),
-    }
-  }
+  Neither(N),
 }
 
 /// A right-hand side for Pratt parsing, which can be a left-associative, right-associative, or non-associative infix operator with its precedence level,
@@ -96,7 +95,7 @@ impl<L, R, N, Power> PrattInfix<L, R, N, Power> {
 #[derive(Debug, Clone, Copy)]
 pub enum PrattRHS<L, R, N, Post, Power = i64> {
   /// An infix operator with its precedence level and associativity.
-  Infix(PrattInfix<L, R, N, Power>),
+  Infix(Precedenced<PrattInfix<L, R, N>, Power>),
   /// Postfix operator with its precedence level and operator type.
   Postfix(Precedenced<Post, Power>),
 }
@@ -242,7 +241,7 @@ pub trait PrattFoldInfix<
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     left: O,
     right: O,
-    operator: PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc, Power>,
+    operator: Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -258,7 +257,7 @@ where
     &mut InputRef<'inp, '_, L, Ctx, Lang>,
     O,
     O,
-    PrattInfix<LO, RO, NO, Power>,
+    Precedenced<PrattInfix<LO, RO, NO>, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -267,7 +266,7 @@ where
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     left: O,
     right: O,
-    operator: PrattInfix<LO, RO, NO, Power>,
+    operator: Precedenced<PrattInfix<LO, RO, NO>, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -314,5 +313,128 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     self(input, operand, operator)
+  }
+}
+
+/// A trait for postfix fold dispatch
+pub trait PrattFoldTokenPostfix<'inp, Power, L, Ctx, Lang: ?Sized = ()> {
+  /// Apply the postfix fold to the operand.
+  fn fold_postfix(
+    &mut self,
+    operand: Spanned<L::Token, L::Span>,
+    operator: Spanned<L::Token, L::Span>,
+    emitter: &mut Ctx::Emitter,
+  ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+}
+
+impl<'inp, P, Power, L, Ctx, Lang: ?Sized> PrattFoldTokenPostfix<'inp, Power, L, Ctx, Lang> for P
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  P: FnMut(
+    Spanned<L::Token, L::Span>,
+    Spanned<L::Token, L::Span>,
+    &mut Ctx::Emitter,
+  )
+    -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn fold_postfix(
+    &mut self,
+    operand: Spanned<L::Token, L::Span>,
+    operator: Spanned<L::Token, L::Span>,
+    emitter: &mut Ctx::Emitter,
+  ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    self(operand, operator, emitter)
+  }
+}
+
+/// A trait for infix fold dispatch
+pub trait PrattFoldTokenInfix<'inp, Power, L, Ctx, Lang: ?Sized = ()> {
+  /// Apply the infix fold to the operand.
+  fn fold_infix(
+    &mut self,
+    left: Spanned<L::Token, L::Span>,
+    right: Spanned<L::Token, L::Span>,
+    infix: Spanned<PrattInfix<L::Token, L::Token, L::Token>, L::Span>,
+    emitter: &mut Ctx::Emitter,
+  ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+}
+
+impl<'inp, P, Power, L, Ctx, Lang: ?Sized> PrattFoldTokenInfix<'inp, Power, L, Ctx, Lang> for P
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  P: FnMut(
+    Spanned<L::Token, L::Span>,
+    Spanned<L::Token, L::Span>,
+    Spanned<PrattInfix<L::Token, L::Token, L::Token>, L::Span>,
+    &mut Ctx::Emitter,
+  )
+    -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn fold_infix(
+    &mut self,
+    left: Spanned<L::Token, L::Span>,
+    right: Spanned<L::Token, L::Span>,
+    infix: Spanned<PrattInfix<L::Token, L::Token, L::Token>, L::Span>,
+    emitter: &mut <Ctx>::Emitter,
+  ) -> Result<Spanned<L::Token, L::Span>, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    self(left, right, infix, emitter)
+  }
+}
+
+/// A trait for prefix fold dispatch
+pub trait PrattFoldTokenPrefix<'inp, Power, L, Ctx, Lang: ?Sized = ()> {
+  /// Apply the prefix fold to the operand.
+  fn fold_prefix(
+    &mut self,
+    operator: Spanned<L::Token, L::Span>,
+    operand: Spanned<L::Token, L::Span>,
+    emitter: &mut Ctx::Emitter,
+  ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+}
+
+impl<'inp, P, Power, L, Ctx, Lang: ?Sized> PrattFoldTokenPrefix<'inp, Power, L, Ctx, Lang> for P
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  P: FnMut(
+    Spanned<L::Token, L::Span>,
+    Spanned<L::Token, L::Span>,
+    &mut Ctx::Emitter,
+  )
+    -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn fold_prefix(
+    &mut self,
+    operator: Spanned<L::Token, L::Span>,
+    operand: Spanned<L::Token, L::Span>,
+    emitter: &mut Ctx::Emitter,
+  ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+  {
+    self(operand, operator, emitter)
   }
 }
