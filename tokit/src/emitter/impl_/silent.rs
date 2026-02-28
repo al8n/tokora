@@ -5,6 +5,7 @@ use crate::{error::syntax::MissingSyntaxOf, span::Spanned};
 use super::super::*;
 
 mod full_container;
+mod pratt;
 mod separator;
 mod too_few;
 mod too_many;

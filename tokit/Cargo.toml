@@ -107,6 +107,11 @@ name = "json"
 path = "examples/json.rs"
 required-features = ["std", "logos"]
 
+[[example]]
+name = "calculator"
+path = "examples/calculator.rs"
+required-features = ["std", "logos"]
+
 [lints.rust]
 rust_2018_idioms = "warn"
 single_use_lifetimes = "warn"
