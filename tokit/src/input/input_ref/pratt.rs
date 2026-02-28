@@ -22,7 +22,7 @@ where
   /// [`PrattToken`], which classifies each token as an operand, prefix, infix, or postfix
   /// operator. The fold closures receive raw [`Spanned`] tokens rather than typed AST nodes.
   ///
-  /// Equivalent to calling [`pratt_with_min_power`](Self::pratt_with_min_power) with
+  /// Equivalent to calling [`pratt_with_min_precedence`](Self::pratt_with_min_precedence) with
   /// `Power::default()` as the minimum binding power.
   ///
   /// For a more ergonomic higher-level API that works with any AST node type, prefer
@@ -55,7 +55,7 @@ where
     FoldInfix: PrattFoldTokenInfix<'inp, Power, L, Ctx, Lang>,
     FoldPostfix: PrattFoldTokenPostfix<'inp, Power, L, Ctx, Lang>,
   {
-    self.pratt_with_min_power(fold_prefix, fold_infix, fold_postfix, Power::default())
+    self.pratt_with_min_precedence(fold_prefix, fold_infix, fold_postfix, Power::default())
   }
 
   /// Runs a token-level Pratt expression parse over this input starting at a given minimum
@@ -65,7 +65,7 @@ where
   /// [`PrattToken`], which classifies each token as an operand, prefix, infix, or postfix
   /// operator. The fold closures receive raw [`Spanned`] tokens rather than typed AST nodes.
   ///
-  /// Only operators whose binding power is **greater than or equal to** `min_power` will be
+  /// Only operators whose binding power is **greater than or equal to** `min_precedence` will be
   /// consumed. Operators below the threshold are left in the input for the surrounding
   /// context to handle. This is useful when embedding a Pratt expression inside a larger
   /// grammar — for example, parsing only the right-hand side of an infix operator at a
@@ -82,19 +82,19 @@ where
   ///   operator and both operands have been parsed.
   /// - `fold_postfix` – called with `(operand_tok, operator_tok, emitter)` when a postfix
   ///   operator has been applied.
-  /// - `min_power` – the minimum binding power; operators strictly below this level are not
+  /// - `min_precedence` – the minimum binding power; operators strictly below this level are not
   ///   consumed.
   ///
   /// # Returns
   ///
   /// `Ok(Some(tok))` with the combined expression token on success, `Ok(None)` if the
   /// input cursor did not see an LHS token, or `Err(e)` on a fatal emitter error.
-  pub fn pratt_with_min_power<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power>(
+  pub fn pratt_with_min_precedence<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power>(
     &mut self,
     mut fold_prefix: FoldPrefix,
     mut fold_infix: FoldInfix,
     mut fold_postfix: FoldPostfix,
-    min_power: Power,
+    min_precedence: Power,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L::Token: PrattToken<'inp, Expr, Power>,
@@ -105,7 +105,7 @@ where
     FoldPostfix: PrattFoldTokenPostfix<'inp, Power, L, Ctx, Lang>,
   {
     self.pratt_in(
-      min_power,
+      min_precedence,
       &mut fold_prefix,
       &mut fold_infix,
       &mut fold_postfix,
@@ -115,7 +115,7 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn pratt_in<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power>(
     &mut self,
-    min_power: Power,
+    min_precedence: Power,
     fold_prefix: &mut FoldPrefix,
     fold_infix: &mut FoldInfix,
     fold_postfix: &mut FoldPostfix,
@@ -154,7 +154,7 @@ where
         tok.try_pratt_rhs().and_then(|rhs| match rhs {
           PrattRHS::Postfix(precedenced) => {
             let power = precedenced.into_precedence();
-            if power >= min_power {
+            if power >= min_precedence {
               Some(PrattRHS::Postfix(Precedenced::new((), power)))
             } else {
               None
@@ -168,7 +168,7 @@ where
               PrattInfix::Neither(_) => lpower.next(),
             };
 
-            if lpower.lt(&min_power) || prev_op_is_neither.as_ref() == Some(&lpower) {
+            if lpower.lt(&min_precedence) || prev_op_is_neither.as_ref() == Some(&lpower) {
               None
             } else {
               Some(PrattRHS::Infix(Precedenced::new(infix, rpower)))

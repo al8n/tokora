@@ -2,7 +2,6 @@ use crate::{Emitter, InputRef, Lexer, ParseContext, ParseInput, span::Spanned};
 
 pub use expr::*;
 mod expr;
-mod token;
 
 /// The power level of an operator, used to determine the order of operations in Pratt parsing.
 pub trait PrattPower: Default + Clone + Ord {

@@ -108,7 +108,7 @@ where
 ///
 /// Built via [`pratt(lhs, rhs, fold_prefix, fold_infix, fold_postfix)`](pratt)
 /// or [`pratt_of(lhs, rhs, fold_prefix, fold_infix, fold_postfix)`](pratt_of) and configured with
-/// `.prefix(...)`, `.postfix(...)`, `.infix(...)`, and `.min_power(...)` methods.
+/// `.prefix(...)`, `.postfix(...)`, `.infix(...)`, and `.min_precedence(...)` methods.
 pub struct Pratt<
   Power,
   Lhs,
@@ -126,7 +126,7 @@ pub struct Pratt<
   Ctx,
   Lang: ?Sized = (),
 > {
-  min_power: Power,
+  min_precedence: Power,
   parse_lhs: Lhs,
   parse_rhs: Rhs,
   fold_prefix: FoldPrefix,
@@ -193,7 +193,7 @@ impl<
     Self {
       parse_lhs,
       parse_rhs,
-      min_power: Power::default(),
+      min_precedence: Power::default(),
       fold_prefix,
       fold_infix,
       fold_postfix,
@@ -272,7 +272,7 @@ impl<
     Pratt {
       parse_lhs: self.parse_lhs,
       parse_rhs: self.parse_rhs,
-      min_power: self.min_power,
+      min_precedence: self.min_precedence,
       fold_prefix: folder,
       fold_infix: self.fold_infix,
       fold_postfix: self.fold_postfix,
@@ -315,7 +315,7 @@ impl<
     Pratt {
       parse_lhs: self.parse_lhs,
       parse_rhs: self.parse_rhs,
-      min_power: self.min_power,
+      min_precedence: self.min_precedence,
       fold_prefix: self.fold_prefix,
       fold_infix: folder,
       fold_postfix: self.fold_postfix,
@@ -358,7 +358,7 @@ impl<
     Pratt {
       parse_lhs: self.parse_lhs,
       parse_rhs: self.parse_rhs,
-      min_power: self.min_power,
+      min_precedence: self.min_precedence,
       fold_prefix: self.fold_prefix,
       fold_infix: self.fold_infix,
       fold_postfix: folder,
@@ -375,9 +375,9 @@ impl<
   }
 
   /// Configure the minimum precedence level for this Pratt parser.
-  pub fn min_power(
+  pub fn min_precedence(
     self,
-    min_power: Power,
+    min_precedence: Power,
   ) -> Pratt<
     Power,
     Lhs,
@@ -398,7 +398,7 @@ impl<
     Pratt {
       parse_lhs: self.parse_lhs,
       parse_rhs: self.parse_rhs,
-      min_power,
+      min_precedence,
       fold_prefix: self.fold_prefix,
       fold_infix: self.fold_infix,
       fold_postfix: self.fold_postfix,
@@ -476,7 +476,7 @@ where
       &mut self.fold_prefix,
       &mut self.fold_infix,
       &mut self.fold_postfix,
-      self.min_power.clone(),
+      self.min_precedence.clone(),
     )
   }
 }
@@ -505,7 +505,7 @@ fn parse<
   fold_prefix: &mut FoldPrefix,
   fold_infix: &mut FoldInfix,
   fold_postfix: &mut FoldPostfix,
-  min_power: Power,
+  min_precedence: Power,
 ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
 where
   L: Lexer<'inp>,
@@ -542,7 +542,7 @@ where
     match parse_rhs.parse_pratt_rhs(inp)? {
       PrattRHS::Postfix(precedenced) => {
         let (operator, op_power) = precedenced.into_components();
-        if op_power >= min_power {
+        if op_power >= min_precedence {
           lhs = fold_postfix.fold_postfix(inp, lhs, Precedenced::new(operator, op_power))?;
         } else {
           inp.restore(ckp);
@@ -557,14 +557,12 @@ where
           PrattInfix::Neither(_) => lpower.next(),
         };
 
-        if lpower.lt(&min_power) || prev_op_is_neither.as_ref() == Some(lpower) {
+        if lpower.lt(&min_precedence) || prev_op_is_neither.as_ref() == Some(lpower) {
           inp.restore(ckp);
           break;
         }
 
-        let is_neither = matches!(infix.token_ref(), PrattInfix::Neither(_));
-        // Clone lpower (a &Power reference into infix) before infix is consumed by fold_infix.
-        let next_neither = if is_neither {
+        let next_neither = if matches!(infix.token_ref(), PrattInfix::Neither(_)) {
           Some((*lpower).clone())
         } else {
           None

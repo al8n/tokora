@@ -20,7 +20,7 @@ use tokit::{
   Emitter, InputRef, Parse, ParseContext, Parser, SimpleSpan, Token as TokenT,
   emitter::PrattEmitter,
   error::{UnexpectedEoLhs, UnexpectedEoRhs},
-  logos::Logos,
+  logos::{self, Logos},
   parser::{PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced},
   span::Spanned,
   token::PrattToken,
@@ -38,7 +38,7 @@ impl From<()> for LexError {
 }
 
 #[derive(Debug, Clone, Logos)]
-#[logos(crate = logos_0_16, skip r"[ \t\r\n]+", error = LexError)]
+#[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
 enum Token {
   #[regex(r"[0-9]+(\.[0-9]+)?", |lex| lex.slice().parse::<f64>().map_err(|_| LexError))]
   Num(f64),
