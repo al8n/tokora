@@ -28,7 +28,7 @@
 use tokit::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, Token as TokenT,
   error::token::UnexpectedTokenOf,
-  logos::Logos,
+  logos::{self, Logos},
   parser::{PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, pratt_of},
 };
 
@@ -46,7 +46,7 @@ impl From<()> for LexError {
 /// Token enum.  Multi-character operators are listed before their single-char
 /// prefixes so that Logos' longest-match rule applies correctly.
 #[derive(Debug, Clone, Logos, PartialEq)]
-#[logos(crate = logos_0_16, skip r"[ \t\r\n]+", error = LexError)]
+#[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
 enum Token {
   #[regex(r"[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|_| LexError))]
   Num(i64),

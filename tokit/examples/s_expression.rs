@@ -18,7 +18,7 @@
 
 use tokit::{
   Emitter, InputRef, Parse, ParseContext, Parser, Token as TokenT, error::token::UnexpectedTokenOf,
-  logos::Logos,
+  logos::{self, Logos},
 };
 
 // ── Lexer ─────────────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ impl From<()> for LexError {
 }
 
 #[derive(Debug, Clone, Logos, PartialEq)]
-#[logos(crate = logos_0_16, skip r"[ \t\r\n]+", error = LexError)]
+#[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
 enum Token {
   /// Integer literals; a leading `-` is part of the literal (e.g. `-3`).
   #[regex(r"-?[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|_| LexError))]
