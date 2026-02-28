@@ -105,25 +105,21 @@ tempfile = "3"
 [[example]]
 name = "json"
 path = "examples/json.rs"
-test = true
 required-features = ["std", "logos"]
 
 [[example]]
 name = "calculator"
 path = "examples/calculator.rs"
-test = true
 required-features = ["std", "logos"]
 
 [[example]]
 name = "s_expression"
 path = "examples/s_expression.rs"
-test = true
 required-features = ["std", "logos"]
 
 [[example]]
 name = "c_expression"
 path = "examples/c_expression.rs"
-test = true
 required-features = ["std", "logos"]
 
 [lints.rust]
