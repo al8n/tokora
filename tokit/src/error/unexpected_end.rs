@@ -255,7 +255,7 @@ impl<O> UnexpectedEnd<PrattRhsHint, O> {
   ///
   /// let error = UnexpectedEnd::eorhs(100);
   /// assert_eq!(error.offset(), 100);
-  /// assert_eq!(error.name(), Some("expression"));
+  /// assert_eq!(error.name(), Some("expression (right hand side)"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eorhs(offset: O) -> Self {
@@ -277,7 +277,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<PrattRhsHint, O, Lang> {
   ///
   /// let error = UnexpectedEnd::eorhs(100);
   /// assert_eq!(error.offset(), 100);
-  /// assert_eq!(error.name(), Some("expression"));
+  /// assert_eq!(error.name(), Some("expression (right hand side)"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eorhs_of(offset: O) -> Self {
@@ -299,7 +299,7 @@ impl<O> UnexpectedEnd<PrattLhsHint, O> {
   ///
   /// let error = UnexpectedEnd::eolhs(100);
   /// assert_eq!(error.offset(), 100);
-  /// assert_eq!(error.name(), Some("expression"));
+  /// assert_eq!(error.name(), Some("expression (left hand side)"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eolhs(offset: O) -> Self {
@@ -321,7 +321,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<PrattLhsHint, O, Lang> {
   ///
   /// let error = UnexpectedEnd::eolhs(100);
   /// assert_eq!(error.offset(), 100);
-  /// assert_eq!(error.name(), Some("expression"));
+  /// assert_eq!(error.name(), Some("expression (left hand side)"));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn eolhs_of(offset: O) -> Self {
@@ -868,15 +868,15 @@ impl<Hint, O, Lang: ?Sized> From<UnexpectedEnd<Hint, O, Lang>> for () {
   fn from(_: UnexpectedEnd<Hint, O, Lang>) -> Self {}
 }
 
-/// An type alias for unexpected EOF.
+/// A type alias for unexpected EOF.
 pub type UnexpectedEof<O = usize, Lang = ()> = UnexpectedEnd<FileHint, O, Lang>;
-/// An type alias for unexpected end of token stream.
+/// A type alias for unexpected end of token stream.
 pub type UnexpectedEot<O = usize, Lang = ()> = UnexpectedEnd<TokenHint, O, Lang>;
-/// An type alias for unexpected end of string.
+/// A type alias for unexpected end of string.
 pub type UnexpectedEos<O = usize, Lang = ()> = UnexpectedEnd<CharacterHint, O, Lang>;
-/// An type alias for unexpected end of right hand side.
+/// A type alias for unexpected end of right hand side.
 pub type UnexpectedEoRhs<O = usize, Lang = ()> = UnexpectedEnd<PrattRhsHint, O, Lang>;
-/// An type alias for unexpected end of left hand side.
+/// A type alias for unexpected end of left hand side.
 pub type UnexpectedEoLhs<O = usize, Lang = ()> = UnexpectedEnd<PrattLhsHint, O, Lang>;
 
 impl<Hint, O, Lang: ?Sized> From<(O, Hint)> for UnexpectedEnd<Hint, O, Lang> {
