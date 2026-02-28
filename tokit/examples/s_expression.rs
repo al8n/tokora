@@ -17,7 +17,8 @@
 //! | Function application       | `(func args...)`    |
 
 use tokit::{
-  Emitter, InputRef, Parse, ParseContext, Parser, Token as TokenT, error::token::UnexpectedTokenOf,
+  Emitter, InputRef, Parse, ParseContext, Parser, Token as TokenT,
+  error::token::UnexpectedTokenOf,
   logos::{self, Logos},
 };
 

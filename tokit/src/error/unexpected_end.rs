@@ -80,8 +80,8 @@ pub struct CharacterHint;
 /// ```rust
 /// use tokit::error::{UnexpectedEnd, PrattRhsHint};
 ///
-/// let error = UnexpectedEnd::new(100);
-/// assert_eq!(error.to_string(), "unexpected end of expression, expected either an infix or a postfix");
+/// let error = UnexpectedEnd::eorhs(100);
+/// assert_eq!(error.to_string(), "unexpected end of expression (right hand side), expected either an infix or a postfix");
 /// ```
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Display)]
 #[display("either an infix or a postfix")]
@@ -97,8 +97,8 @@ pub struct PrattRhsHint;
 /// ```rust
 /// use tokit::error::{UnexpectedEnd, PrattLhsHint};
 ///
-/// let error = UnexpectedEnd::new(100);
-/// assert_eq!(error.to_string(), "unexpected end of expression, expected one of an operand, an infix or a postfix");
+/// let error = UnexpectedEnd::eolhs(100);
+/// assert_eq!(error.to_string(), "unexpected end of expression (left hand side), expected one of an operand, an infix or a postfix");
 /// ```
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Display)]
 #[display("one of an operand, an infix or a postfix")]
