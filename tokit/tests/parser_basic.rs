@@ -19,9 +19,7 @@ use common::{TestLexer, Token, TokenKind};
 // ── Element parsers ───────────────────────────────────────────────────────────
 
 /// Parse a single `Num` token, return the i64 value.
-fn parse_num<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-) -> Result<i64, ()>
+fn parse_num<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -72,9 +70,7 @@ where
   Any::new().parse_input(inp)
 }
 
-fn parse_empty<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-) -> Result<(), ()>
+fn parse_empty<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<(), ()>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -82,9 +78,7 @@ where
   Empty::new().parse_input(inp)
 }
 
-fn parse_fail<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-) -> Result<i64, ()>
+fn parse_fail<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -96,7 +90,10 @@ where
 
 #[test]
 fn test_any_num() {
-  let result: Token = Parser::new().apply(parse_any_token).parse_str("42").unwrap();
+  let result: Token = Parser::new()
+    .apply(parse_any_token)
+    .parse_str("42")
+    .unwrap();
   assert!(matches!(result, Token::Num(42)));
 }
 
@@ -158,9 +155,7 @@ fn test_fail_always_fails() {
 
 #[test]
 fn test_map_double() {
-  fn parse_doubled<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<i64, ()>
+  fn parse_doubled<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -221,7 +216,9 @@ fn test_filter_positive() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    parse_num.filter(|&n| if n >= 0 { Ok(()) } else { Err(()) }).parse_input(inp)
+    parse_num
+      .filter(|&n| if n >= 0 { Ok(()) } else { Err(()) })
+      .parse_input(inp)
   }
 
   assert_eq!(
@@ -235,14 +232,14 @@ fn test_filter_positive() {
 
 #[test]
 fn test_validate() {
-  fn parse_even<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<i64, ()>
+  fn parse_even<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    parse_num.validate(|&n| if n % 2 == 0 { Ok(()) } else { Err(()) }).parse_input(inp)
+    parse_num
+      .validate(|&n| if n % 2 == 0 { Ok(()) } else { Err(()) })
+      .parse_input(inp)
   }
 
   assert_eq!(Parser::new().apply(parse_even).parse_str("4").unwrap(), 4);
@@ -281,7 +278,10 @@ fn test_then_ignore_second() {
     parse_num.then_ignore(parse_num).parse_input(inp)
   }
 
-  let result: i64 = Parser::new().apply(parse_first_ignore_second).parse_str("3 7").unwrap();
+  let result: i64 = Parser::new()
+    .apply(parse_first_ignore_second)
+    .parse_str("3 7")
+    .unwrap();
   assert_eq!(result, 3);
 }
 
@@ -299,8 +299,10 @@ fn test_ignore_then_second() {
     parse_num.ignore_then(parse_num).parse_input(inp)
   }
 
-  let result: i64 =
-    Parser::new().apply(parse_ignore_first_get_second).parse_str("1 99").unwrap();
+  let result: i64 = Parser::new()
+    .apply(parse_ignore_first_get_second)
+    .parse_str("1 99")
+    .unwrap();
   assert_eq!(result, 99);
 }
 
@@ -318,7 +320,10 @@ fn test_then_value() {
     parse_num.then_value(|| true).parse_input(inp)
   }
 
-  let result: bool = Parser::new().apply(parse_num_then_true).parse_str("42").unwrap();
+  let result: bool = Parser::new()
+    .apply(parse_num_then_true)
+    .parse_str("42")
+    .unwrap();
   assert!(result);
 }
 
@@ -338,17 +343,26 @@ fn test_and_then_double_if_positive() {
       .parse_input(inp)
   }
 
-  assert_eq!(Parser::new().apply(parse_and_transform).parse_str("5").unwrap(), 10);
-  assert!(Parser::new().apply(parse_and_transform).parse_str("-1").is_err());
+  assert_eq!(
+    Parser::new()
+      .apply(parse_and_transform)
+      .parse_str("5")
+      .unwrap(),
+    10
+  );
+  assert!(
+    Parser::new()
+      .apply(parse_and_transform)
+      .parse_str("-1")
+      .is_err()
+  );
 }
 
 // ── manual fold (via try_parse_input loop) ────────────────────────────────────
 
 #[test]
 fn test_fold_sum() {
-  fn parse_sum<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<i64, ()>
+  fn parse_sum<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -360,7 +374,13 @@ fn test_fold_sum() {
     Ok(sum)
   }
 
-  assert_eq!(Parser::new().apply(parse_sum).parse_str("1 2 3 4 5").unwrap(), 15);
+  assert_eq!(
+    Parser::new()
+      .apply(parse_sum)
+      .parse_str("1 2 3 4 5")
+      .unwrap(),
+    15
+  );
   assert_eq!(Parser::new().apply(parse_sum).parse_str("").unwrap(), 0);
 }
 
@@ -373,8 +393,8 @@ fn test_repeated_collect() {
   ) -> Result<Vec<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
-    Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>
-      + FullContainerEmitter<'inp, TestLexer<'inp>>,
+    Ctx::Emitter:
+      Emitter<'inp, TestLexer<'inp>, Error = ()> + FullContainerEmitter<'inp, TestLexer<'inp>>,
   {
     try_num.repeated().collect().parse_input(inp)
   }
@@ -404,7 +424,10 @@ fn test_repeated_at_least() {
   }
 
   assert_eq!(
-    Parser::new().apply(parse_nums).parse_str("10 20 30").unwrap(),
+    Parser::new()
+      .apply(parse_nums)
+      .parse_str("10 20 30")
+      .unwrap(),
     vec![10, 20, 30]
   );
   // fewer than 2 should fail

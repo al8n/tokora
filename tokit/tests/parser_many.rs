@@ -8,8 +8,8 @@ mod common;
 use tokit::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, TryParseInput,
   emitter::{
-    FullContainerEmitter, FromSeparatedError, FromUnexpectedLeadingSeparatorError,
-    FromUnexpectedTrailingSeparatorError, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
+    FromSeparatedError, FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
+    FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
@@ -34,9 +34,7 @@ impl From<()> for SepError {
   }
 }
 
-impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>>
-  for SepError
-{
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for SepError {
   fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
     SepError
   }
@@ -61,10 +59,7 @@ impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for SepError {
 }
 
 impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for SepError {
-  fn from_missing_separator(
-    _name: CowStr,
-    _err: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
+  fn from_missing_separator(_name: CowStr, _err: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
   where
     TestLexer<'inp>: Lexer<'inp>,
   {
@@ -158,22 +153,19 @@ where
 
 #[test]
 fn test_separated_by_comma_basic() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_comma_list).parse_str("1,2,3");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_comma_list).parse_str("1,2,3");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_separated_by_comma_single() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_comma_list).parse_str("42");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_comma_list).parse_str("42");
   assert_eq!(r.unwrap(), vec![42]);
 }
 
 #[test]
 fn test_separated_by_comma_empty() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_comma_list).parse_str("");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_comma_list).parse_str("");
   assert_eq!(r.unwrap(), vec![]);
 }
 
@@ -186,13 +178,15 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: SepEmitter<'inp>,
 {
-  try_num_sep.separated_by_semicolon().collect().parse_input(inp)
+  try_num_sep
+    .separated_by_semicolon()
+    .collect()
+    .parse_input(inp)
 }
 
 #[test]
 fn test_separated_by_semicolon() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_semi_list).parse_str("10;20;30");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_semi_list).parse_str("10;20;30");
   assert_eq!(r.unwrap(), vec![10, 20, 30]);
 }
 
@@ -203,23 +197,24 @@ fn parse_at_least_2<'inp, Ctx>(
 ) -> Result<Vec<i64>, SepError>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter: SepEmitter<'inp>
-    + TooFewEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: SepEmitter<'inp> + TooFewEmitter<'inp, TestLexer<'inp>>,
 {
-  try_num_sep.separated_by_comma().at_least(2).collect().parse_input(inp)
+  try_num_sep
+    .separated_by_comma()
+    .at_least(2)
+    .collect()
+    .parse_input(inp)
 }
 
 #[test]
 fn test_separated_at_least_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_at_least_2).parse_str("1,2,3");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_at_least_2).parse_str("1,2,3");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_separated_at_least_fail() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_at_least_2).parse_str("1");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_at_least_2).parse_str("1");
   assert!(r.is_err());
 }
 
@@ -230,23 +225,24 @@ fn parse_at_most_2<'inp, Ctx>(
 ) -> Result<Vec<i64>, SepError>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter: SepEmitter<'inp>
-    + TooManyEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: SepEmitter<'inp> + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  try_num_sep.separated_by_comma().at_most(2).collect().parse_input(inp)
+  try_num_sep
+    .separated_by_comma()
+    .at_most(2)
+    .collect()
+    .parse_input(inp)
 }
 
 #[test]
 fn test_separated_at_most_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_at_most_2).parse_str("1,2");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_at_most_2).parse_str("1,2");
   assert_eq!(r.unwrap(), vec![1, 2]);
 }
 
 #[test]
 fn test_separated_at_most_single() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_at_most_2).parse_str("7");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_at_most_2).parse_str("7");
   assert_eq!(r.unwrap(), vec![7]);
 }
 
@@ -268,15 +264,15 @@ where
 
 #[test]
 fn test_allow_trailing_with_trailing() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_trailing).parse_str("1,2,3,");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing)
+    .parse_str("1,2,3,");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_allow_trailing_without_trailing() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_trailing).parse_str("1,2,3");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_trailing).parse_str("1,2,3");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
@@ -298,15 +294,13 @@ where
 
 #[test]
 fn test_allow_leading_with_leading() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_leading).parse_str(",1,2,3");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_leading).parse_str(",1,2,3");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_allow_leading_without_leading() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_leading).parse_str("1,2,3");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_leading).parse_str("1,2,3");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
@@ -329,8 +323,9 @@ where
 
 #[test]
 fn test_allow_leading_and_trailing() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_leading_trailing).parse_str(",1,2,3,");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_trailing)
+    .parse_str(",1,2,3,");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
@@ -341,8 +336,7 @@ fn parse_allow_leading_at_least_2<'inp, Ctx>(
 ) -> Result<Vec<i64>, SepError>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter: SepEmitter<'inp>
-    + TooFewEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: SepEmitter<'inp> + TooFewEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_sep
     .separated_by_comma()
@@ -354,15 +348,17 @@ where
 
 #[test]
 fn test_allow_leading_at_least_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_leading_at_least_2).parse_str(",1,2,3");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_least_2)
+    .parse_str(",1,2,3");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_allow_leading_at_least_fail() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_leading_at_least_2).parse_str(",1");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_least_2)
+    .parse_str(",1");
   assert!(r.is_err());
 }
 
@@ -373,8 +369,7 @@ fn parse_allow_leading_at_most_2<'inp, Ctx>(
 ) -> Result<Vec<i64>, SepError>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter: SepEmitter<'inp>
-    + TooManyEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: SepEmitter<'inp> + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_sep
     .separated_by_comma()
@@ -386,8 +381,9 @@ where
 
 #[test]
 fn test_allow_leading_at_most_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_leading_at_most_2).parse_str(",1,2");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_most_2)
+    .parse_str(",1,2");
   assert_eq!(r.unwrap(), vec![1, 2]);
 }
 
@@ -398,8 +394,7 @@ fn parse_allow_leading_allow_trailing_at_least_2<'inp, Ctx>(
 ) -> Result<Vec<i64>, SepError>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter: SepEmitter<'inp>
-    + TooFewEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: SepEmitter<'inp> + TooFewEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_sep
     .separated_by_comma()
@@ -412,10 +407,9 @@ where
 
 #[test]
 fn test_allow_leading_allow_trailing_at_least_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new()
-      .apply(parse_allow_leading_allow_trailing_at_least_2)
-      .parse_str(",1,2,3,");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_least_2)
+    .parse_str(",1,2,3,");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
@@ -426,8 +420,7 @@ fn parse_allow_leading_allow_trailing_at_most_2<'inp, Ctx>(
 ) -> Result<Vec<i64>, SepError>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter: SepEmitter<'inp>
-    + TooManyEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: SepEmitter<'inp> + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_sep
     .separated_by_comma()
@@ -440,10 +433,9 @@ where
 
 #[test]
 fn test_allow_leading_allow_trailing_at_most_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new()
-      .apply(parse_allow_leading_allow_trailing_at_most_2)
-      .parse_str(",1,2,");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_most_2)
+    .parse_str(",1,2,");
   assert_eq!(r.unwrap(), vec![1, 2]);
 }
 
@@ -454,9 +446,8 @@ fn parse_bounded<'inp, Ctx>(
 ) -> Result<Vec<i64>, SepError>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter: SepEmitter<'inp>
-    + TooFewEmitter<'inp, TestLexer<'inp>>
-    + TooManyEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter:
+    SepEmitter<'inp> + TooFewEmitter<'inp, TestLexer<'inp>> + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_sep
     .separated_by_comma()
@@ -469,15 +460,13 @@ where
 
 #[test]
 fn test_bounded_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_bounded).parse_str(",1,2,3,");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_bounded).parse_str(",1,2,3,");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_bounded_too_few() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_bounded).parse_str(",1,");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_bounded).parse_str(",1,");
   assert!(r.is_err());
 }
 
@@ -500,15 +489,17 @@ where
 
 #[test]
 fn test_allow_trailing_at_least_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_trailing_at_least_2).parse_str("1,2,3,");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_least_2)
+    .parse_str("1,2,3,");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_allow_trailing_at_least_fail() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_trailing_at_least_2).parse_str("1,");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_least_2)
+    .parse_str("1,");
   assert!(r.is_err());
 }
 
@@ -531,15 +522,17 @@ where
 
 #[test]
 fn test_allow_trailing_at_most_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_trailing_at_most_2).parse_str("1,2,");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_most_2)
+    .parse_str("1,2,");
   assert_eq!(r.unwrap(), vec![1, 2]);
 }
 
 #[test]
 fn test_allow_trailing_at_most_single() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_trailing_at_most_2).parse_str("5,");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_most_2)
+    .parse_str("5,");
   assert_eq!(r.unwrap(), vec![5]);
 }
 
@@ -563,15 +556,17 @@ where
 
 #[test]
 fn test_allow_trailing_bounded_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_trailing_bounded).parse_str("1,2,3,");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_bounded)
+    .parse_str("1,2,3,");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_allow_trailing_bounded_fail_too_few() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_trailing_bounded).parse_str("1,");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_bounded)
+    .parse_str("1,");
   assert!(r.is_err());
 }
 
@@ -595,15 +590,17 @@ where
 
 #[test]
 fn test_allow_leading_bounded_ok() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_leading_bounded).parse_str(",1,2,3");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_bounded)
+    .parse_str(",1,2,3");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_allow_leading_bounded_fail_too_few() {
-  let r: Result<Vec<i64>, SepError> =
-    Parser::new().apply(parse_allow_leading_bounded).parse_str(",1");
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_bounded)
+    .parse_str(",1");
   assert!(r.is_err());
 }
 
@@ -625,7 +622,8 @@ where
 
 #[test]
 fn test_manual_fold() {
-  let r: Result<i64, SepError> =
-    Parser::new().apply(parse_manual_fold).parse_str("1 2 3 4 5");
+  let r: Result<i64, SepError> = Parser::new()
+    .apply(parse_manual_fold)
+    .parse_str("1 2 3 4 5");
   assert_eq!(r.unwrap(), 15);
 }

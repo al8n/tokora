@@ -19,8 +19,8 @@ use tokit::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser,
   cache::Peeked,
   emitter::{
-    FullContainerEmitter, FromSeparatedError, FromUnexpectedLeadingSeparatorError,
-    FromUnexpectedTrailingSeparatorError, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
+    FromSeparatedError, FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
+    FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
@@ -71,10 +71,7 @@ impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for WhileError {
 }
 
 impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for WhileError {
-  fn from_missing_separator(
-    _name: CowStr,
-    _err: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
+  fn from_missing_separator(_name: CowStr, _err: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
   where
     TestLexer<'inp>: Lexer<'inp>,
   {
@@ -202,15 +199,13 @@ where
 #[test]
 fn test_sep_while_basic() {
   // "1,2,3+" — the trailing `+` acts as the stop sentinel.
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_list).parse_str("1,2,3+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new().apply(parse_while_list).parse_str("1,2,3+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_sep_while_single() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_list).parse_str("42+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new().apply(parse_while_list).parse_str("42+");
   assert_eq!(r.unwrap(), vec![42]);
 }
 
@@ -232,16 +227,16 @@ where
 
 #[test]
 fn test_sep_while_at_least_ok() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_at_least_2).parse_str("1,2,3+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_at_least_2)
+    .parse_str("1,2,3+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_sep_while_at_least_fail() {
   // Only 1 element; at_least(2) should fail.
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_at_least_2).parse_str("1+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new().apply(parse_while_at_least_2).parse_str("1+");
   assert!(r.is_err());
 }
 
@@ -270,8 +265,7 @@ fn test_sep_while_at_most_ok() {
 
 #[test]
 fn test_sep_while_at_most_single() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_at_most_2).parse_str("7+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new().apply(parse_while_at_most_2).parse_str("7+");
   assert_eq!(r.unwrap(), vec![7]);
 }
 
@@ -302,8 +296,7 @@ fn test_sep_while_bounded_ok() {
 
 #[test]
 fn test_sep_while_bounded_too_few() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_bounded).parse_str("1+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new().apply(parse_while_bounded).parse_str("1+");
   assert!(r.is_err());
 }
 
@@ -325,15 +318,17 @@ where
 
 #[test]
 fn test_sep_while_allow_trailing_with_trailing() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_trailing).parse_str("1,2,3,+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_trailing)
+    .parse_str("1,2,3,+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_sep_while_allow_trailing_without_trailing() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_trailing).parse_str("1,2,3+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_trailing)
+    .parse_str("1,2,3+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
@@ -355,15 +350,17 @@ where
 
 #[test]
 fn test_sep_while_allow_leading_with_leading() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_leading).parse_str(",1,2,3+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_leading)
+    .parse_str(",1,2,3+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_sep_while_allow_leading_without_leading() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_leading).parse_str("1,2,3+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_leading)
+    .parse_str("1,2,3+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
@@ -386,8 +383,9 @@ where
 
 #[test]
 fn test_sep_while_allow_surrounded() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_surrounded).parse_str(",1,2,3,+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_surrounded)
+    .parse_str(",1,2,3,+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
@@ -410,16 +408,18 @@ where
 
 #[test]
 fn test_sep_while_allow_trailing_at_least_ok() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_trailing_at_least_2).parse_str("1,2,3,+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_trailing_at_least_2)
+    .parse_str("1,2,3,+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_sep_while_allow_trailing_at_least_fail() {
   // Trailing comma, only 1 element; at_least(2) should fail.
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_trailing_at_least_2).parse_str("1,+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_trailing_at_least_2)
+    .parse_str("1,+");
   assert!(r.is_err());
 }
 
@@ -443,15 +443,17 @@ where
 
 #[test]
 fn test_sep_while_allow_surrounded_at_least_ok() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_surrounded_at_least_2).parse_str(",1,2,3,+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_surrounded_at_least_2)
+    .parse_str(",1,2,3,+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_sep_while_allow_surrounded_at_least_fail() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_surrounded_at_least_2).parse_str(",1,+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_surrounded_at_least_2)
+    .parse_str(",1,+");
   assert!(r.is_err());
 }
 
@@ -475,8 +477,9 @@ where
 
 #[test]
 fn test_sep_while_allow_surrounded_at_most_ok() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_surrounded_at_most_2).parse_str(",1,2,+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_surrounded_at_most_2)
+    .parse_str(",1,2,+");
   assert_eq!(r.unwrap(), vec![1, 2]);
 }
 
@@ -502,15 +505,17 @@ where
 
 #[test]
 fn test_sep_while_allow_surrounded_bounded_ok() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_surrounded_bounded).parse_str(",1,2,3,+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_surrounded_bounded)
+    .parse_str(",1,2,3,+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_sep_while_allow_surrounded_bounded_fail() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_surrounded_bounded).parse_str(",1,+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_surrounded_bounded)
+    .parse_str(",1,+");
   assert!(r.is_err());
 }
 
@@ -533,15 +538,17 @@ where
 
 #[test]
 fn test_sep_while_allow_leading_at_least_ok() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_leading_at_least_2).parse_str(",1,2,3+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_leading_at_least_2)
+    .parse_str(",1,2,3+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_sep_while_allow_leading_at_least_fail() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_leading_at_least_2).parse_str(",1+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_leading_at_least_2)
+    .parse_str(",1+");
   assert!(r.is_err());
 }
 
@@ -564,8 +571,9 @@ where
 
 #[test]
 fn test_sep_while_allow_leading_at_most_ok() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_leading_at_most_2).parse_str(",1,2+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_leading_at_most_2)
+    .parse_str(",1,2+");
   assert_eq!(r.unwrap(), vec![1, 2]);
 }
 
@@ -590,14 +598,16 @@ where
 
 #[test]
 fn test_sep_while_allow_leading_bounded_ok() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_leading_bounded).parse_str(",1,2,3+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_leading_bounded)
+    .parse_str(",1,2,3+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_sep_while_allow_leading_bounded_fail() {
-  let r: Result<Vec<i64>, WhileError> =
-    Parser::new().apply(parse_while_allow_leading_bounded).parse_str(",1+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_leading_bounded)
+    .parse_str(",1+");
   assert!(r.is_err());
 }

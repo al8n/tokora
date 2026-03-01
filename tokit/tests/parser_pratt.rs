@@ -96,11 +96,7 @@ type Tok = Spanned<Token, SimpleSpan>;
 // Token-level fold functions are generic over `E` (the emitter type) so that
 // the higher-rank lifetime bound is satisfied automatically.
 
-fn tok_fold_prefix<E>(
-  op: Tok,
-  operand: Tok,
-  _: &mut E,
-) -> Result<Tok, PrattError> {
+fn tok_fold_prefix<E>(op: Tok, operand: Tok, _: &mut E) -> Result<Tok, PrattError> {
   match op.into_data() {
     Token::Minus => {
       let n = tok_num(operand);
@@ -132,11 +128,7 @@ fn tok_fold_infix<E>(
   Ok(num_tok(result))
 }
 
-fn tok_fold_postfix<E>(
-  operand: Tok,
-  _op: Tok,
-  _: &mut E,
-) -> Result<Tok, PrattError> {
+fn tok_fold_postfix<E>(operand: Tok, _op: Tok, _: &mut E) -> Result<Tok, PrattError> {
   Ok(operand) // `)` consumed; pass grouped result through
 }
 
@@ -157,8 +149,8 @@ fn calc_token<'inp, Ctx>(
 ) -> Result<i64, PrattError>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = PrattError>
-    + PrattEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter:
+    Emitter<'inp, TestLexer<'inp>, Error = PrattError> + PrattEmitter<'inp, TestLexer<'inp>>,
 {
   let result = inp.pratt::<_, _, _, i64, Power>(
     tok_fold_prefix::<Ctx::Emitter>,
@@ -198,14 +190,20 @@ fn test_pratt_token_div() {
 #[test]
 fn test_pratt_token_precedence_mul_over_add() {
   // 1 + 2 * 3 = 7 (not 9); * has higher precedence than +
-  let r: i64 = Parser::new().apply(calc_token).parse_str("1 + 2 * 3").unwrap();
+  let r: i64 = Parser::new()
+    .apply(calc_token)
+    .parse_str("1 + 2 * 3")
+    .unwrap();
   assert_eq!(r, 7);
 }
 
 #[test]
 fn test_pratt_token_paren_overrides_precedence() {
   // (1 + 2) * 3 = 9
-  let r: i64 = Parser::new().apply(calc_token).parse_str("(1 + 2) * 3").unwrap();
+  let r: i64 = Parser::new()
+    .apply(calc_token)
+    .parse_str("(1 + 2) * 3")
+    .unwrap();
   assert_eq!(r, 9);
 }
 
@@ -218,7 +216,10 @@ fn test_pratt_token_unary_minus() {
 #[test]
 fn test_pratt_token_left_assoc_sub() {
   // 10 - 3 - 2 = (10 - 3) - 2 = 5 (left-associative)
-  let r: i64 = Parser::new().apply(calc_token).parse_str("10 - 3 - 2").unwrap();
+  let r: i64 = Parser::new()
+    .apply(calc_token)
+    .parse_str("10 - 3 - 2")
+    .unwrap();
   assert_eq!(r, 5);
 }
 
@@ -366,45 +367,66 @@ where
 
 #[test]
 fn test_pratt_comb_add() {
-  let r: i64 = Parser::new().apply(comb_parse_expr).parse_str("3 + 4").unwrap();
+  let r: i64 = Parser::new()
+    .apply(comb_parse_expr)
+    .parse_str("3 + 4")
+    .unwrap();
   assert_eq!(r, 7);
 }
 
 #[test]
 fn test_pratt_comb_mul() {
-  let r: i64 = Parser::new().apply(comb_parse_expr).parse_str("3 * 4").unwrap();
+  let r: i64 = Parser::new()
+    .apply(comb_parse_expr)
+    .parse_str("3 * 4")
+    .unwrap();
   assert_eq!(r, 12);
 }
 
 #[test]
 fn test_pratt_comb_precedence() {
   // 2 + 3 * 4 = 14 (not 20)
-  let r: i64 = Parser::new().apply(comb_parse_expr).parse_str("2 + 3 * 4").unwrap();
+  let r: i64 = Parser::new()
+    .apply(comb_parse_expr)
+    .parse_str("2 + 3 * 4")
+    .unwrap();
   assert_eq!(r, 14);
 }
 
 #[test]
 fn test_pratt_comb_paren() {
   // (2 + 3) * 4 = 20
-  let r: i64 = Parser::new().apply(comb_parse_expr).parse_str("(2 + 3) * 4").unwrap();
+  let r: i64 = Parser::new()
+    .apply(comb_parse_expr)
+    .parse_str("(2 + 3) * 4")
+    .unwrap();
   assert_eq!(r, 20);
 }
 
 #[test]
 fn test_pratt_comb_unary_minus() {
-  let r: i64 = Parser::new().apply(comb_parse_expr).parse_str("-7").unwrap();
+  let r: i64 = Parser::new()
+    .apply(comb_parse_expr)
+    .parse_str("-7")
+    .unwrap();
   assert_eq!(r, -7);
 }
 
 #[test]
 fn test_pratt_comb_left_assoc() {
   // 10 - 3 - 2 = 5
-  let r: i64 = Parser::new().apply(comb_parse_expr).parse_str("10 - 3 - 2").unwrap();
+  let r: i64 = Parser::new()
+    .apply(comb_parse_expr)
+    .parse_str("10 - 3 - 2")
+    .unwrap();
   assert_eq!(r, 5);
 }
 
 #[test]
 fn test_pratt_comb_div() {
-  let r: i64 = Parser::new().apply(comb_parse_expr).parse_str("20 / 4").unwrap();
+  let r: i64 = Parser::new()
+    .apply(comb_parse_expr)
+    .parse_str("20 / 4")
+    .unwrap();
   assert_eq!(r, 5);
 }
