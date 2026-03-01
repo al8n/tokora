@@ -463,3 +463,11 @@ fn main() {
 
   println!("All assertions passed.");
 }
+
+#[cfg(test)]
+mod tests {
+  #[test]
+  fn test_example() {
+    super::main();
+  }
+}
