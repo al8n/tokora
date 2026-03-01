@@ -19,6 +19,36 @@ Blazing fast parser combinators with parse-while-lexing architecture (zero-copy)
 
 </div>
 
+- [Overview](#overview)
+  - [Key Features](#key-features)
+- [Installation](#installation)
+  - [Feature Flags](#feature-flags)
+- [Core Components](#core-components)
+  - [Lexer Layer](#lexer-layer)
+  - [Error Handling](#error-handling)
+    - [Atomically Composable Trait Design](#atomically-composable-trait-design)
+    - [Built-in Emitter Strategies](#built-in-emitter-strategies)
+  - [Error Recovery](#error-recovery)
+    - [Recovery Strategies](#recovery-strategies)
+    - [Recovery Patterns](#recovery-patterns)
+  - [Utilities](#utilities)
+- [Examples](#examples)
+  - [`json` — JSON value parser](#json--json-value-parser)
+  - [`calculator` — arithmetic expression evaluator (token-level Pratt)](#calculator--arithmetic-expression-evaluator-token-level-pratt)
+  - [`s_expression` — Lisp S-expression interpreter (recursive descent)](#s_expression--lisp-s-expression-interpreter-recursive-descent)
+  - [`c_expression` — C-style expression parser (combinator-level Pratt)](#c_expression--c-style-expression-parser-combinator-level-pratt)
+- [Architecture](#architecture)
+- [Design Philosophy](#design-philosophy)
+  - [Parse-While-Lexing: Zero-Copy Streaming](#parse-while-lexing-zero-copy-streaming)
+  - [No Hidden Backtracking](#no-hidden-backtracking)
+  - [Parser Combinators + Deterministic Table Parsing](#parser-combinators--deterministic-table-parsing)
+  - [Atomically Composable Error Handling](#atomically-composable-error-handling)
+  - [Fail-Fast Runtime ↔ Comprehensive Compiler Diagnostics](#fail-fast-runtime--comprehensive-compiler-diagnostics)
+  - [Inspirations](#inspirations)
+  - [Core Priorities](#core-priorities)
+- [Who Uses Tokit?](#who-uses-tokit)
+- [License](#license)
+
 ## Overview
 
 **Tokit** is a blazing fast parser combinator library for Rust that uniquely combines:
