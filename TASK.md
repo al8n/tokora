@@ -120,7 +120,7 @@ Expected gain: ~120 lines.
 
 ### Step 9 — Verify and gap-fill
 
-Run `cargo tarpaulin --run-types AllTargets --workspace --all-features`, inspect which src/
+Run `--all-features --run-types tests --run-types doctests --run-types examples --run-types lib --workspace`, inspect which src/
 files are still below target, and add targeted tests until `src/` is ≥70%.
 
 ---
@@ -128,7 +128,7 @@ files are still below target, and add targeted tests until `src/` is ≥70%.
 ## Running coverage
 
 ```bash
-cargo tarpaulin --run-types AllTargets --workspace --all-features
+--all-features --run-types tests --run-types doctests --run-types examples --run-types lib --workspace
 ```
 
 Extract src-only line:
