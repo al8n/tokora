@@ -221,11 +221,57 @@ Error recovery works seamlessly with the atomically composable emitter system - 
 
 ## Examples
 
-Check out the examples directory:
+All examples are self-contained and runnable with `cargo run --example <name> --features std,logos`.
+They are also compiled as integration tests (`cargo test --example <name> --features std,logos`).
+
+### `json` — JSON value parser
+
+Demonstrates map-based combinators (`separated_by`, `fold`, `peek_then`) on a recursive JSON
+grammar. Produces an `enum Value` (null, bool, number, string, array, object) from the token
+stream without any intermediate allocation.
 
 ```bash
-# JSON token parsing with map combinators
-cargo run --example json
+cargo run --example json --features std,logos
+```
+
+### `calculator` — arithmetic expression evaluator (token-level Pratt)
+
+Demonstrates the **token-level Pratt API** (`InputRef::pratt`) where `Token` implements
+`PrattToken` to classify itself as an operand, prefix, or infix/postfix operator. Fold functions
+receive raw `Spanned<Token>` values and encode computed `f64` results back into `Token::Num`.
+
+Operator table: `+` `-` (infix, left, precedence 1), `*` `/` (infix, left, 2), unary `-`
+(prefix, 3), `^` (infix, right, 4), `( )` (grouping via PREC\_PAREN sentinel).
+
+```bash
+cargo run --example calculator --features std,logos
+```
+
+### `s_expression` — Lisp S-expression interpreter (recursive descent)
+
+Demonstrates **pure recursive-descent parsing** with `InputRef::next` and `InputRef::try_expect`
+— no Pratt parsing involved. The evaluator reduces the parsed AST to an `Atom` value.
+
+Supports: integer and boolean literals, keyword atoms (`:foo`), quoted lists (`'(1 2 3)`),
+the built-in functions `+` `-` `*` `/` `=` `not`, and `(if cond then [else])` conditionals.
+
+```bash
+cargo run --example s_expression --features std,logos
+```
+
+### `c_expression` — C-style expression parser (combinator-level Pratt)
+
+Demonstrates the **combinator-level Pratt API** (`pratt_of`) where separate `parse_lhs` /
+`parse_rhs` functions return `PrattLHS` / `PrattRHS` values and fold functions receive fully
+typed AST nodes and an `&mut InputRef` — enabling complex postfix forms that consume additional
+tokens.
+
+Supported operators (in precedence order): `||` `&&`, `==` `!=` `<` `<=` `>` `>=`,
+`<<` `>>`, `+` `-`, `*` `/` `%`, unary `!` `-` `~` `++` `--`, postfix `++` `--`,
+array subscript `a[i]`, function call `f(args...)`, and ternary `cond ? then : else`.
+
+```bash
+cargo run --example c_expression --features std,logos
 ```
 
 ## Architecture

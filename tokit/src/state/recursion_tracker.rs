@@ -318,7 +318,7 @@ impl RecursionTracker for RecursionLimiter {
 }
 
 const _: () = {
-  #[allow(dead_code)]
+  #[allow(dead_code, unused_macros)]
   macro_rules! bail {
     ($lib:ident) => {
       use crate::lexer::$lib::{FromLogos, LogosLexer};

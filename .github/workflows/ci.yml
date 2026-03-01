@@ -5,18 +5,18 @@ on:
     branches:
       - main
     paths-ignore:
-      - 'README'
-      - 'COPYRIGHT'
-      - 'LICENSE-*'
-      - '**.md'
-      - '**.txt'
+      - "README"
+      - "COPYRIGHT"
+      - "LICENSE-*"
+      - "**.md"
+      - "**.txt"
   pull_request:
     paths-ignore:
-      - 'README'
-      - 'COPYRIGHT'
-      - 'LICENSE-*'
-      - '**.md'
-      - '**.txt'
+      - "README"
+      - "COPYRIGHT"
+      - "LICENSE-*"
+      - "**.md"
+      - "**.txt"
   workflow_dispatch:
   schedule: [cron: "0 1 */7 * *"]
 
@@ -39,13 +39,12 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
-    - name: Install Rust
-      # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
-      run: rustup update stable --no-self-update && rustup default stable && rustup component add rustfmt
-    - name: Check formatting
-      run: cargo fmt --all -- --check
-
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
+        run: rustup update stable --no-self-update && rustup default stable && rustup component add rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
   # Apply clippy lints
   clippy:
@@ -58,14 +57,14 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
-    - name: Install Rust
-      # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
-      run: rustup update stable --no-self-update && rustup default stable && rustup component add clippy
-    - name: Install cargo-hack
-      run: cargo install cargo-hack
-    - name: Apply clippy lints
-      run: cargo hack clippy --each-feature
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
+        run: rustup update stable --no-self-update && rustup default stable && rustup component add clippy
+      - name: Install cargo-hack
+        run: cargo install cargo-hack
+      - name: Apply clippy lints
+        run: cargo hack clippy --each-feature
 
   # Run tests on some extra platforms
   cross:
@@ -91,9 +90,9 @@ jobs:
           - wasm32-wasip2
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Cache cargo build and registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -128,30 +127,30 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
-    - name: Cache cargo build and registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-build-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-build-
-    - name: Install Rust
-      # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
-      run: rustup update stable --no-self-update && rustup default stable
-    - name: Install cargo-hack
-      run: cargo install cargo-hack
-    - name: Cache ~/.cargo
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo
-        key: ${{ runner.os }}-coverage-dotcargo
-    - name: Run build
-      run: cargo hack build --each-feature
-  
+      - uses: actions/checkout@v6
+      - name: Cache cargo build and registry
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+      - name: Install Rust
+        # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
+        run: rustup update stable --no-self-update && rustup default stable
+      - name: Install cargo-hack
+        run: cargo install cargo-hack
+      - name: Cache ~/.cargo
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-coverage-dotcargo
+      - name: Run build
+        run: cargo hack build --each-feature
+
   test:
     name: test
     strategy:
@@ -162,30 +161,30 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
-    - name: Cache cargo build and registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-test-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-test-
-    - name: Install Rust
-      # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
-      run: rustup update stable --no-self-update && rustup default stable
-    - name: Install cargo-hack
-      run: cargo install cargo-hack
-    - name: Cache ~/.cargo
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo
-        key: ${{ runner.os }}-coverage-dotcargo
-    - name: Run test
-      run: cargo hack test --each-feature
-  
+      - uses: actions/checkout@v6
+      - name: Cache cargo build and registry
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-test-
+      - name: Install Rust
+        # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
+        run: rustup update stable --no-self-update && rustup default stable
+      - name: Install cargo-hack
+        run: cargo install cargo-hack
+      - name: Cache ~/.cargo
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-coverage-dotcargo
+      - name: Run test
+        run: cargo hack test --each-feature
+
   # sanitizer:
   #   name: sanitizer
   #   strategy:
@@ -194,9 +193,9 @@ jobs:
   #         - ubuntu-latest
   #   runs-on: ${{ matrix.os }}
   #   steps:
-  #     - uses: actions/checkout@v5
+  #     - uses: actions/checkout@v6
   #     - name: Cache cargo build and registry
-  #       uses: actions/cache@v4
+  #       uses: actions/cache@v5
   #       with:
   #         path: |
   #           ~/.cargo/registry
@@ -241,9 +240,9 @@ jobs:
             target: powerpc64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Cache cargo build and registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -285,9 +284,9 @@ jobs:
             target: powerpc64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Cache cargo build and registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -312,7 +311,7 @@ jobs:
       - cross
       - test
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
         with:
@@ -323,12 +322,12 @@ jobs:
           crate: cargo-tarpaulin
           version: latest
       - name: Cache ~/.cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cargo
           key: ${{ runner.os }}-coverage-dotcargo
       - name: Cache cargo build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: target
           key: ${{ runner.os }}-coverage-cargo-build-target
@@ -338,7 +337,7 @@ jobs:
           RUSTFLAGS: "--cfg tarpaulin"
         with:
           command: tarpaulin
-          args: --all-features --run-types tests --run-types doctests --workspace --out xml
+          args: --all-features --run-types AllTargets --workspace --out xml
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v5
         with:

@@ -17,7 +17,7 @@ use tokit::{
     syntax::{FullContainer, MissingSyntaxOf},
     token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
   },
-  logos::Logos,
+  logos::{self, Logos},
   parser::{Action, expect},
   punct::{Brace, Bracket, CloseBrace, CloseBracket, Colon, Comma, OpenBrace, OpenBracket},
   span::Spanned,
@@ -157,7 +157,7 @@ impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, JsonLexer<'inp>> for JsonE
 
 #[derive(Debug, Logos, Clone, Unwrap)]
 #[logos(
-  crate = logos_0_16,
+  crate = logos,
   skip r"[ \t\r\n\f]+", error = JsonLexerError
 )]
 enum Token<'a> {

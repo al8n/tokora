@@ -23,6 +23,7 @@ use super::{Cache, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
 mod consume_cached;
 mod fold;
 mod peek;
+mod pratt;
 mod sync_through;
 mod sync_to;
 mod try_expect;

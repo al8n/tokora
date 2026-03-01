@@ -17,7 +17,7 @@ use crate::utils::CowStr;
 /// # Example
 ///
 /// ```rust
-/// use tokit::{error::UnexpectedEnd};
+/// use tokit::error::UnexpectedEnd;
 ///
 /// let error = UnexpectedEnd::eof(100);
 /// assert_eq!(error.to_string(), "unexpected end of file, expected byte");
@@ -39,7 +39,7 @@ pub struct FileHint;
 /// # Example
 ///
 /// ```rust
-/// use tokit::{error::UnexpectedEnd};
+/// use tokit::error::UnexpectedEnd;
 ///
 /// let error = UnexpectedEnd::eot(100);
 /// assert_eq!(error.to_string(), "unexpected end of token stream, expected token");
@@ -61,7 +61,7 @@ pub struct TokenHint;
 /// # Example
 ///
 /// ```rust
-/// use tokit::{error::UnexpectedEnd};
+/// use tokit::error::UnexpectedEnd;
 ///
 /// let error = UnexpectedEnd::eos(100);
 /// assert_eq!(error.to_string(), "unexpected end of string, expected character");
@@ -69,6 +69,40 @@ pub struct TokenHint;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Display)]
 #[display("character")]
 pub struct CharacterHint;
+
+/// A zero-sized marker indicating the parser expected a right hand side of an expression.
+///
+/// This hint type is used with [`UnexpectedEnd`] to create natural-reading error messages
+/// like: `"unexpected end of expression, expected either an infix or a postfix"`.
+///
+/// # Example
+///
+/// ```rust
+/// use tokit::error::{UnexpectedEnd, PrattRhsHint};
+///
+/// let error = UnexpectedEnd::eorhs(100);
+/// assert_eq!(error.to_string(), "unexpected end of expression (right hand side), expected either an infix or a postfix");
+/// ```
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[display("either an infix or a postfix")]
+pub struct PrattRhsHint;
+
+/// A zero-sized marker indicating the parser expected a right hand side of an expression.
+///
+/// This hint type is used with [`UnexpectedEnd`] to create natural-reading error messages
+/// like: `"unexpected end of expression, expected one of an operand, an infix or a postfix"`.
+///
+/// # Example
+///
+/// ```rust
+/// use tokit::error::{UnexpectedEnd, PrattLhsHint};
+///
+/// let error = UnexpectedEnd::eolhs(100);
+/// assert_eq!(error.to_string(), "unexpected end of expression (left hand side), expected one of an operand, an infix or a postfix");
+/// ```
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[display("one of an operand, an infix or a postfix")]
+pub struct PrattLhsHint;
 
 /// A zero-copy, composable error type for unexpected end-of-input conditions.
 ///
@@ -211,13 +245,101 @@ where
 {
 }
 
+impl<O> UnexpectedEnd<PrattRhsHint, O> {
+  /// Creates an unexpected **end of expression (right hand side)** error at the given offset.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use tokit::error::UnexpectedEnd;
+  ///
+  /// let error = UnexpectedEnd::eorhs(100);
+  /// assert_eq!(error.offset(), 100);
+  /// assert_eq!(error.name(), Some("expression (right hand side)"));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn eorhs(offset: O) -> Self {
+    Self::maybe_name(
+      offset,
+      Some(CowStr::from_static("expression (right hand side)")),
+      PrattRhsHint,
+    )
+  }
+}
+
+impl<O, Lang: ?Sized> UnexpectedEnd<PrattRhsHint, O, Lang> {
+  /// Creates an unexpected **end of expression (right hand side)** error at the given offset.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use tokit::error::UnexpectedEnd;
+  ///
+  /// let error = UnexpectedEnd::eorhs(100);
+  /// assert_eq!(error.offset(), 100);
+  /// assert_eq!(error.name(), Some("expression (right hand side)"));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn eorhs_of(offset: O) -> Self {
+    Self::maybe_name_of(
+      offset,
+      Some(CowStr::from_static("expression (right hand side)")),
+      PrattRhsHint,
+    )
+  }
+}
+
+impl<O> UnexpectedEnd<PrattLhsHint, O> {
+  /// Creates an unexpected **end of expression (left hand side)** error at the given offset.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use tokit::error::UnexpectedEnd;
+  ///
+  /// let error = UnexpectedEnd::eolhs(100);
+  /// assert_eq!(error.offset(), 100);
+  /// assert_eq!(error.name(), Some("expression (left hand side)"));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn eolhs(offset: O) -> Self {
+    Self::maybe_name(
+      offset,
+      Some(CowStr::from_static("expression (left hand side)")),
+      PrattLhsHint,
+    )
+  }
+}
+
+impl<O, Lang: ?Sized> UnexpectedEnd<PrattLhsHint, O, Lang> {
+  /// Creates an unexpected **end of expression (left hand side)** error at the given offset.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use tokit::error::UnexpectedEnd;
+  ///
+  /// let error = UnexpectedEnd::eolhs(100);
+  /// assert_eq!(error.offset(), 100);
+  /// assert_eq!(error.name(), Some("expression (left hand side)"));
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn eolhs_of(offset: O) -> Self {
+    Self::maybe_name_of(
+      offset,
+      Some(CowStr::from_static("expression (left hand side)")),
+      PrattLhsHint,
+    )
+  }
+}
+
 impl<O> UnexpectedEnd<FileHint, O> {
   /// Creates an unexpected **end of file** (EOF) error at the given offset.
   ///
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd};
+  /// use tokit::error::UnexpectedEnd;
   ///
   /// let error = UnexpectedEnd::eof(100);
   /// assert_eq!(error.offset(), 100);
@@ -235,7 +357,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<FileHint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd};
+  /// use tokit::error::UnexpectedEnd;
   ///
   /// let error = UnexpectedEnd::eof(100);
   /// assert_eq!(error.offset(), 100);
@@ -253,7 +375,7 @@ impl<O> UnexpectedEnd<TokenHint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd};
+  /// use tokit::error::UnexpectedEnd;
   ///
   /// let error = UnexpectedEnd::eot(50);
   /// assert_eq!(error.offset(), 50);
@@ -271,7 +393,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<TokenHint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd};
+  /// use tokit::error::UnexpectedEnd;
   ///
   /// let error = UnexpectedEnd::eot(50);
   /// assert_eq!(error.offset(), 50);
@@ -289,7 +411,7 @@ impl<O> UnexpectedEnd<CharacterHint, O> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd};
+  /// use tokit::error::UnexpectedEnd;
   ///
   /// let error = UnexpectedEnd::eos(25);
   /// assert_eq!(error.offset(), 25);
@@ -307,7 +429,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<CharacterHint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd};
+  /// use tokit::error::UnexpectedEnd;
   ///
   /// let error = UnexpectedEnd::eos(25);
   /// assert_eq!(error.offset(), 25);
@@ -530,7 +652,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd};
+  /// use tokit::error::UnexpectedEnd;
   ///
   /// let error = UnexpectedEnd::eof(100);
   /// assert_eq!(error.name(), Some("file"));
@@ -675,7 +797,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd};
+  /// use tokit::error::UnexpectedEnd;
   ///
   /// let error = UnexpectedEnd::eof(100);
   /// assert_eq!(error.offset(), 100);
@@ -708,7 +830,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd};
+  /// use tokit::error::UnexpectedEnd;
   ///
   /// let mut error = UnexpectedEnd::eof(10);
   /// error.bump(&5);
@@ -728,7 +850,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokit::{error::UnexpectedEnd};
+  /// use tokit::error::UnexpectedEnd;
   ///
   /// let error = UnexpectedEnd::eof(100);
   /// let (offset, name, hint) = error.into_components();
@@ -746,12 +868,16 @@ impl<Hint, O, Lang: ?Sized> From<UnexpectedEnd<Hint, O, Lang>> for () {
   fn from(_: UnexpectedEnd<Hint, O, Lang>) -> Self {}
 }
 
-/// An type alias for unexpected EOF.
+/// A type alias for unexpected EOF.
 pub type UnexpectedEof<O = usize, Lang = ()> = UnexpectedEnd<FileHint, O, Lang>;
-/// An type alias for unexpected end of token stream.
+/// A type alias for unexpected end of token stream.
 pub type UnexpectedEot<O = usize, Lang = ()> = UnexpectedEnd<TokenHint, O, Lang>;
-/// An type alias for unexpected end of string.
+/// A type alias for unexpected end of string.
 pub type UnexpectedEos<O = usize, Lang = ()> = UnexpectedEnd<CharacterHint, O, Lang>;
+/// A type alias for unexpected end of right hand side.
+pub type UnexpectedEoRhs<O = usize, Lang = ()> = UnexpectedEnd<PrattRhsHint, O, Lang>;
+/// A type alias for unexpected end of left hand side.
+pub type UnexpectedEoLhs<O = usize, Lang = ()> = UnexpectedEnd<PrattLhsHint, O, Lang>;
 
 impl<Hint, O, Lang: ?Sized> From<(O, Hint)> for UnexpectedEnd<Hint, O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]

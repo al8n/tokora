@@ -371,7 +371,7 @@ impl TokenTracker for TokenLimiter {
 }
 
 const _: () = {
-  #[allow(dead_code)]
+  #[allow(dead_code, unused_macros)]
   macro_rules! bail {
     ($lib:ident) => {
       use $lib::{Lexer, Logos};
