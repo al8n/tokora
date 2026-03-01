@@ -1,3 +1,5 @@
+#![cfg(all(feature = "std", feature = "logos"))]
+
 /// Shared test infrastructure: lexer, token types, and trait impls.
 ///
 /// All integration tests import this module via `mod common;`.

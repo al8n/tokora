@@ -1,3 +1,5 @@
+#![cfg(all(feature = "std", feature = "logos"))]
+
 //! Tests for `separated_by` and `repeated` combinators.
 //!
 //! Covers every separator policy variant and count modifier in

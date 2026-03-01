@@ -1,3 +1,5 @@
+#![cfg(all(feature = "std", feature = "logos"))]
+
 //! Tests for the `SeparatedWhile` (condition-closure-based) combinator.
 //!
 //! Exercises `separated_by_comma_while` with plain, `at_least`, `at_most`,

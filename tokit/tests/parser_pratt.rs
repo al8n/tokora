@@ -1,3 +1,5 @@
+#![cfg(all(feature = "std", feature = "logos"))]
+
 //! Tests for the Pratt parser API.
 //!
 //! Covers both the token-level API (`InputRef::pratt`) and the combinator

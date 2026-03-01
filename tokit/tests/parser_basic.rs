@@ -1,3 +1,5 @@
+#![cfg(all(feature = "std", feature = "logos"))]
+
 //! Basic parser combinator tests.
 //!
 //! Exercises `any`, `expect`, `map`, `filter_map`, `filter`, `validate`,
