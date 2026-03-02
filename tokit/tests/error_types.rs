@@ -4,11 +4,15 @@ extern crate alloc as std;
 #[cfg(feature = "std")]
 extern crate std;
 
+#[cfg(any(feature = "alloc", feature = "std"))]
+use std::string::{String, ToString};
+
 use tokit::SimpleSpan;
+use tokit::error::token::{MissingToken, UnexpectedToken};
 /// Tests for all error types in the tokit error module.
 /// Exercises constructors, methods, Display/Debug impls, and transformations.
 use tokit::error::*;
-use tokit::utils::{PositionedChar, knowledge::*};
+use tokit::utils::{CowStr, Expected, PositionedChar, knowledge::*};
 
 // ── UnexpectedEnd ──────────────────────────────────────────────────────────────
 
@@ -91,8 +95,6 @@ fn unexpected_end_set_and_clear_name() {
 #[test]
 #[cfg(any(feature = "alloc", feature = "std"))]
 fn unexpected_end_update_name() {
-  use std::string::String;
-
   let mut e = UnexpectedEnd::eof(10usize);
   e.update_name(Some("block"));
   assert_eq!(e.name(), Some("block"));
@@ -1010,4 +1012,817 @@ fn simple_span_ordering() {
   let b = SimpleSpan::new(5, 10);
   assert!(a < b);
   assert_eq!(a, a);
+}
+
+// ── Missing ───────────────────────────────────────────────────────────────────
+
+use tokit::syntax::{Language, Syntax};
+use tokit::utils::{GenericArrayDeque, typenum::U0};
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct TestLang;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct TestSyntaxKind;
+
+impl core::fmt::Display for TestSyntaxKind {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "expr")
+  }
+}
+
+impl Language for TestLang {
+  type SyntaxKind = TestSyntaxKind;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct Unit;
+
+impl core::fmt::Display for Unit {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "unit")
+  }
+}
+
+struct ExprSyntax;
+
+impl Syntax for ExprSyntax {
+  type Lang = TestLang;
+  const KIND: TestSyntaxKind = TestSyntaxKind;
+  type Component = Unit;
+  type COMPONENTS = U0;
+  type REQUIRED = U0;
+  fn possible_components() -> &'static GenericArrayDeque<Unit, tokit::utils::typenum::UTerm> {
+    const C: &GenericArrayDeque<Unit, U0> = &GenericArrayDeque::from_array([]);
+    C
+  }
+  fn required_components() -> &'static GenericArrayDeque<Unit, tokit::utils::typenum::UTerm> {
+    const C: &GenericArrayDeque<Unit, U0> = &GenericArrayDeque::from_array([]);
+    C
+  }
+}
+
+#[test]
+fn missing_new_before_only() {
+  let m: Missing<ExprSyntax, SimpleSpan, TestLang> = Missing::new(SimpleSpan::new(5, 10));
+  assert_eq!(m.before(), SimpleSpan::new(5, 10));
+  assert_eq!(m.after(), None);
+  assert_eq!(m.span(), SimpleSpan::new(5, 10));
+}
+
+#[test]
+fn missing_between() {
+  let m: Missing<ExprSyntax, SimpleSpan, TestLang> =
+    Missing::between(SimpleSpan::new(5, 10), SimpleSpan::new(15, 20));
+  assert_eq!(m.before(), SimpleSpan::new(5, 10));
+  assert_eq!(m.after(), Some(SimpleSpan::new(15, 20)));
+  assert_eq!(m.span(), SimpleSpan::new(10, 15));
+}
+
+#[test]
+fn missing_between_adjacent() {
+  let m: Missing<ExprSyntax, SimpleSpan, TestLang> =
+    Missing::between(SimpleSpan::new(5, 10), SimpleSpan::new(10, 15));
+  assert_eq!(m.span(), SimpleSpan::new(10, 10));
+}
+
+#[test]
+fn missing_between_overlapping() {
+  let m: Missing<ExprSyntax, SimpleSpan, TestLang> =
+    Missing::between(SimpleSpan::new(5, 12), SimpleSpan::new(10, 15));
+  assert_eq!(m.span(), SimpleSpan::new(10, 10));
+}
+
+#[test]
+fn missing_with_after() {
+  let m: Missing<ExprSyntax, SimpleSpan, TestLang> =
+    Missing::new(SimpleSpan::new(5, 10)).with_after(SimpleSpan::new(15, 20));
+  assert_eq!(m.after(), Some(SimpleSpan::new(15, 20)));
+}
+
+#[test]
+fn missing_set_after() {
+  let mut m: Missing<ExprSyntax, SimpleSpan, TestLang> = Missing::new(SimpleSpan::new(5, 10));
+  m.set_after(SimpleSpan::new(20, 25));
+  assert_eq!(m.after(), Some(SimpleSpan::new(20, 25)));
+}
+
+#[test]
+fn missing_span_ref() {
+  let m: Missing<ExprSyntax, SimpleSpan, TestLang> = Missing::new(SimpleSpan::new(5, 10));
+  assert_eq!(*m.span_ref(), SimpleSpan::new(5, 10));
+}
+
+#[test]
+fn missing_kind() {
+  let m: Missing<ExprSyntax, SimpleSpan, TestLang> = Missing::new(SimpleSpan::new(5, 10));
+  assert_eq!(m.kind(), TestSyntaxKind);
+}
+
+#[test]
+fn missing_bump() {
+  let mut m: Missing<ExprSyntax, SimpleSpan, TestLang> =
+    Missing::between(SimpleSpan::new(5, 10), SimpleSpan::new(15, 20));
+  m.bump(&10usize);
+  assert_eq!(m.before(), SimpleSpan::new(15, 20));
+  assert_eq!(m.after(), Some(SimpleSpan::new(25, 30)));
+}
+
+#[test]
+fn missing_debug() {
+  let m: Missing<ExprSyntax, SimpleSpan, TestLang> = Missing::new(SimpleSpan::new(5, 10));
+  let s = format!("{m:?}");
+  assert!(s.contains("Missing"));
+}
+
+#[test]
+fn missing_display_with_after() {
+  let m: Missing<ExprSyntax, SimpleSpan, TestLang> =
+    Missing::between(SimpleSpan::new(5, 10), SimpleSpan::new(15, 20));
+  let s = format!("{m}");
+  assert!(s.contains("missing"));
+}
+
+#[test]
+fn missing_display_without_after() {
+  let m: Missing<ExprSyntax, SimpleSpan, TestLang> = Missing::new(SimpleSpan::new(5, 10));
+  let s = format!("{m}");
+  assert!(s.contains("missing") && s.contains("after"));
+}
+
+// ── Undelimited ───────────────────────────────────────────────────────────────
+
+use tokit::error::{Undelimited, Unopened};
+use tokit::punct::{Angle, Brace, Bracket, Paren};
+
+#[test]
+fn undelimited_new() {
+  let e: Undelimited<char> = Undelimited::new(SimpleSpan::new(10, 15), "\"".into());
+  assert_eq!(e.span(), SimpleSpan::new(10, 15));
+  assert_eq!(e.name_ref(), "\"");
+}
+
+#[test]
+fn undelimited_paren() {
+  let e: Undelimited<Paren> = Undelimited::paren(SimpleSpan::new(3, 7));
+  assert_eq!(e.span(), SimpleSpan::new(3, 7));
+  assert_eq!(e.name_ref(), "()");
+}
+
+#[test]
+fn undelimited_paren_of() {
+  let e: Undelimited<Paren, SimpleSpan, ()> = Undelimited::paren_of(SimpleSpan::new(3, 7));
+  assert_eq!(e.name_ref(), "()");
+}
+
+#[test]
+fn undelimited_bracket() {
+  let e: Undelimited<Bracket> = Undelimited::bracket(SimpleSpan::new(8, 15));
+  assert_eq!(e.span(), SimpleSpan::new(8, 15));
+  assert_eq!(e.name_ref(), "[]");
+}
+
+#[test]
+fn undelimited_bracket_of() {
+  let e: Undelimited<Bracket, SimpleSpan, ()> = Undelimited::bracket_of(SimpleSpan::new(8, 15));
+  assert_eq!(e.name_ref(), "[]");
+}
+
+#[test]
+fn undelimited_brace() {
+  let e: Undelimited<Brace> = Undelimited::brace(SimpleSpan::new(12, 20));
+  assert_eq!(e.span(), SimpleSpan::new(12, 20));
+  assert_eq!(e.name_ref(), "{}");
+}
+
+#[test]
+fn undelimited_brace_of() {
+  let e: Undelimited<Brace, SimpleSpan, ()> = Undelimited::brace_of(SimpleSpan::new(12, 20));
+  assert_eq!(e.name_ref(), "{}");
+}
+
+#[test]
+fn undelimited_angle() {
+  let e: Undelimited<Angle> = Undelimited::angle(SimpleSpan::new(0, 5));
+  assert_eq!(e.span(), SimpleSpan::new(0, 5));
+  assert_eq!(e.name_ref(), "<>");
+}
+
+#[test]
+fn undelimited_angle_of() {
+  let e: Undelimited<Angle, SimpleSpan, ()> = Undelimited::angle_of(SimpleSpan::new(0, 5));
+  assert_eq!(e.name_ref(), "<>");
+}
+
+#[test]
+fn undelimited_span_ref() {
+  let e: Undelimited<char> = Undelimited::new(SimpleSpan::new(5, 10), "x".into());
+  assert_eq!(*e.span_ref(), SimpleSpan::new(5, 10));
+}
+
+#[test]
+fn undelimited_span_mut() {
+  let mut e: Undelimited<char> = Undelimited::new(SimpleSpan::new(5, 10), "x".into());
+  *e.span_mut() = SimpleSpan::new(1, 2);
+  assert_eq!(e.span(), SimpleSpan::new(1, 2));
+}
+
+#[test]
+fn undelimited_bump() {
+  let mut e: Undelimited<char> = Undelimited::new(SimpleSpan::new(5, 10), "(".into());
+  e.bump(&100);
+  assert_eq!(e.span(), SimpleSpan::new(105, 110));
+}
+
+#[test]
+fn undelimited_into_components() {
+  let e: Undelimited<char> = Undelimited::new(SimpleSpan::new(10, 15), "\"".into());
+  let (span, delim) = e.into_components();
+  assert_eq!(span, SimpleSpan::new(10, 15));
+  assert_eq!(delim, CowStr::from_static("\""));
+}
+
+#[test]
+fn undelimited_display() {
+  let e: Undelimited<char> = Undelimited::new(SimpleSpan::new(10, 15), "\"".into());
+  assert_eq!(e.to_string(), "undelimited content, expected '\"'");
+}
+
+#[test]
+fn undelimited_debug() {
+  let e: Undelimited<char> = Undelimited::new(SimpleSpan::new(10, 15), "\"".into());
+  let s = format!("{e:?}");
+  assert!(s.contains("Undelimited"));
+}
+
+#[test]
+fn undelimited_into_unit() {
+  let e: Undelimited<char> = Undelimited::new(SimpleSpan::new(10, 15), "\"".into());
+  let _unit: () = e.into();
+}
+
+// ── Unopened ──────────────────────────────────────────────────────────────────
+
+#[test]
+fn unopened_new() {
+  let e: Unopened<char> = Unopened::new(SimpleSpan::new(10, 11), ")".into());
+  assert_eq!(e.span(), SimpleSpan::new(10, 11));
+  assert_eq!(e.name_ref(), ")");
+}
+
+#[test]
+fn unopened_paren() {
+  let e: Unopened<Paren> = Unopened::paren(SimpleSpan::new(3, 4));
+  assert_eq!(e.span(), SimpleSpan::new(3, 4));
+  assert_eq!(e.name_ref(), "()");
+}
+
+#[test]
+fn unopened_paren_of() {
+  let e: Unopened<Paren, SimpleSpan, ()> = Unopened::paren_of(SimpleSpan::new(3, 4));
+  assert_eq!(e.name_ref(), "()");
+}
+
+#[test]
+fn unopened_bracket() {
+  let e: Unopened<Bracket> = Unopened::bracket(SimpleSpan::new(8, 9));
+  assert_eq!(e.span(), SimpleSpan::new(8, 9));
+  assert_eq!(e.name_ref(), "[]");
+}
+
+#[test]
+fn unopened_bracket_of() {
+  let e: Unopened<Bracket, SimpleSpan, ()> = Unopened::bracket_of(SimpleSpan::new(8, 9));
+  assert_eq!(e.name_ref(), "[]");
+}
+
+#[test]
+fn unopened_brace() {
+  let e: Unopened<Brace> = Unopened::brace(SimpleSpan::new(12, 13));
+  assert_eq!(e.span(), SimpleSpan::new(12, 13));
+  assert_eq!(e.name_ref(), "{}");
+}
+
+#[test]
+fn unopened_brace_of() {
+  let e: Unopened<Brace, SimpleSpan, ()> = Unopened::brace_of(SimpleSpan::new(12, 13));
+  assert_eq!(e.name_ref(), "{}");
+}
+
+#[test]
+fn unopened_angle() {
+  let e: Unopened<Angle> = Unopened::angle(SimpleSpan::new(20, 21));
+  assert_eq!(e.span(), SimpleSpan::new(20, 21));
+  assert_eq!(e.name_ref(), "<>");
+}
+
+#[test]
+fn unopened_angle_of() {
+  let e: Unopened<Angle, SimpleSpan, ()> = Unopened::angle_of(SimpleSpan::new(20, 21));
+  assert_eq!(e.name_ref(), "<>");
+}
+
+#[test]
+fn unopened_span_ref() {
+  let e: Unopened<char> = Unopened::new(SimpleSpan::new(5, 6), ")".into());
+  assert_eq!(*e.span_ref(), SimpleSpan::new(5, 6));
+}
+
+#[test]
+fn unopened_span_mut() {
+  let mut e: Unopened<char> = Unopened::new(SimpleSpan::new(5, 6), ")".into());
+  *e.span_mut() = SimpleSpan::new(1, 2);
+  assert_eq!(e.span(), SimpleSpan::new(1, 2));
+}
+
+#[test]
+fn unopened_bump() {
+  let mut e: Unopened<char> = Unopened::new(SimpleSpan::new(5, 6), ")".into());
+  e.bump(&100);
+  assert_eq!(e.span(), SimpleSpan::new(105, 106));
+}
+
+#[test]
+fn unopened_into_components() {
+  let e: Unopened<char> = Unopened::new(SimpleSpan::new(10, 11), "\"".into());
+  let (span, delim) = e.into_components();
+  assert_eq!(span, SimpleSpan::new(10, 11));
+  assert_eq!(delim, CowStr::from_static("\""));
+}
+
+#[test]
+fn unopened_display() {
+  let e: Unopened<char> = Unopened::new(SimpleSpan::new(10, 11), ")".into());
+  assert_eq!(e.to_string(), "unopened delimiter ')'");
+}
+
+#[test]
+fn unopened_debug() {
+  let e: Unopened<char> = Unopened::new(SimpleSpan::new(10, 11), ")".into());
+  let s = format!("{e:?}");
+  assert!(s.contains("Unopened"));
+}
+
+#[test]
+fn unopened_into_unit() {
+  let e: Unopened<char> = Unopened::new(SimpleSpan::new(10, 11), ")".into());
+  let _unit: () = e.into();
+}
+
+// ── UnexpectedToken ────────────────────────────────────────────────────────────
+
+#[test]
+fn unexpected_token_new() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::new(SimpleSpan::new(5, 10));
+  assert_eq!(e.span(), SimpleSpan::new(5, 10));
+  assert!(e.found().is_none());
+  assert!(e.expected().is_none());
+}
+
+#[test]
+fn unexpected_token_of() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::of(SimpleSpan::new(5, 10));
+  assert_eq!(e.span(), SimpleSpan::new(5, 10));
+}
+
+#[test]
+fn unexpected_token_expected_one() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "}");
+  assert!(e.found().is_none());
+  assert!(matches!(e.expected(), Some(Expected::One(v)) if *v == "}"));
+}
+
+#[test]
+fn unexpected_token_expected_one_with_found() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one_with_found(SimpleSpan::new(5, 10), ":", ";");
+  assert_eq!(e.found(), Some(&":"));
+  assert!(matches!(e.expected(), Some(Expected::One(v)) if *v == ";"));
+}
+
+#[test]
+fn unexpected_token_expected_one_of() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one_of(SimpleSpan::new(5, 10), &["+", "-"]);
+  assert!(e.found().is_none());
+  if let Some(Expected::OneOf(vals)) = e.expected() {
+    assert_eq!(vals.as_slice(), &["+", "-"]);
+  } else {
+    panic!("expected OneOf");
+  }
+}
+
+#[test]
+fn unexpected_token_expected_one_of_with_found() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one_of_with_found(SimpleSpan::new(5, 10), "x", &["+", "-"]);
+  assert_eq!(e.found(), Some(&"x"));
+  if let Some(Expected::OneOf(vals)) = e.expected() {
+    assert_eq!(vals.as_slice(), &["+", "-"]);
+  } else {
+    panic!("expected OneOf");
+  }
+}
+
+#[test]
+fn unexpected_token_with_expected() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::with_expected(SimpleSpan::new(5, 10), Expected::one("}"));
+  assert!(e.found().is_none());
+}
+
+#[test]
+fn unexpected_token_with_expected_of() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::with_expected_of(SimpleSpan::new(5, 10), Expected::one("}"));
+  assert!(e.found().is_none());
+}
+
+#[test]
+fn unexpected_token_maybe_expected() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::maybe_expected(SimpleSpan::new(5, 10), Some(Expected::one("}")));
+  assert!(e.expected().is_some());
+  let e2: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::maybe_expected(SimpleSpan::new(5, 10), None);
+  assert!(e2.expected().is_none());
+}
+
+#[test]
+fn unexpected_token_maybe_expected_of() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::maybe_expected_of(SimpleSpan::new(5, 10), None);
+  assert!(e.expected().is_none());
+}
+
+#[test]
+fn unexpected_token_with_found() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "if").with_found("else");
+  assert_eq!(e.found(), Some(&"else"));
+}
+
+#[test]
+fn unexpected_token_with_found_const() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "if").with_found_const("else");
+  assert_eq!(e.found(), Some(&"else"));
+}
+
+#[test]
+fn unexpected_token_maybe_found() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "if").maybe_found(Some("else"));
+  assert_eq!(e.found(), Some(&"else"));
+  let e2: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "if").maybe_found(None);
+  assert!(e2.found().is_none());
+}
+
+#[test]
+fn unexpected_token_maybe_found_const() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "if").maybe_found_const(Some("else"));
+  assert_eq!(e.found(), Some(&"else"));
+}
+
+#[test]
+fn unexpected_token_span_ref() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "if");
+  assert_eq!(*e.span_ref(), SimpleSpan::new(5, 10));
+}
+
+#[test]
+fn unexpected_token_span_mut() {
+  let mut e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "if");
+  *e.span_mut() = SimpleSpan::new(1, 2);
+  assert_eq!(e.span(), SimpleSpan::new(1, 2));
+}
+
+#[test]
+fn unexpected_token_bump() {
+  let mut e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one_with_found(SimpleSpan::new(10, 15), "}", "{");
+  e.bump(&5);
+  assert_eq!(e.span(), SimpleSpan::new(15, 20));
+}
+
+#[test]
+fn unexpected_token_into_components() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one_with_found(SimpleSpan::new(5, 6), "}", "{");
+  let (span, found, expected) = e.into_components();
+  assert_eq!(span, SimpleSpan::new(5, 6));
+  assert_eq!(found, Some("}"));
+  assert_eq!(expected, Some(Expected::one("{")));
+}
+
+#[test]
+#[cfg(any(feature = "std", feature = "alloc"))]
+fn unexpected_token_map_expected() {
+  use std::string::ToString;
+
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one_with_found(SimpleSpan::new(0, 5), "identifier", "number");
+  let _mapped = e.map_expected(|ex| Expected::one(ex.unwrap_one().to_string()));
+}
+
+#[test]
+fn unexpected_token_display_fmt_with_found_and_expected() {
+  struct Show<'a>(UnexpectedToken<'a, &'a str, &'a str, SimpleSpan>);
+
+  impl core::fmt::Display for Show<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      self.0.display_fmt(f)
+    }
+  }
+
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one_with_found(SimpleSpan::new(5, 10), "}", "{");
+  let s = format!("{}", Show(e));
+  assert!(s.contains("unexpected token") && s.contains("}"));
+}
+
+#[test]
+fn unexpected_token_display_fmt_with_found_no_expected() {
+  struct Show<'a>(UnexpectedToken<'a, &'a str, &'a str, SimpleSpan>);
+
+  impl core::fmt::Display for Show<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      self.0.display_fmt(f)
+    }
+  }
+
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::new(SimpleSpan::new(5, 10)).with_found("x");
+  let s = format!("{}", Show(e));
+  assert!(s.contains("unexpected token"));
+}
+
+#[test]
+fn unexpected_token_display_fmt_no_found_with_expected() {
+  struct Show<'a>(UnexpectedToken<'a, &'a str, &'a str, SimpleSpan>);
+
+  impl core::fmt::Display for Show<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      self.0.display_fmt(f)
+    }
+  }
+
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "}");
+  let s = format!("{}", Show(e));
+  assert!(s.contains("unexpected token") && s.contains("}"));
+}
+
+#[test]
+fn unexpected_token_display_fmt_neither() {
+  struct Show<'a>(UnexpectedToken<'a, &'a str, &'a str, SimpleSpan>);
+
+  impl core::fmt::Display for Show<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      self.0.display_fmt(f)
+    }
+  }
+
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::new(SimpleSpan::new(5, 10));
+  let s = format!("{}", Show(e));
+  assert_eq!(s, "unexpected token");
+}
+
+#[test]
+fn unexpected_token_debug_fmt() {
+  struct Show<'a>(UnexpectedToken<'a, &'a str, &'a str, SimpleSpan>);
+
+  impl core::fmt::Debug for Show<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      self.0.debug_fmt(f)
+    }
+  }
+
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "}");
+  let s = format!("{:?}", Show(e));
+  assert!(s.contains("UnexpectedToken"));
+}
+
+#[test]
+fn unexpected_token_into_unit() {
+  let e: UnexpectedToken<'_, &str, &str, SimpleSpan> =
+    UnexpectedToken::expected_one(SimpleSpan::new(5, 10), "}");
+  let _unit: () = e.into();
+}
+
+// ── MissingToken ──────────────────────────────────────────────────────────────
+
+#[test]
+fn missing_token_new() {
+  let e: MissingToken<'_, &str, SimpleSpan> = MissingToken::new(SimpleSpan::new(5, 6));
+  assert_eq!(e.offset(), SimpleSpan::new(5, 6));
+  assert!(e.expected().is_none());
+  assert!(e.message().is_none());
+}
+
+#[test]
+fn missing_token_of() {
+  let e: MissingToken<'_, &str, SimpleSpan> = MissingToken::of(SimpleSpan::new(5, 6));
+  assert_eq!(e.offset(), SimpleSpan::new(5, 6));
+}
+
+#[test]
+fn missing_token_with_message() {
+  let e: MissingToken<'_, &str, SimpleSpan> =
+    MissingToken::new(SimpleSpan::new(5, 6)).with_message(CowStr::from_static("semicolon needed"));
+  assert_eq!(e.message().map(|m| m.as_str()), Some("semicolon needed"));
+}
+
+#[test]
+fn missing_token_with_message_of() {
+  let e: MissingToken<'_, &str, SimpleSpan> =
+    MissingToken::new(SimpleSpan::new(5, 6)).with_message(CowStr::from_static("needed"));
+  assert!(e.message().is_some());
+}
+
+#[test]
+fn missing_token_expected_one() {
+  let e: MissingToken<'_, &str, usize> = MissingToken::expected_one(5, "}");
+  assert!(matches!(e.expected(), Some(Expected::One(v)) if *v == "}"));
+}
+
+#[test]
+fn missing_token_expected_one_with_found() {
+  let e: MissingToken<'_, &str, SimpleSpan> =
+    MissingToken::expected_one_with_found(SimpleSpan::new(5, 6), "}");
+  assert!(matches!(e.expected(), Some(Expected::One(v)) if *v == "}"));
+}
+
+#[test]
+fn missing_token_expected_one_of() {
+  let e: MissingToken<'_, &str, SimpleSpan> =
+    MissingToken::expected_one_of(SimpleSpan::new(5, 6), &["+", "-"]);
+  if let Some(Expected::OneOf(vals)) = e.expected() {
+    assert_eq!(vals.as_slice(), &["+", "-"]);
+  } else {
+    panic!("expected OneOf");
+  }
+}
+
+#[test]
+fn missing_token_expected_one_of_with_found() {
+  let e: MissingToken<'_, &str, SimpleSpan> =
+    MissingToken::expected_one_of_with_found(SimpleSpan::new(5, 6), &["+", "-"]);
+  if let Some(Expected::OneOf(vals)) = e.expected() {
+    assert_eq!(vals.as_slice(), &["+", "-"]);
+  } else {
+    panic!("expected OneOf");
+  }
+}
+
+#[test]
+fn missing_token_with_expected() {
+  let e: MissingToken<'_, &str, SimpleSpan> =
+    MissingToken::new(SimpleSpan::new(5, 6)).with_expected(Expected::one("}"));
+  assert!(e.expected().is_some());
+}
+
+#[test]
+fn missing_token_offset_ref() {
+  let e: MissingToken<'_, &str, SimpleSpan> = MissingToken::new(SimpleSpan::new(5, 6));
+  assert_eq!(*e.offset_ref(), SimpleSpan::new(5, 6));
+}
+
+#[test]
+fn missing_token_offset_mut() {
+  let mut e: MissingToken<'_, &str> = MissingToken::expected_one(10, "}");
+  *e.offset_mut() = 12;
+  assert_eq!(e.offset(), 12);
+}
+
+#[test]
+fn missing_token_message_mut() {
+  let mut e: MissingToken<'_, &str, SimpleSpan> =
+    MissingToken::of(SimpleSpan::new(5, 6)).with_message(CowStr::from_static("msg"));
+  if let Some(m) = e.message_mut() {
+    assert_eq!(m.as_str(), "msg");
+  } else {
+    panic!("expected message");
+  }
+}
+
+#[test]
+fn missing_token_bump() {
+  let mut e: MissingToken<'_, &str> = MissingToken::expected_one(10, "}");
+  e.bump(&5);
+  assert_eq!(e.offset(), 15);
+}
+
+#[test]
+fn missing_token_into_components() {
+  let e: MissingToken<'_, &str, SimpleSpan> =
+    MissingToken::expected_one(SimpleSpan::new(5, 6), "}");
+  let (offset, expected, message) = e.into_components();
+  assert_eq!(offset, SimpleSpan::new(5, 6));
+  assert_eq!(expected, Some(Expected::one("}")));
+  assert_eq!(message, None);
+}
+
+#[test]
+#[cfg(any(feature = "std", feature = "alloc"))]
+fn missing_token_map_expected() {
+  use std::string::ToString;
+
+  let e: MissingToken<'_, &str> = MissingToken::expected_one(0, "identifier");
+  let _mapped = e.map_expected(|ex| Expected::one(ex.unwrap_one().to_string()));
+}
+
+#[test]
+#[cfg(any(feature = "std", feature = "alloc"))]
+fn missing_token_display_fmt_with_expected() {
+  struct Show<'a>(MissingToken<'a, &'a str, usize>);
+
+  impl core::fmt::Display for Show<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      self.0.display_fmt(f)
+    }
+  }
+
+  let e: MissingToken<'_, &str, usize> = MissingToken::expected_one(5, "}");
+  let s = format!("{}", Show(e));
+  assert!(s.contains("missing token") && s.contains("}"));
+}
+
+#[test]
+#[cfg(any(feature = "std", feature = "alloc"))]
+fn missing_token_display_fmt_with_expected_and_message() {
+  struct Show<'a>(MissingToken<'a, &'a str, usize>);
+
+  impl core::fmt::Display for Show<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      self.0.display_fmt(f)
+    }
+  }
+
+  let e: MissingToken<'_, &str, usize> = MissingToken::new(5)
+    .with_expected(Expected::one("}"))
+    .with_message(CowStr::from_static("needed"));
+  let s = format!("{}", Show(e));
+  assert!(s.contains("missing token") && s.contains("needed"));
+}
+
+#[test]
+#[cfg(any(feature = "std", feature = "alloc"))]
+fn missing_token_display_fmt_no_expected_with_message() {
+  struct Show<'a>(MissingToken<'a, &'a str, usize>);
+
+  impl core::fmt::Display for Show<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      self.0.display_fmt(f)
+    }
+  }
+
+  let e: MissingToken<'_, &str, usize> =
+    MissingToken::of(5).with_message(CowStr::from_static("needed"));
+  let s = format!("{}", Show(e));
+  assert!(s.contains("missing token") && s.contains("needed"));
+}
+
+#[test]
+#[cfg(any(feature = "std", feature = "alloc"))]
+fn missing_token_display_fmt_neither() {
+  struct Show<'a>(MissingToken<'a, &'a str, usize>);
+
+  impl core::fmt::Display for Show<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      self.0.display_fmt(f)
+    }
+  }
+
+  let e: MissingToken<'_, &str, usize> = MissingToken::new(5);
+  let s = format!("{}", Show(e));
+  assert!(s.contains("missing token"));
+}
+
+#[test]
+#[cfg(any(feature = "std", feature = "alloc"))]
+fn missing_token_debug_fmt() {
+  struct Show<'a>(MissingToken<'a, &'a str, usize>);
+
+  impl core::fmt::Debug for Show<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      self.0.debug_fmt(f)
+    }
+  }
+
+  let e: MissingToken<'_, &str, usize> = MissingToken::expected_one(5, "}");
+  let s = format!("{:?}", Show(e));
+  assert!(s.contains("MissingToken"));
+}
+
+#[test]
+fn missing_token_into_unit() {
+  let e: MissingToken<'_, &str, usize> = MissingToken::new(5);
+  let _unit: () = e.into();
 }
