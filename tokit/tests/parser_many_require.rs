@@ -1220,7 +1220,7 @@ where
 fn test_sep_while_require_trailing_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_trailing)
-    .parse_str("1,2,3,")
+    .parse_str("1,2,3,+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1229,7 +1229,7 @@ fn test_sep_while_require_trailing_ok() {
 fn test_sep_while_require_trailing_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_trailing)
-    .parse_str("1,2,3");
+    .parse_str("1,2,3+");
   assert!(r.is_err());
 }
 
@@ -1259,7 +1259,7 @@ where
 fn test_sep_while_require_trailing_at_least_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_trailing_at_least)
-    .parse_str("1,2,")
+    .parse_str("1,2,+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1268,7 +1268,7 @@ fn test_sep_while_require_trailing_at_least_ok() {
 fn test_sep_while_require_trailing_at_least_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_trailing_at_least)
-    .parse_str("1,");
+    .parse_str("1,+");
   assert!(r.is_err());
 }
 
@@ -1298,7 +1298,7 @@ where
 fn test_sep_while_require_trailing_at_most_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_trailing_at_most)
-    .parse_str("1,2,")
+    .parse_str("1,2,+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1307,7 +1307,7 @@ fn test_sep_while_require_trailing_at_most_ok() {
 fn test_sep_while_require_trailing_at_most_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_trailing_at_most)
-    .parse_str("1,2,3");
+    .parse_str("1,2,3+");
   assert!(r.is_err());
 }
 
@@ -1338,7 +1338,7 @@ where
 fn test_sep_while_require_trailing_bounded_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_trailing_bounded)
-    .parse_str("1,2,3,")
+    .parse_str("1,2,3,+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1347,7 +1347,7 @@ fn test_sep_while_require_trailing_bounded_ok() {
 fn test_sep_while_require_trailing_bounded_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_trailing_bounded)
-    .parse_str("1,");
+    .parse_str("1,+");
   assert!(r.is_err());
 }
 
@@ -1375,7 +1375,7 @@ where
 fn test_sep_while_require_leading_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading)
-    .parse_str(",1,2,3")
+    .parse_str(",1,2,3+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1384,7 +1384,7 @@ fn test_sep_while_require_leading_ok() {
 fn test_sep_while_require_leading_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading)
-    .parse_str("1,2,3");
+    .parse_str("1,2,3+");
   assert!(r.is_err());
 }
 
@@ -1414,7 +1414,7 @@ where
 fn test_sep_while_require_leading_at_least_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_at_least)
-    .parse_str(",1,2")
+    .parse_str(",1,2+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1423,7 +1423,7 @@ fn test_sep_while_require_leading_at_least_ok() {
 fn test_sep_while_require_leading_at_least_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_at_least)
-    .parse_str(",1");
+    .parse_str(",1+");
   assert!(r.is_err());
 }
 
@@ -1453,7 +1453,7 @@ where
 fn test_sep_while_require_leading_at_most_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_at_most)
-    .parse_str(",1,2")
+    .parse_str(",1,2+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1462,7 +1462,7 @@ fn test_sep_while_require_leading_at_most_ok() {
 fn test_sep_while_require_leading_at_most_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_at_most)
-    .parse_str("1,2,3");
+    .parse_str("1,2,3+");
   assert!(r.is_err());
 }
 
@@ -1493,7 +1493,7 @@ where
 fn test_sep_while_require_leading_bounded_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_bounded)
-    .parse_str(",1,2,3")
+    .parse_str(",1,2,3+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1502,7 +1502,7 @@ fn test_sep_while_require_leading_bounded_ok() {
 fn test_sep_while_require_leading_bounded_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_bounded)
-    .parse_str(",1");
+    .parse_str(",1+");
   assert!(r.is_err());
 }
 
@@ -1531,7 +1531,7 @@ where
 fn test_sep_while_require_surrounded_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_surrounded)
-    .parse_str(",1,2,3,")
+    .parse_str(",1,2,3,+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1540,7 +1540,7 @@ fn test_sep_while_require_surrounded_ok() {
 fn test_sep_while_require_surrounded_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_surrounded)
-    .parse_str("1,2,3,");
+    .parse_str("1,2,3,+");
   assert!(r.is_err());
 }
 
@@ -1571,7 +1571,7 @@ where
 fn test_sep_while_require_surrounded_at_least_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_surrounded_at_least)
-    .parse_str(",1,2,")
+    .parse_str(",1,2,+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1580,7 +1580,7 @@ fn test_sep_while_require_surrounded_at_least_ok() {
 fn test_sep_while_require_surrounded_at_least_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_surrounded_at_least)
-    .parse_str(",1,");
+    .parse_str(",1,+");
   assert!(r.is_err());
 }
 
@@ -1611,7 +1611,7 @@ where
 fn test_sep_while_require_surrounded_at_most_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_surrounded_at_most)
-    .parse_str(",1,2,")
+    .parse_str(",1,2,+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1620,7 +1620,7 @@ fn test_sep_while_require_surrounded_at_most_ok() {
 fn test_sep_while_require_surrounded_at_most_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_surrounded_at_most)
-    .parse_str("1,2,3,");
+    .parse_str("1,2,3,+");
   assert!(r.is_err());
 }
 
@@ -1652,7 +1652,7 @@ where
 fn test_sep_while_require_surrounded_bounded_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_surrounded_bounded)
-    .parse_str(",1,2,3,")
+    .parse_str(",1,2,3,+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1661,7 +1661,7 @@ fn test_sep_while_require_surrounded_bounded_ok() {
 fn test_sep_while_require_surrounded_bounded_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_surrounded_bounded)
-    .parse_str(",1,");
+    .parse_str(",1,+");
   assert!(r.is_err());
 }
 
@@ -1689,7 +1689,7 @@ where
 fn test_sep_while_allow_leading_require_trailing_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_leading_require_trailing)
-    .parse_str(",1,2,3,")
+    .parse_str(",1,2,3,+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1698,7 +1698,7 @@ fn test_sep_while_allow_leading_require_trailing_ok() {
 fn test_sep_while_allow_leading_require_trailing_no_leading_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_leading_require_trailing)
-    .parse_str("1,2,3,")
+    .parse_str("1,2,3,+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1707,7 +1707,7 @@ fn test_sep_while_allow_leading_require_trailing_no_leading_ok() {
 fn test_sep_while_allow_leading_require_trailing_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_leading_require_trailing)
-    .parse_str("1,2,3");
+    .parse_str("1,2,3+");
   assert!(r.is_err());
 }
 
@@ -1737,7 +1737,7 @@ where
 fn test_sep_while_allow_leading_require_trailing_at_least_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_leading_require_trailing_at_least)
-    .parse_str(",1,2,")
+    .parse_str(",1,2,+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1746,7 +1746,7 @@ fn test_sep_while_allow_leading_require_trailing_at_least_ok() {
 fn test_sep_while_allow_leading_require_trailing_at_least_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_leading_require_trailing_at_least)
-    .parse_str(",1,");
+    .parse_str(",1,+");
   assert!(r.is_err());
 }
 
@@ -1776,7 +1776,7 @@ where
 fn test_sep_while_allow_leading_require_trailing_at_most_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_leading_require_trailing_at_most)
-    .parse_str(",1,2,")
+    .parse_str(",1,2,+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1785,7 +1785,7 @@ fn test_sep_while_allow_leading_require_trailing_at_most_ok() {
 fn test_sep_while_allow_leading_require_trailing_at_most_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_leading_require_trailing_at_most)
-    .parse_str("1,2,3");
+    .parse_str("1,2,3+");
   assert!(r.is_err());
 }
 
@@ -1816,7 +1816,7 @@ where
 fn test_sep_while_allow_leading_require_trailing_bounded_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_leading_require_trailing_bounded)
-    .parse_str(",1,2,")
+    .parse_str(",1,2,+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1825,7 +1825,7 @@ fn test_sep_while_allow_leading_require_trailing_bounded_ok() {
 fn test_sep_while_allow_leading_require_trailing_bounded_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_leading_require_trailing_bounded)
-    .parse_str(",1,");
+    .parse_str(",1,+");
   assert!(r.is_err());
 }
 
@@ -1853,7 +1853,7 @@ where
 fn test_sep_while_require_leading_allow_trailing_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_allow_trailing)
-    .parse_str(",1,2,3,")
+    .parse_str(",1,2,3,+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1862,7 +1862,7 @@ fn test_sep_while_require_leading_allow_trailing_ok() {
 fn test_sep_while_require_leading_allow_trailing_no_trailing_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_allow_trailing)
-    .parse_str(",1,2,3")
+    .parse_str(",1,2,3+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1871,7 +1871,7 @@ fn test_sep_while_require_leading_allow_trailing_no_trailing_ok() {
 fn test_sep_while_require_leading_allow_trailing_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_allow_trailing)
-    .parse_str("1,2,3");
+    .parse_str("1,2,3+");
   assert!(r.is_err());
 }
 
@@ -1901,7 +1901,7 @@ where
 fn test_sep_while_require_leading_allow_trailing_at_least_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_allow_trailing_at_least)
-    .parse_str(",1,2")
+    .parse_str(",1,2+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1910,7 +1910,7 @@ fn test_sep_while_require_leading_allow_trailing_at_least_ok() {
 fn test_sep_while_require_leading_allow_trailing_at_least_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_allow_trailing_at_least)
-    .parse_str(",1");
+    .parse_str(",1+");
   assert!(r.is_err());
 }
 
@@ -1940,7 +1940,7 @@ where
 fn test_sep_while_require_leading_allow_trailing_at_most_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_allow_trailing_at_most)
-    .parse_str(",1,2")
+    .parse_str(",1,2+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -1949,7 +1949,7 @@ fn test_sep_while_require_leading_allow_trailing_at_most_ok() {
 fn test_sep_while_require_leading_allow_trailing_at_most_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_allow_trailing_at_most)
-    .parse_str("1,2,3");
+    .parse_str("1,2,3+");
   assert!(r.is_err());
 }
 
@@ -1980,7 +1980,7 @@ where
 fn test_sep_while_require_leading_allow_trailing_bounded_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_allow_trailing_bounded)
-    .parse_str(",1,2,3")
+    .parse_str(",1,2,3+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -1989,7 +1989,7 @@ fn test_sep_while_require_leading_allow_trailing_bounded_ok() {
 fn test_sep_while_require_leading_allow_trailing_bounded_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_require_leading_allow_trailing_bounded)
-    .parse_str(",1");
+    .parse_str(",1+");
   assert!(r.is_err());
 }
 
@@ -2018,7 +2018,7 @@ where
 fn test_sep_while_allow_trailing_at_most_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_trailing_at_most)
-    .parse_str("1,2,")
+    .parse_str("1,2,+")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
@@ -2027,7 +2027,7 @@ fn test_sep_while_allow_trailing_at_most_ok() {
 fn test_sep_while_allow_trailing_at_most_fail() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_trailing_at_most)
-    .parse_str("1,2,3,4,5");
+    .parse_str("1,2,3,4,5+");
   assert!(r.is_err());
 }
 
@@ -2057,7 +2057,7 @@ where
 fn test_sep_while_allow_trailing_bounded_ok() {
   let r: Vec<i64> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_trailing_bounded)
-    .parse_str("1,2,3,")
+    .parse_str("1,2,3,+")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
@@ -2066,6 +2066,6 @@ fn test_sep_while_allow_trailing_bounded_ok() {
 fn test_sep_while_allow_trailing_bounded_too_few() {
   let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
     .apply(parse_while_allow_trailing_bounded)
-    .parse_str("1");
+    .parse_str("1+");
   assert!(r.is_err());
 }

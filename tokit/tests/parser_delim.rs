@@ -1699,6 +1699,13 @@ fn test_sep_while_delim_bounded_ok() {
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
 }
+#[test]
+fn test_sep_while_delim_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_bounded_delim)
+    .parse_str("[1,2,3,4,5]");
+  assert!(r.is_err());
+}
 
 // Note: sep_while/delim bounded only enforces the maximum, not the minimum, at the close delimiter.
 
@@ -1833,6 +1840,13 @@ fn test_sep_while_delim_allow_trailing_bounded_ok() {
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
+#[test]
+fn test_sep_while_delim_allow_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_trailing_bounded_delim)
+    .parse_str("[1,2,3,4,5,]");
+  assert!(r.is_err());
+}
 
 // ── 32. While allow_leading delim ────────────────────────────────────────────
 
@@ -1956,6 +1970,13 @@ fn test_sep_while_delim_allow_leading_bounded_ok() {
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
+#[test]
+fn test_sep_while_delim_allow_leading_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_leading_bounded_delim)
+    .parse_str("[,1,2,3,4,5]");
+  assert!(r.is_err());
+}
 
 // ── 36. While allow_surrounded delim ─────────────────────────────────────────
 
@@ -2078,6 +2099,13 @@ fn test_sep_while_delim_allow_surrounded_bounded_ok() {
     .parse_str("[,1,2,]")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
+}
+#[test]
+fn test_sep_while_delim_allow_surrounded_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_surrounded_bounded_delim)
+    .parse_str("[,1,2,3,4,5,]");
+  assert!(r.is_err());
 }
 
 // ── 40. While require_trailing delim ─────────────────────────────────────────
@@ -2214,6 +2242,13 @@ fn test_sep_while_delim_require_trailing_bounded_ok() {
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
+#[test]
+fn test_sep_while_delim_require_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_trailing_bounded_delim)
+    .parse_str("[1,2,3,4,5,]");
+  assert!(r.is_err());
+}
 
 // ── 44. While require_leading delim ──────────────────────────────────────────
 
@@ -2340,6 +2375,13 @@ fn test_sep_while_delim_require_leading_bounded_ok() {
     .parse_str("[,1,2]")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
+}
+#[test]
+fn test_sep_while_delim_require_leading_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_bounded_delim)
+    .parse_str("[,1,2,3,4,5]");
+  assert!(r.is_err());
 }
 
 // ── 48. While allow_leading_require_trailing delim ────────────────────────────
@@ -2469,6 +2511,13 @@ fn test_sep_while_delim_allow_leading_require_trailing_bounded_ok() {
     .unwrap();
   assert_eq!(r, vec![1, 2]);
 }
+#[test]
+fn test_sep_while_delim_allow_leading_require_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_allow_leading_require_trailing_bounded_delim)
+    .parse_str("[1,2,3,4,5,]");
+  assert!(r.is_err());
+}
 
 // ── 52. While require_leading_allow_trailing delim ────────────────────────────
 // Chain: .allow_trailing().require_leading()
@@ -2596,6 +2645,13 @@ fn test_sep_while_delim_require_leading_allow_trailing_bounded_ok() {
     .parse_str("[,1,2,]")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
+}
+#[test]
+fn test_sep_while_delim_require_leading_allow_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_allow_trailing_bounded_delim)
+    .parse_str("[,1,2,3,4,5,]");
+  assert!(r.is_err());
 }
 
 // ── 56. While require_surrounded delim ───────────────────────────────────────
@@ -2727,4 +2783,11 @@ fn test_sep_while_delim_require_surrounded_bounded_ok() {
     .parse_str("[,1,2,]")
     .unwrap();
   assert_eq!(r, vec![1, 2]);
+}
+#[test]
+fn test_sep_while_delim_require_surrounded_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_surrounded_bounded_delim)
+    .parse_str("[,1,2,3,4,5,]");
+  assert!(r.is_err());
 }
