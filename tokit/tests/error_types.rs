@@ -1,3 +1,9 @@
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
+extern crate alloc as std;
+
+#[cfg(feature = "std")]
+extern crate std;
+
 use tokit::SimpleSpan;
 /// Tests for all error types in the tokit error module.
 /// Exercises constructors, methods, Display/Debug impls, and transformations.
@@ -83,7 +89,10 @@ fn unexpected_end_set_and_clear_name() {
 }
 
 #[test]
+#[cfg(any(feature = "alloc", feature = "std"))]
 fn unexpected_end_update_name() {
+  use std::string::String;
+
   let mut e = UnexpectedEnd::eof(10usize);
   e.update_name(Some("block"));
   assert_eq!(e.name(), Some("block"));
