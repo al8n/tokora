@@ -448,7 +448,7 @@ fn spanned_as_ref() {
 fn spanned_as_mut() {
   let mut sp = Spanned::new(SimpleSpan::new(5, 10), String::from("hello"));
   {
-    let mut m = sp.as_mut();
+    let m = sp.as_mut();
     m.data.push_str(" world");
   }
   assert_eq!(sp.data(), &"hello world");
@@ -483,7 +483,7 @@ fn spanned_as_span_trait() {
 fn spanned_into_span_trait() {
   use tokit::span::IntoSpan;
   let sp = Spanned::new(SimpleSpan::new(5, 10), 42);
-  assert_eq!(sp.into_span(), SimpleSpan::new(5, 10));
+  assert_eq!(IntoSpan::into_span(sp), SimpleSpan::new(5, 10));
 }
 
 #[test]

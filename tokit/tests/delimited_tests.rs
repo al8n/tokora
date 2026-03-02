@@ -101,7 +101,7 @@ fn as_ref_span() {
 fn into_span_trait() {
   use tokit::span::IntoSpan;
   let d = Delimited::new('(', ')', 42i32, SimpleSpan::new(5, 10));
-  let s: SimpleSpan = d.into_span();
+  let s: SimpleSpan = IntoSpan::into_span(d);
   assert_eq!(s, SimpleSpan::new(5, 10));
 }
 
@@ -152,7 +152,7 @@ fn into_components() {
 fn into_components_via_trait() {
   use tokit::utils::IntoComponents;
   let d = Delimited::new('{', '}', "test", SimpleSpan::new(0, 6));
-  let (span, open, close, data) = d.into_components();
+  let (span, open, close, data) = IntoComponents::into_components(d);
   assert_eq!(open, '{');
   assert_eq!(close, '}');
   assert_eq!(data, "test");

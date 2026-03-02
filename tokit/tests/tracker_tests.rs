@@ -1,7 +1,7 @@
 /// Tests for `state::{token_tracker, recursion_tracker, tracker}`.
 use tokit::state::{
-  recursion_tracker::{RecursionLimitExceeded, RecursionLimiter, RecursionTracker},
-  token_tracker::{TokenLimitExceeded, TokenLimiter, TokenTracker},
+  recursion_tracker::{RecursionLimiter, RecursionTracker},
+  token_tracker::{TokenLimiter, TokenTracker},
   tracker::{LimitExceeded, Limiter, Tracker},
 };
 

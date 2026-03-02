@@ -167,6 +167,7 @@ fn ref_char_is_ascii_digit() {
 }
 
 #[test]
+#[allow(clippy::needless_borrow)]
 fn ref_char_one_of() {
   use ascii::AsciiChar;
   let c = 'b';
@@ -182,8 +183,10 @@ fn ref_u8_is_ascii_char() {
 }
 
 #[test]
+#[allow(clippy::needless_borrow)]
 fn ref_u8_is_ascii_digit() {
   let b: u8 = b'3';
+
   assert!((&b).is_ascii_digit());
 }
 
@@ -205,6 +208,7 @@ fn ref_mut_char_is_ascii_digit() {
 }
 
 #[test]
+#[allow(clippy::unnecessary_mut_passed)]
 fn ref_mut_char_one_of() {
   use ascii::AsciiChar;
   let mut c = 'b';

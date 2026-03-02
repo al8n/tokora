@@ -289,18 +289,21 @@ fn ref_delegates_raw_string() {
 }
 
 #[test]
+#[allow(clippy::needless_borrow)]
 fn ref_delegates_char() {
   let t = Tok::new(Kind::Char);
   assert!((&t).is_char_literal());
 }
 
 #[test]
+#[allow(clippy::needless_borrow)]
 fn ref_delegates_byte() {
   let t = Tok::new(Kind::Byte);
   assert!((&t).is_byte_literal());
 }
 
 #[test]
+#[allow(clippy::needless_borrow)]
 fn ref_delegates_byte_string() {
   let t = Tok::new(Kind::ByteStr);
   assert!((&t).is_byte_string_literal());
@@ -323,12 +326,14 @@ fn ref_delegates_false() {
 }
 
 #[test]
+#[allow(clippy::needless_borrow)]
 fn ref_delegates_null() {
   let t = Tok::new(Kind::Null);
   assert!((&t).is_null_literal());
 }
 
 #[test]
+#[allow(clippy::needless_borrow)]
 fn ref_delegates_other_not_literal() {
   let t = Tok::new(Kind::Other);
   assert!(!(&t).is_literal());
