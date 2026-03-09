@@ -251,8 +251,7 @@ fn container_ctx() -> ParserContext<'static, TestLexer<'static>, ContainerEmitte
   ParserContext::new(ContainerEmitter)
 }
 
-fn silent_ctx(
-) -> ParserContext<'static, TestLexer<'static>, Silent<ContainerTestError>> {
+fn silent_ctx() -> ParserContext<'static, TestLexer<'static>, Silent<ContainerTestError>> {
   ParserContext::new(Silent::new())
 }
 
@@ -293,10 +292,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  try_num
-    .separated_by_comma()
-    .collect()
-    .parse_input(inp)
+  try_num.separated_by_comma().collect().parse_input(inp)
 }
 
 #[test]
@@ -343,10 +339,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  try_num
-    .separated_by_comma()
-    .collect()
-    .parse_input(inp)
+  try_num.separated_by_comma().collect().parse_input(inp)
 }
 
 #[test]
@@ -467,8 +460,7 @@ fn test_fold_stops_on_non_num() {
 // The default cache (DefaultCache = GenericArrayDeque<..., U3>) is exercised
 // by all tests above. Here we test with an Option cache (single-slot).
 
-fn option_cache_ctx(
-) -> ParserContext<
+fn option_cache_ctx() -> ParserContext<
   'static,
   TestLexer<'static>,
   ContainerEmitter,
@@ -484,9 +476,9 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ContainerTestError>,
 {
+  use common::TokenKind;
   use tokit::parser::expect;
   use tokit::utils::Expected;
-  use common::TokenKind;
   expect(|t: &Token| {
     if matches!(t, Token::Num(_)) {
       Ok(())
@@ -520,8 +512,7 @@ fn test_option_cache_error() {
 
 // ── Blackhole cache (no caching at all) ──────────────────────────────────────
 
-fn blackhole_cache_ctx(
-) -> ParserContext<'static, TestLexer<'static>, ContainerEmitter, ()> {
+fn blackhole_cache_ctx() -> ParserContext<'static, TestLexer<'static>, ContainerEmitter, ()> {
   ParserContext::new(ContainerEmitter)
 }
 
@@ -601,10 +592,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  try_num
-    .separated_by_comma()
-    .collect()
-    .parse_input(inp)
+  try_num.separated_by_comma().collect().parse_input(inp)
 }
 
 #[test]

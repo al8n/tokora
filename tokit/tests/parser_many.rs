@@ -666,9 +666,7 @@ fn test_allow_leading_allow_trailing_at_most_too_many() {
 
 #[test]
 fn test_bounded_too_many() {
-  let r: Result<Vec<i64>, SepError> = Parser::new()
-    .apply(parse_bounded)
-    .parse_str(",1,2,3,4,5,");
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_bounded).parse_str(",1,2,3,4,5,");
   assert!(r.is_err());
 }
 

@@ -9,11 +9,8 @@ mod common;
 
 use tokit::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
-  error::{
-    UnexpectedEot,
-    token::UnexpectedToken,
-  },
-  parser::{expect, try_expect, Any},
+  error::{UnexpectedEot, token::UnexpectedToken},
+  parser::{Any, expect, try_expect},
   try_parse_input::ParseAttempt,
   utils::Expected,
 };
@@ -125,15 +122,13 @@ fn test_try_expect_accept() {
 
 #[test]
 fn test_try_expect_decline() {
-  let r: Result<ParseAttempt<Token>, ExpError> =
-    Parser::new().apply(try_expect_num).parse_str("+");
+  let r: Result<ParseAttempt<Token>, ExpError> = Parser::new().apply(try_expect_num).parse_str("+");
   assert!(matches!(r.unwrap(), ParseAttempt::Decline));
 }
 
 #[test]
 fn test_try_expect_empty() {
-  let r: Result<ParseAttempt<Token>, ExpError> =
-    Parser::new().apply(try_expect_num).parse_str("");
+  let r: Result<ParseAttempt<Token>, ExpError> = Parser::new().apply(try_expect_num).parse_str("");
   assert!(matches!(r.unwrap(), ParseAttempt::Decline));
 }
 
@@ -152,8 +147,7 @@ where
 
 #[test]
 fn test_then_success() {
-  let r: Result<(Token, Token), ExpError> =
-    Parser::new().apply(parse_then_nums).parse_str("1 2");
+  let r: Result<(Token, Token), ExpError> = Parser::new().apply(parse_then_nums).parse_str("1 2");
   let (a, b) = r.unwrap();
   assert!(matches!(a, Token::Num(1)));
   assert!(matches!(b, Token::Num(2)));
@@ -161,8 +155,7 @@ fn test_then_success() {
 
 #[test]
 fn test_then_second_fails() {
-  let r: Result<(Token, Token), ExpError> =
-    Parser::new().apply(parse_then_nums).parse_str("1 +");
+  let r: Result<(Token, Token), ExpError> = Parser::new().apply(parse_then_nums).parse_str("1 +");
   assert!(r.is_err());
 }
 
@@ -210,17 +203,13 @@ where
 
 #[test]
 fn test_ignore_then_success() {
-  let r: Result<Token, ExpError> = Parser::new()
-    .apply(parse_ignore_then_num)
-    .parse_str("+ 42");
+  let r: Result<Token, ExpError> = Parser::new().apply(parse_ignore_then_num).parse_str("+ 42");
   assert!(matches!(r.unwrap(), Token::Num(42)));
 }
 
 #[test]
 fn test_ignore_then_fail() {
-  let r: Result<Token, ExpError> = Parser::new()
-    .apply(parse_ignore_then_num)
-    .parse_str("- 42");
+  let r: Result<Token, ExpError> = Parser::new().apply(parse_ignore_then_num).parse_str("- 42");
   assert!(r.is_err());
 }
 
@@ -263,17 +252,13 @@ where
 
 #[test]
 fn test_and_then_pass() {
-  let r: Result<i64, ExpError> = Parser::new()
-    .apply(parse_and_then_positive)
-    .parse_str("42");
+  let r: Result<i64, ExpError> = Parser::new().apply(parse_and_then_positive).parse_str("42");
   assert_eq!(r.unwrap(), 42);
 }
 
 #[test]
 fn test_and_then_reject() {
-  let r: Result<i64, ExpError> = Parser::new()
-    .apply(parse_and_then_positive)
-    .parse_str("-5");
+  let r: Result<i64, ExpError> = Parser::new().apply(parse_and_then_positive).parse_str("-5");
   assert!(r.is_err());
 }
 
@@ -349,23 +334,25 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ExpError>,
 {
   parse_expect_num
-    .filter(|t| if matches!(t, Token::Num(n) if *n > 0) { Ok(()) } else { Err(ExpError) })
+    .filter(|t| {
+      if matches!(t, Token::Num(n) if *n > 0) {
+        Ok(())
+      } else {
+        Err(ExpError)
+      }
+    })
     .parse_input(inp)
 }
 
 #[test]
 fn test_filter_pass() {
-  let r: Result<Token, ExpError> = Parser::new()
-    .apply(parse_filter_positive)
-    .parse_str("42");
+  let r: Result<Token, ExpError> = Parser::new().apply(parse_filter_positive).parse_str("42");
   assert!(matches!(r.unwrap(), Token::Num(42)));
 }
 
 #[test]
 fn test_filter_reject() {
-  let r: Result<Token, ExpError> = Parser::new()
-    .apply(parse_filter_positive)
-    .parse_str("-5");
+  let r: Result<Token, ExpError> = Parser::new().apply(parse_filter_positive).parse_str("-5");
   assert!(r.is_err());
 }
 
@@ -388,17 +375,13 @@ where
 
 #[test]
 fn test_filter_map_match() {
-  let r: Result<i64, ExpError> = Parser::new()
-    .apply(parse_filter_map_num)
-    .parse_str("99");
+  let r: Result<i64, ExpError> = Parser::new().apply(parse_filter_map_num).parse_str("99");
   assert_eq!(r.unwrap(), 99);
 }
 
 #[test]
 fn test_filter_map_no_match() {
-  let r: Result<i64, ExpError> = Parser::new()
-    .apply(parse_filter_map_num)
-    .parse_str("+");
+  let r: Result<i64, ExpError> = Parser::new().apply(parse_filter_map_num).parse_str("+");
   assert!(r.is_err());
 }
 
@@ -428,16 +411,12 @@ where
 
 #[test]
 fn test_validate_pass() {
-  let r: Result<i64, ExpError> = Parser::new()
-    .apply(parse_validate_range)
-    .parse_str("50");
+  let r: Result<i64, ExpError> = Parser::new().apply(parse_validate_range).parse_str("50");
   assert_eq!(r.unwrap(), 50);
 }
 
 #[test]
 fn test_validate_reject() {
-  let r: Result<i64, ExpError> = Parser::new()
-    .apply(parse_validate_range)
-    .parse_str("200");
+  let r: Result<i64, ExpError> = Parser::new().apply(parse_validate_range).parse_str("200");
   assert!(r.is_err());
 }

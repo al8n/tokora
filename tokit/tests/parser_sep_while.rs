@@ -679,17 +679,13 @@ fn test_sep_while_allow_leading_bounded_too_many() {
 
 #[test]
 fn test_sep_while_at_least_empty_input() {
-  let r: Result<Vec<i64>, WhileError> = Parser::new()
-    .apply(parse_while_at_least_2)
-    .parse_str("+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new().apply(parse_while_at_least_2).parse_str("+");
   assert!(r.is_err());
 }
 
 #[test]
 fn test_sep_while_bounded_exactly_min() {
-  let r: Result<Vec<i64>, WhileError> = Parser::new()
-    .apply(parse_while_bounded)
-    .parse_str("1,2+");
+  let r: Result<Vec<i64>, WhileError> = Parser::new().apply(parse_while_bounded).parse_str("1,2+");
   assert_eq!(r.unwrap(), vec![1, 2]);
 }
 

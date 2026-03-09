@@ -7,11 +7,8 @@ mod common;
 
 use common::{TestLexer, Token, TokenKind};
 use tokit::{
-  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext,
-  cache::DefaultCache,
-  emitter::Ignored,
-  span::Spanned,
-  utils::Expected,
+  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, cache::DefaultCache,
+  emitter::Ignored, span::Spanned, utils::Expected,
 };
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -38,7 +35,9 @@ macro_rules! ignored_parser {
 
 #[test]
 fn sync_through_finds_token() {
-  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<Token>, ()>
+  fn parse<'inp, Ctx>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+  ) -> Result<Option<Token>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -56,7 +55,9 @@ fn sync_through_finds_token() {
 
 #[test]
 fn sync_through_eof() {
-  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<Token>, ()>
+  fn parse<'inp, Ctx>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+  ) -> Result<Option<Token>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -74,7 +75,9 @@ fn sync_through_eof() {
 
 #[test]
 fn sync_through_immediate() {
-  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<Token>, ()>
+  fn parse<'inp, Ctx>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+  ) -> Result<Option<Token>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -92,7 +95,9 @@ fn sync_through_immediate() {
 
 #[test]
 fn sync_through_empty_input() {
-  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<Token>, ()>
+  fn parse<'inp, Ctx>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+  ) -> Result<Option<Token>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -161,10 +166,12 @@ fn sync_to_does_not_consume_match() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let found = inp.sync_to(
-      |t| matches!(t.data(), Token::Semi),
-      || Some(Expected::one(TokenKind::Semi)),
-    )?.is_some();
+    let found = inp
+      .sync_to(
+        |t| matches!(t.data(), Token::Semi),
+        || Some(Expected::one(TokenKind::Semi)),
+      )?
+      .is_some();
     let next = inp.next()?.map(|s| s.into_data());
     Ok((found, next))
   }
@@ -220,10 +227,12 @@ fn sync_to_immediate() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let found = inp.sync_to(
-      |t| matches!(t.data(), Token::Semi),
-      || Some(Expected::one(TokenKind::Semi)),
-    )?.is_some();
+    let found = inp
+      .sync_to(
+        |t| matches!(t.data(), Token::Semi),
+        || Some(Expected::one(TokenKind::Semi)),
+      )?
+      .is_some();
     let next = inp.next()?.map(|s| s.into_data());
     Ok((found, next))
   }
@@ -500,9 +509,7 @@ fn foldr_within_empty() {
 
 #[test]
 fn try_expect_map_matches() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -520,9 +527,7 @@ fn try_expect_map_matches() {
 
 #[test]
 fn try_expect_map_no_match() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -540,9 +545,7 @@ fn try_expect_map_no_match() {
 
 #[test]
 fn try_expect_map_empty() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -562,9 +565,7 @@ fn try_expect_map_empty() {
 
 #[test]
 fn try_expect_and_then_ok() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -583,9 +584,7 @@ fn try_expect_and_then_ok() {
 
 #[test]
 fn try_expect_and_then_err() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -605,9 +604,7 @@ fn try_expect_and_then_err() {
 
 #[test]
 fn try_expect_and_then_decline() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,

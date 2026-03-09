@@ -2836,9 +2836,7 @@ fn test_sep_delim_require_leading_allow_trailing_fail() {
 
 #[test]
 fn test_sep_delim_missing_close() {
-  let r: Result<Vec<i64>, _> = Parser::new()
-    .apply(parse_plain_delim)
-    .parse_str("[1,2");
+  let r: Result<Vec<i64>, _> = Parser::new().apply(parse_plain_delim).parse_str("[1,2");
   assert!(r.is_err());
 }
 
@@ -2846,9 +2844,7 @@ fn test_sep_delim_missing_close() {
 
 #[test]
 fn test_sep_delim_missing_open() {
-  let r: Result<Vec<i64>, _> = Parser::new()
-    .apply(parse_plain_delim)
-    .parse_str("1,2]");
+  let r: Result<Vec<i64>, _> = Parser::new().apply(parse_plain_delim).parse_str("1,2]");
   assert!(r.is_err());
 }
 
@@ -2856,9 +2852,7 @@ fn test_sep_delim_missing_open() {
 
 #[test]
 fn test_sep_delim_empty_input() {
-  let r: Result<Vec<i64>, _> = Parser::new()
-    .apply(parse_plain_delim)
-    .parse_str("");
+  let r: Result<Vec<i64>, _> = Parser::new().apply(parse_plain_delim).parse_str("");
   assert!(r.is_err());
 }
 
@@ -2966,9 +2960,7 @@ fn test_sep_delim_allow_trailing_empty_input() {
 
 #[test]
 fn test_sep_delim_allow_leading_empty_input() {
-  let r: Result<Vec<i64>, _> = Parser::new()
-    .apply(parse_allow_leading_delim)
-    .parse_str("");
+  let r: Result<Vec<i64>, _> = Parser::new().apply(parse_allow_leading_delim).parse_str("");
   assert!(r.is_err());
 }
 
@@ -3343,9 +3335,7 @@ fn test_sep_while_delim_missing_open() {
 
 #[test]
 fn test_sep_while_delim_empty_input() {
-  let r: Result<Vec<i64>, _> = Parser::new()
-    .apply(parse_while_plain_delim)
-    .parse_str("");
+  let r: Result<Vec<i64>, _> = Parser::new().apply(parse_while_plain_delim).parse_str("");
   assert!(r.is_err());
 }
 

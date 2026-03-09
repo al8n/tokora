@@ -179,8 +179,8 @@ fn parse_rd_list<'inp, Ctx>(
 ) -> Result<Vec<i64>, RDError>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RDError>
-    + FullContainerEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter:
+    Emitter<'inp, TestLexer<'inp>, Error = RDError> + FullContainerEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_rd
     .repeated()
@@ -191,22 +191,25 @@ where
 
 #[test]
 fn test_repeated_delimited_basic() {
-  let r: Result<Vec<i64>, RDError> =
-    Parser::with_context(rd_ctx()).apply(parse_rd_list).parse_str("[1 2 3]");
+  let r: Result<Vec<i64>, RDError> = Parser::with_context(rd_ctx())
+    .apply(parse_rd_list)
+    .parse_str("[1 2 3]");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_repeated_delimited_empty() {
-  let r: Result<Vec<i64>, RDError> =
-    Parser::with_context(rd_ctx()).apply(parse_rd_list).parse_str("[]");
+  let r: Result<Vec<i64>, RDError> = Parser::with_context(rd_ctx())
+    .apply(parse_rd_list)
+    .parse_str("[]");
   assert_eq!(r.unwrap(), vec![]);
 }
 
 #[test]
 fn test_repeated_delimited_single() {
-  let r: Result<Vec<i64>, RDError> =
-    Parser::with_context(rd_ctx()).apply(parse_rd_list).parse_str("[42]");
+  let r: Result<Vec<i64>, RDError> = Parser::with_context(rd_ctx())
+    .apply(parse_rd_list)
+    .parse_str("[42]");
   assert_eq!(r.unwrap(), vec![42]);
 }
 
@@ -320,8 +323,9 @@ fn test_repeated_delimited_bounded_too_few() {
 
 #[test]
 fn test_repeated_delimited_missing_open() {
-  let r: Result<Vec<i64>, RDError> =
-    Parser::with_context(rd_ctx()).apply(parse_rd_list).parse_str("1 2 3]");
+  let r: Result<Vec<i64>, RDError> = Parser::with_context(rd_ctx())
+    .apply(parse_rd_list)
+    .parse_str("1 2 3]");
   assert!(r.is_err());
 }
 
@@ -330,7 +334,8 @@ fn test_repeated_delimited_missing_open() {
 #[test]
 fn test_repeated_delimited_wrong_close() {
   // After parsing elements, the parser expects `]` but sees `+` instead.
-  let r: Result<Vec<i64>, RDError> =
-    Parser::with_context(rd_ctx()).apply(parse_rd_list).parse_str("[1 2 3 +");
+  let r: Result<Vec<i64>, RDError> = Parser::with_context(rd_ctx())
+    .apply(parse_rd_list)
+    .parse_str("[1 2 3 +");
   assert!(r.is_err());
 }

@@ -27,9 +27,9 @@ use tokit::{
   utils::CowStr,
 };
 
-use common::{TestLexer, Token};
 #[allow(unused_imports)]
 use common::TokenKind;
+use common::{TestLexer, Token};
 
 // ── Error type ────────────────────────────────────────────────────────────────
 
@@ -271,13 +271,11 @@ fn fatal_ctx() -> ParserContext<'static, TestLexer<'static>, FatalEmitter> {
   ParserContext::new(FatalEmitter)
 }
 
-fn silent_ctx(
-) -> ParserContext<'static, TestLexer<'static>, Silent<EmitterTestError>> {
+fn silent_ctx() -> ParserContext<'static, TestLexer<'static>, Silent<EmitterTestError>> {
   ParserContext::new(Silent::new())
 }
 
-fn verbose_ctx(
-) -> ParserContext<'static, TestLexer<'static>, Verbose<EmitterTestError>> {
+fn verbose_ctx() -> ParserContext<'static, TestLexer<'static>, Verbose<EmitterTestError>> {
   ParserContext::new(Verbose::new())
 }
 

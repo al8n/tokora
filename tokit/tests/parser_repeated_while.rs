@@ -281,13 +281,17 @@ where
 
 #[test]
 fn test_repeated_while_basic() {
-  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx()).apply(parse_rw_list).parse_str("1 2 3+");
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse_rw_list)
+    .parse_str("1 2 3+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_repeated_while_single() {
-  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx()).apply(parse_rw_list).parse_str("42+");
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse_rw_list)
+    .parse_str("42+");
   assert_eq!(r.unwrap(), vec![42]);
 }
 
@@ -309,13 +313,17 @@ where
 
 #[test]
 fn test_repeated_while_at_least_ok() {
-  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx()).apply(parse_rw_at_least_2).parse_str("1 2 3+");
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse_rw_at_least_2)
+    .parse_str("1 2 3+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_repeated_while_at_least_fail() {
-  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx()).apply(parse_rw_at_least_2).parse_str("1+");
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse_rw_at_least_2)
+    .parse_str("1+");
   assert!(r.is_err());
 }
 
@@ -337,13 +345,17 @@ where
 
 #[test]
 fn test_repeated_while_at_most_ok() {
-  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx()).apply(parse_rw_at_most_2).parse_str("1 2+");
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse_rw_at_most_2)
+    .parse_str("1 2+");
   assert_eq!(r.unwrap(), vec![1, 2]);
 }
 
 #[test]
 fn test_repeated_while_at_most_single() {
-  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx()).apply(parse_rw_at_most_2).parse_str("7+");
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse_rw_at_most_2)
+    .parse_str("7+");
   assert_eq!(r.unwrap(), vec![7]);
 }
 
@@ -367,13 +379,17 @@ where
 
 #[test]
 fn test_repeated_while_bounded_ok() {
-  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx()).apply(parse_rw_bounded).parse_str("1 2 3+");
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse_rw_bounded)
+    .parse_str("1 2 3+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_repeated_while_bounded_too_few() {
-  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx()).apply(parse_rw_bounded).parse_str("1+");
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse_rw_bounded)
+    .parse_str("1+");
   assert!(r.is_err());
 }
 
@@ -395,13 +411,17 @@ where
 
 #[test]
 fn test_repeated_while_delimited() {
-  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx()).apply(parse_rw_delimited).parse_str("[1 2 3]+");
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse_rw_delimited)
+    .parse_str("[1 2 3]+");
   assert_eq!(r.unwrap(), vec![1, 2, 3]);
 }
 
 #[test]
 fn test_repeated_while_delimited_empty() {
-  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx()).apply(parse_rw_delimited).parse_str("[]+");
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse_rw_delimited)
+    .parse_str("[]+");
   assert_eq!(r.unwrap(), vec![]);
 }
 
