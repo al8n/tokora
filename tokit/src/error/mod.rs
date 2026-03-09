@@ -574,6 +574,144 @@ impl<E, N: ArrayLength> ErrorContainer<E> for GenericArrayDeque<E, N> {
   }
 }
 
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  // --- ErrorNode for &str ---
+
+  #[test]
+  fn error_node_str_error() {
+    let node = <&str as ErrorNode>::error(SimpleSpan::new(0, 5));
+    assert_eq!(node, "<error>");
+  }
+
+  #[test]
+  fn error_node_str_missing() {
+    let node = <&str as ErrorNode>::missing(SimpleSpan::new(0, 5));
+    assert_eq!(node, "<missing>");
+  }
+
+  // --- ErrorNode for &[u8] ---
+
+  #[test]
+  fn error_node_bytes_error() {
+    let node = <&[u8] as ErrorNode>::error(SimpleSpan::new(0, 5));
+    assert_eq!(node, b"<error>");
+  }
+
+  #[test]
+  fn error_node_bytes_missing() {
+    let node = <&[u8] as ErrorNode>::missing(SimpleSpan::new(0, 5));
+    assert_eq!(node, b"<missing>");
+  }
+
+  // --- ErrorContainer for Option<E> ---
+
+  #[test]
+  fn option_error_container_new() {
+    let c: Option<i32> = ErrorContainer::new();
+    assert!(c.is_none());
+  }
+
+  #[test]
+  fn option_error_container_push_and_len() {
+    let mut c: Option<i32> = ErrorContainer::new();
+    assert_eq!(ErrorContainer::len(&c), 0);
+    assert!(ErrorContainer::is_empty(&c));
+    ErrorContainer::push(&mut c, 42);
+    assert_eq!(ErrorContainer::len(&c), 1);
+    assert!(!ErrorContainer::is_empty(&c));
+  }
+
+  #[test]
+  fn option_error_container_push_keeps_first() {
+    let mut c: Option<i32> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 1);
+    ErrorContainer::push(&mut c, 2);
+    assert_eq!(c, Some(1)); // get_or_insert keeps the first
+  }
+
+  #[test]
+  fn option_error_container_try_push() {
+    let mut c: Option<i32> = ErrorContainer::new();
+    assert!(ErrorContainer::try_push(&mut c, 1).is_ok());
+    assert!(ErrorContainer::try_push(&mut c, 2).is_err());
+  }
+
+  #[test]
+  fn option_error_container_pop() {
+    let mut c: Option<i32> = ErrorContainer::new();
+    assert_eq!(ErrorContainer::pop(&mut c), None);
+    ErrorContainer::push(&mut c, 10);
+    assert_eq!(ErrorContainer::pop(&mut c), Some(10));
+    assert_eq!(ErrorContainer::pop(&mut c), None);
+  }
+
+  #[test]
+  fn option_error_container_iter() {
+    let mut c: Option<i32> = ErrorContainer::new();
+    assert_eq!(ErrorContainer::iter(&c).count(), 0);
+    ErrorContainer::push(&mut c, 5);
+    let items: Vec<_> = ErrorContainer::iter(&c).collect();
+    assert_eq!(items, vec![&5]);
+  }
+
+  #[test]
+  fn option_error_container_into_iter() {
+    let mut c: Option<i32> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 99);
+    let items: Vec<_> = ErrorContainer::into_iter(c).collect();
+    assert_eq!(items, vec![99]);
+  }
+
+  #[test]
+  fn option_error_container_remaining_capacity() {
+    let mut c: Option<i32> = ErrorContainer::new();
+    assert_eq!(ErrorContainer::remaining_capacity(&c), Some(1));
+    ErrorContainer::push(&mut c, 1);
+    assert_eq!(ErrorContainer::remaining_capacity(&c), Some(0));
+  }
+
+  // --- ErrorContainer for Vec<E> ---
+
+  #[test]
+  fn vec_error_container_new() {
+    let c: Vec<i32> = ErrorContainer::new();
+    assert!(c.is_empty());
+  }
+
+  #[test]
+  fn vec_error_container_push_and_len() {
+    let mut c: Vec<i32> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 1);
+    ErrorContainer::push(&mut c, 2);
+    assert_eq!(ErrorContainer::len(&c), 2);
+  }
+
+  #[test]
+  fn vec_error_container_pop() {
+    let mut c: Vec<i32> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 10);
+    ErrorContainer::push(&mut c, 20);
+    assert_eq!(ErrorContainer::pop(&mut c), Some(10));
+    assert_eq!(ErrorContainer::pop(&mut c), Some(20));
+    assert_eq!(ErrorContainer::pop(&mut c), None);
+  }
+
+  #[test]
+  fn vec_error_container_with_capacity() {
+    let c: Vec<i32> = ErrorContainer::with_capacity(10);
+    assert!(c.is_empty());
+  }
+
+  #[test]
+  fn vec_error_container_remaining_capacity_is_none() {
+    let c: Vec<i32> = ErrorContainer::new();
+    assert_eq!(ErrorContainer::remaining_capacity(&c), None);
+  }
+}
+
 #[cfg(any(feature = "std", feature = "alloc"))]
 const _: () = {
   use std::{

@@ -2791,3 +2791,600 @@ fn test_sep_while_delim_require_surrounded_bounded_too_many() {
     .parse_str("[,1,2,3,4,5,]");
   assert!(r.is_err());
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Error-path tests: sep/delim/
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Note: sep/delim (TryParseInput) stops when the element parser declines,
+// so at_most/at_least/bounded limits and require_trailing are only enforced
+// when the element parser declines mid-parse, NOT when the close delimiter
+// is encountered. The error tests here cover cases that DO trigger errors:
+// require_leading (missing leading comma), missing delimiters, empty input, etc.
+
+// ── require_surrounded fail (missing leading) ────────────────────────────────
+
+#[test]
+fn test_sep_delim_require_surrounded_fail_missing_leading() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_surrounded_delim)
+    .parse_str("[1,2,3,]");
+  assert!(r.is_err());
+}
+
+// ── require_surrounded fail (missing both) ───────────────────────────────────
+
+#[test]
+fn test_sep_delim_require_surrounded_fail_missing_both() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_surrounded_delim)
+    .parse_str("[1,2,3]");
+  assert!(r.is_err());
+}
+
+// ── require_leading_allow_trailing fail (missing leading) ────────────────────
+
+#[test]
+fn test_sep_delim_require_leading_allow_trailing_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_leading_allow_trailing_delim)
+    .parse_str("[1,2,3,]");
+  assert!(r.is_err());
+}
+
+// ── Missing close delimiter ──────────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_missing_close() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_plain_delim)
+    .parse_str("[1,2");
+  assert!(r.is_err());
+}
+
+// ── Missing open delimiter ───────────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_missing_open() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_plain_delim)
+    .parse_str("1,2]");
+  assert!(r.is_err());
+}
+
+// ── Empty input ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_plain_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── allow_trailing missing close ─────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_allow_trailing_missing_close() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_allow_trailing_delim)
+    .parse_str("[1,2,3,");
+  assert!(r.is_err());
+}
+
+// ── allow_leading missing close ──────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_allow_leading_missing_close() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_allow_leading_delim)
+    .parse_str("[,1,2");
+  assert!(r.is_err());
+}
+
+// ── require_trailing missing close ───────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_require_trailing_missing_close() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_trailing_delim)
+    .parse_str("[1,2,3,");
+  assert!(r.is_err());
+}
+
+// ── require_leading missing close ────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_require_leading_missing_close() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_leading_delim)
+    .parse_str("[,1,2");
+  assert!(r.is_err());
+}
+
+// ── require_surrounded missing close ─────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_require_surrounded_missing_close() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_surrounded_delim)
+    .parse_str("[,1,2,");
+  assert!(r.is_err());
+}
+
+// ── at_least missing close ───────────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_at_least_missing_close() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_plain_delim_at_least)
+    .parse_str("[1,2");
+  assert!(r.is_err());
+}
+
+// ── at_most missing close ────────────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_at_most_missing_close() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_plain_delim_at_most)
+    .parse_str("[1,2");
+  assert!(r.is_err());
+}
+
+// ── require_leading missing open ─────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_require_leading_missing_open() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_leading_delim)
+    .parse_str(",1,2]");
+  assert!(r.is_err());
+}
+
+// ── require_trailing missing open ────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_require_trailing_missing_open() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_trailing_delim)
+    .parse_str("1,2,]");
+  assert!(r.is_err());
+}
+
+// ── allow_trailing empty input ───────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_allow_trailing_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_allow_trailing_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── allow_leading empty input ────────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_allow_leading_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_allow_leading_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── require_trailing empty input ─────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_require_trailing_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_trailing_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── require_leading empty input ──────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_require_leading_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_leading_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── require_surrounded empty input ───────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_require_surrounded_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_surrounded_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── allow_leading_require_trailing empty input ───────────────────────────────
+
+#[test]
+fn test_sep_delim_allow_leading_require_trailing_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_allow_leading_require_trailing_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── require_leading_allow_trailing empty input ───────────────────────────────
+
+#[test]
+fn test_sep_delim_require_leading_allow_trailing_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_leading_allow_trailing_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── allow_surrounded missing open ────────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_allow_surrounded_missing_open() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_allow_surrounded_delim)
+    .parse_str(",1,2,3,]");
+  assert!(r.is_err());
+}
+
+// ── allow_surrounded missing close ───────────────────────────────────────────
+
+#[test]
+fn test_sep_delim_allow_surrounded_missing_close() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_allow_surrounded_delim)
+    .parse_str("[,1,2,3,");
+  assert!(r.is_err());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Error-path tests: sep_while/delim/
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// sep_while/delim (ParseInput + Decision) enforces at_most/too_many at the
+// close delimiter. at_least/too_few is also enforced via the decision function.
+
+// ── at_most too many ─────────────────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_at_most_fail() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_at_most_delim)
+    .parse_str("[1,2,3]");
+  assert!(r.is_err());
+}
+
+// ── allow_trailing at_least fail ─────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_trailing_at_least_fail() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_trailing_at_least_delim)
+    .parse_str("[1,]");
+  assert!(r.is_err());
+}
+
+// ── allow_trailing at_most fail ──────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_trailing_at_most_fail() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_trailing_at_most_delim)
+    .parse_str("[1,2,3,4,]");
+  assert!(r.is_err());
+}
+
+// ── allow_leading at_least fail ──────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_leading_at_least_fail() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_leading_at_least_delim)
+    .parse_str("[,1]");
+  assert!(r.is_err());
+}
+
+// ── allow_leading at_most fail ───────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_leading_at_most_fail() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_leading_at_most_delim)
+    .parse_str("[,1,2,3,4]");
+  assert!(r.is_err());
+}
+
+// ── allow_surrounded at_least fail ───────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_surrounded_at_least_fail() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_surrounded_at_least_delim)
+    .parse_str("[,1,]");
+  assert!(r.is_err());
+}
+
+// ── allow_surrounded at_most fail ────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_surrounded_at_most_fail() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_surrounded_at_most_delim)
+    .parse_str("[,1,2,3,4,]");
+  assert!(r.is_err());
+}
+
+// ── allow_surrounded bounded too few ─────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_surrounded_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_surrounded_bounded_delim)
+    .parse_str("[,]");
+  assert!(r.is_err());
+}
+
+// ── require_trailing at_least fail ───────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_trailing_at_least_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_trailing_at_least_delim)
+    .parse_str("[1,]");
+  assert!(r.is_err());
+}
+
+// ── require_trailing at_most fail ────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_trailing_at_most_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_trailing_at_most_delim)
+    .parse_str("[1,2,3,4,]");
+  assert!(r.is_err());
+}
+
+// ── require_leading fail (missing leading) ───────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_leading_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_delim)
+    .parse_str("[1,2,3]");
+  assert!(r.is_err());
+}
+
+// ── require_leading at_least fail ────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_leading_at_least_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_at_least_delim)
+    .parse_str("[,1]");
+  assert!(r.is_err());
+}
+
+// ── require_leading at_most fail ─────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_leading_at_most_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_at_most_delim)
+    .parse_str("[,1,2,3,4]");
+  assert!(r.is_err());
+}
+
+// ── require_leading bounded too few ──────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_leading_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_bounded_delim)
+    .parse_str("[,]");
+  assert!(r.is_err());
+}
+
+// ── require_surrounded fail (missing leading) ────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_surrounded_fail_missing_leading() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_surrounded_delim)
+    .parse_str("[1,2,3,]");
+  assert!(r.is_err());
+}
+
+// ── require_surrounded fail (missing trailing) ───────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_surrounded_fail_missing_trailing() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_surrounded_delim)
+    .parse_str("[,1,2,3]");
+  assert!(r.is_err());
+}
+
+// ── require_surrounded fail (missing both) ───────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_surrounded_fail_missing_both() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_surrounded_delim)
+    .parse_str("[1,2,3]");
+  assert!(r.is_err());
+}
+
+// ── require_surrounded at_least fail ─────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_surrounded_at_least_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_surrounded_at_least_delim)
+    .parse_str("[,1,]");
+  assert!(r.is_err());
+}
+
+// ── require_surrounded at_most fail ──────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_surrounded_at_most_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_surrounded_at_most_delim)
+    .parse_str("[,1,2,3,4,]");
+  assert!(r.is_err());
+}
+
+// ── require_surrounded bounded too few ───────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_surrounded_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_surrounded_bounded_delim)
+    .parse_str("[,,]");
+  assert!(r.is_err());
+}
+
+// ── allow_leading_require_trailing fail (missing trailing) ───────────────────
+
+#[test]
+fn test_sep_while_delim_allow_leading_require_trailing_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_allow_leading_require_trailing_delim)
+    .parse_str("[,1,2,3]");
+  assert!(r.is_err());
+}
+
+// ── allow_leading_require_trailing at_least fail ─────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_leading_require_trailing_at_least_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_allow_leading_require_trailing_at_least_delim)
+    .parse_str("[,1,]");
+  assert!(r.is_err());
+}
+
+// ── allow_leading_require_trailing at_most fail ──────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_leading_require_trailing_at_most_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_allow_leading_require_trailing_at_most_delim)
+    .parse_str("[,1,2,3,4,]");
+  assert!(r.is_err());
+}
+
+// ── allow_leading_require_trailing bounded too few ───────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_leading_require_trailing_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_allow_leading_require_trailing_bounded_delim)
+    .parse_str("[,]");
+  assert!(r.is_err());
+}
+
+// ── require_leading_allow_trailing fail (missing leading) ────────────────────
+
+#[test]
+fn test_sep_while_delim_require_leading_allow_trailing_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_allow_trailing_delim)
+    .parse_str("[1,2,3,]");
+  assert!(r.is_err());
+}
+
+// ── require_leading_allow_trailing at_least fail ─────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_leading_allow_trailing_at_least_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_allow_trailing_at_least_delim)
+    .parse_str("[,1,]");
+  assert!(r.is_err());
+}
+
+// ── require_leading_allow_trailing at_most fail ──────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_leading_allow_trailing_at_most_fail() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_allow_trailing_at_most_delim)
+    .parse_str("[,1,2,3,4,]");
+  assert!(r.is_err());
+}
+
+// ── require_leading_allow_trailing bounded too few ───────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_leading_allow_trailing_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_allow_trailing_bounded_delim)
+    .parse_str("[,]");
+  assert!(r.is_err());
+}
+
+// ── Missing open delimiter (sep_while) ───────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_missing_open() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_plain_delim)
+    .parse_str("1,2]");
+  assert!(r.is_err());
+}
+
+// ── Empty input (sep_while) ──────────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_plain_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── require_trailing empty bracket ───────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_trailing_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_trailing_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── require_leading empty bracket ────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_require_leading_empty_input() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_delim)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── allow_trailing missing open ──────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_trailing_missing_open() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_trailing_delim)
+    .parse_str("1,2,]");
+  assert!(r.is_err());
+}
+
+// ── allow_leading missing open ───────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_delim_allow_leading_missing_open() {
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_leading_delim)
+    .parse_str(",1,2]");
+  assert!(r.is_err());
+}
