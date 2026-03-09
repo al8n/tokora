@@ -715,3 +715,507 @@ fn test_allow_trailing_at_least_empty() {
     .parse_str("");
   assert!(r.is_err());
 }
+
+// ── Handler error path tests: plain separator policy ────────────────────────
+
+#[test]
+fn test_plain_trailing_separator_error() {
+  // Triggers Unbounded EndStateHandler::handle_separator_state (unexpected trailing)
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_comma_list).parse_str("1,2,3,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_plain_leading_separator_error() {
+  // Triggers Unbounded SeparatorStateHandler::handle_start_state (unexpected leading)
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_comma_list).parse_str(",1,2,3");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_plain_only_separator() {
+  // Triggers SeparatorStateHandler::handle_start_state then EndStateHandler::handle_leading_state
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_comma_list).parse_str(",");
+  assert!(r.is_err());
+}
+
+// ── Handler error path tests: allow_trailing with invalid leading ───────────
+
+#[test]
+fn test_allow_trailing_leading_separator_error() {
+  // Triggers AllowTrailing<Unbounded> SeparatorStateHandler::handle_start_state (unexpected leading)
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing)
+    .parse_str(",1,2,3");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_trailing_only_separator() {
+  // Triggers SeparatorStateHandler::handle_start_state then handle_leading_state
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_trailing).parse_str(",");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_trailing_empty() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_trailing).parse_str("");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_allow_trailing_single() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_trailing).parse_str("42");
+  assert_eq!(r.unwrap(), vec![42]);
+}
+
+#[test]
+fn test_allow_trailing_single_with_trailing() {
+  // Single item with trailing comma -- triggers handle_separator_state
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_trailing).parse_str("42,");
+  assert_eq!(r.unwrap(), vec![42]);
+}
+
+// ── Handler error path tests: allow_leading with invalid trailing ────────────
+
+#[test]
+fn test_allow_leading_trailing_separator_error() {
+  // Triggers AllowLeading<Unbounded> EndStateHandler::handle_separator_state (unexpected trailing)
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_leading).parse_str("1,2,3,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_leading_only_separator() {
+  // Leading sep consumed, then handle_leading_state fires (sep with no following element)
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_leading).parse_str(",");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_leading_empty() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_leading).parse_str("");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_allow_leading_single() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_leading).parse_str("42");
+  assert_eq!(r.unwrap(), vec![42]);
+}
+
+#[test]
+fn test_allow_leading_single_with_leading() {
+  // Single item with leading comma -- triggers SeparatorStateHandler::handle_start_state
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_allow_leading).parse_str(",42");
+  assert_eq!(r.unwrap(), vec![42]);
+}
+
+// ── Handler error path tests: allow_surrounded (allow_leading + allow_trailing) ─
+
+#[test]
+fn test_allow_surrounded_empty() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_trailing)
+    .parse_str("");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_allow_surrounded_single() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_trailing)
+    .parse_str("42");
+  assert_eq!(r.unwrap(), vec![42]);
+}
+
+#[test]
+fn test_allow_surrounded_only_leading() {
+  // Triggers handle_leading_state on AllowLeading<AllowTrailing<Unbounded>>
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_trailing)
+    .parse_str(",1,2,3");
+  assert_eq!(r.unwrap(), vec![1, 2, 3]);
+}
+
+#[test]
+fn test_allow_surrounded_only_trailing() {
+  // Triggers handle_separator_state on AllowLeading<AllowTrailing<Unbounded>>
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_trailing)
+    .parse_str("1,2,3,");
+  assert_eq!(r.unwrap(), vec![1, 2, 3]);
+}
+
+#[test]
+fn test_allow_surrounded_only_separator() {
+  // "," with both leading and trailing allowed -- triggers handle_leading_state (leading sep, no element follows)
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_trailing)
+    .parse_str(",");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_surrounded_single_with_leading() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_trailing)
+    .parse_str(",42");
+  assert_eq!(r.unwrap(), vec![42]);
+}
+
+#[test]
+fn test_allow_surrounded_single_with_trailing() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_trailing)
+    .parse_str("42,");
+  assert_eq!(r.unwrap(), vec![42]);
+}
+
+#[test]
+fn test_allow_surrounded_single_with_both() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_trailing)
+    .parse_str(",42,");
+  assert_eq!(r.unwrap(), vec![42]);
+}
+
+// ── Handler error path tests: at_most with different policies ───────────────
+
+#[test]
+fn test_plain_at_most_empty() {
+  // Triggers EndStateHandler::handle_start_state on Maximum (0 items, at_most ok)
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_at_most_2).parse_str("");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_allow_trailing_at_most_empty() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_most_2)
+    .parse_str("");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_allow_leading_at_most_empty() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_most_2)
+    .parse_str("");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+// ── Handler error path tests: at_least with empty for different policies ────
+
+#[test]
+fn test_allow_leading_at_least_empty() {
+  // Triggers EndStateHandler::handle_start_state on AllowLeading<Minimum> (too few)
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_least_2)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+// ── Handler error path tests: bounded edge cases ────────────────────────────
+
+#[test]
+fn test_bounded_empty() {
+  // Triggers handle_start_state on AllowLeading<AllowTrailing<With<Min,Max>>> (too few)
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_bounded).parse_str("");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_trailing_bounded_empty() {
+  // Triggers handle_start_state on AllowTrailing<With<Min,Max>>
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_bounded)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_leading_bounded_empty() {
+  // Triggers handle_start_state on AllowLeading<With<Min,Max>>
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_bounded)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_bounded_exactly_min() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_bounded).parse_str(",1,2,");
+  assert_eq!(r.unwrap(), vec![1, 2]);
+}
+
+#[test]
+fn test_bounded_exactly_max() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_bounded).parse_str(",1,2,3,4,");
+  assert_eq!(r.unwrap(), vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn test_allow_trailing_bounded_exactly_min() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_bounded)
+    .parse_str("1,2,");
+  assert_eq!(r.unwrap(), vec![1, 2]);
+}
+
+#[test]
+fn test_allow_trailing_bounded_exactly_max() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_bounded)
+    .parse_str("1,2,3,4,");
+  assert_eq!(r.unwrap(), vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn test_allow_leading_bounded_exactly_min() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_bounded)
+    .parse_str(",1,2");
+  assert_eq!(r.unwrap(), vec![1, 2]);
+}
+
+#[test]
+fn test_allow_leading_bounded_exactly_max() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_bounded)
+    .parse_str(",1,2,3,4");
+  assert_eq!(r.unwrap(), vec![1, 2, 3, 4]);
+}
+
+// ── Handler error path tests: allow_trailing at_least/at_most with leading sep ──
+
+#[test]
+fn test_allow_trailing_at_least_leading_sep_error() {
+  // Triggers AllowTrailing<Minimum> SeparatorStateHandler::handle_start_state
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_least_2)
+    .parse_str(",1,2,3");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_trailing_at_most_leading_sep_error() {
+  // Triggers AllowTrailing<Maximum> SeparatorStateHandler::handle_start_state
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_most_2)
+    .parse_str(",1,2");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_trailing_bounded_leading_sep_error() {
+  // Triggers AllowTrailing<With<Min,Max>> SeparatorStateHandler::handle_start_state
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_bounded)
+    .parse_str(",1,2,3");
+  assert!(r.is_err());
+}
+
+// ── Handler error path tests: allow_leading at_least/at_most with trailing sep ──
+
+#[test]
+fn test_allow_leading_at_least_trailing_sep_error() {
+  // Triggers AllowLeading<Minimum> EndStateHandler::handle_separator_state (unexpected trailing)
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_least_2)
+    .parse_str("1,2,3,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_leading_at_most_trailing_sep_error() {
+  // Triggers AllowLeading<Maximum> EndStateHandler::handle_separator_state (unexpected trailing)
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_most_2)
+    .parse_str("1,2,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_leading_bounded_trailing_sep_error() {
+  // Triggers AllowLeading<With<Min,Max>> EndStateHandler::handle_separator_state (unexpected trailing)
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_bounded)
+    .parse_str("1,2,3,");
+  assert!(r.is_err());
+}
+
+// ── Handler error path tests: allow_leading with only separator ─────────────
+
+#[test]
+fn test_allow_leading_at_least_only_separator() {
+  // "," with allow_leading at_least(2) -- leading sep accepted, no element, handle_leading_state
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_least_2)
+    .parse_str(",");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_leading_at_most_only_separator() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_most_2)
+    .parse_str(",");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_leading_bounded_only_separator() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_bounded)
+    .parse_str(",");
+  assert!(r.is_err());
+}
+
+// ── Handler error path tests: allow_trailing with only separator ────────────
+
+#[test]
+fn test_allow_trailing_at_least_only_separator() {
+  // "," with allow_trailing at_least(2) -- starts with sep, triggers leading error
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_least_2)
+    .parse_str(",");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_trailing_at_most_only_separator() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_most_2)
+    .parse_str(",");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_trailing_bounded_only_separator() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_bounded)
+    .parse_str(",");
+  assert!(r.is_err());
+}
+
+// ── Handler error path tests: allow_surrounded bounded edge cases ───────────
+
+#[test]
+fn test_allow_surrounded_at_least_empty() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_least_2)
+    .parse_str("");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_surrounded_at_least_too_few() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_least_2)
+    .parse_str(",1,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_surrounded_at_least_only_separator() {
+  // Triggers handle_leading_state on AllowLeading<AllowTrailing<Minimum>>
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_least_2)
+    .parse_str(",");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_surrounded_at_most_empty() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_most_2)
+    .parse_str("");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_allow_surrounded_at_most_only_separator() {
+  // Triggers handle_leading_state on AllowLeading<AllowTrailing<Maximum>>
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_most_2)
+    .parse_str(",");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_surrounded_bounded_only_separator() {
+  // Triggers handle_leading_state on AllowLeading<AllowTrailing<With<Min,Max>>>
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_bounded).parse_str(",");
+  assert!(r.is_err());
+}
+
+// ── Handler error path tests: trailing sep + too few interaction ────────────
+
+#[test]
+fn test_allow_trailing_at_least_single_with_trailing() {
+  // "1," -- trailing is allowed, but only 1 item, at_least(2) fails
+  // Triggers handle_separator_state then too_few check
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_least_2)
+    .parse_str("1,");
+  assert!(r.is_err());
+}
+
+// ── Handler error path tests: leading sep + too few interaction ─────────────
+
+#[test]
+fn test_allow_leading_at_least_single_with_leading() {
+  // ",1" -- leading is allowed, but only 1 item, at_least(2) fails
+  // Triggers handle_element_state then too_few check
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_least_2)
+    .parse_str(",1");
+  assert!(r.is_err());
+}
+
+// ── Handler error path tests: surrounded + trailing/leading sep combos ──────
+
+#[test]
+fn test_allow_surrounded_at_least_leading_only() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_least_2)
+    .parse_str(",1,2,3");
+  assert_eq!(r.unwrap(), vec![1, 2, 3]);
+}
+
+#[test]
+fn test_allow_surrounded_at_least_trailing_only() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_least_2)
+    .parse_str("1,2,3,");
+  assert_eq!(r.unwrap(), vec![1, 2, 3]);
+}
+
+#[test]
+fn test_allow_surrounded_at_most_leading_only() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_most_2)
+    .parse_str(",1,2");
+  assert_eq!(r.unwrap(), vec![1, 2]);
+}
+
+#[test]
+fn test_allow_surrounded_at_most_trailing_only() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_most_2)
+    .parse_str("1,2,");
+  assert_eq!(r.unwrap(), vec![1, 2]);
+}
+
+#[test]
+fn test_allow_surrounded_bounded_leading_only() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_bounded).parse_str(",1,2,3");
+  assert_eq!(r.unwrap(), vec![1, 2, 3]);
+}
+
+#[test]
+fn test_allow_surrounded_bounded_trailing_only() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_bounded).parse_str("1,2,3,");
+  assert_eq!(r.unwrap(), vec![1, 2, 3]);
+}
