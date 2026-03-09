@@ -629,3 +629,91 @@ fn test_manual_fold() {
     .parse_str("1 2 3 4 5");
   assert_eq!(r.unwrap(), 15);
 }
+
+// ── Error path tests: at_most too many ──────────────────────────────────────
+
+#[test]
+fn test_separated_at_most_too_many() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_at_most_2).parse_str("1,2,3");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_leading_at_most_too_many() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_at_most_2)
+    .parse_str(",1,2,3");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_trailing_at_most_too_many() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_most_2)
+    .parse_str("1,2,3,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_leading_allow_trailing_at_most_too_many() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_allow_trailing_at_most_2)
+    .parse_str(",1,2,3,");
+  assert!(r.is_err());
+}
+
+// ── Error path tests: bounded too many ──────────────────────────────────────
+
+#[test]
+fn test_bounded_too_many() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_bounded)
+    .parse_str(",1,2,3,4,5,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_bounded)
+    .parse_str("1,2,3,4,5,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_leading_bounded_too_many() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_leading_bounded)
+    .parse_str(",1,2,3,4,5");
+  assert!(r.is_err());
+}
+
+// ── Boundary tests: exactly at limit ────────────────────────────────────────
+
+#[test]
+fn test_separated_at_most_exactly_max() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_at_most_2).parse_str("1,2");
+  assert_eq!(r.unwrap(), vec![1, 2]);
+}
+
+#[test]
+fn test_separated_at_least_exactly_min() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_at_least_2).parse_str("1,2");
+  assert_eq!(r.unwrap(), vec![1, 2]);
+}
+
+// ── Empty input tests ───────────────────────────────────────────────────────
+
+#[test]
+fn test_separated_at_least_empty() {
+  let r: Result<Vec<i64>, SepError> = Parser::new().apply(parse_at_least_2).parse_str("");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_allow_trailing_at_least_empty() {
+  let r: Result<Vec<i64>, SepError> = Parser::new()
+    .apply(parse_allow_trailing_at_least_2)
+    .parse_str("");
+  assert!(r.is_err());
+}

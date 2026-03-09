@@ -2069,3 +2069,216 @@ fn test_sep_while_allow_trailing_bounded_too_few() {
     .parse_str("1+");
   assert!(r.is_err());
 }
+
+// ── Additional too_many tests for bounded variants (sep/parse) ──────────────
+
+#[test]
+fn test_sep_parse_require_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_trailing_bounded)
+    .parse_str("1,2,3,4,5,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_parse_require_leading_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_leading_bounded)
+    .parse_str(",1,2,3,4,5");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_parse_require_surrounded_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_surrounded_bounded)
+    .parse_str(",1,2,3,4,5,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_parse_allow_leading_require_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_allow_leading_require_trailing_bounded)
+    .parse_str(",1,2,3,4,5,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_parse_require_leading_allow_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_leading_allow_trailing_bounded)
+    .parse_str(",1,2,3,4,5,");
+  assert!(r.is_err());
+}
+
+// ── Additional too_many tests for bounded variants (sep_while/parse) ────────
+
+#[test]
+fn test_sep_while_require_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_trailing_bounded)
+    .parse_str("1,2,3,4,5,+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_require_leading_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_bounded)
+    .parse_str(",1,2,3,4,5+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_require_surrounded_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_surrounded_bounded)
+    .parse_str(",1,2,3,4,5,+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_allow_leading_require_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_allow_leading_require_trailing_bounded)
+    .parse_str(",1,2,3,4,5,+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_require_leading_allow_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading_allow_trailing_bounded)
+    .parse_str(",1,2,3,4,5,+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_allow_trailing_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_allow_trailing_bounded)
+    .parse_str("1,2,3,4,5,+");
+  assert!(r.is_err());
+}
+
+// ── Empty input tests ───────────────────────────────────────────────────────
+
+#[test]
+fn test_sep_parse_require_trailing_empty() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_trailing)
+    .parse_str("");
+  // empty input returns empty vec (no items to require separator for)
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_sep_parse_require_leading_empty() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_leading)
+    .parse_str("");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_sep_parse_require_surrounded_empty() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_surrounded)
+    .parse_str("");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+// ── Boundary tests (exactly at min/max) ────────────────────────────────────
+
+#[test]
+fn test_sep_parse_bounded_exactly_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_bounded)
+    .parse_str("1,2")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn test_sep_parse_bounded_exactly_max() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_bounded)
+    .parse_str("1,2,3,4")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4]);
+}
+
+// ── Additional require_trailing missing trailing sep tests ──────────────────
+
+#[test]
+fn test_sep_parse_require_trailing_no_trailing() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_trailing)
+    .parse_str("1,2,3");
+  // Missing required trailing comma
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_parse_require_leading_no_leading() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_leading)
+    .parse_str("1,2,3");
+  // Missing required leading comma
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_parse_require_surrounded_no_trailing() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_require_surrounded)
+    .parse_str(",1,2,3");
+  // Has leading but missing trailing
+  assert!(r.is_err());
+}
+
+// ── sep_while empty/single tests ────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_require_trailing_empty() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_trailing)
+    .parse_str("+");
+  // sentinel only, no items → empty vec
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_sep_while_require_leading_empty() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading)
+    .parse_str("+");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_sep_while_require_surrounded_empty() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_surrounded)
+    .parse_str("+");
+  assert_eq!(r.unwrap(), vec![]);
+}
+
+#[test]
+fn test_sep_while_require_trailing_no_trailing() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_trailing)
+    .parse_str("1,2,3+");
+  // Missing required trailing comma
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_require_leading_no_leading() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_while_require_leading)
+    .parse_str("1,2,3+");
+  // Missing required leading comma
+  assert!(r.is_err());
+}

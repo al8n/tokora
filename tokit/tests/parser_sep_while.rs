@@ -613,3 +613,90 @@ fn test_sep_while_allow_leading_bounded_fail() {
     .parse_str(",1+");
   assert!(r.is_err());
 }
+
+// ── Error path tests: at_most too many ──────────────────────────────────────
+
+#[test]
+fn test_sep_while_at_most_too_many() {
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_at_most_2)
+    .parse_str("1,2,3+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_allow_trailing_at_most_too_many() {
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_trailing_at_least_2)
+    .parse_str("1,+");
+  // only 1 element, at_least(2) → err
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_allow_leading_at_most_too_many() {
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_leading_at_most_2)
+    .parse_str(",1,2,3+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_allow_surrounded_at_most_too_many() {
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_surrounded_at_most_2)
+    .parse_str(",1,2,3,+");
+  assert!(r.is_err());
+}
+
+// ── Bounded too many tests ──────────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_bounded_too_many() {
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_bounded)
+    .parse_str("1,2,3,4,5+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_allow_surrounded_bounded_too_many() {
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_surrounded_bounded)
+    .parse_str(",1,2,3,4,5,+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_allow_leading_bounded_too_many() {
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_allow_leading_bounded)
+    .parse_str(",1,2,3,4,5+");
+  assert!(r.is_err());
+}
+
+// ── Empty/single element edge cases ─────────────────────────────────────────
+
+#[test]
+fn test_sep_while_at_least_empty_input() {
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_at_least_2)
+    .parse_str("+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_bounded_exactly_min() {
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_bounded)
+    .parse_str("1,2+");
+  assert_eq!(r.unwrap(), vec![1, 2]);
+}
+
+#[test]
+fn test_sep_while_bounded_exactly_max() {
+  let r: Result<Vec<i64>, WhileError> = Parser::new()
+    .apply(parse_while_bounded)
+    .parse_str("1,2,3,4+");
+  assert_eq!(r.unwrap(), vec![1, 2, 3, 4]);
+}
