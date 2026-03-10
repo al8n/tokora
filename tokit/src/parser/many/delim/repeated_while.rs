@@ -91,10 +91,10 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
             Ok(action) => match action {
               // missing ending delimiter
               Action::Stop => {
-                return inp
-                  .emitter()
-                  .emit_unexpected_token(err.unwrap())
-                  .map(|_| mem::take(container));
+                if let Some(err) = err {
+                  inp.emitter().emit_unexpected_token(err)?;
+                }
+                return Ok(mem::take(container));
               }
               Action::Continue => {
                 // TODO(al8n): tracing dropped element

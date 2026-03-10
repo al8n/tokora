@@ -623,3 +623,11 @@ fn main() {
   let output = Parser::new().apply(json_value).parse_str(SRC).unwrap();
   println!("{:#?}", output);
 }
+
+#[cfg(test)]
+mod tests {
+  #[test]
+  fn test_example() {
+    super::main();
+  }
+}

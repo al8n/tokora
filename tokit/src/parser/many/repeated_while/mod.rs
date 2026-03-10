@@ -173,7 +173,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W,
   where
     Delim: Delimiter<'inp, L, Lang>,
   {
-    DelimitedBy::<_, Delim>::new_in(self)
+    DelimitedBy::<_, Delim>::new(self)
   }
 }
 

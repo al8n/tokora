@@ -187,7 +187,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
 {
   /// Creates a new `SeparatedWhile` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new<Sep>(
+  pub const fn new<Sep>(
     f: F,
     condition: Condition,
   ) -> SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang> {
@@ -207,8 +207,9 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
 impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized>
   SeparatedWhile<F, Sep, Condition, O, Window, L, Ctx, Lang>
 {
+  /// Creates a mutable reference version of this `SeparatedWhile` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn as_mut(
+  pub const fn as_mut(
     &mut self,
   ) -> SeparatedWhile<&mut F, Sep, &mut Condition, O, Window, L, Ctx, Lang> {
     SeparatedWhile {
@@ -221,6 +222,18 @@ impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized>
       _ctx: PhantomData,
       _lang: PhantomData,
     }
+  }
+
+  /// Returns a mutable reference to the inner parser function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn fn_mut(&mut self) -> &mut F {
+    &mut self.f
+  }
+
+  /// Returns mutable references to the inner parser function and condition.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn parts_mut(&mut self) -> (&mut F, &mut Condition) {
+    (&mut self.f, &mut self.condition)
   }
 
   /// Sets the minimum number of elements to parse.
@@ -271,7 +284,7 @@ impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized>
   where
     Delim: Delimiter<'inp, L, Lang>,
   {
-    DelimitedBy::<_, Delim>::new_in(self)
+    DelimitedBy::<_, Delim>::new(self)
   }
 }
 

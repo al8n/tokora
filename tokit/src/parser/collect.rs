@@ -12,7 +12,7 @@ pub struct Collect<P, Container, Ctx, Lang: ?Sized = ()> {
 impl<P, Container, Ctx, Lang: ?Sized> Collect<P, Container, Ctx, Lang> {
   /// Creates a new `Collect` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new(parser: P, container: Container) -> Self {
+  pub const fn new(parser: P, container: Container) -> Self {
     Self {
       parser,
       container,
@@ -44,6 +44,12 @@ impl<P, Container, Ctx, Lang: ?Sized> Collect<P, Container, Ctx, Lang> {
       _ctx: PhantomData,
       _lang: PhantomData,
     }
+  }
+
+  /// Returns mutable references to the inner parser and container.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn parts_mut(&mut self) -> (&mut P, &mut Container) {
+    (&mut self.parser, &mut self.container)
   }
 
   /// Maps the inner container to a new container.

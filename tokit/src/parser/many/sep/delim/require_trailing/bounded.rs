@@ -118,30 +118,18 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        DelimitedBy {
-          parser:
-            RequireTrailing {
-              parser:
-                Bounded {
-                  parser: Separated { f, .. },
-                  maximum,
-                  minimum,
-                },
-            },
-          ..
-        },
-      container,
-      ..
-    } = self;
-    let parser = DelimitedBy::<_, Delim>::new_in(RequireTrailing::new(Bounded::new(
+    let (delim, container) = self.parts_mut();
+    let inner = delim.parser.parser_mut();
+    let maximum = inner.maximum();
+    let minimum = inner.minimum();
+    let f = inner.parser_mut().fn_mut();
+    let parser = DelimitedBy::<_, Delim>::new(RequireTrailing::new(Bounded::new(
       Separated::new::<Sep>(&mut **f),
       maximum.get(),
       minimum.get(),
     )));
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -177,21 +165,13 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     let limitation = RequireTrailing::new(parser.parser.parser.to_with());
 
-    let DelimitedBy {
-      parser: Bounded {
-        parser: Separated { f, .. },
-        ..
-      },
-      ..
-    } = parser.map_parser_mut(|p| p.parser_mut());
+    let f = parser.parser.parser_mut().parser_mut().fn_mut();
 
-    DelimitedBy::<_, Delim>::new_in(Separated::new::<Sep>(&mut **f)).parse_separated(
+    DelimitedBy::<_, Delim>::new(Separated::new::<Sep>(&mut **f)).parse_separated(
       inp,
       container,
       &limitation,

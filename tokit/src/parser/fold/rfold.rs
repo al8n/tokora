@@ -29,7 +29,7 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> RFold<P, Init, Acc, L, O, Ctx, Lang>
 }
 
 impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for RFold<P, Init, Acc, O, L, Ctx, Lang>
+  for RFold<P, Init, Acc, L, O, Ctx, Lang>
 where
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
   Init: FnMut() -> O,

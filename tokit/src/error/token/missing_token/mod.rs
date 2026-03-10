@@ -137,7 +137,7 @@ impl<Kind: Clone, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<Data
   /// Creates a new `MissingToken` error indicating a trailing token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn trailing_with_message_of(offset: O, message: CowStr) -> Self {
-    Self::with_message_of(offset, message)
+    Self::new_in(offset, None, Some(message))
   }
 }
 
@@ -151,7 +151,7 @@ impl<Kind: Clone, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<Data,
   /// Creates a new `MissingToken` error indicating a leading token was found.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn leading_with_message_of(offset: O, message: CowStr) -> Self {
-    Self::with_message_of(offset, message)
+    Self::new_in(offset, None, Some(message))
   }
 }
 
@@ -163,15 +163,6 @@ impl<Kind: Clone, O> MissingToken<'_, Kind, O> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn new(offset: O) -> Self {
     Self::of(offset)
-  }
-
-  /// Adds knowledge to the `MissingToken` error.
-  ///
-  /// This method allows attaching additional context or information
-  /// to the error, which can be useful for debugging or reporting.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_message(offset: O, message: CowStr) -> Self {
-    Self::with_message_of(offset, message)
   }
 }
 
@@ -204,8 +195,8 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// This method allows attaching additional context or information
   /// to the error, which can be useful for debugging or reporting.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_message_of(offset: O, message: CowStr) -> Self {
-    Self::new_in(offset, None, Some(message))
+  pub fn with_message(self, message: CowStr) -> Self {
+    Self::new_in(self.offset, self.expected, Some(message))
   }
 
   /// Creates a missing token error without a found token.
@@ -218,18 +209,17 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// ```
   /// use tokit::{SimpleSpan, utils::Expected, error::token::MissingToken};
   ///
-  /// let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::with_expected(
-  ///     SimpleSpan::new(100, 101),
-  ///     Expected::one("}")
-  /// );
-  /// assert_eq!(error.offset(), SimpleSpan::new(100, 101));
+  /// let error: MissingToken<'_, &str, usize> = MissingToken::new(
+  ///     100,
+  /// ).with_expected(Expected::one("}"));
+  /// assert_eq!(error.offset(), 100);
   /// if let Some(Expected::One(value)) = error.expected() {
   ///     assert_eq!(*value, "}");
   /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn with_expected(offset: O, expected: Expected<'a, Kind>) -> Self {
-    Self::new_in(offset, Some(expected), None)
+  pub fn with_expected(self, expected: Expected<'a, Kind>) -> Self {
+    Self::new_in(self.offset, Some(expected), None)
   }
 
   /// Creates a new missing token error with a single expected token.
@@ -250,7 +240,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn expected_one(offset: O, expected: Kind) -> Self {
-    Self::with_expected(offset, Expected::one(expected))
+    Self::new_in(offset, Some(Expected::one(expected)), None)
   }
 
   /// Creates a new missing token error with a single expected token.
@@ -292,7 +282,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn expected_one_of(offset: O, expected: &'static [Kind]) -> Self {
-    Self::with_expected(offset, Expected::one_of(expected))
+    Self::new_in(offset, Some(Expected::one_of(expected)), None)
   }
 
   /// Creates a new missing token error with multiple expected tokens.

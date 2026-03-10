@@ -92,17 +92,12 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser: AtMost {
-        parser: Separated { f, .. },
-        maximum,
-      },
-      container,
-      ..
-    } = self;
+    let (parser, container) = self.parts_mut();
+    let maximum = parser.maximum();
+    let f = parser.parser_mut().fn_mut();
     let parser = AtMost::new(Separated::new::<Sep>(&mut **f), maximum.get());
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -129,9 +124,7 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     let limitation = parser.maximum();
 

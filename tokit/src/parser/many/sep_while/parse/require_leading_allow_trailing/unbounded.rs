@@ -104,24 +104,15 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        RequireLeading {
-          parser:
-            AllowTrailing {
-              parser: SeparatedWhile { f, condition, .. },
-            },
-        },
-      container,
-      ..
-    } = self;
+    let (parser, container) = self.parts_mut();
+    let (f, condition) = parser.parser_mut().parser_mut().parts_mut();
 
     let parser = RequireLeading::new(AllowTrailing::new(SeparatedWhile::new::<Sep>(
       &mut *f,
       &mut *condition,
     )));
 
-    Wrapper(Collect::new(parser, container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -157,9 +148,7 @@ where
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     const HANDLER: &RequireLeading<AllowTrailing<Unbounded>> =
       &RequireLeading::new(AllowTrailing::new(Unbounded));
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     parser
       .parser_mut()

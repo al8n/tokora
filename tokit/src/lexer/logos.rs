@@ -204,3 +204,177 @@ pub mod logos_0_15 {
 pub mod logos_0_14 {
   bail!(logos_0_14);
 }
+
+#[cfg(test)]
+#[allow(warnings)]
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg(feature = "logos_0_16")]
+mod tests {
+  use super::super::{Lexer, Token as TokenTrait};
+  use crate::span::Span;
+
+  use ::logos_0_16 as logos;
+
+  #[derive(Debug, Clone, PartialEq, logos::Logos)]
+  #[logos(crate = logos, skip r"[ \t\r\n]+")]
+  enum TestTok {
+    #[token("+")]
+    Plus,
+    #[regex(r"[0-9]+")]
+    Num,
+  }
+
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+  enum TestKind {
+    Plus,
+    Num,
+  }
+
+  impl core::fmt::Display for TestKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      match self {
+        TestKind::Plus => write!(f, "+"),
+        TestKind::Num => write!(f, "number"),
+      }
+    }
+  }
+
+  impl core::fmt::Display for TestTok {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      match self {
+        TestTok::Plus => write!(f, "+"),
+        TestTok::Num => write!(f, "number"),
+      }
+    }
+  }
+
+  impl TokenTrait<'_> for TestTok {
+    type Kind = TestKind;
+    type Error = ();
+
+    fn kind(&self) -> TestKind {
+      match self {
+        TestTok::Plus => TestKind::Plus,
+        TestTok::Num => TestKind::Num,
+      }
+    }
+
+    fn is_trivia(&self) -> bool {
+      false
+    }
+  }
+
+  type TestLexer<'a> = super::logos_0_16::LogosLexer<'a, TestTok>;
+
+  #[test]
+  fn logos_lexer_new() {
+    let lexer = TestLexer::new("42 + 1");
+    let _ = lexer;
+  }
+
+  #[test]
+  fn logos_lexer_with_state() {
+    let lexer = TestLexer::with_state("42 + 1", ());
+    let _ = lexer;
+  }
+
+  #[test]
+  fn logos_lexer_lex_tokens() {
+    let mut lexer = TestLexer::new("42 + 1");
+    let tok1 = lexer.lex().unwrap().unwrap();
+    assert_eq!(tok1.kind(), TestKind::Num);
+    let tok2 = lexer.lex().unwrap().unwrap();
+    assert_eq!(tok2.kind(), TestKind::Plus);
+    let tok3 = lexer.lex().unwrap().unwrap();
+    assert_eq!(tok3.kind(), TestKind::Num);
+    assert!(lexer.lex().is_none());
+  }
+
+  #[test]
+  fn logos_lexer_source() {
+    let mut lexer = TestLexer::new("hello");
+    // Need to lex at least once to have a valid source reference
+    assert_eq!(lexer.source(), "hello");
+  }
+
+  #[test]
+  fn logos_lexer_state() {
+    let lexer = TestLexer::new("42");
+    let _state: &() = lexer.state();
+  }
+
+  #[test]
+  fn logos_lexer_state_mut() {
+    let mut lexer = TestLexer::new("42");
+    let _state: &mut () = lexer.state_mut();
+  }
+
+  #[test]
+  fn logos_lexer_into_state() {
+    let lexer = TestLexer::new("42");
+    let _state: () = lexer.into_state();
+  }
+
+  #[test]
+  fn logos_lexer_check() {
+    let lexer = TestLexer::new("42");
+    assert!(lexer.check().is_ok());
+  }
+
+  #[test]
+  fn logos_lexer_span() {
+    let mut lexer = TestLexer::new("42 + 1");
+    let _ = lexer.lex(); // consume "42"
+    let span = lexer.span();
+    assert_eq!(span.start(), 0);
+    assert_eq!(span.end(), 2);
+  }
+
+  #[test]
+  fn logos_lexer_slice() {
+    let mut lexer = TestLexer::new("42 + 1");
+    let _ = lexer.lex(); // consume "42"
+    assert_eq!(lexer.slice(), "42");
+  }
+
+  #[test]
+  fn logos_lexer_bump() {
+    let mut lexer = TestLexer::new("42 + 1");
+    lexer.bump(&1);
+    let _ = lexer;
+  }
+
+  #[test]
+  fn logos_lexer_inner() {
+    let lexer = TestLexer::new("42");
+    let _inner = lexer.inner();
+  }
+
+  #[test]
+  fn logos_lexer_inner_mut() {
+    let mut lexer = TestLexer::new("42");
+    let _inner = lexer.inner_mut();
+  }
+
+  #[test]
+  fn logos_lexer_into_inner() {
+    let lexer = TestLexer::new("42");
+    let _inner = lexer.into_inner();
+  }
+
+  #[test]
+  fn logos_lexer_into_lexer_trait() {
+    use super::super::IntoLexer;
+    use ::logos_0_16::Logos;
+    let raw_lexer = TestTok::lexer("42");
+    let _logos_lexer: TestLexer<'_> = raw_lexer.into_lexer();
+  }
+
+  #[test]
+  fn logos_lexer_from_logos_identity() {
+    use super::logos_0_16::FromLogos;
+    let tok = TestTok::Plus;
+    let converted = TestTok::from_logos(tok.clone());
+    assert_eq!(converted, tok);
+  }
+}

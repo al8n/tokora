@@ -121,30 +121,15 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        DelimitedBy {
-          parser:
-            RequireLeading {
-              parser:
-                RequireTrailing {
-                  parser:
-                    AtLeast {
-                      parser: Separated { f, .. },
-                      minimum,
-                    },
-                },
-            },
-          ..
-        },
-      container,
-      ..
-    } = self;
-    let parser = DelimitedBy::<_, Delim>::new_in(RequireLeading::new(RequireTrailing::new(
+    let (delim, container) = self.parts_mut();
+    let inner = delim.parser.parser_mut().parser_mut();
+    let minimum = inner.minimum();
+    let f = inner.parser_mut().fn_mut();
+    let parser = DelimitedBy::<_, Delim>::new(RequireLeading::new(RequireTrailing::new(
       AtLeast::new(Separated::new::<Sep>(&mut **f), minimum.get()),
     )));
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -182,23 +167,18 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     let minimum = RequireLeading::new(RequireTrailing::new(parser.parser.parser.parser.minimum()));
 
-    let DelimitedBy {
-      parser:
-        RequireLeading {
-          parser: RequireTrailing {
-            parser: Separated { f, .. },
-          },
-        },
-      ..
-    } = parser.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.parser_mut())));
+    let f = parser
+      .parser
+      .parser_mut()
+      .parser_mut()
+      .parser_mut()
+      .fn_mut();
 
-    DelimitedBy::<_, Delim>::new_in(Separated::new::<Sep>(&mut **f))
+    DelimitedBy::<_, Delim>::new(Separated::new::<Sep>(&mut **f))
       .parse_separated(inp, container, &minimum, &minimum, &minimum)
   }
 }

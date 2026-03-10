@@ -99,27 +99,16 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        RequireLeading {
-          parser:
-            AllowTrailing {
-              parser:
-                AtLeast {
-                  parser: Separated { f, .. },
-                  minimum,
-                },
-            },
-        },
-      container,
-      ..
-    } = self;
+    let (parser, container) = self.parts_mut();
+    let inner = parser.parser_mut().parser_mut();
+    let minimum = inner.minimum();
+    let f = inner.parser_mut().fn_mut();
     let parser = RequireLeading::new(AllowTrailing::new(AtLeast::new(
       Separated::new::<Sep>(&mut **f),
       minimum.get(),
     )));
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -150,9 +139,7 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     let limitation = RequireLeading::new(AllowTrailing::new(parser.parser.parser.minimum()));
 

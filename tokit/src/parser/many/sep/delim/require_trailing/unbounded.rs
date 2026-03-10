@@ -108,21 +108,12 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        DelimitedBy {
-          parser: RequireTrailing {
-            parser: Separated { f, .. },
-          },
-          ..
-        },
-      container,
-      ..
-    } = self;
+    let (delim, container) = self.parts_mut();
+    let f = delim.parser.parser_mut().fn_mut();
     let parser =
-      DelimitedBy::<_, Delim>::new_in(RequireTrailing::new(Separated::new::<Sep>(&mut **f)));
+      DelimitedBy::<_, Delim>::new(RequireTrailing::new(Separated::new::<Sep>(&mut **f)));
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -158,18 +149,11 @@ where
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     const UNBOUNDED: &RequireTrailing<Unbounded> = &RequireTrailing::new(Unbounded);
 
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
-    let DelimitedBy {
-      parser: RequireTrailing {
-        parser: Separated { f, .. },
-      },
-      ..
-    } = parser.map_parser_mut(|p| p.as_mut());
+    let f = parser.parser.parser_mut().fn_mut();
 
-    DelimitedBy::<_, Delim>::new_in(Separated::new::<Sep>(&mut **f))
+    DelimitedBy::<_, Delim>::new(Separated::new::<Sep>(&mut **f))
       .parse_separated(inp, container, UNBOUNDED, UNBOUNDED, UNBOUNDED)
   }
 }

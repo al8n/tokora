@@ -114,18 +114,12 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser: DelimitedBy {
-        parser: SeparatedWhile { f, condition, .. },
-        ..
-      },
-      container,
-      ..
-    } = self;
+    let (delim, container) = self.parts_mut();
+    let (f, condition) = delim.parser.parts_mut();
     let parser =
-      DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new::<Sep>(&mut **f, &mut *condition));
+      DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut *condition));
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -163,16 +157,11 @@ where
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     const UNBOUNDED: &Unbounded = &Unbounded;
 
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
-    let DelimitedBy {
-      parser: SeparatedWhile { f, condition, .. },
-      ..
-    } = parser.map_parser_mut(|p| p.as_mut());
+    let (f, condition) = parser.parser.parts_mut();
 
-    DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
       .parse_separated(inp, container, UNBOUNDED, UNBOUNDED, UNBOUNDED)
   }
 }
