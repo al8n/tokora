@@ -337,7 +337,7 @@ jobs:
           RUSTFLAGS: "--cfg tarpaulin"
         with:
           command: tarpaulin
-          args: --all-features --run-types AllTargets --workspace --out xml
+          args: --all-features --run-types tests --run-types doctests --run-types examples --run-types lib --workspace --out xml
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v5
         with:

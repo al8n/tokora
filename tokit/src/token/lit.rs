@@ -323,3 +323,256 @@ where
     (**self).is_null_literal()
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  // Use the DummyToken from the lexer module which implements LitToken with all defaults
+  use crate::lexer::DummyToken;
+
+  #[test]
+  fn default_is_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_literal());
+  }
+
+  #[test]
+  fn default_is_numeric_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_numeric_literal());
+  }
+
+  #[test]
+  fn default_is_integer_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_integer_literal());
+  }
+
+  #[test]
+  fn default_is_float_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_float_literal());
+  }
+
+  #[test]
+  fn default_is_decimal_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_decimal_literal());
+  }
+
+  #[test]
+  fn default_is_hexadecimal_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_hexadecimal_literal());
+  }
+
+  #[test]
+  fn default_is_octal_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_octal_literal());
+  }
+
+  #[test]
+  fn default_is_binary_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_binary_literal());
+  }
+
+  #[test]
+  fn default_is_hex_float_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_hex_float_literal());
+  }
+
+  #[test]
+  fn default_is_string_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_string_literal());
+  }
+
+  #[test]
+  fn default_is_inline_string_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_inline_string_literal());
+  }
+
+  #[test]
+  fn default_is_multiline_string_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_multiline_string_literal());
+  }
+
+  #[test]
+  fn default_is_raw_string_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_raw_string_literal());
+  }
+
+  #[test]
+  fn default_is_char_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_char_literal());
+  }
+
+  #[test]
+  fn default_is_byte_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_byte_literal());
+  }
+
+  #[test]
+  fn default_is_byte_string_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_byte_string_literal());
+  }
+
+  #[test]
+  fn default_is_boolean_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_boolean_literal());
+  }
+
+  #[test]
+  fn default_is_true_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_true_literal());
+  }
+
+  #[test]
+  fn default_is_false_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_false_literal());
+  }
+
+  #[test]
+  fn default_is_null_literal_false() {
+    let tok = DummyToken;
+    assert!(!tok.is_null_literal());
+  }
+
+  // Test the ref delegation
+  #[test]
+  fn ref_delegation() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_literal(r));
+    assert!(!LitToken::is_numeric_literal(r));
+    assert!(!LitToken::is_string_literal(r));
+    assert!(!LitToken::is_boolean_literal(r));
+    assert!(!LitToken::is_null_literal(r));
+  }
+
+  // Test all ref delegation methods individually for coverage
+  #[test]
+  fn ref_delegation_integer_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_integer_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_float_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_float_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_decimal_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_decimal_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_hexadecimal_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_hexadecimal_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_octal_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_octal_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_binary_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_binary_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_hex_float_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_hex_float_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_inline_string_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_inline_string_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_multiline_string_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_multiline_string_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_raw_string_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_raw_string_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_char_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_char_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_byte_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_byte_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_byte_string_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_byte_string_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_true_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_true_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_false_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_false_literal(r));
+  }
+
+  #[test]
+  fn ref_delegation_null_literal() {
+    let tok = DummyToken;
+    let r: &DummyToken = &tok;
+    assert!(!LitToken::is_null_literal(r));
+  }
+}

@@ -3,6 +3,7 @@ codecov:
 
 ignore:
   - tokit/examples/
+  - tokit/tests/
 
 coverage:
   status:

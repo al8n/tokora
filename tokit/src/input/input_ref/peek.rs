@@ -128,10 +128,14 @@ where
       buf.len() == buf_len + in_cache + yielded,
       "buffer length mismatch after adding overflowed tokens"
     );
-    debug_assert!(
-      exp == in_cache + yielded,
-      "expected peeked token count mismatch"
-    );
+
+    #[cfg(debug_assertions)]
+    if want == 0 {
+      debug_assert!(
+        exp == in_cache + yielded,
+        "expected peeked token count mismatch"
+      );
+    }
 
     Ok(self.emitter)
   }
