@@ -127,6 +127,8 @@ files are still below target, and add targeted tests until `src/` is ≥70%.
 
 ## Running coverage
 
+When calculating the coverage, you also should consider the ignore section of `.codecov.yml`.
+
 ```bash
 --all-features --run-types tests --run-types doctests --run-types examples --run-types lib --workspace
 ```
