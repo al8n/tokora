@@ -117,6 +117,7 @@ impl Source<usize> for str {
 }
 
 #[cfg(test)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
 

@@ -224,8 +224,11 @@ where
 }
 
 #[cfg(test)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
+
+  use std::format;
 
   #[test]
   fn missing_syntax_new() {

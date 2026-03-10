@@ -357,8 +357,11 @@ where
 }
 
 #[cfg(test)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
+
+  use std::format;
 
   // --- ParseAttempt tests ---
 

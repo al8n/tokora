@@ -119,10 +119,13 @@ const _: () = {
 };
 
 #[cfg(test)]
+#[allow(warnings)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
   use crate::lexer::DummyLexer;
   use crate::span::SimpleSpan;
+  use std::format;
 
   #[test]
   fn silent_new() {

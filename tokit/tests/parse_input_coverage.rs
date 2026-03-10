@@ -13,12 +13,8 @@ mod common;
 
 use common::{TestLexer, Token, TokenKind};
 use tokit::{
-  Accumulator, Emitter, InputRef, Located, Parse, ParseContext, ParseInput, Parser, TryParseInput,
-  parser::expect,
-  slice::Sliced,
-  span::Spanned,
-  try_parse_input::ParseAttempt,
-  utils::{Expected, IntoComponents},
+  Emitter, InputRef, Located, Parse, ParseContext, ParseInput, Parser, parser::expect,
+  slice::Sliced, span::Spanned, try_parse_input::ParseAttempt, utils::Expected,
 };
 
 // ── helper parsers ──────────────────────────────────────────────────────────
@@ -42,6 +38,7 @@ where
   .parse_input(inp)
 }
 
+#[allow(dead_code)]
 fn try_num<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
 ) -> Result<ParseAttempt<i64>, ()>
@@ -170,8 +167,8 @@ fn ignored_discards_output() {
     parse_num.ignored().parse_input(inp)
   }
 
-  let result = Parser::new().apply(parse).parse_str("42").unwrap();
-  assert_eq!(result, ());
+  Parser::new().apply(parse).parse_str("42").unwrap();
+  assert_eq!((), ());
 }
 
 #[test]

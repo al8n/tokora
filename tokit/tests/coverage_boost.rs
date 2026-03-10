@@ -207,9 +207,9 @@ fn cursor_and_offset_advance() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let before = inp.offset().clone();
+    let before = *inp.offset();
     let _ = inp.next()?;
-    let after = inp.offset().clone();
+    let after = *inp.offset();
     Ok((before, after))
   }
   let (before, after) = Parser::new().apply(parse).parse_str("42").unwrap();
@@ -228,10 +228,10 @@ fn span_since_covers_consumed_tokens() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let start = inp.cursor().clone();
+    let start = *inp.cursor();
     let _ = inp.next()?;
     let span = inp.span_since(&start);
-    Ok((span.start().clone(), span.end().clone()))
+    Ok((span.start(), span.end()))
   }
   let (start, end) = Parser::new().apply(parse).parse_str("42").unwrap();
   assert_eq!(start, 0);
@@ -247,9 +247,9 @@ fn span_from_cursor_to_end() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let start = inp.cursor().clone();
+    let start = *inp.cursor();
     let span = inp.span_from(&start);
-    Ok((span.start().clone(), span.end().clone()))
+    Ok((span.start(), span.end()))
   }
   let (start, end) = Parser::new().apply(parse).parse_str("42 55").unwrap();
   assert_eq!(start, 0);
@@ -265,11 +265,11 @@ fn span_range_between_cursors() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let start = inp.cursor().clone();
+    let start = *inp.cursor();
     let _ = inp.next()?;
-    let mid = inp.cursor().clone();
+    let mid = *inp.cursor();
     let span = inp.span_range(&start..&mid);
-    Ok((span.start().clone(), span.end().clone()))
+    Ok((span.start(), span.end()))
   }
   let (start, end) = Parser::new().apply(parse).parse_str("42 55").unwrap();
   assert_eq!(start, 0);
@@ -287,7 +287,7 @@ fn slice_since_returns_consumed_text() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let start = inp.cursor().clone();
+    let start = *inp.cursor();
     let _ = inp.next()?;
     Ok(inp.slice_since(&start))
   }
@@ -304,8 +304,8 @@ fn slice_from_returns_remaining_text() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let start = inp.cursor().clone();
-    Ok(inp.slice_from(&start))
+    let start = inp.cursor();
+    Ok(inp.slice_from(start))
   }
   let result = Parser::new().apply(parse).parse_str("42 55").unwrap();
   assert_eq!(result, Some("42 55"));
@@ -320,9 +320,9 @@ fn slice_range_returns_span_text() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let start = inp.cursor().clone();
+    let start = *inp.cursor();
     let _ = inp.next()?;
-    let mid = inp.cursor().clone();
+    let mid = *inp.cursor();
     Ok(inp.slice_range(&start..&mid))
   }
   let result = Parser::new().apply(parse).parse_str("42 55").unwrap();
@@ -369,8 +369,8 @@ fn span_returns_current_position() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let span = inp.span().clone();
-    Ok((span.start().clone(), span.end().clone()))
+    let span = inp.span();
+    Ok((span.start(), span.end()))
   }
   let (start, end) = Parser::new().apply(parse).parse_str("42").unwrap();
   assert_eq!(start, 0);
@@ -729,7 +729,7 @@ fn silent_emitter_new_and_default() {
   let s1: Silent<()> = Silent::new();
   let s2: Silent<()> = Silent::default();
   let s3 = s1;
-  let s4 = s2.clone();
+  let s4 = s2;
   assert_eq!(format!("{:?}", s3), "Silent");
   assert_eq!(format!("{:?}", s4), "Silent");
 }

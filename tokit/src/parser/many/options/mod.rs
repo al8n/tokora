@@ -60,9 +60,12 @@ impl Minimum {
 
 pub(super) struct Unbounded;
 
+#[allow(warnings)]
 #[cfg(test)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
+  use std::format;
 
   // --- Maximum tests ---
 
@@ -100,6 +103,7 @@ mod tests {
   }
 
   #[test]
+  #[cfg(feature = "std")]
   fn maximum_hash() {
     use std::collections::HashSet;
     let mut s = HashSet::new();
@@ -146,6 +150,7 @@ mod tests {
   }
 
   #[test]
+  #[cfg(feature = "std")]
   fn minimum_hash() {
     use std::collections::HashSet;
     let mut s = HashSet::new();

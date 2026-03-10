@@ -565,8 +565,10 @@ impl<D, Src> Sliced<D, Src> {
 }
 
 #[cfg(test)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
+  use std::{format, string::String, vec, vec::Vec};
 
   // --- Slice trait tests for &[u8] ---
 

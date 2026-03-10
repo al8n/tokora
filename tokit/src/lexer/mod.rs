@@ -404,6 +404,7 @@ pub trait Lexable<I, Error> {
 }
 
 #[cfg(test)]
+#[allow(warnings)]
 mod tests {
   use super::*;
 
@@ -456,7 +457,7 @@ mod tests {
   #[test]
   fn lexed_expect_error() {
     let lexed = Lexed::<'_, DummyToken>::Error(());
-    let _err = lexed.expect_error("should be an error");
+    lexed.expect_error("should be an error");
   }
 
   #[test]

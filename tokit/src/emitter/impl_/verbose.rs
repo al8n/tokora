@@ -198,8 +198,10 @@ where
 }
 
 #[cfg(test)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
+  use std::format;
 
   #[test]
   fn verbose_new_is_empty() {

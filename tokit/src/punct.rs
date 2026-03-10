@@ -425,9 +425,11 @@ where
 }
 
 #[cfg(test)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
   use core::borrow::Borrow;
+  use std::format;
 
   #[test]
   fn comma_unit_is_zero_sized() {
@@ -489,7 +491,7 @@ mod tests {
   fn str_partial_eq_punctuator() {
     let c = Comma::unit();
     assert!(*"," == c);
-    assert!(!(*";" == c));
+    assert!((*";" != c));
   }
 
   #[test]
@@ -524,7 +526,7 @@ mod tests {
   fn punctuator_clone_copy() {
     let c = Comma::unit();
     let c2 = c;
-    let c3 = c.clone();
+    let c3 = c;
     assert_eq!(c2.as_str(), c3.as_str());
   }
 

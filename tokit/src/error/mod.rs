@@ -574,9 +574,111 @@ impl<E, N: ArrayLength> ErrorContainer<E> for GenericArrayDeque<E, N> {
   }
 }
 
+#[cfg(any(feature = "std", feature = "alloc"))]
+const _: () = {
+  use std::{
+    collections::{VecDeque, vec_deque},
+    vec::{self, Vec},
+  };
+
+  impl<E> ErrorContainer<E> for Vec<E> {
+    type IntoIter = vec::IntoIter<E>;
+    type Iter<'a>
+      = core::slice::Iter<'a, E>
+    where
+      E: 'a;
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn new() -> Self {
+      Self::new()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn with_capacity(capacity: usize) -> Self {
+      Self::with_capacity(capacity)
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, error: E) {
+      self.push(error);
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn pop(&mut self) -> Option<E> {
+      if self.is_empty() {
+        None
+      } else {
+        Some(self.remove(0))
+      }
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn len(&self) -> usize {
+      self.len()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn iter(&self) -> Self::Iter<'_> {
+      self.as_slice().iter()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn into_iter(self) -> Self::IntoIter {
+      <Self as IntoIterator>::into_iter(self)
+    }
+  }
+
+  impl<E> ErrorContainer<E> for VecDeque<E> {
+    type IntoIter = vec_deque::IntoIter<E>;
+    type Iter<'a>
+      = vec_deque::Iter<'a, E>
+    where
+      E: 'a,
+      Self: 'a;
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn new() -> Self {
+      Self::new()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn with_capacity(capacity: usize) -> Self {
+      Self::with_capacity(capacity)
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn push(&mut self, error: E) {
+      self.push_back(error);
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn pop(&mut self) -> Option<E> {
+      self.pop_front()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn len(&self) -> usize {
+      self.len()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn iter(&self) -> Self::Iter<'_> {
+      self.iter()
+    }
+
+    #[cfg_attr(not(tarpaulin), inline(always))]
+    fn into_iter(self) -> Self::IntoIter {
+      <Self as IntoIterator>::into_iter(self)
+    }
+  }
+};
+
 #[cfg(test)]
+#[allow(warnings)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
+  use std::{vec, vec::Vec};
 
   // --- ErrorNode for &str ---
 
@@ -711,102 +813,3 @@ mod tests {
     assert_eq!(ErrorContainer::remaining_capacity(&c), None);
   }
 }
-
-#[cfg(any(feature = "std", feature = "alloc"))]
-const _: () = {
-  use std::{
-    collections::{VecDeque, vec_deque},
-    vec::{self, Vec},
-  };
-
-  impl<E> ErrorContainer<E> for Vec<E> {
-    type IntoIter = vec::IntoIter<E>;
-    type Iter<'a>
-      = core::slice::Iter<'a, E>
-    where
-      E: 'a;
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn new() -> Self {
-      Self::new()
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn with_capacity(capacity: usize) -> Self {
-      Self::with_capacity(capacity)
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn push(&mut self, error: E) {
-      self.push(error);
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn pop(&mut self) -> Option<E> {
-      if self.is_empty() {
-        None
-      } else {
-        Some(self.remove(0))
-      }
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn len(&self) -> usize {
-      self.len()
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn iter(&self) -> Self::Iter<'_> {
-      self.as_slice().iter()
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn into_iter(self) -> Self::IntoIter {
-      <Self as IntoIterator>::into_iter(self)
-    }
-  }
-
-  impl<E> ErrorContainer<E> for VecDeque<E> {
-    type IntoIter = vec_deque::IntoIter<E>;
-    type Iter<'a>
-      = vec_deque::Iter<'a, E>
-    where
-      E: 'a,
-      Self: 'a;
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn new() -> Self {
-      Self::new()
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn with_capacity(capacity: usize) -> Self {
-      Self::with_capacity(capacity)
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn push(&mut self, error: E) {
-      self.push_back(error);
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn pop(&mut self) -> Option<E> {
-      self.pop_front()
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn len(&self) -> usize {
-      self.len()
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn iter(&self) -> Self::Iter<'_> {
-      self.iter()
-    }
-
-    #[cfg_attr(not(tarpaulin), inline(always))]
-    fn into_iter(self) -> Self::IntoIter {
-      <Self as IntoIterator>::into_iter(self)
-    }
-  }
-};

@@ -87,9 +87,12 @@ where
 }
 
 #[cfg(test)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
   use crate::span::SimpleSpan;
+
+  use std::format;
 
   #[test]
   fn full_container_new() {

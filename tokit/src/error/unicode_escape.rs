@@ -2041,10 +2041,13 @@ impl<Char, O> UnicodeEscapeError<Char, O> {
 }
 
 #[cfg(test)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
   use crate::SimpleSpan;
   use crate::utils::PositionedChar;
+
+  use std::format;
 
   // --- InvalidUnicodeScalarKind ---
 

@@ -163,8 +163,14 @@ impl<T> From<T> for Recoverable<T> {
 }
 
 #[cfg(test)]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod tests {
   use super::*;
+  use std::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+  };
 
   // --- Recoverable tests ---
 
@@ -365,7 +371,7 @@ mod tests {
   #[test]
   fn lit_bool_new() {
     let lit = LitBool::<bool>::new(SimpleSpan::new(0, 4), true);
-    assert_eq!(lit.data(), true);
+    assert!(lit.data());
   }
 
   #[test]

@@ -4,13 +4,12 @@
 //! try_parse_exact, try_parse_exact_sliced and their _of variants.
 
 use tokit::{
-  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, Token as TokenT, TryParseInput,
+  Emitter, InputRef, Parse, ParseContext, Parser, Token as TokenT, TryParseInput,
   error::UnexpectedEot,
   logos::{self, Logos},
   token::{KeywordToken, PunctuatorToken},
   try_parse_input::ParseAttempt,
   types::Keyword,
-  utils::IntoComponents,
 };
 
 // ── Token with keywords ─────────────────────────────────────────────────────

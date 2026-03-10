@@ -141,13 +141,13 @@ mod tests {
 
   #[test]
   fn unit_cache_new() {
-    let cache = <() as Cache<'_, crate::lexer::DummyLexer>>::new();
-    assert_eq!(cache, ());
+    <() as Cache<'_, crate::lexer::DummyLexer>>::new();
+    assert_eq!((), ());
   }
 
   #[test]
   fn unit_cache_with_options() {
-    let cache = <() as Cache<'_, crate::lexer::DummyLexer>>::with_options(());
-    assert_eq!(cache, ());
+    <() as Cache<'_, crate::lexer::DummyLexer>>::with_options(());
+    assert_eq!((), ());
   }
 }
