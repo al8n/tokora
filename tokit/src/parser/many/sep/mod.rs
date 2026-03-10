@@ -177,7 +177,7 @@ where
 impl<F, O, L, Ctx, Lang: ?Sized> Separated<F, (), O, L, Ctx, Lang> {
   /// Creates a new `Separated` parser with the given container.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new<Sep>(f: F) -> Separated<F, Sep, O, L, Ctx, Lang> {
+  pub const fn new<Sep>(f: F) -> Separated<F, Sep, O, L, Ctx, Lang> {
     Separated {
       f,
       _sep: PhantomData,
@@ -190,8 +190,9 @@ impl<F, O, L, Ctx, Lang: ?Sized> Separated<F, (), O, L, Ctx, Lang> {
 }
 
 impl<F, Sep, O, L, Ctx, Lang: ?Sized> Separated<F, Sep, O, L, Ctx, Lang> {
+  /// Creates a mutable reference version of this `Separated` parser.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn as_mut(&mut self) -> Separated<&mut F, Sep, O, L, Ctx, Lang> {
+  pub const fn as_mut(&mut self) -> Separated<&mut F, Sep, O, L, Ctx, Lang> {
     Separated {
       f: &mut self.f,
       _sep: PhantomData,
@@ -200,6 +201,12 @@ impl<F, Sep, O, L, Ctx, Lang: ?Sized> Separated<F, Sep, O, L, Ctx, Lang> {
       _ctx: PhantomData,
       _lang: PhantomData,
     }
+  }
+
+  /// Returns a mutable reference to the inner parser function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn fn_mut(&mut self) -> &mut F {
+    &mut self.f
   }
 
   /// Sets the minimum number of elements to parse.
@@ -247,7 +254,7 @@ impl<F, Sep, O, L, Ctx, Lang: ?Sized> Separated<F, Sep, O, L, Ctx, Lang> {
   /// Creates a new `Delimited` parser with the given delimiters and separator.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::<_, Delim>::new_in(self)
+    DelimitedBy::<_, Delim>::new(self)
   }
 }
 

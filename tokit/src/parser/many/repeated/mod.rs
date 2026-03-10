@@ -165,7 +165,7 @@ impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::<_, Delim>::new_in(self)
+    DelimitedBy::<_, Delim>::new(self)
   }
 }
 
@@ -277,7 +277,12 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
           inp.emitter().emit_error(Spanned::new(span, err))?;
         }
       }
-      cursor = inp.cursor().clone();
+
+      let new_cursor = inp.cursor().clone();
+      if new_cursor.as_inner() == cursor.as_inner() {
+        break;
+      }
+      cursor = new_cursor;
     }
 
     rh.on_stop(num, inp, &ckp)

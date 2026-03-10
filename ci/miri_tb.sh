@@ -15,6 +15,28 @@ fi
 TARGET=$1
 CONFIG_FLAGS=$2
 
+# Install cross-compilation toolchain on Linux
+if [ "$(uname)" = "Linux" ]; then
+  sudo apt-get update
+  case "$TARGET" in
+    aarch64-unknown-linux-gnu)
+      sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu
+      ;;
+    i686-unknown-linux-gnu)
+      sudo apt-get install -y --no-install-recommends gcc-multilib
+      ;;
+    powerpc64-unknown-linux-gnu)
+      sudo apt-get install -y --no-install-recommends gcc-powerpc64-linux-gnu
+      ;;
+    s390x-unknown-linux-gnu)
+      sudo apt-get install -y --no-install-recommends gcc-s390x-linux-gnu
+      ;;
+    riscv64gc-unknown-linux-gnu)
+      sudo apt-get install -y --no-install-recommends gcc-riscv64-linux-gnu
+      ;;
+  esac
+fi
+
 rustup toolchain install nightly --component miri
 rustup override set nightly
 cargo miri setup

@@ -1,5 +1,3 @@
-> WIP: This project is still under active development and not ready for use.
-
 <div align="center">
 <h1>Tokit</h1>
 </div>
@@ -18,6 +16,36 @@ Blazing fast parser combinators with parse-while-lexing architecture (zero-copy)
 <img alt="license" src="https://img.shields.io/badge/License-Apache%202.0/MIT-blue.svg?style=for-the-badge&fontColor=white&logoColor=f5c076&logo=data:image/svg+xml;base64,PCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KDTwhLS0gVXBsb2FkZWQgdG86IFNWRyBSZXBvLCB3d3cuc3ZncmVwby5jb20sIFRyYW5zZm9ybWVkIGJ5OiBTVkcgUmVwbyBNaXhlciBUb29scyAtLT4KPHN2ZyBmaWxsPSIjZmZmZmZmIiBoZWlnaHQ9IjgwMHB4IiB3aWR0aD0iODAwcHgiIHZlcnNpb249IjEuMSIgaWQ9IkNhcGFfMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmlld0JveD0iMCAwIDI3Ni43MTUgMjc2LjcxNSIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgc3Ryb2tlPSIjZmZmZmZmIj4KDTxnIGlkPSJTVkdSZXBvX2JnQ2FycmllciIgc3Ryb2tlLXdpZHRoPSIwIi8+Cg08ZyBpZD0iU1ZHUmVwb190cmFjZXJDYXJyaWVyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KDTxnIGlkPSJTVkdSZXBvX2ljb25DYXJyaWVyIj4gPGc+IDxwYXRoIGQ9Ik0xMzguMzU3LDBDNjIuMDY2LDAsMCw2Mi4wNjYsMCwxMzguMzU3czYyLjA2NiwxMzguMzU3LDEzOC4zNTcsMTM4LjM1N3MxMzguMzU3LTYyLjA2NiwxMzguMzU3LTEzOC4zNTcgUzIxNC42NDgsMCwxMzguMzU3LDB6IE0xMzguMzU3LDI1OC43MTVDNzEuOTkyLDI1OC43MTUsMTgsMjA0LjcyMywxOCwxMzguMzU3UzcxLjk5MiwxOCwxMzguMzU3LDE4IHMxMjAuMzU3LDUzLjk5MiwxMjAuMzU3LDEyMC4zNTdTMjA0LjcyMywyNTguNzE1LDEzOC4zNTcsMjU4LjcxNXoiLz4gPHBhdGggZD0iTTE5NC43OTgsMTYwLjkwM2MtNC4xODgtMi42NzctOS43NTMtMS40NTQtMTIuNDMyLDIuNzMyYy04LjY5NCwxMy41OTMtMjMuNTAzLDIxLjcwOC0zOS42MTQsMjEuNzA4IGMtMjUuOTA4LDAtNDYuOTg1LTIxLjA3OC00Ni45ODUtNDYuOTg2czIxLjA3Ny00Ni45ODYsNDYuOTg1LTQ2Ljk4NmMxNS42MzMsMCwzMC4yLDcuNzQ3LDM4Ljk2OCwyMC43MjMgYzIuNzgyLDQuMTE3LDguMzc1LDUuMjAxLDEyLjQ5NiwyLjQxOGM0LjExOC0yLjc4Miw1LjIwMS04LjM3NywyLjQxOC0xMi40OTZjLTEyLjExOC0xNy45MzctMzIuMjYyLTI4LjY0NS01My44ODItMjguNjQ1IGMtMzUuODMzLDAtNjQuOTg1LDI5LjE1Mi02NC45ODUsNjQuOTg2czI5LjE1Miw2NC45ODYsNjQuOTg1LDY0Ljk4NmMyMi4yODEsMCw0Mi43NTktMTEuMjE4LDU0Ljc3OC0zMC4wMDkgQzIwMC4yMDgsMTY5LjE0NywxOTguOTg1LDE2My41ODIsMTk0Ljc5OCwxNjAuOTAzeiIvPiA8L2c+IDwvZz4KDTwvc3ZnPg==" height="22">
 
 </div>
+
+- [Overview](#overview)
+  - [Key Features](#key-features)
+- [Installation](#installation)
+  - [Feature Flags](#feature-flags)
+- [Core Components](#core-components)
+  - [Lexer Layer](#lexer-layer)
+  - [Error Handling](#error-handling)
+    - [Atomically Composable Trait Design](#atomically-composable-trait-design)
+    - [Built-in Emitter Strategies](#built-in-emitter-strategies)
+  - [Error Recovery](#error-recovery)
+    - [Recovery Strategies](#recovery-strategies)
+    - [Recovery Patterns](#recovery-patterns)
+  - [Utilities](#utilities)
+- [Examples](#examples)
+  - [`json` — JSON value parser](#json--json-value-parser)
+  - [`calculator` — arithmetic expression evaluator (token-level Pratt)](#calculator--arithmetic-expression-evaluator-token-level-pratt)
+  - [`s_expression` — Lisp S-expression interpreter (recursive descent)](#s_expression--lisp-s-expression-interpreter-recursive-descent)
+  - [`c_expression` — C-style expression parser (combinator-level Pratt)](#c_expression--c-style-expression-parser-combinator-level-pratt)
+- [Architecture](#architecture)
+- [Design Philosophy](#design-philosophy)
+  - [Parse-While-Lexing: Zero-Copy Streaming](#parse-while-lexing-zero-copy-streaming)
+  - [No Hidden Backtracking](#no-hidden-backtracking)
+  - [Parser Combinators + Deterministic Table Parsing](#parser-combinators--deterministic-table-parsing)
+  - [Atomically Composable Error Handling](#atomically-composable-error-handling)
+  - [Fail-Fast Runtime ↔ Comprehensive Compiler Diagnostics](#fail-fast-runtime--comprehensive-compiler-diagnostics)
+  - [Inspirations](#inspirations)
+  - [Core Priorities](#core-priorities)
+- [Who Uses Tokit?](#who-uses-tokit)
+- [License](#license)
 
 ## Overview
 
@@ -51,7 +79,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tokit = "0.0.0"
+tokit = "0.1"
 ```
 
 ### Feature Flags

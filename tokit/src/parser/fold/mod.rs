@@ -52,7 +52,7 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> Fold<P, Init, Acc, L, O, Ctx, Lang> 
 }
 
 impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for Fold<P, Init, Acc, O, L, Ctx, Lang>
+  for Fold<P, Init, Acc, L, O, Ctx, Lang>
 where
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
   Init: FnMut() -> O,
@@ -105,7 +105,7 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> TryFold<P, Init, Acc, L, O, Ctx, Lan
 }
 
 impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for TryFold<P, Init, Acc, O, L, Ctx, Lang>
+  for TryFold<P, Init, Acc, L, O, Ctx, Lang>
 where
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
   Init: FnMut() -> O,
@@ -158,7 +158,7 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> TryFoldWith<P, Init, Acc, L, O, Ctx,
 }
 
 impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for TryFoldWith<P, Init, Acc, O, L, Ctx, Lang>
+  for TryFoldWith<P, Init, Acc, L, O, Ctx, Lang>
 where
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
   Init: FnMut() -> O,

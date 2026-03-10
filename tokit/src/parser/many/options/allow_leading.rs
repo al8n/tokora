@@ -9,7 +9,7 @@ pub struct AllowLeading<P> {
 impl<P> AllowLeading<P> {
   /// Creates a new `AllowLeading` parser that allows leading separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(in crate::parser) const fn new(parser: P) -> Self {
+  pub const fn new(parser: P) -> Self {
     Self { parser }
   }
 
@@ -66,7 +66,7 @@ impl<P> AllowLeading<P> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::<_, Delim>::new_in(self)
+    DelimitedBy::<_, Delim>::new(self)
   }
 
   /// Returns a mutable reference to the `AllowLeading` parser wrapping the inner parser.
@@ -79,7 +79,7 @@ impl<P> AllowLeading<P> {
 
   /// Maps the inner parser to a new parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AllowLeading<NP>
+  pub fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AllowLeading<NP>
   where
     F: FnOnce(&'a mut P) -> NP,
     NP: 'a,

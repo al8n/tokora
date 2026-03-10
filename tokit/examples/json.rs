@@ -1,3 +1,11 @@
+//! JSON parser example demonstrating advanced tokit features.
+//!
+//! This example parses JSON (objects, arrays, strings, numbers, booleans, null)
+//! using `peek_then_choice` for deterministic dispatch, `separated_by` for
+//! comma-separated lists, and `DelimitedBy` for bracket/brace-delimited containers.
+//!
+//! Run: `cargo run --example json --features logos`
+
 use std::num::ParseFloatError;
 
 use derive_more::{Display, From, Unwrap};
@@ -622,4 +630,12 @@ const SRC: &str = include_str!("sample.json");
 fn main() {
   let output = Parser::new().apply(json_value).parse_str(SRC).unwrap();
   println!("{:#?}", output);
+}
+
+#[cfg(test)]
+mod tests {
+  #[test]
+  fn test_example() {
+    super::main();
+  }
 }

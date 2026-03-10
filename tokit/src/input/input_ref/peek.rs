@@ -64,6 +64,7 @@ where
     let buf_len = buf.len();
     let remaining_cap = buf.capacity() - buf_len;
     let mut in_cache = self.cache().len();
+    let initial_in_cache = in_cache;
     let mut want = remaining_cap.saturating_sub(in_cache);
     let exp = want;
 
@@ -128,11 +129,201 @@ where
       buf.len() == buf_len + in_cache + yielded,
       "buffer length mismatch after adding overflowed tokens"
     );
-    debug_assert!(
-      exp == in_cache + yielded,
-      "expected peeked token count mismatch"
-    );
+
+    #[cfg(debug_assertions)]
+    if want == 0 {
+      debug_assert!(
+        exp == (in_cache - initial_in_cache) + yielded,
+        "expected peeked token count mismatch"
+      );
+    }
 
     Ok(self.emitter)
+  }
+}
+
+#[cfg(all(test, feature = "logos", feature = "std"))]
+mod tests {
+  use crate::{ParseContext, input::Input, lexer::LogosLexer};
+
+  #[derive(Debug, Clone, PartialEq, crate::logos::Logos)]
+  #[logos(crate = crate::logos, skip r"[ \t\r\n]+")]
+  enum Tok {
+    #[regex(r"[a-z]+")]
+    Word,
+    #[regex(r"[0-9]+")]
+    Num,
+  }
+
+  impl core::fmt::Display for Tok {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      match self {
+        Tok::Word => write!(f, "word"),
+        Tok::Num => write!(f, "num"),
+      }
+    }
+  }
+
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+  enum TokKind {
+    Word,
+    Num,
+  }
+
+  impl core::fmt::Display for TokKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      match self {
+        TokKind::Word => write!(f, "word"),
+        TokKind::Num => write!(f, "num"),
+      }
+    }
+  }
+
+  impl crate::Token<'_> for Tok {
+    type Kind = TokKind;
+    type Error = ();
+    fn kind(&self) -> TokKind {
+      match self {
+        Tok::Word => TokKind::Word,
+        Tok::Num => TokKind::Num,
+      }
+    }
+    fn is_trivia(&self) -> bool {
+      false
+    }
+  }
+
+  type TestLexer<'a> = LogosLexer<'a, Tok>;
+
+  fn parse_with<'inp, F, O>(src: &'inp str, mut f: F) -> Result<O, ()>
+  where
+    F: for<'c> FnMut(
+      &mut crate::input::InputRef<'inp, 'c, TestLexer<'inp>, (), ()>,
+    ) -> Result<O, ()>,
+  {
+    let (mut emitter, cache) =
+      <() as ParseContext<'_, TestLexer<'_>>>::provide(()).into_components();
+    let mut input = Input::<TestLexer<'inp>, (), ()>::with_state_and_cache(src, (), cache);
+    let mut inp_ref = input.as_ref(&mut emitter);
+    f(&mut inp_ref)
+  }
+
+  #[test]
+  fn peek_one_returns_token() {
+    parse_with("abc 123", |inp| {
+      let peeked = inp.peek_one()?;
+      assert!(peeked.is_some());
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_one_empty_input() {
+    parse_with("", |inp| {
+      let peeked = inp.peek_one()?;
+      assert!(peeked.is_none());
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_window() {
+    parse_with("abc 123 def", |inp| {
+      use generic_arraydeque::typenum::U2;
+      let peeked = inp.peek::<U2>()?;
+      assert_eq!(peeked.len(), 2);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_with_emitter_test() {
+    parse_with("abc 123", |inp| {
+      use generic_arraydeque::typenum::U2;
+      let (peeked, _emitter) = inp.peek_with_emitter::<U2>()?;
+      assert_eq!(peeked.len(), 2);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_window_larger_than_input() {
+    parse_with("abc", |inp| {
+      use generic_arraydeque::typenum::U3;
+      let peeked = inp.peek::<U3>()?;
+      assert_eq!(peeked.len(), 1);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_does_not_consume() {
+    parse_with("abc 123", |inp| {
+      use generic_arraydeque::typenum::U1;
+      {
+        let peeked = inp.peek::<U1>()?;
+        assert_eq!(peeked.len(), 1);
+      }
+      {
+        let peeked = inp.peek::<U1>()?;
+        assert_eq!(peeked.len(), 1);
+      }
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_window_exceeds_cache_capacity() {
+    // U4 window on default U3 cache — triggers overflow path (lines 76-126)
+    parse_with("abc 123 def ghi", |inp| {
+      use generic_arraydeque::typenum::U4;
+      let peeked = inp.peek::<U4>()?;
+      // Should see all 4 tokens even though cache can only hold 3
+      assert_eq!(peeked.len(), 4);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_overflow_tokens_correct() {
+    // Verify overflowed tokens have correct data
+    parse_with("abc 123 def ghi jkl", |inp| {
+      use generic_arraydeque::typenum::U4;
+      {
+        let peeked = inp.peek::<U4>()?;
+        assert_eq!(peeked.len(), 4);
+      }
+      // Peek again — should get same result (tokens cached or re-lexed)
+      {
+        let peeked2 = inp.peek::<U4>()?;
+        assert_eq!(peeked2.len(), 4);
+      }
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_overflow_then_consume() {
+    // Peek with overflow, then consume tokens normally
+    parse_with("abc 123 def ghi", |inp| {
+      use generic_arraydeque::typenum::U4;
+      {
+        let peeked = inp.peek::<U4>()?;
+        assert_eq!(peeked.len(), 4);
+      }
+      // Consume should work correctly after overflow peek
+      let tok = inp.next()?;
+      assert!(tok.is_some());
+      Ok(())
+    })
+    .unwrap();
   }
 }

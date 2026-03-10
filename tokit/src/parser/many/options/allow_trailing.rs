@@ -9,7 +9,7 @@ pub struct AllowTrailing<P> {
 impl<P> AllowTrailing<P> {
   /// Creates a new `AllowTrailing` parser that allows trailing separators.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(in crate::parser) const fn new(parser: P) -> Self {
+  pub const fn new(parser: P) -> Self {
     Self { parser }
   }
 
@@ -46,7 +46,7 @@ impl<P> AllowTrailing<P> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::<_, Delim>::new_in(self)
+    DelimitedBy::<_, Delim>::new(self)
   }
 
   /// Returns a mutable reference to the inner parser.
@@ -65,7 +65,7 @@ impl<P> AllowTrailing<P> {
 
   /// Maps the inner parser to a new parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AllowTrailing<NP>
+  pub fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AllowTrailing<NP>
   where
     F: FnOnce(&'a mut P) -> NP,
     NP: 'a,

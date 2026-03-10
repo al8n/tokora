@@ -96,7 +96,11 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
         }
       }
 
-      cursor = inp.cursor().clone();
+      let new_cursor = inp.cursor().clone();
+      if new_cursor.as_inner() == cursor.as_inner() {
+        return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
+      }
+      cursor = new_cursor;
     }
   }
 

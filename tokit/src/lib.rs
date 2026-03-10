@@ -184,6 +184,9 @@ pub mod token;
 /// intermediate buffering.
 pub mod input;
 
+/// Convenience re-exports for common usage.
+pub mod prelude;
+
 /// Tentative parsing trait
 pub mod try_parse_input;
 

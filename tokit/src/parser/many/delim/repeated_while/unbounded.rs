@@ -29,7 +29,7 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    DelimitedBy::<_, Delim>::new_in(&mut self.parser.parser).parse_repeated(
+    DelimitedBy::<_, Delim>::new(&mut self.parser.parser).parse_repeated(
       inp,
       &mut self.container,
       |_, _, _| Ok(()),
