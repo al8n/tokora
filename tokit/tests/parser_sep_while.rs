@@ -696,3 +696,254 @@ fn test_sep_while_bounded_exactly_max() {
     .parse_str("1,2,3,4+");
   assert_eq!(r.unwrap(), vec![1, 2, 3, 4]);
 }
+
+// ── Handler error path: trailing separator with count modifiers ──────────
+
+#[test]
+fn test_sep_while_allow_trailing_single() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_trailing)
+    .parse_str("42+")
+    .unwrap();
+  assert_eq!(r, vec![42]);
+}
+
+#[test]
+fn test_sep_while_allow_trailing_single_with_trailing() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_trailing)
+    .parse_str("42,+")
+    .unwrap();
+  assert_eq!(r, vec![42]);
+}
+
+#[test]
+fn test_sep_while_allow_trailing_empty() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_trailing)
+    .parse_str("+")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn test_sep_while_allow_trailing_only_comma() {
+  // Leading comma with allow_trailing = error (unexpected leading sep)
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_trailing)
+    .parse_str(",+");
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_allow_leading_single() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_leading)
+    .parse_str("42+")
+    .unwrap();
+  assert_eq!(r, vec![42]);
+}
+
+#[test]
+fn test_sep_while_allow_leading_single_with_leading() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_leading)
+    .parse_str(",42+")
+    .unwrap();
+  assert_eq!(r, vec![42]);
+}
+
+#[test]
+fn test_sep_while_allow_leading_empty() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_leading)
+    .parse_str("+")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn test_sep_while_allow_leading_only_comma() {
+  // Trailing comma with allow_leading = emit trailing sep error
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_leading)
+    .parse_str(",+");
+  // This triggers handle_leading_state → emit_missing_element
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_allow_surrounded_empty() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_surrounded)
+    .parse_str("+")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn test_sep_while_allow_surrounded_single() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_surrounded)
+    .parse_str("1+")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn test_sep_while_allow_surrounded_only_leading() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_surrounded)
+    .parse_str(",1,2+")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn test_sep_while_allow_surrounded_only_trailing() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_surrounded)
+    .parse_str("1,2,+")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn test_sep_while_allow_surrounded_single_with_both() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_surrounded)
+    .parse_str(",1,+")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn test_sep_while_allow_surrounded_only_comma() {
+  // Just a comma, no items: leading handled, no item follows
+  let r: Result<Vec<i64>, _> = Parser::new()
+    .apply(parse_while_allow_surrounded)
+    .parse_str(",+");
+  // allow_surrounded with just comma: triggers handle_leading_state
+  assert!(r.is_err());
+}
+
+// ── Handler paths with at_least/at_most/bounded + trailing/leading ───────
+
+fn parse_while_allow_trailing_bounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, WhileError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: WhileEmitter<'inp>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  parse_num_while
+    .separated_by_comma_while::<_, U1>(decide_num::<Ctx>)
+    .allow_trailing()
+    .bounded(2, 4)
+    .collect()
+    .parse_input(inp)
+}
+
+fn parse_while_plain<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, WhileError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: WhileEmitter<'inp>,
+{
+  parse_num_while
+    .separated_by_comma_while::<_, U1>(decide_num::<Ctx>)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn test_sep_while_allow_trailing_bounded_trailing_comma() {
+  // "1,2," with allow_trailing bounded(2,4) → ok, trailing sep handled
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_trailing_bounded)
+    .parse_str("1,2,+")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn test_sep_while_allow_trailing_bounded_max_with_trailing() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_trailing_bounded)
+    .parse_str("1,2,3,4,+")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn test_sep_while_allow_leading_bounded_leading_comma() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_leading_bounded)
+    .parse_str(",1,2+")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn test_sep_while_allow_leading_at_most_single() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_leading_at_most_2)
+    .parse_str(",1+")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn test_sep_while_allow_surrounded_bounded_max_with_both() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_surrounded_bounded)
+    .parse_str(",1,2,3,4,+")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn test_sep_while_allow_surrounded_at_most_single() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_allow_surrounded_at_most_2)
+    .parse_str(",1,+")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+// ── Plain parser edge cases ─────────────────────────────────────────────
+
+#[test]
+fn test_sep_while_plain_empty() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_plain)
+    .parse_str("+")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn test_sep_while_plain_single() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_while_plain)
+    .parse_str("42+")
+    .unwrap();
+  assert_eq!(r, vec![42]);
+}
+
+#[test]
+fn test_sep_while_plain_trailing_comma_err() {
+  let r: Result<Vec<i64>, _> = Parser::new().apply(parse_while_plain).parse_str("1,2,+");
+  // Plain parser: trailing comma triggers emit_missing_element
+  assert!(r.is_err());
+}
+
+#[test]
+fn test_sep_while_plain_leading_comma_err() {
+  let r: Result<Vec<i64>, _> = Parser::new().apply(parse_while_plain).parse_str(",1+");
+  // Plain: leading comma triggers emit_unexpected_leading_separator
+  assert!(r.is_err());
+}

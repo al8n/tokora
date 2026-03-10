@@ -3,7 +3,7 @@
 //! Comprehensive tests for all separator policies combined with delimited
 //! parsing and count modifiers (unbounded, at_least, at_most, bounded).
 //!
-//! Covers 8 policies x 4 count variants x 2 test types (success + error) = 64 tests.
+//! Covers 8 policies x 4 count variants with multiple test types (success + error).
 
 mod common;
 
@@ -1562,4 +1562,773 @@ fn require_leading_allow_trailing_bounded_missing_leading_err() {
     .apply(parse_rlat_bounded)
     .parse_str("[1,2,3,]");
   assert!(r.is_err());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 9. Additional edge-case and success-path tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── 1. allow_leading: extra success-path coverage ────────────────────────────
+
+#[test]
+fn allow_leading_unbounded_empty_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_al).parse_str("[]").unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn allow_leading_unbounded_single_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_al).parse_str("[1]").unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn allow_leading_unbounded_leading_single_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_al).parse_str("[,1]").unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn allow_leading_at_least_no_leading_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_al_at_least)
+    .parse_str("[1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_leading_at_least_three_elements() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_al_at_least)
+    .parse_str("[,1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn allow_leading_at_most_exact_max() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_al_at_most)
+    .parse_str("[,1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn allow_leading_at_most_no_leading_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_al_at_most)
+    .parse_str("[1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_leading_at_most_empty_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_al_at_most)
+    .parse_str("[]")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn allow_leading_bounded_at_min() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_al_bounded)
+    .parse_str("[,1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_leading_bounded_no_leading_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_al_bounded)
+    .parse_str("[1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+// ── 2. allow_trailing: extra success-path coverage ───────────────────────────
+
+#[test]
+fn allow_trailing_unbounded_empty_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_at).parse_str("[]").unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn allow_trailing_unbounded_single_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_at).parse_str("[1]").unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn allow_trailing_unbounded_single_trailing_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_at).parse_str("[1,]").unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn allow_trailing_at_least_no_trailing_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_at_at_least)
+    .parse_str("[1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_trailing_at_least_three_elements() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_at_at_least)
+    .parse_str("[1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn allow_trailing_at_most_exact_max() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_at_at_most)
+    .parse_str("[1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn allow_trailing_at_most_no_trailing_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_at_at_most)
+    .parse_str("[1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_trailing_at_most_empty_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_at_at_most)
+    .parse_str("[]")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn allow_trailing_bounded_at_min() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_at_bounded)
+    .parse_str("[1,2,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_trailing_bounded_no_trailing_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_at_bounded)
+    .parse_str("[1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+// ── 3. require_leading: extra edge cases ─────────────────────────────────────
+
+#[test]
+fn require_leading_unbounded_empty_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rl)
+    .parse_str("[]")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn require_leading_unbounded_single_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rl)
+    .parse_str("[,1]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn require_leading_unbounded_many_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rl)
+    .parse_str("[,1,2,3,4,5]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4, 5]);
+}
+
+#[test]
+fn require_leading_at_least_exact_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rl_at_least)
+    .parse_str("[,1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn require_leading_at_least_above_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rl_at_least)
+    .parse_str("[,1,2,3,4]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn require_leading_at_most_at_max() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rl_at_most)
+    .parse_str("[,1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn require_leading_at_most_single_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rl_at_most)
+    .parse_str("[,1]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn require_leading_bounded_at_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rl_bounded)
+    .parse_str("[,1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn require_leading_bounded_at_max() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rl_bounded)
+    .parse_str("[,1,2,3,4]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn require_leading_bounded_mid_range() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rl_bounded)
+    .parse_str("[,1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+// ── 4. require_trailing: extra edge cases ────────────────────────────────────
+
+#[test]
+fn require_trailing_unbounded_single_trailing_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rt)
+    .parse_str("[1,]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn require_trailing_unbounded_many_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rt)
+    .parse_str("[1,2,3,4,5,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4, 5]);
+}
+
+#[test]
+fn require_trailing_at_least_three_elements() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rt_at_least)
+    .parse_str("[1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn require_trailing_at_most_single_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rt_at_most)
+    .parse_str("[1,]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn require_trailing_bounded_at_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rt_bounded)
+    .parse_str("[1,2,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn require_trailing_bounded_mid_range() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rt_bounded)
+    .parse_str("[1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+// ── 5. allow_surrounded: extra edge cases ────────────────────────────────────
+
+#[test]
+fn allow_surrounded_unbounded_empty_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_as).parse_str("[]").unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn allow_surrounded_unbounded_single_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_as).parse_str("[1]").unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn allow_surrounded_unbounded_only_leading_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_as).parse_str("[,1,2,3]").unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn allow_surrounded_unbounded_only_trailing_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_as).parse_str("[1,2,3,]").unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn allow_surrounded_unbounded_single_both_ok() {
+  let r: Vec<i64> = Parser::new().apply(parse_as).parse_str("[,1,]").unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn allow_surrounded_at_least_only_leading_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_as_at_least)
+    .parse_str("[,1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_surrounded_at_least_only_trailing_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_as_at_least)
+    .parse_str("[1,2,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_surrounded_at_least_neither_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_as_at_least)
+    .parse_str("[1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn allow_surrounded_at_most_single_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_as_at_most)
+    .parse_str("[,1,]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn allow_surrounded_at_most_empty_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_as_at_most)
+    .parse_str("[]")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn allow_surrounded_at_most_neither_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_as_at_most)
+    .parse_str("[1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_surrounded_bounded_at_min() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_as_bounded)
+    .parse_str("[,1,2,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_surrounded_bounded_neither_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_as_bounded)
+    .parse_str("[1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn allow_surrounded_bounded_only_leading_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_as_bounded)
+    .parse_str("[,1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn allow_surrounded_bounded_only_trailing_ok() {
+  let r: Vec<i64> = Parser::new()
+    .apply(parse_as_bounded)
+    .parse_str("[1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+// ── 6. require_surrounded: extra edge cases ──────────────────────────────────
+
+#[test]
+fn require_surrounded_unbounded_empty_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs)
+    .parse_str("[]")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn require_surrounded_unbounded_single_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs)
+    .parse_str("[,1,]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn require_surrounded_unbounded_many_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs)
+    .parse_str("[,1,2,3,4,5,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4, 5]);
+}
+
+#[test]
+fn require_surrounded_unbounded_missing_leading_and_trailing_err() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_rs)
+    .parse_str("[1,2,3]");
+  assert!(r.is_err());
+}
+
+#[test]
+fn require_surrounded_at_least_exact_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs_at_least)
+    .parse_str("[,1,2,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn require_surrounded_at_least_above_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs_at_least)
+    .parse_str("[,1,2,3,4,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn require_surrounded_at_most_at_max() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs_at_most)
+    .parse_str("[,1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn require_surrounded_at_most_single_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs_at_most)
+    .parse_str("[,1,]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn require_surrounded_bounded_at_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs_bounded)
+    .parse_str("[,1,2,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn require_surrounded_bounded_at_max() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs_bounded)
+    .parse_str("[,1,2,3,4,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn require_surrounded_bounded_mid_range() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs_bounded)
+    .parse_str("[,1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+// ── 7. allow_leading_require_trailing: extra edge cases ──────────────────────
+
+#[test]
+fn allow_leading_require_trailing_unbounded_empty_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt)
+    .parse_str("[]")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn allow_leading_require_trailing_unbounded_single_trailing_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt)
+    .parse_str("[1,]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn allow_leading_require_trailing_unbounded_many_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt)
+    .parse_str("[,1,2,3,4,5,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4, 5]);
+}
+
+#[test]
+fn allow_leading_require_trailing_unbounded_single_both_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt)
+    .parse_str("[,1,]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn allow_leading_require_trailing_at_least_no_leading_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_at_least)
+    .parse_str("[1,2,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_leading_require_trailing_at_least_above_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_at_least)
+    .parse_str("[,1,2,3,4,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn allow_leading_require_trailing_at_most_no_leading_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_at_most)
+    .parse_str("[1,2,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_leading_require_trailing_at_most_single_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_at_most)
+    .parse_str("[,1,]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn allow_leading_require_trailing_bounded_at_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_bounded)
+    .parse_str("[,1,2,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn allow_leading_require_trailing_bounded_no_leading_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_bounded)
+    .parse_str("[1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn allow_leading_require_trailing_bounded_mid_range() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_bounded)
+    .parse_str("[,1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+// ── 8. require_leading_allow_trailing: extra edge cases ──────────────────────
+
+#[test]
+fn require_leading_allow_trailing_unbounded_empty_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat)
+    .parse_str("[]")
+    .unwrap();
+  assert_eq!(r, vec![]);
+}
+
+#[test]
+fn require_leading_allow_trailing_unbounded_single_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat)
+    .parse_str("[,1]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn require_leading_allow_trailing_unbounded_with_trailing_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat)
+    .parse_str("[,1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn require_leading_allow_trailing_unbounded_no_trailing_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat)
+    .parse_str("[,1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn require_leading_allow_trailing_unbounded_many_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat)
+    .parse_str("[,1,2,3,4,5]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4, 5]);
+}
+
+#[test]
+fn require_leading_allow_trailing_at_least_exact_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_at_least)
+    .parse_str("[,1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn require_leading_allow_trailing_at_least_with_trailing_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_at_least)
+    .parse_str("[,1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn require_leading_allow_trailing_at_most_at_max() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_at_most)
+    .parse_str("[,1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn require_leading_allow_trailing_at_most_with_trailing_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_at_most)
+    .parse_str("[,1,2,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn require_leading_allow_trailing_at_most_single_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_at_most)
+    .parse_str("[,1]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn require_leading_allow_trailing_bounded_at_min() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_bounded)
+    .parse_str("[,1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn require_leading_allow_trailing_bounded_at_max() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_bounded)
+    .parse_str("[,1,2,3,4]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3, 4]);
+}
+
+#[test]
+fn require_leading_allow_trailing_bounded_with_trailing_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_bounded)
+    .parse_str("[,1,2,3,]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn require_leading_allow_trailing_bounded_mid_range() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_bounded)
+    .parse_str("[,1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
 }

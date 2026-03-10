@@ -435,4 +435,215 @@ mod tests {
     let list = IdentList::<&str>::new(SimpleSpan::new(0, 3), idents);
     assert!(list.is_missing());
   }
+
+  // --- Additional Keyword tests for coverage ---
+
+  #[test]
+  fn keyword_span_ref() {
+    let kw = Keyword::<&str>::new(SimpleSpan::new(5, 11), "return");
+    assert_eq!(*kw.span_ref(), SimpleSpan::new(5, 11));
+  }
+
+  #[test]
+  fn keyword_as_span() {
+    let kw = Keyword::<&str>::new(SimpleSpan::new(5, 11), "return");
+    assert_eq!(*AsSpan::as_span(&kw), SimpleSpan::new(5, 11));
+  }
+
+  #[test]
+  fn keyword_into_components_trait() {
+    use crate::utils::IntoComponents;
+    let kw = Keyword::<&str>::new(SimpleSpan::new(0, 3), "let");
+    let (span, source) = IntoComponents::into_components(kw);
+    assert_eq!(span, SimpleSpan::new(0, 3));
+    assert_eq!(source, "let");
+  }
+
+  #[test]
+  fn keyword_into_components_method() {
+    let kw = Keyword::<&str>::new(SimpleSpan::new(0, 3), "let");
+    let (span, source) = kw.into_components();
+    assert_eq!(span, SimpleSpan::new(0, 3));
+    assert_eq!(source, "let");
+  }
+
+  // --- Additional Ident tests for coverage ---
+
+  #[test]
+  fn ident_span_ref() {
+    let ident = Ident::<&str>::new(SimpleSpan::new(0, 3), "foo");
+    assert_eq!(*ident.span_ref(), SimpleSpan::new(0, 3));
+  }
+
+  #[test]
+  fn ident_as_span() {
+    let ident = Ident::<&str>::new(SimpleSpan::new(0, 3), "foo");
+    assert_eq!(*AsSpan::as_span(&ident), SimpleSpan::new(0, 3));
+  }
+
+  #[test]
+  fn ident_into_components_trait() {
+    use crate::utils::IntoComponents;
+    let ident = Ident::<&str>::new(SimpleSpan::new(0, 3), "foo");
+    let (span, source) = IntoComponents::into_components(ident);
+    assert_eq!(span, SimpleSpan::new(0, 3));
+    assert_eq!(source, "foo");
+  }
+
+  #[test]
+  fn ident_bump() {
+    let mut ident = Ident::<&str>::new(SimpleSpan::new(0, 3), "foo");
+    ident.bump(&5);
+    assert_eq!(ident.span(), SimpleSpan::new(5, 8));
+  }
+
+  // --- Additional IdentList tests for coverage ---
+
+  #[test]
+  fn ident_list_span_ref() {
+    let list = IdentList::<&str>::new(SimpleSpan::new(0, 7), Vec::new());
+    assert_eq!(*list.span_ref(), SimpleSpan::new(0, 7));
+  }
+
+  #[test]
+  fn ident_list_span_mut() {
+    let mut list = IdentList::<&str>::new(SimpleSpan::new(0, 7), Vec::new());
+    *list.span_mut() = SimpleSpan::new(10, 17);
+    assert_eq!(list.span(), SimpleSpan::new(10, 17));
+  }
+
+  #[test]
+  fn ident_list_as_span() {
+    let list = IdentList::<&str>::new(SimpleSpan::new(0, 7), Vec::new());
+    assert_eq!(*AsSpan::as_span(&list), SimpleSpan::new(0, 7));
+  }
+
+  #[test]
+  fn ident_list_identifiers() {
+    let idents = vec![Ident::<&str>::new(SimpleSpan::new(0, 3), "foo")];
+    let list = IdentList::<&str>::new(SimpleSpan::new(0, 3), idents.clone());
+    assert_eq!(list.identifiers().len(), 1);
+  }
+
+  #[test]
+  fn ident_list_bump() {
+    let idents = vec![
+      Ident::<&str>::new(SimpleSpan::new(0, 3), "foo"),
+      Ident::<&str>::new(SimpleSpan::new(4, 7), "bar"),
+    ];
+    let mut list = IdentList::<&str>::new(SimpleSpan::new(0, 7), idents);
+    list.bump(&10);
+    assert_eq!(list.span(), SimpleSpan::new(10, 17));
+    assert_eq!(list.identifiers_slice()[0].span(), SimpleSpan::new(10, 13));
+    assert_eq!(list.identifiers_slice()[1].span(), SimpleSpan::new(14, 17));
+  }
+
+  // --- Additional Lit type tests for coverage ---
+
+  #[test]
+  fn lit_generic_new() {
+    let lit = Lit::<&str>::new(SimpleSpan::new(0, 5), "value");
+    assert_eq!(lit.data(), "value");
+    assert_eq!(lit.span(), SimpleSpan::new(0, 5));
+  }
+
+  #[test]
+  fn lit_as_span() {
+    let lit = LitDecimal::<&str>::new(SimpleSpan::new(0, 2), "42");
+    assert_eq!(*AsSpan::as_span(&lit), SimpleSpan::new(0, 2));
+  }
+
+  #[test]
+  fn lit_octal_new() {
+    let lit = LitOctal::<&str>::new(SimpleSpan::new(0, 4), "0o77");
+    assert_eq!(lit.data(), "0o77");
+  }
+
+  #[test]
+  fn lit_binary_new() {
+    let lit = LitBinary::<&str>::new(SimpleSpan::new(0, 6), "0b1010");
+    assert_eq!(lit.data(), "0b1010");
+  }
+
+  #[test]
+  fn lit_float_new() {
+    let lit = LitFloat::<&str>::new(SimpleSpan::new(0, 4), "3.14");
+    assert_eq!(lit.data(), "3.14");
+  }
+
+  #[test]
+  fn lit_hex_float_new() {
+    let lit = LitHexFloat::<&str>::new(SimpleSpan::new(0, 6), "0x1.8p3");
+    assert_eq!(lit.data(), "0x1.8p3");
+  }
+
+  #[test]
+  fn lit_multiline_string_new() {
+    let lit = LitMultilineString::<&str>::new(SimpleSpan::new(0, 10), "\"\"\"hi\"\"\"");
+    assert_eq!(lit.data(), "\"\"\"hi\"\"\"");
+  }
+
+  #[test]
+  fn lit_raw_string_new() {
+    let lit = LitRawString::<&str>::new(SimpleSpan::new(0, 8), "r\"hello\"");
+    assert_eq!(lit.data(), "r\"hello\"");
+  }
+
+  #[test]
+  fn lit_char_new() {
+    let lit = LitChar::<char>::new(SimpleSpan::new(0, 3), 'a');
+    assert_eq!(lit.data(), 'a');
+  }
+
+  #[test]
+  fn lit_byte_new() {
+    let lit = LitByte::<u8>::new(SimpleSpan::new(0, 4), b'a');
+    assert_eq!(lit.data(), b'a');
+  }
+
+  #[test]
+  fn lit_byte_string_new() {
+    let lit = LitByteString::<&str>::new(SimpleSpan::new(0, 8), "b\"bytes\"");
+    assert_eq!(lit.data(), "b\"bytes\"");
+  }
+
+  #[test]
+  fn lit_true_new() {
+    let lit = LitTrue::<()>::new(SimpleSpan::new(0, 4), ());
+    assert_eq!(lit.span(), SimpleSpan::new(0, 4));
+  }
+
+  #[test]
+  fn lit_false_new() {
+    let lit = LitFalse::<()>::new(SimpleSpan::new(0, 5), ());
+    assert_eq!(lit.span(), SimpleSpan::new(0, 5));
+  }
+
+  #[test]
+  fn lit_decimal_into_components_trait() {
+    use crate::utils::IntoComponents;
+    let lit = LitHex::<&str>::new(SimpleSpan::new(0, 4), "0xFF");
+    let (span, data) = IntoComponents::into_components(lit);
+    assert_eq!(span, SimpleSpan::new(0, 4));
+    assert_eq!(data, "0xFF");
+  }
+
+  #[test]
+  fn lit_error_node_generic() {
+    let err = Lit::<&str>::error(SimpleSpan::new(0, 5));
+    assert_eq!(err.data(), "<error>");
+  }
+
+  #[test]
+  fn lit_missing_node_generic() {
+    let missing = Lit::<&str>::missing(SimpleSpan::new(0, 5));
+    assert_eq!(missing.data(), "<missing>");
+  }
+
+  #[test]
+  fn lit_bump() {
+    let mut lit = LitDecimal::<&str>::new(SimpleSpan::new(0, 2), "42");
+    lit.bump(&5);
+    assert_eq!(lit.span(), SimpleSpan::new(5, 7));
+  }
 }
