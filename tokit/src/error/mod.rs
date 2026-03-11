@@ -812,4 +812,137 @@ mod tests {
     let c: Vec<i32> = ErrorContainer::new();
     assert_eq!(ErrorContainer::remaining_capacity(&c), None);
   }
+
+  #[test]
+  fn vec_error_container_iter() {
+    let mut c: Vec<i32> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 1);
+    ErrorContainer::push(&mut c, 2);
+    let items: Vec<_> = ErrorContainer::iter(&c).collect();
+    assert_eq!(items, vec![&1, &2]);
+  }
+
+  #[test]
+  fn vec_error_container_into_iter() {
+    let mut c: Vec<i32> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 10);
+    ErrorContainer::push(&mut c, 20);
+    let items: Vec<_> = ErrorContainer::into_iter(c).collect();
+    assert_eq!(items, vec![10, 20]);
+  }
+
+  #[test]
+  fn vec_error_container_is_empty() {
+    let c: Vec<i32> = ErrorContainer::new();
+    assert!(ErrorContainer::is_empty(&c));
+  }
+
+  #[test]
+  fn vec_error_container_pop_empty() {
+    let mut c: Vec<i32> = ErrorContainer::new();
+    assert_eq!(ErrorContainer::pop(&mut c), None);
+  }
+
+  // --- ErrorContainer for VecDeque<E> ---
+
+  #[test]
+  fn vecdeque_error_container_new() {
+    use std::collections::VecDeque;
+    let c: VecDeque<i32> = ErrorContainer::new();
+    assert!(c.is_empty());
+  }
+
+  #[test]
+  fn vecdeque_error_container_with_capacity() {
+    use std::collections::VecDeque;
+    let c: VecDeque<i32> = ErrorContainer::with_capacity(10);
+    assert!(c.is_empty());
+  }
+
+  #[test]
+  fn vecdeque_error_container_push_pop_len() {
+    use std::collections::VecDeque;
+    let mut c: VecDeque<i32> = ErrorContainer::new();
+    assert_eq!(ErrorContainer::len(&c), 0);
+    ErrorContainer::push(&mut c, 1);
+    ErrorContainer::push(&mut c, 2);
+    assert_eq!(ErrorContainer::len(&c), 2);
+    assert_eq!(ErrorContainer::pop(&mut c), Some(1));
+    assert_eq!(ErrorContainer::pop(&mut c), Some(2));
+    assert_eq!(ErrorContainer::pop(&mut c), None);
+  }
+
+  #[test]
+  fn vecdeque_error_container_iter() {
+    use std::collections::VecDeque;
+    let mut c: VecDeque<i32> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 5);
+    ErrorContainer::push(&mut c, 6);
+    let items: Vec<_> = ErrorContainer::iter(&c).collect();
+    assert_eq!(items, vec![&5, &6]);
+  }
+
+  #[test]
+  fn vecdeque_error_container_into_iter() {
+    use std::collections::VecDeque;
+    let mut c: VecDeque<i32> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 99);
+    let items: Vec<_> = ErrorContainer::into_iter(c).collect();
+    assert_eq!(items, vec![99]);
+  }
+
+  // --- ErrorContainer for GenericArrayDeque ---
+
+  #[test]
+  fn arraydeque_error_container_new() {
+    use generic_arraydeque::typenum::U4;
+    let c: GenericArrayDeque<i32, U4> = ErrorContainer::new();
+    assert!(ErrorContainer::is_empty(&c));
+  }
+
+  #[test]
+  fn arraydeque_error_container_push_pop_len() {
+    use generic_arraydeque::typenum::U4;
+    let mut c: GenericArrayDeque<i32, U4> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 10);
+    ErrorContainer::push(&mut c, 20);
+    assert_eq!(ErrorContainer::len(&c), 2);
+    assert_eq!(ErrorContainer::pop(&mut c), Some(10));
+  }
+
+  #[test]
+  fn arraydeque_error_container_try_push() {
+    use generic_arraydeque::typenum::U2;
+    let mut c: GenericArrayDeque<i32, U2> = ErrorContainer::new();
+    assert!(ErrorContainer::try_push(&mut c, 1).is_ok());
+    assert!(ErrorContainer::try_push(&mut c, 2).is_ok());
+    assert!(ErrorContainer::try_push(&mut c, 3).is_err());
+  }
+
+  #[test]
+  fn arraydeque_error_container_iter() {
+    use generic_arraydeque::typenum::U4;
+    let mut c: GenericArrayDeque<i32, U4> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 1);
+    let items: Vec<_> = ErrorContainer::iter(&c).collect();
+    assert_eq!(items, vec![&1]);
+  }
+
+  #[test]
+  fn arraydeque_error_container_into_iter() {
+    use generic_arraydeque::typenum::U4;
+    let mut c: GenericArrayDeque<i32, U4> = ErrorContainer::new();
+    ErrorContainer::push(&mut c, 42);
+    let items: Vec<_> = ErrorContainer::into_iter(c).collect();
+    assert_eq!(items, vec![42]);
+  }
+
+  #[test]
+  fn arraydeque_error_container_remaining_capacity() {
+    use generic_arraydeque::typenum::U3;
+    let mut c: GenericArrayDeque<i32, U3> = ErrorContainer::new();
+    assert_eq!(ErrorContainer::remaining_capacity(&c), Some(3));
+    ErrorContainer::push(&mut c, 1);
+    assert_eq!(ErrorContainer::remaining_capacity(&c), Some(2));
+  }
 }

@@ -238,4 +238,23 @@ mod tests {
     assert!(<OptionCache as Cache<'_, DummyLexer>>::front(&cache).is_some());
     assert!(<OptionCache as Cache<'_, DummyLexer>>::back(&cache).is_some());
   }
+
+  #[test]
+  fn option_cache_peek_empty() {
+    use generic_arraydeque::typenum::U1;
+    let cache = <OptionCache as Cache<'_, DummyLexer>>::new();
+    let mut buf = GenericArrayDeque::new();
+    <OptionCache as Cache<'_, DummyLexer>>::peek::<U1>(&cache, &mut buf);
+    assert!(buf.is_empty());
+  }
+
+  #[test]
+  fn option_cache_peek_with_token() {
+    use generic_arraydeque::typenum::U1;
+    let mut cache = <OptionCache as Cache<'_, DummyLexer>>::new();
+    let _ = <OptionCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
+    let mut buf = GenericArrayDeque::new();
+    <OptionCache as Cache<'_, DummyLexer>>::peek::<U1>(&cache, &mut buf);
+    assert_eq!(buf.len(), 1);
+  }
 }

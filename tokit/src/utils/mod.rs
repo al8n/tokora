@@ -560,4 +560,59 @@ mod tests {
     assert_eq!(span, 42);
     assert_eq!(content, "test");
   }
+
+  // --- Additional mut ref tests ---
+
+  #[test]
+  fn mut_ref_is_ascii_digit() {
+    let mut ch = '5';
+    assert!(IsAsciiChar::is_ascii_digit(&&mut ch));
+    let mut ch2 = 'a';
+    assert!(!IsAsciiChar::is_ascii_digit(&&mut ch2));
+  }
+
+  #[test]
+  fn mut_ref_one_of() {
+    let choices = &[ascii::AsciiChar::a, ascii::AsciiChar::b];
+    let mut ch = 'a';
+    assert!(IsAsciiChar::one_of(&&mut ch, choices));
+    let mut ch2 = 'z';
+    assert!(!IsAsciiChar::one_of(&&mut ch2, choices));
+  }
+
+  #[test]
+  fn ref_one_of_empty() {
+    let choices: &[ascii::AsciiChar] = &[];
+    assert!(!IsAsciiChar::one_of(&'a', choices));
+  }
+
+  // --- CharLen for positioned char ref ---
+
+  #[test]
+  fn char_len_positioned_char_ref() {
+    let pc = PositionedChar::with_position('a', 0usize);
+    assert_eq!(CharLen::char_len(&&pc), 1);
+  }
+
+  // --- non-ASCII char tests ---
+
+  #[test]
+  fn char_non_ascii_is_not_ascii_char() {
+    // Multi-byte char should not match any AsciiChar
+    assert!(!IsAsciiChar::is_ascii_char(
+      &'\u{1F600}',
+      ascii::AsciiChar::a
+    ));
+  }
+
+  #[test]
+  fn str_multibyte_not_digit() {
+    // Multi-byte string should not be a digit
+    assert!(!IsAsciiChar::is_ascii_digit("\u{00E9}"));
+  }
+
+  #[test]
+  fn slice_multibyte_not_digit() {
+    assert!(!IsAsciiChar::is_ascii_digit([0xFF].as_slice()));
+  }
 }

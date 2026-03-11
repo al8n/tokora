@@ -285,4 +285,47 @@ mod tests {
     let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(10, 15));
     assert_eq!(<DequeCache as Cache<'_, DummyLexer>>::remaining(&cache), 0);
   }
+
+  #[test]
+  fn deque_cache_peek_empty() {
+    use generic_arraydeque::typenum::U2;
+    let cache = <DequeCache as Cache<'_, DummyLexer>>::new();
+    let mut buf = GenericArrayDeque::new();
+    <DequeCache as Cache<'_, DummyLexer>>::peek::<U2>(&cache, &mut buf);
+    assert!(buf.is_empty());
+  }
+
+  #[test]
+  fn deque_cache_peek_with_tokens() {
+    use generic_arraydeque::typenum::U2;
+    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
+    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
+    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(5, 10));
+    let mut buf = GenericArrayDeque::new();
+    <DequeCache as Cache<'_, DummyLexer>>::peek::<U2>(&cache, &mut buf);
+    assert_eq!(buf.len(), 2);
+  }
+
+  #[test]
+  fn deque_cache_peek_capped_by_buffer() {
+    use generic_arraydeque::typenum::U1;
+    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
+    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
+    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(5, 10));
+    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(10, 15));
+    let mut buf = GenericArrayDeque::new();
+    // Buffer capacity is 1, should only get 1 token even though cache has 3
+    <DequeCache as Cache<'_, DummyLexer>>::peek::<U1>(&cache, &mut buf);
+    assert_eq!(buf.len(), 1);
+  }
+
+  #[test]
+  fn deque_cache_push_front_when_full_returns_err() {
+    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
+    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
+    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(5, 10));
+    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(10, 15));
+    let result = <DequeCache as Cache<'_, DummyLexer>>::push_front(&mut cache, make_token(15, 20));
+    assert!(result.is_err());
+  }
 }

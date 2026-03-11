@@ -108,3 +108,53 @@ impl<T: ?Sized, Lang: ?Sized> RepeatedWhile<T, Lang> {
     }
   }
 }
+
+#[cfg(test)]
+#[allow(warnings)]
+#[cfg(any(feature = "std", feature = "alloc"))]
+mod tests {
+  use super::*;
+  use std::format;
+
+  #[test]
+  fn trailing_new_and_of() {
+    let t: Trailing<u32> = Trailing::new();
+    let t2: Trailing<u32, ()> = Trailing::of();
+    assert_eq!(t, t2);
+  }
+
+  #[test]
+  fn trailing_default_debug_clone() {
+    let t: Trailing<u32> = Default::default();
+    let t2 = t.clone();
+    assert_eq!(format!("{:?}", t), format!("{:?}", t2));
+  }
+
+  #[test]
+  fn leading_new_and_of() {
+    let l: Leading<u32> = Leading::new();
+    let l2: Leading<u32, ()> = Leading::of();
+    assert_eq!(l, l2);
+  }
+
+  #[test]
+  fn leading_default_debug_clone() {
+    let l: Leading<u32> = Default::default();
+    let l2 = l.clone();
+    assert_eq!(format!("{:?}", l), format!("{:?}", l2));
+  }
+
+  #[test]
+  fn repeated_while_new_and_of() {
+    let r: RepeatedWhile<u32> = RepeatedWhile::new();
+    let r2: RepeatedWhile<u32, ()> = RepeatedWhile::of();
+    assert_eq!(r, r2);
+  }
+
+  #[test]
+  fn repeated_while_default_debug_clone() {
+    let r: RepeatedWhile<u32> = Default::default();
+    let r2 = r.clone();
+    assert_eq!(format!("{:?}", r), format!("{:?}", r2));
+  }
+}

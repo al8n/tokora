@@ -140,3 +140,140 @@ where
     Ok(self.emitter)
   }
 }
+
+#[cfg(all(test, feature = "logos", feature = "std"))]
+mod tests {
+  use crate::{ParseContext, input::Input, lexer::LogosLexer};
+
+  #[derive(Debug, Clone, PartialEq, crate::logos::Logos)]
+  #[logos(crate = crate::logos, skip r"[ \t\r\n]+")]
+  enum Tok {
+    #[regex(r"[a-z]+")]
+    Word,
+    #[regex(r"[0-9]+")]
+    Num,
+  }
+
+  impl core::fmt::Display for Tok {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      match self {
+        Tok::Word => write!(f, "word"),
+        Tok::Num => write!(f, "num"),
+      }
+    }
+  }
+
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+  enum TokKind {
+    Word,
+    Num,
+  }
+
+  impl core::fmt::Display for TokKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      match self {
+        TokKind::Word => write!(f, "word"),
+        TokKind::Num => write!(f, "num"),
+      }
+    }
+  }
+
+  impl crate::Token<'_> for Tok {
+    type Kind = TokKind;
+    type Error = ();
+    fn kind(&self) -> TokKind {
+      match self {
+        Tok::Word => TokKind::Word,
+        Tok::Num => TokKind::Num,
+      }
+    }
+    fn is_trivia(&self) -> bool {
+      false
+    }
+  }
+
+  type TestLexer<'a> = LogosLexer<'a, Tok>;
+
+  fn parse_with<'inp, F, O>(src: &'inp str, mut f: F) -> Result<O, ()>
+  where
+    F: for<'c> FnMut(
+      &mut crate::input::InputRef<'inp, 'c, TestLexer<'inp>, (), ()>,
+    ) -> Result<O, ()>,
+  {
+    let (mut emitter, cache) =
+      <() as ParseContext<'_, TestLexer<'_>>>::provide(()).into_components();
+    let mut input = Input::<TestLexer<'inp>, (), ()>::with_state_and_cache(src, (), cache);
+    let mut inp_ref = input.as_ref(&mut emitter);
+    f(&mut inp_ref)
+  }
+
+  #[test]
+  fn peek_one_returns_token() {
+    parse_with("abc 123", |inp| {
+      let peeked = inp.peek_one()?;
+      assert!(peeked.is_some());
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_one_empty_input() {
+    parse_with("", |inp| {
+      let peeked = inp.peek_one()?;
+      assert!(peeked.is_none());
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_window() {
+    parse_with("abc 123 def", |inp| {
+      use generic_arraydeque::typenum::U2;
+      let peeked = inp.peek::<U2>()?;
+      assert_eq!(peeked.len(), 2);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_with_emitter_test() {
+    parse_with("abc 123", |inp| {
+      use generic_arraydeque::typenum::U2;
+      let (peeked, _emitter) = inp.peek_with_emitter::<U2>()?;
+      assert_eq!(peeked.len(), 2);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_window_larger_than_input() {
+    parse_with("abc", |inp| {
+      use generic_arraydeque::typenum::U3;
+      let peeked = inp.peek::<U3>()?;
+      assert_eq!(peeked.len(), 1);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_does_not_consume() {
+    parse_with("abc 123", |inp| {
+      use generic_arraydeque::typenum::U1;
+      {
+        let peeked = inp.peek::<U1>()?;
+        assert_eq!(peeked.len(), 1);
+      }
+      {
+        let peeked = inp.peek::<U1>()?;
+        assert_eq!(peeked.len(), 1);
+      }
+      Ok(())
+    })
+    .unwrap();
+  }
+}
