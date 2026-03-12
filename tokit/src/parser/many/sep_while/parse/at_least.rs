@@ -103,22 +103,16 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        AtLeast {
-          parser: SeparatedWhile { f, condition, .. },
-          minimum,
-        },
-      container,
-      ..
-    } = self;
+    let (parser, container) = self.parts_mut();
+    let minimum = parser.minimum();
+    let (f, condition) = parser.parser_mut().parts_mut();
 
     let parser = AtLeast::new(
       SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
       minimum.get(),
     );
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -153,9 +147,7 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     let minimum = parser.minimum();
 

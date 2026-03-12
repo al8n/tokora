@@ -90,20 +90,13 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        AllowTrailing {
-          parser: AtMost {
-            parser: Separated { f, .. },
-            maximum,
-          },
-        },
-      container,
-      ..
-    } = self;
+    let (parser, container) = self.parts_mut();
+    let inner = parser.parser_mut();
+    let maximum = inner.maximum();
+    let f = inner.parser_mut().fn_mut();
     let parser = AllowTrailing::new(AtMost::new(Separated::new::<Sep>(&mut **f), maximum.get()));
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -134,9 +127,7 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     let limitation = AllowTrailing::new(parser.parser.maximum());
 

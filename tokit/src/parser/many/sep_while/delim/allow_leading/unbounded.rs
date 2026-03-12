@@ -114,24 +114,14 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        DelimitedBy {
-          parser:
-            AllowLeading {
-              parser: SeparatedWhile { f, condition, .. },
-            },
-          ..
-        },
-      container,
-      ..
-    } = self;
+    let (delim, container) = self.parts_mut();
+    let (f, condition) = delim.parser.parser_mut().parts_mut();
     let parser = DelimitedBy::<_, Delim>::new(AllowLeading::new(SeparatedWhile::new::<Sep>(
       &mut **f,
       &mut *condition,
     )));
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -173,12 +163,7 @@ where
 
     let (parser, container) = self.0.parts_mut();
 
-    let DelimitedBy {
-      parser: AllowLeading {
-        parser: SeparatedWhile { f, condition, .. },
-      },
-      ..
-    } = parser.map_parser_mut(|p| p.as_mut());
+    let (f, condition) = parser.parser.parser_mut().parts_mut();
 
     DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
       .parse_separated(inp, container, UNBOUNDED, UNBOUNDED, UNBOUNDED)

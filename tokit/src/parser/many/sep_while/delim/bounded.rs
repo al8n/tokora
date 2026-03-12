@@ -126,27 +126,17 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        DelimitedBy {
-          parser:
-            Bounded {
-              parser: SeparatedWhile { f, condition, .. },
-              maximum,
-              minimum,
-            },
-          ..
-        },
-      container,
-      ..
-    } = self;
+    let (delim, container) = self.parts_mut();
+    let maximum = delim.parser.maximum();
+    let minimum = delim.parser.minimum();
+    let (f, condition) = delim.parser.parser_mut().parts_mut();
     let parser = DelimitedBy::<_, Delim>::new(Bounded::new(
       SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
       maximum.get(),
       minimum.get(),
     ));
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -191,10 +181,7 @@ where
 
     let maximum = parser.parser.maximum();
 
-    let DelimitedBy {
-      parser: SeparatedWhile { f, condition, .. },
-      ..
-    } = parser.map_parser_mut(|p| p.parser_mut());
+    let (f, condition) = parser.parser.parser_mut().parts_mut();
 
     DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
       .parse_separated(inp, container, &maximum, &maximum, &maximum)

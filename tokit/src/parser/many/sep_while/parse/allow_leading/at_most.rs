@@ -108,24 +108,16 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        AllowLeading {
-          parser:
-            AtMost {
-              parser: SeparatedWhile { f, condition, .. },
-              maximum,
-            },
-        },
-      container,
-      ..
-    } = self;
+    let (parser, container) = self.parts_mut();
+    let inner = parser.parser_mut();
+    let maximum = inner.maximum();
+    let (f, condition) = inner.parser_mut().parts_mut();
     let parser = AllowLeading::new(AtMost::new(
       SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
       maximum.get(),
     ));
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -159,9 +151,7 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     let limitation = AllowLeading::new(parser.parser.maximum());
 

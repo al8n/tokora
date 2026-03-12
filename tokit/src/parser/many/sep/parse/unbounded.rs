@@ -75,12 +75,9 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser: Separated { f, .. },
-      container,
-      ..
-    } = self;
-    let parser = Collect::new(Separated::new::<Sep>(&mut **f), &mut *container);
+    let (parser, container) = self.parts_mut();
+    let f = parser.fn_mut();
+    let parser = Collect::new(Separated::new::<Sep>(&mut **f), &mut **container);
 
     Wrapper(parser).parse_input(input)
   }
@@ -106,9 +103,7 @@ where
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     const HANDLER: &Unbounded = &Unbounded;
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     parser.parse(inp, container, HANDLER, HANDLER, HANDLER)
   }

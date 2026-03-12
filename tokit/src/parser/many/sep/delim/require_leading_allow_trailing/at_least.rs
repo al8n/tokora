@@ -113,30 +113,15 @@ where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let Self {
-      parser:
-        DelimitedBy {
-          parser:
-            RequireLeading {
-              parser:
-                AllowTrailing {
-                  parser:
-                    AtLeast {
-                      parser: Separated { f, .. },
-                      minimum,
-                    },
-                },
-            },
-          ..
-        },
-      container,
-      ..
-    } = self;
+    let (delim, container) = self.parts_mut();
+    let inner = delim.parser.parser_mut().parser_mut();
+    let minimum = inner.minimum();
+    let f = inner.parser_mut().fn_mut();
     let parser = DelimitedBy::<_, Delim>::new(RequireLeading::new(AllowTrailing::new(
       AtLeast::new(Separated::new::<Sep>(&mut **f), minimum.get()),
     )));
 
-    Wrapper(Collect::new(parser, &mut *container)).parse_input(input)
+    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
   }
 }
 
@@ -177,16 +162,12 @@ where
 
     let minimum = RequireLeading::new(AllowTrailing::new(parser.parser.parser.parser.minimum()));
 
-    let DelimitedBy {
-      parser:
-        AllowTrailing {
-          parser: AtLeast {
-            parser: Separated { f, .. },
-            ..
-          },
-        },
-      ..
-    } = parser.map_parser_mut(|p| p.parser_mut());
+    let f = parser
+      .parser
+      .parser_mut()
+      .parser_mut()
+      .parser_mut()
+      .fn_mut();
 
     DelimitedBy::<_, Delim>::new(Separated::new::<Sep>(&mut **f))
       .parse_separated(inp, container, &minimum, &minimum, &minimum)
