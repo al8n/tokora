@@ -11,7 +11,7 @@ pub struct Bounded<P> {
 impl<P> Bounded<P> {
   /// Creates a new `Bounded` parser that matches its inner parser between `minimum` and `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(in crate::parser) const fn new(parser: P, maximum: usize, minimum: usize) -> Self {
+  pub const fn new(parser: P, maximum: usize, minimum: usize) -> Self {
     Self {
       maximum: Maximum::new(maximum),
       minimum: Minimum::new(minimum),
@@ -34,7 +34,7 @@ impl<P> Bounded<P> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::<_, Delim>::new_in(self)
+    DelimitedBy::<_, Delim>::new(self)
   }
 
   /// Returns a mutable reference to the inner parser.
@@ -60,7 +60,7 @@ impl<P> Bounded<P> {
 
   /// Maps the inner parser to a new parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> Bounded<NP>
+  pub fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> Bounded<NP>
   where
     F: FnOnce(&'a mut P) -> NP,
     NP: 'a,

@@ -128,7 +128,7 @@ where
       container,
       ..
     } = self;
-    let parser = DelimitedBy::<_, Delim>::new_in(RequireLeading::new(AtLeast::new(
+    let parser = DelimitedBy::<_, Delim>::new(RequireLeading::new(AtLeast::new(
       Separated::new::<Sep>(&mut **f),
       minimum.get(),
     )));
@@ -182,7 +182,7 @@ where
       ..
     } = parser.map_parser_mut(|p| p.parser_mut());
 
-    DelimitedBy::<_, Delim>::new_in(Separated::new::<Sep>(&mut **f))
+    DelimitedBy::<_, Delim>::new(Separated::new::<Sep>(&mut **f))
       .parse_separated(inp, container, &minimum, &minimum, &minimum)
   }
 }

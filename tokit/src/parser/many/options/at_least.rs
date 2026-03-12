@@ -10,7 +10,7 @@ pub struct AtLeast<P> {
 impl<P> AtLeast<P> {
   /// Creates a new `AtLeast` parser that matches its inner parser at least `minimum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(in crate::parser) const fn new(parser: P, minimum: usize) -> Self {
+  pub const fn new(parser: P, minimum: usize) -> Self {
     Self {
       minimum: Minimum::new(minimum),
       parser,
@@ -35,7 +35,7 @@ impl<P> AtLeast<P> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::<_, Delim>::new_in(self)
+    DelimitedBy::<_, Delim>::new(self)
   }
 
   /// Returns a mutable reference to the inner parser.
@@ -52,7 +52,7 @@ impl<P> AtLeast<P> {
 
   /// Maps the inner parser to a new parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AtLeast<NP>
+  pub fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AtLeast<NP>
   where
     F: FnOnce(&'a mut P) -> NP,
     NP: 'a,

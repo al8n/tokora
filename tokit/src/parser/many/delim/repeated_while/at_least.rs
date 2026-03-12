@@ -37,7 +37,7 @@ where
   {
     let min = self.parser.parser.minimum().get();
 
-    DelimitedBy::<_, Delim>::new_in(self.parser.parser.parser_mut()).parse_repeated(
+    DelimitedBy::<_, Delim>::new(self.parser.parser.parser_mut()).parse_repeated(
       inp,
       &mut self.container,
       |nums, inp, span| {

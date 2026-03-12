@@ -10,7 +10,7 @@ pub struct AtMost<P> {
 impl<P> AtMost<P> {
   /// Creates a new `AtMost` parser that matches its inner parser at most `maximum` times.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(in crate::parser) const fn new(parser: P, maximum: usize) -> Self {
+  pub const fn new(parser: P, maximum: usize) -> Self {
     Self {
       maximum: Maximum::new(maximum),
       parser,
@@ -35,7 +35,7 @@ impl<P> AtMost<P> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::<_, Delim>::new_in(self)
+    DelimitedBy::<_, Delim>::new(self)
   }
 
   /// Returns a mutable reference to the inner parser.
@@ -46,7 +46,7 @@ impl<P> AtMost<P> {
 
   /// Maps the inner parser to a new parser using the given function.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AtMost<NP>
+  pub fn map_parser_mut<'a, F, NP>(&'a mut self, f: F) -> AtMost<NP>
   where
     F: FnOnce(&'a mut P) -> NP,
     NP: 'a,

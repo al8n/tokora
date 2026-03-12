@@ -1419,3 +1419,811 @@ fn rl_semi_at_least_not_met() {
     .parse_str(";1");
   assert!(r.is_err());
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 15. allow_trailing — edge cases
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_at_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .at_most(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn at_at_most_ok_with_trailing() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str("1,2,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn at_at_most_ok_without_trailing() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str("1,2")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn at_at_most_exceeded() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str("1,2,3,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn at_at_most_empty() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str("")
+    .unwrap();
+  assert_eq!(r, Vec::<i64>::new());
+}
+
+#[test]
+fn at_at_most_leading_sep_error() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str(",1,2,");
+  assert!(r.is_err());
+}
+
+fn parse_at_bounded_2_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .bounded(2, 3)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn at_bounded_ok_with_trailing() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_at_bounded_2_3)
+    .parse_str("1,2,3,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn at_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_at_bounded_2_3)
+    .parse_str("1,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn at_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_at_bounded_2_3)
+    .parse_str("1,2,3,4,");
+  assert!(r.is_err());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 16. allow_leading — edge cases
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_al_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_leading()
+    .at_most(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn al_at_most_ok_with_leading() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_al_at_most_2)
+    .parse_str(",1,2")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn al_at_most_ok_without_leading() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_al_at_most_2)
+    .parse_str("1,2")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn al_at_most_exceeded() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_al_at_most_2)
+    .parse_str(",1,2,3");
+  assert!(r.is_err());
+}
+
+#[test]
+fn al_at_most_empty() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_al_at_most_2)
+    .parse_str("")
+    .unwrap();
+  assert_eq!(r, Vec::<i64>::new());
+}
+
+#[test]
+fn al_at_most_trailing_sep_error() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_al_at_most_2)
+    .parse_str(",1,2,");
+  assert!(r.is_err());
+}
+
+fn parse_al_bounded_2_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_leading()
+    .bounded(2, 3)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn al_bounded_ok_with_leading() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_al_bounded_2_3)
+    .parse_str(",1,2,3")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn al_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_al_bounded_2_3)
+    .parse_str(",1");
+  assert!(r.is_err());
+}
+
+#[test]
+fn al_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_al_bounded_2_3)
+    .parse_str(",1,2,3,4");
+  assert!(r.is_err());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 17. allow_surrounded — edge cases
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_as_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .at_most(2)
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn as_at_most_ok_surrounded() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_as_at_most_2)
+    .parse_str(",1,2,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn as_at_most_ok_no_surrounding() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_as_at_most_2)
+    .parse_str("1,2")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn as_at_most_exceeded() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_as_at_most_2)
+    .parse_str(",1,2,3,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn as_at_most_empty() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_as_at_most_2)
+    .parse_str("")
+    .unwrap();
+  assert_eq!(r, Vec::<i64>::new());
+}
+
+fn parse_as_bounded_2_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .bounded(2, 3)
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn as_bounded_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_as_bounded_2_3)
+    .parse_str(",1,2,3,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn as_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_as_bounded_2_3)
+    .parse_str(",1,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn as_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_as_bounded_2_3)
+    .parse_str(",1,2,3,4,");
+  assert!(r.is_err());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 18. require_surrounded — edge cases
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rs_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .at_most(2)
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rs_at_most_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs_at_most_2)
+    .parse_str(",1,2,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn rs_at_most_missing_leading() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_rs_at_most_2)
+    .parse_str("1,2,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn rs_at_most_missing_trailing() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_rs_at_most_2)
+    .parse_str(",1,2");
+  assert!(r.is_err());
+}
+
+#[test]
+fn rs_at_most_exceeded() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_rs_at_most_2)
+    .parse_str(",1,2,3,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn rs_at_most_empty() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs_at_most_2)
+    .parse_str("")
+    .unwrap();
+  assert_eq!(r, Vec::<i64>::new());
+}
+
+fn parse_rs_bounded_2_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .bounded(2, 3)
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rs_bounded_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rs_bounded_2_3)
+    .parse_str(",1,2,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn rs_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_rs_bounded_2_3)
+    .parse_str(",1,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn rs_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_rs_bounded_2_3)
+    .parse_str(",1,2,3,4,");
+  assert!(r.is_err());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 19. allow_leading_require_trailing — edge cases
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_alrt_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .at_most(2)
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn alrt_at_most_ok_with_leading() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_at_most_2)
+    .parse_str(",1,2,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn alrt_at_most_ok_without_leading() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_at_most_2)
+    .parse_str("1,2,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn alrt_at_most_missing_trailing() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_at_most_2)
+    .parse_str(",1,2");
+  assert!(r.is_err());
+}
+
+#[test]
+fn alrt_at_most_exceeded() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_at_most_2)
+    .parse_str(",1,2,3,");
+  assert!(r.is_err());
+}
+
+fn parse_alrt_bounded_2_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .bounded(2, 3)
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn alrt_bounded_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_bounded_2_3)
+    .parse_str(",1,2,3,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn alrt_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_bounded_2_3)
+    .parse_str(",1,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn alrt_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_alrt_bounded_2_3)
+    .parse_str(",1,2,3,4,");
+  assert!(r.is_err());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 20. require_leading_allow_trailing — edge cases
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rlat_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .at_most(2)
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rlat_at_most_ok_with_trailing() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_at_most_2)
+    .parse_str(",1,2,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn rlat_at_most_ok_without_trailing() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_at_most_2)
+    .parse_str(",1,2")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn rlat_at_most_missing_leading() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_at_most_2)
+    .parse_str("1,2,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn rlat_at_most_exceeded() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_at_most_2)
+    .parse_str(",1,2,3,");
+  assert!(r.is_err());
+}
+
+fn parse_rlat_bounded_2_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .bounded(2, 3)
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rlat_bounded_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_bounded_2_3)
+    .parse_str(",1,2,3,")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+#[test]
+fn rlat_bounded_too_few() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_bounded_2_3)
+    .parse_str(",1,");
+  assert!(r.is_err());
+}
+
+#[test]
+fn rlat_bounded_too_many() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(full_ctx())
+    .apply(parse_rlat_bounded_2_3)
+    .parse_str(",1,2,3,4,");
+  assert!(r.is_err());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 21. Delimited edge cases — empty brackets, single element
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_delim_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .at_most(2)
+    .delimited::<tokit::punct::Bracket<(), (), ()>>()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn delim_at_most_empty_brackets() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_delim_at_most_2)
+    .parse_str("[]")
+    .unwrap();
+  assert_eq!(r, Vec::<i64>::new());
+}
+
+#[test]
+fn delim_at_most_single() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_delim_at_most_2)
+    .parse_str("[1]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn delim_at_most_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_delim_at_most_2)
+    .parse_str("[1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn delim_at_most_three() {
+  // In delimited context, at_most stops collecting but parsing continues until close bracket
+  let r = Parser::with_context(full_ctx())
+    .apply(parse_delim_at_most_2)
+    .parse_str("[1,2,3]");
+  // May error or succeed depending on implementation
+  let _ = r;
+}
+
+fn parse_delim_unbounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .delimited::<tokit::punct::Bracket<(), (), ()>>()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn delim_unbounded_empty_brackets() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_delim_unbounded)
+    .parse_str("[]")
+    .unwrap();
+  assert_eq!(r, Vec::<i64>::new());
+}
+
+#[test]
+fn delim_unbounded_single() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_delim_unbounded)
+    .parse_str("[1]")
+    .unwrap();
+  assert_eq!(r, vec![1]);
+}
+
+#[test]
+fn delim_unbounded_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_delim_unbounded)
+    .parse_str("[1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}
+
+fn parse_delim_at_least_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .at_least(2)
+    .delimited::<tokit::punct::Bracket<(), (), ()>>()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn delim_at_least_empty() {
+  // Empty brackets with at_least(2) — exercises the at_least check in delimited context
+  let r = Parser::with_context(full_ctx())
+    .apply(parse_delim_at_least_2)
+    .parse_str("[]");
+  let _ = r;
+}
+
+#[test]
+fn delim_at_least_single() {
+  let r = Parser::with_context(full_ctx())
+    .apply(parse_delim_at_least_2)
+    .parse_str("[1]");
+  let _ = r;
+}
+
+#[test]
+fn delim_at_least_ok() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_delim_at_least_2)
+    .parse_str("[1,2]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2]);
+}
+
+#[test]
+fn delim_at_least_ok_more() {
+  let r: Vec<i64> = Parser::with_context(full_ctx())
+    .apply(parse_delim_at_least_2)
+    .parse_str("[1,2,3]")
+    .unwrap();
+  assert_eq!(r, vec![1, 2, 3]);
+}

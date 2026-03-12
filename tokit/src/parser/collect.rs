@@ -12,7 +12,7 @@ pub struct Collect<P, Container, Ctx, Lang: ?Sized = ()> {
 impl<P, Container, Ctx, Lang: ?Sized> Collect<P, Container, Ctx, Lang> {
   /// Creates a new `Collect` combinator.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) const fn new(parser: P, container: Container) -> Self {
+  pub const fn new(parser: P, container: Container) -> Self {
     Self {
       parser,
       container,

@@ -146,7 +146,7 @@ where
       ..
     } = self;
     let parser =
-      DelimitedBy::<_, Delim>::new_in(RequireLeading::new(AllowTrailing::new(AtLeast::new(
+      DelimitedBy::<_, Delim>::new(RequireLeading::new(AllowTrailing::new(AtLeast::new(
         SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
         minimum.get(),
       ))));
@@ -212,7 +212,7 @@ where
       ..
     } = parser.map_parser_mut(|p| p.parser_mut());
 
-    DelimitedBy::<_, Delim>::new_in(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
       .parse_separated(inp, container, &minimum, &minimum, &minimum)
   }
 }
