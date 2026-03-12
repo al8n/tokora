@@ -10,6 +10,12 @@ Coverage is measured with `cargo tarpaulin` using these exclusions:
 
 Only lines under `tokit/src/` are counted. Lines in `tokit/tests/` and `tokit/examples/` are excluded from both numerator and denominator.
 
+### Tarpaulin destructuring limitation
+
+The mut-ref test DOES call the Wrapper path. The Wrapper IS being called. But tarpaulin marks destructuring as uncovered. This is a tarpaulin limitation — the `let Collect { parser, container, .. } = &mut self.0;` destructuring is shown as uncovered even though the code runs.
+
+This accounts for about ~5 lines × 80 files = ~400 "phantom uncovered" lines across the delim files. These can't be fixed by adding more tests. A more elegant destructuring style should be used to work around this limitation.
+
 ### Running coverage
 
 ```bash

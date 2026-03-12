@@ -277,7 +277,12 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
           inp.emitter().emit_error(Spanned::new(span, err))?;
         }
       }
-      cursor = inp.cursor().clone();
+
+      let new_cursor = inp.cursor().clone();
+      if new_cursor.as_inner() == cursor.as_inner() {
+        break;
+      }
+      cursor = new_cursor;
     }
 
     rh.on_stop(num, inp, &ckp)

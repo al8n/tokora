@@ -102,8 +102,11 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
               false
             }
           })? {
-            None => {
+            None if err.is_some() => {
               inp.emitter().emit_unexpected_token(err.unwrap())?;
+            }
+            None => {
+              // EOI — no close delimiter found
             }
             Some(close) => {
               container.on_close_delimiter(close);
@@ -115,7 +118,34 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
         }
       }
 
-      elem_cur = inp.cursor().clone();
+      let new_cursor = inp.cursor().clone();
+      if new_cursor.as_inner() == elem_cur.as_inner() {
+        break;
+      }
+      elem_cur = new_cursor;
     }
+
+    // No progress was made — treat as end of elements
+    let mut close_err = None;
+    match inp.try_expect(|t| match Delim::is_close(&t.data.kind()) {
+      true => true,
+      false => {
+        close_err = Some(Delim::unexpected_close_token(t.cloned()));
+        false
+      }
+    })? {
+      None if close_err.is_some() => {
+        inp.emitter().emit_unexpected_token(close_err.unwrap())?;
+      }
+      None => {
+        // EOI — no tokens left, no close delimiter
+      }
+      Some(close) => {
+        container.on_close_delimiter(close);
+      }
+    }
+
+    let span = inp.span_since(ckp.cursor());
+    on_stop(nums, inp, &span).map(|_| mem::take(container))
   }
 }

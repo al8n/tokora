@@ -224,6 +224,18 @@ impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized>
     }
   }
 
+  /// Returns a mutable reference to the inner parser function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn fn_mut(&mut self) -> &mut F {
+    &mut self.f
+  }
+
+  /// Returns mutable references to the inner parser function and condition.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn parts_mut(&mut self) -> (&mut F, &mut Condition) {
+    (&mut self.f, &mut self.condition)
+  }
+
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn at_least(self, minimum: usize) -> AtLeast<Self> {

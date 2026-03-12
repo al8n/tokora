@@ -203,6 +203,12 @@ impl<F, Sep, O, L, Ctx, Lang: ?Sized> Separated<F, Sep, O, L, Ctx, Lang> {
     }
   }
 
+  /// Returns a mutable reference to the inner parser function.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn fn_mut(&mut self) -> &mut F {
+    &mut self.f
+  }
+
   /// Sets the minimum number of elements to parse.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn at_least(self, minimum: usize) -> AtLeast<Self> {

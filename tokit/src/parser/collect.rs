@@ -46,6 +46,12 @@ impl<P, Container, Ctx, Lang: ?Sized> Collect<P, Container, Ctx, Lang> {
     }
   }
 
+  /// Returns mutable references to the inner parser and container.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn parts_mut(&mut self) -> (&mut P, &mut Container) {
+    (&mut self.parser, &mut self.container)
+  }
+
   /// Maps the inner container to a new container.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn map_container<F, C2>(self, f: F) -> Collect<P, C2, Ctx, Lang>

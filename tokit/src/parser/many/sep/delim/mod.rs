@@ -151,7 +151,14 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
         }
       }
 
-      cursor = inp.cursor().clone();
+      let new_cursor = inp.cursor().clone();
+      if new_cursor.as_inner() == cursor.as_inner() {
+        break (
+          parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
+          None,
+        );
+      }
+      cursor = new_cursor;
     };
 
     let right = match right {
@@ -167,8 +174,11 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
 
     match right {
       // no close delimiter
-      None => {
+      None if err.is_some() => {
         inp.emitter().emit_unexpected_token(err.unwrap())?;
+      }
+      None => {
+        // EOI — no close delimiter found
       }
       Some(right) => {
         container.on_close_delimiter(right);

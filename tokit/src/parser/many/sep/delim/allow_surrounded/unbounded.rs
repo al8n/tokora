@@ -151,9 +151,7 @@ where
     const UNBOUNDED: &AllowLeading<AllowTrailing<Unbounded>> =
       &AllowLeading::new(AllowTrailing::new(Unbounded));
 
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     let DelimitedBy {
       parser:

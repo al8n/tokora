@@ -120,7 +120,9 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
               drop(peeked);
               parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?;
 
-              inp.emitter().emit_unexpected_token(err.unwrap())?;
+              if let Some(err) = err {
+                inp.emitter().emit_unexpected_token(err)?;
+              }
 
               return Ok(inp.span_since(&elems_start));
             }
@@ -147,11 +149,12 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                   container.on_close_delimiter(closed);
                   Ok(inp.span_since(&elems_start))
                 }
-                None => {
+                None if err.is_some() => {
                   inp.emitter().emit_unexpected_token(err.unwrap())?;
 
                   Ok(inp.span_since(&elems_start))
                 }
+                None => Ok(inp.span_since(&elems_start)),
               };
             }
             Action::Continue => {

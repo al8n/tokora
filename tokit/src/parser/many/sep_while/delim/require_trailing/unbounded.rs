@@ -175,9 +175,7 @@ where
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     const UNBOUNDED: &RequireTrailing<Unbounded> = &RequireTrailing::new(Unbounded);
 
-    let Collect {
-      parser, container, ..
-    } = &mut self.0;
+    let (parser, container) = self.0.parts_mut();
 
     let DelimitedBy {
       parser: RequireTrailing {
