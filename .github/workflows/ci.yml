@@ -312,32 +312,24 @@ jobs:
       - test
     steps:
       - uses: actions/checkout@v6
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-      - uses: actions-rs/install@v0.1
-        with:
-          crate: cargo-tarpaulin
-          version: latest
-      - name: Cache ~/.cargo
+      - name: Install Rust
+        run: rustup update nightly && rustup default nightly
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+      - name: Cache cargo build and registry
         uses: actions/cache@v5
         with:
-          path: ~/.cargo
-          key: ${{ runner.os }}-coverage-dotcargo
-      - name: Cache cargo build
-        uses: actions/cache@v5
-        with:
-          path: target
-          key: ${{ runner.os }}-coverage-cargo-build-target
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-coverage-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-coverage-
       - name: Run tarpaulin
-        uses: actions-rs/cargo@v1
         env:
           RUSTFLAGS: "--cfg tarpaulin"
-        with:
-          command: tarpaulin
-          args: --all-features --run-types tests --run-types doctests --run-types examples --run-types lib --workspace --out xml
+        run: cargo tarpaulin --all-features --run-types tests --run-types doctests --run-types lib --run-types examples --workspace --out xml
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v5
         with:
