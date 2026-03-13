@@ -1,188 +1,357 @@
-#![cfg(feature = "std")]
+/// Tests that explicitly exercise the `impl<'a, T> LitToken<'a> for &'a T` blanket impl.
+///
+/// Each test uses UFCS syntax `<&Tok as LitToken>::method(&&tok)` so that the call goes
+/// through the blanket impl rather than auto-derefing to the concrete type's impl.
+use core::fmt;
+use tokit::{Token, token::LitToken};
 
-use tokit::Token;
-use tokit::token::LitToken;
-
-// ── Minimal token types ─────────────────────────────────────────────────────
+// ── Token infrastructure ──────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct Kind;
+enum Kind {
+  Decimal,
+  Hex,
+  Octal,
+  Binary,
+  Float,
+  HexFloat,
+  InlineStr,
+  MultilineStr,
+  RawStr,
+  Char,
+  Byte,
+  ByteStr,
+  True,
+  False,
+  Null,
+  Other,
+}
 
-impl core::fmt::Display for Kind {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    write!(f, "kind")
+impl fmt::Display for Kind {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{self:?}")
   }
 }
 
-macro_rules! define_lit_tok {
-  ($name:ident, $method:ident) => {
-    #[derive(Debug, Clone)]
-    struct $name;
-
-    impl core::fmt::Display for $name {
-      fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, stringify!($name))
-      }
-    }
-
-    impl Token<'_> for $name {
-      type Kind = Kind;
-      type Error = ();
-      fn kind(&self) -> Kind { Kind }
-      fn is_trivia(&self) -> bool { false }
-    }
-
-    impl LitToken<'_> for $name {
-      fn $method(&self) -> bool { true }
-    }
-  };
+#[derive(Debug, Clone, PartialEq)]
+struct Tok {
+  kind: Kind,
 }
 
-define_lit_tok!(DecTok, is_decimal_literal);
-define_lit_tok!(HexTok, is_hexadecimal_literal);
-define_lit_tok!(OctTok, is_octal_literal);
-define_lit_tok!(BinTok, is_binary_literal);
-define_lit_tok!(FloatTok, is_float_literal);
-define_lit_tok!(HexFloatTok, is_hex_float_literal);
-define_lit_tok!(InlineStrTok, is_inline_string_literal);
-define_lit_tok!(MultilineStrTok, is_multiline_string_literal);
-define_lit_tok!(RawStrTok, is_raw_string_literal);
-define_lit_tok!(CharTok, is_char_literal);
-define_lit_tok!(ByteTok, is_byte_literal);
-define_lit_tok!(ByteStrTok, is_byte_string_literal);
-define_lit_tok!(TrueTok, is_true_literal);
-define_lit_tok!(FalseTok, is_false_literal);
-define_lit_tok!(NullTok, is_null_literal);
-
-// ── Composite default tests ─────────────────────────────────────────────────
-
-#[test]
-fn is_integer_literal_decimal() {
-  assert!(DecTok.is_integer_literal());
-  assert!(HexTok.is_integer_literal());
-  assert!(OctTok.is_integer_literal());
-  assert!(BinTok.is_integer_literal());
+impl Tok {
+  fn new(kind: Kind) -> Self {
+    Tok { kind }
+  }
 }
 
-#[test]
-fn is_float_literal_both() {
-  assert!(FloatTok.is_float_literal());
-  assert!(HexFloatTok.is_numeric_literal());
+impl Token<'_> for Tok {
+  type Kind = Kind;
+  type Error = ();
+
+  fn kind(&self) -> Kind {
+    self.kind
+  }
+
+  fn is_trivia(&self) -> bool {
+    false
+  }
 }
 
-#[test]
-fn is_numeric_literal_covers_all() {
-  assert!(DecTok.is_numeric_literal());
-  assert!(FloatTok.is_numeric_literal());
+impl LitToken<'_> for Tok {
+  fn is_decimal_literal(&self) -> bool {
+    self.kind == Kind::Decimal
+  }
+  fn is_hexadecimal_literal(&self) -> bool {
+    self.kind == Kind::Hex
+  }
+  fn is_octal_literal(&self) -> bool {
+    self.kind == Kind::Octal
+  }
+  fn is_binary_literal(&self) -> bool {
+    self.kind == Kind::Binary
+  }
+  fn is_float_literal(&self) -> bool {
+    self.kind == Kind::Float
+  }
+  fn is_hex_float_literal(&self) -> bool {
+    self.kind == Kind::HexFloat
+  }
+  fn is_inline_string_literal(&self) -> bool {
+    self.kind == Kind::InlineStr
+  }
+  fn is_multiline_string_literal(&self) -> bool {
+    self.kind == Kind::MultilineStr
+  }
+  fn is_raw_string_literal(&self) -> bool {
+    self.kind == Kind::RawStr
+  }
+  fn is_char_literal(&self) -> bool {
+    self.kind == Kind::Char
+  }
+  fn is_byte_literal(&self) -> bool {
+    self.kind == Kind::Byte
+  }
+  fn is_byte_string_literal(&self) -> bool {
+    self.kind == Kind::ByteStr
+  }
+  fn is_true_literal(&self) -> bool {
+    self.kind == Kind::True
+  }
+  fn is_false_literal(&self) -> bool {
+    self.kind == Kind::False
+  }
+  fn is_null_literal(&self) -> bool {
+    self.kind == Kind::Null
+  }
 }
 
-#[test]
-fn is_string_literal_all_variants() {
-  assert!(InlineStrTok.is_string_literal());
-  assert!(MultilineStrTok.is_string_literal());
-  assert!(RawStrTok.is_raw_string_literal());
-}
+// ── Tests through blanket &T impl using UFCS ─────────────────────────────────
+//
+// `<&Tok as LitToken>::method(&&tok)` forces dispatch through
+// `impl<'a, T> LitToken<'a> for &'a T` rather than auto-derefing to `Tok`.
 
 #[test]
-fn is_boolean_literal() {
-  assert!(TrueTok.is_boolean_literal());
-  assert!(FalseTok.is_boolean_literal());
-}
-
-#[test]
-fn is_literal_covers_all() {
-  assert!(DecTok.is_literal());
-  assert!(FloatTok.is_literal());
-  assert!(InlineStrTok.is_literal());
-  assert!(CharTok.is_literal());
-  assert!(ByteTok.is_literal());
-  assert!(ByteStrTok.is_literal());
-  assert!(TrueTok.is_literal());
-  assert!(NullTok.is_literal());
-}
-
-// ── Reference delegation ────────────────────────────────────────────────────
-
-#[test]
-fn ref_delegates_is_decimal() {
-  let tok = DecTok;
-  let r: &DecTok = &tok;
-  assert!(LitToken::is_decimal_literal(r));
-  assert!(LitToken::is_integer_literal(r));
-  assert!(LitToken::is_literal(r));
+fn blanket_ref_is_literal() {
+  let tok = Tok::new(Kind::Decimal);
+  assert!(<&Tok as LitToken>::is_literal(&&tok));
 }
 
 #[test]
-fn ref_delegates_is_float() {
-  let tok = FloatTok;
-  let r: &FloatTok = &tok;
-  assert!(LitToken::is_float_literal(r));
-  assert!(LitToken::is_numeric_literal(r));
+fn blanket_ref_is_not_literal() {
+  let tok = Tok::new(Kind::Other);
+  assert!(!<&Tok as LitToken>::is_literal(&&tok));
 }
 
 #[test]
-fn ref_delegates_is_string() {
-  let tok = InlineStrTok;
-  let r: &InlineStrTok = &tok;
-  assert!(LitToken::is_inline_string_literal(r));
-  assert!(LitToken::is_string_literal(r));
+fn blanket_ref_is_numeric_literal() {
+  let tok = Tok::new(Kind::Decimal);
+  assert!(<&Tok as LitToken>::is_numeric_literal(&&tok));
 }
 
 #[test]
-fn ref_delegates_is_char() {
-  let tok = CharTok;
-  assert!(LitToken::is_char_literal(&tok));
+fn blanket_ref_is_not_numeric_literal() {
+  let tok = Tok::new(Kind::Other);
+  assert!(!<&Tok as LitToken>::is_numeric_literal(&&tok));
 }
 
 #[test]
-fn ref_delegates_is_byte() {
-  let tok = ByteTok;
-  assert!(LitToken::is_byte_literal(&tok));
+fn blanket_ref_is_integer_literal() {
+  let tok = Tok::new(Kind::Binary);
+  assert!(<&Tok as LitToken>::is_integer_literal(&&tok));
 }
 
 #[test]
-fn ref_delegates_is_byte_string() {
-  let tok = ByteStrTok;
-  assert!(LitToken::is_byte_string_literal(&tok));
+fn blanket_ref_is_not_integer_literal() {
+  let tok = Tok::new(Kind::Float);
+  assert!(!<&Tok as LitToken>::is_integer_literal(&&tok));
 }
 
 #[test]
-fn ref_delegates_is_true() {
-  let tok = TrueTok;
-  assert!(LitToken::is_true_literal(&tok));
+fn blanket_ref_is_float_literal() {
+  let tok = Tok::new(Kind::Float);
+  assert!(<&Tok as LitToken>::is_float_literal(&&tok));
 }
 
 #[test]
-fn ref_delegates_is_false() {
-  let tok = FalseTok;
-  assert!(LitToken::is_false_literal(&tok));
+fn blanket_ref_is_not_float_literal() {
+  let tok = Tok::new(Kind::Decimal);
+  assert!(!<&Tok as LitToken>::is_float_literal(&&tok));
 }
 
 #[test]
-fn ref_delegates_is_null() {
-  let tok = NullTok;
-  assert!(LitToken::is_null_literal(&tok));
+fn blanket_ref_is_decimal_literal() {
+  let tok = Tok::new(Kind::Decimal);
+  assert!(<&Tok as LitToken>::is_decimal_literal(&&tok));
 }
 
-// ── Default false tests ─────────────────────────────────────────────────────
+#[test]
+fn blanket_ref_is_not_decimal_literal() {
+  let tok = Tok::new(Kind::Hex);
+  assert!(!<&Tok as LitToken>::is_decimal_literal(&&tok));
+}
 
 #[test]
-fn all_defaults_false() {
-  let tok = DecTok;
-  assert!(!tok.is_hexadecimal_literal());
-  assert!(!tok.is_octal_literal());
-  assert!(!tok.is_binary_literal());
-  assert!(!tok.is_float_literal());
-  assert!(!tok.is_hex_float_literal());
-  assert!(!tok.is_inline_string_literal());
-  assert!(!tok.is_multiline_string_literal());
-  assert!(!tok.is_raw_string_literal());
-  assert!(!tok.is_string_literal());
-  assert!(!tok.is_char_literal());
-  assert!(!tok.is_byte_literal());
-  assert!(!tok.is_byte_string_literal());
-  assert!(!tok.is_true_literal());
-  assert!(!tok.is_false_literal());
-  assert!(!tok.is_boolean_literal());
-  assert!(!tok.is_null_literal());
+fn blanket_ref_is_hexadecimal_literal() {
+  let tok = Tok::new(Kind::Hex);
+  assert!(<&Tok as LitToken>::is_hexadecimal_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_hexadecimal_literal() {
+  let tok = Tok::new(Kind::Decimal);
+  assert!(!<&Tok as LitToken>::is_hexadecimal_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_octal_literal() {
+  let tok = Tok::new(Kind::Octal);
+  assert!(<&Tok as LitToken>::is_octal_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_octal_literal() {
+  let tok = Tok::new(Kind::Decimal);
+  assert!(!<&Tok as LitToken>::is_octal_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_binary_literal() {
+  let tok = Tok::new(Kind::Binary);
+  assert!(<&Tok as LitToken>::is_binary_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_binary_literal() {
+  let tok = Tok::new(Kind::Decimal);
+  assert!(!<&Tok as LitToken>::is_binary_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_hex_float_literal() {
+  let tok = Tok::new(Kind::HexFloat);
+  assert!(<&Tok as LitToken>::is_hex_float_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_hex_float_literal() {
+  let tok = Tok::new(Kind::Float);
+  assert!(!<&Tok as LitToken>::is_hex_float_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_inline_string_literal() {
+  let tok = Tok::new(Kind::InlineStr);
+  assert!(<&Tok as LitToken>::is_inline_string_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_inline_string_literal() {
+  let tok = Tok::new(Kind::MultilineStr);
+  assert!(!<&Tok as LitToken>::is_inline_string_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_multiline_string_literal() {
+  let tok = Tok::new(Kind::MultilineStr);
+  assert!(<&Tok as LitToken>::is_multiline_string_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_multiline_string_literal() {
+  let tok = Tok::new(Kind::InlineStr);
+  assert!(!<&Tok as LitToken>::is_multiline_string_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_raw_string_literal() {
+  let tok = Tok::new(Kind::RawStr);
+  assert!(<&Tok as LitToken>::is_raw_string_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_raw_string_literal() {
+  let tok = Tok::new(Kind::InlineStr);
+  assert!(!<&Tok as LitToken>::is_raw_string_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_string_literal() {
+  let tok = Tok::new(Kind::InlineStr);
+  assert!(<&Tok as LitToken>::is_string_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_string_literal() {
+  let tok = Tok::new(Kind::RawStr);
+  assert!(!<&Tok as LitToken>::is_string_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_char_literal() {
+  let tok = Tok::new(Kind::Char);
+  assert!(<&Tok as LitToken>::is_char_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_char_literal() {
+  let tok = Tok::new(Kind::Byte);
+  assert!(!<&Tok as LitToken>::is_char_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_byte_literal() {
+  let tok = Tok::new(Kind::Byte);
+  assert!(<&Tok as LitToken>::is_byte_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_byte_literal() {
+  let tok = Tok::new(Kind::Char);
+  assert!(!<&Tok as LitToken>::is_byte_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_byte_string_literal() {
+  let tok = Tok::new(Kind::ByteStr);
+  assert!(<&Tok as LitToken>::is_byte_string_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_byte_string_literal() {
+  let tok = Tok::new(Kind::InlineStr);
+  assert!(!<&Tok as LitToken>::is_byte_string_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_true_literal() {
+  let tok = Tok::new(Kind::True);
+  assert!(<&Tok as LitToken>::is_true_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_true_literal() {
+  let tok = Tok::new(Kind::False);
+  assert!(!<&Tok as LitToken>::is_true_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_false_literal() {
+  let tok = Tok::new(Kind::False);
+  assert!(<&Tok as LitToken>::is_false_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_false_literal() {
+  let tok = Tok::new(Kind::True);
+  assert!(!<&Tok as LitToken>::is_false_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_boolean_literal_true() {
+  let tok = Tok::new(Kind::True);
+  assert!(<&Tok as LitToken>::is_boolean_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_boolean_literal_false() {
+  let tok = Tok::new(Kind::False);
+  assert!(<&Tok as LitToken>::is_boolean_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_boolean_literal() {
+  let tok = Tok::new(Kind::Other);
+  assert!(!<&Tok as LitToken>::is_boolean_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_null_literal() {
+  let tok = Tok::new(Kind::Null);
+  assert!(<&Tok as LitToken>::is_null_literal(&&tok));
+}
+
+#[test]
+fn blanket_ref_is_not_null_literal() {
+  let tok = Tok::new(Kind::Other);
+  assert!(!<&Tok as LitToken>::is_null_literal(&&tok));
 }
