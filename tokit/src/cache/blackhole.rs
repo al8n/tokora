@@ -181,5 +181,4 @@ mod tests {
     <() as Cache<'_, crate::lexer::DummyLexer>>::peek::<U1>(&cache, &mut buf);
     assert!(buf.is_empty());
   }
-
 }

@@ -400,9 +400,7 @@ fn try_expect_cached_token_no_match() {
 /// try_expect_map with cache populated: MATCH.
 #[test]
 fn try_expect_map_cached_token_match() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -424,9 +422,7 @@ fn try_expect_map_cached_token_match() {
 /// try_expect_map with cache populated: NO MATCH — token stays in cache.
 #[test]
 fn try_expect_map_cached_token_no_match() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -452,9 +448,7 @@ fn try_expect_map_cached_token_no_match() {
 /// try_expect_and_then with cache populated: match succeeds returning Some(Ok).
 #[test]
 fn try_expect_and_then_cached_match_ok() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -475,21 +469,20 @@ fn try_expect_and_then_cached_match_ok() {
 /// try_expect_and_then with cache populated: match returns Some(Err) — propagates error.
 #[test]
 fn try_expect_and_then_cached_match_err() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
     let _ = inp.peek_one()?;
     // Predicate returns Some(Err(())) for negative nums
-    inp.try_expect_and_then(|t| match t.data() {
-      Token::Num(n) if *n < 0 => Some(Err(())),
-      Token::Num(n) => Some(Ok(*n)),
-      _ => None,
-    })
-    .map(|r| r.map(|(n, _)| n))
+    inp
+      .try_expect_and_then(|t| match t.data() {
+        Token::Num(n) if *n < 0 => Some(Err(())),
+        Token::Num(n) => Some(Ok(*n)),
+        _ => None,
+      })
+      .map(|r| r.map(|(n, _)| n))
   }
 
   // -5 parses as Num(-5), triggers Some(Err(()))
@@ -763,10 +756,7 @@ fn sync_through_first_token_matches() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    let result = inp.sync_through(
-      |t| matches!(t.data(), Token::Num(_)),
-      || None,
-    )?;
+    let result = inp.sync_through(|t| matches!(t.data(), Token::Num(_)), || None)?;
     Ok(result.map(|s| s.into_data()))
   }
 
@@ -814,19 +804,13 @@ fn sync_through_matching_token_consumed_from_cache() {
     let _ = inp.peek_one()?;
     // sync_through looking for Num — the matching token is in cache
     // and should be consumed and returned.
-    let sync_result = inp.sync_through(
-      |t| matches!(t.data(), Token::Num(_)),
-      || None,
-    )?;
+    let sync_result = inp.sync_through(|t| matches!(t.data(), Token::Num(_)), || None)?;
     // The token was consumed by sync_through, so next() returns None
     let next = inp.next()?.map(|s| s.into_data());
     Ok((sync_result.map(|s| s.into_data()), next))
   }
 
-  let (sync_result, next) = ignored_parser!()
-    .apply(parse)
-    .parse_str("42")
-    .unwrap();
+  let (sync_result, next) = ignored_parser!().apply(parse).parse_str("42").unwrap();
   // sync_through correctly finds and consumes the cached matching token
   assert!(matches!(sync_result, Some(Token::Num(42))));
   // No more tokens
@@ -961,9 +945,7 @@ fn option_cache_rewind_at_cached_token_position() {
 /// Option cache: rewind with non-empty cache where cursor is AFTER cached token.
 #[test]
 fn option_cache_rewind_cursor_after_cached_span() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Vec<Token>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<Token>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -999,9 +981,7 @@ fn option_cache_rewind_cursor_after_cached_span() {
 /// consume_cached_one: multiple calls to consume tokens one by one.
 #[test]
 fn consume_cached_multiple_sequential() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Vec<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -1018,10 +998,7 @@ fn consume_cached_multiple_sequential() {
     Ok(results)
   }
 
-  let results = ignored_parser!()
-    .apply(parse)
-    .parse_str("1 2 3")
-    .unwrap();
+  let results = ignored_parser!().apply(parse).parse_str("1 2 3").unwrap();
   assert_eq!(results, vec![1, 2, 3]);
 }
 
@@ -1043,13 +1020,13 @@ fn consume_cached_to_stops_at_predicate() {
     // peek_one should still show Num(3) (not consumed)
     let _ = inp.peek_one()?;
     let remaining = inp.consume_cached_one();
-    Ok((last.map(|t| t.into_data()), remaining.map(|_| 1).unwrap_or(0)))
+    Ok((
+      last.map(|t| t.into_data()),
+      remaining.map(|_| 1).unwrap_or(0),
+    ))
   }
 
-  let (last, remaining_count) = ignored_parser!()
-    .apply(parse)
-    .parse_str("1 2 3")
-    .unwrap();
+  let (last, remaining_count) = ignored_parser!().apply(parse).parse_str("1 2 3").unwrap();
   // last was Num(2) (consumed before 3), remaining is Num(3)
   assert!(matches!(last, Some(Token::Num(2))));
   assert_eq!(remaining_count, 1);
@@ -1075,10 +1052,7 @@ fn consume_cached_while_consumes_matching() {
     Ok((last_num.map(|t| t.into_data()), next.map(|t| t.into_data())))
   }
 
-  let (last_num, next) = ignored_parser!()
-    .apply(parse)
-    .parse_str("1 , 3")
-    .unwrap();
+  let (last_num, next) = ignored_parser!().apply(parse).parse_str("1 , 3").unwrap();
   assert!(matches!(last_num, Some(Token::Num(1))));
   assert!(matches!(next, Some(Token::Comma)));
 }
@@ -1101,10 +1075,7 @@ fn consume_all_cached_multiple_tokens() {
     Ok(last.map(|t| t.into_data()))
   }
 
-  let last = ignored_parser!()
-    .apply(parse)
-    .parse_str("1 2 3")
-    .unwrap();
+  let last = ignored_parser!().apply(parse).parse_str("1 2 3").unwrap();
   // The last token in "1 2 3" is Num(3)... but default cache is U3,
   // so pop_back returns the last item. Actually consume_all_cached
   // pops back and clears — so last should be the LAST cached token.
@@ -1142,9 +1113,7 @@ fn consume_all_cached_single_token() {
 /// Option cache + try_expect_map: populate then match.
 #[test]
 fn option_cache_try_expect_map_after_peek() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -1164,9 +1133,7 @@ fn option_cache_try_expect_map_after_peek() {
 /// Option cache + try_expect_map: populate then no match.
 #[test]
 fn option_cache_try_expect_map_after_peek_no_match() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -1179,19 +1146,14 @@ fn option_cache_try_expect_map_after_peek_no_match() {
     Ok(result.map(|(n, _)| n))
   }
 
-  let result = option_cache_parser!()
-    .apply(parse)
-    .parse_str(",")
-    .unwrap();
+  let result = option_cache_parser!().apply(parse).parse_str(",").unwrap();
   assert!(result.is_none());
 }
 
 /// Option cache + try_expect_and_then: populate then match returning Ok.
 #[test]
 fn option_cache_try_expect_and_then_after_peek_ok() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -1211,9 +1173,7 @@ fn option_cache_try_expect_and_then_after_peek_ok() {
 /// Option cache + try_expect_and_then: populate then no match.
 #[test]
 fn option_cache_try_expect_and_then_after_peek_no_match() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -1226,10 +1186,7 @@ fn option_cache_try_expect_and_then_after_peek_no_match() {
     Ok(result.map(|(n, _)| n))
   }
 
-  let result = option_cache_parser!()
-    .apply(parse)
-    .parse_str(",")
-    .unwrap();
+  let result = option_cache_parser!().apply(parse).parse_str(",").unwrap();
   assert!(result.is_none());
 }
 
@@ -1307,9 +1264,7 @@ fn sep_while_bounded_normal_recovery() {
 fn try_expect_comma_from_cache() {
   use tokit::{Emitter, InputRef, Parse, ParseContext, Parser, ParserContext};
 
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<bool, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<bool, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -1325,9 +1280,7 @@ fn try_expect_comma_from_cache() {
 /// try_expect_semicolon called with semicolon already cached.
 #[test]
 fn try_expect_semicolon_from_cache() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<bool, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<bool, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -1343,9 +1296,7 @@ fn try_expect_semicolon_from_cache() {
 /// try_expect_open_paren called with open_paren already cached.
 #[test]
 fn try_expect_open_paren_from_cache() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<bool, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<bool, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -1361,9 +1312,7 @@ fn try_expect_open_paren_from_cache() {
 /// try_expect_close_paren called with close_paren already cached — no match.
 #[test]
 fn try_expect_comma_from_cache_no_match() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<bool, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<bool, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,

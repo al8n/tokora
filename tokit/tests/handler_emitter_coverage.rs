@@ -309,10 +309,7 @@ impl<'inp> FullContainerEmitter<'inp, TestLexer<'inp>> for TrackingEmitter {
 }
 
 impl<'inp> TooFewEmitter<'inp, TestLexer<'inp>> for TrackingEmitter {
-  fn emit_too_few(
-    &mut self,
-    _: TooFew<<TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), Err>
+  fn emit_too_few(&mut self, _: TooFew<<TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), Err>
   where
     TestLexer<'inp>: Lexer<'inp>,
   {
@@ -322,10 +319,7 @@ impl<'inp> TooFewEmitter<'inp, TestLexer<'inp>> for TrackingEmitter {
 }
 
 impl<'inp> TooManyEmitter<'inp, TestLexer<'inp>> for TrackingEmitter {
-  fn emit_too_many(
-    &mut self,
-    _: TooMany<<TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), Err>
+  fn emit_too_many(&mut self, _: TooMany<<TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), Err>
   where
     TestLexer<'inp>: Lexer<'inp>,
   {
@@ -532,9 +526,7 @@ fn missing_trailing_separator_emitter_mut_ref() {
 // into () — the library calls container.on_separator() during parsing.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-fn sep_into_unit<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-) -> Result<(), Err>
+fn sep_into_unit<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<(), Err>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = Err>
@@ -660,9 +652,7 @@ fn separator_handler_ignored_via_parser() {
 // exercises those impls.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-fn delim_into_unit<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-) -> Result<(), Err>
+fn delim_into_unit<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<(), Err>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = Err>
@@ -673,7 +663,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  use tokit::{punct::Bracket, parser::With};
+  use tokit::{parser::With, punct::Bracket};
   try_num
     .separated_by_comma()
     .delimited::<Bracket>()
@@ -703,7 +693,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  use tokit::{punct::Bracket, parser::With};
+  use tokit::{parser::With, punct::Bracket};
   try_num
     .separated_by_comma()
     .delimited::<Bracket>()
@@ -732,7 +722,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  use tokit::{punct::Bracket, parser::With};
+  use tokit::{parser::With, punct::Bracket};
   try_num
     .separated_by_comma()
     .delimited::<Bracket>()
@@ -761,7 +751,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  use tokit::{punct::Bracket, parser::With};
+  use tokit::{parser::With, punct::Bracket};
   try_num
     .separated_by_comma()
     .delimited::<Bracket>()

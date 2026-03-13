@@ -6,8 +6,8 @@
 
 use tokit::{
   SimpleSpan,
-  error::{ErrorContainer, Errors, InvalidHexDigits},
   error::token::{Leading, RepeatedWhile, Trailing, UnexpectedToken},
+  error::{ErrorContainer, Errors, InvalidHexDigits},
   span::AsSpan,
   utils::PositionedChar,
 };
@@ -130,8 +130,7 @@ fn invalid_hex_digits_push_char() {
 #[test]
 fn invalid_hex_digits_as_ref_slice() {
   // Exercises lines 330-331: AsRef<[PositionedChar<Char, O>]>
-  let digits: InvalidHexDigits<char, 2> =
-    InvalidHexDigits::from_char(5usize, 'Z');
+  let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(5usize, 'Z');
   let slice: &[PositionedChar<char, usize>] = digits.as_ref();
   assert_eq!(slice.len(), 1);
   assert_eq!(slice[0].position(), 5);
@@ -140,8 +139,7 @@ fn invalid_hex_digits_as_ref_slice() {
 #[test]
 fn invalid_hex_digits_as_mut_slice() {
   // Exercises lines 340-341: AsMut<[PositionedChar<Char, O>]>
-  let mut digits: InvalidHexDigits<char, 2> =
-    InvalidHexDigits::from_char(5usize, 'Z');
+  let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(5usize, 'Z');
   {
     let slice: &mut [PositionedChar<char, usize>] = digits.as_mut();
     assert_eq!(slice.len(), 1);
@@ -154,8 +152,7 @@ fn invalid_hex_digits_as_mut_slice() {
 fn invalid_hex_digits_deref_mut() {
   // Exercises lines 362-363: DerefMut
   use core::ops::DerefMut;
-  let mut digits: InvalidHexDigits<char, 2> =
-    InvalidHexDigits::from_char(10usize, 'G');
+  let mut digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(10usize, 'G');
   digits.push(PositionedChar::with_position('H', 11usize));
   // DerefMut to get a mutable slice
   let slice: &mut [PositionedChar<char, usize>] = digits.deref_mut();
@@ -294,7 +291,9 @@ impl AsSpan<SimpleSpan> for SpannedValue {
 #[test]
 fn recoverable_as_span_node_branch() {
   // Exercises line 116: Node branch of AsSpan for Recoverable
-  let inner = SpannedValue { span: SimpleSpan::new(10, 20) };
+  let inner = SpannedValue {
+    span: SimpleSpan::new(10, 20),
+  };
   let r: Recoverable<SpannedValue> = Recoverable::Node(inner);
   assert_eq!(*r.as_span(), SimpleSpan::new(10, 20));
 }
@@ -320,7 +319,7 @@ fn recoverable_as_span_missing_branch() {
 
 use tokit::{
   syntax::{Language, Syntax},
-  utils::{typenum::U2, GenericArrayDeque},
+  utils::{GenericArrayDeque, typenum::U2},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -395,8 +394,8 @@ fn recoverable_syntax_required_components() {
 
 #[cfg(feature = "bytes_1")]
 mod bytes_error_node {
-  use tokit::{SimpleSpan, error::ErrorNode};
   use bytes_1::Bytes;
+  use tokit::{SimpleSpan, error::ErrorNode};
 
   #[test]
   fn bytes_error_node_error() {

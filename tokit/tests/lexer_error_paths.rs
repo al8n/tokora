@@ -45,10 +45,16 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for FatalEm {
   ) -> Result<(), E> {
     Err(E)
   }
-  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E> {
+  fn emit_unexpected_token(
+    &mut self,
+    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
+  ) -> Result<(), E> {
     Err(E)
   }
-  fn emit_error(&mut self, err: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E> {
+  fn emit_error(
+    &mut self,
+    err: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>,
+  ) -> Result<(), E> {
     Err(err.into_data())
   }
   fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>) {}
@@ -68,7 +74,10 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for RecoveringEm {
   ) -> Result<(), E> {
     Ok(()) // recover, skip the error
   }
-  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E> {
+  fn emit_unexpected_token(
+    &mut self,
+    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
+  ) -> Result<(), E> {
     Ok(()) // recover
   }
   fn emit_error(&mut self, _: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E> {
@@ -94,9 +103,15 @@ fn try_expect_lexer_error_fatal() {
   fn parse<'inp>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, FatalEm>>,
   ) -> Result<bool, E> {
-    Ok(inp.try_expect(|t| matches!(t.data(), Token::Num(_)))?.is_some())
+    Ok(
+      inp
+        .try_expect(|t| matches!(t.data(), Token::Num(_)))?
+        .is_some(),
+    )
   }
-  let r: Result<bool, _> = Parser::with_context(fatal_ctx()).apply(parse).parse_str("@ 42");
+  let r: Result<bool, _> = Parser::with_context(fatal_ctx())
+    .apply(parse)
+    .parse_str("@ 42");
   assert!(r.is_err());
 }
 
@@ -105,11 +120,22 @@ fn try_expect_lexer_error_recovering() {
   // "@" produces a lexer error. RecoveringEm returns Ok → skips error, finds "42".
   // Covers the Ok(_) branch in try_expect_on_input.
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
-    Ok(inp.try_expect(|t| matches!(t.data(), Token::Num(_)))?.is_some())
+    Ok(
+      inp
+        .try_expect(|t| matches!(t.data(), Token::Num(_)))?
+        .is_some(),
+    )
   }
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str("@ 42");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str("@ 42");
   assert_eq!(r.unwrap(), true);
 }
 
@@ -126,14 +152,21 @@ fn try_expect_map_lexer_error_fatal() {
     })?;
     Ok(r.map(|(n, _)| n))
   }
-  let r: Result<Option<i64>, _> = Parser::with_context(fatal_ctx()).apply(parse).parse_str("@ 42");
+  let r: Result<Option<i64>, _> = Parser::with_context(fatal_ctx())
+    .apply(parse)
+    .parse_str("@ 42");
   assert!(r.is_err());
 }
 
 #[test]
 fn try_expect_map_lexer_error_recovering() {
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<Option<i64>, E> {
     let r = inp.try_expect_map(|t| match t.data() {
       Token::Num(n) => Some(*n),
@@ -141,7 +174,9 @@ fn try_expect_map_lexer_error_recovering() {
     })?;
     Ok(r.map(|(n, _)| n))
   }
-  let r: Result<Option<i64>, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str("@ 42");
+  let r: Result<Option<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str("@ 42");
   assert_eq!(r.unwrap(), Some(42));
 }
 
@@ -158,14 +193,21 @@ fn try_expect_and_then_lexer_error_fatal() {
     })?;
     Ok(r.map(|(n, _)| n))
   }
-  let r: Result<Option<i64>, _> = Parser::with_context(fatal_ctx()).apply(parse).parse_str("@ 42");
+  let r: Result<Option<i64>, _> = Parser::with_context(fatal_ctx())
+    .apply(parse)
+    .parse_str("@ 42");
   assert!(r.is_err());
 }
 
 #[test]
 fn try_expect_and_then_lexer_error_recovering() {
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<Option<i64>, E> {
     let r = inp.try_expect_and_then(|t| match t.data() {
       Token::Num(n) => Some(Ok(*n)),
@@ -173,7 +215,9 @@ fn try_expect_and_then_lexer_error_recovering() {
     })?;
     Ok(r.map(|(n, _)| n))
   }
-  let r: Result<Option<i64>, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str("@ 42");
+  let r: Result<Option<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str("@ 42");
   assert_eq!(r.unwrap(), Some(42));
 }
 
@@ -184,28 +228,31 @@ fn sync_through_lexer_error_fatal() {
   fn parse<'inp>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, FatalEm>>,
   ) -> Result<bool, E> {
-    let r = inp.sync_through(
-      |t| matches!(t.data(), Token::Num(_)),
-      || None,
-    )?;
+    let r = inp.sync_through(|t| matches!(t.data(), Token::Num(_)), || None)?;
     Ok(r.is_some())
   }
-  let r: Result<bool, _> = Parser::with_context(fatal_ctx()).apply(parse).parse_str("@ 42");
+  let r: Result<bool, _> = Parser::with_context(fatal_ctx())
+    .apply(parse)
+    .parse_str("@ 42");
   assert!(r.is_err());
 }
 
 #[test]
 fn sync_through_lexer_error_recovering() {
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
-    let r = inp.sync_through(
-      |t| matches!(t.data(), Token::Num(_)),
-      || None,
-    )?;
+    let r = inp.sync_through(|t| matches!(t.data(), Token::Num(_)), || None)?;
     Ok(r.is_some())
   }
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str("@ 42");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str("@ 42");
   assert_eq!(r.unwrap(), true);
 }
 
@@ -213,30 +260,38 @@ fn sync_through_lexer_error_recovering() {
 fn sync_through_skip_wrong_tokens() {
   // sync_through should skip non-matching tokens and emit unexpected_token for each
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
-    let r = inp.sync_through(
-      |t| matches!(t.data(), Token::Num(_)),
-      || None,
-    )?;
+    let r = inp.sync_through(|t| matches!(t.data(), Token::Num(_)), || None)?;
     Ok(r.is_some())
   }
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str(", ; 42");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str(", ; 42");
   assert_eq!(r.unwrap(), true);
 }
 
 #[test]
 fn sync_through_no_match() {
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
-    let r = inp.sync_through(
-      |t| matches!(t.data(), Token::Num(_)),
-      || None,
-    )?;
+    let r = inp.sync_through(|t| matches!(t.data(), Token::Num(_)), || None)?;
     Ok(r.is_none())
   }
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str(", ;");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str(", ;");
   assert_eq!(r.unwrap(), true);
 }
 
@@ -248,39 +303,50 @@ fn sync_through_no_match() {
 fn sync_through_cached_first_token_matches() {
   // If cache has a matching token as the first element, sync_through should find it.
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
     // peek to fill cache with 42
     let _ = inp.peek_one()?;
-    let r = inp.sync_through(
-      |t| matches!(t.data(), Token::Num(_)),
-      || None,
-    )?;
+    let r = inp.sync_through(|t| matches!(t.data(), Token::Num(_)), || None)?;
     Ok(r.is_some())
   }
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str("42");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str("42");
   // If this returns false (Ok(false)), the matching cached token was NOT consumed by sync_through.
   // This may indicate a bug in sync_matched_in_cache when the first cached token matches.
   let found = r.expect("should not error with recovering emitter");
-  assert!(found, "sync_through should find matching token even when it's the first cached token");
+  assert!(
+    found,
+    "sync_through should find matching token even when it's the first cached token"
+  );
 }
 
 #[test]
 fn sync_through_cached_skip_non_matching_then_match() {
   // Cache has a non-matching token, then input has a matching one.
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
     // peek to fill cache with comma
     let _ = inp.peek_one()?;
-    let r = inp.sync_through(
-      |t| matches!(t.data(), Token::Num(_)),
-      || None,
-    )?;
+    let r = inp.sync_through(|t| matches!(t.data(), Token::Num(_)), || None)?;
     Ok(r.is_some())
   }
   // Comma is cached, then 42 should match from input
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str(", 42");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str(", 42");
   assert_eq!(r.unwrap(), true);
 }
 
@@ -289,7 +355,12 @@ fn sync_through_cached_skip_non_matching_then_match() {
 #[test]
 fn sync_through_then_peek_match() {
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
     let (tok, _peeked) = inp.sync_through_then_peek::<_, _, generic_arraydeque::typenum::U1>(
       |t| matches!(t.data(), Token::Num(_)),
@@ -297,14 +368,21 @@ fn sync_through_then_peek_match() {
     )?;
     Ok(tok.is_some())
   }
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str("42 ,");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str("42 ,");
   assert_eq!(r.unwrap(), true);
 }
 
 #[test]
 fn sync_through_then_peek_no_match() {
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
     let (tok, _peeked) = inp.sync_through_then_peek::<_, _, generic_arraydeque::typenum::U1>(
       |t| matches!(t.data(), Token::Num(_)),
@@ -312,7 +390,9 @@ fn sync_through_then_peek_no_match() {
     )?;
     Ok(tok.is_none())
   }
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str(",");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str(",");
   assert_eq!(r.unwrap(), true);
 }
 
@@ -321,7 +401,12 @@ fn sync_through_then_peek_no_match() {
 #[test]
 fn sync_through_then_peek_cached_non_matching() {
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
     // peek to fill cache with comma (non-matching)
     let _ = inp.peek_one()?;
@@ -331,14 +416,21 @@ fn sync_through_then_peek_cached_non_matching() {
     )?;
     Ok(tok.is_some())
   }
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str(", 42");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str(", 42");
   assert_eq!(r.unwrap(), true);
 }
 
 #[test]
 fn sync_through_then_peek_skip_and_find() {
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
     let (tok, _peeked) = inp.sync_through_then_peek::<_, _, generic_arraydeque::typenum::U1>(
       |t| matches!(t.data(), Token::Num(_)),
@@ -346,14 +438,21 @@ fn sync_through_then_peek_skip_and_find() {
     )?;
     Ok(tok.is_some())
   }
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str(", ; 42");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str(", ; 42");
   assert_eq!(r.unwrap(), true);
 }
 
 #[test]
 fn sync_through_then_peek_lexer_error() {
   fn parse<'inp>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, RecoveringEm>>,
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
+    >,
   ) -> Result<bool, E> {
     let (tok, _peeked) = inp.sync_through_then_peek::<_, _, generic_arraydeque::typenum::U1>(
       |t| matches!(t.data(), Token::Num(_)),
@@ -361,7 +460,9 @@ fn sync_through_then_peek_lexer_error() {
     )?;
     Ok(tok.is_some())
   }
-  let r: Result<bool, _> = Parser::with_context(recovering_ctx()).apply(parse).parse_str("@ 42");
+  let r: Result<bool, _> = Parser::with_context(recovering_ctx())
+    .apply(parse)
+    .parse_str("@ 42");
   assert_eq!(r.unwrap(), true);
 }
 
@@ -376,7 +477,9 @@ fn sync_through_then_peek_lexer_error_fatal() {
     )?;
     Ok(tok.is_some())
   }
-  let r: Result<bool, _> = Parser::with_context(fatal_ctx()).apply(parse).parse_str("@ 42");
+  let r: Result<bool, _> = Parser::with_context(fatal_ctx())
+    .apply(parse)
+    .parse_str("@ 42");
   assert!(r.is_err());
 }
 
@@ -402,6 +505,8 @@ fn expect_plus_wrong_token() {
     inp.expect_plus()?;
     Ok(true)
   }
-  let r: Result<bool, _> = Parser::with_context(fatal_ctx()).apply(parse).parse_str(",");
+  let r: Result<bool, _> = Parser::with_context(fatal_ctx())
+    .apply(parse)
+    .parse_str(",");
   assert!(r.is_err());
 }

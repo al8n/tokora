@@ -7,8 +7,7 @@ mod common;
 #[allow(unused_imports)]
 use common::{TestLexer, Token, TokenKind};
 use tokit::{
-  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext,
-  cache::DefaultCache,
+  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, cache::DefaultCache,
   emitter::Ignored,
 };
 
@@ -249,11 +248,11 @@ mod cst_coverage {
 
 #[cfg(test)]
 mod delimiter_coverage {
+  use crate::common::TestLexer;
   use tokit::{
     delimiter::Delimiter,
     punct::{Brace, Bracket, Paren},
   };
-  use crate::common::TestLexer;
 
   #[test]
   fn paren_delimiter_name() {
@@ -330,9 +329,7 @@ mod delimiter_coverage {
 #[test]
 fn inputref_attempt_failure_restores_state() {
   // Covers input_ref/mod.rs line 194: attempt() returning None -> restore
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<i64, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -340,7 +337,11 @@ fn inputref_attempt_failure_restores_state() {
     // Attempt to consume a Plus — will fail since input starts with "42"
     let failed = inp.attempt(|i| {
       let tok = i.next().ok()??;
-      if matches!(tok.data(), Token::Plus) { Some(99i64) } else { None }
+      if matches!(tok.data(), Token::Plus) {
+        Some(99i64)
+      } else {
+        None
+      }
     });
     assert!(failed.is_none());
 
@@ -361,9 +362,7 @@ fn inputref_attempt_failure_restores_state() {
 #[test]
 fn inputref_attempt_success() {
   // Covers attempt() success branch
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<i64, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -386,9 +385,7 @@ fn inputref_attempt_success() {
 fn inputref_set_span_after_consume_within_bounds() {
   // Covers input_ref/mod.rs lines 161-163 (no cache, new.end < input.len())
   // by consuming tokens from a multi-token input
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Vec<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -411,9 +408,7 @@ fn inputref_set_span_cache_front_path() {
   // Covers input_ref/mod.rs line 158: set_span_after_consume with cache.front_span
   // by peeking (fills cache) then consuming (new.end >= cache.start)
 
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Vec<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -441,9 +436,7 @@ fn inputref_set_span_cache_front_path() {
 #[test]
 fn inputref_fold_sums_tokens() {
   // Covers fold.rs line 25: fold loop body (try_expect returns Some -> op called)
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<i64, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -451,7 +444,13 @@ fn inputref_fold_sums_tokens() {
     inp.fold(
       |t| matches!(t.data(), Token::Num(_)),
       || 0i64,
-      |acc, tok| acc + match tok.into_data() { Token::Num(n) => n, _ => 0 },
+      |acc, tok| {
+        acc
+          + match tok.into_data() {
+            Token::Num(n) => n,
+            _ => 0,
+          }
+      },
     )
   }
 
@@ -462,9 +461,7 @@ fn inputref_fold_sums_tokens() {
 #[test]
 fn inputref_fold_empty_returns_init() {
   // Covers fold.rs line 30: loop exits immediately returning Ok(output)
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<i64, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -483,16 +480,20 @@ fn inputref_fold_empty_returns_init() {
 #[test]
 fn inputref_foldn_hits_limit() {
   // Covers fold.rs lines 50-52: `if n >= num { return Ok(output); }`
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<i64, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
     inp.foldn(
       || 0i64,
-      |acc, tok| acc + match tok.into_data() { Token::Num(n) => n, _ => 0 },
+      |acc, tok| {
+        acc
+          + match tok.into_data() {
+            Token::Num(n) => n,
+            _ => 0,
+          }
+      },
       2,
     )
   }
@@ -505,9 +506,7 @@ fn inputref_foldn_hits_limit() {
 #[test]
 fn inputref_foldn_zero_limit() {
   // Covers the n >= num exit immediately (n=0, num=0)
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<i64, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -524,9 +523,7 @@ fn inputref_foldr_within_hits_capacity() {
   // Covers fold.rs line 85: `if buf.len() >= CAPACITY { break; }`
   use generic_arraydeque::typenum::U2;
 
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Vec<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -553,9 +550,7 @@ fn inputref_foldr_within_hits_capacity() {
 #[test]
 fn inputref_foldrn_hits_limit() {
   // Covers fold.rs line 126: `if n >= num { break; }`
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Vec<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -580,9 +575,7 @@ fn inputref_foldrn_hits_limit() {
 #[test]
 fn inputref_foldrn_zero_limit() {
   // Covers fold.rs line 126 immediately (n=0 >= num=0 -> break)
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Vec<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -764,12 +757,12 @@ mod utils_misc_coverage {
 
 #[cfg(test)]
 mod lexer_coverage {
+  use crate::common::Token;
   use tokit::{
     Lexer,
-    lexer::{IntoLexer, Lexed},
     lexer::LogosLexer,
+    lexer::{IntoLexer, Lexed},
   };
-  use crate::common::Token;
 
   #[test]
   fn lexed_clone_error_variant() {
@@ -825,9 +818,7 @@ mod lexer_coverage {
 // parser/mod.rs — Parser construction methods
 // ═══════════════════════════════════════════════════════════════════════════════
 
-fn parse_num<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-) -> Result<i64, ()>
+fn parse_num<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -853,8 +844,7 @@ fn parser_of_construction() {
 #[test]
 fn parser_with_parser_of_construction() {
   // Covers Parser::with_parser_of()
-  let r = Parser::with_parser_of::<'_, TestLexer<'_>, i64, (), _, ()>(parse_num)
-    .parse_str("42");
+  let r = Parser::with_parser_of::<'_, TestLexer<'_>, i64, (), _, ()>(parse_num).parse_str("42");
   assert_eq!(r.unwrap(), 42);
 }
 
@@ -875,7 +865,9 @@ fn parse_trait_default_parse() {
 #[test]
 fn parse_trait_parse_str_with_state() {
   // Covers Parse::parse_str_with_state() default
-  let r = Parser::new().apply(parse_num).parse_str_with_state("100", ());
+  let r = Parser::new()
+    .apply(parse_num)
+    .parse_str_with_state("100", ());
   assert_eq!(r.unwrap(), 100);
 }
 
