@@ -186,6 +186,26 @@ impl PunctuatorToken<'_> for Token {
   fn close_brace() -> Option<Self::Kind> {
     Some(TokenKind::RBrace)
   }
+
+  fn minus() -> Option<Self::Kind> {
+    Some(TokenKind::Minus)
+  }
+
+  fn asterisk() -> Option<Self::Kind> {
+    Some(TokenKind::Star)
+  }
+
+  fn plus() -> Option<Self::Kind> {
+    Some(TokenKind::Plus)
+  }
+
+  fn slash() -> Option<Self::Kind> {
+    Some(TokenKind::Slash)
+  }
+
+  fn equal() -> Option<Self::Kind> {
+    Some(TokenKind::Eq)
+  }
 }
 
 // ── From<Punct> for TokenKind ─────────────────────────────────────────────────
