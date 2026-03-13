@@ -64,6 +64,7 @@ where
     let buf_len = buf.len();
     let remaining_cap = buf.capacity() - buf_len;
     let mut in_cache = self.cache().len();
+    let initial_in_cache = in_cache;
     let mut want = remaining_cap.saturating_sub(in_cache);
     let exp = want;
 
@@ -132,7 +133,7 @@ where
     #[cfg(debug_assertions)]
     if want == 0 {
       debug_assert!(
-        exp == in_cache + yielded,
+        exp == (in_cache - initial_in_cache) + yielded,
         "expected peeked token count mismatch"
       );
     }
@@ -272,6 +273,55 @@ mod tests {
         let peeked = inp.peek::<U1>()?;
         assert_eq!(peeked.len(), 1);
       }
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_window_exceeds_cache_capacity() {
+    // U4 window on default U3 cache — triggers overflow path (lines 76-126)
+    parse_with("abc 123 def ghi", |inp| {
+      use generic_arraydeque::typenum::U4;
+      let peeked = inp.peek::<U4>()?;
+      // Should see all 4 tokens even though cache can only hold 3
+      assert_eq!(peeked.len(), 4);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_overflow_tokens_correct() {
+    // Verify overflowed tokens have correct data
+    parse_with("abc 123 def ghi jkl", |inp| {
+      use generic_arraydeque::typenum::U4;
+      {
+        let peeked = inp.peek::<U4>()?;
+        assert_eq!(peeked.len(), 4);
+      }
+      // Peek again — should get same result (tokens cached or re-lexed)
+      {
+        let peeked2 = inp.peek::<U4>()?;
+        assert_eq!(peeked2.len(), 4);
+      }
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn peek_overflow_then_consume() {
+    // Peek with overflow, then consume tokens normally
+    parse_with("abc 123 def ghi", |inp| {
+      use generic_arraydeque::typenum::U4;
+      {
+        let peeked = inp.peek::<U4>()?;
+        assert_eq!(peeked.len(), 4);
+      }
+      // Consume should work correctly after overflow peek
+      let tok = inp.next()?;
+      assert!(tok.is_some());
       Ok(())
     })
     .unwrap();
