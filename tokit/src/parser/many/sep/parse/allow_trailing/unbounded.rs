@@ -78,6 +78,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Container: ContainerT<O> + SeparatorHandler<'inp, L>,
 {
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

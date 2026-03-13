@@ -96,6 +96,7 @@ where
   Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   W: Window,
 {
+  #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
