@@ -286,6 +286,16 @@ where
 ///
 /// - [`InplaceRecover`] - Error recovery without backtracking
 /// - [`PeekThenChoice`] - Deterministic choice (no error recovery)
+///
+/// # Caveats
+///
+/// When the primary parser fails, `Recover` restores the input position via
+/// checkpoint but does **not** roll back errors already emitted to the
+/// [`Emitter`](crate::Emitter). If the primary parser emitted errors before
+/// returning `Err`, those errors remain in the emitter even if recovery
+/// succeeds. This is important when using [`Verbose`](crate::emitter::Verbose)
+/// or other stateful emitters — successful recovery may leave spurious errors
+/// from the failed attempt.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Recover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
   parser: P,

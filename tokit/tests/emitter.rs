@@ -1119,6 +1119,7 @@ fn fatal_emit_unexpected_token() {
 }
 
 #[test]
+#[allow(clippy::clone_on_copy)]
 fn fatal_clone_copy_debug() {
   let f = Fatal::<TestError>::new();
   let f2 = f.clone();

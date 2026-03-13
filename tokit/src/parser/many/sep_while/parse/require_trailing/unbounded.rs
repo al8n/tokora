@@ -2,154 +2,17 @@ use crate::emitter::{MissingTrailingSeparatorEmitter, UnexpectedLeadingSeparator
 
 use super::*;
 
-impl<'inp, L, F, Sep, Condition, O, Container, Ctx, Lang: ?Sized, W>
-  ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<
-    RequireTrailing<SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>>,
-    Container,
-    Ctx,
-    Lang,
-  >
-where
-  L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  Sep: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
-    + FullContainerEmitter<'inp, L, Lang>
+impl_separated_while_parse! {
+  owned_type = [RequireTrailing<SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>>],
+  ref_type = [RequireTrailing<SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>>],
+  wrapper_type = [RequireTrailing<SeparatedWhile<&'c mut F, Sep, &'c mut Condition, O, W, L, Ctx, Lang>>],
+  map_depth = 1,
+  cardinality = unbounded,
+  policy = [RequireTrailing],
+  emitters = {
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
-  Ctx: ParseContext<'inp, L, Lang>,
-  Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
-  W: Window,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(
-    &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-  ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    Wrapper(
-      self
-        .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.as_mut())),
-    )
-    .parse_input(inp)
-    .map(|_| mem::take(&mut self.container))
-  }
-}
-
-impl<'inp, L, F, Sep, Condition, O, Container, Ctx, Lang: ?Sized, W>
-  ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-  for With<
-    Collect<
-      RequireTrailing<SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>>,
-      Container,
-      Ctx,
-      Lang,
-    >,
-    PhantomSpan,
-  >
-where
-  L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  Sep: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
-    + FullContainerEmitter<'inp, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
-  Ctx: ParseContext<'inp, L, Lang>,
-  Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
-  W: Window,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn parse_input(
-    &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-  ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    Wrapper(
-      self
-        .primary_mut()
-        .as_mut()
-        .map_parser(|p| p.map_parser_mut(|p| p.as_mut())),
-    )
-    .parse_input(inp)
-    .map(|span| Spanned::new(span, mem::take(&mut self.primary.container)))
-  }
-}
-
-impl<'inp, 'c, L, F, Sep, Condition, O, Container, Ctx, Lang: ?Sized, W>
-  ParseInput<'inp, L, L::Span, Ctx, Lang>
-  for Collect<
-    &'c mut RequireTrailing<SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>>,
-    &'c mut Container,
-    Ctx,
-    Lang,
-  >
-where
-  L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  Sep: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
-    + FullContainerEmitter<'inp, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
-  Ctx: ParseContext<'inp, L, Lang>,
-  Container: ContainerT<O> + SeparatorHandler<'inp, L>,
-  W: Window,
-{
-  fn parse_input(
-    &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-  {
-    let (parser, container) = self.parts_mut();
-    let (f, condition) = parser.parser_mut().parts_mut();
-
-    let parser = RequireTrailing::new(SeparatedWhile::new::<Sep>(&mut *f, &mut *condition));
-    Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
-  }
-}
-
-struct Wrapper<T>(T);
-
-impl<'inp, 'c, L, F, Sep, Condition, O, Container, Ctx, Lang: ?Sized, W>
-  ParseInput<'inp, L, L::Span, Ctx, Lang>
-  for Wrapper<
-    Collect<
-      RequireTrailing<SeparatedWhile<&'c mut F, Sep, &'c mut Condition, O, W, L, Ctx, Lang>>,
-      &'c mut Container,
-      Ctx,
-      Lang,
-    >,
-  >
-where
-  L: Lexer<'inp>,
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
-  Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
-  Sep: Punctuator<'inp, L, Lang>,
-  Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
-    + FullContainerEmitter<'inp, L, Lang>
-    + MissingTrailingSeparatorEmitter<'inp, L, Lang>
-    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
-  Ctx: ParseContext<'inp, L, Lang>,
-  Container: ContainerT<O> + SeparatorHandler<'inp, L>,
-  W: Window,
-{
-  fn parse_input(
-    &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-  ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    const HANDLER: &RequireTrailing<Unbounded> = &RequireTrailing::new(Unbounded);
-
-    let (parser, container) = self.0.parts_mut();
-
-    parser
-      .parser_mut()
-      .parse(inp, container, HANDLER, HANDLER, HANDLER)
-  }
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
+  },
+  block3_inline = false,
+  block4_inline = false,
 }
