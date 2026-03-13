@@ -35,7 +35,7 @@ Each outer macro calls `impl_collect_blocks!` with the parser-type and delim-mod
 - `parser_trait` — `TryParseInput` or `ParseInput`
 - `extra_generics` — empty for sep, `Condition, W` for sep_while
 - `extra_bounds` — empty for sep, `Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>, W: Window` for sep_while
-- `constructor_args` — how to call `Parser::new::<Sep>(...)` and destructure `parts_mut()`
+- `constructor_args` — how to destructure `parts_mut()` and call `Parser::new::<Sep>(...)`. For `sep`: `let f = parser.fn_mut()` then `Separated::new::<Sep>(&mut **f)`. For `sep_while`: `let (f, condition) = parser.parts_mut()` then `SeparatedWhile::new::<Sep>(&mut **f, &mut *condition)`.
 
 **Delim axis** (set by outer macro):
 - Whether to wrap in `DelimitedBy<..., Delim>` and add `Delim: Delimiter` bound
@@ -48,26 +48,72 @@ Each outer macro calls `impl_collect_blocks!` with the parser-type and delim-mod
 - `handler_expr` — the `const HANDLER` initializer expression
 
 **Cardinality axis** (set by leaf file):
+- `cardinality_wrapper` — identity / `AtLeast` / `AtMost` / `Bounded`
 - `extra_emitters` — additional emitter trait bounds (`TooFewEmitter`, `TooManyEmitter`, or both)
-- `limitation` — method chain on the parse result (`.minimum()`, `.maximum()`, `.to_with()`, or nothing)
+- `block3_constructor` — how to reconstruct the cardinality in block 3 (e.g., `AtLeast::new(..., minimum.get())`, `Bounded::new(..., maximum.get(), minimum.get())`)
+- `block4_limitation` — how to compute the limitation in block 4: nothing for unbounded (uses const), `.minimum()` for at_least, `.maximum()` for at_most, `.to_with()` for bounded. The limitation value is wrapped in the policy wrapper before being passed as handler args.
 
 ### Impl Block Pattern
 
 Each leaf file generates 4 impl blocks:
 
-1. `Collect<Policy<Parser>, Container> → Container` — Owned, returns collected container. Has `#[cfg_attr(not(tarpaulin), inline(always))]`.
+1. `Collect<Policy<Parser>, Container> → Container` — Owned, returns collected container. Always has `#[cfg_attr(not(tarpaulin), inline(always))]`.
 
-2. `With<Collect<Policy<Parser>, Container>, PhantomSpan> → Spanned<Container>` — Owned with span, returns `Spanned<Container>`. Has `#[cfg_attr(not(tarpaulin), inline(always))]`.
+2. `With<Collect<Policy<Parser>, Container>, PhantomSpan> → Spanned<Container>` — Owned with span, returns `Spanned<Container>`. Always has `#[cfg_attr(not(tarpaulin), inline(always))]`.
 
-3. `Collect<&mut Policy<Parser>, &mut Container> → L::Span` — Borrowed, returns span only. Has `#[cfg_attr(not(tarpaulin), inline(always))]`. Destructures via `parts_mut()`, constructs a fresh parser, wraps in `Wrapper`.
+3. `Collect<&mut Policy<Parser>, &mut Container> → L::Span` — Borrowed, returns span only. Destructures via `parts_mut()`, constructs a fresh parser, wraps in `Wrapper`. Has `#[cfg_attr(not(tarpaulin), inline(always))]` **except** for the bare unbounded case (no policy wrapper, unbounded cardinality).
 
-4. `Wrapper<Collect<Policy<Parser<&mut F, ...>>, &mut Container>> → L::Span` — The core implementation. No inline attribute. Defines `const HANDLER`, calls the parse method with handler and limitation chain.
+4. `Wrapper<Collect<Policy<Parser<&mut F, ...>>, &mut Container>> → L::Span` — The core implementation. Has `#[cfg_attr(not(tarpaulin), inline(always))]` **only** for non-unbounded cardinalities (`AtLeast`, `AtMost`, `Bounded`). Unbounded cardinality files have no inline on this block.
 
 The macro also generates `struct Wrapper<T>(T);` once per file.
 
+### Block 3 Constructor Patterns
+
+Block 3 reconstructs a fresh parser from borrowed parts. The exact pattern varies by axis:
+
+**parse mode (sep and sep_while):**
+```rust
+let (parser, container) = self.parts_mut();
+let f = parser.fn_mut();  // or parser.parser_mut().fn_mut() for policy+cardinality
+let parser = Policy::new(Cardinality::new(Separated::new::<Sep>(&mut **f), ...));
+Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
+```
+
+**delim mode:** Same pattern but wraps in `DelimitedBy`:
+```rust
+let (delim, container) = self.parts_mut();
+let f = delim.parser.fn_mut();  // navigates through DelimitedBy to inner parser
+let parser = DelimitedBy::<_, Delim>::new(Policy::new(Cardinality::new(Separated::new::<Sep>(&mut **f), ...)));
+Wrapper(Collect::new(parser, &mut **container)).parse_input(input)
+```
+
+**sep_while** adds: `let (f, condition) = parser.parts_mut();` and passes `condition` to the constructor.
+
+### Block 4 (Wrapper) Patterns
+
+Block 4 has two distinct patterns based on cardinality:
+
+**Unbounded cardinality** (uses const handler):
+```rust
+const HANDLER: &PolicyWrapper<Unbounded> = &PolicyWrapper::new(Unbounded);
+let (parser, container) = self.0.parts_mut();
+parser.parse(inp, container, HANDLER, HANDLER, HANDLER)  // or .parse_separated() for delim
+```
+
+**Non-unbounded cardinality** (`AtLeast`/`AtMost`/`Bounded` — uses dynamic limitation):
+```rust
+let (parser, container) = self.0.parts_mut();
+let limitation = PolicyWrapper::new(parser.cardinality_accessor());  // e.g., .minimum(), .maximum(), .to_with()
+parser.inner_parser().parse(inp, container, &limitation, &limitation, &limitation)
+```
+
+For `Bounded`, `to_with()` returns a value combining both minimum and maximum.
+
+**delim mode** additionally reconstructs `DelimitedBy::new(Separated::new::<Sep>(...))` in the Wrapper block and calls `.parse_separated()` instead of `.parse()`.
+
 ### Policy Wrapping
 
-For the "unbounded" (no policy) case, the policy wrapper is identity — no wrapping applied. For all other policies (`AllowTrailing`, `RequireLeading`, `RequireTrailing`, `Surrounded`, `AllowLeading`, `AllowSurrounded`, `RequireLeadingAllowTrailing`, `RequireTrailingAllowLeading`), the policy wraps the parser type in all 4 blocks uniformly.
+For the "unbounded" (no policy) case, the policy wrapper is identity — no wrapping applied. For all other policies (`AllowTrailing`, `RequireLeading`, `RequireTrailing`, `Surrounded`, `AllowLeading`, `AllowSurrounded`, `RequireLeadingAllowTrailing`, `AllowLeadingRequireTrailing`), the policy wraps the parser type in all 4 blocks uniformly.
 
 ### Leaf File Example
 
