@@ -155,13 +155,13 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    const UNBOUNDED: &Unbounded = &Unbounded;
+    const HANDLER: &Unbounded = &Unbounded;
 
     let (parser, container) = self.0.parts_mut();
 
     let (f, condition) = parser.parser.parts_mut();
 
     DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
-      .parse_separated(inp, container, UNBOUNDED, UNBOUNDED, UNBOUNDED)
+      .parse_separated(inp, container, HANDLER, HANDLER, HANDLER)
   }
 }
