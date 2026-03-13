@@ -24,6 +24,24 @@ where
       return Ok(Some(tok));
     }
 
+    // sync_matched_in_cache skips non-matching tokens but leaves a matching
+    // token in the cache (since pop_front_if doesn't pop when pred matches).
+    // Check if the front of cache now matches and consume it.
+    if !self.cache.is_empty() {
+      if let Some(front) = self.cache.front() {
+        let span = front.token().span();
+        if pred(Spanned::new(span, front.token().data())) {
+          if let Some(tok) = self.cache.pop_front() {
+            let (lexed, state) = tok.into_components();
+            let (span, tok) = lexed.into_components();
+            self.set_span_after_consume((&span).into());
+            *self.state = state;
+            return Ok(Some(Spanned::new(span, tok)));
+          }
+        }
+      }
+    }
+
     let mut lexer = self.lexer();
 
     while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
@@ -106,9 +124,26 @@ where
       return Ok((Some(tok), peeked, emitter));
     }
 
-    // as the matched token will not be consumed, we just peek it
+    // sync_matched_in_cache skips non-matching tokens but leaves a matching
+    // token in the cache. Check if the front of cache now matches and consume it.
+    if !self.cache.is_empty() {
+      if let Some(front) = self.cache.front() {
+        let span = front.token().span();
+        if pred(Spanned::new(span, front.token().data())) {
+          if let Some(tok) = self.cache.pop_front() {
+            let (lexed, state) = tok.into_components();
+            let (span, tok) = lexed.into_components();
+            self.set_span_after_consume((&span).into());
+            *self.state = state;
+            let (peeked, emitter) = self.peek_with_emitter::<W>()?;
+            return Ok((Some(Spanned::new(span, tok)), peeked, emitter));
+          }
+        }
+      }
+    }
+
     match !self.cache().is_empty() {
-      // If the matched token is in cache, return it
+      // If the cache is non-empty but no match, peek remaining
       true => {
         let (peeked, emitter) = self.peek_with_emitter::<W>()?;
         Ok((None, peeked, emitter))

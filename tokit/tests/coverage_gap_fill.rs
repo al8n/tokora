@@ -802,7 +802,7 @@ fn sync_through_skips_until_match() {
 /// sync_through scans the remaining input (finding nothing).
 /// The token can still be consumed afterward via next().
 #[test]
-fn sync_through_matching_token_stays_in_cache() {
+fn sync_through_matching_token_consumed_from_cache() {
   fn parse<'inp, Ctx>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
   ) -> Result<(Option<Token>, Option<Token>), ()>
@@ -812,16 +812,13 @@ fn sync_through_matching_token_stays_in_cache() {
   {
     // Put Num(42) into cache
     let _ = inp.peek_one()?;
-    // sync_through looking for Num — the matching token is in cache but
-    // sync_matched_in_cache won't pop a matching front token (it stops when matched=true
-    // but pop_front_if uses !matched, so matching token is NOT popped, remains in cache)
-    // So sync_through returns None, and the token remains in the cache.
+    // sync_through looking for Num — the matching token is in cache
+    // and should be consumed and returned.
     let sync_result = inp.sync_through(
       |t| matches!(t.data(), Token::Num(_)),
       || None,
     )?;
-    // sync_through scanned lexer (empty), returned None
-    // But the cached token is still there
+    // The token was consumed by sync_through, so next() returns None
     let next = inp.next()?.map(|s| s.into_data());
     Ok((sync_result.map(|s| s.into_data()), next))
   }
@@ -830,10 +827,10 @@ fn sync_through_matching_token_stays_in_cache() {
     .apply(parse)
     .parse_str("42")
     .unwrap();
-  // sync_through returns None (token stays in cache)
-  assert!(sync_result.is_none());
-  // The cached token is still accessible
-  assert!(matches!(next, Some(Token::Num(42))));
+  // sync_through correctly finds and consumes the cached matching token
+  assert!(matches!(sync_result, Some(Token::Num(42))));
+  // No more tokens
+  assert!(next.is_none());
 }
 
 /// sync_through: cache has non-matching token, then match is in remaining input.

@@ -159,8 +159,8 @@ fn sync_through_then_peek_with_emitter_no_match() {
 
 #[test]
 fn sync_through_then_peek_with_cached_match() {
-  // When the matching token is already in cache, sync_through_then_peek returns
-  // (None, peeked) where peeked contains the matching token (not consumed).
+  // When the matching token is already in cache, sync_through_then_peek consumes
+  // it and returns it as Some(matched), with peeked containing tokens after.
   fn parse<'inp, Ctx>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
   ) -> Result<(Option<Token>, usize), ()>
@@ -171,16 +171,16 @@ fn sync_through_then_peek_with_cached_match() {
     // Peek to fill cache with Num(42)
     drop(inp.peek::<U1>()?);
     // sync_through_then_peek: cache has Num(42) which IS a Num
-    // The matching token stays in cache, returned as None matched, peeked has it
+    // The matching token is consumed and returned
     let (matched, peeked) =
       inp.sync_through_then_peek::<_, _, U1>(|t| matches!(t.data(), Token::Num(_)), || None)?;
     Ok((matched.map(|s| s.into_data()), peeked.len()))
   }
 
   let (matched, peek_len) = ignored_parser!().apply(parse).parse_str("42 ;").unwrap();
-  // matched is None because the matching token was in cache and stays there
-  assert!(matched.is_none());
-  assert_eq!(peek_len, 1); // peeked contains Num(42)
+  // matched is Some(Num(42)) because the matching cached token is consumed
+  assert!(matches!(matched, Some(Token::Num(42))));
+  assert_eq!(peek_len, 1); // peeked contains the next token (;)
 }
 
 #[test]

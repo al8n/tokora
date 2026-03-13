@@ -262,13 +262,7 @@ fn sync_through_cached_first_token_matches() {
   // If this returns false (Ok(false)), the matching cached token was NOT consumed by sync_through.
   // This may indicate a bug in sync_matched_in_cache when the first cached token matches.
   let found = r.expect("should not error with recovering emitter");
-  // BUG: sync_through returns false here because sync_matched_in_cache doesn't
-  // consume the matching token when it's the FIRST cached token.
-  // pop_front_if returns None (closure returns !matched = false), so the token
-  // stays in cache. Then sync_through falls through to the lexer loop which
-  // has no more tokens → returns Ok(None).
-  // The matching token is still accessible via next() after this call.
-  assert!(!found, "known issue: sync_through misses first cached matching token");
+  assert!(found, "sync_through should find matching token even when it's the first cached token");
 }
 
 #[test]
