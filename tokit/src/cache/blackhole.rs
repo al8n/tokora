@@ -150,4 +150,36 @@ mod tests {
     <() as Cache<'_, crate::lexer::DummyLexer>>::with_options(());
     assert_eq!((), ());
   }
+
+  #[test]
+  fn unit_cache_push_front_returns_err() {
+    use crate::cache::CachedToken;
+    use crate::lexer::DummyToken;
+    use crate::span::{SimpleSpan, Spanned};
+    let mut cache: () = ();
+    let tok = CachedToken::new(Spanned::new(SimpleSpan::new(0, 5), DummyToken), ());
+    let result = <() as Cache<'_, crate::lexer::DummyLexer>>::push_front(&mut cache, tok);
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn unit_cache_push_back_returns_err() {
+    use crate::cache::CachedToken;
+    use crate::lexer::DummyToken;
+    use crate::span::{SimpleSpan, Spanned};
+    let mut cache: () = ();
+    let tok = CachedToken::new(Spanned::new(SimpleSpan::new(0, 5), DummyToken), ());
+    let result = <() as Cache<'_, crate::lexer::DummyLexer>>::push_back(&mut cache, tok);
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn unit_cache_peek_is_noop() {
+    use generic_arraydeque::typenum::U1;
+    let cache: () = ();
+    let mut buf = GenericArrayDeque::new();
+    <() as Cache<'_, crate::lexer::DummyLexer>>::peek::<U1>(&cache, &mut buf);
+    assert!(buf.is_empty());
+  }
+
 }
