@@ -980,3 +980,373 @@ macro_rules! impl_separated_while_parse {
     }
   };
 }
+
+/// Generates 4 `ParseInput` impl blocks for `sep_while/delim/` leaf files.
+macro_rules! impl_separated_while_delim {
+  // ── @inline helper ───────────────────────────────────────────────────
+  (@inline true $($item:tt)*) => { #[cfg_attr(not(tarpaulin), inline(always))] $($item)* };
+  (@inline false $($item:tt)*) => { $($item)* };
+
+  // ── @map_self: map_parser chain for block 1 ─────────────────────────
+  (@map_self 1 $self:ident) => { $self.as_mut().map_parser(|p| p.map_parser_mut(|p| p.as_mut())) };
+  (@map_self 2 $self:ident) => { $self.as_mut().map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))) };
+  (@map_self 3 $self:ident) => { $self.as_mut().map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut())))) };
+  (@map_self 4 $self:ident) => { $self.as_mut().map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))))) };
+
+  // ── @map_primary: map_parser chain for block 2 ──────────────────────
+  (@map_primary 1 $self:ident) => { $self.primary_mut().as_mut().map_parser(|p| p.map_parser_mut(|p| p.as_mut())) };
+  (@map_primary 2 $self:ident) => { $self.primary_mut().as_mut().map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))) };
+  (@map_primary 3 $self:ident) => { $self.primary_mut().as_mut().map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut())))) };
+  (@map_primary 4 $self:ident) => { $self.primary_mut().as_mut().map_parser(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.map_parser_mut(|p| p.as_mut()))))) };
+
+  // ── @block3: block 3 body dispatch ──────────────────────────────────
+  // depth=0, no policy
+  (@block3 unbounded [] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let (f, condition) = delim.parser.parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut *condition));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+  (@block3 at_least [] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let minimum = delim.parser.minimum();
+    let (f, condition) = delim.parser.parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new(AtLeast::new(
+      SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
+      minimum.get(),
+    ));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+  (@block3 at_most [] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let maximum = delim.parser.maximum();
+    let (f, condition) = delim.parser.parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new(AtMost::new(
+      SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
+      maximum.get(),
+    ));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+  (@block3 bounded [] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let maximum = delim.parser.maximum();
+    let minimum = delim.parser.minimum();
+    let (f, condition) = delim.parser.parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new(Bounded::new(
+      SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
+      maximum.get(),
+      minimum.get(),
+    ));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+
+  // depth=1, single policy
+  (@block3 unbounded [$p1:ident] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let (f, condition) = delim.parser.parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new($p1::new(SeparatedWhile::new::<Sep>(&mut **f, &mut *condition)));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+  (@block3 at_least [$p1:ident] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let inner = delim.parser.parser_mut();
+    let minimum = inner.minimum();
+    let (f, condition) = inner.parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new($p1::new(AtLeast::new(
+      SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
+      minimum.get(),
+    )));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+  (@block3 at_most [$p1:ident] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let inner = delim.parser.parser_mut();
+    let maximum = inner.maximum();
+    let (f, condition) = inner.parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new($p1::new(AtMost::new(
+      SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
+      maximum.get(),
+    )));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+  (@block3 bounded [$p1:ident] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let inner = delim.parser.parser_mut();
+    let maximum = inner.maximum();
+    let minimum = inner.minimum();
+    let (f, condition) = inner.parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new($p1::new(Bounded::new(
+      SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
+      maximum.get(),
+      minimum.get(),
+    )));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+
+  // depth=2, double policy
+  (@block3 unbounded [$p1:ident, $p2:ident] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let (f, condition) = delim.parser.parser_mut().parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new($p1::new($p2::new(SeparatedWhile::new::<Sep>(&mut **f, &mut *condition))));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+  (@block3 at_least [$p1:ident, $p2:ident] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let inner = delim.parser.parser_mut().parser_mut();
+    let minimum = inner.minimum();
+    let (f, condition) = inner.parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new($p1::new($p2::new(AtLeast::new(
+      SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
+      minimum.get(),
+    ))));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+  (@block3 at_most [$p1:ident, $p2:ident] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let inner = delim.parser.parser_mut().parser_mut();
+    let maximum = inner.maximum();
+    let (f, condition) = inner.parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new($p1::new($p2::new(AtMost::new(
+      SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
+      maximum.get(),
+    ))));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+  (@block3 bounded [$p1:ident, $p2:ident] $self:ident $inp:ident) => {{
+    let (delim, container) = $self.parts_mut();
+    let inner = delim.parser.parser_mut().parser_mut();
+    let maximum = inner.maximum();
+    let minimum = inner.minimum();
+    let (f, condition) = inner.parser_mut().parts_mut();
+    let parser = DelimitedBy::<_, Delim>::new($p1::new($p2::new(Bounded::new(
+      SeparatedWhile::new::<Sep>(&mut **f, &mut *condition),
+      maximum.get(),
+      minimum.get(),
+    ))));
+    Wrapper(Collect::new(parser, &mut **container)).parse_input($inp)
+  }};
+
+  // ── @block4: block 4 body dispatch ──────────────────────────────────
+  // depth=0, no policy
+  (@block4 unbounded [] $self:ident $inp:ident) => {{
+    const HANDLER: &Unbounded = &Unbounded;
+    let (parser, container) = $self.0.parts_mut();
+    let (f, condition) = parser.parser.parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, HANDLER, HANDLER, HANDLER)
+  }};
+  (@block4 at_least [] $self:ident $inp:ident) => {{
+    let (parser, container) = $self.0.parts_mut();
+    let minimum = parser.parser.minimum();
+    let (f, condition) = parser.parser.parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, &minimum, &minimum, &minimum)
+  }};
+  (@block4 at_most [] $self:ident $inp:ident) => {{
+    let (parser, container) = $self.0.parts_mut();
+    let maximum = parser.parser.maximum();
+    let (f, condition) = parser.parser.parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, &maximum, &maximum, &maximum)
+  }};
+  (@block4 bounded [] $self:ident $inp:ident) => {{
+    let (parser, container) = $self.0.parts_mut();
+    let limitation = parser.parser.to_with();
+    let (f, condition) = parser.parser.parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, &limitation, &limitation, &limitation)
+  }};
+
+  // depth=1, single policy
+  (@block4 unbounded [$p1:ident] $self:ident $inp:ident) => {{
+    const HANDLER: &$p1<Unbounded> = &$p1::new(Unbounded);
+    let (parser, container) = $self.0.parts_mut();
+    let (f, condition) = parser.parser.parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, HANDLER, HANDLER, HANDLER)
+  }};
+  (@block4 at_least [$p1:ident] $self:ident $inp:ident) => {{
+    let (parser, container) = $self.0.parts_mut();
+    let limitation = $p1::new(parser.parser.parser.minimum());
+    let (f, condition) = parser.parser.parser_mut().parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, &limitation, &limitation, &limitation)
+  }};
+  (@block4 at_most [$p1:ident] $self:ident $inp:ident) => {{
+    let (parser, container) = $self.0.parts_mut();
+    let limitation = $p1::new(parser.parser.parser.maximum());
+    let (f, condition) = parser.parser.parser_mut().parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, &limitation, &limitation, &limitation)
+  }};
+  (@block4 bounded [$p1:ident] $self:ident $inp:ident) => {{
+    let (parser, container) = $self.0.parts_mut();
+    let limitation = $p1::new(parser.parser.parser.to_with());
+    let (f, condition) = parser.parser.parser_mut().parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, &limitation, &limitation, &limitation)
+  }};
+
+  // depth=2, double policy
+  (@block4 unbounded [$p1:ident, $p2:ident] $self:ident $inp:ident) => {{
+    const HANDLER: &$p1<$p2<Unbounded>> = &$p1::new($p2::new(Unbounded));
+    let (parser, container) = $self.0.parts_mut();
+    let (f, condition) = parser.parser.parser_mut().parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, HANDLER, HANDLER, HANDLER)
+  }};
+  (@block4 at_least [$p1:ident, $p2:ident] $self:ident $inp:ident) => {{
+    let (parser, container) = $self.0.parts_mut();
+    let limitation = $p1::new($p2::new(parser.parser.parser.parser.minimum()));
+    let (f, condition) = parser.parser.parser_mut().parser_mut().parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, &limitation, &limitation, &limitation)
+  }};
+  (@block4 at_most [$p1:ident, $p2:ident] $self:ident $inp:ident) => {{
+    let (parser, container) = $self.0.parts_mut();
+    let limitation = $p1::new($p2::new(parser.parser.parser.parser.maximum()));
+    let (f, condition) = parser.parser.parser_mut().parser_mut().parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, &limitation, &limitation, &limitation)
+  }};
+  (@block4 bounded [$p1:ident, $p2:ident] $self:ident $inp:ident) => {{
+    let (parser, container) = $self.0.parts_mut();
+    let limitation = $p1::new($p2::new(parser.parser.parser.parser.to_with()));
+    let (f, condition) = parser.parser.parser_mut().parser_mut().parser_mut().parts_mut();
+    DelimitedBy::<_, Delim>::new(SeparatedWhile::new::<Sep>(&mut **f, &mut **condition))
+      .parse_separated($inp, container, &limitation, &limitation, &limitation)
+  }};
+
+  // ── Main entry point ────────────────────────────────────────────────
+  (
+    owned_type = [$($owned:tt)*],
+    ref_type = [$($reft:tt)*],
+    wrapper_type = [$($wt:tt)*],
+    map_depth = $depth:tt,
+    cardinality = $card:ident,
+    policy = [$($policy:ident),*],
+    emitters = {$($emitters:tt)*},
+    block3_inline = $b3i:ident,
+    block4_inline = $b4i:ident $(,)?
+  ) => {
+    // Block 1: owned -> Container
+    impl<'inp, L, F, Sep, Condition, O, Delim, Container, Ctx, Lang: ?Sized, W>
+      ParseInput<'inp, L, Container, Ctx, Lang>
+      for Collect<$($owned)*, Container, Ctx, Lang>
+    where
+      L: Lexer<'inp>,
+      F: ParseInput<'inp, L, O, Ctx, Lang>,
+      Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+      Sep: Punctuator<'inp, L, Lang>,
+      Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+        + FullContainerEmitter<'inp, L, Lang>
+        $($emitters)*,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      Ctx: ParseContext<'inp, L, Lang>,
+      Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
+      Delim: Delimiter<'inp, L, Lang>,
+      W: Window,
+    {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn parse_input(
+        &mut self,
+        inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+      ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+        Wrapper(impl_separated_while_delim!(@map_self $depth self))
+          .parse_input(inp)
+          .map(|_| mem::take(&mut self.container))
+      }
+    }
+
+    // Block 2: owned -> Spanned<Container>
+    impl<'inp, L, F, Sep, Condition, O, Delim, Container, Ctx, Lang: ?Sized, W>
+      ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
+      for With<Collect<$($owned)*, Container, Ctx, Lang>, PhantomSpan>
+    where
+      L: Lexer<'inp>,
+      F: ParseInput<'inp, L, O, Ctx, Lang>,
+      Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+      Sep: Punctuator<'inp, L, Lang>,
+      Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+        + FullContainerEmitter<'inp, L, Lang>
+        $($emitters)*,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      Ctx: ParseContext<'inp, L, Lang>,
+      Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
+      Delim: Delimiter<'inp, L, Lang>,
+      W: Window,
+    {
+      #[cfg_attr(not(tarpaulin), inline(always))]
+      fn parse_input(
+        &mut self,
+        inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+      ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+        Wrapper(impl_separated_while_delim!(@map_primary $depth self))
+          .parse_input(inp)
+          .map(|span| Spanned::new(span, mem::take(&mut self.primary.container)))
+      }
+    }
+
+    // Block 3: &mut ref -> L::Span
+    impl<'inp, 'c, L, F, Sep, Condition, O, Delim, Container, Ctx, Lang: ?Sized, W>
+      ParseInput<'inp, L, L::Span, Ctx, Lang>
+      for Collect<&'c mut $($reft)*, &'c mut Container, Ctx, Lang>
+    where
+      L: Lexer<'inp>,
+      F: ParseInput<'inp, L, O, Ctx, Lang>,
+      Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+      Sep: Punctuator<'inp, L, Lang>,
+      Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+        + FullContainerEmitter<'inp, L, Lang>
+        $($emitters)*,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      Ctx: ParseContext<'inp, L, Lang>,
+      Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
+      Delim: Delimiter<'inp, L, Lang>,
+      W: Window,
+    {
+      impl_separated_while_delim!(@inline $b3i
+        fn parse_input(
+          &mut self,
+          input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+        ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+        where
+          L: Lexer<'inp>,
+          Ctx: ParseContext<'inp, L, Lang>,
+        {
+          impl_separated_while_delim!(@block3 $card [$($policy),*] self input)
+        }
+      );
+    }
+
+    struct Wrapper<T>(T);
+
+    // Block 4: Wrapper -> L::Span
+    impl<'inp, 'c, L, F, Sep, Condition, O, Delim, Container, Ctx, Lang: ?Sized, W>
+      ParseInput<'inp, L, L::Span, Ctx, Lang>
+      for Wrapper<Collect<$($wt)*, &'c mut Container, Ctx, Lang>>
+    where
+      L: Lexer<'inp>,
+      F: ParseInput<'inp, L, O, Ctx, Lang>,
+      Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
+      Sep: Punctuator<'inp, L, Lang>,
+      Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+        + FullContainerEmitter<'inp, L, Lang>
+        $($emitters)*,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      Ctx: ParseContext<'inp, L, Lang>,
+      Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
+      Delim: Delimiter<'inp, L, Lang>,
+      W: Window,
+    {
+      impl_separated_while_delim!(@inline $b4i
+        fn parse_input(
+          &mut self,
+          inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+        ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+          impl_separated_while_delim!(@block4 $card [$($policy),*] self inp)
+        }
+      );
+    }
+  };
+}
