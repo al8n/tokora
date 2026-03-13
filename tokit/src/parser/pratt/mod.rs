@@ -9,6 +9,13 @@ pub trait PrattPower: Default + Clone + Ord {
   fn next(&self) -> Self;
 
   /// Returns the previous lower power level.
+  ///
+  /// # Important
+  ///
+  /// This is called for right-associative operators to compute the minimum
+  /// precedence for the recursive parse. If your implementation uses numeric
+  /// types, ensure `prev()` uses saturating subtraction to avoid
+  /// underflow/panic when called on the minimum representable value.
   fn prev(&self) -> Self;
 }
 
