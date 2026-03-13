@@ -55,3 +55,24 @@ fn ref_punctuator_eval() {
   let matches = <&Comma<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::eval(&kind);
   assert!(matches);
 }
+
+#[test]
+fn ref_punctuator_description() {
+  let desc = <&Comma<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::description();
+  let orig = <Comma<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::description();
+  assert_eq!(desc.is_some(), orig.is_some());
+}
+
+#[test]
+fn ref_punctuator_kind() {
+  use common::TokenKind;
+  let kind = <&Comma<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::kind();
+  assert_eq!(kind, TokenKind::Comma);
+}
+
+#[test]
+fn punctuator_kind() {
+  use common::TokenKind;
+  let kind = <Comma<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::kind();
+  assert_eq!(kind, TokenKind::Comma);
+}

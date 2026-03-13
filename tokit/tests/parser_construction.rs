@@ -15,15 +15,21 @@ use common::{TestLexer, Token};
 struct E;
 
 impl From<()> for E {
-  fn from(_: ()) -> Self { E }
+  fn from(_: ()) -> Self {
+    E
+  }
 }
 
 impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
-  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self { E }
+  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
+    E
+  }
 }
 
 impl From<UnexpectedEot> for E {
-  fn from(_: UnexpectedEot) -> Self { E }
+  fn from(_: UnexpectedEot) -> Self {
+    E
+  }
 }
 
 struct TestEmitter;
@@ -33,25 +39,42 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEmitter {
 
   fn emit_lexer_error(
     &mut self,
-    _: Spanned<<<TestLexer<'inp> as Lexer<'inp>>::Token as TokenTrait<'inp>>::Error, <TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), E> where TestLexer<'inp>: Lexer<'inp> { Err(E) }
+    _: Spanned<
+      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenTrait<'inp>>::Error,
+      <TestLexer<'inp> as Lexer<'inp>>::Span,
+    >,
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Err(E)
+  }
 
   fn emit_unexpected_token(
     &mut self,
     _: tokit::error::token::UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E> where TestLexer<'inp>: Lexer<'inp> { Err(E) }
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Err(E)
+  }
 
-  fn emit_error(
-    &mut self,
-    err: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), E> where TestLexer<'inp>: Lexer<'inp> { Err(err.into_data()) }
+  fn emit_error(&mut self, err: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Err(err.into_data())
+  }
 
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>) where TestLexer<'inp>: Lexer<'inp> {}
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+  }
 }
 
-fn parse_first_num<'inp, Ctx>(
-  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-) -> Result<i64, E>
+fn parse_first_num<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, E>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>,
@@ -67,9 +90,7 @@ where
 
 #[test]
 fn parser_new_and_apply() {
-  let r: Result<i64, _> = Parser::new()
-    .apply(parse_first_num)
-    .parse_str("42");
+  let r: Result<i64, _> = Parser::new().apply(parse_first_num).parse_str("42");
   assert_eq!(r.unwrap(), 42);
 }
 
@@ -85,8 +106,7 @@ fn parser_with_context() {
 
 #[test]
 fn parser_with_parser() {
-  let r: Result<i64, _> = Parser::with_parser(parse_first_num)
-    .parse_str("42");
+  let r: Result<i64, _> = Parser::with_parser(parse_first_num).parse_str("42");
   assert_eq!(r.unwrap(), 42);
 }
 
@@ -94,8 +114,7 @@ fn parser_with_parser() {
 fn parser_with_parser_and_context() {
   let ctx: ParserContext<'_, TestLexer<'_>, TestEmitter, DefaultCache<'_, TestLexer<'_>>> =
     ParserContext::new(TestEmitter);
-  let r: Result<i64, _> = Parser::with_parser_and_context(parse_first_num, ctx)
-    .parse_str("42");
+  let r: Result<i64, _> = Parser::with_parser_and_context(parse_first_num, ctx).parse_str("42");
   assert_eq!(r.unwrap(), 42);
 }
 

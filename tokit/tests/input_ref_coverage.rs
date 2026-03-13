@@ -22,9 +22,7 @@ macro_rules! ignored_parser {
 
 #[test]
 fn consume_cached_one_empty() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -42,9 +40,7 @@ fn consume_cached_one_empty() {
 
 #[test]
 fn consume_cached_one_after_peek() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<Option<i64>, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Option<i64>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -63,9 +59,7 @@ fn consume_cached_one_after_peek() {
 
 #[test]
 fn consume_all_cached_empty() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<bool, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<bool, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -79,9 +73,7 @@ fn consume_all_cached_empty() {
 
 #[test]
 fn consume_all_cached_after_peek() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<bool, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<bool, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -98,9 +90,7 @@ fn consume_all_cached_after_peek() {
 
 #[test]
 fn sync_through_finds_token() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<bool, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<bool, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
@@ -118,9 +108,7 @@ fn sync_through_finds_token() {
 
 #[test]
 fn sync_through_no_match() {
-  fn parse<'inp, Ctx>(
-    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<bool, ()>
+  fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<bool, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
