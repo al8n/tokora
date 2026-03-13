@@ -56,9 +56,6 @@ where
         return;
       }
 
-      if off == span.end_ref() {
-        return;
-      }
     }
 
     *self = None;
