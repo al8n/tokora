@@ -8,26 +8,11 @@
 //! for writing parsers with tokit.
 
 // Core traits
-pub use crate::{
-  Emitter,
-  Lexer,
-  Parse,
-  ParseContext,
-  ParseInput,
-  Token,
-  TryParseInput,
-};
+pub use crate::{Emitter, Lexer, Parse, ParseContext, ParseInput, Token, TryParseInput};
 
 // Core types
-pub use crate::{
-  FatalContext,
-  InputRef,
-  Parser,
-  ParserContext,
-  SimpleSpan,
-  Span,
-};
 pub use crate::span::Spanned;
+pub use crate::{FatalContext, InputRef, Parser, ParserContext, SimpleSpan, Span};
 
 // Error
 pub use crate::error::UnexpectedEot;

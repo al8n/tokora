@@ -55,7 +55,6 @@ where
       if off == span.start_ref() {
         return;
       }
-
     }
 
     *self = None;

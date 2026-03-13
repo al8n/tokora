@@ -1,4 +1,6 @@
-use crate::emitter::{MissingLeadingSeparatorEmitter, TooFewEmitter, UnexpectedTrailingSeparatorEmitter};
+use crate::emitter::{
+  MissingLeadingSeparatorEmitter, TooFewEmitter, UnexpectedTrailingSeparatorEmitter,
+};
 
 use super::*;
 
