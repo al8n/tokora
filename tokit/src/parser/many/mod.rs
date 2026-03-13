@@ -13,6 +13,9 @@ pub use repeated_while::*;
 pub use sep::*;
 pub use sep_while::*;
 
+#[macro_use]
+mod macros;
+
 mod delim;
 mod handler;
 mod repeated;
