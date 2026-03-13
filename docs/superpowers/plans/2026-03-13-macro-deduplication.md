@@ -716,6 +716,8 @@ Convert all remaining leaf files in `sep/delim/`. Note:
 - For cardinality files, block 4 accesses limitation via `parser.parser.minimum()` etc., then also reconstructs `DelimitedBy::<_, Delim>::new(Separated::new::<Sep>(...))` for the call
 - For policy+cardinality in delim, block 4 uses `parser.parser.parser.minimum()` (extra `.parser` for policy layer)
 
+- **`block4_inline` rule for delim mode:** ALL `sep/delim/` files use `block4_inline = true`, including unbounded files. This differs from `sep/parse/` where unbounded files use `block4_inline = false`.
+
 Read each original file before converting to match field access patterns exactly.
 
 - [ ] **Step 5: Verify full test suite**
@@ -939,6 +941,8 @@ Expected: Compiles.
 Convert all 36 leaf files following the patterns from Task 2 (policy table and structural rules), adapted for `SeparatedWhile`:
 - All policies and cardinalities follow the same patterns as `sep/parse/`
 - The key differences: `SeparatedWhile` type params, `ParseInput` trait, `(f, condition)` destructuring in block 3, `&'c mut Condition` in block 4 wrapper_type
+- **Block 3 container deref:** `sep_while/parse/` files use `&mut *container` (single deref) in block 3, NOT `&mut **container` (double deref) as in `sep/parse/`. Match the actual file.
+- **Block 4 inline rule (parse mode):** `block4_inline = false` for all unbounded files (bare and policy), `block4_inline = true` for cardinality files (`at_least`, `at_most`, `bounded`).
 
 Read each original file before converting.
 
@@ -1161,6 +1165,8 @@ Run: `cargo check --all-features -p tokit`
 - [ ] **Step 4: Convert remaining `sep_while/delim/` files**
 
 Convert all 36 leaf files. Read each original first. Same policy/cardinality patterns as previous tasks, adapted for both sep_while and delim differences.
+
+**Important `block4_inline` rule for delim mode:** In `sep_while/delim/` (and `sep/delim/`), ALL files use `block4_inline = true` — including unbounded files. This differs from parse mode (`sep/parse/`, `sep_while/parse/`) where unbounded files use `block4_inline = false`. Verify by reading each actual file's block 4 for the `#[cfg_attr(not(tarpaulin), inline(always))]` attribute.
 
 - [ ] **Step 5: Verify full test suite**
 
