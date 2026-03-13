@@ -1518,3 +1518,252 @@ fn fatal_trailing_separator() {
     .parse_str("1,");
   assert!(r.is_err());
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// C. require_surrounded (require_leading + require_trailing) with recovering
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_sep_require_surrounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn sep_require_surrounded_ok() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_require_surrounded)
+    .parse_str(",1,2,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sep_require_surrounded_missing_both() {
+  // No leading or trailing comma — recovering emitter lets it continue
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_require_surrounded)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sep_require_surrounded_missing_trailing() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_require_surrounded)
+    .parse_str(",1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sep_require_surrounded_missing_leading() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_require_surrounded)
+    .parse_str("1,2,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sep_require_surrounded_single_element() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_require_surrounded)
+    .parse_str(",1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sep_require_surrounded_empty() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_require_surrounded)
+    .parse_str("");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// D. allow_surrounded (allow_leading + allow_trailing) with recovering
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_sep_allow_surrounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn sep_allow_surrounded_ok() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_allow_surrounded)
+    .parse_str(",1,2,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sep_allow_surrounded_no_separators() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_allow_surrounded)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sep_allow_surrounded_only_leading() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_allow_surrounded)
+    .parse_str(",1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sep_allow_surrounded_only_trailing() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_allow_surrounded)
+    .parse_str("1,2,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sep_allow_surrounded_empty() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sep_allow_surrounded)
+    .parse_str("");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// E. sep_while require_surrounded with recovering
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_sw_require_surrounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  parse_num
+    .separated_by_comma_while::<_, U1>(decide_num::<Ctx>)
+    .require_trailing()
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn sw_require_surrounded_ok() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sw_require_surrounded)
+    .parse_str(",1,2,+");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sw_require_surrounded_missing_both() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sw_require_surrounded)
+    .parse_str("1,2+");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sw_require_surrounded_missing_trailing() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sw_require_surrounded)
+    .parse_str(",1,2+");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sw_require_surrounded_missing_leading() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sw_require_surrounded)
+    .parse_str("1,2,+");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// F. sep_while allow_surrounded with recovering
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_sw_allow_surrounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  parse_num
+    .separated_by_comma_while::<_, U1>(decide_num::<Ctx>)
+    .allow_trailing()
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn sw_allow_surrounded_ok() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sw_allow_surrounded)
+    .parse_str(",1,2,+");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sw_allow_surrounded_no_separators() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sw_allow_surrounded)
+    .parse_str("1,2+");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sw_allow_surrounded_only_leading() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sw_allow_surrounded)
+    .parse_str(",1,2+");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn sw_allow_surrounded_only_trailing() {
+  let r: Result<Vec<i64>, _> = Parser::with_context(recovering_ctx())
+    .apply(parse_sw_allow_surrounded)
+    .parse_str("1,2,+");
+  assert!(r.is_ok());
+}
