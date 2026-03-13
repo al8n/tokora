@@ -101,13 +101,29 @@ parser.parse(inp, container, HANDLER, HANDLER, HANDLER)  // or .parse_separated(
 ```
 
 **Non-unbounded cardinality** (`AtLeast`/`AtMost`/`Bounded` — uses dynamic limitation):
+
+For `AtLeast` (no policy wrapper):
 ```rust
 let (parser, container) = self.0.parts_mut();
-let limitation = PolicyWrapper::new(parser.cardinality_accessor());  // e.g., .minimum(), .maximum(), .to_with()
-parser.inner_parser().parse(inp, container, &limitation, &limitation, &limitation)
+let minimum = parser.minimum();
+parser.parser_mut().parse(inp, container, &minimum, &minimum, &minimum)
 ```
 
-For `Bounded`, `to_with()` returns a value combining both minimum and maximum.
+For `AtLeast` with policy wrapper (e.g., `AllowTrailing`):
+```rust
+let (parser, container) = self.0.parts_mut();
+let limitation = AllowTrailing::new(parser.parser.minimum());
+parser.parser_mut().parser_mut().parse(inp, container, &limitation, &limitation, &limitation)
+```
+
+For `Bounded` with policy wrapper:
+```rust
+let (parser, container) = self.0.parts_mut();
+let limitation = AllowTrailing::new(parser.parser.to_with());
+parser.parser_mut().parser_mut().parse(inp, container, &limitation, &limitation, &limitation)
+```
+
+Note: `parser.parser` is a direct field access on the policy wrapper struct, not a method call. The number of `.parser_mut()` calls equals the nesting depth (1 for cardinality-only, 2 for policy+cardinality). `to_with()` returns a value combining both minimum and maximum.
 
 **delim mode** additionally reconstructs `DelimitedBy::new(Separated::new::<Sep>(...))` in the Wrapper block and calls `.parse_separated()` instead of `.parse()`.
 
