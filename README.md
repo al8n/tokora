@@ -1,5 +1,3 @@
-> WIP: This project is still under active development and not ready for use.
-
 <div align="center">
 <h1>Tokit</h1>
 </div>
