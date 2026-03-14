@@ -79,7 +79,7 @@ fn try_expect_comma_success() {
     Ok(inp.try_expect_comma()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str(",");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn try_expect_comma_decline() {
     Ok(inp.try_expect_comma()?.is_none())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -101,7 +101,7 @@ fn try_expect_semicolon() {
     Ok(inp.try_expect_semicolon()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str(";");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -112,7 +112,7 @@ fn try_expect_open_paren() {
     Ok(inp.try_expect_open_paren()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("(");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn try_expect_close_paren() {
     Ok(inp.try_expect_close_paren()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str(")");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -134,7 +134,7 @@ fn try_expect_open_bracket() {
     Ok(inp.try_expect_open_bracket()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("[");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -145,7 +145,7 @@ fn try_expect_close_bracket() {
     Ok(inp.try_expect_close_bracket()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("]");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -156,7 +156,7 @@ fn try_expect_open_brace() {
     Ok(inp.try_expect_open_brace()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("{");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -167,7 +167,7 @@ fn try_expect_close_brace() {
     Ok(inp.try_expect_close_brace()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("}");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 // ── try_expect with empty cache ─────────────────────────────────────────────
@@ -181,7 +181,7 @@ fn try_expect_empty_cache_match() {
     Ok(tok.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -193,7 +193,7 @@ fn try_expect_empty_cache_no_match() {
     Ok(tok.is_none())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 // ── try_expect_map with empty cache ─────────────────────────────────────────
@@ -225,7 +225,7 @@ fn try_expect_map_decline() {
     Ok(result.is_none())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str(",");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 // ── try_expect_and_then ─────────────────────────────────────────────────────
@@ -257,7 +257,7 @@ fn try_expect_and_then_decline() {
     Ok(result.is_none())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str(",");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -273,7 +273,7 @@ fn try_expect_and_then_cached_decline() {
     Ok(result.is_none())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str(",");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]

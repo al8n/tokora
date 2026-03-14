@@ -82,7 +82,7 @@ fn cowstr_borrow() {
 fn cowstr_to_mut_from_static() {
   let mut s = CowStr::from_static("test");
   let m = s.to_mut();
-  m.push_str("!");
+  m.push('!');
   assert_eq!(s.as_str(), "test!");
 }
 

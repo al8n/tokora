@@ -530,7 +530,7 @@ fn inputref_foldr_within_hits_capacity() {
   {
     inp.foldr_within::<_, U2, _, _, _>(
       |t| matches!(t.data(), Token::Num(_)),
-      || Vec::new(),
+      Vec::new,
       |mut acc, tok| {
         if let Token::Num(n) = tok.into_data() {
           acc.push(n);
@@ -556,7 +556,7 @@ fn inputref_foldrn_hits_limit() {
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
     inp.foldrn(
-      || Vec::new(),
+      Vec::new,
       |mut acc, tok| {
         if let Token::Num(n) = tok.into_data() {
           acc.push(n);
@@ -580,7 +580,7 @@ fn inputref_foldrn_zero_limit() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    inp.foldrn(|| Vec::new(), |acc, _| acc, 0)
+    inp.foldrn(Vec::new, |acc, _| acc, 0)
   }
 
   let r = ignored_parser!().apply(parse).parse_str("1 2 3");
@@ -617,6 +617,7 @@ mod cmp_coverage {
   }
 
   #[test]
+  #[allow(clippy::unnecessary_mut_passed)]
   fn mut_ref_str_equivalent() {
     // Covers &mut T::Equivalent impl (lines 110-111)
     let mut s: &str = "hello";

@@ -11,7 +11,7 @@ use tokit::{
   span::Spanned,
 };
 
-use common::{TestLexer, Token};
+use common::TestLexer;
 
 #[derive(Debug)]
 struct E;
@@ -80,7 +80,7 @@ fn try_expect_minus_alias_success() {
     Ok(inp.try_expect_minus()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("-");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -91,7 +91,7 @@ fn try_expect_minus_alias_decline() {
     Ok(inp.try_expect_minus()?.is_none())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn try_expect_hyphen_success() {
     Ok(inp.try_expect_hyphen()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("-");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 // ── Alias expect methods ─────────────────────────────────────────────────────
@@ -116,7 +116,7 @@ fn expect_minus_alias_success() {
     Ok(true)
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("-");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn expect_hyphen_success() {
     Ok(true)
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("-");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -166,7 +166,7 @@ fn expect_asterisk_success() {
     Ok(true)
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("*");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -177,7 +177,7 @@ fn try_expect_asterisk_success() {
     Ok(inp.try_expect_asterisk()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("*");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -188,7 +188,7 @@ fn try_expect_plus_success() {
     Ok(inp.try_expect_plus()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("+");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -199,7 +199,7 @@ fn try_expect_slash_success() {
     Ok(inp.try_expect_slash()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("/");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -210,7 +210,7 @@ fn try_expect_equal_success() {
     Ok(inp.try_expect_equal()?.is_some())
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("=");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -222,7 +222,7 @@ fn expect_plus_success() {
     Ok(true)
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("+");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -234,7 +234,7 @@ fn expect_slash_success() {
     Ok(true)
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("/");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -246,5 +246,5 @@ fn expect_equal_success() {
     Ok(true)
   }
   let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("=");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }

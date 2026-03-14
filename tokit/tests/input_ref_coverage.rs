@@ -68,7 +68,7 @@ fn consume_all_cached_empty() {
   }
 
   let r = ignored_parser!().apply(parse).parse_str("1 2 3");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -83,7 +83,7 @@ fn consume_all_cached_after_peek() {
   }
 
   let r = ignored_parser!().apply(parse).parse_str("1 2 3");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 // ── sync_through tests ──────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ fn sync_through_finds_token() {
   }
 
   let r = ignored_parser!().apply(parse).parse_str("1 2 , 3");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -121,5 +121,5 @@ fn sync_through_no_match() {
   }
 
   let r = ignored_parser!().apply(parse).parse_str("1 2 3");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }

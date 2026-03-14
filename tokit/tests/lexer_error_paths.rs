@@ -136,7 +136,7 @@ fn try_expect_lexer_error_recovering() {
   let r: Result<bool, _> = Parser::with_context(recovering_ctx())
     .apply(parse)
     .parse_str("@ 42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 // ── try_expect_map with lexer error ─────────────────────────────────────────
@@ -253,7 +253,7 @@ fn sync_through_lexer_error_recovering() {
   let r: Result<bool, _> = Parser::with_context(recovering_ctx())
     .apply(parse)
     .parse_str("@ 42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -273,7 +273,7 @@ fn sync_through_skip_wrong_tokens() {
   let r: Result<bool, _> = Parser::with_context(recovering_ctx())
     .apply(parse)
     .parse_str(", ; 42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -292,7 +292,7 @@ fn sync_through_no_match() {
   let r: Result<bool, _> = Parser::with_context(recovering_ctx())
     .apply(parse)
     .parse_str(", ;");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 // ── sync_through with cached tokens ─────────────────────────────────────────
@@ -347,7 +347,7 @@ fn sync_through_cached_skip_non_matching_then_match() {
   let r: Result<bool, _> = Parser::with_context(recovering_ctx())
     .apply(parse)
     .parse_str(", 42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 // ── sync_through_then_peek ──────────────────────────────────────────────────
@@ -371,7 +371,7 @@ fn sync_through_then_peek_match() {
   let r: Result<bool, _> = Parser::with_context(recovering_ctx())
     .apply(parse)
     .parse_str("42 ,");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -393,7 +393,7 @@ fn sync_through_then_peek_no_match() {
   let r: Result<bool, _> = Parser::with_context(recovering_ctx())
     .apply(parse)
     .parse_str(",");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 // sync_through_then_peek with cached non-matching then matching from input
@@ -419,7 +419,7 @@ fn sync_through_then_peek_cached_non_matching() {
   let r: Result<bool, _> = Parser::with_context(recovering_ctx())
     .apply(parse)
     .parse_str(", 42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -441,7 +441,7 @@ fn sync_through_then_peek_skip_and_find() {
   let r: Result<bool, _> = Parser::with_context(recovering_ctx())
     .apply(parse)
     .parse_str(", ; 42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]
@@ -463,7 +463,7 @@ fn sync_through_then_peek_lexer_error() {
   let r: Result<bool, _> = Parser::with_context(recovering_ctx())
     .apply(parse)
     .parse_str("@ 42");
-  assert_eq!(r.unwrap(), true);
+  assert!(r.unwrap());
 }
 
 #[test]

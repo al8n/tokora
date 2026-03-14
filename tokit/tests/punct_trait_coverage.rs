@@ -1,10 +1,7 @@
 #![cfg(all(feature = "std", feature = "logos"))]
 mod common;
 
-use tokit::{
-  Lexer,
-  punct::{Comma, Punctuator},
-};
+use tokit::punct::{Comma, Punctuator};
 
 use common::TestLexer;
 
