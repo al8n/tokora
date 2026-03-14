@@ -11,6 +11,7 @@ use super::{Cursor, Lexer};
 ///
 /// Checkpoints include:
 /// - The cursor position (byte offset in the input)
+/// - The input span at save time (`InputRef::span` / last-consumed-token span)
 /// - The lexer's extras state (for stateful lexers)
 /// - Cache state (implicitly through the cursor)
 ///
