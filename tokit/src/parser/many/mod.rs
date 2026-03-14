@@ -6,7 +6,7 @@ use super::*;
 use handler::*;
 
 pub use delim::*;
-pub use handler::SeparatorHandler;
+pub use handler::{DelimiterHandler, SeparatorHandler};
 pub use options::*;
 pub use repeated::*;
 pub use repeated_while::*;
