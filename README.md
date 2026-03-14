@@ -79,7 +79,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-tokit = "0.0.0"
+tokit = "0.1"
 ```
 
 ### Feature Flags
