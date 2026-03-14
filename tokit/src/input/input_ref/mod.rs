@@ -133,10 +133,10 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn set_span(&mut self, new: MaybeRef<'_, L::Span>) {
     let end = self.input.len();
-    *self.span = if new.end_ref().lt(&end) {
+    *self.span = if new.end_ref().le(&end) {
       to_owned(new)
     } else {
-      L::Span::new(L::Offset::default(), end)
+      L::Span::new(new.start_ref().clone(), end)
     };
   }
 
@@ -187,12 +187,13 @@ where
     F: FnOnce(&mut Self) -> Option<R>,
   {
     let cur = self.cursor().span().clone();
+    let span = self.span.clone();
     let state = self.state.clone();
 
     match f(self) {
       Some(result) => Some(result),
       None => {
-        let ckp = Checkpoint::new(Cursor::new(cur), state);
+        let ckp = Checkpoint::new(Cursor::new(cur), span, state);
         self.restore(ckp);
         None
       }
@@ -272,7 +273,7 @@ where
   /// implementing backtracking in parsers.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn save(&self) -> Checkpoint<'inp, 'closure, L> {
-    Checkpoint::new(self.cursor().clone(), self.state.clone())
+    Checkpoint::new(self.cursor().clone(), self.span.clone(), self.state.clone())
   }
 
   /// Returns the current cursor position.
@@ -306,7 +307,7 @@ where
     self.cache_mut().rewind(&checkpoint);
     let cur = checkpoint.cursor();
     self.emitter().rewind(cur);
-    self.set_span(cur.span().into());
+    self.set_span((&checkpoint.span).into());
     *self.state = checkpoint.state;
   }
 
