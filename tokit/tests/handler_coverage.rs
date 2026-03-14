@@ -1,0 +1,2254 @@
+#![cfg(all(feature = "std", feature = "logos"))]
+#![allow(warnings)]
+mod common;
+
+// Integration tests using a **recovering** emitter (returns Ok(()) for all errors)
+// to exercise handler code paths that are unreachable with a fatal emitter.
+// Covers: handle_leading_state, handle_separator_state, handle_element_state,
+// handle_too_many_element, and handle_start_state across all handler combinations.
+
+use tokit::{
+  Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
+  Token as TokenTrait, TryParseInput,
+  emitter::{
+    FromSeparatedError, FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
+    FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
+    SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
+    UnexpectedTrailingSeparatorEmitter,
+  },
+  error::{
+    UnexpectedEot,
+    syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
+    token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+  },
+  input::Cursor,
+  span::Spanned,
+  try_parse_input::ParseAttempt,
+  utils::CowStr,
+};
+
+use common::{TestLexer, Token};
+
+// ── Error type ────────────────────────────────────────────────────────────────
+
+#[derive(Debug)]
+struct E;
+
+impl From<()> for E {
+  fn from(_: ()) -> Self {
+    E
+  }
+}
+
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
+  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
+    E
+  }
+}
+
+impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for E {
+  fn from(_: FullContainer<S, Lang>) -> Self {
+    E
+  }
+}
+
+impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for E {
+  fn from(_: TooFew<S, Lang>) -> Self {
+    E
+  }
+}
+
+impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for E {
+  fn from(_: TooMany<S, Lang>) -> Self {
+    E
+  }
+}
+
+impl From<UnexpectedEot> for E {
+  fn from(_: UnexpectedEot) -> Self {
+    E
+  }
+}
+
+impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for E {
+  fn from_missing_separator(_: CowStr, _: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    E
+  }
+
+  fn from_missing_element(_: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    E
+  }
+}
+
+impl<'inp> FromUnexpectedLeadingSeparatorError<'inp, TestLexer<'inp>> for E {
+  fn from_unexpected_leading_separator(
+    _: CowStr,
+    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
+  ) -> Self
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    E
+  }
+}
+
+impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for E {
+  fn from_unexpected_trailing_separator(
+    _: CowStr,
+    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
+  ) -> Self
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    E
+  }
+}
+
+// ── Recovering emitter ──────────────────────────────────────────────────────
+
+struct RecoveringEmitter;
+
+impl<'inp> Emitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
+  type Error = E;
+
+  fn emit_lexer_error(
+    &mut self,
+    _: Spanned<
+      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenTrait<'inp>>::Error,
+      <TestLexer<'inp> as Lexer<'inp>>::Span,
+    >,
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+
+  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+
+  fn emit_error(&mut self, _: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+  }
+}
+
+impl<'inp> SeparatedEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
+  fn emit_missing_separator(
+    &mut self,
+    _: CowStr,
+    _: MissingTokenOf<'inp, TestLexer<'inp>>,
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+
+  fn emit_missing_element(&mut self, _: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+}
+
+impl<'inp> FullContainerEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
+  fn emit_full_container(
+    &mut self,
+    _: FullContainer<<TestLexer<'inp> as Lexer<'inp>>::Span>,
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+}
+
+impl<'inp> TooFewEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
+  fn emit_too_few(&mut self, _: TooFew<<TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+}
+
+impl<'inp> TooManyEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
+  fn emit_too_many(&mut self, _: TooMany<<TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+}
+
+impl<'inp> UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
+  fn emit_unexpected_leading_separator(
+    &mut self,
+    _: CowStr,
+    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+}
+
+impl<'inp> UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
+  fn emit_unexpected_trailing_separator(
+    &mut self,
+    _: CowStr,
+    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+}
+
+impl<'inp> MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
+  fn emit_missing_trailing_separator(
+    &mut self,
+    _: CowStr,
+    _: MissingTokenOf<'inp, TestLexer<'inp>>,
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+}
+
+impl<'inp> MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
+  fn emit_missing_leading_separator(
+    &mut self,
+    _: CowStr,
+    _: MissingTokenOf<'inp, TestLexer<'inp>>,
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Ok(())
+  }
+}
+
+fn recovering_ctx() -> ParserContext<'static, TestLexer<'static>, RecoveringEmitter> {
+  ParserContext::new(RecoveringEmitter)
+}
+
+// ── Element parser ────────────────────────────────────────────────────────────
+
+fn try_num<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<ParseAttempt<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>,
+{
+  inp
+    .try_expect(|t| matches!(t.data(), Token::Num(_)))
+    .map(|opt| match opt {
+      None => ParseAttempt::Decline,
+      Some(tok) => ParseAttempt::Accept(match tok.into_data() {
+        Token::Num(n) => n,
+        _ => unreachable!(),
+      }),
+    })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 1. allow_trailing + unbounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_at_unbounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn at_unbounded_leading_sep_only() {
+  // Input "," — hits handle_leading_state
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_unbounded)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn at_unbounded_trailing_sep() {
+  // Input "1," — hits handle_separator_state
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_unbounded)
+    .parse_str("1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn at_unbounded_leading_sep_recovery() {
+  // Input ",1" — hits SeparatorStateHandler::handle_start_state with recovery
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_unbounded)
+    .parse_str(",1");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2. allow_trailing + at_most
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_at_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .at_most(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn at_at_most_leading_sep_only() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn at_at_most_trailing_sep() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str("1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn at_at_most_overflow() {
+  // Input "1, 2, 3" with at_most(2) — hits handle_too_many_element
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str("1,2,3");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn at_at_most_overflow_trailing() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str("1,2,3,");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 3. allow_trailing + at_least
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_at_at_least_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .at_least(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn at_at_least_leading_sep_only() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_at_least_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn at_at_least_trailing_sep() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_at_least_2)
+    .parse_str("1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn at_at_least_too_few_recovery() {
+  // Input "1" with at_least(2) — too few, but recovering
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_at_least_2)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 4. allow_trailing + bounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_at_bounded_1_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .bounded(1, 3)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn at_bounded_leading_sep_only() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_bounded_1_3)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn at_bounded_trailing_sep() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_bounded_1_3)
+    .parse_str("1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn at_bounded_overflow() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_bounded_1_3)
+    .parse_str("1,2,3,4");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn at_bounded_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_bounded_1_3)
+    .parse_str("");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 5. allow_leading + at_most
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_al_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_leading()
+    .at_most(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn al_at_most_trailing_sep() {
+  // Trailing sep with allow_leading — hits handle_separator_state
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_at_most_2)
+    .parse_str("1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn al_at_most_overflow() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_at_most_2)
+    .parse_str(",1,2,3");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn al_at_most_overflow_no_leading() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_at_most_2)
+    .parse_str("1,2,3");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 6. allow_leading + at_least
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_al_at_least_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_leading()
+    .at_least(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn al_at_least_trailing_sep() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_at_least_2)
+    .parse_str("1,2,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn al_at_least_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_at_least_2)
+    .parse_str(",1");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 7. allow_leading + bounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_al_bounded_1_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_leading()
+    .bounded(1, 3)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn al_bounded_trailing_sep() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_bounded_1_3)
+    .parse_str("1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn al_bounded_overflow() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_bounded_1_3)
+    .parse_str(",1,2,3,4");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn al_bounded_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_bounded_1_3)
+    .parse_str("");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8. require_trailing + unbounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rt_unbounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rt_unbounded_missing_trailing_recovery() {
+  // Input "1" — hits handle_element_state (missing trailing sep)
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_unbounded)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_unbounded_leading_sep_only_recovery() {
+  // Input "," — hits handle_leading_state
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_unbounded)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_unbounded_missing_trailing_multi_recovery() {
+  // Input "1,2" — hits handle_element_state
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_unbounded)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_unbounded_leading_sep_recovery() {
+  // Input ",1," — hits SeparatorStateHandler::handle_start_state with recovery
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_unbounded)
+    .parse_str(",1,");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 9. require_trailing + at_most
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rt_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .at_most(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rt_at_most_missing_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_at_most_2)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_at_most_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_at_most_2)
+    .parse_str("1,2,3,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_at_most_overflow_no_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_at_most_2)
+    .parse_str("1,2,3");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 10. require_trailing + at_least
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rt_at_least_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .at_least(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rt_at_least_missing_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_at_least_2)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_at_least_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_at_least_2)
+    .parse_str("1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_at_least_too_few_no_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_at_least_2)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 11. require_trailing + bounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rt_bounded_1_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .bounded(1, 3)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rt_bounded_missing_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_bounded_1_3)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_bounded_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_bounded_1_3)
+    .parse_str("1,2,3,4,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_bounded_overflow_no_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_bounded_1_3)
+    .parse_str("1,2,3,4");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 12. require_leading + unbounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rl_unbounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rl_unbounded_missing_leading_recovery() {
+  // Input "1" — hits ContinueStateHandler::handle_start_state (missing leading)
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_unbounded)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_unbounded_trailing_sep_recovery() {
+  // Input ",1," — hits handle_separator_state (unexpected trailing)
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_unbounded)
+    .parse_str(",1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_unbounded_leading_only_recovery() {
+  // Input "," — hits handle_leading_state
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_unbounded)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_unbounded_missing_leading_multi_recovery() {
+  // Input "1,2" — missing leading, recovery continues
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_unbounded)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 13. require_leading + at_most
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rl_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_leading()
+    .at_most(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rl_at_most_trailing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_at_most_2)
+    .parse_str(",1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_at_most_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_at_most_2)
+    .parse_str(",1,2,3");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_at_most_missing_leading_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_at_most_2)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 14. require_leading + at_least
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rl_at_least_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_leading()
+    .at_least(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rl_at_least_missing_leading_recovery() {
+  // Input "1,2" — missing leading, recovery
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_at_least_2)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_at_least_trailing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_at_least_2)
+    .parse_str(",1,2,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_at_least_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_at_least_2)
+    .parse_str(",1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_at_least_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_at_least_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 15. require_leading + bounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rl_bounded_1_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_leading()
+    .bounded(1, 3)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rl_bounded_trailing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_bounded_1_3)
+    .parse_str(",1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_bounded_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_bounded_1_3)
+    .parse_str(",1,2,3,4");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_bounded_missing_leading_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_bounded_1_3)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 16. allow_leading_require_trailing + unbounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_alrt_unbounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn alrt_unbounded_missing_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_unbounded)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn alrt_unbounded_leading_sep_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_unbounded)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn alrt_unbounded_missing_trailing_multi_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_unbounded)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 17. allow_leading_require_trailing + at_most
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_alrt_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .at_most(2)
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn alrt_at_most_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_at_most_2)
+    .parse_str("1,2,3,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn alrt_at_most_missing_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_at_most_2)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 18. allow_leading_require_trailing + at_least
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_alrt_at_least_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .at_least(2)
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn alrt_at_least_missing_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_at_least_2)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn alrt_at_least_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_at_least_2)
+    .parse_str("1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn alrt_at_least_leading_sep_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_at_least_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn alrt_at_least_missing_trailing_single_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_at_least_2)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 19. allow_leading_require_trailing + bounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_alrt_bounded_1_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .bounded(1, 3)
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn alrt_bounded_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_bounded_1_3)
+    .parse_str(",1,2,3,4,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn alrt_bounded_missing_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_bounded_1_3)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 20. require_leading_allow_trailing + unbounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rlat_unbounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rlat_unbounded_missing_leading_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_unbounded)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_unbounded_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_unbounded)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_unbounded_missing_leading_multi_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_unbounded)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 21. require_leading_allow_trailing + at_most
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rlat_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .at_most(2)
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rlat_at_most_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_at_most_2)
+    .parse_str(",1,2,3");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_at_most_missing_leading_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_at_most_2)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 22. require_leading_allow_trailing + at_least
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rlat_at_least_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .at_least(2)
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rlat_at_least_missing_leading_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_at_least_2)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_at_least_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_at_least_2)
+    .parse_str(",1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_at_least_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_at_least_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 23. require_leading_allow_trailing + bounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rlat_bounded_1_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .bounded(1, 3)
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rlat_bounded_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_bounded_1_3)
+    .parse_str(",1,2,3,4");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_bounded_missing_leading_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_bounded_1_3)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_bounded_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_bounded_1_3)
+    .parse_str("");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 24. allow_surrounded + at_most (allow_trailing + allow_leading)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_as_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .at_most(2)
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn as_at_most_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_as_at_most_2)
+    .parse_str(",1,2,3,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn as_at_most_overflow_no_leading_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_as_at_most_2)
+    .parse_str("1,2,3");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 25. allow_surrounded + bounded (allow_trailing + allow_leading)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_as_bounded_1_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .allow_trailing()
+    .bounded(1, 3)
+    .allow_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn as_bounded_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_as_bounded_1_3)
+    .parse_str(",1,2,3,4,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn as_bounded_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_as_bounded_1_3)
+    .parse_str("");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 26. require_surrounded + unbounded (require_trailing + require_leading)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rs_unbounded<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rs_unbounded_missing_trailing_recovery() {
+  // Input ",1" — missing trailing sep
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_unbounded)
+    .parse_str(",1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rs_unbounded_missing_leading_recovery() {
+  // Input "1," — missing leading sep
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_unbounded)
+    .parse_str("1,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rs_unbounded_leading_only_recovery() {
+  // Input "," — hits handle_leading_state
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_unbounded)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rs_unbounded_missing_both_recovery() {
+  // Input "1" — missing both leading and trailing
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_unbounded)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 27. require_surrounded + at_most
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rs_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .at_most(2)
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rs_at_most_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_at_most_2)
+    .parse_str(",1,2,3,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rs_at_most_missing_both_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_at_most_2)
+    .parse_str("1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rs_at_most_missing_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_at_most_2)
+    .parse_str(",1,2");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 28. require_surrounded + bounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_rs_bounded_1_3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .require_trailing()
+    .bounded(1, 3)
+    .require_leading()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn rs_bounded_missing_trailing_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_bounded_1_3)
+    .parse_str(",1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rs_bounded_missing_leading_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_bounded_1_3)
+    .parse_str("1,2,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rs_bounded_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_bounded_1_3)
+    .parse_str(",1,2,3,4,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rs_bounded_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_bounded_1_3)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rs_bounded_missing_both_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_bounded_1_3)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 29. Plain bounded (handler/bounded.rs)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_plain_bounded_2_4<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .bounded(2, 4)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn plain_bounded_trailing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_bounded_2_4)
+    .parse_str("1,2,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn plain_bounded_leading_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_bounded_2_4)
+    .parse_str(",1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn plain_bounded_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_bounded_2_4)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn plain_bounded_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_bounded_2_4)
+    .parse_str("1,2,3,4,5");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn plain_bounded_empty_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_bounded_2_4)
+    .parse_str("");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 30. Plain maximum (handler/maximum.rs)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_plain_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .at_most(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn plain_at_most_trailing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_at_most_2)
+    .parse_str("1,2,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn plain_at_most_leading_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_at_most_2)
+    .parse_str(",1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn plain_at_most_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_at_most_2)
+    .parse_str("1,2,3");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 31. Plain minimum (handler/minimum.rs)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_plain_at_least_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .separated_by_comma()
+    .at_least(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn plain_at_least_trailing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_at_least_2)
+    .parse_str("1,2,");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn plain_at_least_leading_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_at_least_2)
+    .parse_str(",1,2");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn plain_at_least_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_at_least_2)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 32. Repeated (non-separated) handler coverage
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn parse_repeated_at_most_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num.repeated().at_most(2).collect().parse_input(inp)
+}
+
+#[test]
+fn repeated_at_most_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_repeated_at_most_2)
+    .parse_str("1 2 3");
+  assert!(r.is_ok());
+}
+
+fn parse_repeated_bounded_2_4<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num
+    .repeated()
+    .at_most(4)
+    .at_least(2)
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn repeated_bounded_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_repeated_bounded_2_4)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn repeated_bounded_overflow_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_repeated_bounded_2_4)
+    .parse_str("1 2 3 4 5");
+  assert!(r.is_ok());
+}
+
+fn parse_repeated_at_least_2<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, E>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>,
+{
+  try_num.repeated().at_least(2).collect().parse_input(inp)
+}
+
+#[test]
+fn repeated_at_least_too_few_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_repeated_at_least_2)
+    .parse_str("1");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 33. handler/mod.rs — SeparatorHandler coverage for blackhole impls
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// The PhantomData and GenericArrayDeque SeparatorHandler impls (lines 47-49, 57-59, 75)
+// are covered transitively via the separated parser collecting into Vec (which
+// uses Vec's SeparatorHandler). These are no-op impls invoked during parsing.
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 34. Additional edge cases: leading-only for combinations with bounded checks
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn at_at_most_leading_sep_with_elem() {
+  // ",1" with allow_trailing at_most — leading sep error then element
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str(",1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_at_most_leading_sep_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_at_most_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_bounded_leading_sep_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_bounded_1_3)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rt_at_least_leading_sep_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_at_least_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rs_at_most_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_at_most_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn al_at_most_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_at_most_2)
+    .parse_str(",1");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn al_bounded_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_bounded_1_3)
+    .parse_str(",1");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 35. Missing element after leading sep for require_leading variants
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn rl_at_most_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_at_most_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rl_bounded_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_bounded_1_3)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_at_most_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_at_most_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_bounded_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_bounded_1_3)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn alrt_at_most_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_at_most_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn alrt_bounded_leading_only_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_bounded_1_3)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 36. Missing separator tests (consecutive elements without commas)
+//     These trigger ContinueStateHandler::handle_too_many_element
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// -- allow_trailing + at_most --
+#[test]
+fn at_at_most_missing_sep_recovery() {
+  // "1 2 3" with at_most(2): parse 1 (Element), see 2 (no comma) → handle_too_many_element
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_at_most_2)
+    .parse_str("1 2 3");
+  assert!(r.is_ok());
+}
+
+// -- allow_trailing + bounded --
+#[test]
+fn at_bounded_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_at_bounded_1_3)
+    .parse_str("1 2 3 4");
+  assert!(r.is_ok());
+}
+
+// -- allow_leading + at_most --
+#[test]
+fn al_at_most_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_at_most_2)
+    .parse_str("1 2 3");
+  assert!(r.is_ok());
+}
+
+// -- allow_leading + bounded --
+#[test]
+fn al_bounded_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_al_bounded_1_3)
+    .parse_str("1 2 3 4");
+  assert!(r.is_ok());
+}
+
+// -- allow_leading_require_trailing + at_most --
+#[test]
+fn alrt_at_most_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_at_most_2)
+    .parse_str("1 2 3");
+  assert!(r.is_ok());
+}
+
+// -- allow_leading_require_trailing + bounded --
+#[test]
+fn alrt_bounded_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_bounded_1_3)
+    .parse_str("1 2 3 4");
+  assert!(r.is_ok());
+}
+
+// -- allow_surrounded + at_most --
+#[test]
+fn as_at_most_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_as_at_most_2)
+    .parse_str("1 2 3");
+  assert!(r.is_ok());
+}
+
+// -- allow_surrounded + bounded --
+#[test]
+fn as_bounded_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_as_bounded_1_3)
+    .parse_str("1 2 3 4");
+  assert!(r.is_ok());
+}
+
+// -- require_trailing + at_most --
+#[test]
+fn rt_at_most_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_at_most_2)
+    .parse_str("1 2 3");
+  assert!(r.is_ok());
+}
+
+// -- require_trailing + bounded --
+#[test]
+fn rt_bounded_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rt_bounded_1_3)
+    .parse_str("1 2 3 4");
+  assert!(r.is_ok());
+}
+
+// -- require_leading + at_most --
+#[test]
+fn rl_at_most_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_at_most_2)
+    .parse_str("1 2 3");
+  assert!(r.is_ok());
+}
+
+// -- require_leading + bounded --
+#[test]
+fn rl_bounded_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rl_bounded_1_3)
+    .parse_str("1 2 3 4");
+  assert!(r.is_ok());
+}
+
+// -- require_leading_allow_trailing + at_most --
+#[test]
+fn rlat_at_most_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_at_most_2)
+    .parse_str("1 2 3");
+  assert!(r.is_ok());
+}
+
+// -- require_leading_allow_trailing + bounded --
+#[test]
+fn rlat_bounded_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_bounded_1_3)
+    .parse_str("1 2 3 4");
+  assert!(r.is_ok());
+}
+
+// -- require_surrounded + at_most --
+#[test]
+fn rs_at_most_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_at_most_2)
+    .parse_str("1 2 3");
+  assert!(r.is_ok());
+}
+
+// -- require_surrounded + bounded --
+#[test]
+fn rs_bounded_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rs_bounded_1_3)
+    .parse_str("1 2 3 4");
+  assert!(r.is_ok());
+}
+
+// -- plain bounded (With<Minimum, Maximum>) --
+#[test]
+fn plain_bounded_missing_sep_recovery() {
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_bounded_2_4)
+    .parse_str("1 2 3 4 5");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 37. Plain bounded handle_leading_state — input "," with plain bounded
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn plain_bounded_leading_only_recovery() {
+  // "," alone hits EndStateHandler::handle_leading_state for With<Minimum, Maximum>
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_bounded_2_4)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 38. Plain maximum/minimum handle_leading_state — input "," alone
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn plain_at_most_leading_only_recovery() {
+  // "," alone hits EndStateHandler::handle_leading_state for Maximum
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_at_most_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn plain_at_least_leading_only_recovery() {
+  // "," alone hits EndStateHandler::handle_leading_state for Minimum
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_plain_at_least_2)
+    .parse_str(",");
+  assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 39. Plain maximum/minimum handle_separator_state — input "1," (trailing sep)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// plain_at_most already has trailing sep test (plain_at_most_trailing_sep_recovery)
+// plain_at_least already has trailing sep test (plain_at_least_trailing_sep_recovery)
+// But we also need the separator-only-after-leading case to ensure full coverage.
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 40. EndStateHandler::handle_start_state for composite types (empty input)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn alrt_unbounded_empty_input_recovery() {
+  // "" hits EndStateHandler::handle_start_state for AllowLeading<RequireTrailing<Unbounded>>
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_unbounded)
+    .parse_str("");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn alrt_at_least_empty_input_recovery() {
+  // "" hits EndStateHandler::handle_start_state for AllowLeading<RequireTrailing<AtLeast>>
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_alrt_at_least_2)
+    .parse_str("");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_unbounded_empty_input_recovery() {
+  // "" hits EndStateHandler::handle_start_state for RequireLeading<AllowTrailing<Unbounded>>
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_unbounded)
+    .parse_str("");
+  assert!(r.is_ok());
+}
+
+#[test]
+fn rlat_at_least_empty_input_recovery() {
+  // "" hits EndStateHandler::handle_start_state for RequireLeading<AllowTrailing<AtLeast>>
+  let r = Parser::with_context(recovering_ctx())
+    .apply(parse_rlat_at_least_2)
+    .parse_str("");
+  assert!(r.is_ok());
+}
