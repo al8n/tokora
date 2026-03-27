@@ -321,7 +321,7 @@ jobs:
           RUSTFLAGS: "--cfg tarpaulin"
         run: cargo tarpaulin --all-features --run-types tests --run-types doctests --run-types lib --run-types examples --workspace --out xml
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: ${{ github.repository }}
