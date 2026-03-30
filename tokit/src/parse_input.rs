@@ -330,7 +330,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Condition: Decision<'inp, L, Ctx::Emitter, W::CAPACITY>,
+    Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
   {
     RepeatedWhile::new(self, condition)

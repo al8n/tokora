@@ -64,8 +64,10 @@ where
     let buf_len = buf.len();
     let remaining_cap = buf.capacity() - buf_len;
     let mut in_cache = self.cache().len();
+    #[cfg(debug_assertions)]
     let initial_in_cache = in_cache;
     let mut want = remaining_cap.saturating_sub(in_cache);
+    #[cfg(debug_assertions)]
     let exp = want;
 
     // If we already have enough tokens cached, just peek from cache
