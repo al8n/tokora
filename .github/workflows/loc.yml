@@ -41,7 +41,7 @@ jobs:
         run: |
           tokeit
       - name: Upload total loc to GitHub Gist
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GIST_PAT }}
           script: |
