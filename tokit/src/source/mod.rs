@@ -10,7 +10,8 @@ mod bytes_1;
 #[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
 mod bstr_1;
 
-#[cfg(feature = "hipstr")]
+#[cfg(feature = "hipstr_0_8")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
 mod hipstr_0_8;
 
 /// The source trait for lexers
