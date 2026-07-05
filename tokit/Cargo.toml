@@ -69,7 +69,7 @@ derive_more = { version = "2", default-features = false, features = [
   "try_unwrap",
   "is_variant",
 ] }
-generic-arraydeque = { version = "0.1", default-features = false, features = ["unstable"] }
+generic-arraydeque = { version = "0.2", default-features = false, features = ["unstable"] }
 paste = "1"
 seq-macro = { version = "0.3", default-features = false }
 thiserror = { version = "2", default-features = false }
