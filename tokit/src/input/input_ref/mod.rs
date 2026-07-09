@@ -133,34 +133,14 @@ where
     };
   }
 
-  /// Sets the cursor to the latest position between the new value and the cache start.
+  /// Records the span of the just-consumed token as the current input span.
   ///
-  /// This method ensures the cursor is positioned at or after the first cached token
-  /// (if any), preventing the cursor from moving backwards past cached tokens.
-  /// The cursor is also clamped to the input length.
+  /// `span()`/`slice()` therefore report the most recently consumed token even
+  /// when the cache still holds later peeked tokens. The span is clamped to the
+  /// input length.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn set_span_after_consume(&mut self, new: MaybeRef<'_, L::Span>) {
-    let end = self.input.len();
-    let cache = self.cache().front_span();
-
-    let off = match cache {
-      Some(off) => {
-        if new.end_ref().lt(off.end_ref()) {
-          off.clone()
-        } else {
-          to_owned(new)
-        }
-      }
-      None => {
-        if new.end_ref().lt(&end) {
-          to_owned(new)
-        } else {
-          L::Span::new(new.start_ref().clone(), end)
-        }
-      }
-    };
-
-    *self.span = off;
+    self.set_span(new);
   }
 }
 
@@ -179,14 +159,11 @@ where
   where
     F: FnOnce(&mut Self) -> Option<R>,
   {
-    let cur = self.cursor().span().clone();
-    let span = self.span.clone();
-    let state = self.state.clone();
+    let ckp = self.save();
 
     match f(self) {
       Some(result) => Some(result),
       None => {
-        let ckp = Checkpoint::new(Cursor::new(cur), span, state);
         self.restore(ckp);
         None
       }
@@ -278,7 +255,13 @@ where
   /// of the first cached token; otherwise, it points to the current position.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn cursor(&self) -> &Cursor<'inp, 'closure, L> {
-    Cursor::from_ref(self.cache().front_span().unwrap_or(self.span))
+    Cursor::from_ref(
+      self
+        .cache()
+        .front_span()
+        .map(|span| span.start_ref())
+        .unwrap_or_else(|| self.span.end_ref()),
+    )
   }
 
   /// Returns the current offset of the tokenizer.

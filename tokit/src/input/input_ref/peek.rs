@@ -343,4 +343,105 @@ mod tests {
     })
     .unwrap();
   }
+
+  #[test]
+  fn cursor_targets_first_cached_token_start() {
+    use generic_arraydeque::typenum::U2;
+    // "a1" lexes to two adjacent tokens: Word(0..1), Num(1..2).
+    parse_with("a1", |inp| {
+      {
+        let peeked = inp.peek::<U2>()?;
+        assert_eq!(peeked.len(), 2);
+      }
+      // The cursor must point at the START of the first cached token (0),
+      // not its end (1).
+      assert_eq!(*inp.cursor().as_inner(), 0usize);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn save_restore_preserves_front_token_with_multi_cache() {
+    use generic_arraydeque::typenum::U2;
+    // Fill the cache with two tokens, checkpoint, consume one, then restore.
+    // The next token must be the FIRST one again (no silent token loss).
+    parse_with("a1", |inp| {
+      {
+        let peeked = inp.peek::<U2>()?;
+        assert_eq!(peeked.len(), 2);
+      }
+      let ckp = inp.save();
+      let first = inp.next()?.expect("first token");
+      assert_eq!(first.data, Tok::Word);
+      inp.restore(ckp);
+      let again = inp.next()?.expect("token after restore");
+      assert_eq!(again.data, Tok::Word);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn attempt_over_prefilled_cache_preserves_first_token() {
+    use generic_arraydeque::typenum::U2;
+    // A rollback attempt over a pre-filled cache must not skip a token.
+    parse_with("a1", |inp| {
+      {
+        let peeked = inp.peek::<U2>()?;
+        assert_eq!(peeked.len(), 2);
+      }
+      let outcome = inp.attempt(|inp| {
+        // Consume the first token, then decline so the attempt rolls back.
+        match inp.next() {
+          Ok(Some(_)) => None::<()>,
+          _ => None,
+        }
+      });
+      assert!(outcome.is_none());
+      let again = inp.next()?.expect("token after rolled-back attempt");
+      assert_eq!(again.data, Tok::Word);
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn spanned_since_under_peek_yields_real_span() {
+    use crate::span::SimpleSpan;
+    // Peek to fill the cache (as a peek_then_choice branch would), capture the
+    // cursor, consume the peeked token, then measure the span from the captured
+    // cursor. It must be the token's real span, not an empty span.
+    parse_with("a1", |inp| {
+      {
+        let peeked = inp.peek_one()?;
+        assert!(peeked.is_some());
+      }
+      let start = *inp.cursor();
+      let _ = inp.next()?.expect("first token");
+      let span = inp.span_since(&start);
+      assert_eq!(span, SimpleSpan::new(0, 1));
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn span_and_slice_report_consumed_token_after_multi_peek() {
+    use crate::span::SimpleSpan;
+    // With more than one token cached, consuming one must leave `span()`/`slice()`
+    // reporting the JUST-CONSUMED token, not the remaining front cached token.
+    parse_with("a1", |inp| {
+      {
+        let peeked = inp.peek::<generic_arraydeque::typenum::U2>()?;
+        assert_eq!(peeked.len(), 2);
+      }
+      let first = inp.next()?.expect("first token");
+      assert_eq!(first.data, Tok::Word);
+      assert_eq!(*inp.span(), SimpleSpan::new(0, 1));
+      assert_eq!(inp.slice(), "a");
+      Ok(())
+    })
+    .unwrap();
+  }
 }

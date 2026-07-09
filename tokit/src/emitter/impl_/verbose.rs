@@ -193,7 +193,7 @@ where
     L: Lexer<'inp>,
   {
     let offset = cursor.as_inner();
-    self.errs.retain(|k, _| k.end_ref().lt(offset));
+    self.errs.retain(|k, _| k.end_ref().le(offset));
   }
 }
 

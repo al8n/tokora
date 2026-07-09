@@ -1281,3 +1281,106 @@ fn verbose_emit_unexpected_token() {
   assert!(result.is_ok());
   assert_eq!(v.errors().len(), 1);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Verbose emitter: restore rewinds using the front cached token's start offset
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn restore_rewinds_verbose_errors_using_front_cache_start() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Consume the first token ("12" at 0..2) so there is a "before" region.
+    let _ = inp.next()?;
+    // Record an error strictly before the checkpoint (end < the cached start).
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(0, 2), EmitterTestError::Custom),
+    )?;
+    // Cache the next token ("34" at 3..5) so the checkpoint offset is its START.
+    {
+      let peeked = inp.peek_one()?;
+      assert!(peeked.is_some());
+    }
+    let ckp = inp.save();
+    // Record an error AFTER the checkpoint position (start = 3).
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(3, 4), EmitterTestError::Custom),
+    )?;
+    inp.restore(ckp);
+
+    let errs = inp.emitter().errors();
+    assert!(
+      errs.contains_key(&SimpleSpan::new(0, 2)),
+      "error before the checkpoint must survive restore"
+    );
+    assert!(
+      !errs.contains_key(&SimpleSpan::new(3, 4)),
+      "error after the checkpoint must be rewound"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(parse)
+    .parse_str("12 34");
+  r.unwrap();
+}
+
+#[test]
+fn restore_rewinds_verbose_errors_adjacent_to_checkpoint() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Consume the first token ("12" at 0..2). Unlike the gapped scenario above,
+    // this token is immediately adjacent to the next one (no whitespace), so its
+    // end offset (2) equals the upcoming checkpoint's start offset.
+    let _ = inp.next()?;
+    // Record an error on the just-consumed token whose end == the checkpoint offset.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(0, 2), EmitterTestError::Custom),
+    )?;
+    // Cache the next token ("a" at 2..3) so the checkpoint offset is its START,
+    // which is exactly the end offset of the already-consumed, already-errored token.
+    {
+      let peeked = inp.peek_one()?;
+      assert!(peeked.is_some());
+    }
+    let ckp = inp.save();
+    // Record a speculative error starting exactly at the checkpoint (start = 2).
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(2, 3), EmitterTestError::Custom),
+    )?;
+    inp.restore(ckp);
+
+    let errs = inp.emitter().errors();
+    assert!(
+      errs.contains_key(&SimpleSpan::new(0, 2)),
+      "error ending exactly at the checkpoint (adjacent, already-consumed token) must survive restore"
+    );
+    assert!(
+      !errs.contains_key(&SimpleSpan::new(2, 3)),
+      "speculative error starting at the checkpoint must be rewound"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(parse)
+    .parse_str("12a");
+  r.unwrap();
+}

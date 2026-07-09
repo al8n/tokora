@@ -30,7 +30,7 @@ pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
   ///
   /// This is the span of the last consumed token, which may differ from the
   /// cursor when the cache is non-empty.  Restoring with `self.span` (rather
-  /// than the cursor's span) ensures that the lexer position is placed *before*
+  /// than the cursor's offset) ensures that the lexer position is placed *before*
   /// any cached tokens, so they can be re-lexed after a restore.
   pub(crate) span: L::Span,
   pub(crate) state: L::State,

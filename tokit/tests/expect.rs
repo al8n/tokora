@@ -126,6 +126,84 @@ fn expect_parse_input_with_sliced_err() {
   assert!(r.is_err());
 }
 
+// `With<Expect, PhantomSliced>` captures the current token via `slice()`, so the
+// second token in a row must slice to its own text, not the whole consumed prefix.
+#[test]
+fn expect_with_sliced_slices_each_current_token() {
+  fn parse<'inp, Ctx>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+  ) -> Result<(&'inp str, &'inp str), E>
+  where
+    Ctx: ParseContext<'inp, TestLexer<'inp>>,
+    Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>,
+  {
+    let mut first: With<_, PhantomSliced> = With::new(
+      expect::<'inp, _, TestLexer<'inp>, Ctx>(|t: &Token| {
+        if matches!(t, Token::Num(_)) {
+          Ok(())
+        } else {
+          Err(Expected::one(TokenKind::Num))
+        }
+      }),
+      PhantomSliced::phantom(),
+    );
+    let a = first.parse_input(inp)?;
+    let mut second: With<_, PhantomSliced> = With::new(
+      expect::<'inp, _, TestLexer<'inp>, Ctx>(|t: &Token| {
+        if matches!(t, Token::Num(_)) {
+          Ok(())
+        } else {
+          Err(Expected::one(TokenKind::Num))
+        }
+      }),
+      PhantomSliced::phantom(),
+    );
+    let b = second.parse_input(inp)?;
+    Ok((a.slice(), b.slice()))
+  }
+  let r = Parser::new().apply(parse).parse_str("12 34");
+  assert_eq!(r.unwrap(), ("12", "34"));
+}
+
+// `With<Expect, PhantomLocated>` likewise must report the second token's own
+// span and slice, not the whole consumed prefix.
+#[test]
+fn expect_with_located_reports_each_current_token() {
+  fn parse<'inp, Ctx>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+  ) -> Result<(SimpleSpan, &'inp str), E>
+  where
+    Ctx: ParseContext<'inp, TestLexer<'inp>>,
+    Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>,
+  {
+    let mut first: With<_, PhantomLocated> = With::new(
+      expect::<'inp, _, TestLexer<'inp>, Ctx>(|t: &Token| {
+        if matches!(t, Token::Num(_)) {
+          Ok(())
+        } else {
+          Err(Expected::one(TokenKind::Num))
+        }
+      }),
+      PhantomLocated::phantom(),
+    );
+    let _ = first.parse_input(inp)?;
+    let mut second: With<_, PhantomLocated> = With::new(
+      expect::<'inp, _, TestLexer<'inp>, Ctx>(|t: &Token| {
+        if matches!(t, Token::Num(_)) {
+          Ok(())
+        } else {
+          Err(Expected::one(TokenKind::Num))
+        }
+      }),
+      PhantomLocated::phantom(),
+    );
+    let b = second.parse_input(inp)?;
+    Ok((b.span(), b.slice()))
+  }
+  let r = Parser::new().apply(parse).parse_str("12 34");
+  assert_eq!(r.unwrap(), (SimpleSpan::new(3, 5), "34"));
+}
+
 // ── With<Expect, PhantomLocated> — ParseInput ───────────────────────────────
 
 #[test]
