@@ -24,6 +24,7 @@ use tokit::{
   cache::Peeked,
   emitter::{
     FromSeparatedError, FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
+    Verbose,
   },
   error::{
     UnexpectedEot,
@@ -1034,4 +1035,43 @@ fn test_repeated_while_delimited_at_most_then_at_least_too_many() {
     .apply(parse_rw_delimited_at_most_then_at_least)
     .parse_str("[1 2 3 4 5]+");
   assert!(r.is_err());
+}
+
+// == full container under Verbose: continues, records, and terminates =========
+
+// With a capacity-1 container fed more elements than it can hold, the `repeated_while`
+// loop calls `emit_full_container` on every overflowing push. Under `Verbose` that call
+// records the error and returns `Ok`, so the loop no longer short-circuits on the first
+// overflow. It must still terminate: the loop's other exits (the condition returning
+// `Stop`, or the element parser failing) are reached on any bounded input. The trailing
+// `+` sentinel makes the condition return `Stop`, so the parse halts and returns.
+#[test]
+fn test_repeated_while_full_container_verbose_records_and_terminates() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<RWError>>,
+    >,
+  ) -> Result<Option<i64>, RWError> {
+    let out: Option<i64> = parse_num_rw
+      .repeated_while::<_, U1>(
+        decide_num_rw::<ParserContext<'inp, TestLexer<'inp>, Verbose<RWError>>>,
+      )
+      .collect_with(None::<i64>)
+      .parse_input(inp)?;
+    // Only the first element fit into the capacity-1 container.
+    assert_eq!(out, Some(1));
+    // The overflowing elements were recorded rather than aborting the parse.
+    assert!(
+      !inp.emitter().errors().is_empty(),
+      "full-container overflow recorded under Verbose"
+    );
+    Ok(out)
+  }
+
+  let ctx = ParserContext::new(Verbose::<RWError>::new());
+  let r: Result<Option<i64>, RWError> = Parser::with_context(ctx).apply(parse).parse_str("1 2 3+");
+  assert_eq!(r.unwrap(), Some(1));
 }

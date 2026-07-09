@@ -13,7 +13,9 @@ where
   {
     self
       .errs
-      .insert(err.span_ref().clone(), E::from_too_few(err));
+      .entry(err.span_ref().clone())
+      .or_default()
+      .push(E::from_too_few(err));
     Ok(())
   }
 }

@@ -1141,8 +1141,9 @@ fn verbose_full_container_emitter() {
   let result = <Verbose<TestError> as FullContainerEmitter<'_, TestLexer<'_>>>::emit_full_container(
     &mut v, err,
   );
-  // Verbose full_container returns Err (fatal) just like Fatal
-  assert!(result.is_err());
+  // Verbose collects the full-container error and keeps going (record-and-Ok).
+  assert!(result.is_ok());
+  assert!(v.errors().contains_key(&SimpleSpan::new(0usize, 5usize)));
 }
 
 #[test]
@@ -1213,8 +1214,9 @@ fn verbose_pratt_emitter_lhs() {
   let result = <Verbose<TestError> as PrattEmitter<'_, TestLexer<'_>>>::emit_unexpected_end_of_lhs(
     &mut v, err,
   );
-  // Verbose pratt returns Err (fatal) just like Fatal
-  assert!(result.is_err());
+  // Verbose collects the pratt error at its zero-width offset and keeps going.
+  assert!(result.is_ok());
+  assert!(v.errors().contains_key(&SimpleSpan::new(0usize, 0usize)));
 }
 
 #[test]
@@ -1224,8 +1226,9 @@ fn verbose_pratt_emitter_rhs() {
   let result = <Verbose<TestError> as PrattEmitter<'_, TestLexer<'_>>>::emit_unexpected_end_of_rhs(
     &mut v, err,
   );
-  // Verbose pratt returns Err (fatal) just like Fatal
-  assert!(result.is_err());
+  // Verbose collects the pratt error at its zero-width offset and keeps going.
+  assert!(result.is_ok());
+  assert!(v.errors().contains_key(&SimpleSpan::new(0usize, 0usize)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1375,6 +1378,72 @@ fn restore_rewinds_verbose_errors_adjacent_to_checkpoint() {
     assert!(
       !errs.contains_key(&SimpleSpan::new(2, 3)),
       "speculative error starting at the checkpoint must be rewound"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(parse)
+    .parse_str("12a");
+  r.unwrap();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Verbose emitter: rewind of same-span error groups is by span END, all-or-nothing
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Retention on restore is spatial: every error whose span ends at or before the
+// checkpoint offset survives; every error whose span ends past it is dropped. Errors
+// that share one span live in a single `Vec` under one key, so they share one fate —
+// there is no per-error emission sequence to split them by (rewind only sees the
+// restore offset). A real speculative parse advances the cursor, so its errors end
+// past the checkpoint and are dropped as a group, while pre-checkpoint errors end at
+// or before it and are kept as a group.
+#[test]
+fn restore_rewinds_verbose_same_span_vec_by_span_end() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Consume "12" (0..2). Record TWO errors at the SAME span [0,2] whose end (2)
+    // equals the upcoming checkpoint offset: both must survive restore.
+    let _ = inp.next()?;
+    for _ in 0..2 {
+      <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+        inp.emitter(),
+        Spanned::new(SimpleSpan::new(0, 2), EmitterTestError::Custom),
+      )?;
+    }
+    // Cache "a" (2..3) so the checkpoint offset is its start (2).
+    {
+      let peeked = inp.peek_one()?;
+      assert!(peeked.is_some());
+    }
+    let ckp = inp.save();
+    // Two speculative errors at the SAME span [2,3] (end 3 > offset 2): both drop.
+    for _ in 0..2 {
+      <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+        inp.emitter(),
+        Spanned::new(SimpleSpan::new(2, 3), EmitterTestError::Custom),
+      )?;
+    }
+    inp.restore(ckp);
+
+    let errs = inp.emitter().errors();
+    // The pre-checkpoint same-span group survives intact (both errors kept).
+    assert_eq!(
+      errs.get(&SimpleSpan::new(0, 2)).map(Vec::len),
+      Some(2),
+      "both same-span errors ending exactly at the checkpoint survive restore"
+    );
+    // The post-checkpoint same-span group is rewound atomically.
+    assert!(
+      !errs.contains_key(&SimpleSpan::new(2, 3)),
+      "same-span speculative errors past the checkpoint are all rewound"
     );
     Ok(())
   }

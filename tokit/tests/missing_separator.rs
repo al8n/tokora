@@ -14,7 +14,7 @@ use tokit::{
   },
   error::{
     UnexpectedEot,
-    syntax::{FullContainer, MissingSyntaxOf},
+    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf},
     token::{MissingToken, MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
   },
   span::SimpleSpan,
@@ -219,4 +219,37 @@ fn require_surrounded_verbose_records_both_zero_width_spans() {
     .parse_str("1,2,3")
     .unwrap();
   assert_eq!(r, vec![1, 2, 3]);
+}
+
+// ── Verbose: same-offset missing-element + missing-separator both retained ─────
+
+// The zero-width fixtures above sit at distinct offsets (0 and 5), so their span keys
+// never collide. This exercises the collision directly: a missing separator and a
+// missing element reported at the SAME zero-width offset must BOTH be retained under
+// Verbose (span-keyed storage groups them instead of overwriting).
+#[test]
+fn verbose_missing_element_and_separator_same_offset_both_recorded() {
+  let mut v = Verbose::<ReqError>::new();
+
+  let miss_sep: MissingTokenOf<'_, TestLexer<'_>> = MissingToken::new(3usize);
+  <Verbose<ReqError> as SeparatedEmitter<'_, TestLexer<'_>>>::emit_missing_separator(
+    &mut v,
+    CowStr::from_static("comma"),
+    miss_sep,
+  )
+  .unwrap();
+
+  let miss_elem: MissingSyntaxOf<'_, TestLexer<'_>> = MissingSyntax::new(3usize);
+  <Verbose<ReqError> as SeparatedEmitter<'_, TestLexer<'_>>>::emit_missing_element(
+    &mut v, miss_elem,
+  )
+  .unwrap();
+
+  let errs = v.errors();
+  assert_eq!(errs.len(), 1, "one zero-width span key at offset 3");
+  assert_eq!(
+    errs.get(&SimpleSpan::new(3usize, 3usize)).map(Vec::len),
+    Some(2),
+    "missing-element and missing-separator at the same offset are both retained"
+  );
 }

@@ -22,7 +22,9 @@ where
     let span = err.span_ref().clone();
     self
       .errs
-      .insert(span, E::from_unexpected_trailing_separator(name, err));
+      .entry(span)
+      .or_default()
+      .push(E::from_unexpected_trailing_separator(name, err));
     Ok(())
   }
 }

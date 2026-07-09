@@ -17,7 +17,13 @@ where
   where
     L: Lexer<'a>,
   {
-    Err(E::from_unexpected_end_of_lhs(err))
+    let off = err.offset_ref().clone();
+    self
+      .errs
+      .entry(S::new(off.clone(), off))
+      .or_default()
+      .push(E::from_unexpected_end_of_lhs(err));
+    Ok(())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -28,6 +34,12 @@ where
   where
     L: Lexer<'a>,
   {
-    Err(E::from_unexpected_end_of_rhs(err))
+    let off = err.offset_ref().clone();
+    self
+      .errs
+      .entry(S::new(off.clone(), off))
+      .or_default()
+      .push(E::from_unexpected_end_of_rhs(err));
+    Ok(())
   }
 }

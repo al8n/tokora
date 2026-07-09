@@ -11,7 +11,7 @@ use super::super::{
   *,
 };
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, vec::Vec};
 
 use core::marker::PhantomData;
 
@@ -41,7 +41,10 @@ mod unexpected_trailing_separator;
 /// - And other atomic traits for specific parsing scenarios
 ///
 /// The errors are stored in a `BTreeMap` indexed by span, ensuring they are ordered by their
-/// position in the source code. You can retrieve all collected errors via the [`errors()`](Self::errors) method.
+/// position in the source code. Multiple errors can share a single span (for example a
+/// zero-width missing-element and missing-separator reported at the same offset), so each span
+/// maps to a `Vec` of errors that accumulate in emission order rather than overwriting one
+/// another. You can retrieve all collected errors via the [`errors()`](Self::errors) method.
 ///
 /// # Examples
 ///
@@ -51,9 +54,11 @@ mod unexpected_trailing_separator;
 /// // Create a verbose emitter
 /// let emitter = Verbose::<MyError>::new();
 ///
-/// // After parsing, retrieve all errors
-/// for (span, error) in emitter.errors() {
-///     println!("Error at {:?}: {}", span, error);
+/// // After parsing, retrieve all errors (each span may carry several).
+/// for (span, errors) in emitter.errors() {
+///     for error in errors {
+///         println!("Error at {:?}: {}", span, error);
+///     }
 /// }
 /// ```
 ///
@@ -79,7 +84,7 @@ mod unexpected_trailing_separator;
 /// the specific traits relevant to your parser.
 #[derive(Debug)]
 pub struct Verbose<Error, S = SimpleSpan, Lang: ?Sized = ()> {
-  errs: BTreeMap<S, Error>,
+  errs: BTreeMap<S, Vec<Error>>,
   _lang: PhantomData<Lang>,
 }
 
@@ -129,7 +134,9 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   /// Returns a reference to all collected errors.
   ///
   /// The errors are stored in a `BTreeMap` indexed by their span, which means they are
-  /// automatically sorted by their position in the source code.
+  /// automatically sorted by their position in the source code. Each span maps to a `Vec`
+  /// of every error reported at that span, in emission order, so same-span errors are all
+  /// retained rather than overwritten.
   ///
   /// # Examples
   ///
@@ -139,13 +146,13 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   /// let mut emitter = Verbose::<MyError>::new();
   /// // ... perform parsing ...
   ///
-  /// // Iterate through all errors in source order
-  /// for (span, error) in emitter.errors() {
+  /// // Iterate through all errors in source order (flattening the per-span groups).
+  /// for (span, error) in emitter.errors().iter().flat_map(|(s, es)| es.iter().map(move |e| (s, e))) {
   ///     println!("Error at position {}: {}", span.start(), error);
   /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn errors(&self) -> &BTreeMap<S, Error> {
+  pub fn errors(&self) -> &BTreeMap<S, Vec<Error>> {
     &self.errs
   }
 }
@@ -164,17 +171,18 @@ where
     err: Spanned<<L::Token as Token<'inp>>::Error, L::Span>,
   ) -> Result<(), Self::Error> {
     let (span, err) = err.into_components();
-    self.errs.insert(
-      span.clone(),
-      Error::from_lexer_error(Spanned::new(span, err)),
-    );
+    self
+      .errs
+      .entry(span.clone())
+      .or_default()
+      .push(Error::from_lexer_error(Spanned::new(span, err)));
     Ok(())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error> {
     let (span, err) = err.into_components();
-    self.errs.insert(span, err);
+    self.errs.entry(span).or_default().push(err);
     Ok(())
   }
 
@@ -188,16 +196,28 @@ where
   {
     self
       .errs
-      .insert(err.span_ref().clone(), Error::from_unexpected_token(err));
+      .entry(err.span_ref().clone())
+      .or_default()
+      .push(Error::from_unexpected_token(err));
     Ok(())
   }
 
+  /// Rewind the error state to a checkpoint.
+  ///
+  /// Retains errors whose span end ≤ rewind offset. An error ending exactly at the offset
+  /// (from a preceding-token) survives as intended. **Limitation:** Zero-width errors at the same offset
+  /// also survive even if emitted during speculative parsing, as offset-only rewind cannot distinguish them.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn rewind(&mut self, cursor: &Cursor<'inp, '_, L>)
   where
     L: Lexer<'inp>,
   {
     let offset = cursor.as_inner();
+    // Retain every entry whose span ends at or before the restore offset: an error whose
+    // span ends exactly at the offset belongs to an already-consumed token and must survive.
+    // Retention is by span end, so all errors sharing a span (one `Vec`) share one fate.
+    // A `split_off` cannot express this: `S`'s ordering is lexicographic over (start, end),
+    // which is not an end-based partition, so a full `retain` is used.
     self.errs.retain(|k, _| k.end_ref().le(offset));
   }
 }
@@ -237,8 +257,29 @@ mod tests {
   #[test]
   fn verbose_errors_returns_btreemap_ref() {
     let v = Verbose::<()>::new();
-    let errs: &BTreeMap<SimpleSpan, ()> = v.errors();
+    let errs: &BTreeMap<SimpleSpan, Vec<()>> = v.errors();
     assert_eq!(errs.len(), 0);
+  }
+
+  #[test]
+  fn verbose_emit_error_same_span_accumulates() {
+    let mut v = Verbose::<(), SimpleSpan>::new();
+    let span = SimpleSpan::new(0usize, 5usize);
+    let _ = <Verbose<(), SimpleSpan> as Emitter<'_, crate::lexer::DummyLexer>>::emit_error(
+      &mut v,
+      Spanned::new(span, ()),
+    );
+    let _ = <Verbose<(), SimpleSpan> as Emitter<'_, crate::lexer::DummyLexer>>::emit_error(
+      &mut v,
+      Spanned::new(span, ()),
+    );
+    // Two errors at the SAME span must both be retained (append, not overwrite).
+    assert_eq!(v.errors().len(), 1, "one span key");
+    assert_eq!(
+      v.errors().get(&span).map(Vec::len),
+      Some(2),
+      "both same-span errors retained rather than overwritten"
+    );
   }
 
   #[test]

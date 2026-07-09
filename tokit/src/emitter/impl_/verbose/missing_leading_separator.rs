@@ -20,10 +20,11 @@ where
     L: Lexer<'inp>,
   {
     let off = err.offset_ref().clone();
-    self.errs.insert(
-      S::new(off.clone(), off),
-      E::from_missing_leading_separator(name, err),
-    );
+    self
+      .errs
+      .entry(S::new(off.clone(), off))
+      .or_default()
+      .push(E::from_missing_leading_separator(name, err));
     Ok(())
   }
 }

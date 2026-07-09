@@ -12,7 +12,13 @@ where
   where
     L: Lexer<'a>,
   {
-    Err(E::from_full_container(err))
+    let span = err.span().clone();
+    self
+      .errs
+      .entry(span)
+      .or_default()
+      .push(E::from_full_container(err));
+    Ok(())
   }
 }
 
