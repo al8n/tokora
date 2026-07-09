@@ -95,7 +95,7 @@ impl TokenLimitExceeded {
 /// - **Expression evaluators**: Cap complexity of user-provided expressions
 /// - **Stateful lexers**: Track token count in the lexer's `Extras` state
 ///
-/// # Integration with LogoSky
+/// # Integration with tokit
 ///
 /// `TokenLimiter` can be used as part of a Logos lexer's `Extras` state by
 /// implementing the [`State`] trait, allowing you to track token

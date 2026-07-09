@@ -286,14 +286,14 @@ impl IsAsciiChar for hipstr_0_8::HipStr<'_> {
 ///
 /// # Implementations
 ///
-/// LogoSky provides implementations for:
+/// tokit provides implementations for:
 /// - **`u8`**: Always returns `1` (single byte)
 /// - **`char`**: Returns `len_utf8()` (1-4 bytes depending on the character)
 /// - **`&T`**: Delegates to `T::len()` for any `T: CharLen`
 ///
 /// # Design Note
 ///
-/// This trait is **sealed** and cannot be implemented outside of LogoSky. If you need
+/// This trait is **sealed** and cannot be implemented outside of tokit. If you need
 /// to work with a custom character type, use [`Lexeme::span_with`] or
 /// [`UnknownLexeme::from_range`](crate::error::UnknownLexeme::from_range) and provide your own length function.
 ///

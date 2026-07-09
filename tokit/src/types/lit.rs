@@ -222,7 +222,7 @@ macro_rules! define_literal {
 
       /// Returns a copy of the source string by value.
       ///
-      /// Only available when `S` implements [`Copy`].
+      /// Only available when `D` implements [`Copy`].
       #[cfg_attr(not(tarpaulin), inline(always))]
       pub const fn data(&self) -> D
       where

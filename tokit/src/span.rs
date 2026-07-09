@@ -371,7 +371,7 @@ impl SimpleSpan {
   ///
   /// Panics if `end < start`.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn const_new(start: usize, end: usize) -> Self {
+  pub const fn const_new(start: usize, end: usize) -> Self {
     assert!(end >= start, "end must be greater than or equal to start");
     Self { start, end }
   }
@@ -380,7 +380,7 @@ impl SimpleSpan {
   ///
   /// Returns `None` if `end < start`.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn try_const_new(start: usize, end: usize) -> Option<Self> {
+  pub const fn try_const_new(start: usize, end: usize) -> Option<Self> {
     if end >= start {
       Some(Self { start, end })
     } else {

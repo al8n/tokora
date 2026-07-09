@@ -114,6 +114,9 @@ macro_rules! tuple_choice {
   };
 }
 
+// `ParseChoice`/`TryParseChoice` are implemented for choice tuples from `(P0,)` up to
+// `(P0, .., P32)` (the largest being `Branch<32>`). Tuples larger than this are
+// unsupported; nest an inner `choice(..)` to exceed the cap.
 tuple_choice!(32);
 
 impl<'inp, L, O, Ctx, Lang: ?Sized, P, const N: usize> ParseChoice<'inp, L, O, Ctx, Lang> for [P; N]

@@ -11,9 +11,9 @@ use super::IntoComponents;
 ///
 /// # Design
 ///
-/// `Delimited` uses public fields for direct access, but also provides accessor methods
-/// for consistency. It implements `Deref` and `DerefMut` to allow transparent access
-/// to the inner data while keeping delimiter and span information available when needed.
+/// `Delimited` exposes its delimiters, span, and data through accessor methods. It
+/// implements `Deref` and `DerefMut` to allow transparent access to the inner data
+/// while keeping delimiter and span information available when needed.
 ///
 /// # Common Patterns
 ///

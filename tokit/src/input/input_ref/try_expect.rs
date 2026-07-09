@@ -326,7 +326,7 @@ where
     Ok(None)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline]
   fn try_expect_and_then_on_input<O, F>(
     &mut self,
     mut pred: F,
@@ -375,7 +375,7 @@ where
     Ok(None)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline]
   fn try_expect_on_input<F>(
     &mut self,
     mut pred: F,
@@ -416,7 +416,7 @@ where
     Ok(None)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline]
   fn try_expect_map_on_input<O, F>(
     &mut self,
     mut pred: F,

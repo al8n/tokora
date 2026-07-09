@@ -439,14 +439,14 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
 
 /// The main trait for typed CST nodes with zero-cost conversions.
 ///
-/// `Node` provides a type-safe wrapper around rowan's untyped [`SyntaxNode`], allowing
+/// `CstNode` provides a type-safe wrapper around rowan's untyped [`SyntaxNode`], allowing
 /// you to work with strongly-typed CST nodes. The conversion between typed and untyped
 /// nodes has **zero runtime cost** - both representations have exactly the same memory
 /// layout (a pointer to the tree root and a pointer to the node itself).
 ///
 /// # Design
 ///
-/// The `Node` trait enables:
+/// The `CstNode` trait enables:
 /// - **Type safety**: Compile-time guarantees about node types
 /// - **Zero-cost**: No runtime overhead for typed wrappers
 /// - **Pattern matching**: Cast nodes to specific types

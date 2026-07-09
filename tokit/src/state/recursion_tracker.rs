@@ -83,7 +83,7 @@ impl RecursionLimitExceeded {
 /// - **Expression evaluation**: Limit nesting in arithmetic/boolean expressions
 /// - **Stateful lexers**: Track depth in the lexer's `Extras` state
 ///
-/// # Integration with LogoSky
+/// # Integration with tokit
 ///
 /// `RecursionLimiter` can be used as part of a Logos lexer's `Extras` state by
 /// implementing the [`State`] trait, allowing you to track recursion

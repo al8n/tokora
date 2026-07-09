@@ -157,7 +157,13 @@ macro_rules! bail {
 
       #[cfg_attr(not(tarpaulin), inline(always))]
       fn span(&self) -> Self::Span {
-        self.inner.span().into()
+        // logos guarantees `start <= end` for every token span, so construct the
+        // span directly and skip the checked `From<Range>` -> `new` bounds assert.
+        let range = self.inner.span();
+        SimpleSpan {
+          start: range.start,
+          end: range.end,
+        }
       }
 
       #[cfg_attr(not(tarpaulin), inline(always))]

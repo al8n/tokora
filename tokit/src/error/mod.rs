@@ -29,9 +29,6 @@ mod errors;
 /// Token-level error types.
 pub mod token;
 
-/// Lexer-level error types.
-pub mod lexer;
-
 /// Syntax-level error types.
 pub mod syntax;
 

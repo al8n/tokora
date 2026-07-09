@@ -111,7 +111,7 @@ pub enum LimitExceeded {
 /// You typically want to configure at least the token limit using
 /// [`with_token_tracker`](Self::with_token_tracker) or set both limits explicitly.
 ///
-/// # Integration with LogoSky
+/// # Integration with tokit
 ///
 /// `Limiter` implements the [`State`] trait and can be used directly
 /// as a Logos lexer's `Extras` state, providing automatic limit checking during lexing.

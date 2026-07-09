@@ -199,10 +199,6 @@ pub use unwrapped::*;
 pub use validate::*;
 pub use with::*;
 
-// #[cfg(any(feature = "std", feature = "alloc"))]
-// #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
-// pub use recursive::*;
-
 mod accepted;
 mod any;
 mod by_ref;
@@ -229,9 +225,6 @@ mod todo;
 mod unwrapped;
 mod validate;
 mod with;
-
-#[cfg(any(feature = "std", feature = "alloc"))]
-mod recursive;
 
 /// Wrapper for cache configuration in parsers.
 ///

@@ -26,7 +26,7 @@ use super::PositionedChar;
 ///
 /// # Provided Implementations
 ///
-/// LogoSky provides `DisplayHuman` for:
+/// tokit provides `DisplayHuman` for:
 /// - All primitive types (`u8`, `char`, `str`, integers, floats)
 /// - Byte slices (`[u8]`, `[u8; N]`)
 /// - Character slices (`[char]`, `[char; N]`)

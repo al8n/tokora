@@ -14,7 +14,7 @@
 ///
 /// # Provided Implementations
 ///
-/// LogoSky provides implementations for:
+/// tokit provides implementations for:
 /// - `str` ↔ `[u8]`: UTF-8 byte comparison
 /// - `[u8]` ↔ `str`: Byte comparison
 /// - `Bytes` ↔ `str`/`[u8]` (with `bytes` feature)

@@ -1,14 +1,14 @@
-//! Keywordifier types for language syntax trees.
+//! Keyword types for language syntax trees.
 //!
 //! This module provides generic identifier types that can be used across different
-//! programming languages and string representations. Keywordifiers are fundamental
+//! programming languages and string representations. Keywords are fundamental
 //! building blocks in most languages, representing names for variables, functions,
 //! types, and other named entities.
 //!
 //! # Design Philosophy
 //!
-//! The [`Keyword`] type is generic over both the source string type (`S`) and the
-//! language marker (`Lang`). This design provides maximum flexibility:
+//! The [`Keyword`] type is generic over the source string type (`S`), the span type
+//! (`Span`), and the language marker (`Lang`). This design provides maximum flexibility:
 //!
 //! - **String type flexibility**: Use `&str` for zero-copy parsing, `String` for
 //!   owned data, or custom interned string types for memory efficiency
@@ -31,7 +31,7 @@
 //! assert_eq!(ident.source_ref(), &"foo");
 //! ```
 //!
-//! ## Owned Keywordifiers
+//! ## Owned Keywords
 //!
 //! ```rust,ignore
 //! // Store keywords in AST nodes that outlive the source
@@ -44,7 +44,7 @@
 //!
 //! ```rust,ignore
 //! // Use interned strings for memory efficiency
-//! type InternedKeyword = Keyword<Symbol, MyLang>;
+//! type InternedKeyword = Keyword<Symbol, SimpleSpan, MyLang>;
 //!
 //! let ident = InternedKeyword::new(span, interner.intern("identifier"));
 //! ```
@@ -74,13 +74,14 @@ use crate::{
 
 /// A language identifier with span tracking.
 ///
-/// Keywordifiers are names used in source code to refer to variables, functions,
+/// Keywords are names used in source code to refer to variables, functions,
 /// types, and other named entities. This type wraps a source string representation
 /// with position information and a language marker.
 ///
 /// # Type Parameters
 ///
 /// - `S`: The source string type (`&str`, `String`, interned string, etc.)
+/// - `Span`: The span type tracking the keyword's source location (defaults to [`SimpleSpan`])
 /// - `Lang`: Language marker type for type safety (e.g., `YulLang`, `SolidityLang`)
 ///
 /// # Design Notes
@@ -105,7 +106,7 @@ use crate::{
 ///
 /// # Examples
 ///
-/// ## Creating Keywordifiers
+/// ## Creating Keywords
 ///
 /// ```rust
 /// use tokit::types::Keyword;

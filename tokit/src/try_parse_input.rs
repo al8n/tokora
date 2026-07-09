@@ -1,3 +1,20 @@
+//! Tentative, backtracking parsing via [`TryParseInput`] and `ParseAttempt`.
+//!
+//! # Transactional contract (important)
+//!
+//! The backtracking guarantee of a declined attempt covers **valid tokens only**. When a
+//! parser returns `Ok(ParseAttempt::Decline)`, the input position is restored so that no
+//! *valid* tokens are consumed — but a decline is **not** fully transactional:
+//!
+//! - lexer-**ERROR** tokens encountered during the attempt may already have been consumed
+//!   (the cursor advances past them), and
+//! - any diagnostics **emitted** during the attempt are **left in place** — emissions are
+//!   never rolled back.
+//!
+//! Only valid-token consumption is undone on decline; error-token consumption and emitted
+//! errors persist. Callers and higher-level parsing layers that rely on backtracking must
+//! account for this.
+
 use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use crate::{
@@ -122,8 +139,9 @@ macro_rules! define_separated_by {
 /// returns `Ok(ParseAttempt::Decline)`, **no valid tokens are consumed** - the input position only advances
 /// past any error tokens that were consumed by the emitter.
 ///
-/// **IMPORTANT:**
-/// Implicit backtracking may occur when a parser returns `Ok(ParseAttempt::Decline)`.
+/// **IMPORTANT:** backtracking on `Ok(ParseAttempt::Decline)` is transactional over
+/// **valid tokens only**. A decline may still have consumed lexer-ERROR tokens, and any
+/// diagnostics emitted during the attempt are **not** rolled back.
 pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Attempts to parse `O` from the input without committing.
   ///
@@ -131,8 +149,9 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// Implementations **must** uphold this contract:
   /// - ✅ `Ok(ParseAttempt::Accept(value))` - Parser succeeded, tokens consumed, value produced
-  /// - ✅ `Ok(ParseAttempt::Decline)` - Parser declined, **no valid tokens consumed** (error tokens may be consumed by emitter)
-  ///   - Backtracking may occur - input position restored to before parse attempt
+  /// - ✅ `Ok(ParseAttempt::Decline)` - Parser declined, **no valid tokens consumed**
+  ///   - Backtracking restores the input position over **valid tokens only**
+  ///   - Lexer-ERROR tokens may still have been consumed, and any emitted diagnostics are **not** rolled back
   /// - ✅ `Err(error)` - Parser encountered an error (may have consumed tokens)
   fn try_parse_input(
     &mut self,

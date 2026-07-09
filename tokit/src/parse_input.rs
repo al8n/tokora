@@ -21,6 +21,9 @@ mod sealed {
 }
 
 /// A trait for parsers that specify the capacity of their peek buffer.
+///
+/// Peek windows are capped at `U32` (32 tokens): `Window` is implemented for
+/// `typenum::U1` through `typenum::U32` only.
 pub trait Window: sealed::Sealed {
   /// The capacity of the peek buffer.
   type CAPACITY: ArrayLength;
@@ -52,6 +55,7 @@ macro_rules! peek_buf_capacity_impl_for_typenum {
   };
 }
 
+// Peek windows are capped at `U32`: only `typenum::U1..=U32` receive a `Window` impl.
 seq_macro::seq!(N in 1..=32 {
   peek_buf_capacity_impl_for_typenum! {
     #(N,)*
