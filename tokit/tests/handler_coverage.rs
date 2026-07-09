@@ -19,7 +19,7 @@ use tokit::{
   error::{
     UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
     syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingToken, MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    token::{MissingToken, MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
   },
   input::Cursor,
   span::{SimpleSpan, Spanned},
@@ -70,42 +70,20 @@ impl From<UnexpectedEot> for E {
   }
 }
 
-impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for E {
-  fn from_missing_separator(_: CowStr, _: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    E
-  }
-
-  fn from_missing_element(_: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for E {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
     E
   }
 }
 
-impl<'inp> FromUnexpectedLeadingSeparatorError<'inp, TestLexer<'inp>> for E {
-  fn from_unexpected_leading_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for E {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
     E
   }
 }
 
-impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for E {
-  fn from_unexpected_trailing_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>> for E {
+  fn from(_: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
     E
   }
 }
@@ -2180,42 +2158,20 @@ impl<O, Lang: ?Sized> From<UnexpectedEoRhs<O, Lang>> for Err {
   }
 }
 
-impl<'inp> tokit::emitter::FromSeparatedError<'inp, TestLexer<'inp>> for Err {
-  fn from_missing_separator(_: CowStr, _: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err::Any
-  }
-
-  fn from_missing_element(_: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for Err {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
     Err::Any
   }
 }
 
-impl<'inp> tokit::emitter::FromUnexpectedLeadingSeparatorError<'inp, TestLexer<'inp>> for Err {
-  fn from_unexpected_leading_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Err {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
     Err::Any
   }
 }
 
-impl<'inp> tokit::emitter::FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for Err {
-  fn from_unexpected_trailing_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>> for Err {
+  fn from(_: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
     Err::Any
   }
 }

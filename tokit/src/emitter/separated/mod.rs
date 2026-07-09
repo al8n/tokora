@@ -73,3 +73,27 @@ pub trait FromSeparatedError<'inp, L, Lang: ?Sized = ()>: FromEmitterError<'inp,
   where
     L: Lexer<'inp>;
 }
+
+impl<'a, T, L, Lang: ?Sized> FromSeparatedError<'a, L, Lang> for T
+where
+  L: Lexer<'a>,
+  T: FromEmitterError<'a, L, Lang>
+    + From<MissingTokenOf<'a, L, Lang>>
+    + From<MissingSyntaxOf<'a, L, Lang>>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_missing_separator(_name: CowStr, err: MissingTokenOf<'a, L, Lang>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_missing_element(err: MissingSyntaxOf<'a, L, Lang>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into()
+  }
+}

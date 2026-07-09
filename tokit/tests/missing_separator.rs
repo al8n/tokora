@@ -6,16 +6,16 @@
 mod common;
 
 use tokit::{
-  Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
+  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
   TryParseInput,
   emitter::{
-    Fatal, FromSeparatedError, FromUnexpectedLeadingSeparatorError, FullContainerEmitter,
-    MissingTrailingSeparatorEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter, Verbose,
+    Fatal, FullContainerEmitter, MissingTrailingSeparatorEmitter, SeparatedEmitter,
+    UnexpectedLeadingSeparatorEmitter, Verbose,
   },
   error::{
     UnexpectedEot,
     syntax::{FullContainer, MissingSyntax, MissingSyntaxOf},
-    token::{MissingToken, MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    token::{MissingToken, MissingTokenOf, SeparatedError, UnexpectedToken},
   },
   span::SimpleSpan,
   try_parse_input::ParseAttempt,
@@ -59,30 +59,14 @@ impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for ReqError {
   }
 }
 
-impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for ReqError {
-  fn from_missing_separator(_: CowStr, _: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    ReqError
-  }
-
-  fn from_missing_element(_: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>> for ReqError {
+  fn from(_: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
     ReqError
   }
 }
 
-impl<'inp> FromUnexpectedLeadingSeparatorError<'inp, TestLexer<'inp>> for ReqError {
-  fn from_unexpected_leading_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for ReqError {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
     ReqError
   }
 }

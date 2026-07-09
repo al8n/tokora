@@ -18,19 +18,17 @@ mod common;
 
 use generic_arraydeque::typenum::U1;
 use tokit::{
-  Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser,
+  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser,
   cache::Peeked,
   emitter::{
-    FromSeparatedError, FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
     FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
+    token::{MissingToken, SeparatedError, UnexpectedToken},
   },
   parser::Action,
-  utils::CowStr,
 };
 
 use common::{TestLexer, Token};
@@ -72,42 +70,22 @@ impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for WhileError {
   }
 }
 
-impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for WhileError {
-  fn from_missing_separator(_name: CowStr, _err: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    WhileError
-  }
-
-  fn from_missing_element(_err: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for WhileError {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
     WhileError
   }
 }
 
-impl<'inp> FromUnexpectedLeadingSeparatorError<'inp, TestLexer<'inp>> for WhileError {
-  fn from_unexpected_leading_separator(
-    _name: CowStr,
-    _err: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>>
+  for WhileError
+{
+  fn from(_: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
     WhileError
   }
 }
 
-impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for WhileError {
-  fn from_unexpected_trailing_separator(
-    _name: CowStr,
-    _err: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for WhileError {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
     WhileError
   }
 }

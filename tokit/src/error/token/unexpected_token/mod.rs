@@ -52,7 +52,6 @@ use core::marker::PhantomData;
 
 use crate::{
   Lexer, Token,
-  error::token::{Leading, RepeatedWhile, Trailing},
   span::{SimpleSpan, Span},
   utils::Expected,
 };
@@ -122,56 +121,6 @@ pub struct UnexpectedToken<'a, T, Kind: Clone, S = SimpleSpan, Lang: ?Sized = ()
 impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for () {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {}
-}
-
-impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, Trailing<Data>> {
-  /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing(span: S, found: T) -> Self {
-    Self::trailing_of(span, found)
-  }
-}
-
-impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, Leading<Data>> {
-  /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading(span: S, found: T) -> Self {
-    Self::leading_of(span, found)
-  }
-}
-
-impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, RepeatedWhile<Data>> {
-  /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn repeated(span: S, found: T) -> Self {
-    Self::repeated_of(span, found)
-  }
-}
-
-impl<T, Kind: Clone, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Trailing<Data, Lang>> {
-  /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing_of(span: S, found: T) -> Self {
-    Self::new_in(span, Some(found), None)
-  }
-}
-
-impl<T, Kind: Clone, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Leading<Data, Lang>> {
-  /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading_of(span: S, found: T) -> Self {
-    Self::new_in(span, Some(found), None)
-  }
-}
-
-impl<T, Kind: Clone, S, Data, Lang: ?Sized>
-  UnexpectedToken<'_, T, Kind, S, RepeatedWhile<Data, Lang>>
-{
-  /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn repeated_of(span: S, found: T) -> Self {
-    Self::new_in(span, Some(found), None)
-  }
 }
 
 impl<'a, T, Kind: Clone, S> UnexpectedToken<'a, T, Kind, S> {

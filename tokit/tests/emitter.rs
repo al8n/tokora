@@ -21,7 +21,10 @@ use tokit::{
   error::{
     UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
     syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingToken, MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    token::{
+      MissingToken, MissingTokenOf, SeparatedError, SeparatorPosition, UnexpectedToken,
+      UnexpectedTokenOf,
+    },
   },
   input::Cursor,
   span::{SimpleSpan, Spanned},
@@ -85,43 +88,27 @@ impl From<UnexpectedEot> for EmitterTestError {
   }
 }
 
-impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for EmitterTestError {
-  fn from_missing_separator(_: CowStr, _: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for EmitterTestError {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
     EmitterTestError::MissingSeparator
   }
+}
 
-  fn from_missing_element(_: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for EmitterTestError {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
     EmitterTestError::MissingElement
   }
 }
 
-impl<'inp> FromUnexpectedLeadingSeparatorError<'inp, TestLexer<'inp>> for EmitterTestError {
-  fn from_unexpected_leading_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    EmitterTestError::UnexpectedLeadingSep
-  }
-}
-
-impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for EmitterTestError {
-  fn from_unexpected_trailing_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    EmitterTestError::UnexpectedTrailingSep
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>>
+  for EmitterTestError
+{
+  fn from(err: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
+    match err.position() {
+      SeparatorPosition::Leading => EmitterTestError::UnexpectedLeadingSep,
+      SeparatorPosition::Trailing => EmitterTestError::UnexpectedTrailingSep,
+      SeparatorPosition::Element => EmitterTestError::UnexpectedToken,
+    }
   }
 }
 
@@ -804,46 +791,25 @@ impl<O, Lang: ?Sized> From<UnexpectedEoRhs<O, Lang>> for TestError {
   }
 }
 
-impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for TestError {
-  fn from_missing_separator(
-    _: CowStr,
-    _: tokit::error::token::MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for TestError {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
     TestError::MissingSeparator
   }
+}
 
-  fn from_missing_element(_: tokit::error::syntax::MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for TestError {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
     TestError::MissingElement
   }
 }
 
-impl<'inp> FromUnexpectedLeadingSeparatorError<'inp, TestLexer<'inp>> for TestError {
-  fn from_unexpected_leading_separator(
-    _: CowStr,
-    _: tokit::error::token::UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    TestError::UnexpectedLeadingSep
-  }
-}
-
-impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for TestError {
-  fn from_unexpected_trailing_separator(
-    _: CowStr,
-    _: tokit::error::token::UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    TestError::UnexpectedTrailingSep
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>> for TestError {
+  fn from(err: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
+    match err.position() {
+      SeparatorPosition::Leading => TestError::UnexpectedLeadingSep,
+      SeparatorPosition::Trailing => TestError::UnexpectedTrailingSep,
+      SeparatorPosition::Element => TestError::UnexpectedToken,
+    }
   }
 }
 

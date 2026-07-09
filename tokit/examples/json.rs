@@ -12,18 +12,17 @@ use derive_more::{Display, From, Unwrap};
 use generic_arraydeque::typenum::U1;
 
 use tokit::{
-  Accumulator, Branch, Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput,
-  Parser, Token as TokenT, TryParseInput,
+  Accumulator, Branch, Emitter, InputRef, Parse, ParseChoice, ParseContext, ParseInput, Parser,
+  Token as TokenT, TryParseInput,
   cache::Peeked,
   emitter::{
-    FromSeparatedError, FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
     FullContainerEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
   },
   error::{
     UnexpectedEot,
     syntax::{FullContainer, MissingSyntaxOf},
-    token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    token::{MissingTokenOf, SeparatedErrorOf, UnexpectedToken, UnexpectedTokenOf},
   },
   logos::{self, Logos},
   parser::{Action, expect},
@@ -31,7 +30,7 @@ use tokit::{
   span::Spanned,
   token::PunctuatorToken,
   try_parse_input::ParseAttempt,
-  utils::{CowStr, Expected},
+  utils::Expected,
 };
 
 #[derive(Clone, Debug, From, PartialEq, Eq)]
@@ -66,6 +65,7 @@ enum JsonError<'a> {
   Parse(Spanned<ParseFloatError>),
   MissingSeparator(MissingTokenOf<'a, JsonLexer<'a>>),
   MissingElement(MissingSyntaxOf<'a, JsonLexer<'a>>),
+  Separator(SeparatedErrorOf<'a, JsonLexer<'a>>),
   UnexpectedToken(UnexpectedTokenOf<'a, JsonLexer<'a>>),
   FullContainer(FullContainer),
   Eot(UnexpectedEot),
@@ -99,6 +99,10 @@ impl core::fmt::Debug for JsonError<'_> {
       Self::Parse(err) => write!(f, "{err:?}"),
       Self::UnexpectedToken(err) => err.debug_fmt(f),
       Self::Eot(err) => write!(f, "{err:?}"),
+      Self::Separator(err) => {
+        write!(f, "{:?} separator: ", err.position())?;
+        err.inner_ref().debug_fmt(f)
+      }
       Self::MissingSeparator(err) => err.debug_fmt(f),
       Self::MissingElement(err) => write!(f, "{err:?}"),
       Self::FullContainer(err) => write!(f, "{err:?}"),
@@ -113,6 +117,10 @@ impl core::fmt::Display for JsonError<'_> {
       Self::Parse(err) => write!(f, "parse float error: {}", err),
       Self::UnexpectedToken(err) => err.display_fmt(f),
       Self::Eot(err) => write!(f, "{}", err),
+      Self::Separator(err) => {
+        write!(f, "unexpected {} separator: ", err.position())?;
+        err.inner_ref().display_fmt(f)
+      }
       Self::MissingSeparator(err) => err.display_fmt(f),
       Self::MissingElement(err) => write!(f, "{err}"),
       Self::FullContainer(err) => write!(f, "{err}"),
@@ -122,46 +130,6 @@ impl core::fmt::Display for JsonError<'_> {
 }
 
 impl core::error::Error for JsonError<'_> {}
-
-impl<'inp> FromSeparatedError<'inp, JsonLexer<'inp>> for JsonError<'inp> {
-  fn from_missing_separator(_: CowStr, err: MissingTokenOf<'inp, JsonLexer<'inp>>) -> Self
-  where
-    JsonLexer<'inp>: Lexer<'inp>,
-  {
-    JsonError::MissingSeparator(err)
-  }
-
-  fn from_missing_element(err: MissingSyntaxOf<'inp, JsonLexer<'inp>>) -> Self
-  where
-    JsonLexer<'inp>: Lexer<'inp>,
-  {
-    JsonError::MissingElement(err)
-  }
-}
-
-impl<'inp> FromUnexpectedLeadingSeparatorError<'inp, JsonLexer<'inp>> for JsonError<'inp> {
-  fn from_unexpected_leading_separator(
-    _: CowStr,
-    err: UnexpectedTokenOf<'inp, JsonLexer<'inp>>,
-  ) -> Self
-  where
-    JsonLexer<'inp>: Lexer<'inp>,
-  {
-    JsonError::UnexpectedToken(err)
-  }
-}
-
-impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, JsonLexer<'inp>> for JsonError<'inp> {
-  fn from_unexpected_trailing_separator(
-    _: CowStr,
-    err: UnexpectedTokenOf<'inp, JsonLexer<'inp>>,
-  ) -> Self
-  where
-    JsonLexer<'inp>: Lexer<'inp>,
-  {
-    JsonError::UnexpectedToken(err)
-  }
-}
 
 #[derive(Debug, Logos, Clone, Unwrap)]
 #[logos(

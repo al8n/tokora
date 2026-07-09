@@ -47,7 +47,6 @@ use core::{marker::PhantomData, ops::AddAssign};
 
 use crate::{
   Lexer, Token,
-  error::token::{Leading, Trailing},
   utils::{CowStr, Expected},
 };
 
@@ -97,62 +96,6 @@ pub struct MissingToken<'a, Kind: Clone, O = usize, Lang: ?Sized = ()> {
   expected: Option<Expected<'a, Kind>>,
   message: Option<CowStr>,
   _lang: PhantomData<Lang>,
-}
-
-impl<Kind: Clone, O, Data> MissingToken<'_, Kind, O, Trailing<Data>> {
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing(offset: O) -> Self {
-    Self::trailing_of(offset)
-  }
-
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing_with_message(offset: O, message: CowStr) -> Self {
-    Self::trailing_with_message_of(offset, message)
-  }
-}
-
-impl<Kind: Clone, O, Data, Lang> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading(offset: O) -> Self {
-    Self::leading_of(offset)
-  }
-
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading_with_message(offset: O, message: CowStr) -> Self {
-    Self::leading_with_message_of(offset, message)
-  }
-}
-
-impl<Kind: Clone, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<Data, Lang>> {
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing_of(offset: O) -> Self {
-    Self::of(offset)
-  }
-
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing_with_message_of(offset: O, message: CowStr) -> Self {
-    Self::new_in(offset, None, Some(message))
-  }
-}
-
-impl<Kind: Clone, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
-  /// Creates a new `MissingToken` error indicating a leading token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading_of(offset: O) -> Self {
-    Self::of(offset)
-  }
-
-  /// Creates a new `MissingToken` error indicating a leading token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading_with_message_of(offset: O, message: CowStr) -> Self {
-    Self::new_in(offset, None, Some(message))
-  }
 }
 
 impl<Kind: Clone, O> MissingToken<'_, Kind, O> {

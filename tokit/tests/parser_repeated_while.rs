@@ -22,14 +22,11 @@ use tokit::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
   Token as TokenTrait,
   cache::Peeked,
-  emitter::{
-    FromSeparatedError, FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
-    Verbose,
-  },
+  emitter::{FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter, Verbose},
   error::{
     UnexpectedEot,
-    syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
+    token::{MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
   },
   input::Cursor,
   parser::Action,
@@ -81,18 +78,14 @@ impl From<UnexpectedEot> for RWError {
   }
 }
 
-impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for RWError {
-  fn from_missing_separator(_: CowStr, _: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>> for RWError {
+  fn from(_: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
     RWError
   }
+}
 
-  fn from_missing_element(_: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for RWError {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
     RWError
   }
 }

@@ -6,76 +6,11 @@
 
 use tokit::{
   SimpleSpan,
-  error::token::{Leading, MissingToken, RepeatedWhile, Trailing, UnexpectedToken},
+  error::token::{MissingToken, UnexpectedToken},
   error::{ErrorContainer, Errors, InvalidHexDigits},
   span::AsSpan,
   utils::{CowStr, PositionedChar},
 };
-
-// ── UnexpectedToken: Trailing/Leading/RepeatedWhile constructors ──────────────
-//
-// Lines 130-131 (`trailing`), 138-139 (`leading`), 146-147 (`repeated`):
-// These are convenience wrappers that forward to the `_of` variants.
-//
-// Lines 154-155 (`trailing_of`), 162-163 (`leading_of`), 172-173 (`repeated_of`):
-// These set `found` to `Some(found)` with no expected value.
-
-#[test]
-fn unexpected_token_trailing_convenience() {
-  // Exercises lines 130-131 (trailing) and 154-155 (trailing_of)
-  let err: UnexpectedToken<'_, &str, &str, SimpleSpan, Trailing<()>> =
-    UnexpectedToken::trailing(SimpleSpan::new(0, 3), "abc");
-  assert_eq!(err.found(), Some(&"abc"));
-  assert_eq!(err.span(), SimpleSpan::new(0, 3));
-  assert!(err.expected().is_none());
-}
-
-#[test]
-fn unexpected_token_trailing_of() {
-  // Exercises lines 154-155 (trailing_of) directly via the _of variant
-  let err: UnexpectedToken<'_, &str, &str, SimpleSpan, Trailing<(), ()>> =
-    UnexpectedToken::trailing_of(SimpleSpan::new(5, 10), "xyz");
-  assert_eq!(err.found(), Some(&"xyz"));
-  assert_eq!(err.span(), SimpleSpan::new(5, 10));
-}
-
-#[test]
-fn unexpected_token_leading_convenience() {
-  // Exercises lines 138-139 (leading) and 162-163 (leading_of)
-  let err: UnexpectedToken<'_, &str, &str, SimpleSpan, Leading<()>> =
-    UnexpectedToken::leading(SimpleSpan::new(1, 4), "foo");
-  assert_eq!(err.found(), Some(&"foo"));
-  assert_eq!(err.span(), SimpleSpan::new(1, 4));
-  assert!(err.expected().is_none());
-}
-
-#[test]
-fn unexpected_token_leading_of() {
-  // Exercises lines 162-163 (leading_of) directly
-  let err: UnexpectedToken<'_, &str, &str, SimpleSpan, Leading<(), ()>> =
-    UnexpectedToken::leading_of(SimpleSpan::new(2, 7), "bar");
-  assert_eq!(err.found(), Some(&"bar"));
-  assert_eq!(err.span(), SimpleSpan::new(2, 7));
-}
-
-#[test]
-fn unexpected_token_repeated_convenience() {
-  // Exercises lines 146-147 (repeated) and 172-173 (repeated_of)
-  let err: UnexpectedToken<'_, &str, &str, SimpleSpan, RepeatedWhile<()>> =
-    UnexpectedToken::repeated(SimpleSpan::new(0, 5), "tok");
-  assert_eq!(err.found(), Some(&"tok"));
-  assert_eq!(err.span(), SimpleSpan::new(0, 5));
-  assert!(err.expected().is_none());
-}
-
-#[test]
-fn unexpected_token_repeated_of() {
-  // Exercises lines 172-173 (repeated_of) directly
-  let err: UnexpectedToken<'_, &str, &str, SimpleSpan, RepeatedWhile<(), ()>> =
-    UnexpectedToken::repeated_of(SimpleSpan::new(3, 8), "baz");
-  assert_eq!(err.found(), Some(&"baz"));
-  assert_eq!(err.span(), SimpleSpan::new(3, 8));
-}
 
 // ── InvalidHexDigits ──────────────────────────────────────────────────────────
 
@@ -416,37 +351,6 @@ mod bytes_error_node {
 //
 // Merged from missing_token.rs (was gated with #![cfg(feature = "std")];
 // that gate is already applied file-wide above).
-
-#[test]
-fn trailing_constructor() {
-  let mt: MissingToken<'_, (), usize, Trailing<()>> = MissingToken::trailing(42);
-  assert_eq!(*mt.offset_ref(), 42);
-  assert!(mt.message().is_none());
-  assert!(mt.expected().is_none());
-}
-
-#[test]
-fn trailing_with_message() {
-  let mt: MissingToken<'_, (), usize, Trailing<()>> =
-    MissingToken::trailing_with_message(10, CowStr::from_static("expected comma"));
-  assert_eq!(*mt.offset_ref(), 10);
-  assert_eq!(mt.message().unwrap().as_str(), "expected comma");
-}
-
-#[test]
-fn leading_constructor() {
-  let mt: MissingToken<'_, (), usize, Leading<()>> = MissingToken::leading(5);
-  assert_eq!(*mt.offset_ref(), 5);
-  assert!(mt.message().is_none());
-}
-
-#[test]
-fn leading_with_message() {
-  let mt: MissingToken<'_, (), usize, Leading<()>> =
-    MissingToken::leading_with_message(0, CowStr::from_static("need semicolon"));
-  assert_eq!(*mt.offset_ref(), 0);
-  assert_eq!(mt.message().unwrap().as_str(), "need semicolon");
-}
 
 #[test]
 fn new_constructor() {
