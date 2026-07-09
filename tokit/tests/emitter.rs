@@ -152,7 +152,7 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for FatalEmitter {
     Err(err.into_data())
   }
 
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64)
   where
     TestLexer<'inp>: Lexer<'inp>,
   {
@@ -1355,16 +1355,14 @@ fn restore_rewinds_verbose_errors_adjacent_to_checkpoint() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Verbose emitter: rewind of same-span error groups is by span END, all-or-nothing
+// Verbose emitter: rewind of same-span error groups is by emission order
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Retention on restore is spatial: every error whose span ends at or before the
-// checkpoint offset survives; every error whose span ends past it is dropped. Errors
-// that share one span live in a single `Vec` under one key, so they share one fate —
-// there is no per-error emission sequence to split them by (rewind only sees the
-// restore offset). A real speculative parse advances the cursor, so its errors end
-// past the checkpoint and are dropped as a group, while pre-checkpoint errors end at
-// or before it and are kept as a group.
+// Retention on restore is by emission order: every error recorded at or before the
+// saved checkpoint mark survives; every error recorded after it is dropped. Here the
+// two pre-checkpoint errors were emitted before `save()` (so they survive) and the
+// two speculative errors after it (so they drop) — even though every error shares the
+// same span as another, the emission-order mark splits them cleanly.
 #[test]
 fn restore_rewinds_verbose_same_span_vec_by_span_end() {
   fn parse<'inp>(
@@ -1417,5 +1415,94 @@ fn restore_rewinds_verbose_same_span_vec_by_span_end() {
   let r: Result<(), _> = Parser::with_context(verbose_ctx())
     .apply(parse)
     .parse_str("12a");
+  r.unwrap();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Verbose emitter: emission-aware rewind vs. zero-width diagnostics at the checkpoint
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// The former offset-only rewind retained any error whose span ended at or before the
+// restore offset, so a *zero-width* error emitted AT the checkpoint offset during an
+// abandoned branch (its end == the offset) survived as a ghost. Emission-aware rewind
+// drops it because it was recorded after the checkpoint mark, regardless of span.
+#[test]
+fn restore_drops_speculative_zero_width_ghost_at_checkpoint() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Consume "12" (0..2); the cursor — and thus the checkpoint offset — is now 2.
+    let _ = inp.next()?;
+    let ckp = inp.save();
+    // Speculative branch emits a ZERO-WIDTH error at exactly the checkpoint offset.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(2, 2), EmitterTestError::MissingElement),
+    )?;
+    inp.restore(ckp);
+
+    // The ghost must be gone: the offset heuristic would have kept it (end 2 <= 2).
+    assert!(
+      !inp.emitter().errors().contains_key(&SimpleSpan::new(2, 2)),
+      "speculative zero-width error at the checkpoint offset must be rewound"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(parse)
+    .parse_str("12");
+  r.unwrap();
+}
+
+// The inverse the offset heuristic could not express: a zero-width error emitted
+// BEFORE the checkpoint at the SAME offset must SURVIVE, while a later speculative one
+// at that offset drops. Emission order separates them; span end alone cannot.
+#[test]
+fn restore_keeps_pre_checkpoint_zero_width_at_same_offset() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Consume "12" (0..2); checkpoint offset is 2.
+    let _ = inp.next()?;
+    // A real zero-width diagnostic recorded BEFORE the checkpoint at offset 2.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(2, 2), EmitterTestError::MissingElement),
+    )?;
+    let ckp = inp.save();
+    // Speculative branch adds another zero-width error at the same offset.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(2, 2), EmitterTestError::MissingElement),
+    )?;
+    inp.restore(ckp);
+
+    // Exactly the pre-checkpoint error survives; the speculative one drops.
+    assert_eq!(
+      inp
+        .emitter()
+        .errors()
+        .get(&SimpleSpan::new(2, 2))
+        .map(Vec::len),
+      Some(1),
+      "the pre-checkpoint zero-width error survives; only the speculative one is rewound"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(parse)
+    .parse_str("12");
   r.unwrap();
 }

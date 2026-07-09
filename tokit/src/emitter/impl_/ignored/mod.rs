@@ -48,7 +48,7 @@ impl<'a, L, Lang: ?Sized> Emitter<'a, L, Lang> for Ignored {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn rewind(&mut self, _: &Cursor<'a, '_, L>)
+  fn rewind(&mut self, _: &Cursor<'a, '_, L>, _: u64)
   where
     L: Lexer<'a>,
   {

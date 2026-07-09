@@ -98,11 +98,11 @@ impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Silent<E, Lang> {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>)
+  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>, checkpoint: u64)
   where
     L: Lexer<'a>,
   {
-    let _ = cursor;
+    let _ = (cursor, checkpoint);
   }
 }
 

@@ -2,7 +2,6 @@
 
 use core::{
   marker::PhantomData,
-  mem::ManuallyDrop,
   ops::{Range, RangeBounds},
 };
 
@@ -29,6 +28,9 @@ mod sync_through;
 mod sync_to;
 mod try_expect;
 
+#[cfg(all(test, feature = "logos", feature = "std"))]
+mod tests;
+
 /// A reference to an `Input` instance.
 pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = ()>
 where
@@ -40,6 +42,7 @@ where
   pub(super) span: &'closure mut L::Span,
   pub(super) cache: &'closure mut Ctx::Cache,
   pub(super) emitted_error_end: &'closure mut L::Offset,
+  pub(super) poisoned: &'closure mut bool,
   pub(super) emitter: &'closure mut Ctx::Emitter,
   pub(super) _marker: PhantomData<Lang>,
 }
@@ -116,6 +119,34 @@ where
     }
     *self.emitted_error_end = end;
     self.emitter().emit_lexer_error(err)
+  }
+
+  /// Returns `true` if the input is poisoned by a sticky limit error.
+  ///
+  /// Once a lexer trips a state/limit error, this latch is set at the input level
+  /// so subsequent scanning entry points can bail without rebuilding a lexer.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(super) fn is_poisoned(&self) -> bool {
+    *self.poisoned
+  }
+
+  /// Latches the input-level poison if `lexer`'s state has tripped a limit error.
+  ///
+  /// A limit-class error is sticky: it manifests as a failing
+  /// [`check`](crate::Lexer::check) (the exact condition the lexer's own latch
+  /// keys on). Because `InputRef` rebuilds a fresh lexer per operation, that
+  /// per-lexer latch would be lost; recording it here bounds the work a recovering
+  /// caller can trigger by re-entering `next()`/`peek()`. Returns whether it
+  /// latched. A plain (non-limit) lexer error leaves `check()` `Ok` and does not
+  /// latch, so the caller keeps scanning for the next valid token.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn latch_if_limit_tripped(&mut self, lexer: &L) -> bool {
+    if lexer.check().is_err() {
+      *self.poisoned = true;
+      true
+    } else {
+      false
+    }
   }
 
   /// Returns `true` if reached the end of input.
@@ -267,7 +298,12 @@ where
   /// implementing backtracking in parsers.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn save(&self) -> Checkpoint<'inp, 'closure, L> {
-    Checkpoint::new(self.cursor().clone(), self.span.clone(), self.state.clone())
+    Checkpoint::new(
+      self.cursor().clone(),
+      self.span.clone(),
+      self.state.clone(),
+      self.emitter.checkpoint(),
+    )
   }
 
   /// Returns the current cursor position.
@@ -301,12 +337,16 @@ where
   ///
   /// This rewinds the cache, resets the cursor position, and restores the lexer
   /// state.
+  ///
+  /// A sticky limit-error latch is **not** cleared: a tripped input stays tripped
+  /// across restores, mirroring the lexer-level latch, so backtracking cannot
+  /// re-arm unbounded rescans.
   #[doc(alias = "rewinds")]
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     self.cache_mut().rewind(&checkpoint);
     let cur = checkpoint.cursor();
-    self.emitter().rewind(cur);
+    self.emitter().rewind(cur, checkpoint.emitter_checkpoint);
     // The emitter rewind discards lexer errors past the restore point, so the
     // dedup mark must fall back with it — otherwise a re-parse would wrongly
     // suppress errors it must re-report. Errors up to the cursor stay retained.
@@ -330,6 +370,12 @@ where
       self.set_span_after_consume((&span).into());
       *self.state = extras;
       return Ok(Some(Spanned::new(span, lexed)));
+    }
+
+    // A sticky limit trip latches the input: once the cache is drained, stop
+    // without rebuilding a lexer or rescanning the tripping token.
+    if self.is_poisoned() {
+      return Ok(None);
     }
 
     self.lex_next_valid(|_, _| Ok(()))
@@ -388,14 +434,22 @@ where
 
     while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
       match tok {
-        Lexed::Error(err) => match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-          Ok(_) => {}
-          Err(e) => {
-            self.set_span_after_consume(lexer.span().into());
-            *self.state = lexer.into_state();
-            return Err(e);
+        Lexed::Error(err) => {
+          // A limit trip is sticky: latch the input so re-entry cannot rescan.
+          let limit_hit = self.latch_if_limit_tripped(&lexer);
+          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
+            Ok(_) => {
+              if limit_hit {
+                return Ok(None);
+              }
+            }
+            Err(e) => {
+              self.set_span_after_consume(lexer.span().into());
+              *self.state = lexer.into_state();
+              return Err(e);
+            }
           }
-        },
+        }
         Lexed::Token(tok) => {
           let tok = Spanned::new(span, tok);
 

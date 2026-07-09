@@ -85,6 +85,13 @@ mod unexpected_trailing_separator;
 #[derive(Debug)]
 pub struct Verbose<Error, S = SimpleSpan, Lang: ?Sized = ()> {
   errs: BTreeMap<S, Vec<Error>>,
+  /// The span of every emission, in emission order. An entry's index in this log
+  /// is its monotonic sequence number; [`checkpoint`](Emitter::checkpoint) is the
+  /// log length and [`rewind`](Emitter::rewind) unwinds the tail back to a mark,
+  /// popping the matching error off each span's `Vec`. This is what lets rewind
+  /// drop a speculative zero-width diagnostic while keeping an earlier one at the
+  /// same span — a distinction span-ordered storage alone cannot make.
+  log: Vec<S>,
   _lang: PhantomData<Lang>,
 }
 
@@ -93,6 +100,7 @@ impl<Error, Span, Lang: ?Sized> Default for Verbose<Error, Span, Lang> {
   fn default() -> Self {
     Self {
       errs: BTreeMap::new(),
+      log: Vec::new(),
       _lang: PhantomData,
     }
   }
@@ -107,6 +115,7 @@ where
   fn clone(&self) -> Self {
     Self {
       errs: self.errs.clone(),
+      log: self.log.clone(),
       _lang: PhantomData,
     }
   }
@@ -127,8 +136,20 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   pub const fn new() -> Self {
     Self {
       errs: BTreeMap::new(),
+      log: Vec::new(),
       _lang: PhantomData,
     }
+  }
+
+  /// Records `err` at `span`, appending it to the span's group and logging the
+  /// emission order so a later [`rewind`](Emitter::rewind) can undo it precisely.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn record(&mut self, span: S, err: Error)
+  where
+    S: Ord + Clone,
+  {
+    self.log.push(span.clone());
+    self.errs.entry(span).or_default().push(err);
   }
 
   /// Returns a reference to all collected errors.
@@ -171,18 +192,15 @@ where
     err: Spanned<<L::Token as Token<'inp>>::Error, L::Span>,
   ) -> Result<(), Self::Error> {
     let (span, err) = err.into_components();
-    self
-      .errs
-      .entry(span.clone())
-      .or_default()
-      .push(Error::from_lexer_error(Spanned::new(span, err)));
+    let err = Error::from_lexer_error(Spanned::new(span.clone(), err));
+    self.record(span, err);
     Ok(())
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error> {
     let (span, err) = err.into_components();
-    self.errs.entry(span).or_default().push(err);
+    self.record(span, err);
     Ok(())
   }
 
@@ -194,31 +212,45 @@ where
   where
     L: Lexer<'inp>,
   {
-    self
-      .errs
-      .entry(err.span_ref().clone())
-      .or_default()
-      .push(Error::from_unexpected_token(err));
+    let span = err.span_ref().clone();
+    self.record(span, Error::from_unexpected_token(err));
     Ok(())
   }
 
-  /// Rewind the error state to a checkpoint.
-  ///
-  /// Retains errors whose span end ≤ rewind offset. An error ending exactly at the offset
-  /// (from a preceding-token) survives as intended. **Limitation:** Zero-width errors at the same offset
-  /// also survive even if emitted during speculative parsing, as offset-only rewind cannot distinguish them.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn rewind(&mut self, cursor: &Cursor<'inp, '_, L>)
+  fn checkpoint(&self) -> u64 {
+    self.log.len() as u64
+  }
+
+  /// Rewind the error state to a checkpoint, emission-aware.
+  ///
+  /// `checkpoint` is the [`checkpoint`](Emitter::checkpoint) mark captured at the
+  /// save point: the emission-log length at that instant. Every diagnostic
+  /// recorded *after* it — exactly the emissions of the abandoned branch — is
+  /// dropped, newest first, by popping the matching entry off its span's group;
+  /// everything recorded before survives. The decision is purely by emission
+  /// order, so a zero-width error emitted during a speculative branch is removed
+  /// while an earlier zero-width error at the *same* offset is kept — a
+  /// distinction the former span-end offset heuristic could not make. `cursor`
+  /// is unused.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn rewind(&mut self, cursor: &Cursor<'inp, '_, L>, checkpoint: u64)
   where
     L: Lexer<'inp>,
   {
-    let offset = cursor.as_inner();
-    // Retain every entry whose span ends at or before the restore offset: an error whose
-    // span ends exactly at the offset belongs to an already-consumed token and must survive.
-    // Retention is by span end, so all errors sharing a span (one `Vec`) share one fate.
-    // A `split_off` cannot express this: `S`'s ordering is lexicographic over (start, end),
-    // which is not an end-based partition, so a full `retain` is used.
-    self.errs.retain(|k, _| k.end_ref().le(offset));
+    let _ = cursor;
+    let mark = (checkpoint as usize).min(self.log.len());
+    while self.log.len() > mark {
+      // Unwind newest-first: each span's `Vec` grows in emission order, so the
+      // matching entry to drop is always its last one.
+      let span = self.log.pop().expect("log length exceeds the mark");
+      if let Some(group) = self.errs.get_mut(&span) {
+        group.pop();
+        if group.is_empty() {
+          self.errs.remove(&span);
+        }
+      }
+    }
   }
 }
 

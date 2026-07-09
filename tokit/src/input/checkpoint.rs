@@ -34,17 +34,28 @@ pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
   /// any cached tokens, so they can be re-lexed after a restore.
   pub(crate) span: L::Span,
   pub(crate) state: L::State,
+  /// The emitter's emission mark at save time (see
+  /// [`Emitter::checkpoint`](crate::emitter::Emitter::checkpoint)). Restoring
+  /// replays it into [`Emitter::rewind`](crate::emitter::Emitter::rewind) so an
+  /// emission-aware emitter drops exactly the diagnostics of the abandoned branch.
+  pub(crate) emitter_checkpoint: u64,
   _m: PhantomData<fn(&'closure ()) -> &'closure ()>,
 }
 
 impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
   /// Creates a new checkpoint.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(cursor: Cursor<'a, 'closure, L>, span: L::Span, state: L::State) -> Self {
+  pub(super) const fn new(
+    cursor: Cursor<'a, 'closure, L>,
+    span: L::Span,
+    state: L::State,
+    emitter_checkpoint: u64,
+  ) -> Self {
     Self {
       cursor,
       span,
       state,
+      emitter_checkpoint,
       _m: PhantomData,
     }
   }

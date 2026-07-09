@@ -57,7 +57,7 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for FatalEm {
   ) -> Result<(), E> {
     Err(err.into_data())
   }
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>) {}
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64) {}
 }
 
 // ── Recovering emitter: skips over lexer errors ─────────────────────────────
@@ -83,7 +83,7 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for RecoveringEm {
   fn emit_error(&mut self, _: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E> {
     Ok(())
   }
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>) {}
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64) {}
 }
 
 fn fatal_ctx() -> ParserContext<'static, TestLexer<'static>, FatalEm> {

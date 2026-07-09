@@ -1,4 +1,69 @@
+use core::mem::{ManuallyDrop, MaybeUninit};
+
+use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray};
+
 use super::*;
+
+/// Drop-safe staging buffer for peek tokens that overflow the cache window.
+///
+/// A peek that looks past the cache capacity must hold the overflow tokens
+/// somewhere until the cache region is copied into the output buffer. Those
+/// tokens are **owned** (`Maybe::Owned`), so a raw `MaybeUninit` array would leak
+/// them if an early return (a fatal lexer error emitted mid-scan) skipped the
+/// hand-off. `Overflow` tracks how many entries are initialized and frees exactly
+/// those in its `Drop`, so no exit path — success, `Decline`, or fatal error —
+/// can leak a staged token or its state.
+struct Overflow<T, N: ArrayLength> {
+  slots: GenericArray<MaybeUninit<T>, N>,
+  len: usize,
+}
+
+impl<T, N: ArrayLength> Overflow<T, N> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn new() -> Self {
+    Self {
+      slots: GenericArray::uninit(),
+      len: 0,
+    }
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn len(&self) -> usize {
+    self.len
+  }
+
+  /// Stages one owned entry. Callers must not exceed `N` pushes (the overflow
+  /// region can never hold more than the window capacity).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn push(&mut self, value: T) {
+    self.slots[self.len].write(value);
+    self.len += 1;
+  }
+
+  /// Moves every staged entry into `buf`, in staging order, and disarms the
+  /// guard so its `Drop` will not touch the moved-out entries.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn drain_into(self, buf: &mut GenericArrayDeque<T, N>) {
+    // Wrap in `ManuallyDrop` up front: once entries are read out they must not be
+    // dropped again by the guard.
+    let this = ManuallyDrop::new(self);
+    for i in 0..this.len {
+      // SAFETY: `slots[0..len]` were initialized by `push`; each is read once.
+      buf.push_back(unsafe { this.slots[i].assume_init_read() });
+    }
+  }
+}
+
+impl<T, N: ArrayLength> Drop for Overflow<T, N> {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn drop(&mut self) {
+    for slot in self.slots.iter_mut().take(self.len) {
+      // SAFETY: `slots[0..len]` were initialized by `push` and not moved out
+      // (`drain_into` disarms via `ManuallyDrop`), so each is dropped once.
+      unsafe { slot.assume_init_drop() };
+    }
+  }
+}
 
 impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
 where
@@ -76,9 +141,16 @@ where
       return Ok(self.emitter);
     }
 
-    let mut overflowed = ManuallyDrop::new(W::array());
+    // A sticky limit trip latches the input: never rebuild a lexer to scan past
+    // the trip. Serve whatever is already cached and stop.
+    if self.is_poisoned() {
+      self.cache.peek::<W>(buf);
+      return Ok(self.emitter);
+    }
 
-    let mut yielded = 0;
+    // Drop-safe staging for tokens lexed past the cache window (see `Overflow`).
+    let mut overflowed = Overflow::<MaybeRefCachedTokenOf<'p, 'inp, L>, W::CAPACITY>::new();
+
     // Otherwise, lex additional tokens to fill the request
     let mut lexer = self.lexer();
     while want > 0 {
@@ -87,23 +159,29 @@ where
 
         match lexed {
           Lexed::Error(e) => {
+            // A limit trip is sticky: latch before the (possibly fatal) emit so a
+            // fatal early return still records the latch for later operations.
+            let limit_hit = self.latch_if_limit_tripped(&lexer);
             // Emit immediately regardless of cache fullness so an error in the
             // overflow region is never silently dropped. The dedup mark keeps a
             // later consume that re-lexes this region from reporting it twice.
+            // `overflowed`'s `Drop` frees any staged tokens on this `?`-return.
             self.emit_lexer_error_deduped(Spanned::new(span, e))?;
+            if limit_hit {
+              break;
+            }
           }
           Lexed::Token(tok) => {
             let cached = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
 
-            // Try to cache the token; if cache is full, write directly to output buffer
+            // Try to cache the token; if cache is full, stage it for the output buffer
             match self.cache_mut().push_back(cached) {
               Ok(_) => {
                 in_cache += 1;
               }
               Err(ct) => {
-                // Cache full: write overflow tokens directly to overflow buffer
-                overflowed[yielded].write(Maybe::Owned(ct));
-                yielded += 1;
+                // Cache full: stage the overflow token drop-safely.
+                overflowed.push(Maybe::Owned(ct));
               }
             }
             want -= 1;
@@ -122,23 +200,24 @@ where
       "Cache peek returned unexpected number of tokens"
     );
 
-    for i in 0..yielded {
-      // SAFETY: We just wrote `yielded` elements into `overflowed`, so the first `yielded` elements are initialized.
-      unsafe {
-        buf.push_back(overflowed[i].assume_init_read());
-      }
-    }
-    debug_assert!(
-      buf.len() == buf_len + in_cache + yielded,
-      "buffer length mismatch after adding overflowed tokens"
-    );
+    #[cfg(debug_assertions)]
+    let yielded = overflowed.len();
+    // Move the staged overflow tokens into the output buffer; `drain_into`
+    // disarms the guard so nothing is double-dropped.
+    overflowed.drain_into(buf);
 
     #[cfg(debug_assertions)]
-    if want == 0 {
+    {
       debug_assert!(
-        exp == (in_cache - initial_in_cache) + yielded,
-        "expected peeked token count mismatch"
+        buf.len() == buf_len + in_cache + yielded,
+        "buffer length mismatch after adding overflowed tokens"
       );
+      if want == 0 {
+        debug_assert!(
+          exp == (in_cache - initial_in_cache) + yielded,
+          "expected peeked token count mismatch"
+        );
+      }
     }
 
     Ok(self.emitter)

@@ -154,8 +154,28 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   where
     L: Lexer<'a>;
 
-  /// Rewinds the emitter state to the specified cursor.
-  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>)
+  /// Captures the emitter's current emission checkpoint for a later [`rewind`](Self::rewind).
+  ///
+  /// A checkpoint is a monotonically increasing emission mark: emitters that
+  /// retain per-emission state (e.g. [`Verbose`]) return a value that grows with
+  /// every recorded error, so a subsequent `rewind` can drop *exactly* the
+  /// emissions made after this point. Stateless emitters ([`Fatal`], [`Silent`],
+  /// [`Ignored`](crate::utils::marker::Ignored)) keep nothing to rewind and use
+  /// the default `0`.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn checkpoint(&self) -> u64 {
+    0
+  }
+
+  /// Rewinds the emitter state to a previously captured [`checkpoint`](Self::checkpoint).
+  ///
+  /// `checkpoint` is the mark returned by [`checkpoint`](Self::checkpoint) at the
+  /// save point; `cursor` is the restore offset. Emission-aware emitters
+  /// ([`Verbose`]) drop every diagnostic recorded after `checkpoint` — precisely
+  /// the emissions of the abandoned branch, regardless of their span — and ignore
+  /// `cursor`. `cursor` is retained for emitters that key their own rollback on
+  /// the source offset. Stateless emitters ignore both.
+  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>, checkpoint: u64)
   where
     L: Lexer<'a>;
 }
@@ -197,11 +217,16 @@ where
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>)
+  fn checkpoint(&self) -> u64 {
+    (**self).checkpoint()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>, checkpoint: u64)
   where
     L: Lexer<'a>,
   {
-    (**self).rewind(cursor)
+    (**self).rewind(cursor, checkpoint)
   }
 }
 

@@ -373,7 +373,7 @@ impl<'inp> crate::emitter::Emitter<'inp, TestLexer<'inp>> for CountingEmitter {
     Ok(())
   }
 
-  fn rewind(&mut self, _: &crate::input::Cursor<'inp, '_, TestLexer<'inp>>) {}
+  fn rewind(&mut self, _: &crate::input::Cursor<'inp, '_, TestLexer<'inp>>, _: u64) {}
 }
 
 type CountingCtx<'inp> = (
@@ -465,4 +465,136 @@ fn peek_overflow_stop_records_lexer_error() {
     Ok(())
   });
   assert_eq!(n, 1, "peek-overflow-stop must record the error");
+}
+
+// ── Fatal overflow peek must not leak staged tokens ───────────────────────────
+//
+// When a peek window exceeds the cache capacity, tokens past the cache are staged
+// in an inline overflow buffer until the cache region is copied out. If a fatal
+// lexer error is emitted while tokens are staged, the `?`-return must still drop
+// every staged token (and its state) exactly once — never leak them. A
+// drop-counting token payload makes any leak observable.
+
+use core::sync::atomic::{AtomicUsize, Ordering};
+
+static STAGED_DROPS: AtomicUsize = AtomicUsize::new(0);
+
+/// A token payload that counts its own drops, so a leaked staged token is
+/// observable as a missing drop.
+#[derive(Debug, Clone)]
+struct DropProbe;
+
+impl Drop for DropProbe {
+  fn drop(&mut self) {
+    STAGED_DROPS.fetch_add(1, Ordering::SeqCst);
+  }
+}
+
+#[derive(Debug, Clone, crate::logos::Logos)]
+#[logos(crate = crate::logos, skip r"[ \t\r\n]+")]
+enum DropTok {
+  #[regex(r"[0-9]+", |_| DropProbe)]
+  Num(DropProbe),
+}
+
+impl core::fmt::Display for DropTok {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "number")
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum DropKind {
+  Num,
+}
+
+impl core::fmt::Display for DropKind {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "number")
+  }
+}
+
+impl crate::Token<'_> for DropTok {
+  type Kind = DropKind;
+  type Error = ();
+
+  fn kind(&self) -> DropKind {
+    DropKind::Num
+  }
+
+  fn is_trivia(&self) -> bool {
+    false
+  }
+}
+
+type DropLexer<'a> = LogosLexer<'a, DropTok>;
+
+/// An emitter that treats a lexer error as fatal (returns `Err`), so an invalid
+/// lexeme in the overflow region triggers the early-return leak path.
+struct FatalOnLexError;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Boom;
+
+impl<'inp> crate::emitter::Emitter<'inp, DropLexer<'inp>> for FatalOnLexError {
+  type Error = Boom;
+
+  fn emit_lexer_error(
+    &mut self,
+    _: crate::span::Spanned<
+      <<DropLexer<'inp> as crate::Lexer<'inp>>::Token as crate::Token<'inp>>::Error,
+      <DropLexer<'inp> as crate::Lexer<'inp>>::Span,
+    >,
+  ) -> Result<(), Boom> {
+    Err(Boom)
+  }
+
+  fn emit_unexpected_token(
+    &mut self,
+    _: crate::error::token::UnexpectedTokenOf<'inp, DropLexer<'inp>, ()>,
+  ) -> Result<(), Boom> {
+    Ok(())
+  }
+
+  fn emit_error(
+    &mut self,
+    _: crate::span::Spanned<Boom, <DropLexer<'inp> as crate::Lexer<'inp>>::Span>,
+  ) -> Result<(), Boom> {
+    Ok(())
+  }
+
+  fn rewind(&mut self, _: &crate::input::Cursor<'inp, '_, DropLexer<'inp>>, _: u64) {}
+}
+
+type DropCtx<'inp> = (
+  FatalOnLexError,
+  crate::cache::DefaultCache<'inp, DropLexer<'inp>>,
+);
+
+#[test]
+fn fatal_overflow_peek_drops_staged_tokens_no_leak() {
+  // U6 window over the default U3 cache: tokens 1..=3 fill the cache, 4 and 5
+  // overflow into staging, then `@` is an invalid lexeme whose fatal emit
+  // `?`-returns while 4 and 5 are still staged.
+  use generic_arraydeque::typenum::U6;
+
+  let baseline = STAGED_DROPS.load(Ordering::SeqCst);
+
+  let cache = crate::cache::DefaultCache::<'_, DropLexer<'_>>::default();
+  let mut emitter = FatalOnLexError;
+  let mut input = crate::input::Input::<DropLexer<'_>, DropCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 @",
+    (),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  let result = inp.peek::<U6>().map(|_| ());
+  assert_eq!(result, Err(Boom), "the fatal lexer error must propagate");
+
+  let staged_dropped = STAGED_DROPS.load(Ordering::SeqCst) - baseline;
+  assert_eq!(
+    staged_dropped, 2,
+    "both staged overflow tokens must be dropped exactly once on the fatal return (no leak)"
+  );
 }

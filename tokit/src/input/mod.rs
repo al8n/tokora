@@ -144,6 +144,17 @@ where
   /// already been emitted (e.g. during a peek that lexed past this point), so the
   /// consume path must not report them again when it re-lexes the same region.
   emitted_error_end: L::Offset,
+  /// Sticky limit-error latch, held at the input level so it survives across the
+  /// fresh lexers `InputRef` builds per operation.
+  ///
+  /// When a lexer surfaces a state/limit error (its [`check`](crate::Lexer::check)
+  /// fails after scanning a token), the temporary lexer latches to EOF, but that
+  /// latch dies with the lexer. Persisting it here means the very next
+  /// `next()`/`peek()` short-circuits to empty **without** rebuilding a lexer or
+  /// rescanning the tripping token, keeping error-recovery work bounded on
+  /// untrusted input. It is sticky for the lifetime of the input and is **not**
+  /// cleared by [`restore`](InputRef::restore), mirroring the lexer-level latch.
+  poisoned: bool,
 }
 
 impl<'inp, L, Ctx, Lang: ?Sized> Clone for Input<'inp, L, Ctx, Lang>
@@ -162,6 +173,7 @@ where
       cursor: self.cursor.clone(),
       cache: self.cache.clone(),
       emitted_error_end: self.emitted_error_end.clone(),
+      poisoned: self.poisoned,
     }
   }
 }
@@ -215,6 +227,7 @@ where
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache: DefaultCache::<'inp, L>::default(),
       emitted_error_end: L::Offset::default(),
+      poisoned: false,
     }
   }
 }
@@ -236,6 +249,7 @@ where
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache,
       emitted_error_end: L::Offset::default(),
+      poisoned: false,
     }
   }
 
@@ -251,6 +265,7 @@ where
       cache: &mut self.cache,
       span: &mut self.span,
       emitted_error_end: &mut self.emitted_error_end,
+      poisoned: &mut self.poisoned,
       emitter,
       _marker: PhantomData,
     }

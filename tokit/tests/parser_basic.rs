@@ -523,7 +523,7 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEmitter {
     Err(err.into_data())
   }
 
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64)
   where
     TestLexer<'inp>: Lexer<'inp>,
   {
