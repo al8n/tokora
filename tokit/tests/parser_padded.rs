@@ -13,7 +13,7 @@ use tokit::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, Token as TokenT,
   TryParseInput,
   cache::DefaultCache,
-  emitter::Ignored,
+  emitter::{Fatal, Ignored, Verbose},
   error::UnexpectedEot,
   error::token::UnexpectedToken,
   logos::{self, Logos},
@@ -42,6 +42,8 @@ pub enum TToken {
   Semi,
   #[regex(r"[ \t\r\n]+")]
   Ws,
+  #[regex(r"//[^\n]*", allow_greedy = true)]
+  Comment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -52,6 +54,7 @@ pub enum TTokenKind {
   Comma,
   Semi,
   Ws,
+  Comment,
 }
 
 impl core::fmt::Display for TTokenKind {
@@ -63,6 +66,7 @@ impl core::fmt::Display for TTokenKind {
       TTokenKind::Comma => write!(f, ","),
       TTokenKind::Semi => write!(f, ";"),
       TTokenKind::Ws => write!(f, "whitespace"),
+      TTokenKind::Comment => write!(f, "comment"),
     }
   }
 }
@@ -76,6 +80,7 @@ impl core::fmt::Display for TToken {
       TToken::Comma => write!(f, ","),
       TToken::Semi => write!(f, ";"),
       TToken::Ws => write!(f, "whitespace"),
+      TToken::Comment => write!(f, "comment"),
     }
   }
 }
@@ -89,6 +94,7 @@ impl From<&TToken> for TTokenKind {
       TToken::Comma => TTokenKind::Comma,
       TToken::Semi => TTokenKind::Semi,
       TToken::Ws => TTokenKind::Ws,
+      TToken::Comment => TTokenKind::Comment,
     }
   }
 }
@@ -102,7 +108,7 @@ impl TokenT<'_> for TToken {
   }
 
   fn is_trivia(&self) -> bool {
-    matches!(self, TToken::Ws)
+    matches!(self, TToken::Ws | TToken::Comment)
   }
 }
 
@@ -111,9 +117,21 @@ type TLexer<'a> = tokit::lexer::LogosLexer<'a, TToken>;
 type TriviaIgnoredContext<'inp> =
   ParserContext<'inp, TLexer<'inp>, Ignored, DefaultCache<'inp, TLexer<'inp>>>;
 
+type TriviaFatalContext<'inp> =
+  ParserContext<'inp, TLexer<'inp>, Fatal<TestError>, DefaultCache<'inp, TLexer<'inp>>>;
+
+type TriviaVerboseContext<'inp> =
+  ParserContext<'inp, TLexer<'inp>, Verbose<TestError>, DefaultCache<'inp, TLexer<'inp>>>;
+
 macro_rules! trivia_parser {
   () => {
     Parser::with_context(TriviaIgnoredContext::new(Ignored::default()))
+  };
+}
+
+macro_rules! trivia_fatal_parser {
+  () => {
+    Parser::with_context(TriviaFatalContext::new(Fatal::new()))
   };
 }
 
@@ -152,7 +170,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, L
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  PADDED TESTS (using Ignored emitter so sync_to works with trivia)
+//  PADDED TESTS (Ignored emitter): Padded / PaddedLeft / PaddedRight trivia handling
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── Padded (both sides) ─────────────────────────────────────────────────
@@ -434,6 +452,208 @@ fn padded_right_does_not_skip_leading() {
   assert!(
     result.is_err(),
     "padded_right should not skip leading whitespace"
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PADDED TESTS under an error-reporting (Fatal / Verbose) emitter
+//
+//  Padding-skip consumes trivia WITHOUT reporting it, so the padded family works
+//  under an error-reporting emitter, not only under Ignored. Each test asserts
+//  both the parsed value and that the surrounding trivia was fully consumed
+//  (cursor advanced past it), mirroring the Ignored variants above.
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn padded_fatal_no_whitespace() {
+  fn parse<'inp>(
+    inp: &mut InputRef<'inp, '_, TLexer<'inp>, TriviaFatalContext<'inp>>,
+  ) -> Result<TToken, TestError> {
+    expect(|t: &TToken| {
+      if matches!(t, TToken::Num(_)) {
+        Ok(())
+      } else {
+        Err(Expected::one(TTokenKind::Num))
+      }
+    })
+    .padded()
+    .parse_input(inp)
+  }
+  let result: Result<TToken, TestError> = trivia_fatal_parser!().apply(parse).parse_str("42");
+  assert!(matches!(result, Ok(TToken::Num(42))));
+}
+
+#[test]
+fn padded_fatal_both_sides_whitespace() {
+  fn parse<'inp>(
+    inp: &mut InputRef<'inp, '_, TLexer<'inp>, TriviaFatalContext<'inp>>,
+  ) -> Result<(TToken, bool), TestError> {
+    let num = expect(|t: &TToken| {
+      if matches!(t, TToken::Num(_)) {
+        Ok(())
+      } else {
+        Err(Expected::one(TTokenKind::Num))
+      }
+    })
+    .padded()
+    .parse_input(inp)?;
+    Ok((num, inp.is_eoi()))
+  }
+  let (num, eoi) = trivia_fatal_parser!()
+    .apply(parse)
+    .parse_str("  42  ")
+    .unwrap();
+  assert!(matches!(num, TToken::Num(42)));
+  assert!(eoi, "padded must consume both leading and trailing trivia");
+}
+
+#[test]
+fn padded_fatal_skips_comment_and_whitespace_trivia() {
+  fn parse<'inp>(
+    inp: &mut InputRef<'inp, '_, TLexer<'inp>, TriviaFatalContext<'inp>>,
+  ) -> Result<(TToken, bool), TestError> {
+    let num = expect(|t: &TToken| {
+      if matches!(t, TToken::Num(_)) {
+        Ok(())
+      } else {
+        Err(Expected::one(TTokenKind::Num))
+      }
+    })
+    .padded()
+    .parse_input(inp)?;
+    Ok((num, inp.is_eoi()))
+  }
+  // Leading trivia is a comment followed by whitespace; trailing trivia is
+  // whitespace followed by a comment — heterogeneous, multi-token runs on both
+  // sides. All of it must be consumed without any error being raised.
+  let (num, eoi) = trivia_fatal_parser!()
+    .apply(parse)
+    .parse_str("// lead\n  42  // trail")
+    .unwrap();
+  assert!(matches!(num, TToken::Num(42)));
+  assert!(
+    eoi,
+    "padded must consume all leading and trailing comment/whitespace trivia"
+  );
+}
+
+#[test]
+fn padded_fatal_drains_cached_trivia() {
+  fn parse<'inp>(
+    inp: &mut InputRef<'inp, '_, TLexer<'inp>, TriviaFatalContext<'inp>>,
+  ) -> Result<TToken, TestError> {
+    // Force the leading whitespace into the cache before padded runs, so the
+    // skip must drain a cached (peeked) trivia token rather than a freshly-lexed
+    // one. Both paths must behave identically (and neither may report).
+    {
+      let peeked = inp.peek::<U1>()?;
+      assert_eq!(peeked.len(), 1);
+    }
+    expect(|t: &TToken| {
+      if matches!(t, TToken::Num(_)) {
+        Ok(())
+      } else {
+        Err(Expected::one(TTokenKind::Num))
+      }
+    })
+    .padded()
+    .parse_input(inp)
+  }
+  let result: Result<TToken, TestError> = trivia_fatal_parser!().apply(parse).parse_str("  42  ");
+  assert!(matches!(result, Ok(TToken::Num(42))));
+}
+
+#[test]
+fn padded_left_fatal_skips_leading_keeps_trailing() {
+  fn parse<'inp>(
+    inp: &mut InputRef<'inp, '_, TLexer<'inp>, TriviaFatalContext<'inp>>,
+  ) -> Result<(TToken, bool), TestError> {
+    let num = expect(|t: &TToken| {
+      if matches!(t, TToken::Num(_)) {
+        Ok(())
+      } else {
+        Err(Expected::one(TTokenKind::Num))
+      }
+    })
+    .padded_left()
+    .parse_input(inp)?;
+    Ok((num, inp.is_eoi()))
+  }
+  let (num, eoi) = trivia_fatal_parser!()
+    .apply(parse)
+    .parse_str("  42  ")
+    .unwrap();
+  assert!(matches!(num, TToken::Num(42)));
+  assert!(!eoi, "padded_left must leave trailing trivia unconsumed");
+}
+
+#[test]
+fn padded_right_fatal_skips_trailing() {
+  fn parse<'inp>(
+    inp: &mut InputRef<'inp, '_, TLexer<'inp>, TriviaFatalContext<'inp>>,
+  ) -> Result<bool, TestError> {
+    let _num = expect(|t: &TToken| {
+      if matches!(t, TToken::Num(_)) {
+        Ok(())
+      } else {
+        Err(Expected::one(TTokenKind::Num))
+      }
+    })
+    .padded_right()
+    .parse_input(inp)?;
+    Ok(inp.is_eoi())
+  }
+  let eoi = trivia_fatal_parser!()
+    .apply(parse)
+    .parse_str("42  ")
+    .unwrap();
+  assert!(eoi, "padded_right must consume trailing trivia");
+}
+
+#[test]
+fn padded_right_fatal_does_not_skip_leading() {
+  fn parse<'inp>(
+    inp: &mut InputRef<'inp, '_, TLexer<'inp>, TriviaFatalContext<'inp>>,
+  ) -> Result<TToken, TestError> {
+    expect(|t: &TToken| {
+      if matches!(t, TToken::Num(_)) {
+        Ok(())
+      } else {
+        Err(Expected::one(TTokenKind::Num))
+      }
+    })
+    .padded_right()
+    .parse_input(inp)
+  }
+  let result: Result<TToken, TestError> = trivia_fatal_parser!().apply(parse).parse_str("  42");
+  assert!(result.is_err(), "padded_right must not skip leading trivia");
+}
+
+#[test]
+fn padded_verbose_accumulates_no_errors() {
+  fn parse<'inp>(
+    inp: &mut InputRef<'inp, '_, TLexer<'inp>, TriviaVerboseContext<'inp>>,
+  ) -> Result<(TToken, usize), TestError> {
+    let num = expect(|t: &TToken| {
+      if matches!(t, TToken::Num(_)) {
+        Ok(())
+      } else {
+        Err(Expected::one(TTokenKind::Num))
+      }
+    })
+    .padded()
+    .parse_input(inp)?;
+    let error_count = inp.emitter().errors().len();
+    Ok((num, error_count))
+  }
+  let (num, error_count) = Parser::with_context(TriviaVerboseContext::new(Verbose::new()))
+    .apply(parse)
+    .parse_str("// c\n  42  ")
+    .unwrap();
+  assert!(matches!(num, TToken::Num(42)));
+  assert_eq!(
+    error_count, 0,
+    "padded must not accumulate errors for skipped trivia"
   );
 }
 

@@ -24,6 +24,7 @@ mod consume_cached;
 mod fold;
 mod peek;
 mod pratt;
+mod skip_while;
 mod sync_through;
 mod sync_to;
 mod try_expect;
