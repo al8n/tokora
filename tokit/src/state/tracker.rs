@@ -607,35 +607,40 @@ impl Tracker for Limiter {
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn increase_token(&mut self) {
-    self.increase_token();
+    self.token_tracker.increase();
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn increase_recursion(&mut self) {
-    self.increase_recursion();
+    self.recursion_tracker.increase();
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn decrease_recursion(&mut self) {
-    self.decrease_recursion();
+    self.recursion_tracker.decrease();
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn increase_token_and_check(&mut self) -> Result<(), Self::Error> {
-    self.increase_token();
+    self.token_tracker.increase();
     <Self as TokenTracker>::check(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn increase_token_and_decrease_recursion_and_check(&mut self) -> Result<(), Self::Error> {
-    self.increase_token();
-    self.decrease_recursion();
+    self.token_tracker.increase();
+    self.recursion_tracker.decrease();
     <Self as TokenTracker>::check(self)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn check(&self) -> Result<(), Self::Error> {
-    self.check()
+    self
+      .recursion_tracker
+      .check()
+      .map_err(LimitExceeded::from)?;
+    self.token_tracker.check().map_err(LimitExceeded::from)?;
+    Ok(())
   }
 }
 

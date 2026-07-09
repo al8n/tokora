@@ -233,9 +233,11 @@ impl RecursionLimiter {
   }
 
   /// Increase the current depth of the recursion.
+  ///
+  /// Saturates at `usize::MAX`, mirroring the saturating [`decrease`](Self::decrease).
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn increase(&mut self) {
-    self.current += 1;
+    self.current = self.current.saturating_add(1);
   }
 
   /// Decrease the current depth of the recursion.
@@ -303,17 +305,21 @@ impl RecursionTracker for RecursionLimiter {
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn increase(&mut self) {
-    self.increase();
+    self.current = self.current.saturating_add(1);
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn decrease(&mut self) {
-    self.decrease();
+    self.current = self.current.saturating_sub(1);
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn check(&self) -> Result<(), Self::Error> {
-    self.check()
+    if self.depth() > self.limitation() {
+      Err(RecursionLimitExceeded(*self))
+    } else {
+      Ok(())
+    }
   }
 }
 
@@ -400,3 +406,20 @@ const _: () = {
     bail!(logos_0_16);
   }
 };
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn recursion_increase_saturates_at_max() {
+    // At the ceiling `increase` must saturate rather than overflow-panic,
+    // keeping symmetry with the saturating `decrease`.
+    let mut r = RecursionLimiter {
+      max: usize::MAX,
+      current: usize::MAX,
+    };
+    r.increase();
+    assert_eq!(r.depth(), usize::MAX);
+  }
+}

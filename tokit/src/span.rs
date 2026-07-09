@@ -52,7 +52,12 @@ pub trait Span {
   where
     Self: Sized;
 
-  /// Bumps the span by `n` offsets.
+  /// Relocates the span by `n` offsets, shifting **both** the start and the end
+  /// so the length is preserved.
+  ///
+  /// This is a whole-span move, not an end extension. To grow the span by moving
+  /// only its end, use an end-specific operation such as
+  /// [`SimpleSpan::bump_end`].
   fn bump(&mut self, n: &Self::Offset);
 }
 
@@ -101,6 +106,7 @@ impl Span for core::ops::Range<usize> {
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn bump(&mut self, n: &Self::Offset) {
+    self.start += *n;
     self.end += *n;
   }
 }
@@ -610,6 +616,10 @@ impl<O> SimpleSpan<O> {
 
   /// Bump the end of the span by `n`.
   ///
+  /// ## Panics
+  ///
+  /// Panics if the resulting `end` would be less than `start`.
+  ///
   /// ## Example
   ///
   /// ```rust
@@ -622,9 +632,13 @@ impl<O> SimpleSpan<O> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn bump_end(&mut self, n: O) -> &mut Self
   where
-    O: AddAssign<O>,
+    O: AddAssign<O> + Ord,
   {
     self.end += n;
+    assert!(
+      self.end >= self.start,
+      "end must be greater than or equal to start"
+    );
     self
   }
 
@@ -651,6 +665,10 @@ impl<O> SimpleSpan<O> {
 
   /// Set the start of the span, returning a mutable reference to self.
   ///
+  /// ## Panics
+  ///
+  /// Panics if `start > end`.
+  ///
   /// ## Example
   ///
   /// ```rust
@@ -661,12 +679,23 @@ impl<O> SimpleSpan<O> {
   /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn set_start(&mut self, start: O) -> &mut Self {
+  pub fn set_start(&mut self, start: O) -> &mut Self
+  where
+    O: Ord,
+  {
     self.start = start;
+    assert!(
+      self.end >= self.start,
+      "end must be greater than or equal to start"
+    );
     self
   }
 
   /// Set the end of the span, returning a mutable reference to self.
+  ///
+  /// ## Panics
+  ///
+  /// Panics if `end < start`.
   ///
   /// ## Example
   ///
@@ -678,12 +707,23 @@ impl<O> SimpleSpan<O> {
   /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn set_end(&mut self, end: O) -> &mut Self {
+  pub fn set_end(&mut self, end: O) -> &mut Self
+  where
+    O: Ord,
+  {
     self.end = end;
+    assert!(
+      self.end >= self.start,
+      "end must be greater than or equal to start"
+    );
     self
   }
 
   /// Set the start of the span, returning self.
+  ///
+  /// ## Panics
+  ///
+  /// Panics if `start > end`.
   ///
   /// ## Example
   ///
@@ -694,12 +734,23 @@ impl<O> SimpleSpan<O> {
   /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_start(mut self, start: O) -> Self {
+  pub fn with_start(mut self, start: O) -> Self
+  where
+    O: Ord,
+  {
     self.start = start;
+    assert!(
+      self.end >= self.start,
+      "end must be greater than or equal to start"
+    );
     self
   }
 
   /// Set the end of the span, returning self.
+  ///
+  /// ## Panics
+  ///
+  /// Panics if `end < start`.
   ///
   /// ## Example
   ///
@@ -710,8 +761,15 @@ impl<O> SimpleSpan<O> {
   /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_end(mut self, end: O) -> Self {
+  pub fn with_end(mut self, end: O) -> Self
+  where
+    O: Ord,
+  {
     self.end = end;
+    assert!(
+      self.end >= self.start,
+      "end must be greater than or equal to start"
+    );
     self
   }
 
@@ -750,6 +808,10 @@ impl<O> SimpleSpan<O> {
   }
 
   /// Get the mutable reference to the start of the span.
+  ///
+  /// Unlike [`set_start`](Self::set_start), this raw accessor cannot enforce the
+  /// `end >= start` invariant: it is the unchecked escape hatch, and the caller
+  /// is responsible for keeping the span well-formed.
   ///
   /// ## Example
   ///
@@ -800,6 +862,10 @@ impl<O> SimpleSpan<O> {
   }
 
   /// Get the mutable reference to the end of the span.
+  ///
+  /// Unlike [`set_end`](Self::set_end), this raw accessor cannot enforce the
+  /// `end >= start` invariant: it is the unchecked escape hatch, and the caller
+  /// is responsible for keeping the span well-formed.
   ///
   /// ## Example
   ///

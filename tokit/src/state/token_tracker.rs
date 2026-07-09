@@ -249,7 +249,8 @@ impl TokenLimiter {
 
   /// Increases the token count by one.
   ///
-  /// This should be called each time a token is processed.
+  /// This should be called each time a token is processed. Saturates at
+  /// `usize::MAX` rather than overflowing.
   ///
   /// # Example
   ///
@@ -264,7 +265,7 @@ impl TokenLimiter {
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn increase(&mut self) {
-    self.current += 1;
+    self.current = self.current.saturating_add(1);
   }
 
   /// Returns the maximum number of tokens allowed.
@@ -361,12 +362,16 @@ impl TokenTracker for TokenLimiter {
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn increase(&mut self) {
-    self.increase();
+    self.current = self.current.saturating_add(1);
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn check(&self) -> Result<(), Self::Error> {
-    self.check()
+    if self.tokens() > self.limitation() {
+      Err(TokenLimitExceeded(*self))
+    } else {
+      Ok(())
+    }
   }
 }
 
@@ -437,3 +442,19 @@ const _: () = {
     bail!(logos_0_16);
   };
 };
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn token_increase_saturates_at_max() {
+    // At the ceiling `increase` must saturate rather than overflow-panic.
+    let mut t = TokenLimiter {
+      max: usize::MAX,
+      current: usize::MAX,
+    };
+    t.increase();
+    assert_eq!(t.tokens(), usize::MAX);
+  }
+}

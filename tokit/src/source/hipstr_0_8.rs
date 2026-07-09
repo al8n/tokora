@@ -32,6 +32,21 @@ impl<'h> Source<usize> for HipStr<'h> {
       .ok()
   }
 
+  /// Rounds `index` DOWN to the nearest UTF-8 code point boundary so the result
+  /// is always a valid slice position. Indices at or beyond the end are returned
+  /// unchanged, matching the byte sources.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn find_boundary(&self, index: usize) -> usize {
+    if index >= <HipStr<'h>>::len(self) {
+      return index;
+    }
+    let mut index = index;
+    while !self.is_char_boundary(index) {
+      index -= 1;
+    }
+    index
+  }
+
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_boundary(&self, index: usize) -> bool {
     self.is_char_boundary(index)
@@ -167,6 +182,33 @@ mod tests {
   fn hipstr_is_boundary_at_end() {
     let src = HipStr::from("abc");
     assert!(Source::is_boundary(&src, 3));
+  }
+
+  #[test]
+  fn hipstr_find_boundary_rounds_down_multibyte() {
+    let src = HipStr::from("\u{00E9}"); // 2-byte code point at 0..2
+    assert_eq!(Source::find_boundary(&src, 1), 0);
+  }
+
+  #[test]
+  fn hipstr_find_boundary_rounds_down_after_ascii() {
+    let src = HipStr::from("a\u{00E9}"); // 'a' at 0, "é" at 1..3
+    assert_eq!(Source::find_boundary(&src, 2), 1);
+  }
+
+  #[test]
+  fn hipstr_find_boundary_passes_through_boundaries() {
+    let src = HipStr::from("a\u{00E9}"); // boundaries at 0, 1, and 3 (== len)
+    assert_eq!(Source::find_boundary(&src, 0), 0);
+    assert_eq!(Source::find_boundary(&src, 1), 1);
+    assert_eq!(Source::find_boundary(&src, 3), 3);
+  }
+
+  #[test]
+  fn hipstr_find_boundary_at_and_beyond_len() {
+    let src = HipStr::from("a\u{00E9}"); // len 3
+    assert_eq!(Source::find_boundary(&src, 3), 3);
+    assert_eq!(Source::find_boundary(&src, 10), 10);
   }
 
   // --- HipByt tests ---

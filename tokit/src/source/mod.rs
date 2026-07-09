@@ -111,6 +111,21 @@ impl Source<usize> for str {
     ))
   }
 
+  /// Rounds `index` DOWN to the nearest UTF-8 code point boundary so the result
+  /// is always a valid slice position. Indices at or beyond the end are returned
+  /// unchanged, matching the byte sources.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn find_boundary(&self, index: usize) -> usize {
+    if index >= <str>::len(self) {
+      return index;
+    }
+    let mut index = index;
+    while !self.is_char_boundary(index) {
+      index -= 1;
+    }
+    index
+  }
+
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_boundary(&self, index: usize) -> bool {
     self.is_char_boundary(index)
@@ -270,6 +285,36 @@ mod tests {
   fn str_find_boundary_returns_index() {
     let src: &str = "abc";
     assert_eq!(Source::find_boundary(src, 1), 1);
+  }
+
+  #[test]
+  fn str_find_boundary_rounds_down_multibyte() {
+    // "é" is a single 2-byte code point occupying 0..2.
+    let src: &str = "\u{00E9}";
+    assert_eq!(Source::find_boundary(src, 1), 0);
+  }
+
+  #[test]
+  fn str_find_boundary_rounds_down_after_ascii() {
+    // 'a' at 0, "é" at 1..3.
+    let src: &str = "a\u{00E9}";
+    assert_eq!(Source::find_boundary(src, 2), 1);
+  }
+
+  #[test]
+  fn str_find_boundary_passes_through_boundaries() {
+    let src: &str = "a\u{00E9}"; // boundaries at 0, 1, and 3 (== len)
+    assert_eq!(Source::find_boundary(src, 0), 0);
+    assert_eq!(Source::find_boundary(src, 1), 1);
+    assert_eq!(Source::find_boundary(src, 3), 3);
+  }
+
+  #[test]
+  fn str_find_boundary_at_and_beyond_len() {
+    // index >= len is returned unchanged, symmetric with the byte sources.
+    let src: &str = "a\u{00E9}"; // len 3
+    assert_eq!(Source::find_boundary(src, 3), 3);
+    assert_eq!(Source::find_boundary(src, 10), 10);
   }
 
   #[test]
