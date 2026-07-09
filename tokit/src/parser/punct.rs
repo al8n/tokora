@@ -185,6 +185,50 @@ define_parsers!(
   Question::question::"?",
   Backtick::backtick::"`",
   Caret::caret::"^",
+
+  // Equality and comparison operators
+  ColonEqual::colon_equal::":=",
+  LogicalEqual::logical_equal::"==",
+  LogicalNotEqual::logical_not_equal::"!=",
+  StrictEqual::strict_equal::"===",
+  StrictNotEqual::strict_not_equal::"!==",
+  LessThanOrEqual::less_than_or_equal::"<=",
+  GreaterThanOrEqual::greater_than_or_equal::">=",
+  StrictLessThanOrEqual::strict_less_than_or_equal::"<==",
+  StrictGreaterThanOrEqual::strict_greater_than_or_equal::">==",
+
+  // Compound assignment operators
+  PlusEqual::plus_equal::"+=",
+  HyphenEqual::hyphen_equal::"-=",
+  AsteriskEqual::asterisk_equal::"*=",
+  ExponentiationEqual::exponentiation_equal::"**=",
+  SlashEqual::slash_equal::"/=",
+  BackslashEqual::backslash_equal::"\\=",
+  PercentEqual::percent_equal::"%=",
+  AmpersandEqual::ampersand_equal::"&=",
+  PipeEqual::pipe_equal::"|=",
+  CaretEqual::caret_equal::"^=",
+  ShlEqual::shl_equal::"<<=",
+  ShrEqual::shr_equal::">>=",
+  SarEqual::sar_equal::">>>=",
+
+  // Shift operators
+  ShiftLeft::shl::"<<",
+  ShiftRight::shr::">>",
+  ShiftArithmeticRight::sar::">>>",
+
+  // Increment, decrement, and exponentiation
+  Increment::increment::"++",
+  Decrement::decrement::"--",
+  Exponentiation::exponentiation::"**",
+
+  // Logical operators
+  LogicalAnd::logical_and::"&&",
+  LogicalOr::logical_or::"||",
+
+  // Null-coalescing and optional chaining
+  NullCoalesce::null_coalesce::"??",
+  OptionalChain::optional_chain::"?.",
 );
 
 #[cfg(all(test, feature = "std", feature = "logos"))]
@@ -206,6 +250,10 @@ mod tests {
   enum Token {
     #[token("...")]
     Spread,
+    #[token("<<")]
+    ShiftLeft,
+    #[token("+=")]
+    PlusEqual,
     #[regex(r"[0-9]+")]
     Num,
   }
@@ -214,6 +262,8 @@ mod tests {
   enum TokenKind {
     Spread,
     At,
+    ShiftLeft,
+    PlusEqual,
     Num,
   }
 
@@ -222,6 +272,8 @@ mod tests {
       match self {
         TokenKind::Spread => write!(f, "..."),
         TokenKind::At => write!(f, "@"),
+        TokenKind::ShiftLeft => write!(f, "<<"),
+        TokenKind::PlusEqual => write!(f, "+="),
         TokenKind::Num => write!(f, "number"),
       }
     }
@@ -234,6 +286,8 @@ mod tests {
     fn kind(&self) -> TokenKind {
       match self {
         Token::Spread => TokenKind::Spread,
+        Token::ShiftLeft => TokenKind::ShiftLeft,
+        Token::PlusEqual => TokenKind::PlusEqual,
         Token::Num => TokenKind::Num,
       }
     }
@@ -246,6 +300,14 @@ mod tests {
   impl PunctuatorToken<'_> for Token {
     fn spread() -> Option<Self::Kind> {
       Some(TokenKind::Spread)
+    }
+
+    fn shl() -> Option<Self::Kind> {
+      Some(TokenKind::ShiftLeft)
+    }
+
+    fn plus_equal() -> Option<Self::Kind> {
+      Some(TokenKind::PlusEqual)
     }
   }
 
@@ -350,6 +412,62 @@ mod tests {
       inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
     ) -> Result<(bool, bool), E> {
       let declined = Spread::try_parse(inp)?.is_decline();
+      let next_is_num = inp
+        .try_expect(|t| t.data.kind() == TokenKind::Num)?
+        .is_some();
+      Ok((declined, next_is_num))
+    }
+    let r: Result<(bool, bool), _> = Parser::with_context(ctx()).apply(parse).parse_str("42");
+    let (declined, next_is_num) = r.unwrap();
+    assert!(declined);
+    assert!(next_is_num);
+  }
+
+  #[test]
+  fn shift_left_try_parse_accepts_shl_token() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<bool, E> {
+      Ok(ShiftLeft::try_parse(inp)?.is_accept())
+    }
+    let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("<<");
+    assert!(r.unwrap());
+  }
+
+  #[test]
+  fn shift_left_try_parse_declines_non_shl_token() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<(bool, bool), E> {
+      let declined = ShiftLeft::try_parse(inp)?.is_decline();
+      let next_is_num = inp
+        .try_expect(|t| t.data.kind() == TokenKind::Num)?
+        .is_some();
+      Ok((declined, next_is_num))
+    }
+    let r: Result<(bool, bool), _> = Parser::with_context(ctx()).apply(parse).parse_str("42");
+    let (declined, next_is_num) = r.unwrap();
+    assert!(declined);
+    assert!(next_is_num);
+  }
+
+  #[test]
+  fn plus_equal_try_parse_accepts_plus_equal_token() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<bool, E> {
+      Ok(PlusEqual::try_parse(inp)?.is_accept())
+    }
+    let r: Result<bool, _> = Parser::with_context(ctx()).apply(parse).parse_str("+=");
+    assert!(r.unwrap());
+  }
+
+  #[test]
+  fn plus_equal_try_parse_declines_non_plus_equal_token() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<(bool, bool), E> {
+      let declined = PlusEqual::try_parse(inp)?.is_decline();
       let next_is_num = inp
         .try_expect(|t| t.data.kind() == TokenKind::Num)?
         .is_some();
