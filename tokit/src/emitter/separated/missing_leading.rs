@@ -35,24 +35,24 @@ where
   }
 }
 
-// /// A trait bound for creating emitter errors from missing leading separator errors.
-// pub trait FromMissingLeadingSeparatorError<'a, L, Lang: ?Sized = ()> {
-//   /// Creates an emitter error from a missing leading separator error.
-//   fn from_missing_leading_separator(err: MissingTokenOf<'a, L, Lang>) -> Self
-//   where
-//     L: Lexer<'a>;
-// }
+/// A trait bound for creating emitter errors from missing leading separator errors.
+pub trait FromMissingLeadingSeparatorError<'a, L, Lang: ?Sized = ()> {
+  /// Creates an emitter error from a missing leading separator error.
+  fn from_missing_leading_separator(name: CowStr, err: MissingTokenOf<'a, L, Lang>) -> Self
+  where
+    L: Lexer<'a>;
+}
 
-// impl<'a, T, L, Lang: ?Sized> FromMissingLeadingSeparatorError<'a, L, Lang> for T
-// where
-//   L: Lexer<'a>,
-//   T: From<MissingTokenOf<'a, L, Lang>>,
-// {
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   fn from_missing_leading_separator(err: MissingTokenOf<'a, L, Lang>) -> Self
-//   where
-//     L: Lexer<'a>,
-//   {
-//     err.into()
-//   }
-// }
+impl<'a, T, L, Lang: ?Sized> FromMissingLeadingSeparatorError<'a, L, Lang> for T
+where
+  L: Lexer<'a>,
+  T: From<MissingTokenOf<'a, L, Lang>>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from_missing_leading_separator(_name: CowStr, err: MissingTokenOf<'a, L, Lang>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    err.into()
+  }
+}

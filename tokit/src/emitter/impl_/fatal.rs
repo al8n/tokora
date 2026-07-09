@@ -1,11 +1,16 @@
 use crate::{error::syntax::MissingSyntaxOf, span::Spanned};
 
 use super::super::{
-  separated::{UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter},
+  separated::{
+    MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
+  },
   *,
 };
 
 mod full_container;
+mod missing_leading_separator;
+mod missing_trailing_separator;
 mod pratt;
 mod separator;
 mod too_few;

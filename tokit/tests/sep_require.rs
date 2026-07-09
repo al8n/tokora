@@ -1,33 +1,27 @@
 #![cfg(all(feature = "std", feature = "logos"))]
 
 //! Tests for sep/parse and sep_while/parse with require_* separator policies.
-//!
-//! These variants require `MissingTrailingSeparatorEmitter` or
-//! `MissingLeadingSeparatorEmitter` (not implemented by `Fatal`), so they need
-//! a custom emitter.
 
 mod common;
 
 use generic_arraydeque::typenum::U1;
 use tokit::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  Token as TokenTrait, TryParseInput,
+  TryParseInput,
   cache::Peeked,
   emitter::{
-    FromSeparatedError, FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
-    FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
-    SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
-    UnexpectedTrailingSeparatorEmitter,
+    Fatal, FromSeparatedError, FromUnexpectedLeadingSeparatorError,
+    FromUnexpectedTrailingSeparatorError, FullContainerEmitter, MissingLeadingSeparatorEmitter,
+    MissingTrailingSeparatorEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::syntax::MissingSyntaxOf,
   error::{
     UnexpectedEot,
     syntax::{FullContainer, TooFew, TooMany},
-    token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    token::{MissingToken, MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
   },
-  input::Cursor,
   parser::Action,
-  span::Spanned,
   try_parse_input::ParseAttempt,
   utils::CowStr,
 };
@@ -77,6 +71,12 @@ impl From<UnexpectedEot> for ManyReqError {
   }
 }
 
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for ManyReqError {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
+    ManyReqError
+  }
+}
+
 impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for ManyReqError {
   fn from_missing_separator(_: CowStr, _: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
   where
@@ -117,166 +117,8 @@ impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for ManyR
   }
 }
 
-// ── Full emitter ──────────────────────────────────────────────────────────────
-
-struct FullEmitter;
-
-impl<'inp> Emitter<'inp, TestLexer<'inp>> for FullEmitter {
-  type Error = ManyReqError;
-
-  fn emit_lexer_error(
-    &mut self,
-    _: Spanned<
-      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenTrait<'inp>>::Error,
-      <TestLexer<'inp> as Lexer<'inp>>::Span,
-    >,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-
-  fn emit_unexpected_token(
-    &mut self,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-
-  fn emit_error(
-    &mut self,
-    err: Spanned<ManyReqError, <TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(err.into_data())
-  }
-
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-  }
-}
-
-impl<'inp> SeparatedEmitter<'inp, TestLexer<'inp>> for FullEmitter {
-  fn emit_missing_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-
-  fn emit_missing_element(
-    &mut self,
-    _: MissingSyntaxOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-}
-
-impl<'inp> FullContainerEmitter<'inp, TestLexer<'inp>> for FullEmitter {
-  fn emit_full_container(
-    &mut self,
-    _: FullContainer<<TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-}
-
-impl<'inp> TooFewEmitter<'inp, TestLexer<'inp>> for FullEmitter {
-  fn emit_too_few(
-    &mut self,
-    _: TooFew<<TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-}
-
-impl<'inp> TooManyEmitter<'inp, TestLexer<'inp>> for FullEmitter {
-  fn emit_too_many(
-    &mut self,
-    _: TooMany<<TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-}
-
-impl<'inp> UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>> for FullEmitter {
-  fn emit_unexpected_leading_separator(
-    &mut self,
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-}
-
-impl<'inp> UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>> for FullEmitter {
-  fn emit_unexpected_trailing_separator(
-    &mut self,
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-}
-
-impl<'inp> MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>> for FullEmitter {
-  fn emit_missing_trailing_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-}
-
-impl<'inp> MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>> for FullEmitter {
-  fn emit_missing_leading_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), ManyReqError>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(ManyReqError)
-  }
-}
-
-fn full_ctx() -> ParserContext<'static, TestLexer<'static>, FullEmitter> {
-  ParserContext::new(FullEmitter)
+fn full_ctx() -> ParserContext<'static, TestLexer<'static>, Fatal<ManyReqError>> {
+  ParserContext::new(Fatal::new())
 }
 
 // ── Element parsers ───────────────────────────────────────────────────────────

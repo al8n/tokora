@@ -16,15 +16,15 @@ use tokit::{
   Token as TokenTrait, TryParseInput,
   cache::Peeked,
   emitter::{
-    FromSeparatedError, FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
-    FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
-    SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
-    UnexpectedTrailingSeparatorEmitter,
+    Fatal, FromSeparatedError, FromUnexpectedLeadingSeparatorError,
+    FromUnexpectedTrailingSeparatorError, FullContainerEmitter, MissingLeadingSeparatorEmitter,
+    MissingTrailingSeparatorEmitter, SeparatedEmitter, Silent, TooFewEmitter, TooManyEmitter,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
     UnexpectedEot,
     syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    token::{MissingToken, MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
   },
   input::Cursor,
   parser::Action,
@@ -76,6 +76,12 @@ impl From<UnexpectedEot> for E {
   }
 }
 
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for E {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
+    E
+  }
+}
+
 impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for E {
   fn from_missing_separator(_: CowStr, _: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
   where
@@ -116,298 +122,14 @@ impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for E {
   }
 }
 
-// ── Recovering emitter — returns Ok(()) to let parsing continue ──────────────
-
-struct RecoveringEmitter;
-
-impl<'inp> Emitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  type Error = E;
-
-  fn emit_lexer_error(
-    &mut self,
-    _: Spanned<
-      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenTrait<'inp>>::Error,
-      <TestLexer<'inp> as Lexer<'inp>>::Span,
-    >,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  fn emit_error(&mut self, _: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-  }
-}
-
-impl<'inp> SeparatedEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_missing_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  fn emit_missing_element(&mut self, _: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> FullContainerEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_full_container(
-    &mut self,
-    _: FullContainer<<TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> TooFewEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_too_few(&mut self, _: TooFew<<TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> TooManyEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_too_many(&mut self, _: TooMany<<TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_unexpected_leading_separator(
-    &mut self,
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_unexpected_trailing_separator(
-    &mut self,
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_missing_trailing_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_missing_leading_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-fn recovering_ctx() -> ParserContext<'static, TestLexer<'static>, RecoveringEmitter> {
-  ParserContext::new(RecoveringEmitter)
+fn recovering_ctx() -> ParserContext<'static, TestLexer<'static>, Silent<E>> {
+  ParserContext::new(Silent::new())
 }
 
 // ── Also keep a fatal emitter for tests that should error ────────────────────
 
-struct FatalEmitter;
-
-impl<'inp> Emitter<'inp, TestLexer<'inp>> for FatalEmitter {
-  type Error = E;
-
-  fn emit_lexer_error(
-    &mut self,
-    _: Spanned<
-      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenTrait<'inp>>::Error,
-      <TestLexer<'inp> as Lexer<'inp>>::Span,
-    >,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-
-  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-
-  fn emit_error(&mut self, err: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(err.into_data())
-  }
-
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-  }
-}
-
-impl<'inp> SeparatedEmitter<'inp, TestLexer<'inp>> for FatalEmitter {
-  fn emit_missing_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-
-  fn emit_missing_element(&mut self, _: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-}
-
-impl<'inp> FullContainerEmitter<'inp, TestLexer<'inp>> for FatalEmitter {
-  fn emit_full_container(
-    &mut self,
-    _: FullContainer<<TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-}
-
-impl<'inp> TooFewEmitter<'inp, TestLexer<'inp>> for FatalEmitter {
-  fn emit_too_few(&mut self, _: TooFew<<TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-}
-
-impl<'inp> TooManyEmitter<'inp, TestLexer<'inp>> for FatalEmitter {
-  fn emit_too_many(&mut self, _: TooMany<<TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-}
-
-impl<'inp> UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>> for FatalEmitter {
-  fn emit_unexpected_leading_separator(
-    &mut self,
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-}
-
-impl<'inp> UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>> for FatalEmitter {
-  fn emit_unexpected_trailing_separator(
-    &mut self,
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-}
-
-impl<'inp> MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>> for FatalEmitter {
-  fn emit_missing_trailing_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-}
-
-impl<'inp> MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>> for FatalEmitter {
-  fn emit_missing_leading_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-}
-
-fn fatal_ctx() -> ParserContext<'static, TestLexer<'static>, FatalEmitter> {
-  ParserContext::new(FatalEmitter)
+fn fatal_ctx() -> ParserContext<'static, TestLexer<'static>, Fatal<E>> {
+  ParserContext::new(Fatal::new())
 }
 
 // ── Element parsers ──────────────────────────────────────────────────────────

@@ -4,7 +4,10 @@ use crate::{
 };
 
 use super::super::{
-  separated::{UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter},
+  separated::{
+    MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
+  },
   *,
 };
 
@@ -13,6 +16,8 @@ use std::collections::BTreeMap;
 use core::marker::PhantomData;
 
 mod full_container;
+mod missing_leading_separator;
+mod missing_trailing_separator;
 mod pratt;
 mod separator;
 mod too_few;

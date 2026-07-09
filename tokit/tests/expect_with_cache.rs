@@ -19,7 +19,7 @@ use tokit::{
   emitter::{
     FromSeparatedError, FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
     FullContainerEmitter, Ignored, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
-    SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
+    SeparatedEmitter, Silent, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
   },
   error::{
@@ -117,151 +117,8 @@ impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for E {
   }
 }
 
-// ── RecoveringEmitter — returns Ok(()) to let parsing continue ────────────────
-
-struct RecoveringEmitter;
-
-impl<'inp> Emitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  type Error = E;
-
-  fn emit_lexer_error(
-    &mut self,
-    _: Spanned<
-      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenTrait<'inp>>::Error,
-      <TestLexer<'inp> as Lexer<'inp>>::Span,
-    >,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  fn emit_error(&mut self, _: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-  }
-}
-
-impl<'inp> SeparatedEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_missing_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-
-  fn emit_missing_element(&mut self, _: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> FullContainerEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_full_container(
-    &mut self,
-    _: FullContainer<<TestLexer<'inp> as Lexer<'inp>>::Span>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> TooFewEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_too_few(&mut self, _: TooFew<<TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> TooManyEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_too_many(&mut self, _: TooMany<<TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_unexpected_leading_separator(
-    &mut self,
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_unexpected_trailing_separator(
-    &mut self,
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> MissingTrailingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_missing_trailing_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-impl<'inp> MissingLeadingSeparatorEmitter<'inp, TestLexer<'inp>> for RecoveringEmitter {
-  fn emit_missing_leading_separator(
-    &mut self,
-    _: CowStr,
-    _: MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Ok(())
-  }
-}
-
-fn recovering_ctx() -> ParserContext<'static, TestLexer<'static>, RecoveringEmitter> {
-  ParserContext::new(RecoveringEmitter)
+fn recovering_ctx() -> ParserContext<'static, TestLexer<'static>, Silent<E>> {
+  ParserContext::new(Silent::new())
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
