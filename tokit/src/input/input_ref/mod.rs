@@ -39,6 +39,7 @@ where
   pub(super) state: &'closure mut L::State,
   pub(super) span: &'closure mut L::Span,
   pub(super) cache: &'closure mut Ctx::Cache,
+  pub(super) emitted_error_end: &'closure mut L::Offset,
   pub(super) emitter: &'closure mut Ctx::Emitter,
   pub(super) _marker: PhantomData<Lang>,
 }
@@ -95,6 +96,26 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn emitter(&mut self) -> &mut Ctx::Emitter {
     self.emitter
+  }
+
+  /// Emits a lexer error unless the same region has already been reported.
+  ///
+  /// Peeking a window larger than the cache lexes past the cached region and emits
+  /// any lexer errors it finds right away, so a peek-and-stop caller never loses
+  /// them. Consuming that region later re-lexes it; this dedup — keyed on the error
+  /// span's end against a high-water mark — guarantees every lexer error is reported
+  /// exactly once, whether it is peeked, consumed, or both.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_lexer_error_deduped(
+    &mut self,
+    err: Spanned<<L::Token as Token<'inp>>::Error, L::Span>,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    let end = err.span_ref().end_ref().clone();
+    if end <= *self.emitted_error_end {
+      return Ok(());
+    }
+    *self.emitted_error_end = end;
+    self.emitter().emit_lexer_error(err)
   }
 
   /// Returns `true` if reached the end of input.
@@ -286,6 +307,10 @@ where
     self.cache_mut().rewind(&checkpoint);
     let cur = checkpoint.cursor();
     self.emitter().rewind(cur);
+    // The emitter rewind discards lexer errors past the restore point, so the
+    // dedup mark must fall back with it — otherwise a re-parse would wrongly
+    // suppress errors it must re-report. Errors up to the cursor stay retained.
+    *self.emitted_error_end = cur.as_inner().clone();
     self.set_span((&checkpoint.span).into());
     *self.state = checkpoint.state;
   }
@@ -363,7 +388,7 @@ where
 
     while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
       match tok {
-        Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
+        Lexed::Error(err) => match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
           Ok(_) => {}
           Err(e) => {
             self.set_span_after_consume(lexer.span().into());

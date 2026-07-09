@@ -87,9 +87,10 @@ where
 
         match lexed {
           Lexed::Error(e) => {
-            if self.cache.remaining() > 0 {
-              self.emitter().emit_lexer_error(Spanned::new(span, e))?;
-            }
+            // Emit immediately regardless of cache fullness so an error in the
+            // overflow region is never silently dropped. The dedup mark keeps a
+            // later consume that re-lexes this region from reporting it twice.
+            self.emit_lexer_error_deduped(Spanned::new(span, e))?;
           }
           Lexed::Token(tok) => {
             let cached = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
@@ -443,5 +444,141 @@ mod tests {
       Ok(())
     })
     .unwrap();
+  }
+
+  // ── Lexer errors must never be dropped, never double-emitted ──────────────
+  //
+  // A counting emitter records exactly how many lexer errors reach the
+  // emitter. It is non-fatal (always returns `Ok`) and does NOT deduplicate,
+  // so a double emission of the same malformed region is observable as `2`.
+
+  #[derive(Debug, Default)]
+  struct CountingEmitter {
+    lexer_errors: usize,
+  }
+
+  #[derive(Debug, Clone, PartialEq, Eq)]
+  struct NeverFatal;
+
+  impl<'inp> crate::emitter::Emitter<'inp, TestLexer<'inp>> for CountingEmitter {
+    type Error = NeverFatal;
+
+    fn emit_lexer_error(
+      &mut self,
+      _: crate::span::Spanned<
+        <<TestLexer<'inp> as crate::Lexer<'inp>>::Token as crate::Token<'inp>>::Error,
+        <TestLexer<'inp> as crate::Lexer<'inp>>::Span,
+      >,
+    ) -> Result<(), NeverFatal> {
+      self.lexer_errors += 1;
+      Ok(())
+    }
+
+    fn emit_unexpected_token(
+      &mut self,
+      _: crate::error::token::UnexpectedTokenOf<'inp, TestLexer<'inp>, ()>,
+    ) -> Result<(), NeverFatal> {
+      Ok(())
+    }
+
+    fn emit_error(
+      &mut self,
+      _: crate::span::Spanned<NeverFatal, <TestLexer<'inp> as crate::Lexer<'inp>>::Span>,
+    ) -> Result<(), NeverFatal> {
+      Ok(())
+    }
+
+    fn rewind(&mut self, _: &crate::input::Cursor<'inp, '_, TestLexer<'inp>>) {}
+  }
+
+  type CountingCtx<'inp> = (
+    CountingEmitter,
+    crate::cache::DefaultCache<'inp, TestLexer<'inp>>,
+  );
+
+  fn count_lexer_errors<'inp, F>(src: &'inp str, f: F) -> usize
+  where
+    F: FnOnce(
+      &mut crate::input::InputRef<'inp, '_, TestLexer<'inp>, CountingCtx<'inp>, ()>,
+    ) -> Result<(), NeverFatal>,
+  {
+    let mut emitter = CountingEmitter::default();
+    let cache = crate::cache::DefaultCache::<'inp, TestLexer<'inp>>::default();
+    let mut input =
+      crate::input::Input::<TestLexer<'inp>, CountingCtx<'inp>, ()>::with_state_and_cache(
+        src,
+        (),
+        cache,
+      );
+    {
+      let mut inp = input.as_ref(&mut emitter);
+      let _ = f(&mut inp);
+    }
+    emitter.lexer_errors
+  }
+
+  fn drain<'inp>(
+    inp: &mut crate::input::InputRef<'inp, '_, TestLexer<'inp>, CountingCtx<'inp>, ()>,
+  ) -> Result<(), NeverFatal> {
+    while inp.next()?.is_some() {}
+    Ok(())
+  }
+
+  #[test]
+  fn consume_direct_single_lexer_error() {
+    // No peek at all: a lexer error is emitted once as it is consumed.
+    let n = count_lexer_errors("a @ b", |inp| drain(inp));
+    assert_eq!(n, 1, "consume-direct");
+  }
+
+  #[test]
+  fn peek_then_consume_single_lexer_error() {
+    // Error precedes a cached token; peek seals it, consume must not re-emit.
+    let n = count_lexer_errors("@ a b", |inp| {
+      use generic_arraydeque::typenum::U2;
+      {
+        let _ = inp.peek::<U2>()?;
+      }
+      drain(inp)
+    });
+    assert_eq!(n, 1, "peek-then-consume");
+  }
+
+  #[test]
+  fn peek_trailing_then_consume_single_lexer_error() {
+    // Error trails the cached token (no later cached token). Consume re-lexes it.
+    let n = count_lexer_errors("a @", |inp| {
+      use generic_arraydeque::typenum::U2;
+      {
+        let _ = inp.peek::<U2>()?;
+      }
+      drain(inp)
+    });
+    assert_eq!(n, 1, "peek-trailing-then-consume");
+  }
+
+  #[test]
+  fn peek_overflow_then_consume_single_lexer_error() {
+    // Cache holds 3; window 5. Error sits in the overflow region.
+    let n = count_lexer_errors("a b c @ d", |inp| {
+      use generic_arraydeque::typenum::U5;
+      {
+        let _ = inp.peek::<U5>()?;
+      }
+      drain(inp)
+    });
+    assert_eq!(n, 1, "peek-overflow-then-consume");
+  }
+
+  #[test]
+  fn peek_overflow_stop_records_lexer_error() {
+    // Peek over the overflow region then STOP without consuming: the error in
+    // the overflow region must still have been recorded at peek time.
+    let n = count_lexer_errors("a b c @ d", |inp| {
+      use generic_arraydeque::typenum::U5;
+      let _ = inp.peek::<U5>()?;
+      Ok(())
+    });
+    assert_eq!(n, 1, "peek-overflow-stop must record the error");
   }
 }

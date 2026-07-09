@@ -46,7 +46,7 @@ where
 
     while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
       match tok {
-        Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
+        Lexed::Error(err) => match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
           Ok(_) => {}
           Err(e) => {
             self.set_span_after_consume(lexer.span().into());
@@ -154,7 +154,7 @@ where
 
         while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
           match tok {
-            Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
+            Lexed::Error(err) => match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
               Ok(_) => {}
               Err(e) => {
                 self.set_span_after_consume(lexer.span().into());

@@ -140,6 +140,10 @@ where
   span: L::Span,
   cursor: L::Offset,
   cache: Ctx::Cache,
+  /// High-water mark: lexer errors whose span ends at or before this offset have
+  /// already been emitted (e.g. during a peek that lexed past this point), so the
+  /// consume path must not report them again when it re-lexes the same region.
+  emitted_error_end: L::Offset,
 }
 
 impl<'inp, L, Ctx, Lang: ?Sized> Clone for Input<'inp, L, Ctx, Lang>
@@ -157,6 +161,7 @@ where
       span: self.span.clone(),
       cursor: self.cursor.clone(),
       cache: self.cache.clone(),
+      emitted_error_end: self.emitted_error_end.clone(),
     }
   }
 }
@@ -209,6 +214,7 @@ where
       cursor: L::Offset::default(),
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache: DefaultCache::<'inp, L>::default(),
+      emitted_error_end: L::Offset::default(),
     }
   }
 }
@@ -229,6 +235,7 @@ where
       cursor: L::Offset::default(),
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache,
+      emitted_error_end: L::Offset::default(),
     }
   }
 
@@ -243,6 +250,7 @@ where
       state: &mut self.state,
       cache: &mut self.cache,
       span: &mut self.span,
+      emitted_error_end: &mut self.emitted_error_end,
       emitter,
       _marker: PhantomData,
     }

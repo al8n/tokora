@@ -30,9 +30,27 @@ macro_rules! bail {
     }
 
     /// A lexer implementation for [`logos`](https://docs.rs/logos)-based lexers.
-    #[repr(transparent)]
+    ///
+    /// # Limit-error latching
+    ///
+    /// When the lexer state (`extras`) reports a limit error from
+    /// [`check`](Lexer::check) after a token is scanned, [`lex`](Lexer::lex) returns that
+    /// error **once** and then latches: every subsequent [`lex`](Lexer::lex) returns
+    /// `None`, exactly as if the input were exhausted. This bounds the work an
+    /// error-recovery caller performs on untrusted input — once the limiter trips the
+    /// lexer stops scanning rather than re-failing on every remaining token.
+    ///
+    /// After latching, [`span`](Lexer::span), [`slice`](Lexer::slice) and
+    /// [`bump`](Lexer::bump) continue to delegate to the inner lexer, which is positioned
+    /// at the token that tripped the limit; they behave exactly as they do once the input
+    /// is exhausted (the latch performs no further scanning).
+    ///
+    /// Mutating the state through [`state_mut`](Lexer::state_mut) (e.g. resetting the
+    /// limiter) does **not** clear the latch: poisoning is sticky for the lifetime of the
+    /// lexer instance. A fresh lexer must be constructed to lex again.
     pub struct LogosLexer<'inp, T: FromLogos<'inp>> {
       inner: $lib::Lexer<'inp, T::Logos>,
+      poisoned: bool,
       _marker: PhantomData<T>,
     }
 
@@ -50,6 +68,7 @@ macro_rules! bail {
       fn into_lexer(self) -> Self::Lexer {
         LogosLexer {
           inner: self,
+          poisoned: false,
           _marker: PhantomData,
         }
       }
@@ -154,10 +173,18 @@ macro_rules! bail {
       where
         T: Token<'inp>,
       {
+        // Once a limit error has been reported, latch: report EOF forever so an
+        // error-recovery caller cannot be made to scan the whole input.
+        if self.poisoned {
+          return None;
+        }
         match self.inner.next() {
           Some(Ok(tok)) => match self.check() {
             Ok(_) => Some(Ok(T::from_logos(tok))),
-            Err(e) => Some(Err(e)),
+            Err(e) => {
+              self.poisoned = true;
+              Some(Err(e))
+            }
           },
           Some(Err(err)) => Some(Err(err.into())),
           None => None,
@@ -376,5 +403,132 @@ mod tests {
     let tok = TestTok::Plus;
     let converted = TestTok::from_logos(tok.clone());
     assert_eq!(converted, tok);
+  }
+
+  // ── Limit-error latching ─────────────────────────────────────────────────
+
+  use crate::state::token_tracker::{TokenLimitExceeded, TokenLimiter};
+
+  #[derive(Debug, Clone, PartialEq)]
+  enum LimitErr {
+    Lex,
+    Limit(TokenLimitExceeded),
+  }
+
+  impl From<()> for LimitErr {
+    fn from(_: ()) -> Self {
+      LimitErr::Lex
+    }
+  }
+
+  impl From<TokenLimitExceeded> for LimitErr {
+    fn from(e: TokenLimitExceeded) -> Self {
+      LimitErr::Limit(e)
+    }
+  }
+
+  #[derive(Debug, Clone, PartialEq, logos::Logos)]
+  #[logos(crate = logos, extras = TokenLimiter, skip r"[ \t\r\n]+")]
+  enum LimitedTok {
+    // Each scanned token bumps the limiter; the over-limit condition is caught by
+    // `LogosLexer::lex` via `check()`, not by the callback itself.
+    #[regex(r"[0-9]+", |lex| { lex.extras.increase(); })]
+    Num,
+  }
+
+  impl core::fmt::Display for LimitedTok {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      write!(f, "number")
+    }
+  }
+
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+  enum LimitedKind {
+    Num,
+  }
+
+  impl core::fmt::Display for LimitedKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      write!(f, "number")
+    }
+  }
+
+  impl TokenTrait<'_> for LimitedTok {
+    type Kind = LimitedKind;
+    type Error = LimitErr;
+
+    fn kind(&self) -> LimitedKind {
+      LimitedKind::Num
+    }
+
+    fn is_trivia(&self) -> bool {
+      false
+    }
+  }
+
+  type LimitedLexer<'a> = super::logos_0_16::LogosLexer<'a, LimitedTok>;
+
+  #[test]
+  fn logos_lexer_latches_after_limit_error() {
+    // Limit of 2: the third scanned token trips `check()`.
+    let mut lexer = LimitedLexer::with_state("1 2 3 4 5 6", TokenLimiter::with_limitation(2));
+
+    assert!(matches!(lexer.lex(), Some(Ok(_))), "first token");
+    assert!(matches!(lexer.lex(), Some(Ok(_))), "second token");
+
+    // Third token trips the limiter: exactly one limit error is returned.
+    assert!(
+      matches!(lexer.lex(), Some(Err(LimitErr::Limit(_)))),
+      "limit error on the tripping token"
+    );
+
+    let tokens_at_trip = lexer.state().tokens();
+    assert_eq!(
+      tokens_at_trip, 3,
+      "three tokens were scanned before latching"
+    );
+
+    // Latched: every subsequent `lex()` is `None` and NO further scanning happens
+    // (the counting callback proves bounded work — the count never advances).
+    for _ in 0..5 {
+      assert!(lexer.lex().is_none(), "latched to EOF");
+    }
+    assert_eq!(
+      lexer.state().tokens(),
+      tokens_at_trip,
+      "no further tokens scanned after the latch"
+    );
+  }
+
+  #[test]
+  fn logos_lexer_latch_inherited_by_lex_spanned() {
+    use super::super::Lexed;
+
+    // The `lex_spanned`/iterator surface routes through `lex`, so it inherits the latch.
+    let mut lexer = LimitedLexer::with_state("1 2 3 4 5", TokenLimiter::with_limitation(2));
+
+    let mut errors = 0usize;
+    let mut last_was_error = false;
+    while let Some(spanned) = Lexed::lex_spanned(&mut lexer) {
+      let (_, lexed) = spanned.into_components();
+      last_was_error = lexed.is_error();
+      if last_was_error {
+        errors += 1;
+      }
+    }
+
+    assert_eq!(
+      errors, 1,
+      "exactly one limit error surfaced via lex_spanned"
+    );
+    assert!(
+      last_was_error,
+      "iteration stopped right after the limit error"
+    );
+    assert_eq!(
+      lexer.state().tokens(),
+      3,
+      "bounded work: scanning stopped at the trip point"
+    );
   }
 }
