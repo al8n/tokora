@@ -328,4 +328,19 @@ mod tests {
     })
     .unwrap();
   }
+
+  #[test]
+  fn slice_after_peek_returns_consumed_token() {
+    // Consume the first token so the target is no longer at offset 0, then peek
+    // to fill the cache and consume from it. `slice()` must return the text of
+    // the just-consumed token, not the whole consumed prefix.
+    parse_with("foo bar", |inp| {
+      assert!(inp.next()?.is_some());
+      assert!(inp.peek_one()?.is_some());
+      assert!(inp.next()?.is_some());
+      assert_eq!(inp.slice(), "bar");
+      Ok(())
+    })
+    .unwrap();
+  }
 }

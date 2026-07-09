@@ -119,14 +119,6 @@ where
     lexer
   }
 
-  /// Creates a lexer without state positioned at the current offset.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn lexer_no_state(&self) -> L {
-    let mut lexer = L::new(self.input);
-    lexer.bump(self.offset());
-    lexer
-  }
-
   /// Sets the cursor to the specified position, clamped to the input length.
   ///
   /// This ensures the cursor never exceeds the bounds of the input source.
@@ -203,7 +195,10 @@ where
   /// Returns a slice of the current token from the input source.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn slice(&self) -> <L::Source as Source<L::Offset>>::Slice<'inp> {
-    self.lexer_no_state().slice()
+    self
+      .input
+      .slice(self.span.start_ref()..self.span.end_ref())
+      .expect("lexer should guarantee slice")
   }
 
   /// Returns a slice of the input source from the given cursor to the current position.

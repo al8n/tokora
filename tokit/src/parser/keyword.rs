@@ -456,4 +456,21 @@ mod tests {
     assert_eq!(tok, Token::If);
     assert_eq!(span, SimpleSpan::new(0, 2));
   }
+
+  // The sliced keyword payload must be the current keyword's text, so parsing
+  // two keywords in a row yields each keyword's own slice, not the prefix.
+  #[test]
+  fn try_parse_sliced_slices_each_current_keyword() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<(&'inp str, &'inp str), E> {
+      let first = Keyword::try_parse_sliced(inp)?.unwrap_accept();
+      let second = Keyword::try_parse_sliced(inp)?.unwrap_accept();
+      Ok((first.source(), second.source()))
+    }
+    let r = Parser::with_context(ctx())
+      .apply(parse)
+      .parse_str("if else");
+    assert_eq!(r.unwrap(), ("if", "else"));
+  }
 }
