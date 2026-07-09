@@ -102,7 +102,7 @@ macro_rules! keyword {
         impl<S, C> ::core::fmt::Display for $name<S, C> {
           #[cfg_attr(not(tarpaulin), inline(always))]
           fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-            write!(f, $kw)
+            ::core::fmt::Write::write_str(f, $kw)
           }
         }
 

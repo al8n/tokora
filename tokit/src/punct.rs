@@ -273,7 +273,7 @@ punctuator! {
   (StrictNotEqual, "STRICT_NOT_EQUAL", "!=="),
   (LessThanOrEqual, "LESS_THAN_OR_EQUAL", "<="),
   (GreaterThanOrEqual, "GREATER_THAN_OR_EQUAL", ">="),
-  (StrictLessThanOrEqual, "STRICT_LESS_THAN", "<=="),
+  (StrictLessThanOrEqual, "STRICT_LESS_THAN_OR_EQUAL", "<=="),
   (StrictGreaterThanOrEqual, "STRICT_GREATER_THAN_OR_EQUAL", ">=="),
 
   #[doc(alias = "AddAssign")]

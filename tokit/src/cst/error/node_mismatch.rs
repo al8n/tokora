@@ -36,7 +36,6 @@ where
 
 impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   /// Creates a new syntax node mismatch error.
-  /// ```
   #[inline]
   pub const fn new(found: SyntaxNode<Lang>) -> Self {
     Self {

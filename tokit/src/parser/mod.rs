@@ -517,8 +517,8 @@ pub trait Parse<'inp, L, O, Error, Lang: ?Sized = ()>: Sized {
   }
 
   /// Parse from [`bytes::Bytes`](https://docs.rs/bytes/latest/bytes/struct.Bytes.html) source.
-  #[cfg(feature = "bytes")]
-  #[cfg_attr(docsrs, doc(cfg(feature = "bytes")))]
+  #[cfg(feature = "bytes_1")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_bytes(self, src: &'inp bytes_1::Bytes) -> Result<O, Error>
   where
@@ -529,8 +529,8 @@ pub trait Parse<'inp, L, O, Error, Lang: ?Sized = ()>: Sized {
   }
 
   /// Parse from [`bytes::Bytes`](https://docs.rs/bytes/latest/bytes/struct.Bytes.html) source with an explicit lexer state.
-  #[cfg(feature = "bytes")]
-  #[cfg_attr(docsrs, doc(cfg(feature = "bytes")))]
+  #[cfg(feature = "bytes_1")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn parse_bytes_with_state(self, src: &'inp bytes_1::Bytes, state: L::State) -> Result<O, Error>
   where

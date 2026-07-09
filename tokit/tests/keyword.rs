@@ -545,6 +545,10 @@ use tokit::span::SimpleSpan;
 tokit::keyword! {
   (TestKw, "TEST_KW", "test_keyword"),
   (AnotherKw, "ANOTHER_KW", "another"),
+  // A keyword whose literal contains brace characters. Under the old
+  // `write!(f, $kw)` Display impl this failed to compile (the literal was
+  // parsed as a format string); the literal must be written verbatim.
+  (BraceKw, "BRACE_KW", "brace{tok}"),
 }
 
 tokit::punctuator! {
@@ -561,6 +565,13 @@ fn keyword_new() {
   let span = SimpleSpan::new(0, 5);
   let kw = TestKw::new(span);
   assert_eq!(*kw.span(), span);
+}
+
+#[test]
+fn keyword_with_braces_displays_verbatim() {
+  let kw = BraceKw::new(SimpleSpan::new(0, 10));
+  assert_eq!(format!("{kw}"), "brace{tok}");
+  assert_eq!(BraceKw::<SimpleSpan>::raw(), "brace{tok}");
 }
 
 #[test]

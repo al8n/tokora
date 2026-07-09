@@ -79,7 +79,7 @@ macro_rules! define_parsers {
         {
           #[cfg_attr(not(tarpaulin), inline(always))]
           fn name() -> CowStr {
-            CowStr::from_static(stringify!($knd))
+            CowStr::from_static(stringify!([< $kind:upper >]))
           }
 
           #[cfg_attr(not(tarpaulin), inline(always))]
@@ -213,6 +213,7 @@ mod tests {
   #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
   enum TokenKind {
     Spread,
+    At,
     Num,
   }
 
@@ -220,6 +221,7 @@ mod tests {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
       match self {
         TokenKind::Spread => write!(f, "..."),
+        TokenKind::At => write!(f, "@"),
         TokenKind::Num => write!(f, "number"),
       }
     }
@@ -244,6 +246,18 @@ mod tests {
   impl PunctuatorToken<'_> for Token {
     fn spread() -> Option<Self::Kind> {
       Some(TokenKind::Spread)
+    }
+  }
+
+  impl From<At<(), (), ()>> for TokenKind {
+    fn from(_: At<(), (), ()>) -> Self {
+      TokenKind::At
+    }
+  }
+
+  impl From<Spread<(), (), ()>> for TokenKind {
+    fn from(_: Spread<(), (), ()>) -> Self {
+      TokenKind::Spread
     }
   }
 
@@ -345,5 +359,17 @@ mod tests {
     let (declined, next_is_num) = r.unwrap();
     assert!(declined);
     assert!(next_is_num);
+  }
+
+  #[test]
+  fn punctuator_name_returns_screaming_snake() {
+    assert_eq!(
+      <At<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::name().as_str(),
+      "AT"
+    );
+    assert_eq!(
+      <Spread<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::name().as_str(),
+      "SPREAD"
+    );
   }
 }

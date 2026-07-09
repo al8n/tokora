@@ -29,7 +29,7 @@ macro_rules! bail {
       }
     }
 
-    /// A lexer implementation for [`logos`]-based lexers.
+    /// A lexer implementation for [`logos`](https://docs.rs/logos)-based lexers.
     #[repr(transparent)]
     pub struct LogosLexer<'inp, T: FromLogos<'inp>> {
       inner: $lib::Lexer<'inp, T::Logos>,

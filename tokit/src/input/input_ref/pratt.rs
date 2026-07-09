@@ -26,7 +26,7 @@ where
   /// `Power::default()` as the minimum binding power.
   ///
   /// For a more ergonomic higher-level API that works with any AST node type, prefer
-  /// [`expression`](crate::parser::expression) instead.
+  /// the [`pratt`](fn@crate::parser::pratt) free function instead.
   ///
   /// # Parameters
   ///

@@ -29,5 +29,5 @@ const _: () = {
   {
   }
 
-  assert_noop_too_many_emitter::<'_, DummyLexer, (), Fatal<()>>();
+  assert_noop_too_many_emitter::<'_, DummyLexer, (), Verbose<()>>();
 };

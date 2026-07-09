@@ -11,8 +11,8 @@ extern crate alloc as std;
 #[cfg(feature = "std")]
 extern crate std;
 
-#[cfg(feature = "logos")]
-#[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
+#[cfg(feature = "logos_0_16")]
+#[cfg_attr(docsrs, doc(cfg(feature = "logos_0_16")))]
 pub use logos_0_16 as logos;
 
 pub use cache::{Cache, DefaultCache};
@@ -203,7 +203,7 @@ mod require;
 pub mod __private {
   pub use super::{check::Check, error, lexer::*, require::Require, span, syntax, token, utils};
 
-  #[cfg(feature = "logos")]
+  #[cfg(feature = "logos_0_16")]
   pub use ::logos_0_16 as logos;
   pub use paste;
 

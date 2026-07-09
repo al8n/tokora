@@ -591,10 +591,7 @@ const _: () = {
 
     type Offset = usize;
 
-    fn new(_: &'inp Self::Source) -> Self
-    where
-      Self::State: Default,
-    {
+    fn new(_: &'inp Self::Source) -> Self {
       todo!()
     }
 
