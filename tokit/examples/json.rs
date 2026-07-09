@@ -100,7 +100,7 @@ impl core::fmt::Debug for JsonError<'_> {
       Self::UnexpectedToken(err) => err.debug_fmt(f),
       Self::Eot(err) => write!(f, "{err:?}"),
       Self::MissingSeparator(err) => err.debug_fmt(f),
-      Self::MissingElement(err) => err.debug_fmt(f),
+      Self::MissingElement(err) => write!(f, "{err:?}"),
       Self::FullContainer(err) => write!(f, "{err:?}"),
       Self::Other(msg) => write!(f, "{}", msg),
     }
@@ -114,8 +114,8 @@ impl core::fmt::Display for JsonError<'_> {
       Self::UnexpectedToken(err) => err.display_fmt(f),
       Self::Eot(err) => write!(f, "{}", err),
       Self::MissingSeparator(err) => err.display_fmt(f),
-      Self::MissingElement(err) => err.display_fmt(f),
-      Self::FullContainer(err) => err.display_fmt(f),
+      Self::MissingElement(err) => write!(f, "{err}"),
+      Self::FullContainer(err) => write!(f, "{err}"),
       Self::Other(msg) => write!(f, "{}", msg),
     }
   }

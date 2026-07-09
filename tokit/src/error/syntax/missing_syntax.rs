@@ -196,31 +196,35 @@ impl<O, Lang> From<MissingSyntax<O, Lang>> for () {
   fn from(_: MissingSyntax<O, Lang>) -> Self {}
 }
 
-impl<O, Lang> MissingSyntax<O, Lang>
+impl<O, Lang: ?Sized> core::fmt::Debug for MissingSyntax<O, Lang>
 where
   O: core::fmt::Debug,
-  Lang: ?Sized,
 {
-  /// Formats the error for debugging purposes.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn debug_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     f.debug_struct("MissingSyntax")
       .field("offset", &self.offset)
       .field("message", &self.msg)
       .finish()
   }
+}
 
-  /// Formats the error for display purposes.
+impl<O, Lang: ?Sized> core::fmt::Display for MissingSyntax<O, Lang>
+where
+  O: core::fmt::Display,
+{
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-  where
-    O: core::fmt::Display,
-  {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match &self.msg {
       Some(msg) => write!(f, "missing syntax at offset {}: {}", self.offset, msg),
       None => write!(f, "missing syntax at offset {}", self.offset),
     }
   }
+}
+
+impl<O, Lang: ?Sized> core::error::Error for MissingSyntax<O, Lang> where
+  O: core::fmt::Debug + core::fmt::Display
+{
 }
 
 #[cfg(test)]
@@ -303,38 +307,24 @@ mod tests {
   }
 
   #[test]
-  fn missing_syntax_display_fmt_no_message() {
+  fn missing_syntax_display_no_message() {
     let err = MissingSyntax::new(10usize);
-    let msg = format!("{}", DisplayWrapper(&err));
+    let msg = format!("{err}");
     assert_eq!(msg, "missing syntax at offset 10");
   }
 
   #[test]
-  fn missing_syntax_display_fmt_with_message() {
+  fn missing_syntax_display_with_message() {
     let err = MissingSyntax::with_message(20usize, CowStr::from_static("expected ident"));
-    let msg = format!("{}", DisplayWrapper(&err));
+    let msg = format!("{err}");
     assert_eq!(msg, "missing syntax at offset 20: expected ident");
   }
 
   #[test]
-  fn missing_syntax_debug_fmt() {
+  fn missing_syntax_debug() {
     let err = MissingSyntax::new(10usize);
-    let msg = format!("{}", DebugWrapper(&err));
+    let msg = format!("{err:?}");
     assert!(msg.contains("MissingSyntax"));
     assert!(msg.contains("10"));
-  }
-
-  struct DisplayWrapper<'a>(&'a MissingSyntax<usize>);
-  impl core::fmt::Display for DisplayWrapper<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-      self.0.display_fmt(f)
-    }
-  }
-
-  struct DebugWrapper<'a>(&'a MissingSyntax<usize>);
-  impl core::fmt::Display for DebugWrapper<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-      self.0.debug_fmt(f)
-    }
   }
 }

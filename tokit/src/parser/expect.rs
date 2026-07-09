@@ -330,6 +330,7 @@ where
 }
 
 /// Creates a parser that expects a token matching a specific criterion.
+#[must_use]
 #[cfg_attr(not(tarpaulin), inline(always))]
 pub fn try_expect<'inp, Classifier, L, Ctx>(classifier: Classifier) -> Expect<Classifier, Ctx>
 where
@@ -341,6 +342,7 @@ where
 }
 
 /// Creates a parser that expects a token matching a specific criterion for a specific language.
+#[must_use]
 #[cfg_attr(not(tarpaulin), inline(always))]
 pub fn try_expect_of<'inp, Classifier, L, Ctx, Lang>(
   classifier: Classifier,
@@ -355,6 +357,7 @@ where
 }
 
 /// Creates a parser that expects a token matching a specific criterion.
+#[must_use]
 #[cfg_attr(not(tarpaulin), inline(always))]
 pub fn expect<'inp, Classifier, L, Ctx>(classifier: Classifier) -> Expect<Classifier, Ctx>
 where
@@ -368,6 +371,7 @@ where
 }
 
 /// Creates a parser that expects a token matching a specific criterion for a specific language.
+#[must_use]
 #[cfg_attr(not(tarpaulin), inline(always))]
 pub fn expect_of<'inp, Classifier, L, Ctx, Lang>(
   classifier: Classifier,

@@ -446,6 +446,43 @@ mod tests {
     .unwrap();
   }
 
+  #[test]
+  fn token_accessor_reads_ref_arm() {
+    use crate::{cache::PeekedTokenExt, span::SimpleSpan};
+    use generic_arraydeque::typenum::U2;
+    // A U2 window fits the default U3 cache, so both peeked tokens are the
+    // borrowed (`Ref`) arm. The accessor reaches token + span without matching.
+    parse_with("abc 123", |inp| {
+      let peeked = inp.peek::<U2>()?;
+      assert_eq!(peeked.len(), 2);
+      assert!(peeked[0].is_ref());
+      assert!(peeked[1].is_ref());
+      assert_eq!(*peeked[0].token(), Tok::Word);
+      assert_eq!(*peeked[0].span(), SimpleSpan::new(0, 3));
+      assert_eq!(*peeked[1].token(), Tok::Num);
+      assert_eq!(*peeked[1].span(), SimpleSpan::new(4, 7));
+      Ok(())
+    })
+    .unwrap();
+  }
+
+  #[test]
+  fn token_accessor_reads_owned_arm() {
+    use crate::{cache::PeekedTokenExt, span::SimpleSpan};
+    use generic_arraydeque::typenum::U4;
+    // A U4 window exceeds the default U3 cache; the 4th token overflows and is
+    // materialized as the owned (`Owned`) arm. The same accessor reaches it.
+    parse_with("abc 123 def ghi", |inp| {
+      let peeked = inp.peek::<U4>()?;
+      assert_eq!(peeked.len(), 4);
+      assert!(peeked[3].is_owned());
+      assert_eq!(*peeked[3].token(), Tok::Word);
+      assert_eq!(*peeked[3].span(), SimpleSpan::new(12, 15));
+      Ok(())
+    })
+    .unwrap();
+  }
+
   // ── Lexer errors must never be dropped, never double-emitted ──────────────
   //
   // A counting emitter records exactly how many lexer errors reach the

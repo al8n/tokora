@@ -71,19 +71,22 @@ impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for () {
   fn from(_: FullContainer<S, Lang>) -> Self {}
 }
 
-impl<S, Lang> FullContainer<S, Lang>
-where
-  Lang: ?Sized,
-{
-  /// Formats the error message for this error.
+impl<S, Lang: ?Sized> core::fmt::Display for FullContainer<S, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(
       f,
       "found {} elements, which exceeds the maximum capacity of {}",
       self.nums, self.limit
     )
   }
+}
+
+impl<S, Lang: ?Sized> core::error::Error for FullContainer<S, Lang>
+where
+  S: core::fmt::Debug,
+  Lang: core::fmt::Debug,
+{
 }
 
 #[cfg(test)]
@@ -124,18 +127,11 @@ mod tests {
   }
 
   #[test]
-  fn full_container_display_fmt() {
+  fn full_container_display() {
     let err = FullContainer::new(SimpleSpan::new(2, 8), 10, 5);
-    let msg = format!("{}", DisplayWrapper(&err));
+    let msg = format!("{err}");
     assert!(msg.contains("10"));
     assert!(msg.contains("5"));
     assert!(msg.contains("exceeds the maximum capacity"));
-  }
-
-  struct DisplayWrapper<'a>(&'a FullContainer<SimpleSpan>);
-  impl core::fmt::Display for DisplayWrapper<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-      self.0.display_fmt(f)
-    }
   }
 }

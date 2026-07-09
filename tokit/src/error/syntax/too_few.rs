@@ -45,7 +45,7 @@ impl<S, Lang: ?Sized> TooFew<S, Lang> {
 
   /// Returns the span associated with this error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(self) -> S
+  pub const fn span(&self) -> S
   where
     S: Copy,
   {
@@ -86,22 +86,25 @@ impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for () {
   fn from(_: TooFew<S, Lang>) -> Self {}
 }
 
-impl<S, Lang> TooFew<S, Lang>
+impl<S, Lang: ?Sized> core::fmt::Display for TooFew<S, Lang>
 where
-  Lang: ?Sized,
+  S: core::fmt::Display,
 {
-  /// Formats this error for display purposes.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-  where
-    S: core::fmt::Display,
-  {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(
       f,
       "too few elements: found {}, but minimum is {} at {}",
       self.nums, self.limit, self.span
     )
   }
+}
+
+impl<S, Lang: ?Sized> core::error::Error for TooFew<S, Lang>
+where
+  S: core::fmt::Display + core::fmt::Debug,
+  Lang: core::fmt::Debug,
+{
 }
 
 #[cfg(test)]
@@ -155,18 +158,11 @@ mod tests {
   }
 
   #[test]
-  fn too_few_display_fmt() {
+  fn too_few_display() {
     let err = TooFew::new(SimpleSpan::new(2, 8), 1, 3);
-    let msg = format!("{}", DisplayWrapper(&err));
+    let msg = format!("{err}");
     assert!(msg.contains("too few elements"));
     assert!(msg.contains("1"));
     assert!(msg.contains("3"));
-  }
-
-  struct DisplayWrapper<'a>(&'a TooFew<SimpleSpan>);
-  impl core::fmt::Display for DisplayWrapper<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-      self.0.display_fmt(f)
-    }
   }
 }

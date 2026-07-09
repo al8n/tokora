@@ -433,6 +433,41 @@ pub type MaybeRefCachedTokenOf<
   Span = <L as Lexer<'a>>::Span,
 > = Maybe<CachedTokenRefOf<'r, 'a, L, T, Span>, CachedTokenOf<'a, L, T, Span>>;
 
+/// Uniform access to a peeked token, hiding the borrowed/owned split of
+/// [`MaybeRefCachedTokenOf`].
+///
+/// A peeked token is a [`Maybe`] whose `Ref` arm borrows a token from the cache
+/// and whose `Owned` arm carries a token lexed past the cache window (the
+/// overflow case). Both arms wrap a [`CachedToken`]; these accessors reach the
+/// token and its span without the caller matching on the arm.
+pub trait PeekedTokenExt<T, Span> {
+  /// Returns a reference to the peeked token, regardless of arm.
+  fn token(&self) -> &T;
+
+  /// Returns a reference to the peeked token's span, regardless of arm.
+  fn span(&self) -> &Span;
+}
+
+impl<T, State, Span> PeekedTokenExt<T, Span>
+  for Maybe<CachedToken<&T, &State, &Span>, CachedToken<T, State, Span>>
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn token(&self) -> &T {
+    match self {
+      Maybe::Ref(cached) => cached.token.data,
+      Maybe::Owned(cached) => &cached.token.data,
+    }
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn span(&self) -> &Span {
+    match self {
+      Maybe::Ref(cached) => cached.token.span,
+      Maybe::Owned(cached) => &cached.token.span,
+    }
+  }
+}
+
 /// A cached token with its associated state.
 pub struct CachedToken<T, State, Span> {
   pub(crate) token: Spanned<T, Span>,

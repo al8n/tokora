@@ -157,6 +157,7 @@ where
   ///
   /// See also: [`rowan::GreenNodeBuilder::checkpoint`]
   #[inline]
+  #[must_use]
   pub fn checkpoint(&self) -> rowan::Checkpoint {
     self.builder.borrow().checkpoint()
   }

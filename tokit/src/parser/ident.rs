@@ -1,5 +1,9 @@
 use crate::{
-  error::UnexpectedEot, token::IdentifierToken, try_parse_input::ParseAttempt, types::Ident,
+  error::{UnexpectedEot, token::UnexpectedToken},
+  span::Span,
+  token::IdentifierToken,
+  try_parse_input::ParseAttempt,
+  types::Ident,
 };
 
 use super::*;
@@ -46,6 +50,60 @@ impl Ident<(), ()> {
         .into()
     })
   }
+
+  /// A parser that parses an identifier, erroring when the next token is not an
+  /// identifier.
+  ///
+  /// Unlike [`try_parse`](Self::try_parse), a non-identifier token is converted
+  /// into an [`UnexpectedToken`] error carrying the found token, and end of
+  /// input into an [`UnexpectedEot`] error.
+  pub fn parse<'inp, L, Ctx>(
+    inp: &mut InputRef<'inp, '_, L, Ctx>,
+  ) -> Result<
+    Ident<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>,
+    <Ctx::Emitter as Emitter<'inp, L>>::Error,
+  >
+  where
+    L: Lexer<'inp>,
+    L::Token: IdentifierToken<'inp>,
+    Ctx: ParseContext<'inp, L>,
+    <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
+  {
+    Self::parse_of(inp)
+  }
+
+  /// A parser that parses an identifier for a specific language, erroring when
+  /// the next token is not an identifier.
+  ///
+  /// Unlike [`try_parse_of`](Self::try_parse_of), a non-identifier token is
+  /// converted into an [`UnexpectedToken`] error carrying the found token, and
+  /// end of input into an [`UnexpectedEot`] error.
+  pub fn parse_of<'inp, L, Ctx, Lang: ?Sized>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<
+    Ident<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  >
+  where
+    L: Lexer<'inp>,
+    L::Token: IdentifierToken<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+  {
+    match inp.next()? {
+      Some(spanned) => {
+        if spanned.data().is_identifier() {
+          Ok(Ident::new(spanned.into_span(), inp.slice()))
+        } else {
+          let (span, tok) = spanned.into_components();
+          Err(UnexpectedToken::of(span).with_found(tok).into())
+        }
+      }
+      None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
+    }
+  }
 }
 
 #[cfg(all(test, feature = "std", feature = "logos"))]
@@ -53,7 +111,7 @@ mod tests {
   use super::*;
 
   use crate::{
-    ParserContext,
+    ParserContext, SimpleSpan,
     error::token::{UnexpectedToken, UnexpectedTokenOf},
     input::Cursor,
     lexer::LogosLexer,
@@ -67,17 +125,21 @@ mod tests {
   enum Token {
     #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
     Ident,
+    #[regex(r"[0-9]+")]
+    Num,
   }
 
   #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
   enum TokenKind {
     Ident,
+    Num,
   }
 
   impl core::fmt::Display for TokenKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
       match self {
         TokenKind::Ident => write!(f, "identifier"),
+        TokenKind::Num => write!(f, "number"),
       }
     }
   }
@@ -89,6 +151,7 @@ mod tests {
     fn kind(&self) -> TokenKind {
       match self {
         Token::Ident => TokenKind::Ident,
+        Token::Num => TokenKind::Num,
       }
     }
 
@@ -109,6 +172,7 @@ mod tests {
   enum E {
     Lex,
     Eot,
+    Unexpected { found: Option<TokenKind> },
   }
 
   impl From<()> for E {
@@ -123,9 +187,12 @@ mod tests {
     }
   }
 
-  impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
-    fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
-      E::Lex
+  impl<'a, S, Lang: ?Sized> From<UnexpectedToken<'a, Token, TokenKind, S, Lang>> for E {
+    fn from(err: UnexpectedToken<'a, Token, TokenKind, S, Lang>) -> Self {
+      let (_span, found, _expected) = err.into_components();
+      E::Unexpected {
+        found: found.map(|t| t.kind()),
+      }
     }
   }
 
@@ -193,5 +260,56 @@ mod tests {
       .apply(parse)
       .parse_str("foo bar");
     assert_eq!(r.unwrap(), ("foo", "bar"));
+  }
+
+  #[test]
+  fn parse_of_accepts_identifier() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Ident<&'inp str, SimpleSpan>, E> {
+      Ident::parse_of(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("foo");
+    let ident = r.unwrap();
+    assert_eq!(ident.source(), "foo");
+    assert_eq!(ident.span(), SimpleSpan::new(0, 3));
+  }
+
+  #[test]
+  fn parse_of_errors_on_non_identifier() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Ident<&'inp str, SimpleSpan>, E> {
+      Ident::parse_of(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("123");
+    assert_eq!(
+      r.unwrap_err(),
+      E::Unexpected {
+        found: Some(TokenKind::Num)
+      }
+    );
+  }
+
+  #[test]
+  fn parse_of_errors_on_empty_input() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Ident<&'inp str, SimpleSpan>, E> {
+      Ident::parse_of(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("");
+    assert_eq!(r.unwrap_err(), E::Eot);
+  }
+
+  #[test]
+  fn parse_accepts_identifier() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Ident<&'inp str, SimpleSpan>, E> {
+      Ident::parse(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("bar");
+    assert_eq!(r.unwrap().source(), "bar");
   }
 }

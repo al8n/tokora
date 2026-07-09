@@ -16,6 +16,7 @@ use crate::{
 /// Returns a parser for a list of identifiers separated by the given separator.
 ///
 /// The parser will not consume any valid token if it is not a valid ident list.
+#[must_use]
 pub fn try_ident_list<'inp, Sep, L, Container, Ctx>() -> impl TryParseInput<
   'inp,
   L,
@@ -44,6 +45,7 @@ where
 /// Returns a parser for a list of identifiers separated by the given separator for the specified language.
 ///
 /// The parser will not consume any valid token if it is not a valid ident list.
+#[must_use]
 pub fn try_ident_list_of<'inp, Sep, L, Container, Ctx, Lang>() -> impl TryParseInput<
   'inp,
   L,

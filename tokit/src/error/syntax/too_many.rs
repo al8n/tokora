@@ -45,7 +45,7 @@ impl<S, Lang: ?Sized> TooMany<S, Lang> {
 
   /// Returns the span associated with this error.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn span(self) -> S
+  pub const fn span(&self) -> S
   where
     S: Copy,
   {
@@ -86,22 +86,25 @@ impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for () {
   fn from(_: TooMany<S, Lang>) -> Self {}
 }
 
-impl<S, Lang> TooMany<S, Lang>
+impl<S, Lang: ?Sized> core::fmt::Display for TooMany<S, Lang>
 where
-  Lang: ?Sized,
+  S: core::fmt::Display,
 {
-  /// Formats this error for display purposes.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-  where
-    S: core::fmt::Display,
-  {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(
       f,
       "too many elements: found {}, but maximum is {} at {}",
       self.nums, self.limit, self.span
     )
   }
+}
+
+impl<S, Lang: ?Sized> core::error::Error for TooMany<S, Lang>
+where
+  S: core::fmt::Display + core::fmt::Debug,
+  Lang: core::fmt::Debug,
+{
 }
 
 #[cfg(test)]
@@ -155,18 +158,11 @@ mod tests {
   }
 
   #[test]
-  fn too_many_display_fmt() {
+  fn too_many_display() {
     let err = TooMany::new(SimpleSpan::new(2, 8), 10, 5);
-    let msg = format!("{}", DisplayWrapper(&err));
+    let msg = format!("{err}");
     assert!(msg.contains("too many elements"));
     assert!(msg.contains("10"));
     assert!(msg.contains("5"));
-  }
-
-  struct DisplayWrapper<'a>(&'a TooMany<SimpleSpan>);
-  impl core::fmt::Display for DisplayWrapper<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-      self.0.display_fmt(f)
-    }
   }
 }

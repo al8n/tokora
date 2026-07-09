@@ -55,6 +55,55 @@ impl Keyword<(), ()> {
       })
   }
 
+  /// A parser that parses any keyword, erroring when the next token is not a
+  /// keyword.
+  ///
+  /// Unlike [`try_parse`](Self::try_parse), a non-keyword token is converted
+  /// into an [`UnexpectedToken`] error carrying the found token, and end of
+  /// input into an [`UnexpectedEot`] error.
+  pub fn parse<'inp, L, Ctx>(
+    inp: &mut InputRef<'inp, '_, L, Ctx>,
+  ) -> Result<Keyword<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
+  where
+    L: Lexer<'inp>,
+    L::Token: KeywordToken<'inp>,
+    Ctx: ParseContext<'inp, L>,
+    <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
+  {
+    Self::parse_of(inp)
+  }
+
+  /// A parser that parses any keyword for a specific language, erroring when the
+  /// next token is not a keyword.
+  ///
+  /// Unlike [`try_parse_of`](Self::try_parse_of), a non-keyword token is
+  /// converted into an [`UnexpectedToken`] error carrying the found token, and
+  /// end of input into an [`UnexpectedEot`] error.
+  pub fn parse_of<'inp, L, Ctx, Lang: ?Sized>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<Keyword<L::Token, L::Span, Lang>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    L::Token: KeywordToken<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+  {
+    match inp.next()? {
+      Some(spanned) => {
+        if spanned.data().is_keyword() {
+          let (span, t) = spanned.into_components();
+          Ok(Keyword::new(span, t))
+        } else {
+          let (span, tok) = spanned.into_components();
+          Err(UnexpectedToken::of(span).with_found(tok).into())
+        }
+      }
+      None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
+    }
+  }
+
   /// A parser that parses a token and returns a `Keyword` instance if it matches.
   ///
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not a keyword,
@@ -99,10 +148,65 @@ impl Keyword<(), ()> {
       })
   }
 
+  /// A parser that parses any keyword and returns its source slice, erroring
+  /// when the next token is not a keyword.
+  ///
+  /// Unlike [`try_parse_sliced`](Self::try_parse_sliced), a non-keyword token is
+  /// converted into an [`UnexpectedToken`] error carrying the found token, and
+  /// end of input into an [`UnexpectedEot`] error.
+  pub fn parse_sliced<'inp, L, Ctx>(
+    inp: &mut InputRef<'inp, '_, L, Ctx>,
+  ) -> Result<
+    Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>,
+    <Ctx::Emitter as Emitter<'inp, L>>::Error,
+  >
+  where
+    L: Lexer<'inp>,
+    L::Token: KeywordToken<'inp>,
+    Ctx: ParseContext<'inp, L>,
+    <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
+  {
+    Self::parse_sliced_of(inp)
+  }
+
+  /// A parser that parses any keyword for a specific language and returns its
+  /// source slice, erroring when the next token is not a keyword.
+  ///
+  /// Unlike [`try_parse_sliced_of`](Self::try_parse_sliced_of), a non-keyword
+  /// token is converted into an [`UnexpectedToken`] error carrying the found
+  /// token, and end of input into an [`UnexpectedEot`] error.
+  pub fn parse_sliced_of<'inp, L, Ctx, Lang: ?Sized>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<
+    Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  >
+  where
+    L: Lexer<'inp>,
+    L::Token: KeywordToken<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+  {
+    match inp.next()? {
+      Some(spanned) => {
+        if spanned.data().is_keyword() {
+          Ok(Keyword::new(spanned.into_span(), inp.slice()))
+        } else {
+          let (span, tok) = spanned.into_components();
+          Err(UnexpectedToken::of(span).with_found(tok).into())
+        }
+      }
+      None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
+    }
+  }
+
   /// A parser that parses a specific keyword and returns a `Keyword` instance if it matches.
   ///
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not the expected keyword,
   /// and promises no valid token is consumed.
+  #[must_use]
   pub fn try_parse_exact<'inp, L, Ctx, Exp>(
     expected: &Exp,
   ) -> impl TryParseInput<'inp, L, Keyword<L::Token, L::Span>, Ctx>
@@ -120,6 +224,7 @@ impl Keyword<(), ()> {
   ///
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not the expected keyword,
   /// and promises no valid token is consumed.
+  #[must_use]
   pub fn try_parse_exact_of<'inp, L, Ctx, Exp, Lang: ?Sized>(
     expected: &Exp,
   ) -> impl TryParseInput<'inp, L, Keyword<L::Token, L::Span, Lang>, Ctx, Lang>
@@ -154,6 +259,7 @@ impl Keyword<(), ()> {
   /// Unlike [`try_parse_exact`](Self::try_parse_exact), an unexpected token is
   /// converted into an [`UnexpectedToken`] error carrying the found token, and
   /// end of input into an [`UnexpectedEot`] error.
+  #[must_use]
   pub fn parse_exact<'inp, L, Ctx, Exp>(
     expected: &Exp,
   ) -> impl ParseInput<'inp, L, Keyword<L::Token, L::Span>, Ctx>
@@ -174,6 +280,7 @@ impl Keyword<(), ()> {
   /// Unlike [`try_parse_exact_of`](Self::try_parse_exact_of), an unexpected
   /// token is converted into an [`UnexpectedToken`] error carrying the found
   /// token, and end of input into an [`UnexpectedEot`] error.
+  #[must_use]
   pub fn parse_exact_of<'inp, L, Ctx, Exp, Lang: ?Sized>(
     expected: &Exp,
   ) -> impl ParseInput<'inp, L, Keyword<L::Token, L::Span, Lang>, Ctx, Lang>
@@ -207,6 +314,7 @@ impl Keyword<(), ()> {
   ///
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not the expected keyword,
   /// and promises no valid token is consumed.
+  #[must_use]
   pub fn try_parse_exact_sliced<'inp, L, Ctx, Exp>(
     expected: &Exp,
   ) -> impl TryParseInput<'inp, L, Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>, Ctx>
@@ -224,6 +332,7 @@ impl Keyword<(), ()> {
   ///
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not the expected keyword,
   /// and promises no valid token is consumed.
+  #[must_use]
   pub fn try_parse_exact_sliced_of<'inp, L, Ctx, Exp, Lang: ?Sized>(
     expected: &Exp,
   ) -> impl TryParseInput<
@@ -252,6 +361,68 @@ impl Keyword<(), ()> {
             .map(|tok| Keyword::new(tok.into_span(), inp.slice()))
             .into()
         })
+    }
+  }
+
+  /// A parser that parses a specific keyword and returns its source slice,
+  /// erroring when the next token is not that keyword.
+  ///
+  /// Unlike [`try_parse_exact_sliced`](Self::try_parse_exact_sliced), an
+  /// unexpected token is converted into an [`UnexpectedToken`] error carrying
+  /// the found token, and end of input into an [`UnexpectedEot`] error.
+  #[must_use]
+  pub fn parse_exact_sliced<'inp, L, Ctx, Exp>(
+    expected: &Exp,
+  ) -> impl ParseInput<'inp, L, Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>, Ctx>
+  where
+    L: Lexer<'inp>,
+    L::Token: KeywordToken<'inp>,
+    Ctx: ParseContext<'inp, L>,
+    <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
+    str: Equivalent<Exp>,
+  {
+    Self::parse_exact_sliced_of(expected)
+  }
+
+  /// A parser that parses a specific keyword for a specific language and returns
+  /// its source slice, erroring when the next token is not that keyword.
+  ///
+  /// Unlike [`try_parse_exact_sliced_of`](Self::try_parse_exact_sliced_of), an
+  /// unexpected token is converted into an [`UnexpectedToken`] error carrying
+  /// the found token, and end of input into an [`UnexpectedEot`] error.
+  #[must_use]
+  pub fn parse_exact_sliced_of<'inp, L, Ctx, Exp, Lang: ?Sized>(
+    expected: &Exp,
+  ) -> impl ParseInput<
+    'inp,
+    L,
+    Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>,
+    Ctx,
+    Lang,
+  >
+  where
+    L: Lexer<'inp>,
+    L::Token: KeywordToken<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    str: Equivalent<Exp>,
+  {
+    move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| match inp.next()? {
+      Some(spanned) => {
+        if spanned
+          .data()
+          .keyword()
+          .is_some_and(|k| k.equivalent(expected))
+        {
+          Ok(Keyword::new(spanned.into_span(), inp.slice()))
+        } else {
+          let (span, tok) = spanned.into_components();
+          Err(UnexpectedToken::of(span).with_found(tok).into())
+        }
+      }
+      None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
     }
   }
 }
@@ -472,5 +643,160 @@ mod tests {
       .apply(parse)
       .parse_str("if else");
     assert_eq!(r.unwrap(), ("if", "else"));
+  }
+
+  #[test]
+  fn parse_of_accepts_any_keyword() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<Token, SimpleSpan>, E> {
+      Keyword::parse_of(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("else");
+    let (span, tok) = r.unwrap().into_components();
+    assert_eq!(tok, Token::Else);
+    assert_eq!(span, SimpleSpan::new(0, 4));
+  }
+
+  #[test]
+  fn parse_of_errors_on_non_keyword() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<Token, SimpleSpan>, E> {
+      Keyword::parse_of(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("foo");
+    assert_eq!(
+      r.unwrap_err(),
+      E::Unexpected {
+        found: Some(TokenKind::Ident)
+      }
+    );
+  }
+
+  #[test]
+  fn parse_of_errors_on_empty_input() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<Token, SimpleSpan>, E> {
+      Keyword::parse_of(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("");
+    assert_eq!(r.unwrap_err(), E::Eot);
+  }
+
+  #[test]
+  fn parse_accepts_any_keyword() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<Token, SimpleSpan>, E> {
+      Keyword::parse(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("if");
+    let (span, tok) = r.unwrap().into_components();
+    assert_eq!(tok, Token::If);
+    assert_eq!(span, SimpleSpan::new(0, 2));
+  }
+
+  #[test]
+  fn parse_sliced_of_accepts_any_keyword() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<&'inp str, SimpleSpan>, E> {
+      Keyword::parse_sliced_of(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("else");
+    let (span, source) = r.unwrap().into_components();
+    assert_eq!(source, "else");
+    assert_eq!(span, SimpleSpan::new(0, 4));
+  }
+
+  #[test]
+  fn parse_sliced_of_errors_on_non_keyword() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<&'inp str, SimpleSpan>, E> {
+      Keyword::parse_sliced_of(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("foo");
+    assert_eq!(
+      r.unwrap_err(),
+      E::Unexpected {
+        found: Some(TokenKind::Ident)
+      }
+    );
+  }
+
+  #[test]
+  fn parse_sliced_of_errors_on_empty_input() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<&'inp str, SimpleSpan>, E> {
+      Keyword::parse_sliced_of(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("");
+    assert_eq!(r.unwrap_err(), E::Eot);
+  }
+
+  #[test]
+  fn parse_sliced_accepts_any_keyword() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<&'inp str, SimpleSpan>, E> {
+      Keyword::parse_sliced(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("if");
+    assert_eq!(r.unwrap().source(), "if");
+  }
+
+  #[test]
+  fn parse_exact_sliced_of_accepts_matching_keyword() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<&'inp str, SimpleSpan>, E> {
+      Keyword::parse_exact_sliced_of(&"if").parse_input(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("if");
+    let (span, source) = r.unwrap().into_components();
+    assert_eq!(source, "if");
+    assert_eq!(span, SimpleSpan::new(0, 2));
+  }
+
+  #[test]
+  fn parse_exact_sliced_of_errors_on_wrong_keyword() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<&'inp str, SimpleSpan>, E> {
+      Keyword::parse_exact_sliced_of(&"if").parse_input(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("else");
+    assert_eq!(
+      r.unwrap_err(),
+      E::Unexpected {
+        found: Some(TokenKind::Else)
+      }
+    );
+  }
+
+  #[test]
+  fn parse_exact_sliced_of_errors_on_empty_input() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<&'inp str, SimpleSpan>, E> {
+      Keyword::parse_exact_sliced_of(&"if").parse_input(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("");
+    assert_eq!(r.unwrap_err(), E::Eot);
+  }
+
+  #[test]
+  fn parse_exact_sliced_accepts_matching_keyword() {
+    fn parse<'inp>(
+      inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, TestEm>>,
+    ) -> Result<Keyword<&'inp str, SimpleSpan>, E> {
+      Keyword::parse_exact_sliced(&"if").parse_input(inp)
+    }
+    let r = Parser::with_context(ctx()).apply(parse).parse_str("if");
+    assert_eq!(r.unwrap().source(), "if");
   }
 }

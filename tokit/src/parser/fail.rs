@@ -117,6 +117,7 @@ where
 }
 
 /// Creates a new `Fail` parser.
+#[must_use]
 #[cfg_attr(not(tarpaulin), inline(always))]
 pub const fn fail<'inp, F, L, O, Ctx>(err: F) -> Fail<F, L, O, Ctx>
 where
@@ -128,6 +129,7 @@ where
 }
 
 /// Creates a new `Fail` parser for the specified language.
+#[must_use]
 #[cfg_attr(not(tarpaulin), inline(always))]
 pub const fn fail_of<'inp, F, L, O, Ctx, Lang: ?Sized>(err: F) -> Fail<F, L, O, Ctx, Lang>
 where
@@ -139,6 +141,7 @@ where
 }
 
 /// Creates a new `FailWith` parser.
+#[must_use]
 #[cfg_attr(not(tarpaulin), inline(always))]
 pub const fn fail_with<'inp, F, L, O, Ctx>(err: F) -> FailWith<F, L, O, Ctx>
 where
@@ -150,6 +153,7 @@ where
 }
 
 /// Creates a new `FailWith` parser for the specified language.
+#[must_use]
 #[cfg_attr(not(tarpaulin), inline(always))]
 pub const fn fail_with_of<'inp, F, L, O, Ctx, Lang: ?Sized>(err: F) -> FailWith<F, L, O, Ctx, Lang>
 where
