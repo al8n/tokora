@@ -59,6 +59,15 @@ where
       state: self.state.clone(),
     };
 
+    // Diagnostics travel with progress. The scan that follows may diagnose the tokens
+    // it skips and cross lexer errors (lifting the dedup watermark) as it goes; a
+    // match or a limit trip commits that diagnosed prefix, so those diagnostics
+    // persist, but the no-match run to end of input commits nothing and so must leave
+    // no trace. Snapshot the emitter's emission mark and the watermark at entry; the
+    // end-of-input exit rewinds both to unwind exactly this call's emissions.
+    let entry_mark = self.emitter.checkpoint();
+    let entry_error_end = self.emitted_error_end.clone();
+
     loop {
       match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
         Scan::Token(tok) => {
@@ -76,16 +85,27 @@ where
           }
         }
         Scan::Tripped => {
-          // Commit the diagnosed prefix before the trip; the boundary latches at
-          // the end of the last skipped token, so a later scan yields the poisoned
-          // outcome there instead of stranding the diagnosed tokens at the cursor.
+          // A trip commits the diagnosed prefix at the durable frontier — the end of
+          // the last skipped token — so a later scan yields the poisoned outcome there
+          // instead of stranding the diagnosed tokens at the cursor. That commit is
+          // real progress, so its diagnostics persist.
           self.set_span_after_consume(frontier.span.into());
           *self.state = frontier.state;
           return Ok(None);
         }
-        // No match reached the end of input; this path commits no progress and
-        // yields `None`.
-        Scan::Eof => return Ok(None),
+        Scan::Eof => {
+          // No match reached the end of input: this path commits no progress — the
+          // cursor stays at the pre-call anchor so the caller can fall back from it.
+          // No commit means no trace, so unwind exactly this call's emissions (the
+          // skipped tokens' unexpected-token diagnostics and any lexer errors crossed)
+          // and restore the dedup watermark. Restoring the watermark keeps a rewound
+          // lexer error re-emittable, so the caller's genuine consume of these tokens
+          // reports it exactly once instead of deduplicating it silently away.
+          let cursor = self.cursor().clone();
+          self.emitter().rewind(&cursor, entry_mark);
+          *self.emitted_error_end = entry_error_end;
+          return Ok(None);
+        }
       }
     }
   }

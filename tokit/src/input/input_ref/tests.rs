@@ -1352,6 +1352,179 @@ fn sync_through_then_peek_trip_after_skips_commits_the_diagnosed_prefix() {
   assert_eq!(limit, 1, "the limit trip is diagnosed exactly once (`3`)");
 }
 
+#[test]
+fn failed_sync_through_leaves_no_diagnostics() {
+  // A `sync_through` whose predicate never matches scans every valid token to EOF,
+  // diagnosing each as unexpected, then takes the no-match EOF exit — which commits
+  // nothing: the cursor stays at the pre-call anchor so the caller can fall back from
+  // the original position. Diagnostics travel with progress, so a path that commits
+  // nothing leaves no trace; the tokens the caller then consumes normally must carry
+  // no stale unexpected-token noise.
+  //   1 2 3   (high limit: the scan reaches EOF and never trips)
+  use crate::span::SimpleSpan;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3",
+    TokenLimiter::with_limitation(usize::MAX),
+    cache,
+  );
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Pre-call anchor: nothing consumed.
+    assert_eq!(inp.span(), &SimpleSpan::new(0, 0), "pre-call span anchor");
+    assert_eq!(inp.state().tokens(), 0, "pre-call token count");
+
+    // Never matches: scans `1`, `2`, `3`, reaches EOF with no target.
+    assert!(
+      inp.sync_through(|_| false, || None).unwrap().is_none(),
+      "the no-match scan to EOF yields None"
+    );
+
+    // The no-match EOF path commits nothing: cursor/span/state stay at the pre-call
+    // anchor so the caller can fall back from the original position.
+    assert_eq!(
+      inp.span(),
+      &SimpleSpan::new(0, 0),
+      "span stays at the pre-call anchor — the failed sync commits no progress"
+    );
+    assert_eq!(
+      inp.state().tokens(),
+      0,
+      "state stays at the pre-call count — the failed sync commits no progress"
+    );
+
+    // A subsequent drain consumes every token normally.
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(2, 3),
+      SimpleSpan::new(4, 5)
+    ],
+    "the drain consumes the full token sequence normally"
+  );
+
+  // The failed sync left no diagnostics, and a normal drain of valid tokens emits
+  // none. At HEAD the failed sync retained one unexpected-token diagnostic per scanned
+  // token (three) — the stale, misleading noise this fix removes.
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 0,
+    "a failed sync_through leaves no diagnostics behind"
+  );
+}
+
+#[test]
+fn successful_sync_through_retains_skipped_token_diagnostics() {
+  // The commit side of the rule: a `sync_through` that DOES match commits through the
+  // target, so the unexpected-token diagnostics it emitted for the tokens it skipped on
+  // the way persist — they describe real, committed progress.
+  //   1 2 3   (match the third scanned token; `1` and `2` are skipped and diagnosed)
+  use crate::span::SimpleSpan;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3",
+    TokenLimiter::with_limitation(usize::MAX),
+    cache,
+  );
+
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Match only the third scanned token (`3`); skip `1` and `2`, diagnosing each.
+    let mut seen = 0;
+    let matched = inp
+      .sync_through(
+        |_| {
+          seen += 1;
+          seen == 3
+        },
+        || None,
+      )
+      .unwrap();
+    assert_eq!(
+      matched.map(|t| *t.span_ref()),
+      Some(SimpleSpan::new(4, 5)),
+      "the matching token `3` is consumed and returned"
+    );
+    // The match commits through the skipped prefix: the cursor advances to the end of
+    // `3`, and the two skipped tokens' diagnostics describe that committed progress.
+    assert_eq!(inp.span(), &SimpleSpan::new(4, 5), "committed at the match");
+  }
+
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 2,
+    "the skipped `1` and `2` stay diagnosed — the match committed through them"
+  );
+}
+
+#[test]
+fn failed_sync_through_reemits_scanned_lexer_error_once() {
+  use crate::span::SimpleSpan;
+  // A `sync_through` whose predicate never matches scans a region containing a lexer
+  // error (`@`) to EOF. Crossing `@` emits it and lifts the dedup watermark past it; the
+  // no-match EOF path commits nothing, so it unwinds this call's emissions AND restores
+  // the watermark to its entry value. The error is therefore neither retained (the path
+  // committed nothing) nor lost: the genuine consume that follows re-crosses `@` and
+  // re-emits it exactly once. Without the watermark restore the rewound error would stay
+  // watermark-covered and be silently deduplicated away on the re-scan (emitted zero
+  // times); at HEAD the failed sync instead retains it plus two stale unexpected tokens.
+  //   1 @ 2   (`@` is a lexer error spanning [2, 3); high limit so no trip)
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 @ 2",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Never matches: skips `1`, crosses `@` (emitting the lexer error and lifting the
+    // watermark past it), skips `2`, reaches EOF. The no-match EOF path unwinds every
+    // emission and restores the watermark.
+    assert!(
+      inp.sync_through(|_| false, || None).unwrap().is_none(),
+      "the no-match scan to EOF yields None"
+    );
+
+    // With the watermark restored, the genuine consume re-crosses `@` and re-emits.
+    while inp.next().unwrap().is_some() {}
+  }
+
+  // Exactly the one `@` lexer error is retained: the failed sync left no trace, and the
+  // genuine consume re-emitted the error exactly once.
+  let at = SimpleSpan::new(2, 3);
+  assert_eq!(
+    emitter
+      .errors()
+      .get(&at)
+      .map(|group| group.len())
+      .unwrap_or(0),
+    1,
+    "the scanned-past lexer error re-emits exactly once on the genuine consume"
+  );
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 1,
+    "only the re-emitted lexer error is retained — no stale unexpected-token noise"
+  );
+}
+
 // ── Last-in, first-out contract: the debug witness ─────────────────────────────
 //
 // Restoring a checkpoint invalidates every checkpoint saved after it, so restores
