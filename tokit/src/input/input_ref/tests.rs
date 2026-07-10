@@ -343,3 +343,59 @@ fn restore_after_peek_across_lexer_error_reemits_error_exactly_once() {
     "the malformed span's lexer error must appear exactly once after peek → save → restore → re-consume"
   );
 }
+
+#[test]
+fn stale_younger_restore_keeps_rewound_lexer_error_reemittable() {
+  // Out-of-order (non-LIFO) restores must never RAISE the dedup watermark past a
+  // diagnostic the emission log has already unwound.
+  //   1 @ 2 3      (`@` is a lexer error spanning [2, 3))
+  //   0 2 4 6
+  //
+  // save A (BEFORE the error) → peek across `@` (seals it, watermark → 3) →
+  // save B (AFTER the error, so its saved watermark 3 sits ABOVE the error) →
+  // drain the speculative branch (empties the cache so a later re-lex actually
+  // re-crosses `@`) → restore A (older: unwinds `@` from the emission log and
+  // drops the watermark to 0) → restore B (STALE and younger). Restoring B must
+  // NOT raise the watermark back to 3: the emission log can no longer resurrect
+  // `@`, so a raised watermark would dedupe the re-lex and lose the diagnostic
+  // forever. The min-clamp keeps it at 0, so re-lexing forward re-emits `@`.
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 @ 2 3",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+
+  {
+    use generic_arraydeque::typenum::U2;
+    let mut inp = input.as_ref(&mut emitter);
+
+    // save A predates the error emission (its saved watermark is below `@`).
+    let a = inp.save();
+
+    // Peek across `@`: seals its lexer error and lifts the watermark past it.
+    let _ = inp.peek::<U2>().unwrap();
+
+    // save B is captured after the error, so its saved watermark sits above it.
+    let b = inp.save();
+
+    // The (inner) speculative branch consumes forward, draining the cache so the
+    // committed re-lex below actually re-crosses the malformed region.
+    while inp.next().unwrap().is_some() {}
+
+    // Out-of-order restores: the OLDER checkpoint first (unwinds `@`, drops the
+    // watermark), then the STALE younger one (whose saved watermark is stale).
+    inp.restore(a);
+    inp.restore(b);
+
+    // Commit path: re-lex forward, crossing `@` a second time.
+    while inp.next().unwrap().is_some() {}
+  }
+
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 1,
+    "a stale younger restore must not raise the watermark past a rewound error — it stays re-emittable and is reported exactly once"
+  );
+}

@@ -598,3 +598,218 @@ fn fatal_overflow_peek_drops_staged_tokens_no_leak() {
     "both staged overflow tokens must be dropped exactly once on the fatal return (no leak)"
   );
 }
+
+// ── A limit trip mid-overflow must truncate the peek at the durability boundary ──
+//
+// When a peek window exceeds the cache, tokens past the cache are staged in the
+// inline overflow buffer. A staged token is durable only because a later
+// `next()` re-lexes and regenerates it — but a limit trip mid-overflow latches
+// the input, so `next()` will drain the cache-resident prefix and then stop,
+// never re-lexing the staged tokens. Returning them would expose PHANTOM
+// lookahead the caller can never consume. The peek must therefore truncate its
+// result to the cache-resident prefix and drop the staged overflow tokens (freed
+// exactly once by the `Overflow` guard — no double-drop with the `drain_into`
+// hand-off, which is skipped on the trip).
+//
+// `LimitProbe` counts its own creations and drops so a leaked or double-dropped
+// staged token is observable as `creates != drops`.
+
+static LIMIT_CREATES: AtomicUsize = AtomicUsize::new(0);
+static LIMIT_DROPS: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Debug)]
+struct LimitProbe;
+
+impl LimitProbe {
+  fn new() -> Self {
+    LIMIT_CREATES.fetch_add(1, Ordering::SeqCst);
+    LimitProbe
+  }
+}
+
+impl Clone for LimitProbe {
+  fn clone(&self) -> Self {
+    // Count a clone as a creation so `creates == drops` stays exact even if the
+    // framework ever clones a token payload (it does not on this path).
+    LIMIT_CREATES.fetch_add(1, Ordering::SeqCst);
+    LimitProbe
+  }
+}
+
+impl Drop for LimitProbe {
+  fn drop(&mut self) {
+    LIMIT_DROPS.fetch_add(1, Ordering::SeqCst);
+  }
+}
+
+/// A limiter whose scan counter is shared across every cloned lexer, so the
+/// `check()` trip point is deterministic regardless of `InputRef` rebuilding a
+/// fresh lexer per operation.
+#[derive(Debug, Clone, Default)]
+struct TripLimiter {
+  scanned: std::rc::Rc<core::cell::Cell<usize>>,
+  limit: usize,
+}
+
+impl TripLimiter {
+  fn with_limit(limit: usize) -> Self {
+    Self {
+      scanned: std::rc::Rc::new(core::cell::Cell::new(0)),
+      limit,
+    }
+  }
+
+  fn increase(&self) {
+    self.scanned.set(self.scanned.get() + 1);
+  }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct TripLimitExceeded;
+
+impl crate::state::State for TripLimiter {
+  type Error = TripLimitExceeded;
+
+  fn check(&self) -> Result<(), Self::Error> {
+    if self.scanned.get() > self.limit {
+      Err(TripLimitExceeded)
+    } else {
+      Ok(())
+    }
+  }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum TripErr {
+  Lex,
+  Limit,
+}
+
+impl From<()> for TripErr {
+  fn from(_: ()) -> Self {
+    TripErr::Lex
+  }
+}
+
+impl From<TripLimitExceeded> for TripErr {
+  fn from(_: TripLimitExceeded) -> Self {
+    TripErr::Limit
+  }
+}
+
+#[derive(Debug, Clone, crate::logos::Logos)]
+#[logos(crate = crate::logos, extras = TripLimiter, skip r"[ \t\r\n]+")]
+enum TripTok {
+  #[regex(r"[0-9]+", |lex| { lex.extras.increase(); LimitProbe::new() })]
+  Num(LimitProbe),
+}
+
+impl core::fmt::Display for TripTok {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "number")
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum TripKind {
+  Num,
+}
+
+impl core::fmt::Display for TripKind {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "number")
+  }
+}
+
+impl crate::Token<'_> for TripTok {
+  type Kind = TripKind;
+  type Error = TripErr;
+
+  fn kind(&self) -> TripKind {
+    TripKind::Num
+  }
+
+  fn is_trivia(&self) -> bool {
+    false
+  }
+}
+
+type TripLexer<'a> = LogosLexer<'a, TripTok>;
+type TripCtx<'a> = (
+  crate::emitter::Silent<TripErr>,
+  crate::cache::DefaultCache<'a, TripLexer<'a>>,
+);
+
+/// Drives one truncation scenario: a `W`-wide peek over the default U3 cache on
+/// `src`, whose limiter (limit `n`) trips after `staged` overflow tokens have
+/// been staged. Asserts (a) the peek window equals the 3 cache-resident tokens
+/// (staged phantoms excluded); (b) exactly 3 survivors remain live after the
+/// peek (every staged token + the trip token dropped); (c) `next()` drains
+/// exactly those 3 then `None` (no rescan past the latch).
+fn assert_trip_truncates<W>(src: &'static str, limit: usize, staged: usize)
+where
+  W: crate::Window,
+{
+  let live = || LIMIT_CREATES.load(Ordering::SeqCst) - LIMIT_DROPS.load(Ordering::SeqCst);
+
+  let cache = crate::cache::DefaultCache::<'_, TripLexer<'_>>::default();
+  let mut emitter = crate::emitter::Silent::<TripErr>::new();
+  let mut input = crate::input::Input::<TripLexer<'_>, TripCtx<'_>, ()>::with_state_and_cache(
+    src,
+    TripLimiter::with_limit(limit),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  let alive_before = live();
+  {
+    // (a) The returned window is truncated to the cache-resident prefix — the
+    // `staged` overflow phantoms are excluded.
+    let peeked = inp.peek::<W>().unwrap();
+    assert_eq!(
+      peeked.len(),
+      3,
+      "peek window must equal the cache-resident count (3), excluding {staged} staged phantom(s)"
+    );
+  }
+
+  // (c) Exactly 3 tokens survive the peek: the cache prefix. Every staged
+  // overflow token AND the trip token have been dropped exactly once — a leak
+  // would leave more alive, a double-drop fewer.
+  assert_eq!(
+    live() - alive_before,
+    3,
+    "only the 3 cache-resident tokens may survive the truncating peek"
+  );
+
+  // (b) `next()` drains exactly the 3 cache tokens, then the latch stops it.
+  assert!(inp.next().unwrap().is_some(), "cache token 1");
+  assert!(inp.next().unwrap().is_some(), "cache token 2");
+  assert!(inp.next().unwrap().is_some(), "cache token 3");
+  assert!(inp.next().unwrap().is_none(), "poisoned: no phantom 4");
+  assert!(inp.next().unwrap().is_none(), "poisoned: stays None");
+}
+
+#[test]
+fn overflow_peek_trip_truncates_phantom_tokens() {
+  use generic_arraydeque::typenum::{U4, U5, U6};
+
+  let creates_before = LIMIT_CREATES.load(Ordering::SeqCst);
+  let drops_before = LIMIT_DROPS.load(Ordering::SeqCst);
+
+  // Trip mid-overflow with SEVERAL staged: 1..=3 cached, 4 & 5 staged, 6 trips.
+  assert_trip_truncates::<U6>("1 2 3 4 5 6", 5, 2);
+  // Trip on the FIRST overflow token staged: 1..=3 cached, 4 staged, 5 trips.
+  assert_trip_truncates::<U5>("1 2 3 4 5", 4, 1);
+  // Trip with ZERO staged: 1..=3 fill the cache, the next scan (4) trips.
+  assert_trip_truncates::<U4>("1 2 3 4", 3, 0);
+
+  // Every token payload created across all scenarios was dropped exactly once:
+  // no leak (drops < creates) and no double-drop (drops > creates).
+  let creates = LIMIT_CREATES.load(Ordering::SeqCst) - creates_before;
+  let drops = LIMIT_DROPS.load(Ordering::SeqCst) - drops_before;
+  assert_eq!(
+    creates, drops,
+    "every staged/cached/trip token freed exactly once (no leak, no double-drop)"
+  );
+}

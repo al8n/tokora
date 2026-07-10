@@ -348,14 +348,31 @@ where
     self.cache_mut().rewind(&checkpoint);
     let cur = checkpoint.cursor();
     self.emitter().rewind(cur, checkpoint.emitter_checkpoint);
-    // Restore the dedup mark to its value at save time, not to the cursor. The
-    // emitter's emission-log rewind retains every error sealed *before* the
+    // Restore the dedup mark toward its value at save time, not to the cursor.
+    // The emitter's emission-log rewind retains every error sealed *before* the
     // checkpoint — including one whose span sits above the cursor (a peek that
     // scanned ahead) — so dropping the mark to the cursor would let a re-lex
-    // re-emit that retained error. The saved mark stays above it (exactly-once);
-    // errors sealed *after* the checkpoint were unwound, and the saved mark
-    // predates them, so a re-lexing commit path can report them again.
-    *self.emitted_error_end = checkpoint.emitted_error_end;
+    // re-emit that retained error. Errors sealed *after* the checkpoint were
+    // unwound, and the saved mark predates them, so a re-lexing commit path can
+    // report them again.
+    //
+    // But restore must never *raise* the mark: clamp it to the min of the saved
+    // and current values (`L::Offset: Ord`). Case walk:
+    //   - LIFO restore (the common path): speculative work after `save` only ever
+    //     raised the mark, so `current >= saved` → `min == saved` → the mark
+    //     returns to its saved value, exactly as before (retained peek-ahead
+    //     errors above the cursor stay deduped: exactly-once).
+    //   - Stale younger restore after an older restore: the older restore already
+    //     dropped the mark below this (younger, stale) checkpoint's saved mark and
+    //     unwound the error from the emission log, so `current < saved` → `min ==
+    //     current` keeps the mark low. The re-lex re-emits the error the log can
+    //     no longer resurrect — no diagnostic lost.
+    // Lowering the mark never double-emits: it only ever sinks into a range the
+    // paired emitter rewind already cleared, so no still-retained error sits above
+    // the clamped mark.
+    if checkpoint.emitted_error_end < *self.emitted_error_end {
+      *self.emitted_error_end = checkpoint.emitted_error_end;
+    }
     self.set_span((&checkpoint.span).into());
     *self.state = checkpoint.state;
   }

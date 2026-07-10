@@ -150,6 +150,9 @@ where
 
     // Drop-safe staging for tokens lexed past the cache window (see `Overflow`).
     let mut overflowed = Overflow::<MaybeRefCachedTokenOf<'p, 'inp, L>, W::CAPACITY>::new();
+    // Set when a limit trip latches the input mid-scan: the staged overflow
+    // tokens then become unreachable and must be truncated away (see below).
+    let mut tripped = false;
 
     // Otherwise, lex additional tokens to fill the request
     let mut lexer = self.lexer();
@@ -168,6 +171,7 @@ where
             // `overflowed`'s `Drop` frees any staged tokens on this `?`-return.
             self.emit_lexer_error_deduped(Spanned::new(span, e))?;
             if limit_hit {
+              tripped = true;
               break;
             }
           }
@@ -199,6 +203,20 @@ where
       buf_len + in_cache == buf.len(),
       "Cache peek returned unexpected number of tokens"
     );
+
+    if tripped {
+      // Truncate the result at the durability boundary. A limit trip latched the
+      // input mid-overflow, so a post-peek `next()` will drain the cache-resident
+      // prefix (already copied into `buf` above) and then stop — it can never
+      // re-lex the staged overflow tokens. Handing them back would expose phantom
+      // lookahead the caller can never consume, so drop them here instead. The
+      // `Overflow` guard frees each staged token exactly once on this early
+      // return; the `drain_into` hand-off below is skipped, so there is no
+      // double-drop. This covers a trip on the first overflow token (nothing
+      // staged) and a trip after several are staged alike.
+      drop(overflowed);
+      return Ok(self.emitter);
+    }
 
     #[cfg(debug_assertions)]
     let yielded = overflowed.len();
