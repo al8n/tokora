@@ -304,7 +304,25 @@ where
   }
 }
 
-/// A trait for lexers
+/// A trait for lexers.
+///
+/// # Contract: token and error spans are nonempty
+///
+/// Every item [`lex`](Lexer::lex) produces — a token or an [`Error`](Lexed::Error) —
+/// must have a nonempty span: its [`span`](Lexer::span) end must be strictly greater
+/// than its start. A zero-width span (end equal to start) is a contract violation.
+///
+/// This holds because the input layer reasons about the token stream *positionally* —
+/// cached spans, the lexer-error deduplication watermark, and the poison boundary past
+/// which lexing stops are all offsets that assume every lexed item advances the
+/// position — so a zero-width item at such an offset is at once excluded (it starts at
+/// the boundary) and non-advancing (it consumes nothing), silently degrading replay and
+/// termination reasoning instead of failing loudly.
+///
+/// The bundled Logos backend never yields a zero-width span; a hand-written lexer must
+/// uphold this itself. Debug builds assert it at the input layer's single lexing
+/// chokepoint; release builds omit the check, and a violation then leaves the input in
+/// an unspecified — but still memory-safe — state.
 pub trait Lexer<'inp>: 'inp {
   /// The state of the lexer.
   type State: State;
@@ -348,6 +366,9 @@ pub trait Lexer<'inp>: 'inp {
   fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'inp>;
 
   /// Lexes the next token from the input source.
+  ///
+  /// Every produced token and error must have a nonempty span; see the trait-level
+  /// contract.
   fn lex(&mut self) -> Option<Result<Self::Token, <Self::Token as Token<'inp>>::Error>>;
 
   /// Bumps the end of currently lexed token by `n` offsets.

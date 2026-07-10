@@ -1327,3 +1327,143 @@ fn try_attempt_nested_lifo() {
     );
   }
 }
+
+// ── A hand-rolled lexer that yields a ZERO-WIDTH token span ────────────────────
+//
+// The bundled Logos backend never produces an empty span, but the `Lexer` trait
+// permits hand-written lexers that do. A zero-width token sitting at the poison
+// boundary is excluded by the positional gate yet advances nothing, silently
+// breaking replay and termination — so the contract forbids it and the single
+// lexing chokepoint (`lex_within_boundary`) debug-asserts against it. This fixture
+// yields one `[0, 0)` token to drive that assert.
+
+#[derive(Debug, Clone, PartialEq)]
+struct ZeroWidthErr;
+
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>>
+  for ZeroWidthErr
+{
+  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
+    ZeroWidthErr
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct ZeroWidthTok;
+
+impl core::fmt::Display for ZeroWidthTok {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "zero-width")
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct ZeroWidthKind;
+
+impl core::fmt::Display for ZeroWidthKind {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "zero-width")
+  }
+}
+
+impl Token<'_> for ZeroWidthTok {
+  type Kind = ZeroWidthKind;
+  type Error = ZeroWidthErr;
+
+  fn kind(&self) -> ZeroWidthKind {
+    ZeroWidthKind
+  }
+
+  fn is_trivia(&self) -> bool {
+    false
+  }
+}
+
+/// A lexer that yields exactly one zero-width `[0, 0)` token, then end of input.
+struct ZeroWidthLexer<'inp> {
+  src: &'inp str,
+  state: (),
+  yielded: bool,
+}
+
+impl<'inp> crate::Lexer<'inp> for ZeroWidthLexer<'inp> {
+  type State = ();
+  type Source = str;
+  type Token = ZeroWidthTok;
+  type Span = crate::SimpleSpan;
+  type Offset = usize;
+
+  fn new(src: &'inp str) -> Self {
+    Self {
+      src,
+      state: (),
+      yielded: false,
+    }
+  }
+
+  fn with_state(src: &'inp str, state: ()) -> Self {
+    Self {
+      src,
+      state,
+      yielded: false,
+    }
+  }
+
+  fn check(&self) -> Result<(), ZeroWidthErr> {
+    Ok(())
+  }
+
+  fn state(&self) -> &Self::State {
+    &self.state
+  }
+
+  fn state_mut(&mut self) -> &mut Self::State {
+    &mut self.state
+  }
+
+  fn into_state(self) -> Self::State {
+    self.state
+  }
+
+  fn source(&self) -> &'inp str {
+    self.src
+  }
+
+  fn span(&self) -> Self::Span {
+    // The zero-width span the contract forbids.
+    crate::SimpleSpan::new(0, 0)
+  }
+
+  fn slice(&self) -> <Self::Source as crate::Source<Self::Offset>>::Slice<'inp> {
+    ""
+  }
+
+  fn lex(&mut self) -> Option<Result<ZeroWidthTok, ZeroWidthErr>> {
+    if self.yielded {
+      return None;
+    }
+    self.yielded = true;
+    Some(Ok(ZeroWidthTok))
+  }
+
+  fn bump(&mut self, _n: &usize) {}
+}
+
+type ZeroWidthVerboseCtx<'a> = (Verbose<ZeroWidthErr>, DefaultCache<'a, ZeroWidthLexer<'a>>);
+
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(expected = "lexer contract violation")]
+fn boundary_replay_zero_width_token_contract() {
+  // A hand-rolled lexer that yields a zero-width token trips the debug assert at the
+  // single lexing chokepoint before the empty span can corrupt any positional fact.
+  let cache = DefaultCache::<'_, ZeroWidthLexer<'_>>::default();
+  let mut emitter = Verbose::<ZeroWidthErr>::new();
+  let mut input = Input::<ZeroWidthLexer<'_>, ZeroWidthVerboseCtx<'_>, ()>::with_state_and_cache(
+    "abc",
+    (),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+  let _ = inp.next();
+}

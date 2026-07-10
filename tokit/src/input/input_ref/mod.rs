@@ -180,6 +180,16 @@ where
       return None;
     }
     let lexed = Lexed::<L::Token>::lex_spanned(lexer)?;
+    // Lexer contract: every lexed item has a nonempty span. The span wraps both the
+    // `Token` and `Error` variants here, and this is the input layer's only lexing
+    // site, so this one check guards every scanner and peek path. A zero-width span at
+    // the poison boundary would be excluded by the positional gate yet advance nothing,
+    // silently breaking replay and termination; catch it loudly in debug builds.
+    debug_assert!(
+      lexed.span_ref().end_ref() > lexed.span_ref().start_ref(),
+      "lexer contract violation: zero-width token span {:?}",
+      lexed.span_ref(),
+    );
     *lex_at = lexed.span_ref().end_ref().clone();
     Some(lexed)
   }
