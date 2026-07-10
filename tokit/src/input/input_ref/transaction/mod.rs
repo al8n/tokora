@@ -64,6 +64,19 @@ use super::{
 ///   inner.commit();
 /// }
 /// ```
+///
+/// # Mixing with raw save/restore
+///
+/// The guard deref-coerces to [`InputRef`], so raw [`save`](InputRef::save) /
+/// [`restore`](InputRef::restore) are reachable through it. A raw restore to a checkpoint saved
+/// *before* the guard began rolls the lineage back past the guard's own begin-point checkpoint,
+/// invalidating it. What each decision then does is deterministic in every allocator build: an
+/// explicit [`rollback`](Self::rollback) panics as stale (`transaction base is stale`); a
+/// rolling-back drop quietly keeps the older restore's state instead of resurrecting the dead
+/// base; [`commit`](Self::commit) is unaffected (it never restores). A LIFO-clean raw
+/// save/restore pair taken and released entirely *above* the begin point, and state surgery
+/// (which is transactional), leave the guard's checkpoint intact. On allocator-less targets
+/// there is no lineage stack, so this mixing is unspecified-but-bounded rather than checked.
 pub struct Transaction<'txn, 'inp, 'closure, L, Ctx, Lang: ?Sized = (), P: DropPolicy = Rollback>
 where
   L: Lexer<'inp>,
@@ -110,6 +123,16 @@ where
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn rollback(mut self) {
     if let Some(ckp) = self.ckp.take() {
+      // A raw restore below the begin point (through this guard's `DerefMut`) pops the base
+      // off the live lineage. An explicit rollback to an invalidated base cannot be honored —
+      // it would resurrect an abandoned lineage — so refuse it loudly in every allocator build,
+      // matching the [`StackedTransaction`] and savepoint precedent. (A rolling-back drop, which
+      // may run mid-unwind, quietly skips the restore instead.)
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      assert!(
+        self.input.live_contains(ckp.ckp_id),
+        "transaction base is stale (invalidated by an earlier restore)"
+      );
       self.input.restore(ckp);
     }
   }
@@ -162,13 +185,19 @@ where
   /// `P::ROLLBACK_ON_DROP` is a compile-time constant, so each policy monomorphizes to
   /// one arm with the other eliminated. Either arm is silent (no debug raw-misuse panic):
   /// `Drop` may run while already unwinding, where `no_std` has no `thread::panicking()`
-  /// to guard a drop-bomb; the begin point is the oldest live checkpoint, so no misuse
-  /// check is lost.
+  /// to guard a drop-bomb. The begin point is usually the oldest live checkpoint; if a raw
+  /// restore below it (through this guard) has invalidated it first, the rollback arm skips
+  /// the rewind rather than resurrecting the dead base (the input already sits where that
+  /// older restore left it), so nothing silent is ever restored to a stale lineage.
   #[cfg_attr(not(tarpaulin), inline)]
   fn drop(&mut self) {
     if let Some(ckp) = self.ckp.take() {
       if P::ROLLBACK_ON_DROP {
-        self.input.restore_unchecked(ckp);
+        // Skip the rewind if a raw restore below the base already invalidated it: the input
+        // sits where that older restore left it, and resurrecting the dead base would be wrong
+        // (and this may run mid-unwind, where panicking is forbidden). An explicit `rollback`
+        // reports that stale case loudly instead; here we stay silent and truthful.
+        self.input.restore_unchecked_if_live(ckp);
       } else {
         // Commit-on-drop: progress kept; only tidy the committed checkpoint's lineage id
         // so it does not linger on the live stack across commit-heavy loops (as

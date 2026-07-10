@@ -204,7 +204,8 @@ pub struct SavepointId<'t> {
 ///
 /// The guard deref-coerces to [`InputRef`], so raw [`save`](InputRef::save) /
 /// [`restore`](InputRef::restore) and the nested backtracking tools are all reachable
-/// through it. Two rules govern how they interact with the live savepoints:
+/// through it. These rules govern how they interact with the live savepoints and the begin
+/// point:
 ///
 /// - **A raw restore below a savepoint invalidates it.** Restoring a raw checkpoint taken
 ///   *before* a savepoint rolls the lineage back past the savepoint's own checkpoint, so the
@@ -212,6 +213,13 @@ pub struct SavepointId<'t> {
 ///   [`rollback_to`](Self::rollback_to) / [`release`](Self::release) with it **panics as
 ///   stale in every build** — release and no-`target_has_atomic`-ptr targets included — not
 ///   just debug witness builds. Restoring the wrong lineage is never silently honored.
+/// - **A raw restore below the begin point invalidates the whole transaction.** Restoring a
+///   raw checkpoint taken *before* [`begin_stacked`](InputRef::begin_stacked) pops the base off
+///   the live lineage. An explicit [`rollback`](Self::rollback) then **panics as stale**
+///   (`transaction base is stale`) in every build; a rolling-back drop quietly keeps the older
+///   restore's state instead of resurrecting the dead base; [`commit`](Self::commit) is
+///   unaffected. On allocator-less targets there is no lineage stack, so this is
+///   unspecified-but-bounded rather than checked.
 /// - **State surgery, nested `attempt` / `try_attempt` / [`Transaction`](super::Transaction),
 ///   and a LIFO-clean raw save/restore pair taken *above* the savepoints, are all legal and
 ///   do not disturb the savepoints.** [`set_state`](InputRef::set_state) /
@@ -423,6 +431,15 @@ where
     // Restoring the base pops the live stack down through it, carrying off every
     // savepoint id in one step; the savepoint checkpoints then just drop with `self`.
     if let Some(base) = self.base.take() {
+      // A raw restore below the begin point (through this guard's `DerefMut`) pops the base off
+      // the live lineage. An explicit rollback to an invalidated base cannot be honored — it
+      // would resurrect an abandoned lineage — so refuse it loudly in every build, the same
+      // discipline `rollback_to`/`release` already apply to a savepoint. (A rolling-back drop,
+      // which may run mid-unwind, quietly skips the restore instead.)
+      assert!(
+        self.input.live_contains(base.ckp_id),
+        "transaction base is stale (invalidated by an earlier restore)"
+      );
       self.input.restore(base);
     }
   }
@@ -477,13 +494,20 @@ where
   /// `P::ROLLBACK_ON_DROP` is a compile-time constant, so each policy monomorphizes to one
   /// arm with the other eliminated. The rollback arm is silent (unchecked): `Drop` may run
   /// while already unwinding, where `no_std` has no `thread::panicking()` to guard a
-  /// drop-bomb; the base is the oldest live checkpoint, so no misuse check is lost, and if
-  /// a raw restore below it already invalidated it the lineage pop no-ops.
+  /// drop-bomb. The base is usually the oldest live checkpoint; if a raw restore below it
+  /// (through this guard) has invalidated it first, the arm skips the rewind rather than
+  /// resurrecting the dead base (the input already sits where that older restore left it),
+  /// so nothing silent is ever restored to a stale lineage.
   #[cfg_attr(not(tarpaulin), inline)]
   fn drop(&mut self) {
     if P::ROLLBACK_ON_DROP {
       if let Some(base) = self.base.take() {
-        self.input.restore_unchecked(base);
+        // Skip the rewind if a raw restore below the base already invalidated it: the input
+        // sits where that older restore left it, and resurrecting the dead base would be wrong
+        // (and this may run mid-unwind, where panicking is forbidden). An explicit `rollback`
+        // reports that stale case loudly instead. When the base is live this pops the live
+        // stack down through it, carrying off every savepoint id in one step, as before.
+        self.input.restore_unchecked_if_live(base);
       }
     } else {
       // Commit-on-drop: progress kept; forget every savepoint id (youngest first, each the

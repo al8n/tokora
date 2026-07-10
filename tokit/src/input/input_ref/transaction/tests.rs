@@ -833,3 +833,110 @@ fn txn_rollback_after_state_surgery_restores_poison_and_diagnostic() {
     );
   }
 }
+
+// ── Held-checkpoint restores verify lineage liveness ─────────────────────────────
+//
+// A raw restore through the guard (`DerefMut`) to a checkpoint saved BEFORE the guard
+// began pops the guard's own begin-point checkpoint off the live lineage. Restoring it
+// afterwards would rewind to an invalidated base. The guard's held-checkpoint restores
+// now consult lineage liveness: an explicit `rollback` panics as stale in every build; a
+// rolling-back drop skips the restore (the input already sits where the older raw restore
+// left it), never resurrecting the dead base; a Commit-policy drop only forgets the
+// (already-absent) id, a harmless no-op.
+
+#[test]
+fn txn_drop_after_raw_restore_below_base_does_not_resurrect() {
+  // Raw save A, consume, begin (base above A), consume, then raw-restore to A through the
+  // guard: this pops the base off the live lineage and moves the input back to A. Dropping
+  // the undecided guard must NOT resurrect the base. At HEAD the rolling-back drop calls
+  // `restore_unchecked` on the dead base, silently copying its stale state back and moving
+  // the input forward off A; post-fix the drop skips the restore and the input stays at A.
+  let mut input = silent_input("1 2 3 4 5");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let a = inp.save(); // raw checkpoint, below the guard's begin point
+  let a_pos = *inp.cursor().as_inner();
+  let _ = inp.next().unwrap().expect("consume 1"); // advance past A before begin
+
+  {
+    let mut txn = inp.begin(); // base checkpoint, above A
+    let _ = txn.next().unwrap().expect("consume 2"); // advance past the base
+    txn.restore(a); // raw restore below the base: pops the base off the live lineage
+    assert_eq!(
+      *txn.cursor().as_inner(),
+      a_pos,
+      "the raw restore moved the input back to A"
+    );
+    // `txn` drops here undecided (Rollback policy). HEAD: resurrects the base. Fix: skips.
+  }
+
+  assert_eq!(
+    *inp.cursor().as_inner(),
+    a_pos,
+    "the drop did not resurrect the invalidated base — the input stays where the raw restore left it"
+  );
+  assert_eq!(
+    *inp.next().unwrap().expect("resume at 1").span_ref(),
+    SimpleSpan::new(0, 1),
+    "the stream resumes from A's restore point, not the resurrected base"
+  );
+}
+
+#[test]
+#[should_panic(expected = "transaction base is stale (invalidated by an earlier restore)")]
+fn txn_explicit_rollback_after_raw_restore_below_base_panics_stale() {
+  // The explicit twin of the drop test. A raw restore below the base invalidates it, then an
+  // explicit `rollback` requests a rewind that cannot be honored. It panics as stale in every
+  // build (the lineage stack is maintained alloc-wide). At HEAD the release build silently
+  // resurrects and the debug build panics with the generic non-LIFO message; post-fix the
+  // pinned stale message fires in every allocator build.
+  let mut input = silent_input("1 2 3 4 5");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let a = inp.save();
+  let _ = inp.next().unwrap().expect("consume 1");
+
+  let mut txn = inp.begin();
+  let _ = txn.next().unwrap().expect("consume 2");
+  txn.restore(a); // invalidates the base
+  txn.rollback(); // base is stale → panic in every build
+}
+
+#[test]
+fn txn_commit_policy_drop_after_raw_restore_below_base_is_noop() {
+  // The Commit-policy drop flavor is unaffected: it never restores on drop, only forgetting
+  // the base's lineage id. A raw restore below the base already popped that id, so the
+  // forget is a harmless no-op — no panic, and the input stays where the raw restore left it.
+  let mut input = silent_input("1 2 3 4 5");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let a = inp.save();
+  let a_pos = *inp.cursor().as_inner();
+  let _ = inp.next().unwrap().expect("consume 1");
+
+  {
+    let mut txn = inp.begin_with::<Commit>();
+    let _ = txn.next().unwrap().expect("consume 2");
+    txn.restore(a); // raw restore below the base
+    assert_eq!(
+      *txn.cursor().as_inner(),
+      a_pos,
+      "the raw restore moved the input back to A"
+    );
+    // `txn` drops undecided → Commit policy only forgets the (already-absent) base id.
+  }
+
+  assert_eq!(
+    *inp.cursor().as_inner(),
+    a_pos,
+    "the Commit-policy drop forgets the absent base id and leaves the input at A"
+  );
+  assert_eq!(
+    *inp.next().unwrap().expect("resume at 1").span_ref(),
+    SimpleSpan::new(0, 1),
+    "the input resumes from A's restore point"
+  );
+}

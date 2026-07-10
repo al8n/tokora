@@ -712,3 +712,72 @@ fn stacked_savepoints_survive_nested_attempt_and_transaction() {
   );
   txn.commit();
 }
+
+// ── Held-base restores verify lineage liveness ──────────────────────────────────
+//
+// The base-checkpoint twin of the savepoint staleness rule. A raw restore below the base
+// (a checkpoint saved BEFORE `begin_stacked`) pops the base off the live lineage. The
+// whole-transaction restores now consult liveness: an explicit `rollback` panics as stale
+// in every build; a rolling-back drop skips the base restore rather than resurrecting the
+// dead base.
+
+#[test]
+fn stacked_base_drop_after_raw_restore_below_base_does_not_resurrect() {
+  // Raw save A, consume, begin_stacked (base above A), savepoint, consume, then raw-restore
+  // to A through the guard: this pops the base and its savepoint off the live lineage and
+  // moves the input back to A. Dropping the undecided guard must NOT resurrect the base. At
+  // HEAD the rolling-back drop calls `restore_unchecked` on the dead base, silently moving
+  // the input forward off A; post-fix the drop skips the restore and the input stays at A.
+  let mut input = silent_input("1 2 3 4 5");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let a = inp.save(); // raw checkpoint, below the guard's begin point
+  let a_pos = *inp.cursor().as_inner();
+  let _ = inp.next().unwrap().expect("consume 1"); // advance past A before begin
+
+  {
+    let mut txn = inp.begin_stacked(); // base checkpoint, above A
+    let _ = txn.next().unwrap().expect("consume 2");
+    let _sp = txn.savepoint(); // a live savepoint above the base
+    let _ = txn.next().unwrap().expect("consume 3");
+    txn.restore(a); // raw restore below the base: pops the base + savepoint off the lineage
+    assert_eq!(
+      *txn.cursor().as_inner(),
+      a_pos,
+      "the raw restore moved the input back to A"
+    );
+    // `txn` drops here undecided (Rollback policy). HEAD: resurrects the base. Fix: skips.
+  }
+
+  assert_eq!(
+    *inp.cursor().as_inner(),
+    a_pos,
+    "the base-drop did not resurrect the invalidated base — the input stays at A"
+  );
+  assert_eq!(
+    *inp.next().unwrap().expect("resume at 1").span_ref(),
+    SimpleSpan::new(0, 1),
+    "the stream resumes from A's restore point, not the resurrected base"
+  );
+}
+
+#[test]
+#[should_panic(expected = "transaction base is stale (invalidated by an earlier restore)")]
+fn stacked_explicit_rollback_after_raw_restore_below_base_panics_stale() {
+  // The explicit twin. A raw restore below the base invalidates it; an explicit `rollback`
+  // then requests a rewind that cannot be honored and panics as stale in every build. At HEAD
+  // release silently resurrects and debug panics with the generic non-LIFO message; post-fix
+  // the pinned stale message fires in every allocator build.
+  let mut input = silent_input("1 2 3 4 5");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let a = inp.save();
+  let _ = inp.next().unwrap().expect("consume 1");
+
+  let mut txn = inp.begin_stacked();
+  let _ = txn.next().unwrap().expect("consume 2");
+  txn.restore(a); // invalidates the base
+  txn.rollback(); // base is stale → panic in every build
+}

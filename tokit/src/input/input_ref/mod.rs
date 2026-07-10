@@ -431,6 +431,12 @@ where
   /// closure, so the last-in, first-out discipline documented on [`restore`](Self::restore)
   /// holds by construction, even under nesting.
   ///
+  /// A raw [`restore`](Self::restore) inside `f` to a checkpoint saved *before* the attempt
+  /// began invalidates the attempt's own checkpoint (it pops it off the live lineage). If `f`
+  /// then declines, the rollback panics as stale in every allocator build rather than
+  /// resurrecting the abandoned base; a LIFO-clean raw save/restore pair taken and released
+  /// entirely inside `f` is unaffected.
+  ///
   /// For fallible closures that carry an error value, see
   /// [`try_attempt`](Self::try_attempt).
   pub fn attempt<F, R>(&mut self, f: F) -> Option<R>
@@ -448,6 +454,15 @@ where
         Some(result)
       }
       None => {
+        // The closure held `&mut Self` and may have raw-restored to a checkpoint older than
+        // this one, popping this one off the live lineage. Rolling back to an invalidated
+        // checkpoint would resurrect an abandoned base, so refuse it loudly in every allocator
+        // build (the explicit counterpart to a rolling-back drop, which quietly skips instead).
+        #[cfg(any(feature = "std", feature = "alloc"))]
+        assert!(
+          self.live_contains(ckp.ckp_id),
+          "attempt checkpoint is stale (invalidated by an earlier restore)"
+        );
         self.restore(ckp);
         None
       }
@@ -468,7 +483,10 @@ where
   ///
   /// Like `attempt`, this is a structural way to backtrack: the save/restore pair is
   /// scoped to the closure, so the last-in, first-out discipline documented on
-  /// [`restore`](Self::restore) holds by construction, even under nesting.
+  /// [`restore`](Self::restore) holds by construction, even under nesting. As with `attempt`,
+  /// a raw [`restore`](Self::restore) inside `f` to a checkpoint saved *before* the attempt
+  /// invalidates the attempt's own checkpoint, so an `Err` rollback then panics as stale rather
+  /// than resurrecting the abandoned base.
   pub fn try_attempt<F, T, E>(&mut self, f: F) -> Result<T, E>
   where
     F: FnOnce(&mut Self) -> Result<T, E>,
@@ -483,6 +501,13 @@ where
         Ok(result)
       }
       Err(e) => {
+        // See `attempt`: a raw restore below this checkpoint through the closure invalidates
+        // it, and rolling back to it would resurrect an abandoned base — refuse it loudly.
+        #[cfg(any(feature = "std", feature = "alloc"))]
+        assert!(
+          self.live_contains(ckp.ckp_id),
+          "attempt checkpoint is stale (invalidated by an earlier restore)"
+        );
         self.restore(ckp);
         Err(e)
       }
@@ -944,14 +969,18 @@ where
     self.restore_unchecked(checkpoint);
   }
 
-  /// Rewinds to `checkpoint` without the debug raw-misuse panics, used by the transaction
-  /// guards' `Drop`, whose base restore is internally managed — always the oldest live
-  /// checkpoint — and must stay silent: `Drop` may run while already unwinding, and `no_std`
-  /// has no `thread::panicking()` to guard a drop-bomb, so a debug assert firing here would
-  /// abort. It still maintains the lineage stack (popping through the restored id if present)
-  /// and replays the saved lineage exactly, identically to [`restore`](Self::restore) in
-  /// release. (An explicit [`rollback`](Transaction::rollback) restores through the checked
-  /// [`restore`](Self::restore), since it never runs during an unwind.)
+  /// Rewinds to `checkpoint` without the debug raw-misuse panics, the shared primitive behind
+  /// the checked [`restore`](Self::restore) and the drop-path
+  /// [`restore_unchecked_if_live`](Self::restore_unchecked_if_live). A rolling-back `Drop`
+  /// reaches it through the latter and must stay silent: `Drop` may run while already unwinding,
+  /// and `no_std` has no `thread::panicking()` to guard a drop-bomb, so a debug assert firing
+  /// here would abort. It still maintains the lineage stack (popping through the restored id if
+  /// present) and replays the saved lineage exactly, identically to [`restore`](Self::restore)
+  /// in release. Its own base is usually the oldest live checkpoint, but a raw restore below it
+  /// through the guard can invalidate it first — which is why the drop path consults liveness
+  /// before calling in (skipping a dead base), and an explicit
+  /// [`rollback`](Transaction::rollback) restores through the checked [`restore`](Self::restore),
+  /// panicking on that stale case since it never runs during an unwind.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(crate) fn restore_unchecked(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     // Maintain the lineage stack in every allocator build: pop it down through the restored
@@ -1005,6 +1034,30 @@ where
     *self.poison_boundary = checkpoint.poison_boundary;
     self.set_span((&checkpoint.span).into());
     *self.state = checkpoint.state;
+  }
+
+  /// Drop-path rewind that never resurrects a dead base. Used by the transaction guards'
+  /// rolling-back [`Drop`], whose held begin-point checkpoint a raw restore below it (through
+  /// the guard's `DerefMut`) may have popped off the live lineage.
+  ///
+  /// If the checkpoint is still live it rewinds exactly as
+  /// [`restore_unchecked`](Self::restore_unchecked). If an earlier restore already invalidated
+  /// it, the input already sits where that older restore left it — the truth — so this skips the
+  /// rewind rather than copying the stale saved state back over it. It never panics: a `Drop`
+  /// may run while already unwinding, and an explicit [`rollback`](Transaction::rollback)
+  /// (checked, never mid-unwind) is where a caller's stale request is reported loudly instead.
+  /// Reads the lineage stack without popping — the pop-through happens only inside the rewind it
+  /// forwards to. Allocator-less builds keep no lineage stack, so the rewind always proceeds
+  /// there (behavior unchanged, unspecified-but-bounded on misuse as documented on the guards).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) fn restore_unchecked_if_live(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    {
+      if !self.live_contains(checkpoint.ckp_id) {
+        return;
+      }
+    }
+    self.restore_unchecked(checkpoint);
   }
 
   /// Advances the cursor and returns the next valid token, emitting errors encountered on the way.

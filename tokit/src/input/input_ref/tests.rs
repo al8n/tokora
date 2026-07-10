@@ -2253,6 +2253,63 @@ fn try_attempt_nested_lifo() {
   }
 }
 
+// ── attempt / try_attempt held-checkpoint restores verify lineage liveness ──────
+//
+// The closure receives `&mut InputRef` and can raw-restore to a checkpoint saved BEFORE
+// the attempt began. That legal (LIFO) raw restore pops the attempt's own held checkpoint
+// off the live lineage. When the closure then declines (`None` / `Err`), the rollback arm
+// would rewind to that invalidated checkpoint. It now consults liveness and panics as
+// stale in every allocator build — never silently resurrecting the abandoned base.
+
+#[test]
+#[should_panic(expected = "attempt checkpoint is stale (invalidated by an earlier restore)")]
+fn attempt_rollback_after_inner_raw_restore_below_checkpoint() {
+  // Inside the attempt, raw-restore to a checkpoint older than the attempt's own, then
+  // decline. The raw restore pops the attempt's checkpoint off the live lineage, so the
+  // decline's rollback arm panics as stale. At HEAD release silently resurrects and debug
+  // panics with the generic non-LIFO message; post-fix the pinned stale message fires.
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  let a = inp.save(); // raw checkpoint, below the attempt's checkpoint
+  let _ = inp.next().unwrap().expect("consume 1");
+
+  let _out: Option<()> = inp.attempt(|inp| {
+    let _ = inp.next().unwrap().expect("consume 2");
+    inp.restore(a); // raw restore below the attempt's held checkpoint
+    None // decline → the rollback arm finds its checkpoint invalidated
+  });
+}
+
+#[test]
+#[should_panic(expected = "attempt checkpoint is stale (invalidated by an earlier restore)")]
+fn try_attempt_err_after_inner_raw_restore_below_checkpoint() {
+  // The `try_attempt` Err-arm twin of the attempt test.
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  let a = inp.save();
+  let _ = inp.next().unwrap().expect("consume 1");
+
+  let _out: Result<(), ()> = inp.try_attempt(|inp| {
+    let _ = inp.next().unwrap().expect("consume 2");
+    inp.restore(a); // raw restore below the attempt's held checkpoint
+    Err(()) // the Err rollback arm finds its checkpoint invalidated
+  });
+}
+
 // ── A hand-rolled lexer that yields a ZERO-WIDTH token span ────────────────────
 //
 // The bundled Logos backend never produces an empty span, but the `Lexer` trait
