@@ -17,6 +17,11 @@ where
   /// failed scan are unwound and the lexer-error deduplication watermark is
   /// restored, so a later genuine consume of the same region reports its
   /// errors exactly once.
+  ///
+  /// This holds even when the caller had prefilled the cache with peeked
+  /// lookahead: a failed sync rewinds the drained cache prefix too, restoring
+  /// the pre-call position, at the cost of re-lexing those formerly-cached
+  /// tokens on the next read.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_through<F, Exp>(
@@ -28,6 +33,21 @@ where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
+    // A no-match run to end of input must leave no trace — even across a prefilled cache.
+    // `sync_matched_in_cache` below drains the non-matching cached prefix, advancing
+    // span/state and emitting an unexpected-token diagnostic per drained token; the later
+    // uncached scan may skip and diagnose more tokens and cross lexer errors (lifting the
+    // dedup watermark). Snapshot the pre-call position (span + lexer state), the emitter's
+    // emission mark, and the watermark HERE — BEFORE the drain — so the end-of-input exit
+    // can restore the FULL pre-call state. A match or a limit trip commits the whole
+    // diagnosed prefix (the drain was real progress en route to it), so this snapshot goes
+    // unused on those paths; only the no-match end-of-input exit rewinds to it. This is an
+    // internal positional rewind, not a `Checkpoint`: it threads no lineage entry.
+    let entry_span = self.span.clone();
+    let entry_state = self.state.clone();
+    let entry_mark = self.emitter.checkpoint();
+    let entry_error_end = self.emitted_error_end.clone();
+
     if let Some(tok) = self.sync_matched_in_cache(&mut pred, &mut exp)? {
       return Ok(Some(tok));
     }
@@ -67,15 +87,6 @@ where
       state: self.state.clone(),
     };
 
-    // Diagnostics travel with progress. The scan that follows may diagnose the tokens
-    // it skips and cross lexer errors (lifting the dedup watermark) as it goes; a
-    // match or a limit trip commits that diagnosed prefix, so those diagnostics
-    // persist, but the no-match run to end of input commits nothing and so must leave
-    // no trace. Snapshot the emitter's emission mark and the watermark at entry; the
-    // end-of-input exit rewinds both to unwind exactly this call's emissions.
-    let entry_mark = self.emitter.checkpoint();
-    let entry_error_end = self.emitted_error_end.clone();
-
     loop {
       match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
         Scan::Token(tok) => {
@@ -102,16 +113,24 @@ where
           return Ok(None);
         }
         Scan::Eof => {
-          // No match reached the end of input: this path commits no progress — the
-          // cursor stays at the pre-call anchor so the caller can fall back from it.
-          // No commit means no trace, so unwind exactly this call's emissions (the
-          // skipped tokens' unexpected-token diagnostics and any lexer errors crossed)
-          // and restore the dedup watermark. Restoring the watermark keeps a rewound
-          // lexer error re-emittable, so the caller's genuine consume of these tokens
+          // No match reached the end of input: this path commits no progress, so it
+          // rewinds the FULL pre-call state — the drained cache prefix included. Restore
+          // span and lexer state to their entry values, restore the dedup watermark, and
+          // unwind every emission this call made (the drained AND scanned tokens'
+          // unexpected-token diagnostics and any lexer errors crossed). The drained cache
+          // entries were popped, not put back; by the `Lexer` determinism contract the
+          // next read re-lexes them identically (the replay machinery's standing story),
+          // so the caller sees the same tokens at the same spans — at the cost of
+          // re-lexing them once. Restoring span/state BEFORE deriving the cursor lands it
+          // exactly at the pre-call position: the cache is now empty, so the cursor
+          // follows span.end, which equals the pre-call cursor. Restoring the watermark
+          // keeps a rewound lexer error re-emittable, so the caller's genuine consume
           // reports it exactly once instead of deduplicating it silently away.
+          self.set_span((&entry_span).into());
+          *self.state = entry_state;
+          *self.emitted_error_end = entry_error_end;
           let cursor = self.cursor().clone();
           self.emitter().rewind(&cursor, entry_mark);
-          *self.emitted_error_end = entry_error_end;
           return Ok(None);
         }
       }
@@ -128,7 +147,10 @@ where
   /// run to end of input commits nothing — the cursor stays at the pre-call position — and
   /// leaves no trace: the failed scan's emissions are unwound and the lexer-error
   /// deduplication watermark is restored, so a later genuine consume of the same region
-  /// reports its errors exactly once. The returned peek is then empty.
+  /// reports its errors exactly once. The returned peek is then empty. As in
+  /// [`sync_through`](Self::sync_through), the pre-call position is restored even when the
+  /// caller had prefilled the cache with peeked lookahead — the drained cache prefix is
+  /// rewound too, at the cost of re-lexing those tokens on the next read.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_through_then_peek<'p, F, Exp, W>(
@@ -157,7 +179,10 @@ where
   /// input commits nothing — the cursor stays at the pre-call position — and leaves no trace:
   /// the failed scan's emissions are unwound and the lexer-error deduplication watermark is
   /// restored, so a later genuine consume of the same region reports its errors exactly once.
-  /// The returned peek is then empty.
+  /// The returned peek is then empty. As in [`sync_through`](Self::sync_through), the pre-call
+  /// position is restored even when the caller had prefilled the cache with peeked lookahead —
+  /// the drained cache prefix is rewound too, at the cost of re-lexing those tokens on the
+  /// next read.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_through_then_peek_with_emitter<'p, F, Exp, W>(
@@ -177,6 +202,21 @@ where
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
     W: Window,
   {
+    // A no-match run to end of input must leave no trace — even across a prefilled cache.
+    // `sync_matched_in_cache` below drains the non-matching cached prefix, advancing
+    // span/state and emitting an unexpected-token diagnostic per drained token; the later
+    // uncached scan may skip and diagnose more tokens and cross lexer errors (lifting the
+    // dedup watermark). Snapshot the pre-call position (span + lexer state), the emitter's
+    // emission mark, and the watermark HERE — BEFORE the drain — so the end-of-input exit
+    // can restore the FULL pre-call state. A match or a limit trip commits the whole
+    // diagnosed prefix (the drain was real progress en route to it), so this snapshot goes
+    // unused on those paths; only the no-match end-of-input exit rewinds to it. This is an
+    // internal positional rewind, not a `Checkpoint`: it threads no lineage entry.
+    let entry_span = self.span.clone();
+    let entry_state = self.state.clone();
+    let entry_mark = self.emitter.checkpoint();
+    let entry_error_end = self.emitted_error_end.clone();
+
     if let Some(tok) = self.sync_matched_in_cache(&mut pred, &mut exp)? {
       let (peeked, emitter) = self.peek_with_emitter::<W>()?;
       return Ok((Some(tok), peeked, emitter));
@@ -225,16 +265,6 @@ where
           state: self.state.clone(),
         };
 
-        // Diagnostics travel with progress. The scan that follows may diagnose the tokens
-        // it skips and cross lexer errors (lifting the dedup watermark) as it goes; a
-        // match or a limit trip commits that diagnosed prefix, so those diagnostics
-        // persist, but the no-match run to end of input commits nothing and so must leave
-        // no trace. Snapshot the emitter's emission mark and the watermark at entry — after
-        // the cache-drain phase above, whose consumed tokens are committed progress; the
-        // end-of-input exit rewinds both to unwind exactly this call's emissions.
-        let entry_mark = self.emitter.checkpoint();
-        let entry_error_end = self.emitted_error_end.clone();
-
         loop {
           match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
             Scan::Token(tok) => {
@@ -261,17 +291,25 @@ where
               return Ok((None, GenericArrayDeque::new(), self.emitter));
             }
             Scan::Eof => {
-              // No match reached the end of input: this path commits no progress — the
-              // cursor stays at the pre-call anchor so the caller can fall back from it, and
-              // the returned peek is empty. No commit means no trace, so unwind exactly this
-              // call's emissions (the skipped tokens' unexpected-token diagnostics and any
-              // lexer errors crossed) and restore the dedup watermark. Restoring the
-              // watermark keeps a rewound lexer error re-emittable, so the caller's genuine
-              // consume of these tokens reports it exactly once instead of deduplicating it
-              // silently away.
+              // No match reached the end of input: this path commits no progress, so it
+              // rewinds the FULL pre-call state — the drained cache prefix included — and
+              // the returned peek is empty. Restore span and lexer state to their entry
+              // values, restore the dedup watermark, and unwind every emission this call
+              // made (the drained AND scanned tokens' unexpected-token diagnostics and any
+              // lexer errors crossed). The drained cache entries were popped, not put back;
+              // by the `Lexer` determinism contract the next read re-lexes them identically
+              // (the replay machinery's standing story), so the caller sees the same tokens
+              // at the same spans — at the cost of re-lexing them once. Restoring span/state
+              // BEFORE deriving the cursor lands it exactly at the pre-call position: the
+              // cache is now empty, so the cursor follows span.end, which equals the
+              // pre-call cursor. Restoring the watermark keeps a rewound lexer error
+              // re-emittable, so the caller's genuine consume reports it exactly once
+              // instead of deduplicating it silently away.
+              self.set_span((&entry_span).into());
+              *self.state = entry_state;
+              *self.emitted_error_end = entry_error_end;
               let cursor = self.cursor().clone();
               self.emitter().rewind(&cursor, entry_mark);
-              *self.emitted_error_end = entry_error_end;
               return Ok((None, GenericArrayDeque::new(), self.emitter));
             }
           }

@@ -1726,6 +1726,306 @@ fn successful_sync_through_then_peek_retains_skipped_token_diagnostics() {
   );
 }
 
+#[test]
+fn failed_sync_through_with_prefilled_cache_leaves_no_trace() {
+  // The finding's core case. A caller peeks lookahead (filling the cache), then a
+  // `sync_through` whose predicate never matches DRAINS that cached prefix — advancing
+  // span/state and diagnosing each drained token — before scanning the rest to EOF. The
+  // no-match EOF exit commits nothing, so it must rewind the WHOLE call, the drained
+  // prefix included: cursor/span/state return to the pre-call anchor and every drain
+  // diagnostic is unwound. The formerly-cached tokens were popped, not restored, so a
+  // later drain re-lexes them (by the `Lexer` determinism contract) and yields the full
+  // faithful stream with no noise.
+  //
+  // At HEAD the snapshot was taken AFTER the drain, so the drain's span/state advance and
+  // its unexpected-token diagnostics survived the failed call: the cursor ended at EOF,
+  // three stale diagnostics remained, and the drained tokens were lost to the committed
+  // position — the regression this pins.
+  //   1 2 3   (high limit: the scan reaches EOF and never trips)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U3;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3",
+    TokenLimiter::with_limitation(usize::MAX),
+    cache,
+  );
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Prefill the cache with all three tokens; peeking commits no progress, so the
+    // pre-call anchor is still the origin and the cursor sits at the cache front.
+    let _ = inp.peek::<U3>().unwrap();
+    let pre_span = *inp.span();
+    let pre_tokens = inp.state().tokens();
+    let pre_cursor = *inp.cursor().as_inner();
+    assert_eq!(pre_span, SimpleSpan::new(0, 0), "pre-call span anchor");
+    assert_eq!(pre_tokens, 0, "peek advances no committed state");
+    assert_eq!(pre_cursor, 0, "pre-call cursor sits at the cache front");
+
+    // Never matches: drains the cached `1`, `2`, `3`, reaches EOF with no target.
+    assert!(
+      inp.sync_through(|_| false, || None).unwrap().is_none(),
+      "the no-match scan to EOF yields None"
+    );
+
+    // The failed call restored the FULL pre-call state, the drained prefix included.
+    assert_eq!(
+      *inp.span(),
+      pre_span,
+      "span restored to the pre-call anchor"
+    );
+    assert_eq!(
+      inp.state().tokens(),
+      pre_tokens,
+      "state restored to the pre-call count"
+    );
+    assert_eq!(
+      *inp.cursor().as_inner(),
+      pre_cursor,
+      "cursor restored to the pre-call position, not stranded at EOF"
+    );
+
+    // A subsequent drain re-lexes the formerly-cached tokens in faithful order.
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(2, 3),
+      SimpleSpan::new(4, 5)
+    ],
+    "the drain re-lexes every formerly-cached token in faithful order"
+  );
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 0,
+    "a failed sync_through across a drained cache leaves no diagnostics behind"
+  );
+}
+
+#[test]
+fn failed_sync_through_then_peek_with_prefilled_cache_leaves_no_trace() {
+  // The `sync_through_then_peek` twin of `failed_sync_through_with_prefilled_cache_leaves_no_trace`:
+  // the peek variant's loop must widen the same way. Prefill the cache, then a never-matching
+  // `sync_through_then_peek` drains the cached prefix and scans to EOF; the no-match EOF exit
+  // restores the full pre-call state, unwinds the drain's diagnostics, and returns an empty
+  // peek. A later drain re-lexes the formerly-cached tokens faithfully with no noise.
+  //   1 2 3   (high limit: the scan reaches EOF and never trips)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::{U1, U3};
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3",
+    TokenLimiter::with_limitation(usize::MAX),
+    cache,
+  );
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let _ = inp.peek::<U3>().unwrap();
+    let pre_span = *inp.span();
+    let pre_tokens = inp.state().tokens();
+    let pre_cursor = *inp.cursor().as_inner();
+    assert_eq!(pre_cursor, 0, "pre-call cursor sits at the cache front");
+
+    let (matched, peeked) = inp
+      .sync_through_then_peek::<_, _, U1>(|_| false, || None)
+      .unwrap();
+    assert!(
+      matched.is_none(),
+      "the no-match scan to EOF yields no token"
+    );
+    assert!(
+      peeked.is_empty(),
+      "the no-match scan to EOF yields an empty peek"
+    );
+    // `peeked` borrows `inp` for its lifetime; release it before reusing `inp`.
+    drop(peeked);
+
+    assert_eq!(
+      *inp.span(),
+      pre_span,
+      "span restored to the pre-call anchor"
+    );
+    assert_eq!(
+      inp.state().tokens(),
+      pre_tokens,
+      "state restored to the pre-call count"
+    );
+    assert_eq!(
+      *inp.cursor().as_inner(),
+      pre_cursor,
+      "cursor restored to the pre-call position, not stranded at EOF"
+    );
+
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(2, 3),
+      SimpleSpan::new(4, 5)
+    ],
+    "the drain re-lexes every formerly-cached token in faithful order"
+  );
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 0,
+    "a failed sync_through_then_peek across a drained cache leaves no diagnostics behind"
+  );
+}
+
+#[test]
+fn successful_sync_through_after_cache_drain_commits_and_persists() {
+  // The scoping guard: the no-trace widening touches ONLY the no-match-to-EOF failure
+  // path. A `sync_through` that prefills the cache, drains a non-matching prefix (from
+  // cache AND by scan), then MATCHES a token beyond that prefix must still commit — the
+  // drained prefix's diagnostics persist because the match made real progress through
+  // them. Pinning this keeps the failure-path rewind from leaking into the success path.
+  //   1 2 3   (prefill `1`; match the third scanned token — `1` drained from cache, `2`
+  //            scanned — so the match lies beyond the cached prefix)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U1;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3",
+    TokenLimiter::with_limitation(usize::MAX),
+    cache,
+  );
+
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Prefill only the first token, so the match (`3`) lies beyond the cached prefix.
+    let _ = inp.peek::<U1>().unwrap();
+
+    let mut seen = 0;
+    let matched = inp
+      .sync_through(
+        |_| {
+          seen += 1;
+          seen == 3
+        },
+        || None,
+      )
+      .unwrap();
+    assert_eq!(
+      matched.map(|t| *t.span_ref()),
+      Some(SimpleSpan::new(4, 5)),
+      "the matching token `3` is consumed and returned"
+    );
+    // The match commits through the whole diagnosed prefix — the `1` drained from cache
+    // and the `2` scanned — so the cursor advances to the end of `3`.
+    assert_eq!(inp.span(), &SimpleSpan::new(4, 5), "committed at the match");
+    assert_eq!(
+      inp.state().tokens(),
+      3,
+      "committed state counts the whole diagnosed prefix through the match"
+    );
+  }
+
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 2,
+    "the drained `1` and scanned `2` stay diagnosed — the match committed through them"
+  );
+}
+
+#[test]
+fn failed_sync_through_with_prefilled_cache_reemits_crossed_error_once() {
+  // The watermark leg with a prefilled cache. Peek stages a token BEFORE a lexer error
+  // (`@`), then a never-matching `sync_through` drains that cached token and scans across
+  // `@` to EOF — emitting the lexer error and lifting the dedup watermark past it. The
+  // no-match EOF exit commits nothing, so it unwinds every emission (the drain's
+  // unexpected token, the `@` error, the trailing unexpected tokens) AND restores the
+  // watermark to its pre-call value. The failed call leaves no trace, so the genuine
+  // consume that follows re-lexes the whole region — the formerly-cached token included —
+  // and reports `@` exactly once.
+  //
+  // At HEAD the drained token was stranded past the committed cursor (lost to the genuine
+  // consume) and its unexpected-token diagnostic survived the failed call — two defects
+  // this pins.
+  //   1 @ 2 3   (`@` is a lexer error spanning [2, 3); high limit so no trip)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U1;
+
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 @ 2 3",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Prefill `1` only; `@` lies just beyond the cached prefix.
+    let _ = inp.peek::<U1>().unwrap();
+
+    // Never matches: drains `1`, crosses `@` (emitting it and lifting the watermark),
+    // skips `2`, `3`, reaches EOF. The no-match EOF exit unwinds all of it and restores
+    // the watermark to its pre-call value.
+    assert!(
+      inp.sync_through(|_| false, || None).unwrap().is_none(),
+      "the no-match scan to EOF yields None"
+    );
+
+    // The genuine consume re-lexes the whole region, `1` included, re-emitting `@` once.
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7)
+    ],
+    "the genuine consume re-lexes every token, the formerly-cached `1` included"
+  );
+  let at = SimpleSpan::new(2, 3);
+  assert_eq!(
+    emitter
+      .errors()
+      .get(&at)
+      .map(|group| group.len())
+      .unwrap_or(0),
+    1,
+    "`@` is reported exactly once — on the genuine consume, not the unwound failed sync"
+  );
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 1,
+    "only the re-emitted `@` remains — no stale unexpected-token noise from the failed sync"
+  );
+}
+
 // ── Last-in, first-out contract: the debug witness ─────────────────────────────
 //
 // Restoring a checkpoint invalidates every checkpoint saved after it, so restores
