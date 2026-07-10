@@ -350,49 +350,23 @@ where
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
 
-    while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(&mut lexer, &mut lex_at)
-    {
-      match tok {
-        Lexed::Error(err) => {
-          // A limit trip latches the durable frontier (the cursor: this path commits
-          // no progress before its poisoned outcome) so re-entry cannot rescan.
-          let boundary = self.offset().clone();
-          let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
-          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-            Ok(_) => {
-              if limit_hit {
-                return Ok(None);
-              }
-            }
-            Err(e) => {
-              self.set_span_after_consume(lexer.span().into());
-              *self.state = lexer.into_state();
-              return Err(e);
-            }
-          }
+    match self.scan_with(&mut lexer, &mut lex_at, &mut AtCursor)? {
+      Scan::Token(tok) => match pred(tok.as_ref()) {
+        Some(output) => {
+          self.set_span_after_consume(tok.span_ref().into());
+          *self.state = lexer.into_state();
+          output.map(|o| Some((o, tok)))
         }
-        Lexed::Token(tok) => {
-          let tok = Spanned::new(span, tok);
-          // if the token matches, we return it
-          match pred(tok.as_ref()) {
-            Some(output) => {
-              self.set_span_after_consume(tok.span_ref().into());
-              *self.state = lexer.into_state();
-              return output.map(|o| Some((o, tok)));
-            }
-            None => {
-              let (span, tok) = tok.into_components();
-              // put back the token into cache as it was peeked
-              let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
-              let _ = self.cache_mut().push_back(ct);
-              return Ok(None);
-            }
-          }
+        None => {
+          let (span, tok) = tok.into_components();
+          // put back the token into cache as it was peeked
+          let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
+          let _ = self.cache_mut().push_back(ct);
+          Ok(None)
         }
-      }
+      },
+      Scan::Tripped | Scan::Eof => Ok(None),
     }
-
-    Ok(None)
   }
 
   #[inline]
@@ -414,46 +388,23 @@ where
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
 
-    while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(&mut lexer, &mut lex_at)
-    {
-      match tok {
-        Lexed::Error(err) => {
-          // A limit trip latches the durable frontier (the cursor: this path commits
-          // no progress before its poisoned outcome) so re-entry cannot rescan.
-          let boundary = self.offset().clone();
-          let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
-          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-            Ok(_) => {
-              if limit_hit {
-                return Ok(None);
-              }
-            }
-            Err(e) => {
-              self.set_span_after_consume(lexer.span().into());
-              *self.state = lexer.into_state();
-              return Err(e);
-            }
-          }
-        }
-        Lexed::Token(tok) => {
-          let tok = Spanned::new(span, tok);
-          // if the token matches, we return it
-          if pred(tok.as_ref()) {
-            self.set_span_after_consume(tok.span_ref().into());
-            *self.state = lexer.into_state();
-            return Ok(Some(tok));
-          } else {
-            let (span, tok) = tok.into_components();
-            // put back the token into cache as it was peeked
-            let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
-            let _ = self.cache_mut().push_back(ct);
-            return Ok(None);
-          }
+    match self.scan_with(&mut lexer, &mut lex_at, &mut AtCursor)? {
+      Scan::Token(tok) => {
+        // if the token matches, we return it
+        if pred(tok.as_ref()) {
+          self.set_span_after_consume(tok.span_ref().into());
+          *self.state = lexer.into_state();
+          Ok(Some(tok))
+        } else {
+          let (span, tok) = tok.into_components();
+          // put back the token into cache as it was peeked
+          let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
+          let _ = self.cache_mut().push_back(ct);
+          Ok(None)
         }
       }
+      Scan::Tripped | Scan::Eof => Ok(None),
     }
-
-    Ok(None)
   }
 
   #[inline]
@@ -478,45 +429,22 @@ where
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
 
-    while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(&mut lexer, &mut lex_at)
-    {
-      match tok {
-        Lexed::Error(err) => {
-          // A limit trip latches the durable frontier (the cursor: this path commits
-          // no progress before its poisoned outcome) so re-entry cannot rescan.
-          let boundary = self.offset().clone();
-          let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
-          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-            Ok(_) => {
-              if limit_hit {
-                return Ok(None);
-              }
-            }
-            Err(e) => {
-              self.set_span_after_consume(lexer.span().into());
-              *self.state = lexer.into_state();
-              return Err(e);
-            }
-          }
-        }
-        Lexed::Token(tok) => {
-          let tok = Spanned::new(span, tok);
-          // if the token matches, we return it
-          if let Some(out) = pred(tok.as_ref()) {
-            self.set_span_after_consume(tok.span_ref().into());
-            *self.state = lexer.into_state();
-            return Ok(Some((out, tok)));
-          } else {
-            let (span, tok) = tok.into_components();
-            // put back the token into cache as it was peeked
-            let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
-            let _ = self.cache_mut().push_back(ct);
-            return Ok(None);
-          }
+    match self.scan_with(&mut lexer, &mut lex_at, &mut AtCursor)? {
+      Scan::Token(tok) => {
+        // if the token matches, we return it
+        if let Some(out) = pred(tok.as_ref()) {
+          self.set_span_after_consume(tok.span_ref().into());
+          *self.state = lexer.into_state();
+          Ok(Some((out, tok)))
+        } else {
+          let (span, tok) = tok.into_components();
+          // put back the token into cache as it was peeked
+          let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
+          let _ = self.cache_mut().push_back(ct);
+          Ok(None)
         }
       }
+      Scan::Tripped | Scan::Eof => Ok(None),
     }
-
-    Ok(None)
   }
 }

@@ -67,62 +67,43 @@ where
 
         let mut lex_at = self.offset().clone();
         let mut lexer = self.lexer();
+        // The frontier tracks the end of the last synced-over token; a trip
+        // latches and commits there.
+        let mut frontier = AtFrontier {
+          span: self.span.clone(),
+          state: self.state.clone(),
+        };
 
-        let mut end = self.span.clone();
-        let mut state = self.state.clone();
-
-        while let Some(Spanned { span, data: tok }) =
-          self.lex_within_boundary(&mut lexer, &mut lex_at)
-        {
-          match tok {
-            Lexed::Error(err) => {
-              // A limit trip latches the durable frontier — the end of the last
-              // synced-over token, committed below — so re-entry cannot rescan.
-              let boundary = end.end_ref().clone();
-              let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
-              match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-                Ok(_) => {
-                  if limit_hit {
-                    // Commit progress before the trip; stop at the poison.
-                    self.set_span_after_consume(end.into());
-                    *self.state = state;
-                    return Ok((GenericArrayDeque::new(), self.emitter));
-                  }
-                  end = lexer.span();
-                  state = lexer.state().clone();
-                }
-                Err(e) => {
-                  self.set_span_after_consume(lexer.span().into());
-                  *self.state = lexer.into_state();
-                  return Err(e);
-                }
-              }
-            }
-            Lexed::Token(tok) => {
-              let tok = Spanned::new(span, tok);
+        loop {
+          match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
+            Scan::Token(tok) => {
               // if the token matches, we cache it and return it
               if pred(tok.as_ref()) {
-                self.set_span_after_consume(end.into());
-                *self.state = state;
+                self.set_span_after_consume(frontier.span.into());
+                *self.state = frontier.state;
                 return self.peek_with_emitter::<W>();
               } else {
                 let (span, tok) = tok.into_components();
                 self.emitter().emit_unexpected_token(
                   UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
                 )?;
+                frontier.advance(&lexer);
               }
-
-              end = lexer.span();
-              state = lexer.state().clone();
+            }
+            Scan::Tripped => {
+              // Commit progress before the trip; stop at the poison.
+              self.set_span_after_consume(frontier.span.into());
+              *self.state = frontier.state;
+              return Ok((GenericArrayDeque::new(), self.emitter));
+            }
+            Scan::Eof => {
+              // No matched token found, we just update the cursor and state
+              self.set_span_after_consume(lexer.span().into());
+              *self.state = lexer.into_state();
+              return Ok((GenericArrayDeque::new(), self.emitter));
             }
           }
         }
-
-        // No matched token found, we just update the cursor and state
-        self.set_span_after_consume(lexer.span().into());
-        *self.state = lexer.into_state();
-
-        Ok((GenericArrayDeque::new(), self.emitter))
       }
     }
   }

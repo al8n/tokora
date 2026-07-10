@@ -56,56 +56,41 @@ where
     }
 
     // Otherwise keep skipping straight from the lexer, stopping at the frontier.
+    // The frontier tracks the end of the last skipped token; a trip latches and
+    // commits there.
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
-    let mut end = self.span.clone();
-    let mut state = self.state.clone();
+    let mut frontier = AtFrontier {
+      span: self.span.clone(),
+      state: self.state.clone(),
+    };
 
-    while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(&mut lexer, &mut lex_at)
-    {
-      match tok {
-        Lexed::Error(err) => {
-          // A limit trip latches the durable frontier — the end of the last skipped
-          // token, committed below — so re-entry cannot rescan.
-          let boundary = end.end_ref().clone();
-          let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
-          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-            Ok(_) => {
-              if limit_hit {
-                // Commit the tokens skipped before the trip; stop at the poison.
-                self.set_span_after_consume(end.into());
-                *self.state = state;
-                return Ok(());
-              }
-              end = lexer.span();
-              state = lexer.state().clone();
-            }
-            Err(e) => {
-              self.set_span_after_consume(lexer.span().into());
-              *self.state = lexer.into_state();
-              return Err(e);
-            }
-          }
-        }
-        Lexed::Token(tok) => {
-          let tok = Spanned::new(span, tok);
+    loop {
+      match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
+        Scan::Token(tok) => {
           if pred(tok.as_ref()) {
             // Matching (e.g. trivia): consume it and keep going.
-            end = lexer.span();
-            state = lexer.state().clone();
+            frontier.advance(&lexer);
           } else {
             // Non-matching: stop before it, leaving it unconsumed.
-            self.set_span_after_consume(end.into());
-            *self.state = state;
+            self.set_span_after_consume(frontier.span.into());
+            *self.state = frontier.state;
             return Ok(());
           }
         }
+        Scan::Tripped => {
+          // Commit the tokens skipped before the trip; stop at the poison.
+          self.set_span_after_consume(frontier.span.into());
+          *self.state = frontier.state;
+          return Ok(());
+        }
+        Scan::Eof => {
+          // Reached end of input: everything from the cursor matched and was consumed.
+          self.set_span_after_consume(lexer.span().into());
+          *self.state = lexer.into_state();
+          return Ok(());
+        }
       }
     }
-
-    // Reached end of input: everything from the cursor matched and was consumed.
-    self.set_span_after_consume(lexer.span().into());
-    *self.state = lexer.into_state();
-    Ok(())
   }
 }

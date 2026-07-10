@@ -590,7 +590,18 @@ where
       return Ok(None);
     }
 
-    self.lex_next_valid(|_, _| Ok(()))
+    // `next()` commits no progress before a poisoned or exhausted outcome, so it
+    // latches at the cursor and yields `None` on both a trip and end of input.
+    let mut lex_at = self.offset().clone();
+    let mut lexer = self.lexer();
+    match self.scan_with(&mut lexer, &mut lex_at, &mut AtCursor)? {
+      Scan::Token(tok) => {
+        self.set_span_after_consume(tok.span_ref().into());
+        *self.state = lexer.into_state();
+        Ok(Some(tok))
+      }
+      Scan::Tripped | Scan::Eof => Ok(None),
+    }
   }
 
   /// Internal implementation for syncing tokens in the cache.
@@ -631,61 +642,53 @@ where
     Ok(None)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn lex_next_valid<F>(
+  /// Runs the shared scanner loop: lex within the poison boundary and handle
+  /// every lexer error in one place — latch the durable frontier on a limit
+  /// trip, deduplicate-and-emit the diagnostic, and take the identical fatal
+  /// exit when the emitter rejects it.
+  ///
+  /// Returns to the caller only on an event it must decide: a valid
+  /// [`Scan::Token`] (the caller applies its per-path policy and either commits
+  /// or keeps scanning), a [`Scan::Tripped`] limit trip (already latched and
+  /// emitted), or [`Scan::Eof`]. `frontier` chooses where a trip latches —
+  /// [`AtCursor`] for scans that commit no progress first, [`AtFrontier`] for
+  /// scans that consume tokens as they go — and advances over each error the
+  /// loop skips on the way to the next event.
+  #[cfg_attr(not(tarpaulin), inline)]
+  fn scan_with<Fr>(
     &mut self,
-    mut pred: F,
-  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+    lexer: &mut L,
+    lex_at: &mut L::Offset,
+    frontier: &mut Fr,
+  ) -> Result<Scan<'inp, L>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    F: FnMut(
-      Spanned<&L::Token, &L::Span>,
-      &mut Ctx::Emitter,
-    ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+    Fr: Frontier<'inp, L>,
   {
-    let mut lex_at = self.offset().clone();
-    let mut lexer = self.lexer();
-
-    while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(&mut lexer, &mut lex_at)
-    {
+    while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(lexer, lex_at) {
       match tok {
         Lexed::Error(err) => {
-          // A limit trip latches the durable frontier — here the cursor, since
-          // `next()` commits no progress before returning its poisoned outcome — so
-          // re-entry cannot rescan.
-          let boundary = self.offset().clone();
-          let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
+          let boundary = frontier.boundary(self.offset());
+          let limit_hit = self.latch_if_limit_tripped(lexer, boundary);
           match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-            Ok(_) => {
+            Ok(()) => {
               if limit_hit {
-                return Ok(None);
+                return Ok(Scan::Tripped);
               }
+              // Non-limit error: skip over it and keep scanning for a token.
+              frontier.advance(lexer);
             }
             Err(e) => {
               self.set_span_after_consume(lexer.span().into());
-              *self.state = lexer.into_state();
+              *self.state = lexer.state().clone();
               return Err(e);
             }
           }
         }
-        Lexed::Token(tok) => {
-          let tok = Spanned::new(span, tok);
-
-          let s = tok.span_ref().clone();
-
-          // if the token matches, we return it
-          let res = match pred(tok.as_ref(), self.emitter) {
-            Ok(_) => Ok(Some(tok)),
-            Err(e) => Err(e),
-          };
-
-          self.set_span_after_consume(s.into());
-          *self.state = lexer.into_state();
-          return res;
-        }
+        Lexed::Token(tok) => return Ok(Scan::Token(Spanned::new(span, tok))),
       }
     }
 
-    Ok(None)
+    Ok(Scan::Eof)
   }
 }
 
@@ -697,5 +700,76 @@ where
   match maybe {
     MaybeRef::Ref(r) => r.clone(),
     MaybeRef::Owned(o) => o,
+  }
+}
+
+/// The event the shared scanner loop ([`InputRef::scan_with`]) stops on.
+enum Scan<'inp, L>
+where
+  L: Lexer<'inp>,
+{
+  /// A valid token; the caller applies its per-path policy (commit, put back,
+  /// consume-and-report, …) and either stops or keeps scanning.
+  Token(Spanned<L::Token, L::Span>),
+  /// A limit trip: the durable frontier is already latched and the diagnostic
+  /// emitted. The caller yields its poisoned outcome.
+  Tripped,
+  /// The input is exhausted (or the boundary was already reached). The caller
+  /// yields its end-of-input outcome.
+  Eof,
+}
+
+/// Where a scan latches the poison boundary on a limit trip, and how it advances
+/// that frontier over each error it skips.
+///
+/// Two shapes cover the eight scanner paths: a scan that commits no progress
+/// before its poisoned/exhausted outcome latches at the cursor ([`AtCursor`]); a
+/// scan that consumes tokens as it goes latches at — and later commits — the end
+/// of the last consumed token ([`AtFrontier`]).
+trait Frontier<'inp, L: Lexer<'inp>> {
+  /// The offset a trip latches as the durable frontier. `cursor` is the current
+  /// scan position, used by scans that accumulate no progress of their own.
+  fn boundary(&self, cursor: &L::Offset) -> L::Offset;
+
+  /// Advances the frontier past a token or error the scan has skipped over.
+  fn advance(&mut self, lexer: &L);
+}
+
+/// Frontier for scans that commit no progress before stopping (`next`,
+/// `try_expect*`, `sync_through`): a trip latches at the cursor and nothing
+/// accumulates, so advancing is a no-op.
+struct AtCursor;
+
+impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtCursor {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn boundary(&self, cursor: &L::Offset) -> L::Offset {
+    cursor.clone()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn advance(&mut self, _lexer: &L) {}
+}
+
+/// Frontier for scans that consume tokens as they go (`skip_while`, `sync_to`):
+/// a trip latches at — and the scan commits — the end of the last consumed
+/// token, tracked here as its span and the lexer state that produced it.
+struct AtFrontier<S, St> {
+  span: S,
+  state: St,
+}
+
+impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtFrontier<L::Span, L::State>
+where
+  L::State: Clone,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn boundary(&self, _cursor: &L::Offset) -> L::Offset {
+    self.span.end_ref().clone()
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn advance(&mut self, lexer: &L) {
+    self.span = lexer.span();
+    self.state = lexer.state().clone();
   }
 }

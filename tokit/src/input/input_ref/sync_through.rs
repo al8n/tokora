@@ -52,30 +52,11 @@ where
 
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
+    let mut frontier = AtCursor;
 
-    while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(&mut lexer, &mut lex_at)
-    {
-      match tok {
-        Lexed::Error(err) => {
-          // A limit trip latches the durable frontier (the cursor: this path skips
-          // over tokens without committing progress) so re-entry cannot rescan.
-          let boundary = self.offset().clone();
-          let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
-          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-            Ok(_) => {
-              if limit_hit {
-                return Ok(None);
-              }
-            }
-            Err(e) => {
-              self.set_span_after_consume(lexer.span().into());
-              *self.state = lexer.into_state();
-              return Err(e);
-            }
-          }
-        }
-        Lexed::Token(tok) => {
-          let tok = Spanned::new(span, tok);
+    loop {
+      match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
+        Scan::Token(tok) => {
           // if the token matches, we return it
           if pred(tok.as_ref()) {
             self.set_span_after_consume(tok.span_ref().into());
@@ -88,10 +69,11 @@ where
             )?;
           }
         }
+        // This path commits no progress, so both a trip and end of input leave
+        // the cursor put and yield `None`.
+        Scan::Tripped | Scan::Eof => return Ok(None),
       }
     }
-
-    Ok(None)
   }
 
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
@@ -180,32 +162,11 @@ where
 
         let mut lex_at = self.offset().clone();
         let mut lexer = self.lexer();
+        let mut frontier = AtCursor;
 
-        while let Some(Spanned { span, data: tok }) =
-          self.lex_within_boundary(&mut lexer, &mut lex_at)
-        {
-          match tok {
-            Lexed::Error(err) => {
-              // A limit trip latches the durable frontier (the cursor: this path
-              // skips over tokens without committing progress) so re-entry cannot
-              // rescan.
-              let boundary = self.offset().clone();
-              let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
-              match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-                Ok(_) => {
-                  if limit_hit {
-                    return Ok((None, GenericArrayDeque::new(), self.emitter));
-                  }
-                }
-                Err(e) => {
-                  self.set_span_after_consume(lexer.span().into());
-                  *self.state = lexer.into_state();
-                  return Err(e);
-                }
-              }
-            }
-            Lexed::Token(tok) => {
-              let tok = Spanned::new(span, tok);
+        loop {
+          match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
+            Scan::Token(tok) => {
               // if the token matches, we cache it and return it
               if pred(tok.as_ref()) {
                 self.set_span_after_consume(tok.span_ref().into());
@@ -219,14 +180,15 @@ where
                 )?;
               }
             }
+            Scan::Tripped => return Ok((None, GenericArrayDeque::new(), self.emitter)),
+            Scan::Eof => {
+              // No matched token found, we just update the cursor and state
+              self.set_span_after_consume(lexer.span().into());
+              *self.state = lexer.into_state();
+              return Ok((None, GenericArrayDeque::new(), self.emitter));
+            }
           }
         }
-
-        // No matched token found, we just update the cursor and state
-        self.set_span_after_consume(lexer.span().into());
-        *self.state = lexer.into_state();
-
-        Ok((None, GenericArrayDeque::new(), self.emitter))
       }
     }
   }
