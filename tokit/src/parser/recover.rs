@@ -340,13 +340,15 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let ckp = inp.save();
-    match self.parser.parse_input(inp) {
+    // Speculate through `try_attempt`: it saves a checkpoint before the primary runs, and
+    // on `Ok` keeps the progress while dropping the checkpoint's lineage id — closing the
+    // success-path leak where a bare `save` left an orphan id on the live stack for every
+    // valid parse. On `Err` it restores that checkpoint (rewinding to the pre-parse state,
+    // see [`restore`](InputRef::restore)) and hands the error back, so the recoverer runs
+    // from the restored position exactly as the raw save/restore pair did.
+    match inp.try_attempt(|input| self.parser.parse_input(input)) {
       Ok(output) => Ok(output),
-      Err(e) => {
-        inp.restore(ckp);
-        self.recoverer.recover_input(inp, e)
-      }
+      Err(e) => self.recoverer.recover_input(inp, e),
     }
   }
 }
@@ -500,6 +502,129 @@ where
     match self.parser.parse_input(inp) {
       Ok(output) => Ok(output),
       Err(e) => self.recoverer.inplace_recover_input(inp, cursor, e),
+    }
+  }
+}
+
+// The no-growth regression needs a lexer that actually runs (so `save`/`next` push and
+// commit real checkpoints), which pins it to `logos` + `std` — the same set the
+// `live_checkpoints_len` accessor is gated to.
+#[cfg(all(test, feature = "logos", feature = "std"))]
+mod tests {
+  use super::*;
+  use crate::{
+    Emitter, ParseContext, Token, cache::DefaultCache, emitter::Silent, input::Input,
+    lexer::LogosLexer,
+  };
+
+  #[derive(Debug, Clone, PartialEq)]
+  struct LexErr;
+
+  impl From<()> for LexErr {
+    fn from(_: ()) -> Self {
+      LexErr
+    }
+  }
+
+  #[derive(Debug, Clone, PartialEq, Eq, crate::logos::Logos)]
+  #[logos(crate = crate::logos, skip r"[ \t\r\n]+")]
+  enum Tok {
+    #[regex(r"[0-9]+")]
+    Num,
+  }
+
+  impl core::fmt::Display for Tok {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      write!(f, "number")
+    }
+  }
+
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+  struct NumKind;
+
+  impl core::fmt::Display for NumKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      write!(f, "number")
+    }
+  }
+
+  impl Token<'_> for Tok {
+    type Kind = NumKind;
+    type Error = LexErr;
+
+    fn kind(&self) -> NumKind {
+      NumKind
+    }
+
+    fn is_trivia(&self) -> bool {
+      false
+    }
+  }
+
+  type Lex<'a> = LogosLexer<'a, Tok>;
+  type Ctx<'a> = (Silent<LexErr>, DefaultCache<'a, Lex<'a>>);
+  // The emitter's error type, spelled as the trait's own projection so the manual
+  // `ParseInput`/`RecoverInput` impls below match their trait signatures exactly (it
+  // resolves to `LexErr`, but the compatibility check wants the projection, not the
+  // resolved type).
+  type EmitErr<'a> =
+    <<Ctx<'a> as ParseContext<'a, Lex<'a>, ()>>::Emitter as Emitter<'a, Lex<'a>, ()>>::Error;
+
+  /// The primary parser: consume one token and succeed. It always returns `Ok` (even at
+  /// end of input, where it consumes nothing), so every application takes `Recover`'s
+  /// success path — the path that must not leak its checkpoint.
+  struct ConsumeOne;
+
+  impl<'inp> ParseInput<'inp, Lex<'inp>, (), Ctx<'inp>, ()> for ConsumeOne {
+    fn parse_input(
+      &mut self,
+      inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>, ()>,
+    ) -> Result<(), EmitErr<'inp>> {
+      let _ = inp.next()?;
+      Ok(())
+    }
+  }
+
+  /// The recovery parser: unreachable here, since the primary always succeeds.
+  struct NeverRecover;
+
+  impl<'inp> RecoverInput<'inp, Lex<'inp>, (), Ctx<'inp>, ()> for NeverRecover {
+    fn recover_input(
+      &mut self,
+      _inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>, ()>,
+      _err: EmitErr<'inp>,
+    ) -> Result<(), EmitErr<'inp>> {
+      unreachable!("the primary always succeeds on this input, so recovery never runs")
+    }
+  }
+
+  #[test]
+  fn recover_success_does_not_grow_lineage_stack() {
+    // One input, one parse session: a `Recover`-wrapped sub-parser applied repeatedly.
+    // Every application takes the success path, which keeps (commits) its progress — so the
+    // live-checkpoint lineage stack must return to its baseline length after each iteration.
+    // Before the fix, `Recover`'s `Ok` branch left the `save()`d id on the stack, so this
+    // count grew by one per successful parse without bound.
+    let src = "1 ".repeat(128);
+    let mut input = Input::<Lex<'_>, Ctx<'_>, ()>::new(src.as_str());
+    let mut emitter = Silent::<LexErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+
+    let baseline = inp.live_checkpoints_len();
+
+    let mut rec = Recover::<_, _, (), Lex<'_>, Ctx<'_>, ()>::new(ConsumeOne, NeverRecover);
+
+    for i in 0..100 {
+      rec
+        .parse_input(&mut inp)
+        .expect("the primary parser always succeeds");
+      assert_eq!(
+        inp.live_checkpoints_len(),
+        baseline,
+        "iteration {i}: a committed Recover success must not leave its checkpoint id on the \
+         lineage stack (found {} live, baseline {baseline})",
+        inp.live_checkpoints_len(),
+      );
     }
   }
 }

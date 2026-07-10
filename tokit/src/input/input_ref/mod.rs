@@ -585,20 +585,18 @@ where
   }
 
   /// The number of live checkpoints — test-only observability for the no-growth
-  /// guarantee that committing gives the lineage stack.
+  /// guarantee that committing (and a success-path [`Recover`](crate::parser::Recover))
+  /// gives the lineage stack.
   ///
-  /// Gated to exactly the feature set of its callers: the `logos` + `std` guard test
-  /// suites, whose no-growth cases additionally require `debug_assertions` +
-  /// `target_has_atomic = "ptr"`. Mirroring that set here (rather than the looser
-  /// `any(std, alloc)`) keeps the method from being dead code under `--tests` in the
-  /// `std`/`alloc`-only combinations that lack the `logos` callers.
-  #[cfg(all(
-    test,
-    debug_assertions,
-    feature = "logos",
-    feature = "std",
-    target_has_atomic = "ptr"
-  ))]
+  /// The stack it measures ([`live_ckpts`](super::Input::live_ckpts)) is maintained in every
+  /// allocator build, so this accessor is gated only to its callers — the `logos` + `std`
+  /// guard and recover test suites — and *not* to `debug_assertions` or
+  /// `target_has_atomic = "ptr"`, so the no-growth cases can run under the release profile
+  /// too. Keeping the `logos` + `std` constraint (rather than the looser `any(std, alloc)`)
+  /// keeps the method from being dead code under `cargo hack --each-feature --tests`, whose
+  /// single-feature combinations never enable both `logos` and `std` and so compile neither
+  /// this method nor its callers.
+  #[cfg(all(test, feature = "logos", feature = "std"))]
   pub(crate) fn live_checkpoints_len(&self) -> usize {
     self.live_ckpts.len()
   }
