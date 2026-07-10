@@ -879,12 +879,25 @@ where
     // across it). Leaving them would let a later drain jump over a rewound error instead
     // of re-lexing — and re-emitting — its region, so drop them here on every restore path.
     //
-    // Pushes only ever append to the back and evictions only ever pop the front or clear
-    // the whole cache, so the live cache is always a contiguous run of the push sequence in
-    // push order; the entries pushed after the save are therefore exactly its tail.
-    // `cache_pushes - saved` counts those post-save pushes, and `min(len, ..)` discounts
-    // any already consumed or cleared, so dropping that many from the back removes exactly
-    // the survivors.
+    // The push count is per-lineage state the copy-back below rewinds to its saved value on
+    // every restore, exactly like the dedup watermark and the poison boundary. So the count
+    // always describes the CURRENT lineage, and `cache_pushes - saved` counts the pushes
+    // since this checkpoint within that lineage only. Pushes only ever append to the back and
+    // evictions only ever pop the front or clear the whole cache, so the live cache is a
+    // contiguous run of the push sequence in push order and the post-save entries are its
+    // tail. `min(len, ..)` discounts post-save entries a front eviction or a consume already
+    // removed — those lower the survivor count below `cache_pushes - saved` — so dropping
+    // that many from the back removes exactly the ones still resident.
+    //
+    // Rewinding the count is what makes nested last-in, first-out restores compose. Take the
+    // sequence: prefill one cached token, save outer, save inner, peek more, restore inner,
+    // restore outer. The inner restore drops its post-save tail and rewinds the count to the
+    // inner save's value; nothing was pushed between the two saves, so that equals the outer
+    // save's value. The outer restore's cursor equals the cache front, so the rewind above
+    // no-ops, and `cache_pushes - saved` is now zero: it drops nothing and retains the
+    // prefilled pre-save token. A never-rewound count would still read stale-high here and
+    // over-drop that token, forcing a re-lex whose scan side effects belong to the abandoned
+    // lineage (advancing shared lexer/limit state, latching a poison the checkpoint predates).
     let post_save = self.cache_pushes.saturating_sub(checkpoint.cache_pushes);
     let survivors = (self.cache.len() as u64).min(post_save);
     for _ in 0..survivors {
@@ -892,11 +905,13 @@ where
     }
     let cur = checkpoint.cursor();
     self.emitter().rewind(cur, checkpoint.emitter_checkpoint);
-    // The watermark and the poison boundary are facts about the saved lineage. Under
-    // the last-in, first-out contract the restore returns to that lineage exactly, so
-    // both copy back verbatim: a saved boundary's diagnostic predates the saved
-    // emitter mark and therefore survives the rewind above, keeping poison and its
-    // diagnostic paired.
+    // The push count, the dedup watermark, and the poison boundary are facts about the saved
+    // lineage. Under the last-in, first-out contract the restore returns to that lineage
+    // exactly, so all three copy back verbatim: the count is restored to the push history of
+    // the lineage now live (the tail-drop above already consumed its pre-rewind value), and a
+    // saved boundary's diagnostic predates the saved emitter mark and therefore survives the
+    // rewind above, keeping poison and its diagnostic paired.
+    *self.cache_pushes = checkpoint.cache_pushes;
     *self.emitted_error_end = checkpoint.emitted_error_end;
     *self.poison_boundary = checkpoint.poison_boundary;
     self.set_span((&checkpoint.span).into());

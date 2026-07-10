@@ -467,6 +467,157 @@ fn restore_option_cache_capacity_one_reemits_error_once() {
 }
 
 #[test]
+fn nested_restore_retains_pre_save_cache_entries() {
+  // Nested LIFO over a prefilled cache entry. Prefill exactly one cached token, then
+  // stack two saves on top of it (nothing consumed between them, so BOTH checkpoint
+  // cursors equal the cache front and the rewind takes its no-op branch). Peek several
+  // more tokens into the continuation the restores abandon, then restore inner and
+  // restore outer. The prefilled token predates both saves, so it must survive both
+  // restores and be served FROM CACHE on the drain — never re-lexed.
+  //
+  // The push count is per-lineage state that a restore copies back to its saved value,
+  // exactly like the dedup watermark and the poison boundary. The inner restore drops
+  // its post-save tail (`2`,`3`) and rewinds the count to the inner save's value; the
+  // outer restore then computes zero post-save survivors and keeps the prefilled `1`.
+  // At HEAD the count was never rewound, so the outer restore saw a stale-high count and
+  // over-dropped `1`; re-consuming re-lexed it — the shared `ProbeLimiter` counter, which
+  // observes every scan, makes that re-lex visible as a nonzero delta across one `next()`.
+  //   1 2 3 4 5   (all valid Nums; a `usize::MAX` limit never trips)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::{U1, U3};
+
+  let limiter = ProbeLimiter::with_limit(usize::MAX);
+  let scanned = limiter.counter();
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5",
+    limiter,
+    cache,
+  );
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Prefill exactly one cached token (`1`); the cursor now equals the cache front.
+    let _ = inp.peek::<U1>().unwrap();
+    // Stack two saves on the prefilled front.
+    let outer = inp.save();
+    let inner = inp.save();
+    // Peek more: caches `2`,`3` — post-save entries — lifting the input-wide push count
+    // above BOTH checkpoints' saved values.
+    let _ = inp.peek::<U3>().unwrap();
+    // Inner restore drops the post-inner tail; outer restore must NOT over-drop `1`.
+    inp.restore(inner);
+    inp.restore(outer);
+
+    // (a) The prefilled `1` is served FROM CACHE: consuming it does no scan work, so the
+    // shared counter is unchanged across this single `next()`. At HEAD the outer restore
+    // over-drops `1`, so it re-lexes here and the counter ticks up.
+    let before = scanned.get();
+    let first = inp.next().unwrap().expect("first drained token");
+    assert_eq!(
+      *first.span_ref(),
+      SimpleSpan::new(0, 1),
+      "the first drained token is `1`"
+    );
+    assert_eq!(
+      scanned.get(),
+      before,
+      "the pre-save cache entry must be served from cache, never re-lexed (scan counter unchanged)"
+    );
+
+    // (b) The full token stream is faithful.
+    let mut toks = std::vec![*first.span_ref()];
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(2, 3),
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7),
+      SimpleSpan::new(8, 9),
+    ],
+    "the drained stream is the full faithful token sequence"
+  );
+  // (c) No poison diagnostic — nor any diagnostic; the input is clean and never trips.
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(total, 0, "a clean nested restore emits no diagnostic");
+}
+
+#[test]
+fn nested_restore_with_shared_limiter_no_spurious_poison() {
+  // The same nested LIFO shape, but under a SHARED-counter limiter whose budget is one
+  // scan short of tolerating the over-drop's re-lex. A faithful drain serves the prefilled
+  // `1` from cache (no scan) and re-lexes only the post-save `2`,`3`,`4`,`5`, reaching a
+  // count of 7 — untripped at the limit of 7. The HEAD over-drop also re-lexes `1`,
+  // reaching 8 and tripping the limiter on the fifth drained token: a spurious poison latch
+  // and a limit diagnostic this checkpoint's lineage never produced.
+  //   1 2 3 4 5   (limit 7)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::{U1, U3};
+
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5",
+    ProbeLimiter::with_limit(7),
+    cache,
+  );
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let _ = inp.peek::<U1>().unwrap(); // prefill `1`
+    let outer = inp.save();
+    let inner = inp.save();
+    let _ = inp.peek::<U3>().unwrap(); // cache post-save `2`,`3`
+    inp.restore(inner);
+    inp.restore(outer);
+
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    // The faithful drain reaches EOF untripped: `1` came from cache, so the extra scan
+    // that would trip the limiter is never spent.
+    assert!(
+      !inp.is_poisoned(),
+      "serving the pre-save entry from cache must not spend the extra scan that spuriously trips the limiter"
+    );
+    toks
+  };
+
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(2, 3),
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7),
+      SimpleSpan::new(8, 9),
+    ],
+    "the full faithful stream drains — no token is lost to a spurious trip"
+  );
+  let limit_diags = emitter
+    .errors()
+    .values()
+    .flatten()
+    .filter(|e| **e == ProbeErr::Limit)
+    .count();
+  assert_eq!(
+    limit_diags, 0,
+    "no spurious limit diagnostic — the checkpoint's lineage never tripped"
+  );
+}
+
+#[test]
 #[cfg(debug_assertions)]
 #[should_panic(expected = "non-LIFO checkpoint restore")]
 fn non_lifo_watermark_restore_is_rejected_in_debug() {
@@ -1182,7 +1333,7 @@ fn property_random_lifo_scripts_stay_faithful_and_bounded() {
       let mut live: Vec<(crate::input::Checkpoint<'_, '_, ProbeLexer<'_>>, usize)> = Vec::new();
 
       for _ in 0..num_ops {
-        match roll(&mut rng) % 5 {
+        match roll(&mut rng) % 6 {
           0 => {
             // save
             let off = *inp.cursor().as_inner();
@@ -1224,7 +1375,7 @@ fn property_random_lifo_scripts_stay_faithful_and_bounded() {
               );
             }
           }
-          _ => {
+          4 => {
             // The exact class the cache-lineage hole lived in: prefill the cache, save on
             // top of it (so the checkpoint cursor equals the cache front and the rewind
             // takes its no-op branch), then peek across a lexer-error character so
@@ -1235,6 +1386,29 @@ fn property_random_lifo_scripts_stay_faithful_and_bounded() {
             let off = *inp.cursor().as_inner();
             live.push((inp.save(), off));
             let _ = inp.peek::<U3>().unwrap();
+          }
+          _ => {
+            // A self-contained NESTED last-in, first-out restore over a prefilled cache entry
+            // — the (save, save, peek, restore, restore) shape the input-wide push count made
+            // unsound. Prefill one token so BOTH saves' cursors equal the cache front, stack
+            // two saves, widen the peek to cache post-save entries, then restore inner and
+            // restore outer. The prefilled entry predates both saves, so the drained token must
+            // match a fresh parse of the same prefix — the outer restore must not over-drop it
+            // (a stale push count did, re-lexing a token whose scan side effects belonged to the
+            // abandoned lineage). Both checkpoints are resolved here and never join `live`, so
+            // the other ops' LIFO discipline is untouched.
+            let _ = inp.peek::<U1>().unwrap();
+            let off = *inp.cursor().as_inner();
+            let outer = inp.save();
+            let inner = inp.save();
+            let _ = inp.peek::<U3>().unwrap();
+            inp.restore(inner);
+            inp.restore(outer);
+            assert_eq!(
+              inp.next().unwrap().map(|t| *t.span_ref()),
+              oracle_next(off),
+              "a nested LIFO restore must retain the pre-save cache entry (matches a fresh parse)"
+            );
           }
         }
       }
