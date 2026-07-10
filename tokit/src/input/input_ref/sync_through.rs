@@ -9,6 +9,14 @@ where
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
   ///
   /// If the predicate matches, the matching token is consumed and returned.
+  ///
+  /// Diagnostics travel with progress: a match (or a resource-limit trip)
+  /// commits the skipped prefix, so the diagnostics describing it persist. A
+  /// no-match run to end of input commits nothing — the cursor stays at the
+  /// pre-call position — and leaves no trace: the emissions made during the
+  /// failed scan are unwound and the lexer-error deduplication watermark is
+  /// restored, so a later genuine consume of the same region reports its
+  /// errors exactly once.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_through<F, Exp>(
