@@ -345,20 +345,14 @@ fn restore_after_peek_across_lexer_error_reemits_error_exactly_once() {
 }
 
 #[test]
-fn stale_younger_restore_keeps_rewound_lexer_error_reemittable() {
-  // Out-of-order (non-LIFO) restores must never RAISE the dedup watermark past a
-  // diagnostic the emission log has already unwound.
+#[cfg(debug_assertions)]
+#[should_panic(expected = "non-LIFO checkpoint restore")]
+fn non_lifo_watermark_restore_is_rejected_in_debug() {
+  // Contract: restores are last-in, first-out. Restoring the older checkpoint A
+  // invalidates every checkpoint saved after it, so restoring the younger B afterward
+  // refers to a lineage that no longer exists. The debug witness rejects it. (This is
+  // the dedup-watermark shape: A predates a sealed `@`, B postdates it.)
   //   1 @ 2 3      (`@` is a lexer error spanning [2, 3))
-  //   0 2 4 6
-  //
-  // save A (BEFORE the error) → peek across `@` (seals it, watermark → 3) →
-  // save B (AFTER the error, so its saved watermark 3 sits ABOVE the error) →
-  // drain the speculative branch (empties the cache so a later re-lex actually
-  // re-crosses `@`) → restore A (older: unwinds `@` from the emission log and
-  // drops the watermark to 0) → restore B (STALE and younger). Restoring B must
-  // NOT raise the watermark back to 3: the emission log can no longer resurrect
-  // `@`, so a raised watermark would dedupe the re-lex and lose the diagnostic
-  // forever. The min-clamp keeps it at 0, so re-lexing forward re-emits `@`.
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut emitter = Verbose::<ProbeErr>::new();
   let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
@@ -367,37 +361,16 @@ fn stale_younger_restore_keeps_rewound_lexer_error_reemittable() {
     cache,
   );
 
-  {
-    use generic_arraydeque::typenum::U2;
-    let mut inp = input.as_ref(&mut emitter);
+  use generic_arraydeque::typenum::U2;
+  let mut inp = input.as_ref(&mut emitter);
 
-    // save A predates the error emission (its saved watermark is below `@`).
-    let a = inp.save();
+  let a = inp.save(); // older, predates the sealed `@`
+  let _ = inp.peek::<U2>().unwrap(); // seals `@`, lifts the watermark
+  let b = inp.save(); // younger, postdates the sealed `@`
+  while inp.next().unwrap().is_some() {}
 
-    // Peek across `@`: seals its lexer error and lifts the watermark past it.
-    let _ = inp.peek::<U2>().unwrap();
-
-    // save B is captured after the error, so its saved watermark sits above it.
-    let b = inp.save();
-
-    // The (inner) speculative branch consumes forward, draining the cache so the
-    // committed re-lex below actually re-crosses the malformed region.
-    while inp.next().unwrap().is_some() {}
-
-    // Out-of-order restores: the OLDER checkpoint first (unwinds `@`, drops the
-    // watermark), then the STALE younger one (whose saved watermark is stale).
-    inp.restore(a);
-    inp.restore(b);
-
-    // Commit path: re-lex forward, crossing `@` a second time.
-    while inp.next().unwrap().is_some() {}
-  }
-
-  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
-  assert_eq!(
-    total, 1,
-    "a stale younger restore must not raise the watermark past a rewound error — it stays re-emittable and is reported exactly once"
-  );
+  inp.restore(a); // invalidates b
+  inp.restore(b); // ✗ non-LIFO — debug panic
 }
 
 #[test]
@@ -457,18 +430,14 @@ fn restore_before_overflow_trip_reemits_limit_diagnostic_exactly_once() {
 }
 
 #[test]
-fn stale_younger_restore_never_leaves_poison_without_its_diagnostic() {
-  // Out-of-order (non-LIFO) restores must never leave the input latched while the
-  // emission log has already unwound the limit diagnostic. The end-state invariant
-  // is "poisoned implies a retained limit diagnostic".
+#[cfg(debug_assertions)]
+#[should_panic(expected = "non-LIFO checkpoint restore")]
+fn non_lifo_poison_boundary_restore_is_rejected_in_debug() {
+  // Contract: restores are last-in, first-out — the poison-boundary analog of the
+  // watermark case. A clean older A, an overflow trip that poisons the input, a
+  // poisoned younger B; restoring A invalidates B, so restoring B afterward is a
+  // violation the debug witness rejects.
   //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
-  //
-  // save A (clean, BEFORE the trip) → overflow peek trips (poison + diagnostic) →
-  // save B (AFTER the trip: poisoned, its saved watermark ABOVE the diagnostic) →
-  // drain the speculative branch (empties the cache) → restore A (older: un-latches
-  // poison, drops the watermark, unwinds the diagnostic) → restore B (STALE younger:
-  // the AND-clamp keeps poison LOW — it cannot resurrect a latch whose diagnostic the
-  // log can no longer produce). The committed drain re-lexes, re-trips, and re-emits.
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut emitter = Verbose::<ProbeErr>::new();
   let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
@@ -477,51 +446,17 @@ fn stale_younger_restore_never_leaves_poison_without_its_diagnostic() {
     cache,
   );
 
-  {
-    use generic_arraydeque::typenum::U6;
-    let mut inp = input.as_ref(&mut emitter);
+  use generic_arraydeque::typenum::U6;
+  let mut inp = input.as_ref(&mut emitter);
 
-    // save A predates the trip: a clean checkpoint (poisoned = false).
-    let a = inp.save();
+  let a = inp.save(); // older, clean
+  let _ = inp.peek::<U6>().unwrap(); // overflow trip: poison + diagnostic
+  assert!(inp.is_poisoned(), "the overflow trip must latch poison");
+  let b = inp.save(); // younger, poisoned
+  while inp.next().unwrap().is_some() {}
 
-    // Overflow peek trips: poison latches, the limit diagnostic is sealed.
-    let _ = inp.peek::<U6>().unwrap();
-    assert!(inp.is_poisoned(), "the overflow trip must latch poison");
-
-    // save B is captured AFTER the trip: poisoned, its saved watermark above the error.
-    let b = inp.save();
-
-    // Drain the speculative branch so the committed re-lex actually re-crosses the
-    // tripping region (the cache prefix is emptied here).
-    while inp.next().unwrap().is_some() {}
-
-    // Out-of-order restores: the OLDER checkpoint first (un-latches poison, unwinds
-    // the diagnostic and drops the watermark), then the STALE younger one.
-    inp.restore(a);
-    assert!(
-      !inp.is_poisoned(),
-      "restoring the clean older checkpoint un-latches poison"
-    );
-    inp.restore(b);
-    // A stale younger restore must NOT resurrect the latch: the AND-clamp keeps it
-    // low because `current` is already false — poison cannot outlive its diagnostic.
-    assert!(
-      !inp.is_poisoned(),
-      "a stale younger restore must not raise poison past a rewound diagnostic"
-    );
-
-    // Commit path: re-lex forward, re-trip, re-emit.
-    while inp.next().unwrap().is_some() {}
-
-    // Invariant: poisoned implies a retained limit diagnostic (never a silent latch).
-    assert!(inp.is_poisoned(), "the committed re-lex re-latches poison");
-  }
-
-  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
-  assert_eq!(
-    total, 1,
-    "poisoned implies a retained diagnostic: the limit error is re-emitted exactly once, never lost"
-  );
+  inp.restore(a); // invalidates b
+  inp.restore(b); // ✗ non-LIFO — debug panic
 }
 
 // ── The poison BOUNDARY: a drained cache prefix replays after a restore ────────
@@ -716,4 +651,479 @@ fn overflow_trip_peek_save_drain_restore_replays_prefix_and_stops_at_boundary() 
     total, 1,
     "the limit diagnostic survives save → drain → restore → replay, reported exactly once"
   );
+}
+
+// ── Last-in, first-out contract: the debug witness ─────────────────────────────
+//
+// Restoring a checkpoint invalidates every checkpoint saved after it, so restores
+// must be LIFO. Debug builds track the live checkpoints exactly and panic on any
+// out-of-order restore, and on any restore into a foreign input. These tests pin
+// that witness; the LIFO-legal tests above pin the pure-copy behavior it protects.
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "non-LIFO checkpoint restore")]
+fn alias_interleave_stale_restore_detected() {
+  // THE witness test. After restoring the older A (which invalidates B), one
+  // committed emission regrows the emission log to exactly B's saved mark, so a
+  // length-based validity check (`B.mark <= emitter.len()`) would pass — yet B's
+  // lineage is gone. The live-checkpoint id stack still rejects the restore.
+  //   1 2 3 4 5 6   (limit 2 → the 3rd scanned token trips, emitting the diagnostic)
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    ProbeLimiter::with_limit(2),
+    cache,
+  );
+
+  use generic_arraydeque::typenum::U6;
+  let mut inp = input.as_ref(&mut emitter);
+
+  let a = inp.save(); // older, clean, mark 0
+  let _ = inp.peek::<U6>().unwrap(); // trips: emits the limit diagnostic (mark → 1)
+  let b = inp.save(); // younger, mark 1
+  inp.restore(a); // invalidates b; the emitter rewinds back to mark 0
+
+  // One committed emission regrows the log to length 1 == B's saved mark.
+  while inp.next().unwrap().is_some() {}
+
+  inp.restore(b); // ✗ non-LIFO — only the id stack catches this
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "non-LIFO checkpoint restore")]
+fn stale_poisoned_restore_never_exposes_tokens_past_saved_boundary() {
+  // Clean older A, an overflow trip that latches an early boundary, poisoned younger
+  // B, restore A (un-poisoning and invalidating B), consume through to a later
+  // committed trip, then restore B. B's boundary belongs to a lineage restoring A
+  // destroyed; the witness rejects the restore rather than exposing tokens between
+  // the two frontiers.
+  //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
+  use generic_arraydeque::typenum::U6;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    TokenLimiter::with_limitation(5),
+    cache,
+  );
+
+  let mut inp = input.as_ref(&mut emitter);
+
+  let a = inp.save(); // clean older
+  let _ = inp.peek::<U6>().unwrap(); // overflow trip: early boundary
+  assert!(inp.is_poisoned(), "the overflow trip must latch poison");
+  let b = inp.save(); // poisoned younger
+  inp.restore(a); // invalidates b, un-poisons
+  while inp.next().unwrap().is_some() {} // committed path re-lexes to a later trip
+
+  inp.restore(b); // ✗ non-LIFO — debug panic
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "checkpoint restored into a foreign input")]
+fn restore_with_foreign_checkpoint_rejected_in_debug() {
+  // A checkpoint may only be restored into the input that created it.
+  let cache1 = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let cache2 = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut em1 = Silent::<ProbeErr>::new();
+  let mut em2 = Silent::<ProbeErr>::new();
+  let mut in1 = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache1,
+  );
+  let mut in2 = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache2,
+  );
+
+  let foreign = {
+    let r1 = in1.as_ref(&mut em1);
+    r1.save()
+  };
+  let mut r2 = in2.as_ref(&mut em2);
+  r2.restore(foreign); // ✗ created by a different input — debug panic
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "checkpoint restored into a foreign input")]
+fn restore_with_clone_sibling_checkpoint_rejected_in_debug() {
+  // A clone is a NEW input: a checkpoint from the original may not be restored into
+  // the clone — their checkpoints must never cross.
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut em1 = Silent::<ProbeErr>::new();
+  let mut em2 = Silent::<ProbeErr>::new();
+  let mut original = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+  let mut sibling = original.clone();
+
+  let from_original = {
+    let r = original.as_ref(&mut em1);
+    r.save()
+  };
+  let mut r2 = sibling.as_ref(&mut em2);
+  r2.restore(from_original); // ✗ the clone is a foreign input — debug panic
+}
+
+// ── Pure copy replays the saved lineage exactly (LIFO-legal) ───────────────────
+
+#[test]
+fn twin_checkpoint_restore_after_partial_drain_replays_identically() {
+  use crate::span::SimpleSpan;
+  // Two checkpoints at the same position. Draining one token then restoring the
+  // younger, re-draining, then restoring the elder and re-draining yields identical
+  // span sequences both times — pure copy replays the lineage exactly.
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  let elder = inp.save();
+  let younger = inp.save(); // same position as elder
+
+  // Drain one token, then restore the younger and replay the full stream.
+  let _ = inp.next().unwrap().expect("first token");
+  inp.restore(younger);
+  let mut seq_young = Vec::new();
+  while let Some(tok) = inp.next().unwrap() {
+    seq_young.push(*tok.span_ref());
+  }
+
+  // Restore the elder (still LIFO: the younger has been consumed) and replay again.
+  inp.restore(elder);
+  let mut seq_old = Vec::new();
+  while let Some(tok) = inp.next().unwrap() {
+    seq_old.push(*tok.span_ref());
+  }
+
+  assert_eq!(
+    seq_young, seq_old,
+    "both restores replay the same lineage identically"
+  );
+  assert_eq!(
+    seq_young,
+    vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(2, 3),
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7),
+    ]
+  );
+}
+
+#[test]
+fn save_exactly_at_boundary_restores_empty_stream() {
+  // Trip the limit by draining past it so the cursor sits exactly at the poison
+  // boundary; save there; restore. Every scanner entry point yields its poisoned
+  // outcome, the shared scan counter stays frozen, and the limit diagnostic is
+  // retained exactly once.
+  //   1 2 3 4 5 6   (limit 2 → the 3rd scanned token trips)
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let limiter = ProbeLimiter::with_limit(2);
+  let scanned = limiter.counter();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    limiter,
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Drain to the trip: 1, 2, then the 3rd next() trips and latches at the cursor.
+    assert!(inp.next().unwrap().is_some(), "first token");
+    assert!(inp.next().unwrap().is_some(), "second token");
+    assert!(inp.next().unwrap().is_none(), "trip latches to None");
+    assert!(inp.is_poisoned(), "the trip latches the boundary");
+    let frozen = scanned.get();
+
+    let ckp = inp.save(); // saved with the cursor exactly at the boundary
+    inp.restore(ckp); // LIFO restore of the poisoned checkpoint
+
+    // Every scanner entry point returns its poisoned (empty) outcome, never rescanning.
+    assert!(inp.next().unwrap().is_none(), "next() stays None");
+    assert!(inp.peek_one().unwrap().is_none(), "peek stays empty");
+    assert!(
+      inp.try_expect(|_| true).unwrap().is_none(),
+      "try_expect stays None"
+    );
+    assert!(
+      inp.sync_to(|_| false, || None).unwrap().is_none(),
+      "sync_to stays None"
+    );
+    assert!(
+      inp.sync_through(|_| false, || None).unwrap().is_none(),
+      "sync_through stays None"
+    );
+    inp.skip_while(|_| true).unwrap();
+
+    assert_eq!(
+      scanned.get(),
+      frozen,
+      "the scan counter stays frozen — nothing past the boundary is re-scanned"
+    );
+  }
+
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(total, 1, "the limit diagnostic is retained exactly once");
+}
+
+#[test]
+fn sink_emitter_trip_bounds_work_and_survives_restore() {
+  // With a non-collecting (Silent) emitter the poison boundary is input-owned: it
+  // survives an attempt-style rollback even though the emitter retains nothing to
+  // derive it from, and no rescan ever crosses it.
+  //   1 2 3 4 5 6   (limit 2 → the 3rd scanned token trips)
+  let (mut input, scanned) = probe_input("1 2 3 4 5 6");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  // Trip the limit.
+  assert!(inp.next().unwrap().is_some(), "first token");
+  assert!(inp.next().unwrap().is_some(), "second token");
+  assert!(inp.next().unwrap().is_none(), "trip latches to None");
+  assert!(inp.is_poisoned(), "the trip latches the boundary");
+  let frozen = scanned.get();
+
+  // An attempt speculatively re-enters scanners, then declines and rolls back. The
+  // boundary is checkpointed and copied back verbatim — the Silent emitter keeps no
+  // log, so this proves the boundary is input-owned.
+  let outcome = inp.attempt(|inp| {
+    for _ in 0..5 {
+      let _ = inp.next().unwrap();
+    }
+    None::<()>
+  });
+  assert!(outcome.is_none(), "the attempt declines and rolls back");
+  assert!(
+    inp.is_poisoned(),
+    "the boundary survives the attempt rollback (input-owned)"
+  );
+  assert_eq!(
+    scanned.get(),
+    frozen,
+    "no unbounded rescan — the shared scan counter stays frozen"
+  );
+}
+
+#[test]
+fn attempt_backtrack_over_trip_reemits_diagnostic_exactly_once() {
+  // Inside an attempt, an overflow peek trips the limit (emitting the diagnostic);
+  // the closure declines, rolling the speculative diagnostic back. The committed path
+  // then re-reaches the trip and re-emits — exactly once in total, never zero.
+  //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
+  use generic_arraydeque::typenum::U6;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    TokenLimiter::with_limitation(5),
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let outcome = inp.attempt(|inp| {
+      let _ = inp.peek::<U6>(); // overflow trip: emits the limit diagnostic
+      None::<()> // decline → rollback
+    });
+    assert!(outcome.is_none(), "the attempt declines and rolls back");
+    assert!(
+      !inp.is_poisoned(),
+      "the rollback un-poisons and un-emits the speculative diagnostic"
+    );
+
+    // The committed path re-reaches the trip and re-emits.
+    while inp.next().unwrap().is_some() {}
+    assert!(inp.is_poisoned(), "the committed re-lex re-latches poison");
+  }
+
+  let errs: Vec<&ByValErr> = emitter.errors().values().flatten().collect();
+  assert_eq!(
+    errs.len(),
+    1,
+    "the limit diagnostic is emitted exactly once in total"
+  );
+  assert_eq!(*errs[0], ByValErr::Limit, "and it is the limit diagnostic");
+}
+
+#[test]
+fn restore_after_interleaved_emissions_keeps_rewound_lexer_error_reemittable() {
+  use crate::span::SimpleSpan;
+  // A lexer error emitted interleaved with unexpected-token emissions (from sync_to),
+  // then a restore of a checkpoint that predates them all. Pure copy returns the
+  // watermark to its saved value, so the rewound lexer error re-emits exactly once
+  // when the committed path re-reaches it — never zero times.
+  //   1 @ 2   (`@` is a lexer error spanning [2, 3))
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 @ 2",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let a = inp.save(); // predates every emission
+
+    // sync_to(never-match) skips `1` (an unexpected token), crosses `@` (a lexer
+    // error, lifting the watermark past it), then skips `2` — interleaved emissions.
+    assert!(inp.sync_to(|_| false, || None).unwrap().is_none());
+
+    inp.restore(a); // LIFO: rolls the log back and the watermark to 0
+
+    // The committed path re-crosses `@`; with the watermark restored, it re-emits.
+    while inp.next().unwrap().is_some() {}
+  }
+
+  // Exactly the one `@` lexer error is retained — re-emitted once, never lost.
+  let at = SimpleSpan::new(2, 3);
+  assert_eq!(
+    emitter
+      .errors()
+      .get(&at)
+      .map(|group| group.len())
+      .unwrap_or(0),
+    1,
+    "the rewound lexer error re-emits exactly once when re-reached"
+  );
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(total, 1, "only the re-emitted lexer error is retained");
+}
+
+#[test]
+#[cfg(debug_assertions)]
+fn property_random_lifo_scripts_stay_faithful_and_bounded() {
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::{U1, U2, U3};
+
+  const SRC: &str = "1 @ 2 3 @ 4"; // Num tokens at 0,4,6,10; `@` errors at [2,3),[8,9)
+
+  // Oracle: one fresh single pass over SRC.
+  let oracle_tokens: Vec<SimpleSpan> = {
+    let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+    let mut em = Verbose::<ProbeErr>::new();
+    let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+      SRC,
+      ProbeLimiter::with_limit(usize::MAX),
+      cache,
+    );
+    let mut inp = input.as_ref(&mut em);
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+  let oracle_next =
+    |off: usize| -> Option<SimpleSpan> { oracle_tokens.iter().copied().find(|s| s.start() >= off) };
+  // The `@` lexer errors a full pass would emit.
+  let oracle_diags: Vec<SimpleSpan> = vec![SimpleSpan::new(2, 3), SimpleSpan::new(8, 9)];
+
+  // Deterministic linear congruential generator (no external dev-deps).
+  let mut rng: u64 = 0x0123_4567_89ab_cdef;
+  let roll = |rng: &mut u64| -> u64 {
+    *rng = rng
+      .wrapping_mul(6364136223846793005)
+      .wrapping_add(1442695040888963407);
+    *rng >> 33
+  };
+
+  for _script in 0..200u32 {
+    let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+    let limiter = ProbeLimiter::with_limit(usize::MAX);
+    let scanned = limiter.counter();
+    let mut em = Verbose::<ProbeErr>::new();
+    let mut input =
+      Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(SRC, limiter, cache);
+
+    let num_ops = 8 + (roll(&mut rng) % 12) as usize; // 8..=19 ops
+    {
+      let mut inp = input.as_ref(&mut em);
+      // Live checkpoints as a stack of (checkpoint, saved cursor offset).
+      let mut live: Vec<(crate::input::Checkpoint<'_, '_, ProbeLexer<'_>>, usize)> = Vec::new();
+
+      for _ in 0..num_ops {
+        match roll(&mut rng) % 4 {
+          0 => {
+            // save
+            let off = *inp.cursor().as_inner();
+            live.push((inp.save(), off));
+          }
+          1 => {
+            // drain k
+            let k = 1 + (roll(&mut rng) % 3) as usize;
+            for _ in 0..k {
+              if inp.next().unwrap().is_none() {
+                break;
+              }
+            }
+          }
+          2 => {
+            // peek w
+            match roll(&mut rng) % 3 {
+              0 => {
+                let _ = inp.peek::<U1>().unwrap();
+              }
+              1 => {
+                let _ = inp.peek::<U2>().unwrap();
+              }
+              _ => {
+                let _ = inp.peek::<U3>().unwrap();
+              }
+            }
+          }
+          _ => {
+            // restore the most-recent live checkpoint (always LIFO), then verify the
+            // next drained span matches a fresh parse of the same prefix.
+            if let Some((ckp, off)) = live.pop() {
+              inp.restore(ckp);
+              let got = inp.next().unwrap().map(|t| *t.span_ref());
+              assert_eq!(
+                got,
+                oracle_next(off),
+                "after a restore to offset {off}, the next token must match a fresh parse"
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // (a) total scans bounded by a generous linear budget.
+    let budget = (num_ops + 1) * (oracle_tokens.len() + oracle_diags.len()) * 8;
+    assert!(
+      scanned.get() <= budget,
+      "scans {} exceeded the linear budget {budget}",
+      scanned.get()
+    );
+
+    // (b) every retained diagnostic span appears at most once and is a real error.
+    for (span, group) in em.errors() {
+      assert!(
+        group.len() <= 1,
+        "diagnostic span {span:?} retained more than once"
+      );
+      assert!(
+        group.is_empty() || oracle_diags.contains(span),
+        "retained an unexpected diagnostic span {span:?}"
+      );
+    }
+  }
 }

@@ -2,28 +2,36 @@ use core::marker::PhantomData;
 
 use super::{Cursor, Lexer};
 
-/// A checkpoint that captures the lexer's state for backtracking.
+/// A saved position in the token stream, together with everything needed to resume
+/// from it: the cursor, the last-consumed span, the lexer state, the emitter's
+/// emission mark, the lexer-error deduplication watermark, and the poison boundary.
 ///
-/// A `Checkpoint` stores a snapshot of the lexer's position and state
-/// at a specific point in time. This allows you to save the current state using
-/// [`InputRef::save`](crate::InputRef::save) and later restore it using [`InputRef::restore`](crate::InputRef::restore), enabling
-/// efficient backtracking in parsers.
+/// A checkpoint is a snapshot of one **lineage**: the concrete history of tokens
+/// lexed and diagnostics emitted up to the moment of the save. Restoring makes that
+/// history the live one again. Because diagnostics roll back by truncation (see
+/// [`Emitter::rewind`](crate::emitter::Emitter::rewind)), only positions on the
+/// *current* lineage can be returned to — which gives checkpoints a stack discipline.
 ///
-/// Checkpoints include:
-/// - The cursor position (byte offset in the input)
-/// - The input span at save time (`InputRef::span` / last-consumed-token span)
-/// - The lexer's extras state (for stateful lexers)
-/// - Cache state (implicitly through the cursor)
+/// # Validity
 ///
-/// # Example
+/// - A checkpoint is valid from the moment [`save`](crate::InputRef::save) returns it
+///   until either **it** is restored ([`restore`](crate::InputRef::restore) consumes
+///   it), or an **older** checkpoint is restored.
+/// - Restoring a checkpoint **invalidates every checkpoint saved after it**: their
+///   lineage — the diagnostics emitted and the tokens lexed after the older save —
+///   has been rolled back, and a truncated emission log cannot be rebuilt. There is
+///   no correct state such a restore could produce.
+/// - Checkpoints are single-use, cannot be cloned, and must be restored into the same
+///   input that created them.
 ///
-/// ```ignore
-/// let checkpoint = tokenizer.save();
-/// // Try parsing something that might fail...
-/// if should_backtrack {
-///     tokenizer.restore(checkpoint); // Restore to saved state
-/// }
-/// ```
+/// Restores that follow this discipline are exact: the token stream, the retained
+/// diagnostics, the exactly-once lexer-error guarantee, and the poison boundary all
+/// replay precisely as they stood at save time.
+///
+/// In debug builds [`restore`](crate::InputRef::restore) verifies the discipline and
+/// panics on violation; see its documentation for release behavior. Prefer
+/// [`attempt`](crate::InputRef::attempt) (and `try_attempt`), which manage the
+/// save/restore pair structurally and cannot violate the discipline.
 pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
   cursor: Cursor<'a, 'closure, L>,
   /// The actual `InputRef::span` at save time.
@@ -54,23 +62,29 @@ pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
   /// The input-level sticky limit-error boundary at save time.
   ///
   /// `None` is unpoisoned; `Some(off)` is the durable frontier a trip latched (see
-  /// [`Input::poison_boundary`](crate::input::Input)). It is checkpointed alongside
-  /// the emitter mark and the dedup watermark because the three move together: a
-  /// speculative peek that trips the limit latches the frontier *and* emits the
-  /// limit diagnostic *and* lifts the watermark. A
-  /// [`restore`](crate::InputRef::restore) that rewinds the diagnostic must also
-  /// relax the frontier, or it would outlive its diagnostic and a post-restore
-  /// drain would stop on a diagnostic-less poison — truncation masquerading as
-  /// clean EOF. Restore only ever moves the frontier toward the *less-poisoned* of
-  /// this saved value and the current one (a max under the ordering where a smaller
-  /// offset is more poisoned and `None` is +infinity), never more poisoned.
+  /// [`Input::poison_boundary`](crate::input::Input)). It is a fact of one lineage,
+  /// checkpointed alongside the emitter mark and the dedup watermark because the three
+  /// move together: a speculative peek that trips the limit latches the frontier,
+  /// emits the limit diagnostic, and lifts the watermark in one step, and
+  /// [`restore`](crate::InputRef::restore) copies all three back to their saved values
+  /// together. Under the last-in, first-out restore contract a saved `Some(off)`'s
+  /// diagnostic predates the saved emitter mark, so it survives the emitter rewind and
+  /// the restored frontier stays paired with it; a saved `None` re-lexes and re-trips
+  /// if the limit is reached again.
   pub(crate) poison_boundary: Option<L::Offset>,
+  /// The identity of the input that produced this checkpoint (debug-only witness).
+  #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+  pub(crate) input_id: usize,
+  /// This checkpoint's id in its input's live-checkpoint stack (debug-only witness).
+  #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+  pub(crate) ckp_id: u64,
   _m: PhantomData<fn(&'closure ()) -> &'closure ()>,
 }
 
 impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
   /// Creates a new checkpoint.
   #[cfg_attr(not(tarpaulin), inline(always))]
+  #[allow(clippy::too_many_arguments)]
   pub(super) const fn new(
     cursor: Cursor<'a, 'closure, L>,
     span: L::Span,
@@ -78,6 +92,8 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
     emitter_checkpoint: u64,
     emitted_error_end: L::Offset,
     poison_boundary: Option<L::Offset>,
+    #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))] input_id: usize,
+    #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))] ckp_id: u64,
   ) -> Self {
     Self {
       cursor,
@@ -86,6 +102,10 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
       emitter_checkpoint,
       emitted_error_end,
       poison_boundary,
+      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      input_id,
+      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      ckp_id,
       _m: PhantomData,
     }
   }

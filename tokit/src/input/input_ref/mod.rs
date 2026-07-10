@@ -43,6 +43,8 @@ where
   pub(super) cache: &'closure mut Ctx::Cache,
   pub(super) emitted_error_end: &'closure mut L::Offset,
   pub(super) poison_boundary: &'closure mut Option<L::Offset>,
+  #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+  pub(super) witness: &'closure mut super::Witness,
   pub(super) emitter: &'closure mut Ctx::Emitter,
   pub(super) _marker: PhantomData<Lang>,
 }
@@ -84,14 +86,32 @@ where
   }
 
   /// Returns a mutable reference to the current lexer state (extras).
+  ///
+  /// # Checkpoint invalidation
+  ///
+  /// Replacing the lexer state re-keys every offset-dependent fact the input tracks
+  /// (cache spans, dedup watermark, poison boundary). All outstanding checkpoints are
+  /// invalidated; restoring one afterwards is a contract violation (debug builds
+  /// panic).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn state_mut(&mut self) -> &mut L::State {
+  pub fn state_mut(&mut self) -> &mut L::State {
+    #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+    self.witness.clear();
     self.state
   }
 
   /// Manually sets the lexer state (for context-sensitive lexing).
+  ///
+  /// # Checkpoint invalidation
+  ///
+  /// Replacing the lexer state re-keys every offset-dependent fact the input tracks
+  /// (cache spans, dedup watermark, poison boundary). All outstanding checkpoints are
+  /// invalidated; restoring one afterwards is a contract violation (debug builds
+  /// panic).
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn set_state(&mut self, state: L::State) {
+    #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+    self.witness.clear();
     *self.state = state;
   }
 
@@ -247,9 +267,14 @@ where
 {
   /// Attempts to parse with the given function, rolling back on failure.
   ///
-  /// If the closure returns `None`, the input position and lexer state are
-  /// restored to their original values. If it returns `Some`, the parser
-  /// state is preserved.
+  /// A checkpoint is saved before `f` runs. If `f` returns `Some`, its progress is
+  /// kept. If it returns `None`, the input rolls back to the checkpoint — position,
+  /// lexer state, diagnostics emitted inside the attempt, the dedup watermark, and
+  /// the poison boundary all return to their pre-attempt values.
+  ///
+  /// This is the recommended way to backtrack: the save/restore pair is scoped to the
+  /// closure, so the last-in, first-out discipline documented on [`restore`](Self::restore)
+  /// holds by construction, even under nesting.
   pub fn attempt<F, R>(&mut self, f: F) -> Option<R>
   where
     F: FnOnce(&mut Self) -> Option<R>,
@@ -334,11 +359,19 @@ where
     Span::new(range.start.as_inner().clone(), range.end.as_inner().clone())
   }
 
-  /// Saves the current state of the tokenizer as a checkpoint.
+  /// Saves the current state as a [`Checkpoint`] for backtracking.
   ///
-  /// This creates a snapshot of the current position and lexer state, which can
-  /// later be restored using [`restore`](Self::restore). Checkpoints are essential for
-  /// implementing backtracking in parsers.
+  /// The checkpoint captures the cursor, the last-consumed span, the lexer state, the
+  /// emitter's emission mark, the lexer-error dedup watermark, and the poison
+  /// boundary — everything [`restore`](Self::restore) needs to make this exact moment
+  /// the live state again.
+  ///
+  /// Saving is O(1): it clones the lexer state and a few offsets, and allocates
+  /// nothing in release builds. Saving never invalidates other checkpoints; only
+  /// restoring does (see [`Checkpoint`]'s validity section).
+  ///
+  /// Prefer [`attempt`](Self::attempt) when the save/restore pair brackets a single
+  /// speculative computation — it enforces the restore discipline by construction.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn save(&self) -> Checkpoint<'inp, 'closure, L> {
     Checkpoint::new(
@@ -348,6 +381,10 @@ where
       self.emitter.checkpoint(),
       self.emitted_error_end.clone(),
       self.poison_boundary.clone(),
+      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      self.witness.input_id(),
+      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      self.witness.push(),
     )
   }
 
@@ -378,87 +415,118 @@ where
       .unwrap_or_else(|| self.span.end_ref())
   }
 
-  /// Restores the tokenizer state to a previously saved checkpoint.
+  /// Rewinds the input to `checkpoint`'s save point.
   ///
-  /// This rewinds the cache, resets the cursor position, and restores the lexer
-  /// state.
+  /// After a restore, the input behaves exactly as it did the moment the checkpoint
+  /// was taken:
   ///
-  /// The sticky limit-error boundary is checkpointed like the dedup watermark and
-  /// obeys the same never-*more*-poisoned discipline: a restore may only relax the
-  /// frontier toward the less-poisoned of the saved and current values (a max under
-  /// the ordering where a smaller offset is more poisoned and `None` is +infinity),
-  /// never make the input more poisoned. Relaxing keeps the frontier paired with
-  /// its diagnostic — a restore that rewinds a speculative limit diagnostic also
-  /// drops the poison it latched, so the committed path re-lexes and re-emits rather
-  /// than stopping on a diagnostic-less latch (which would masquerade as clean EOF).
-  /// A poisoned checkpoint can never *re-arm* a frontier a younger restore already
-  /// cleared.
+  /// - the cursor, last-consumed span, and lexer state are restored; consuming
+  ///   resumes from the saved position (cached tokens beyond it are dropped and
+  ///   re-lex identically);
+  /// - diagnostics emitted after the save are rolled back — the emitter's emission
+  ///   log is truncated to the saved mark (see
+  ///   [`Emitter::rewind`](crate::emitter::Emitter::rewind));
+  /// - the lexer-error dedup watermark returns to its saved value: an error whose
+  ///   emission was just rolled back becomes re-emittable — exactly once — if the
+  ///   resumed parse reaches it again, while errors retained from before the save
+  ///   stay deduplicated;
+  /// - the poison boundary returns to its saved value: an input unpoisoned at save
+  ///   time is unpoisoned again (a rolled-back limit trip re-trips and re-diagnoses
+  ///   if re-reached); an input poisoned at save time gets the saved boundary and its
+  ///   retained diagnostic back, still paired.
   ///
-  /// Bounded-work note: the region *before* the boundary may be re-scanned once per
-  /// explicit restore — ordinary backtracking cost, one rescan per caller action.
-  /// Nothing ever scans *past* the boundary (the guarantee the latch exists for),
-  /// and a poisoned input re-entered at or past its boundary still never rebuilds a
-  /// lexer or rescans the tripping token — categorically different from the
-  /// internal, caller-invisible rescan loops the latch prevents.
+  /// # Contract: restores are last-in, first-out
+  ///
+  /// Restoring this checkpoint **invalidates every checkpoint saved after it**.
+  /// Equivalently: with several live checkpoints, always restore the youngest one you
+  /// intend to return to; never restore a checkpoint after restoring one older than
+  /// it.
+  ///
+  /// Both of these are fine:
+  ///
+  /// ```ignore
+  /// // Nested speculation — inner restored (or dropped) before outer:
+  /// let outer = input.save();
+  /// let inner = input.save();
+  /// if !try_variant_a(input) { input.restore(inner); }   // youngest first
+  /// if !try_variant_b(input) { input.restore(outer); }   // then the older one
+  ///
+  /// // Retry loop — a fresh checkpoint per iteration:
+  /// loop {
+  ///   let ckp = input.save();
+  ///   match try_parse(input) {
+  ///     Ok(v) => break v,
+  ///     Err(_) => input.restore(ckp),                    // always the youngest live one
+  ///   }
+  /// }
+  /// ```
+  ///
+  /// This is a contract violation:
+  ///
+  /// ```ignore
+  /// let a = input.save();
+  /// let b = input.save();   // b is younger than a
+  /// input.restore(a);       // rolls history back past b's save point:
+  ///                         // b now refers to a lineage that no longer exists
+  /// input.restore(b);       // ✗ contract violation
+  /// ```
+  ///
+  /// The reason is structural, not stylistic: restoring `a` truncated the emission
+  /// log below `b`'s mark and un-lexed the tokens `b`'s position depends on. A
+  /// truncated log cannot be rebuilt, so there is *no correct state* the second
+  /// restore could produce.
+  ///
+  /// # Debug builds
+  ///
+  /// Debug builds track live checkpoints exactly and **panic** on any out-of-order
+  /// restore (message begins `non-LIFO checkpoint restore`), and on restoring a
+  /// checkpoint into an input that did not create it. `cargo test` compiles with
+  /// debug assertions by default, so exercising your parser's backtracking paths in
+  /// tests surfaces violations immediately.
+  ///
+  /// # Release builds
+  ///
+  /// Release builds do not check. An out-of-order restore leaves the input in an
+  /// **unspecified but bounded** state. Even then, all of the following still hold:
+  /// no undefined behavior, no leak, no panic originating in this crate, every scan
+  /// terminates (the resource-limiter state travels inside the checkpoint, so a
+  /// re-reached limit re-trips instead of rescanning without bound), and the input
+  /// remains usable.
+  ///
+  /// What is **not** guaranteed after a violation: diagnostics may be missing or
+  /// attributed to the wrong branch, and the replayed token stream may differ from
+  /// what was visible at the save. The only well-specified use of a checkpoint is
+  /// restoring it while it is still valid.
   #[doc(alias = "rewinds")]
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+    // Verify the last-in, first-out discipline exactly, before any mutation: the
+    // checkpoint must belong to this input, and it must still be live (restoring an
+    // older checkpoint invalidates every one saved after it). Release builds omit
+    // this and copy unconditionally.
+    #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+    {
+      assert!(
+        checkpoint.input_id == self.witness.input_id(),
+        "checkpoint restored into a foreign input: this checkpoint was created by a different input"
+      );
+      assert!(
+        self.witness.contains(checkpoint.ckp_id),
+        "non-LIFO checkpoint restore: this checkpoint was invalidated by restoring an older one (restores must be last-in, first-out)"
+      );
+      self.witness.pop_through(checkpoint.ckp_id);
+    }
+
     self.cache_mut().rewind(&checkpoint);
     let cur = checkpoint.cursor();
     self.emitter().rewind(cur, checkpoint.emitter_checkpoint);
-    // Restore the dedup mark toward its value at save time, not to the cursor.
-    // The emitter's emission-log rewind retains every error sealed *before* the
-    // checkpoint — including one whose span sits above the cursor (a peek that
-    // scanned ahead) — so dropping the mark to the cursor would let a re-lex
-    // re-emit that retained error. Errors sealed *after* the checkpoint were
-    // unwound, and the saved mark predates them, so a re-lexing commit path can
-    // report them again.
-    //
-    // But restore must never *raise* the mark: clamp it to the min of the saved
-    // and current values (`L::Offset: Ord`). Case walk:
-    //   - LIFO restore (the common path): speculative work after `save` only ever
-    //     raised the mark, so `current >= saved` → `min == saved` → the mark
-    //     returns to its saved value, exactly as before (retained peek-ahead
-    //     errors above the cursor stay deduped: exactly-once).
-    //   - Stale younger restore after an older restore: the older restore already
-    //     dropped the mark below this (younger, stale) checkpoint's saved mark and
-    //     unwound the error from the emission log, so `current < saved` → `min ==
-    //     current` keeps the mark low. The re-lex re-emits the error the log can
-    //     no longer resurrect — no diagnostic lost.
-    // Lowering the mark never double-emits: it only ever sinks into a range the
-    // paired emitter rewind already cleared, so no still-retained error sits above
-    // the clamped mark.
-    if checkpoint.emitted_error_end < *self.emitted_error_end {
-      *self.emitted_error_end = checkpoint.emitted_error_end;
-    }
-    // The poison boundary is checkpointed state under the SAME never-more-poisoned
-    // discipline as the watermark: a restore relaxes it toward the LESS-poisoned of
-    // the saved and current values — a max under the ordering "smaller offset = more
-    // poisoned, None = unpoisoned (+infinity)", so either side being `None` wins.
-    // Case walk:
-    //   - LIFO restore across a trip (saved = None, current = Some(X) → None): the
-    //     speculative peek latched the frontier and emitted the limit diagnostic;
-    //     the emitter rewind above removed that speculative copy, so the committed
-    //     path must re-lex the region. Un-latching lets it: it re-trips, re-latches,
-    //     and RE-EMITS the diagnostic (the watermark min-clamp permits it) —
-    //     exactly-once holds because only the speculative copy was rewound.
-    //   - Checkpoint taken after a committed trip (Some(X), Some(X) → Some(X)): the
-    //     frontier persists; its diagnostic predates the emitter mark, so the rewind
-    //     retained it — frontier and diagnostic stay paired.
-    //   - Stale younger restore after an older restore (Some(X), None → None): a
-    //     frontier cannot be resurrected without its diagnostic. The older restore
-    //     already unwound the diagnostic and cleared `current`, so the max keeps it
-    //     None; the region stays re-lexable and re-trips naturally.
-    //   - Save after a truncated overflow peek (Some(X), Some(X) → Some(X)) with the
-    //     cache prefix drained: the restore rewinds the cursor before the prefix and
-    //     keeps the frontier, so scanners re-lex up to X (prefix REPLAYABLE) and stop
-    //     at X; the retained diagnostic stays exactly-once (the dedup watermark sits
-    //     at or above the error's end, since the error predates the checkpoint).
-    *self.poison_boundary = match (checkpoint.poison_boundary, self.poison_boundary.take()) {
-      // Larger offset = less poisoned; either side unpoisoned ⇒ result unpoisoned.
-      (Some(saved), Some(current)) => Some(saved.max(current)),
-      _ => None,
-    };
+    // The watermark and the poison boundary are facts about the saved lineage. Under
+    // the last-in, first-out contract the restore returns to that lineage exactly, so
+    // both copy back verbatim: a saved boundary's diagnostic predates the saved
+    // emitter mark and therefore survives the rewind above, keeping poison and its
+    // diagnostic paired.
+    *self.emitted_error_end = checkpoint.emitted_error_end;
+    *self.poison_boundary = checkpoint.poison_boundary;
     self.set_span((&checkpoint.span).into());
     *self.state = checkpoint.state;
   }

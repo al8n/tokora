@@ -12,6 +12,99 @@ mod checkpoint;
 mod cursor;
 mod input_ref;
 
+/// Debug-only exact witness for the last-in, first-out checkpoint discipline that
+/// [`InputRef::restore`] documents.
+///
+/// It exists only in debug builds that have an allocator (`std` or `alloc`); in
+/// release builds, and in allocator-less builds, it is absent and `restore` is an
+/// unchecked pure copy of the saved lineage state.
+#[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+pub(crate) use witness::Witness;
+
+#[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+mod witness {
+  use core::{
+    cell::{Cell, RefCell},
+    sync::atomic::{AtomicUsize, Ordering},
+  };
+
+  use std::vec::Vec;
+
+  /// Hands out a distinct identity to every [`Input`](super::Input) so a checkpoint
+  /// carries a witness of the input that produced it.
+  static NEXT_INPUT_ID: AtomicUsize = AtomicUsize::new(0);
+
+  /// Tracks the checkpoints that are still live for one input.
+  ///
+  /// A live checkpoint is one that has been saved and neither restored nor
+  /// invalidated by restoring an older one. Restoring pops the stack down through
+  /// the restored id (inclusive), which is exactly the set of checkpoints the
+  /// restore invalidates. The counter is monotone and never reused, so an id popped
+  /// off the stack can never be mistaken for a live one.
+  ///
+  /// The cells give `save` (which takes `&self`) a place to record without widening
+  /// its signature; the whole type is debug-only scaffolding.
+  #[derive(Debug)]
+  pub(crate) struct Witness {
+    input_id: usize,
+    next_ckp_id: Cell<u64>,
+    live: RefCell<Vec<u64>>,
+  }
+
+  impl Witness {
+    /// Creates a witness with a fresh, process-unique input identity and no live
+    /// checkpoints.
+    pub(crate) fn new() -> Self {
+      Self {
+        input_id: NEXT_INPUT_ID.fetch_add(1, Ordering::Relaxed),
+        next_ckp_id: Cell::new(0),
+        live: RefCell::new(Vec::new()),
+      }
+    }
+
+    /// The identity of the input this witness belongs to.
+    pub(crate) fn input_id(&self) -> usize {
+      self.input_id
+    }
+
+    /// Records a freshly saved checkpoint and returns its id.
+    pub(crate) fn push(&self) -> u64 {
+      let id = self.next_ckp_id.get();
+      self.next_ckp_id.set(id + 1);
+      self.live.borrow_mut().push(id);
+      id
+    }
+
+    /// Returns whether `id` is still a live checkpoint of this input.
+    pub(crate) fn contains(&self, id: u64) -> bool {
+      self.live.borrow().contains(&id)
+    }
+
+    /// Pops the live stack down through `id` inclusive, invalidating it and every
+    /// checkpoint saved after it.
+    pub(crate) fn pop_through(&self, id: u64) {
+      let mut live = self.live.borrow_mut();
+      if let Some(pos) = live.iter().position(|&x| x == id) {
+        live.truncate(pos);
+      }
+    }
+
+    /// Invalidates every live checkpoint (used when lexer state is replaced).
+    pub(crate) fn clear(&self) {
+      self.live.borrow_mut().clear();
+    }
+  }
+
+  impl Clone for Witness {
+    /// A clone is a **new** input: it gets a fresh identity and no live checkpoints,
+    /// so a clone's checkpoints and the original's can never be confused for one
+    /// another.
+    fn clone(&self) -> Self {
+      Self::new()
+    }
+  }
+}
+
 /// The context for parsing input
 pub struct InputContext<E, C> {
   emitter: E,
@@ -138,7 +231,6 @@ where
   input: &'inp L::Source,
   state: L::State,
   span: L::Span,
-  cursor: L::Offset,
   cache: Ctx::Cache,
   /// High-water mark: lexer errors whose span ends at or before this offset have
   /// already been emitted (e.g. during a peek that lexed past this point), so the
@@ -156,12 +248,15 @@ where
   /// short-circuits to its poisoned outcome **without** rebuilding a lexer or
   /// rescanning the tripping token, keeping error-recovery work bounded on
   /// untrusted input. Lexing *strictly before* the frontier still proceeds, so a
-  /// cache prefix drained after the trip stays replayable. It is checkpointed by
-  /// [`save`](InputRef::save) and obeys a never-*more*-poisoned discipline under
-  /// [`restore`](InputRef::restore) (smaller offset = more poisoned, `None` =
-  /// +infinity): a restore may only relax the frontier toward the less-poisoned of
-  /// the saved and current values, never make the input more poisoned.
+  /// cache prefix drained after the trip stays replayable. It is a fact of one
+  /// lineage: [`save`](InputRef::save) captures it and [`restore`](InputRef::restore)
+  /// copies it back verbatim, since a last-in, first-out restore returns to exactly
+  /// the lineage the checkpoint recorded.
   poison_boundary: Option<L::Offset>,
+  /// Debug-only witness of the last-in, first-out checkpoint discipline (see
+  /// [`InputRef::restore`]).
+  #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+  witness: Witness,
 }
 
 impl<'inp, L, Ctx, Lang: ?Sized> Clone for Input<'inp, L, Ctx, Lang>
@@ -177,10 +272,14 @@ where
       input: self.input,
       state: self.state.clone(),
       span: self.span.clone(),
-      cursor: self.cursor.clone(),
       cache: self.cache.clone(),
       emitted_error_end: self.emitted_error_end.clone(),
       poison_boundary: self.poison_boundary.clone(),
+      // A clone is a new input: `Witness::clone` mints a fresh identity and an empty
+      // live-checkpoint stack, so the clone's checkpoints and the original's never
+      // cross.
+      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      witness: self.witness.clone(),
     }
   }
 }
@@ -230,11 +329,12 @@ where
     Self {
       input,
       state,
-      cursor: L::Offset::default(),
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache: DefaultCache::<'inp, L>::default(),
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
+      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      witness: Witness::new(),
     }
   }
 }
@@ -252,11 +352,12 @@ where
     Self {
       input,
       state,
-      cursor: L::Offset::default(),
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache,
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
+      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      witness: Witness::new(),
     }
   }
 
@@ -273,6 +374,8 @@ where
       span: &mut self.span,
       emitted_error_end: &mut self.emitted_error_end,
       poison_boundary: &mut self.poison_boundary,
+      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      witness: &mut self.witness,
       emitter,
       _marker: PhantomData,
     }

@@ -42,9 +42,16 @@ where
     self.inp.state()
   }
 
-  /// Returns the state of the lexer.
+  /// Returns a mutable reference to the state of the lexer.
+  ///
+  /// # Checkpoint invalidation
+  ///
+  /// Replacing the lexer state re-keys every offset-dependent fact the input tracks
+  /// (cache spans, dedup watermark, poison boundary). All outstanding checkpoints are
+  /// invalidated; restoring one afterwards is a contract violation (debug builds
+  /// panic).
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn state_mut(&mut self) -> &mut L::State {
+  pub fn state_mut(&mut self) -> &mut L::State {
     self.inp.state_mut()
   }
 
