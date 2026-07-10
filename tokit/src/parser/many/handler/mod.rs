@@ -2,7 +2,7 @@ use generic_arraydeque::{ArrayLength, GenericArrayDeque};
 
 use crate::{
   Emitter, Lexer, ParseContext,
-  input::{Checkpoint, InputRef},
+  input::{Cursor, InputRef},
   span::Spanned,
 };
 
@@ -449,7 +449,7 @@ pub(super) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -459,7 +459,7 @@ pub(super) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -469,7 +469,7 @@ pub(super) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     leading_sep: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -480,7 +480,7 @@ pub(super) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     sep: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -503,7 +503,7 @@ pub(super) trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Siz
     &self,
     _: usize,
     _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    _: &Checkpoint<'inp, 'closure, L>,
+    _: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -529,7 +529,7 @@ pub(super) trait RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang: ?Sized> {
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -539,7 +539,7 @@ pub(super) trait RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang: ?Sized> {
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

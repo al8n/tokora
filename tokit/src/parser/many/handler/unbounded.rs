@@ -20,13 +20,13 @@ where
     &self,
     _: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    Ok(inp.span_since(ckp.cursor()))
+    Ok(inp.span_since(anchor))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -34,13 +34,13 @@ where
     &self,
     _: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    Ok(inp.span_since(ckp.cursor()))
+    Ok(inp.span_since(anchor))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -48,7 +48,7 @@ where
     &self,
     _: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     _: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -56,7 +56,7 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     // nothing to do, the unexpected leading separator should be handled by SeparatorStateHandler or ContinueStateHandler
-    Ok(inp.span_since(ckp.cursor()))
+    Ok(inp.span_since(anchor))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -64,7 +64,7 @@ where
     &self,
     _: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     sep: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -78,7 +78,7 @@ where
       UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok),
     )?;
 
-    Ok(inp.span_since(ckp.cursor()))
+    Ok(inp.span_since(anchor))
   }
 }
 
@@ -140,7 +140,7 @@ where
     &self,
     _: usize,
     _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    _: &Checkpoint<'inp, 'closure, L>,
+    _: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -154,12 +154,12 @@ where
     &self,
     _: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    Ok(inp.span_since(ckp.cursor()))
+    Ok(inp.span_since(anchor))
   }
 }

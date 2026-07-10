@@ -283,7 +283,7 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
     Container: crate::container::Container<O>,
     RH: RepeatedHandler<'inp, 'c, O, L, Ctx, Lang>,
   {
-    let ckp = inp.save();
+    let anchor = inp.cursor().clone();
     let mut nums = 0;
 
     loop {
@@ -293,13 +293,13 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
         Err(err) => return Err(err),
         Ok(action) => match action {
           Action::Stop => {
-            let span = inp.span_since(ckp.cursor());
-            return rh.on_stop(nums, inp, &ckp).map(|_| span);
+            let span = inp.span_since(&anchor);
+            return rh.on_stop(nums, inp, &anchor).map(|_| span);
           }
           Action::Continue => {
-            rh.on_element(nums, inp, &ckp)?;
+            rh.on_element(nums, inp, &anchor)?;
             if container.push(self.f.parse_input(inp)?).is_err() {
-              let span = inp.span_since(ckp.cursor());
+              let span = inp.span_since(&anchor);
               inp.emitter().emit_full_container(FullContainer::of(
                 span,
                 nums + 1,

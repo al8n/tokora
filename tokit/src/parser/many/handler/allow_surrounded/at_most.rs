@@ -2,7 +2,7 @@ use crate::{
   Emitter, Lexer, ParseContext,
   emitter::{SeparatedEmitter, TooManyEmitter},
   error::syntax::MissingSyntaxOf,
-  input::{Checkpoint, InputRef},
+  input::{Cursor, InputRef},
   parser::{
     AllowLeading, AllowTrailing, Maximum,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},
@@ -22,13 +22,13 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.parser.check(inp, ckp, num_elems)
+    self.parser.parser.check(inp, anchor, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -36,13 +36,13 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.parser.check(inp, ckp, num_elems)
+    self.parser.parser.check(inp, anchor, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -50,7 +50,7 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     spanned: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -62,8 +62,8 @@ where
       .emit_missing_element(MissingSyntaxOf::<'_, L, Lang>::of(
         spanned.span_ref().start(),
       ))
-      .and_then(|_| self.parser.parser.check(inp, ckp, num_elems))
-      .map(|_| inp.span_since(ckp.cursor()))
+      .and_then(|_| self.parser.parser.check(inp, anchor, num_elems))
+      .map(|_| inp.span_since(anchor))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -71,14 +71,14 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     _: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.parser.check(inp, ckp, num_elems)
+    self.parser.parser.check(inp, anchor, num_elems)
   }
 }
 
@@ -108,7 +108,7 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -118,7 +118,7 @@ where
       &self.parser.parser,
       num_elems,
       inp,
-      ckp,
+      anchor,
     )
   }
 }

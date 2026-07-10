@@ -2,7 +2,7 @@ use crate::{
   Emitter, Lexer, ParseContext,
   emitter::{MissingLeadingSeparatorEmitter, SeparatedEmitter, TooFewEmitter},
   error::{syntax::MissingSyntaxOf, token::MissingTokenOf},
-  input::{Checkpoint, InputRef},
+  input::{Cursor, InputRef},
   parser::{
     AllowTrailing, Minimum, RequireLeading,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},
@@ -23,13 +23,13 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.parser.check(inp, ckp, num_elems)
+    self.parser.parser.check(inp, anchor, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -37,13 +37,13 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.parser.check(inp, ckp, num_elems)
+    self.parser.parser.check(inp, anchor, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -51,7 +51,7 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     spanned: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -61,7 +61,7 @@ where
     inp
       .emitter()
       .emit_missing_element(MissingSyntaxOf::<'_, L, Lang>::of(spanned.span_ref().end()))
-      .and_then(|_| self.parser.parser.check(inp, ckp, num_elems))
+      .and_then(|_| self.parser.parser.check(inp, anchor, num_elems))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -69,14 +69,14 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     _: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.parser.check(inp, ckp, num_elems)
+    self.parser.parser.check(inp, anchor, num_elems)
   }
 }
 

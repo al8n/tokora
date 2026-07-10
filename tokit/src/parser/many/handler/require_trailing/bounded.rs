@@ -5,7 +5,7 @@ use crate::{
     UnexpectedLeadingSeparatorEmitter,
   },
   error::token::{MissingTokenOf, UnexpectedTokenOf},
-  input::{Checkpoint, InputRef},
+  input::{Cursor, InputRef},
   parser::{
     Maximum, Minimum, RequireTrailing, With,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler},
@@ -30,13 +30,13 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.check(inp, ckp, num_elems)
+    self.parser.check(inp, anchor, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -44,17 +44,17 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let span = inp.span_since(ckp.cursor());
+    let span = inp.span_since(anchor);
     inp
       .emitter()
       .emit_missing_trailing_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(span.end()))
-      .and_then(|_| self.parser.check(inp, ckp, num_elems))
+      .and_then(|_| self.parser.check(inp, anchor, num_elems))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -62,14 +62,14 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     _: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.check(inp, ckp, num_elems)
+    self.parser.check(inp, anchor, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -77,14 +77,14 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     _: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.parser.check(inp, ckp, num_elems)
+    self.parser.check(inp, anchor, num_elems)
   }
 }
 
@@ -116,7 +116,7 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -126,7 +126,7 @@ where
       self.parser.secondary(),
       num_elems,
       inp,
-      ckp,
+      anchor,
     )
   }
 }

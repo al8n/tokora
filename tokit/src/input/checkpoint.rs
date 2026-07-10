@@ -30,8 +30,9 @@ use super::{Cursor, Lexer};
 ///
 /// In debug builds [`restore`](crate::InputRef::restore) verifies the discipline and
 /// panics on violation; see its documentation for release behavior. Prefer
-/// [`attempt`](crate::InputRef::attempt) (and `try_attempt`), which manage the
-/// save/restore pair structurally and cannot violate the discipline.
+/// [`attempt`](crate::InputRef::attempt) (and
+/// [`try_attempt`](crate::InputRef::try_attempt)), which manage the save/restore pair
+/// structurally and cannot violate the discipline.
 pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
   cursor: Cursor<'a, 'closure, L>,
   /// The actual `InputRef::span` at save time.

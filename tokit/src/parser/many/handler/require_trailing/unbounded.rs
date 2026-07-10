@@ -5,7 +5,7 @@ use crate::{
     syntax::MissingSyntaxOf,
     token::{MissingTokenOf, UnexpectedTokenOf},
   },
-  input::{Checkpoint, InputRef},
+  input::{Cursor, InputRef},
   parser::{
     RequireTrailing,
     many::{ContinueStateHandler, EndStateHandler, SeparatorStateHandler, Unbounded},
@@ -29,13 +29,13 @@ where
     &self,
     _: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    Ok(inp.span_since(ckp.cursor()))
+    Ok(inp.span_since(anchor))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -43,13 +43,13 @@ where
     &self,
     _: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    let span = inp.span_since(ckp.cursor());
+    let span = inp.span_since(anchor);
     inp
       .emitter()
       .emit_missing_trailing_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(span.end()))
@@ -61,7 +61,7 @@ where
     &self,
     _: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     spanned: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -73,7 +73,7 @@ where
       .emit_missing_element(MissingSyntaxOf::<'_, L, Lang>::of(
         spanned.span_ref().start(),
       ))
-      .map(|_| inp.span_since(ckp.cursor()))
+      .map(|_| inp.span_since(anchor))
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -81,14 +81,14 @@ where
     &self,
     _: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     _: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    Ok(inp.span_since(ckp.cursor()))
+    Ok(inp.span_since(anchor))
   }
 }
 

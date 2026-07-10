@@ -39,7 +39,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
-    let ckp = inp.save();
+    let anchor = inp.cursor().clone();
     let mut first_kind = None;
     let left_delimiter = inp.try_expect(|tok| {
       let (span, tok) = tok.into_components();
@@ -81,7 +81,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       })? {
         Some(closed) => {
           container.on_close_delimiter(closed);
-          let span = inp.span_since(ckp.cursor());
+          let span = inp.span_since(&anchor);
           return on_stop(nums, inp, &span).map(|_| mem::take(container));
         }
         None => {
@@ -99,7 +99,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
               Action::Continue => {
                 // TODO(al8n): tracing dropped element
                 if let Err(_e) = container.push(self.parser.f.parse_input(inp)?) {
-                  let span = inp.span_since(ckp.cursor());
+                  let span = inp.span_since(&anchor);
                   inp.emitter().emit_full_container(FullContainer::of(
                     span,
                     nums,

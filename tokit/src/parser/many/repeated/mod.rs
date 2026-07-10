@@ -254,13 +254,13 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
     RH: RepeatedHandler<'inp, 'c, O, L, Ctx, Lang>,
   {
     let mut num = 0;
-    let ckp = inp.save();
-    let mut cursor = ckp.cursor().clone();
+    let anchor = inp.cursor().clone();
+    let mut cursor = anchor.clone();
 
     loop {
       match self.f.try_parse_input(inp) {
         Ok(Accept(item)) => {
-          rh.on_element(num, inp, &ckp)?;
+          rh.on_element(num, inp, &anchor)?;
           if container.push(item).is_err() {
             let span = inp.span_since(&cursor);
             inp.emitter().emit_full_container(FullContainer::of(
@@ -285,6 +285,6 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
       cursor = new_cursor;
     }
 
-    rh.on_stop(num, inp, &ckp)
+    rh.on_stop(num, inp, &anchor)
   }
 }

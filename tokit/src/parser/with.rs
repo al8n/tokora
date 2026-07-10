@@ -1,7 +1,7 @@
 use crate::{
   emitter::{SeparatedEmitter, TooFewEmitter, TooManyEmitter},
   error::syntax::{TooFew, TooMany},
-  input::Checkpoint,
+  input::Cursor,
 };
 
 use super::*;
@@ -85,7 +85,7 @@ impl With<Minimum, Maximum> {
   pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -95,7 +95,7 @@ impl With<Minimum, Maximum> {
       + TooFewEmitter<'inp, L, Lang>
       + TooManyEmitter<'inp, L, Lang>,
   {
-    let full_span = inp.span_since(ckp.cursor());
+    let full_span = inp.span_since(anchor);
     let minimum = self.primary().get();
     let maximum = self.secondary().get();
     if num_elems < minimum {
@@ -118,7 +118,7 @@ impl Minimum {
   pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -126,7 +126,7 @@ impl Minimum {
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + TooFewEmitter<'inp, L, Lang>,
   {
-    let full_span = inp.span_since(ckp.cursor());
+    let full_span = inp.span_since(anchor);
     let minimum = self.get();
     if num_elems < minimum {
       inp
@@ -142,7 +142,7 @@ impl Maximum {
   pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -150,7 +150,7 @@ impl Maximum {
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + TooManyEmitter<'inp, L, Lang>,
   {
-    let full_span = inp.span_since(ckp.cursor());
+    let full_span = inp.span_since(anchor);
     let maximum = self.get();
     if num_elems > maximum {
       inp

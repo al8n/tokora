@@ -275,6 +275,9 @@ where
   /// This is the recommended way to backtrack: the save/restore pair is scoped to the
   /// closure, so the last-in, first-out discipline documented on [`restore`](Self::restore)
   /// holds by construction, even under nesting.
+  ///
+  /// For fallible closures that carry an error value, see
+  /// [`try_attempt`](Self::try_attempt).
   pub fn attempt<F, R>(&mut self, f: F) -> Option<R>
   where
     F: FnOnce(&mut Self) -> Option<R>,
@@ -286,6 +289,36 @@ where
       None => {
         self.restore(ckp);
         None
+      }
+    }
+  }
+
+  /// Attempts to parse with a fallible function, rolling back on error.
+  ///
+  /// The `Result`-shaped sibling of [`attempt`](Self::attempt), for recovery- and
+  /// pratt-style flows that need the failure value. A checkpoint is saved before `f`
+  /// runs.
+  ///
+  /// - If `f` returns `Ok`, its progress is kept and the value is returned.
+  /// - If `f` returns `Err`, the input rolls back to the checkpoint and the error is
+  ///   returned to the caller. Everything the attempt touched returns to its
+  ///   pre-attempt value: the position, the lexer state, the diagnostics emitted
+  ///   inside the attempt, the dedup watermark, and the poison boundary.
+  ///
+  /// Like `attempt`, this is a structural way to backtrack: the save/restore pair is
+  /// scoped to the closure, so the last-in, first-out discipline documented on
+  /// [`restore`](Self::restore) holds by construction, even under nesting.
+  pub fn try_attempt<F, T, E>(&mut self, f: F) -> Result<T, E>
+  where
+    F: FnOnce(&mut Self) -> Result<T, E>,
+  {
+    let ckp = self.save();
+
+    match f(self) {
+      Ok(result) => Ok(result),
+      Err(e) => {
+        self.restore(ckp);
+        Err(e)
       }
     }
   }
@@ -370,8 +403,9 @@ where
   /// nothing in release builds. Saving never invalidates other checkpoints; only
   /// restoring does (see [`Checkpoint`]'s validity section).
   ///
-  /// Prefer [`attempt`](Self::attempt) when the save/restore pair brackets a single
-  /// speculative computation — it enforces the restore discipline by construction.
+  /// Prefer [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) when the
+  /// save/restore pair brackets a single speculative computation — they enforce the
+  /// restore discipline by construction.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn save(&self) -> Checkpoint<'inp, 'closure, L> {
     Checkpoint::new(

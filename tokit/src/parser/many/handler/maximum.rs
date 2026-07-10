@@ -25,13 +25,13 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.check(inp, ckp, num_elems)
+    self.check(inp, anchor, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -39,13 +39,13 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.check(inp, ckp, num_elems)
+    self.check(inp, anchor, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -53,14 +53,14 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     _: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    self.check(inp, ckp, num_elems)
+    self.check(inp, anchor, num_elems)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -68,7 +68,7 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     sep: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -82,7 +82,7 @@ where
       UnexpectedTokenOf::<'_, L, Lang>::of(span).with_found(tok),
     )?;
 
-    self.check(inp, ckp, num_elems)
+    self.check(inp, anchor, num_elems)
   }
 }
 
@@ -111,7 +111,7 @@ where
     &self,
     num_elems: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -119,7 +119,7 @@ where
   {
     let max = self.get();
     if num_elems >= max {
-      let span = inp.span_since(ckp.cursor());
+      let span = inp.span_since(anchor);
       inp
         .emitter()
         .emit_too_many(TooMany::of(span, num_elems, max))?;
@@ -167,7 +167,7 @@ where
     &self,
     nums: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -175,7 +175,7 @@ where
   {
     let max = self.get();
     if nums > max {
-      let span = inp.span_since(ckp.cursor());
+      let span = inp.span_since(anchor);
       inp.emitter().emit_too_many(TooMany::of(span, nums, max))?;
     }
 
@@ -187,13 +187,13 @@ where
     &self,
     nums: usize,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    <Self as RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang>>::on_element(self, nums, inp, ckp)
-      .map(|_| inp.span_since(ckp.cursor()))
+    <Self as RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang>>::on_element(self, nums, inp, anchor)
+      .map(|_| inp.span_since(anchor))
   }
 }

@@ -51,7 +51,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
-    let ckp = inp.save();
+    let anchor = inp.cursor().clone();
     let mut first_kind = None;
     let left_delimiter = inp.try_expect(|tok| {
       let (span, tok) = tok.into_components();
@@ -108,9 +108,9 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
             continue;
           }
 
-          parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?;
+          parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?;
           container.on_close_delimiter(tok);
-          return Ok(inp.span_since(ckp.cursor()));
+          return Ok(inp.span_since(&anchor));
         }
         None => {
           let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
@@ -118,7 +118,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
           let front_span = match peeked.front() {
             None => {
               drop(peeked);
-              parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?;
+              parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?;
 
               if let Some(err) = err {
                 inp.emitter().emit_unexpected_token(err)?;
@@ -136,7 +136,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
 
           match parser.condition.decide(peeked, emitter)? {
             Action::Stop => {
-              parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?;
+              parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?;
               let mut err = None;
               return match inp.try_expect(|tok| match Delim::is_close(&tok.data.kind()) {
                 true => true,
@@ -162,7 +162,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
               state = parser.handle_continue(
                 state,
                 inp,
-                &ckp,
+                &anchor,
                 &front_span,
                 &mut num_elems,
                 container,

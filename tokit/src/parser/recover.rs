@@ -1,4 +1,4 @@
-use crate::input::Checkpoint;
+use crate::input::Cursor;
 
 use super::*;
 
@@ -84,17 +84,21 @@ where
 /// A trait for recovery parsers that continue from the error position without backtracking.
 ///
 /// This trait defines the interface for recovery parsers used by [`InplaceRecover`]. When the
-/// primary parser fails, implementors of this trait receive the error and the checkpoint, and
-/// attempt to produce a valid output by parsing from the current (error) position.
+/// primary parser fails, implementors of this trait receive the error and a [`Cursor`] marking
+/// where the primary parser started, and attempt to produce a valid output by parsing from the
+/// current (error) position.
 ///
 /// Unlike [`RecoverInput`], the input position is **not** restored - recovery continues from
-/// where the primary parser stopped.
+/// where the primary parser stopped. The recovery handler receives a [`Cursor`] rather than a
+/// [`Checkpoint`](crate::input::Checkpoint) because checkpoints are single-use backtracking
+/// capabilities (restoring one consumes it); a recovery handler only needs the position facts
+/// the cursor carries, e.g. to span from the start of the failed parse.
 ///
 /// # Automatic Implementation
 ///
 /// This trait is automatically implemented for closures with the signature:
 /// ```ignore
-/// FnMut(&mut InputRef, Checkpoint, Error) -> Result<O, Error>
+/// FnMut(&mut InputRef, Cursor, Error) -> Result<O, Error>
 /// ```
 ///
 /// # Example
@@ -106,7 +110,7 @@ where
 /// struct SkipToSemicolon;
 ///
 /// impl InplaceRecoverInput<'_, MyLexer, Stmt, MyContext> for SkipToSemicolon {
-///     fn inplace_recover_input(&mut self, input, _ckp, _err) -> Result<Stmt, Error> {
+///     fn inplace_recover_input(&mut self, input, _cursor, _err) -> Result<Stmt, Error> {
 ///         // Skip tokens until semicolon from current position
 ///         while !input.peek().is_semicolon() {
 ///             input.next();
@@ -117,7 +121,7 @@ where
 /// }
 ///
 /// // Or use a closure (automatic implementation)
-/// parser.inplace_recover(|input, _ckp, _err| {
+/// parser.inplace_recover(|input, _cursor, _err| {
 ///     // Skip to semicolon from error position
 ///     skip_to_semicolon(input)?;
 ///     Ok(Stmt::Error)
@@ -134,7 +138,8 @@ pub trait InplaceRecoverInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// # Parameters
   ///
   /// - `input`: Input reference at the current (error) position
-  /// - `ckp`: Checkpoint saved before the primary parser started (for reference only)
+  /// - `cursor`: A [`Cursor`] marking where the primary parser started — a position
+  ///   view, not a restorable checkpoint (recovery cannot backtrack)
   /// - `err`: The error produced by the failed primary parser
   ///
   /// # Returns
@@ -144,7 +149,7 @@ pub trait InplaceRecoverInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn inplace_recover_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-    ckp: Checkpoint<'inp, '_, L>,
+    cursor: Cursor<'inp, '_, L>,
     err: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -158,7 +163,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   F: FnMut(
     &mut InputRef<'inp, '_, L, Ctx, Lang>,
-    Checkpoint<'inp, '_, L>,
+    Cursor<'inp, '_, L>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
@@ -166,10 +171,10 @@ where
   fn inplace_recover_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-    ckp: Checkpoint<'inp, '_, L>,
+    cursor: Cursor<'inp, '_, L>,
     err: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    (self)(input, ckp, err)
+    (self)(input, cursor, err)
   }
 }
 
@@ -489,10 +494,12 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let ckp = inp.save();
+    // The in-place path never backtracks: hand the recovery handler a position view
+    // (the cursor where the primary parser started), not a restorable checkpoint.
+    let cursor = inp.cursor().clone();
     match self.parser.parse_input(inp) {
       Ok(output) => Ok(output),
-      Err(e) => self.recoverer.inplace_recover_input(inp, ckp, e),
+      Err(e) => self.recoverer.inplace_recover_input(inp, cursor, e),
     }
   }
 }

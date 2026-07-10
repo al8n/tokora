@@ -1127,3 +1127,203 @@ fn property_random_lifo_scripts_stay_faithful_and_bounded() {
     }
   }
 }
+
+// ── try_attempt: Result-shaped speculation ─────────────────────────────────────
+//
+// `try_attempt` is the fallible sibling of `attempt`: on `Ok` progress is kept, on
+// `Err` the input rolls back exactly as `restore` would and the error is returned.
+// The save/restore pair is closure-scoped, so it is LIFO by construction.
+
+#[test]
+fn try_attempt_ok_keeps_progress() {
+  use crate::span::SimpleSpan;
+  // On `Ok`, the closure's progress is kept and the value is passed through.
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  let start = *inp.cursor().as_inner();
+  let out: Result<i64, ()> = inp.try_attempt(|inp| {
+    let _ = inp.next().unwrap().expect("first token");
+    let _ = inp.next().unwrap().expect("second token");
+    Ok(7)
+  });
+  assert_eq!(out, Ok(7), "the Ok value is returned");
+  assert!(
+    *inp.cursor().as_inner() > start,
+    "progress is kept — the cursor advanced past the consumed tokens"
+  );
+  // The two consumes stuck, so the next token is the third.
+  assert_eq!(
+    *inp.next().unwrap().expect("third token").span_ref(),
+    SimpleSpan::new(4, 5)
+  );
+}
+
+#[test]
+fn try_attempt_err_rolls_back_everything() {
+  use crate::span::SimpleSpan;
+
+  // ── position, span, lexer state, emission log, and the dedup watermark ─────────
+  // "1 @ 2": crossing the malformed `@` inside the attempt emits its lexer error and
+  // lifts the watermark. Returning `Err` must roll every one of those back.
+  {
+    let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+    let mut emitter = Verbose::<ByValErr>::new();
+    let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+      "1 @ 2",
+      TokenLimiter::with_limitation(usize::MAX),
+      cache,
+    );
+
+    // Phase 1: the attempt consumes across `@` (emitting the lexer error), then
+    // abandons. Position, span, and lexer state must all return to their saved values.
+    {
+      let mut inp = input.as_ref(&mut emitter);
+
+      let cur0 = *inp.cursor().as_inner();
+      let span0 = *inp.span();
+      let tokens0 = inp.state().tokens();
+
+      let out: Result<(), ()> = inp.try_attempt(|inp| {
+        // Consume `1`, cross `@` (emits the lexer error, lifts the watermark),
+        // consume `2`, then abandon the branch.
+        while inp.next().unwrap().is_some() {}
+        Err(())
+      });
+      assert_eq!(out, Err(()), "the error is returned to the caller");
+
+      assert_eq!(*inp.cursor().as_inner(), cur0, "position rolled back");
+      assert_eq!(*inp.span(), span0, "last-consumed span rolled back");
+      assert_eq!(inp.state().tokens(), tokens0, "lexer state rolled back");
+    }
+
+    // The emission log was truncated by the rollback: nothing the attempt emitted
+    // survives.
+    let after_rollback: usize = emitter.errors().values().map(|g| g.len()).sum();
+    assert_eq!(
+      after_rollback, 0,
+      "diagnostics emitted inside the attempt are rolled back (empty emission log)"
+    );
+
+    // Phase 2: the watermark rolled back too, so the committed path re-crosses `@`
+    // and the rewound lexer error becomes re-emittable — exactly once.
+    {
+      let mut inp = input.as_ref(&mut emitter);
+      while inp.next().unwrap().is_some() {}
+    }
+    let at = SimpleSpan::new(2, 3);
+    assert_eq!(
+      emitter.errors().get(&at).map(|g| g.len()).unwrap_or(0),
+      1,
+      "the rewound lexer error re-emits exactly once when re-reached"
+    );
+    let total: usize = emitter.errors().values().map(|g| g.len()).sum();
+    assert_eq!(total, 1, "only the re-emitted lexer error is retained");
+  }
+
+  // ── the poison boundary, via a limit-trip variant ─────────────────────────────
+  // An overflow peek inside the attempt trips the limiter (latching poison and
+  // emitting the diagnostic); the `Err` rollback un-latches it, and the committed
+  // path re-trips — the diagnostic surviving exactly once, never a diagnostic-less
+  // latch.
+  {
+    use generic_arraydeque::typenum::U6;
+    let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+    let mut emitter = Verbose::<ByValErr>::new();
+    let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+      "1 2 3 4 5 6",
+      TokenLimiter::with_limitation(5),
+      cache,
+    );
+    {
+      let mut inp = input.as_ref(&mut emitter);
+
+      let out: Result<(), ()> = inp.try_attempt(|inp| {
+        let _ = inp.peek::<U6>().unwrap(); // overflow trip: poison + diagnostic
+        Err(())
+      });
+      assert_eq!(out, Err(()));
+      assert!(
+        !inp.is_poisoned(),
+        "the Err rollback un-latches the speculative poison boundary"
+      );
+
+      // The committed path re-reaches the trip and re-latches.
+      while inp.next().unwrap().is_some() {}
+      assert!(inp.is_poisoned(), "the committed re-lex re-latches poison");
+    }
+    let total: usize = emitter.errors().values().map(|g| g.len()).sum();
+    assert_eq!(
+      total, 1,
+      "the limit diagnostic is emitted exactly once in total"
+    );
+  }
+}
+
+#[test]
+fn try_attempt_nested_lifo() {
+  use crate::span::SimpleSpan;
+
+  // A `try_attempt` nested inside an `attempt`: the inner `Err` rollback is fully
+  // contained, and the outer keeps its own progress. The closure-scoped save/restore
+  // pairs nest as a stack, so the LIFO witness never fires.
+  {
+    let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+    let mut emitter = Silent::<ProbeErr>::new();
+    let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+      "1 2 3 4",
+      ProbeLimiter::with_limit(usize::MAX),
+      cache,
+    );
+    let mut inp = input.as_ref(&mut emitter);
+
+    let out = inp.attempt(|inp| {
+      let _ = inp.next().unwrap().expect("outer consumes 1");
+      let inner: Result<(), ()> = inp.try_attempt(|inp| {
+        let _ = inp.next().unwrap().expect("inner consumes 2");
+        Err(()) // inner rolls back to just after 1
+      });
+      assert!(inner.is_err(), "the inner try_attempt returned Err");
+      Some(()) // outer keeps its own progress (only 1 consumed)
+    });
+    assert!(out.is_some(), "the outer attempt kept progress");
+    // The inner's consume of 2 was rolled back; the next token is 2.
+    assert_eq!(
+      *inp.next().unwrap().expect("token 2").span_ref(),
+      SimpleSpan::new(2, 3)
+    );
+  }
+
+  // The mirror image: an `attempt` nested inside a `try_attempt`.
+  {
+    let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+    let mut emitter = Silent::<ProbeErr>::new();
+    let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+      "1 2 3 4",
+      ProbeLimiter::with_limit(usize::MAX),
+      cache,
+    );
+    let mut inp = input.as_ref(&mut emitter);
+
+    let out: Result<(), ()> = inp.try_attempt(|inp| {
+      let _ = inp.next().unwrap().expect("outer consumes 1");
+      let inner = inp.attempt(|inp| {
+        let _ = inp.next().unwrap().expect("inner consumes 2");
+        None::<()> // inner rolls back to just after 1
+      });
+      assert!(inner.is_none(), "the inner attempt returned None");
+      Ok(()) // outer keeps its own progress (only 1 consumed)
+    });
+    assert!(out.is_ok(), "the outer try_attempt kept progress");
+    assert_eq!(
+      *inp.next().unwrap().expect("token 2").span_ref(),
+      SimpleSpan::new(2, 3)
+    );
+  }
+}
