@@ -152,8 +152,11 @@ where
   /// latch dies with the lexer. Persisting it here means the very next
   /// `next()`/`peek()` short-circuits to empty **without** rebuilding a lexer or
   /// rescanning the tripping token, keeping error-recovery work bounded on
-  /// untrusted input. It is sticky for the lifetime of the input and is **not**
-  /// cleared by [`restore`](InputRef::restore), mirroring the lexer-level latch.
+  /// untrusted input. It is checkpointed by [`save`](InputRef::save) and obeys a
+  /// never-raise discipline under [`restore`](InputRef::restore): a restore may
+  /// only *lower* it — un-latching a speculative trip in lockstep with the emitter
+  /// rewind that removed its diagnostic — never raise it, so re-entry while latched
+  /// still never rebuilds a lexer.
   poisoned: bool,
 }
 

@@ -399,3 +399,127 @@ fn stale_younger_restore_keeps_rewound_lexer_error_reemittable() {
     "a stale younger restore must not raise the watermark past a rewound error — it stays re-emittable and is reported exactly once"
   );
 }
+
+#[test]
+fn restore_before_overflow_trip_reemits_limit_diagnostic_exactly_once() {
+  // A limit trip during an *overflow* peek latches poison AND emits the limit
+  // diagnostic together. A caller that saved BEFORE that speculative peek and then
+  // restores must not be left silently poisoned: `restore` un-latches the poison
+  // (the AND-clamp lowers it toward the clean saved value) in lockstep with the
+  // emitter rewind that removed the speculative diagnostic. The committed drain
+  // then re-lexes the region, re-trips, re-latches, and RE-EMITS the diagnostic —
+  // exactly once, never a diagnostic-less latch masquerading as clean EOF.
+  //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    ProbeLimiter::with_limit(5),
+    cache,
+  );
+
+  {
+    use generic_arraydeque::typenum::U6;
+    let mut inp = input.as_ref(&mut emitter);
+
+    // save BEFORE the speculative peek: the checkpoint is clean (poisoned = false).
+    let ckp = inp.save();
+
+    // Overflow peek (U6 > U3 cache) trips the limiter mid-overflow: poison latches
+    // and the limit diagnostic is sealed into the emitter.
+    let _ = inp.peek::<U6>().unwrap();
+    assert!(inp.is_poisoned(), "the overflow trip must latch poison");
+
+    // Restore the pre-peek checkpoint: the emitter rewinds the speculative
+    // diagnostic AND the AND-clamp lowers poison back to the clean saved value, so
+    // the latch is not left stranded without its diagnostic.
+    inp.restore(ckp);
+    assert!(
+      !inp.is_poisoned(),
+      "restoring a clean checkpoint must un-latch the speculative poison"
+    );
+
+    // Drain the committed path: it re-lexes the region and re-trips the limiter.
+    while inp.next().unwrap().is_some() {}
+
+    // The re-trip re-establishes the latch — poison stays paired with its diagnostic.
+    assert!(
+      inp.is_poisoned(),
+      "the committed re-lex must re-latch poison"
+    );
+  }
+
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 1,
+    "the limit diagnostic must survive save → overflow-trip → restore → drain, reported exactly once"
+  );
+}
+
+#[test]
+fn stale_younger_restore_never_leaves_poison_without_its_diagnostic() {
+  // Out-of-order (non-LIFO) restores must never leave the input latched while the
+  // emission log has already unwound the limit diagnostic. The end-state invariant
+  // is "poisoned implies a retained limit diagnostic".
+  //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
+  //
+  // save A (clean, BEFORE the trip) → overflow peek trips (poison + diagnostic) →
+  // save B (AFTER the trip: poisoned, its saved watermark ABOVE the diagnostic) →
+  // drain the speculative branch (empties the cache) → restore A (older: un-latches
+  // poison, drops the watermark, unwinds the diagnostic) → restore B (STALE younger:
+  // the AND-clamp keeps poison LOW — it cannot resurrect a latch whose diagnostic the
+  // log can no longer produce). The committed drain re-lexes, re-trips, and re-emits.
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    ProbeLimiter::with_limit(5),
+    cache,
+  );
+
+  {
+    use generic_arraydeque::typenum::U6;
+    let mut inp = input.as_ref(&mut emitter);
+
+    // save A predates the trip: a clean checkpoint (poisoned = false).
+    let a = inp.save();
+
+    // Overflow peek trips: poison latches, the limit diagnostic is sealed.
+    let _ = inp.peek::<U6>().unwrap();
+    assert!(inp.is_poisoned(), "the overflow trip must latch poison");
+
+    // save B is captured AFTER the trip: poisoned, its saved watermark above the error.
+    let b = inp.save();
+
+    // Drain the speculative branch so the committed re-lex actually re-crosses the
+    // tripping region (the cache prefix is emptied here).
+    while inp.next().unwrap().is_some() {}
+
+    // Out-of-order restores: the OLDER checkpoint first (un-latches poison, unwinds
+    // the diagnostic and drops the watermark), then the STALE younger one.
+    inp.restore(a);
+    assert!(
+      !inp.is_poisoned(),
+      "restoring the clean older checkpoint un-latches poison"
+    );
+    inp.restore(b);
+    // A stale younger restore must NOT resurrect the latch: the AND-clamp keeps it
+    // low because `current` is already false — poison cannot outlive its diagnostic.
+    assert!(
+      !inp.is_poisoned(),
+      "a stale younger restore must not raise poison past a rewound diagnostic"
+    );
+
+    // Commit path: re-lex forward, re-trip, re-emit.
+    while inp.next().unwrap().is_some() {}
+
+    // Invariant: poisoned implies a retained limit diagnostic (never a silent latch).
+    assert!(inp.is_poisoned(), "the committed re-lex re-latches poison");
+  }
+
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 1,
+    "poisoned implies a retained diagnostic: the limit error is re-emitted exactly once, never lost"
+  );
+}

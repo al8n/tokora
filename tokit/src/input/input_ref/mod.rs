@@ -304,6 +304,7 @@ where
       self.state.clone(),
       self.emitter.checkpoint(),
       self.emitted_error_end.clone(),
+      self.is_poisoned(),
     )
   }
 
@@ -339,9 +340,20 @@ where
   /// This rewinds the cache, resets the cursor position, and restores the lexer
   /// state.
   ///
-  /// A sticky limit-error latch is **not** cleared: a tripped input stays tripped
-  /// across restores, mirroring the lexer-level latch, so backtracking cannot
-  /// re-arm unbounded rescans.
+  /// The sticky limit-error latch is checkpointed like the dedup watermark and
+  /// obeys the same never-raise discipline: a restore may only *lower* it, never
+  /// raise it. Un-latching keeps the latch paired with its diagnostic — a restore
+  /// that rewinds a speculative limit diagnostic also drops the poison it latched,
+  /// so the committed path re-lexes and re-emits rather than stopping on a
+  /// diagnostic-less latch (which would masquerade as clean EOF). A poisoned
+  /// checkpoint can never *re-arm* a latch a younger restore already cleared.
+  ///
+  /// Bounded-work note: un-poisoning via an explicit restore means a caller-driven
+  /// save/restore loop re-scans the region once per restore. That is ordinary
+  /// backtracking cost — one rescan per caller action — categorically different
+  /// from the internal, caller-invisible rescan loops the latch exists to prevent
+  /// (a poisoned input re-entered through `next()`/`peek()` still never rebuilds a
+  /// lexer or rescans the tripping token).
   #[doc(alias = "rewinds")]
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
@@ -373,6 +385,24 @@ where
     if checkpoint.emitted_error_end < *self.emitted_error_end {
       *self.emitted_error_end = checkpoint.emitted_error_end;
     }
+    // Poison is checkpointed state under the SAME never-raise discipline as the
+    // watermark: a restore may only LOWER the latch, never raise it. Boolean
+    // min-clamp — `poisoned = saved && current`. Case walk:
+    //   - LIFO restore across a trip (saved = false, current = true → false): the
+    //     speculative peek latched poison and emitted the limit diagnostic; the
+    //     emitter rewind above removed that speculative copy, so the committed path
+    //     must re-lex the region. Un-latching lets it: it re-trips, re-latches, and
+    //     RE-EMITS the diagnostic (the watermark min-clamp already permits it) —
+    //     exactly-once holds because only the speculative copy was rewound.
+    //   - Checkpoint taken after a committed trip (saved = true, current = true →
+    //     true): the latch persists; its diagnostic predates the emitter mark, so
+    //     the rewind retained it — latch and diagnostic stay paired.
+    //   - Stale younger restore after an older restore (saved = true, current =
+    //     false → false): poison cannot be resurrected without its diagnostic. The
+    //     older restore already unwound the diagnostic and dropped `current` to
+    //     false, so the AND keeps it false; the region stays re-lexable and
+    //     re-trips naturally.
+    *self.poisoned = checkpoint.poisoned && *self.poisoned;
     self.set_span((&checkpoint.span).into());
     *self.state = checkpoint.state;
   }
