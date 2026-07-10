@@ -10,7 +10,7 @@ use mayber::{Maybe, MaybeRef};
 
 use crate::{
   ParseContext, Token, Window,
-  cache::{CachedToken, CachedTokenRefOf, MaybeRefCachedTokenOf, Peeked},
+  cache::{CachedToken, CachedTokenOf, CachedTokenRefOf, MaybeRefCachedTokenOf, Peeked},
   emitter::Emitter,
   error::token::UnexpectedToken,
   span::Spanned,
@@ -52,11 +52,10 @@ where
   pub(super) cache: &'closure mut Ctx::Cache,
   pub(super) emitted_error_end: &'closure mut L::Offset,
   pub(super) poison_boundary: &'closure mut Option<L::Offset>,
-  /// The per-input savepoint nonce counter, mutated by
-  /// [`begin_stacked`](InputRef::begin_stacked). Unread when the allocator-gated stacked
-  /// API is compiled out.
-  #[cfg_attr(not(any(feature = "std", feature = "alloc")), allow(dead_code))]
-  pub(super) stacked_nonce: &'closure mut u64,
+  /// The cache's monotone push count (see [`Input::cache_pushes`](super::Input)), bumped by
+  /// [`cache_push_back`](InputRef::cache_push_back) and read by [`save`](InputRef::save) /
+  /// [`restore`](InputRef::restore) to drop entries pushed on an abandoned continuation.
+  pub(super) cache_pushes: &'closure mut u64,
   #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
   pub(super) witness: &'closure mut super::Witness,
   pub(super) emitter: &'closure mut Ctx::Emitter,
@@ -82,6 +81,23 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   const fn cache_mut(&mut self) -> &mut Ctx::Cache {
     self.cache
+  }
+
+  /// Pushes a lexed token onto the back of the cache, bumping the monotone push count on
+  /// success. Every cache push flows through here (the peek fill and the `try_expect`
+  /// put-backs), so the count tracks exactly the tokens the cache accepted: a full cache
+  /// hands the token back and leaves the count unchanged, and a blackhole cache — which
+  /// accepts no push — keeps its count at 0. [`save`](Self::save) records the count and
+  /// [`restore`](Self::restore) uses the difference to drop entries pushed after a save.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn cache_push_back(&mut self, tok: CachedTokenOf<'inp, L>) -> Result<(), CachedTokenOf<'inp, L>> {
+    match self.cache.push_back(tok) {
+      Ok(_) => {
+        *self.cache_pushes += 1;
+        Ok(())
+      }
+      Err(tok) => Err(tok),
+    }
   }
 
   /// Returns a reference to the underlying input source.
@@ -408,11 +424,11 @@ where
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn begin_stacked(&mut self) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang> {
-    // Bump-on-begin: every transaction on this input gets a distinct nonce, so a
-    // savepoint id from an earlier one is detected as foreign rather than silently
-    // matching a later savepoint.
-    *self.stacked_nonce += 1;
-    let txn_nonce = *self.stacked_nonce;
+    // Every transaction in the process gets a distinct nonce from the global counter, so a
+    // savepoint id is foreign to every transaction but its own — across inputs, not just an
+    // earlier transaction on this one — and a stale or cross-input id is detected rather
+    // than silently matching another transaction's first savepoint.
+    let txn_nonce = stacked::next_txn_nonce();
     let base = self.save();
     StackedTransaction {
       input: self,
@@ -536,6 +552,7 @@ where
       self.emitter.checkpoint(),
       self.emitted_error_end.clone(),
       self.poison_boundary.clone(),
+      *self.cache_pushes,
       #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
       self.witness.input_id(),
       #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
@@ -576,8 +593,9 @@ where
   /// was taken:
   ///
   /// - the cursor, last-consumed span, and lexer state are restored; consuming
-  ///   resumes from the saved position (cached tokens beyond it are dropped and
-  ///   re-lex identically);
+  ///   resumes from the saved position. Cached tokens appended after the save belong to
+  ///   the abandoned continuation and are dropped so their region re-lexes (re-emitting
+  ///   any lexer error it held); tokens cached before the save re-lex identically;
   /// - diagnostics emitted after the save are rolled back — the emitter's emission
   ///   log is truncated to the saved mark (see
   ///   [`Emitter::rewind`](crate::emitter::Emitter::rewind));
@@ -673,6 +691,23 @@ where
     }
 
     self.cache_mut().rewind(&checkpoint);
+    // Drop the cache entries pushed after the save. They were lexed on the continuation
+    // this restore abandons, and the cache memoizes only their token *values*, not the
+    // scan side effects of the region they came from (a lexer error emitted while lexing
+    // across it). Leaving them would let a later drain jump over a rewound error instead
+    // of re-lexing — and re-emitting — its region, so drop them here on every restore path.
+    //
+    // Pushes only ever append to the back and evictions only ever pop the front or clear
+    // the whole cache, so the live cache is always a contiguous run of the push sequence in
+    // push order; the entries pushed after the save are therefore exactly its tail.
+    // `cache_pushes - saved` counts those post-save pushes, and `min(len, ..)` discounts
+    // any already consumed or cleared, so dropping that many from the back removes exactly
+    // the survivors.
+    let post_save = self.cache_pushes.saturating_sub(checkpoint.cache_pushes);
+    let survivors = (self.cache.len() as u64).min(post_save);
+    for _ in 0..survivors {
+      self.cache.pop_back();
+    }
     let cur = checkpoint.cursor();
     self.emitter().rewind(cur, checkpoint.emitter_checkpoint);
     // The watermark and the poison boundary are facts about the saved lineage. Under

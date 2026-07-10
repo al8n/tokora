@@ -190,7 +190,7 @@ fn stacked_stale_id_after_rollback_panics() {
 #[should_panic(expected = "stacked transaction: savepoint belongs to a different transaction")]
 fn stacked_cross_transaction_id_panics() {
   // A savepoint id from one transaction is foreign to the next transaction on the same
-  // input (the per-input nonce is bumped at each `begin_stacked`).
+  // input (each `begin_stacked` takes a distinct nonce from the process-wide counter).
   let mut input = silent_input("1 2 3 4");
   let mut emitter = Silent::<NumErr>::new();
   let mut inp = input.as_ref(&mut emitter);
@@ -204,6 +204,30 @@ fn stacked_cross_transaction_id_panics() {
 
   let mut txn2 = inp.begin_stacked();
   txn2.rollback_to(sp); // sp belongs to the committed transaction → foreign panic
+}
+
+#[test]
+#[should_panic(expected = "stacked transaction: savepoint belongs to a different transaction")]
+fn stacked_foreign_input_savepoint_panics() {
+  // A savepoint id from one input's first stacked transaction must be foreign to another
+  // input's first stacked transaction. With per-input nonces both started at the same
+  // value, so the first savepoint of each shared an id and passing one input's id to the
+  // other silently operated on the wrong slot instead of panicking. Process-wide nonces
+  // make every transaction's id distinct, so the foreign id is detected in every build.
+  let mut input_a = silent_input("1 2 3 4");
+  let mut emitter_a = Silent::<NumErr>::new();
+  let mut inp_a = input_a.as_ref(&mut emitter_a);
+  let mut txn_a = inp_a.begin_stacked();
+  let sp_a = txn_a.savepoint();
+
+  let mut input_b = silent_input("1 2 3 4");
+  let mut emitter_b = Silent::<NumErr>::new();
+  let mut inp_b = input_b.as_ref(&mut emitter_b);
+  let mut txn_b = inp_b.begin_stacked();
+  let _sp_b = txn_b.savepoint();
+
+  // `sp_a` belongs to input A's transaction → foreign to `txn_b` → panic.
+  txn_b.rollback_to(sp_a);
 }
 
 #[test]

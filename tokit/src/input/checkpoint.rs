@@ -73,6 +73,15 @@ pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
   /// the restored frontier stays paired with it; a saved `None` re-lexes and re-trips
   /// if the limit is reached again.
   pub(crate) poison_boundary: Option<L::Offset>,
+  /// The cache's monotone push count at save time.
+  ///
+  /// The cache memoizes token *values* but not the scan *side effects* of the region a
+  /// token came from (a lexer error emitted while lexing across it). Entries pushed after
+  /// this mark belong to a continuation a restore may abandon; leaving them in place would
+  /// let a later drain jump over a rewound error instead of re-lexing — and re-emitting —
+  /// its region. [`restore`](crate::InputRef::restore) drops exactly those post-save
+  /// entries. It is correctness state in every build, not a debug-only witness.
+  pub(crate) cache_pushes: u64,
   /// The identity of the input that produced this checkpoint (debug-only witness).
   #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
   pub(crate) input_id: usize,
@@ -93,6 +102,7 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
     emitter_checkpoint: u64,
     emitted_error_end: L::Offset,
     poison_boundary: Option<L::Offset>,
+    cache_pushes: u64,
     #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))] input_id: usize,
     #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))] ckp_id: u64,
   ) -> Self {
@@ -103,6 +113,7 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
       emitter_checkpoint,
       emitted_error_end,
       poison_boundary,
+      cache_pushes,
       #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
       input_id,
       #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]

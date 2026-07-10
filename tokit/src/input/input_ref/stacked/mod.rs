@@ -1,8 +1,28 @@
-use core::ops::{Deref, DerefMut};
+use core::{
+  ops::{Deref, DerefMut},
+  sync::atomic::{AtomicU64, Ordering},
+};
 
 use std::vec::Vec;
 
 use super::{Checkpoint, InputRef, Lexer, ParseContext};
+
+/// Process-wide source of stacked-transaction nonces.
+///
+/// Every [`begin_stacked`](InputRef::begin_stacked) in the process takes the next value, so
+/// each transaction — across every [`Input`](crate::input::Input), not just successive
+/// transactions on one input — carries a distinct nonce. A [`SavepointId`] is therefore
+/// foreign to every transaction but the one that issued it, and the transaction-nonce
+/// check rejects a stale or cross-input id instead of it matching another transaction's
+/// first savepoint (whose per-input nonce and `seq` once coincided). Relaxed ordering
+/// suffices: only uniqueness matters, not inter-thread ordering.
+static TXN_NONCE: AtomicU64 = AtomicU64::new(0);
+
+/// Returns a fresh, process-unique stacked-transaction nonce.
+#[cfg_attr(not(tarpaulin), inline)]
+pub(super) fn next_txn_nonce() -> u64 {
+  TXN_NONCE.fetch_add(1, Ordering::Relaxed)
+}
 
 /// An opaque handle to one savepoint inside a [`StackedTransaction`].
 ///
@@ -19,9 +39,9 @@ use super::{Checkpoint, InputRef, Lexer, ParseContext};
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct SavepointId {
   /// Identifies the issuing transaction. Stamped once per
-  /// [`begin_stacked`](InputRef::begin_stacked) from a per-input counter, so an id
-  /// outlives its transaction as a detectable foreign token rather than silently
-  /// matching a later transaction's savepoint.
+  /// [`begin_stacked`](InputRef::begin_stacked) from a process-wide counter, so an id is
+  /// unique to its transaction across every input and outlives it as a detectable foreign
+  /// token rather than silently matching another transaction's savepoint.
   txn_nonce: u64,
   /// The savepoint's position in its transaction's issue order.
   seq: u64,
@@ -62,7 +82,7 @@ pub struct SavepointId {
 /// [`commit`](Self::commit) and [`rollback`](Self::rollback) consume the transaction; an
 /// undecided transaction rolls back to the begin point on drop, discarding all
 /// savepoints — the database default. Cost when unused is zero: the empty savepoint
-/// `Vec` never allocates, and the per-input nonce is one `u64`.
+/// `Vec` never allocates, and a begin costs one relaxed atomic increment for the nonce.
 ///
 /// ```ignore
 /// // Best-match selection across three stages: keep a fallback after each, then return

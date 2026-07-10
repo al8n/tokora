@@ -188,8 +188,8 @@ where
             let cached = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
 
             // Try to cache the token; if cache is full, stage it for the output buffer
-            match self.cache_mut().push_back(cached) {
-              Ok(_) => {
+            match self.cache_push_back(cached) {
+              Ok(()) => {
                 in_cache += 1;
               }
               Err(ct) => {

@@ -361,7 +361,7 @@ where
           let (span, tok) = tok.into_components();
           // put back the token into cache as it was peeked
           let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
-          let _ = self.cache_mut().push_back(ct);
+          let _ = self.cache_push_back(ct);
           Ok(None)
         }
       },
@@ -399,7 +399,7 @@ where
           let (span, tok) = tok.into_components();
           // put back the token into cache as it was peeked
           let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
-          let _ = self.cache_mut().push_back(ct);
+          let _ = self.cache_push_back(ct);
           Ok(None)
         }
       }
@@ -440,7 +440,7 @@ where
           let (span, tok) = tok.into_components();
           // put back the token into cache as it was peeked
           let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
-          let _ = self.cache_mut().push_back(ct);
+          let _ = self.cache_push_back(ct);
           Ok(None)
         }
       }

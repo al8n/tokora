@@ -129,6 +129,10 @@ impl Token<'_> for ProbeTok {
 type ProbeLexer<'a> = LogosLexer<'a, ProbeTok>;
 type ProbeCtx<'a> = (Silent<ProbeErr>, DefaultCache<'a, ProbeLexer<'a>>);
 type ProbeVerboseCtx<'a> = (Verbose<ProbeErr>, DefaultCache<'a, ProbeLexer<'a>>);
+/// A capacity-1 cache (`Option`) over the probe lexer, for the abandoned-lineage
+/// truncation on the smallest non-trivial cache.
+type ProbeOptionCache<'a> = Option<crate::cache::CachedTokenOf<'a, ProbeLexer<'a>>>;
+type ProbeOptionVerboseCtx<'a> = (Verbose<ProbeErr>, ProbeOptionCache<'a>);
 
 /// Builds an input over `src` behind a limit-2 [`ProbeLimiter`], returning the
 /// input and a shared handle to observe its scan counter. The third scanned
@@ -342,6 +346,124 @@ fn restore_after_peek_across_lexer_error_reemits_error_exactly_once() {
     total, 1,
     "the malformed span's lexer error must appear exactly once after peek → save → restore → re-consume"
   );
+}
+
+#[test]
+fn restore_drops_cache_entries_from_abandoned_lineage() {
+  // A cached token prefilled BEFORE the save makes the checkpoint cursor equal the cache
+  // front, so the cache rewind takes its no-op (cursor == front) branch and leaves the
+  // cache untouched. A wider peek AFTER the save then crosses the malformed `@`, emitting
+  // its lexer error and caching the tokens that follow it. Those post-save entries belong
+  // to the abandoned continuation: restore rewinds the error's emission, and unless the
+  // entries are dropped a later drain pops straight over the rewound error — so it is
+  // never re-emitted. The token VALUES are faithfully memoized either way; only the scan
+  // side effect (the error emission) is lost.
+  //   1 @ 2 3
+  //   0 . 4 6      (`@` spans [2, 3); high limit so only the plain lexer error is in play)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::{U1, U3};
+
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 @ 2 3",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Prefill exactly one cached token (`1`); the cursor now sits at its start, so the
+    // save's cursor equals the cache front.
+    let _ = inp.peek::<U1>().unwrap();
+
+    // Save BEFORE the error is crossed: the checkpoint predates the `@` emission, so
+    // restoring rewinds that emission.
+    let ckp = inp.save();
+
+    // Peek across the malformed `@`: emits its lexer error and caches the tokens that
+    // follow it (`2`, `3`) — entries from the continuation we are about to abandon.
+    let _ = inp.peek::<U3>().unwrap();
+
+    // Abandon the continuation.
+    inp.restore(ckp);
+
+    // Drain to EOF on the committed path: it must re-lex the `@` region and re-emit the
+    // error exactly once, then yield the full faithful token sequence.
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7)
+    ],
+    "the drained stream is the full faithful token sequence"
+  );
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 1,
+    "the rolled-back lexer error must be re-emitted exactly once after restore drops the abandoned cache entries"
+  );
+}
+
+#[test]
+fn restore_option_cache_capacity_one_reemits_error_once() {
+  // The capacity-1 `Option` cache cannot express the abandoned-lineage hole: hitting the
+  // rewind's no-op (cursor == front) branch needs a prefilled entry occupying the cache,
+  // which at capacity 1 leaves no room to also cache a post-error token. The token that
+  // follows the `@` overflows instead of being cached, so nothing from the abandoned
+  // continuation survives the restore and the error region always re-lexes. This pins
+  // that faithful behavior and guards the truncation against wrongly dropping the
+  // surviving pre-save entry.
+  //   1 @ 2 3      (`@` spans [2, 3))
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::{U1, U2};
+
+  let cache: ProbeOptionCache<'_> = None;
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeOptionVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 @ 2 3",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Prefill the single slot with `1`; the cursor sits at its start.
+    let _ = inp.peek::<U1>().unwrap();
+    let ckp = inp.save();
+    // Peek across `@`: the error is emitted, but `2` cannot be cached (slot full) and
+    // overflows instead of surviving the restore.
+    let _ = inp.peek::<U2>().unwrap();
+    inp.restore(ckp);
+
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7)
+    ],
+    "the capacity-1 cache still drains the full faithful token sequence"
+  );
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(total, 1, "the error re-lexes and is emitted exactly once");
 }
 
 #[test]
@@ -1060,7 +1182,7 @@ fn property_random_lifo_scripts_stay_faithful_and_bounded() {
       let mut live: Vec<(crate::input::Checkpoint<'_, '_, ProbeLexer<'_>>, usize)> = Vec::new();
 
       for _ in 0..num_ops {
-        match roll(&mut rng) % 4 {
+        match roll(&mut rng) % 5 {
           0 => {
             // save
             let off = *inp.cursor().as_inner();
@@ -1089,7 +1211,7 @@ fn property_random_lifo_scripts_stay_faithful_and_bounded() {
               }
             }
           }
-          _ => {
+          3 => {
             // restore the most-recent live checkpoint (always LIFO), then verify the
             // next drained span matches a fresh parse of the same prefix.
             if let Some((ckp, off)) = live.pop() {
@@ -1102,8 +1224,27 @@ fn property_random_lifo_scripts_stay_faithful_and_bounded() {
               );
             }
           }
+          _ => {
+            // The exact class the cache-lineage hole lived in: prefill the cache, save on
+            // top of it (so the checkpoint cursor equals the cache front and the rewind
+            // takes its no-op branch), then peek across a lexer-error character so
+            // post-error tokens are cached into the continuation this save may later
+            // abandon. The checkpoint joins `live`, so a subsequent restore op exercises
+            // the post-save truncation over a cache that straddles a rolled-back error.
+            let _ = inp.peek::<U1>().unwrap();
+            let off = *inp.cursor().as_inner();
+            live.push((inp.save(), off));
+            let _ = inp.peek::<U3>().unwrap();
+          }
         }
       }
+
+      // Final commit drain to EOF: a full pass from the current position crosses every
+      // remaining error region. A rolled-back error that a stale post-save cache entry let
+      // a drain skip would re-lex to ZERO emissions here, so together with the soundness
+      // checks below this pins exactly-once COMPLETENESS — the direction the hole broke.
+      drop(live);
+      while inp.next().unwrap().is_some() {}
     }
 
     // (a) total scans bounded by a generous linear budget.
@@ -1123,6 +1264,17 @@ fn property_random_lifo_scripts_stay_faithful_and_bounded() {
       assert!(
         group.is_empty() || oracle_diags.contains(span),
         "retained an unexpected diagnostic span {span:?}"
+      );
+    }
+
+    // (c) after the final full drain to EOF, every real error span is retained exactly
+    // once. With (b) this is exactly-once completeness on the committed lineage: a stale
+    // post-save cache entry that skipped a rolled-back error would drop it to zero here.
+    for diag in &oracle_diags {
+      assert_eq!(
+        em.errors().get(diag).map(|g| g.len()).unwrap_or(0),
+        1,
+        "after a full final drain, the error at {diag:?} must be retained exactly once"
       );
     }
   }
