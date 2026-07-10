@@ -27,6 +27,9 @@ impl<T, N: ArrayLength> Overflow<T, N> {
     }
   }
 
+  // Only read by the debug-assertion accounting below; gate it to the same
+  // configuration so release builds do not see it as dead code.
+  #[cfg(debug_assertions)]
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn len(&self) -> usize {
     self.len
