@@ -298,9 +298,9 @@ where
 /// pre-attempt state — position, lexer state, **and** diagnostics: emissions
 /// made by the failed attempt are rewound from the
 /// [`Emitter`](crate::Emitter)'s log, so a successful recovery leaves no
-/// spurious errors behind. The failure itself reaches the [`Recoverer`] as the
-/// error value; whether to emit a diagnostic for it is the recoverer's
-/// decision.
+/// spurious errors behind. The failure itself reaches the [`RecoverInput`]
+/// implementation as the error value; whether to emit a diagnostic for it is
+/// the recoverer's decision.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Recover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
   parser: P,
