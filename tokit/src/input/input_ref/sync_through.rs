@@ -120,8 +120,15 @@ where
 
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
   ///
-  /// If the predicate matches, the matching token is consumed.
-  /// Returns the matched token and peeked tokens after it.
+  /// If the predicate matches, the matching token is consumed and returned with the tokens
+  /// peeked after it.
+  ///
+  /// Diagnostics travel with progress, exactly as in [`sync_through`](Self::sync_through): a
+  /// match commits the skipped prefix, so the diagnostics describing it persist. A no-match
+  /// run to end of input commits nothing — the cursor stays at the pre-call position — and
+  /// leaves no trace: the failed scan's emissions are unwound and the lexer-error
+  /// deduplication watermark is restored, so a later genuine consume of the same region
+  /// reports its errors exactly once. The returned peek is then empty.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_through_then_peek<'p, F, Exp, W>(
@@ -144,6 +151,13 @@ where
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
   ///
   /// Returns the matched token, peeked tokens, and a mutable reference to the emitter.
+  ///
+  /// Diagnostics travel with progress, exactly as in [`sync_through`](Self::sync_through): a
+  /// match commits the skipped prefix, so its diagnostics persist. A no-match run to end of
+  /// input commits nothing — the cursor stays at the pre-call position — and leaves no trace:
+  /// the failed scan's emissions are unwound and the lexer-error deduplication watermark is
+  /// restored, so a later genuine consume of the same region reports its errors exactly once.
+  /// The returned peek is then empty.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_through_then_peek_with_emitter<'p, F, Exp, W>(
@@ -211,6 +225,16 @@ where
           state: self.state.clone(),
         };
 
+        // Diagnostics travel with progress. The scan that follows may diagnose the tokens
+        // it skips and cross lexer errors (lifting the dedup watermark) as it goes; a
+        // match or a limit trip commits that diagnosed prefix, so those diagnostics
+        // persist, but the no-match run to end of input commits nothing and so must leave
+        // no trace. Snapshot the emitter's emission mark and the watermark at entry — after
+        // the cache-drain phase above, whose consumed tokens are committed progress; the
+        // end-of-input exit rewinds both to unwind exactly this call's emissions.
+        let entry_mark = self.emitter.checkpoint();
+        let entry_error_end = self.emitted_error_end.clone();
+
         loop {
           match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
             Scan::Token(tok) => {
@@ -237,9 +261,17 @@ where
               return Ok((None, GenericArrayDeque::new(), self.emitter));
             }
             Scan::Eof => {
-              // No matched token found, we just update the cursor and state
-              self.set_span_after_consume(lexer.span().into());
-              *self.state = lexer.into_state();
+              // No match reached the end of input: this path commits no progress — the
+              // cursor stays at the pre-call anchor so the caller can fall back from it, and
+              // the returned peek is empty. No commit means no trace, so unwind exactly this
+              // call's emissions (the skipped tokens' unexpected-token diagnostics and any
+              // lexer errors crossed) and restore the dedup watermark. Restoring the
+              // watermark keeps a rewound lexer error re-emittable, so the caller's genuine
+              // consume of these tokens reports it exactly once instead of deduplicating it
+              // silently away.
+              let cursor = self.cursor().clone();
+              self.emitter().rewind(&cursor, entry_mark);
+              *self.emitted_error_end = entry_error_end;
               return Ok((None, GenericArrayDeque::new(), self.emitter));
             }
           }
