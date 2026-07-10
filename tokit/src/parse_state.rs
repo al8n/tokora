@@ -44,12 +44,17 @@ where
 
   /// Returns a mutable reference to the state of the lexer.
   ///
-  /// # Checkpoint invalidation
+  /// # State replacement re-keys the input's offset-dependent facts
   ///
-  /// Replacing the lexer state re-keys every offset-dependent fact the input tracks
-  /// (cache spans, dedup watermark, poison boundary). All outstanding checkpoints are
-  /// invalidated; restoring one afterwards is a contract violation (debug builds
-  /// panic).
+  /// Delegates to [`InputRef::state_mut`](crate::InputRef::state_mut): taking the state
+  /// mutably eagerly re-keys every offset-dependent fact the input tracks — the token cache
+  /// is cleared, the poison boundary is dropped, and the lexer-error dedup watermark is
+  /// reset to the current committed cursor. All outstanding checkpoints are invalidated;
+  /// restoring one afterwards is a contract violation (debug builds panic).
+  ///
+  /// State surgery with outstanding speculative diagnostics may re-report the re-lexed
+  /// region under the new regime, so callers should complete or roll back speculation
+  /// before replacing state.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn state_mut(&mut self) -> &mut L::State {
     self.inp.state_mut()

@@ -2402,3 +2402,226 @@ fn boundary_replay_zero_width_token_contract() {
   let mut inp = input.as_ref(&mut emitter);
   let _ = inp.next();
 }
+
+// ── State surgery re-keys the cache, watermark, and poison boundary ─────────────
+//
+// `set_state`/`state_mut` document that replacing the lexer state re-keys every
+// offset-dependent fact — the token cache, the lexer-error dedup watermark, and the
+// poison boundary — and invalidates every outstanding checkpoint. These four pin that
+// the re-key actually happens on BOTH public state-surgery APIs, keyed to the current
+// committed cursor, and that it re-homes offset facts without rewriting emission history.
+
+#[test]
+fn set_state_after_limit_trip_resumes_scanning() {
+  // Trip a by-value limiter, then replace the state with a fresh, non-tripped one. The
+  // re-key drops the poison boundary, so scanning resumes PAST the old boundary and the
+  // stream completes; the old regime's limit diagnostic stays in the log exactly once (the
+  // re-key re-homes offset facts, it never rewrites history that described a real event).
+  //   1 2 3 4 5 6   (limit 2 → the 3rd scanned token trips; `2` ends at the frontier offset 3)
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    TokenLimiter::with_limitation(2),
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Drive `next()` past the trip: `1` and `2` consume, the 3rd scan trips → None.
+    assert!(inp.next().unwrap().is_some(), "first token");
+    assert!(inp.next().unwrap().is_some(), "second token");
+    assert!(
+      inp.next().unwrap().is_none(),
+      "the limit trip latches to None"
+    );
+    assert!(
+      inp.is_poisoned(),
+      "the limit trip latched the poison boundary"
+    );
+
+    // Replace the state with a fresh, non-tripped limiter — the documented limit-recovery
+    // path. The re-key drops the poison boundary.
+    inp.set_state(TokenLimiter::with_limitation(usize::MAX));
+    assert!(
+      !inp.is_poisoned(),
+      "state replacement re-keys the poison boundary away (HEAD leaves it latched)"
+    );
+
+    // Scanning now resumes PAST the old boundary and the stream completes. At HEAD the
+    // stale boundary made this first `next()` return `None` at the old frontier.
+    let mut resumed = 0usize;
+    while inp.next().unwrap().is_some() {
+      resumed += 1;
+    }
+    assert_eq!(
+      resumed, 4,
+      "scans past the old boundary: 3, 4, 5, 6 all lex under the fresh state"
+    );
+  }
+
+  // The old regime's limit diagnostic remains exactly once.
+  let limit = emitter
+    .errors()
+    .values()
+    .flatten()
+    .filter(|e| **e == ByValErr::Limit)
+    .count();
+  assert_eq!(
+    limit, 1,
+    "the pre-replacement limit diagnostic stays in the log exactly once"
+  );
+}
+
+#[test]
+fn state_mut_applies_the_same_rekey() {
+  // The `state_mut` twin of `set_state_after_limit_trip_resumes_scanning`: taking the
+  // state mutably applies the same EAGER re-key, so resetting the tripped limiter through
+  // the returned `&mut` resumes scanning past the old boundary.
+  //   1 2 3 4 5 6   (limit 2 → the 3rd scanned token trips; `2` ends at the frontier offset 3)
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    TokenLimiter::with_limitation(2),
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    assert!(inp.next().unwrap().is_some(), "first token");
+    assert!(inp.next().unwrap().is_some(), "second token");
+    assert!(
+      inp.next().unwrap().is_none(),
+      "the limit trip latches to None"
+    );
+    assert!(
+      inp.is_poisoned(),
+      "the limit trip latched the poison boundary"
+    );
+
+    // `state_mut` re-keys EAGERLY on the call — before any mutation through the returned
+    // `&mut`. Dropping the borrow without touching it already cleared the poison boundary.
+    // At HEAD `state_mut` only cleared the checkpoint lineage, leaving the boundary latched.
+    let _ = inp.state_mut();
+    assert!(
+      !inp.is_poisoned(),
+      "state_mut eagerly re-keys the poison boundary away, before any mutation"
+    );
+
+    // Now reset the tripped limiter in place so scanning resumes under a fresh budget.
+    *inp.state_mut() = TokenLimiter::with_limitation(usize::MAX);
+
+    let mut resumed = 0usize;
+    while inp.next().unwrap().is_some() {
+      resumed += 1;
+    }
+    assert_eq!(
+      resumed, 4,
+      "the state_mut re-key lets scanning resume past the old boundary"
+    );
+  }
+
+  let limit = emitter
+    .errors()
+    .values()
+    .flatten()
+    .filter(|e| **e == ByValErr::Limit)
+    .count();
+  assert_eq!(
+    limit, 1,
+    "the pre-replacement limit diagnostic stays in the log exactly once"
+  );
+}
+
+#[test]
+fn set_state_clears_stale_cache() {
+  // Peek fills the cache under the old state; replacing the state must clear it, so the
+  // next read RE-LEXES from the cursor instead of serving a dead cached token. The shared
+  // scan counter makes the re-lex observable — at HEAD the cached token is served and the
+  // counter does not move.
+  //   1 2 3 4   (high limit: never trips; the point is the cache clear)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U3;
+
+  let limiter = ProbeLimiter::with_limit(usize::MAX);
+  let scanned = limiter.counter();
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut input =
+    Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache("1 2 3 4", limiter, cache);
+  let mut inp = input.as_ref(&mut emitter);
+
+  // Peek three tokens: scans `1`, `2`, `3` into the cache.
+  let _ = inp.peek::<U3>().unwrap();
+  assert_eq!(scanned.get(), 3, "peek scanned 1, 2, 3 into the cache");
+
+  // Replace the state with a fresh limiter that SHARES the same scan counter, so a re-lex
+  // under the new state stays observable through `scanned`. The re-key empties the cache.
+  inp.set_state(ProbeLimiter {
+    scanned: scanned.clone(),
+    limit: usize::MAX,
+  });
+  assert!(
+    inp.cache().is_empty(),
+    "state replacement clears the token cache (HEAD leaves the stale entries)"
+  );
+
+  // The next read re-lexes from the cursor — the shared counter climbs because the dead
+  // cache no longer serves the token. At HEAD the counter would stay frozen at 3.
+  let before = scanned.get();
+  let tok = inp.next().unwrap().expect("re-lexed token");
+  assert_eq!(
+    *tok.span_ref(),
+    SimpleSpan::new(0, 1),
+    "the re-lex resumes from the cursor (token `1`)"
+  );
+  assert_eq!(
+    scanned.get(),
+    before + 1,
+    "the token was re-scanned under the new state, not served from the dead cache"
+  );
+}
+
+#[test]
+fn set_state_resets_watermark_to_cursor() {
+  // Peek across a malformed `@`: seals its lexer error and lifts the dedup watermark past
+  // it. Replacing the state re-keys the watermark back to the committed cursor (behind the
+  // error) AND clears the cache holding the tokens that skipped `@`, so draining re-lexes
+  // the region under the NEW regime and the error reports AGAIN — one entry per regime (the
+  // documented peek-ahead-speculation edge). At HEAD the stale cache/watermark suppress the
+  // second report, so only one entry survives.
+  //   1 @ 2 3
+  //   0 2 4 6      (`@` spans [2, 3))
+  use generic_arraydeque::typenum::U2;
+
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 @ 2 3",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Peek a window crossing `@`: seals its lexer error and lifts the watermark past
+    // [2, 3). The cursor stays at 0 and the cache holds the valid tokens that skipped `@`.
+    let _ = inp.peek::<U2>().unwrap();
+
+    // Replace the state: the re-key resets the watermark to the committed cursor (0) and
+    // clears the cache.
+    inp.set_state(ProbeLimiter::with_limit(usize::MAX));
+
+    // Drain: the cleared cache forces a re-lex from the cursor across `@`, and the reset
+    // watermark lets the re-lexed error report again under the new regime.
+    while inp.next().unwrap().is_some() {}
+  }
+
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 2,
+    "the `@` lexer error reports once per regime: at the peek, then again after the re-key re-lexes it"
+  );
+}

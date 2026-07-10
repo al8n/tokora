@@ -140,38 +140,101 @@ where
 
   /// Returns a mutable reference to the current lexer state (extras).
   ///
+  /// # State replacement re-keys the input's offset-dependent facts
+  ///
+  /// Mutating the state through the returned reference can change how the region ahead of
+  /// the cursor lexes, so this call **eagerly** re-keys every offset-dependent fact the
+  /// input tracks: the token cache is cleared (its entries were lexed under the old state
+  /// and those offsets may lex differently now), the poison boundary is dropped, and the
+  /// lexer-error dedup watermark is reset to the current committed cursor. The re-key runs
+  /// before this returns, so it applies whether or not the caller ends up mutating through
+  /// the `&mut` — conservative, matching the eager checkpoint invalidation below.
+  ///
+  /// Speculative peek-ahead diagnostics emitted under the old state for the region beyond
+  /// the cursor stay in the emitter log, and the watermark reset makes that same region
+  /// re-reportable once it re-lexes under the new state: state surgery with outstanding
+  /// speculative diagnostics may re-report the re-lexed region under the new regime, so
+  /// callers should complete or roll back speculation before replacing state.
+  ///
   /// # Checkpoint invalidation
   ///
-  /// Replacing the lexer state re-keys every offset-dependent fact the input tracks
-  /// (cache spans, dedup watermark, poison boundary). All outstanding checkpoints are
-  /// invalidated: the live-checkpoint lineage stack is cleared, so a later
-  /// [`restore`](Self::restore) of an outstanding checkpoint no-ops the lineage pop and a
-  /// [`StackedTransaction`] savepoint taken before this call panics as stale (every build).
-  /// Restoring a checkpoint afterwards is a contract violation (debug builds also panic in
-  /// `restore` itself).
+  /// All outstanding checkpoints are invalidated: the live-checkpoint lineage stack is
+  /// cleared, so a later [`restore`](Self::restore) of an outstanding checkpoint no-ops the
+  /// lineage pop and a [`StackedTransaction`] savepoint taken before this call panics as
+  /// stale (every build). Restoring a checkpoint afterwards is a contract violation (debug
+  /// builds also panic in `restore` itself).
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn state_mut(&mut self) -> &mut L::State {
     #[cfg(any(feature = "std", feature = "alloc"))]
     self.live_ckpts.clear();
+    self.rekey_offset_facts();
     self.state
   }
 
   /// Manually sets the lexer state (for context-sensitive lexing).
   ///
+  /// # State replacement re-keys the input's offset-dependent facts
+  ///
+  /// Replacing the state can change how the region ahead of the cursor lexes, so this call
+  /// re-keys every offset-dependent fact the input tracks: the token cache is cleared (its
+  /// entries were lexed under the old state and those offsets may lex differently now), the
+  /// poison boundary is dropped, and the lexer-error dedup watermark is reset to the current
+  /// committed cursor. Dropping the poison boundary is the documented limit-recovery path —
+  /// swap in a fresh or bigger-budget state and scanning resumes past the old boundary.
+  ///
+  /// Speculative peek-ahead diagnostics emitted under the old state for the region beyond
+  /// the cursor stay in the emitter log, and the watermark reset makes that same region
+  /// re-reportable once it re-lexes under the new state: state surgery with outstanding
+  /// speculative diagnostics may re-report the re-lexed region under the new regime, so
+  /// callers should complete or roll back speculation before replacing state.
+  ///
   /// # Checkpoint invalidation
   ///
-  /// Replacing the lexer state re-keys every offset-dependent fact the input tracks
-  /// (cache spans, dedup watermark, poison boundary). All outstanding checkpoints are
-  /// invalidated: the live-checkpoint lineage stack is cleared, so a later
-  /// [`restore`](Self::restore) of an outstanding checkpoint no-ops the lineage pop and a
-  /// [`StackedTransaction`] savepoint taken before this call panics as stale (every build).
-  /// Restoring a checkpoint afterwards is a contract violation (debug builds also panic in
-  /// `restore` itself).
+  /// All outstanding checkpoints are invalidated: the live-checkpoint lineage stack is
+  /// cleared, so a later [`restore`](Self::restore) of an outstanding checkpoint no-ops the
+  /// lineage pop and a [`StackedTransaction`] savepoint taken before this call panics as
+  /// stale (every build). Restoring a checkpoint afterwards is a contract violation (debug
+  /// builds also panic in `restore` itself).
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn set_state(&mut self, state: L::State) {
     #[cfg(any(feature = "std", feature = "alloc"))]
     self.live_ckpts.clear();
+    self.rekey_offset_facts();
     *self.state = state;
+  }
+
+  /// Re-keys every offset-dependent fact to the current committed cursor — the shared body
+  /// of the public state-surgery APIs [`set_state`](Self::set_state) and
+  /// [`state_mut`](Self::state_mut).
+  ///
+  /// Replacing the lexer state changes how the region ahead of the cursor lexes, so every
+  /// fact keyed to the dead regime's offsets is discarded:
+  ///
+  /// - the **token cache** is cleared — its entries were lexed under the old state and those
+  ///   offsets may lex differently now;
+  /// - the **poison boundary** is dropped — a latched limit belonged to the old regime, and
+  ///   replacing the state is the documented limit-recovery path (a caller swaps in a
+  ///   fresh/bigger-budget state and scanning resumes);
+  /// - the **lexer-error dedup watermark** is reset to the current committed cursor — not
+  ///   zero: the region behind the cursor is legally unreachable (the callers also clear the
+  ///   checkpoint lineage, invalidating every outstanding checkpoint), so it stays
+  ///   deduplicated, while the region ahead must be re-evaluatable under the new regime.
+  ///
+  /// The cache is cleared first so the cursor reads the committed position (the end of the
+  /// last consumed token), which is exactly where a re-lex now resumes. The cache-push
+  /// counter is deliberately left untouched: future saves snapshot its current value, and
+  /// dead checkpoints' snapshots are unreachable by contract.
+  ///
+  /// This re-key is exclusive to the public state-surgery APIs. Internal state *threading* —
+  /// [`restore`](Self::restore)'s copy-back, the scan/consume paths writing
+  /// `*self.state = lexer.into_state()`, and the cached-consume state adoption — is
+  /// lineage-consistent by construction and never routes through here.
+  #[cfg_attr(not(tarpaulin), inline)]
+  fn rekey_offset_facts(&mut self) {
+    self.cache_mut().clear();
+    *self.poison_boundary = None;
+    let committed = self.cursor().as_inner().clone();
+    *self.emitted_error_end = committed;
   }
 
   /// Returns a mutable reference to the emitter.
