@@ -8,6 +8,9 @@ pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
 pub use input_ref::{InputRef, Transaction};
 
+#[cfg(any(feature = "std", feature = "alloc"))]
+pub use input_ref::{SavepointId, StackedTransaction};
+
 mod checkpoint;
 mod cursor;
 mod input_ref;
@@ -275,6 +278,14 @@ where
   /// copies it back verbatim, since a last-in, first-out restore returns to exactly
   /// the lineage the checkpoint recorded.
   poison_boundary: Option<L::Offset>,
+  /// Monotone per-input counter that stamps each `StackedTransaction` with a distinct
+  /// nonce. `begin_stacked` bumps it and captures the new value, so a `SavepointId` from
+  /// an earlier transaction on this input fails the nonce check rather than silently
+  /// matching a later transaction's savepoint. It is not gated on `debug_assertions`
+  /// (unlike the witness) because the savepoint checks run in release builds too; it is
+  /// unread only when the allocator-gated stacked API is compiled out.
+  #[cfg_attr(not(any(feature = "std", feature = "alloc")), allow(dead_code))]
+  stacked_nonce: u64,
   /// Debug-only witness of the last-in, first-out checkpoint discipline (see
   /// [`InputRef::restore`]).
   #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
@@ -297,6 +308,9 @@ where
       cache: self.cache.clone(),
       emitted_error_end: self.emitted_error_end.clone(),
       poison_boundary: self.poison_boundary.clone(),
+      // Carry the counter forward so the clone's future transactions never reuse a nonce
+      // this input already handed out.
+      stacked_nonce: self.stacked_nonce,
       // A clone is a new input: `Witness::clone` mints a fresh identity and an empty
       // live-checkpoint stack, so the clone's checkpoints and the original's never
       // cross.
@@ -355,6 +369,7 @@ where
       cache: DefaultCache::<'inp, L>::default(),
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
+      stacked_nonce: 0,
       #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
       witness: Witness::new(),
     }
@@ -378,6 +393,7 @@ where
       cache,
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
+      stacked_nonce: 0,
       #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
       witness: Witness::new(),
     }
@@ -396,6 +412,7 @@ where
       span: &mut self.span,
       emitted_error_end: &mut self.emitted_error_end,
       poison_boundary: &mut self.poison_boundary,
+      stacked_nonce: &mut self.stacked_nonce,
       #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
       witness: &mut self.witness,
       emitter,

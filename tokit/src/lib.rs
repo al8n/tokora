@@ -19,6 +19,9 @@ pub use cache::{Cache, DefaultCache};
 pub use check::Check;
 pub use emitter::Emitter;
 pub use input::{InputRef, Transaction};
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+pub use input::{SavepointId, StackedTransaction};
 pub use lexer::{Lexed, Lexer};
 pub use located::*;
 pub use parse_choice::*;

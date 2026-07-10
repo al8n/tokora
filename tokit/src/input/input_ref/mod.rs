@@ -24,12 +24,18 @@ mod fold;
 mod peek;
 mod pratt;
 mod skip_while;
+#[cfg(any(feature = "std", feature = "alloc"))]
+mod stacked;
 mod sync_through;
 mod sync_to;
 mod transaction;
 mod try_expect;
 
 pub use transaction::Transaction;
+
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+pub use stacked::{SavepointId, StackedTransaction};
 
 #[cfg(all(test, feature = "logos", feature = "std"))]
 mod tests;
@@ -46,6 +52,11 @@ where
   pub(super) cache: &'closure mut Ctx::Cache,
   pub(super) emitted_error_end: &'closure mut L::Offset,
   pub(super) poison_boundary: &'closure mut Option<L::Offset>,
+  /// The per-input savepoint nonce counter, mutated by
+  /// [`begin_stacked`](InputRef::begin_stacked). Unread when the allocator-gated stacked
+  /// API is compiled out.
+  #[cfg_attr(not(any(feature = "std", feature = "alloc")), allow(dead_code))]
+  pub(super) stacked_nonce: &'closure mut u64,
   #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
   pub(super) witness: &'closure mut super::Witness,
   pub(super) emitter: &'closure mut Ctx::Emitter,
@@ -366,6 +377,49 @@ where
     Transaction {
       input: self,
       ckp: Some(ckp),
+    }
+  }
+
+  /// Starts a transaction that can hold several internal savepoints at once — the
+  /// multi-fallback-point form of [`begin`](Self::begin).
+  ///
+  /// [`savepoint`](StackedTransaction::savepoint) marks a position;
+  /// [`rollback_to`](StackedTransaction::rollback_to) returns to a mark, destroying every
+  /// younger savepoint while the mark itself stays valid;
+  /// [`release`](StackedTransaction::release) forgets savepoints while keeping the parsed
+  /// progress; [`commit`](StackedTransaction::commit) /
+  /// [`rollback`](StackedTransaction::rollback) decide the whole transaction. Savepoints
+  /// follow SQL database semantics: rolling back to an older savepoint always destroys
+  /// the newer ones — out-of-order revival is impossible by construction, and a destroyed
+  /// or foreign [`SavepointId`] panics.
+  ///
+  /// Reach for the backtracking tools in order of shape:
+  ///
+  /// - [`begin`](Self::begin) / [`Transaction`] — a single speculative alternative with
+  ///   several imperative exits (loops, `match` arms);
+  /// - [`begin_stacked`](Self::begin_stacked) / [`StackedTransaction`] — **several live
+  ///   fallback points at once** (best/longest-match selection: a savepoint after each
+  ///   parsed stage, then `rollback_to` the best-scoring one);
+  /// - [`attempt`](Self::attempt) / [`try_attempt`](Self::try_attempt) — closure-shaped
+  ///   speculation;
+  /// - raw [`save`](Self::save) / [`restore`](Self::restore) — commit-by-default flows
+  ///   where progress is kept on most exits.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  pub fn begin_stacked(&mut self) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang> {
+    // Bump-on-begin: every transaction on this input gets a distinct nonce, so a
+    // savepoint id from an earlier one is detected as foreign rather than silently
+    // matching a later savepoint.
+    *self.stacked_nonce += 1;
+    let txn_nonce = *self.stacked_nonce;
+    let base = self.save();
+    StackedTransaction {
+      input: self,
+      base: Some(base),
+      saves: std::vec::Vec::new(),
+      txn_nonce,
+      next_seq: 0,
     }
   }
 
