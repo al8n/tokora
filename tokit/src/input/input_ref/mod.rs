@@ -20,6 +20,7 @@ use crate::{
 use super::{Cache, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
 
 mod consume_cached;
+mod drop_policy;
 mod fold;
 mod peek;
 mod pratt;
@@ -31,6 +32,7 @@ mod sync_to;
 mod transaction;
 mod try_expect;
 
+pub use drop_policy::{Commit, DropPolicy, Rollback};
 pub use transaction::Transaction;
 
 #[cfg(any(feature = "std", feature = "alloc"))]
@@ -201,12 +203,14 @@ where
   /// Returns `true` if the input is poisoned by a sticky limit error.
   ///
   /// True whenever a poison boundary is latched, regardless of the current lex
-  /// position — the stable public-ish predicate. The *positional* question a
-  /// scanner asks ("has my lex position reached the boundary?") is
-  /// [`reached_boundary`](Self::reached_boundary); a poisoned input can still lex
-  /// strictly before its boundary (e.g. to replay a drained prefix).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  #[cfg_attr(not(test), allow(dead_code))]
+  /// position. The *positional* question a scanner asks ("has my lex position reached the
+  /// boundary?") is [`reached_boundary`](Self::reached_boundary); a poisoned input can
+  /// still lex strictly before its boundary (e.g. to replay a drained prefix).
+  ///
+  /// Test-support observability: gated to exactly the feature set of its callers (the
+  /// `logos` + `std` guard test suites), so it exists precisely when they do and is never
+  /// dead code under `--tests` with leaner feature combinations.
+  #[cfg(all(test, feature = "logos", feature = "std"))]
   pub(super) fn is_poisoned(&self) -> bool {
     self.poison_boundary.is_some()
   }
@@ -409,17 +413,37 @@ where
   /// [`commit`](Transaction::commit) (keep the progress) or
   /// [`rollback`](Transaction::rollback) (return to the begin point). Dropping the
   /// guard without deciding rolls back — uncommitted speculative work is discarded, as
-  /// in a database transaction.
+  /// in a database transaction. For a guard that instead *keeps* progress on drop
+  /// (commit-by-default), use [`begin_with::<Commit>`](Self::begin_with).
   ///
   /// Prefer this for imperative flows with several exits (loops, `match` arms);
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) for single-closure
-  /// speculation; raw `save`/`restore` only where neither shape fits.
+  /// speculation; raw `save`/`restore` only where no guard shape fits.
   #[cfg_attr(not(tarpaulin), inline)]
-  pub fn begin(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang> {
+  pub fn begin(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, Rollback> {
+    self.begin_with::<Rollback>()
+  }
+
+  /// Starts a transaction with an explicit [`DropPolicy`] — the canonical generic form of
+  /// [`begin`](Self::begin).
+  ///
+  /// The type parameter `D` fixes what an *undecided* guard does on drop:
+  ///
+  /// - [`Rollback`] — restore to the begin point (the speculative default that
+  ///   [`begin`](Self::begin) selects; drop discards the speculative work);
+  /// - [`Commit`] — keep the progress (commit-by-default, the dual a Pratt-style operator
+  ///   loop wants: keep progress on every success and every `?`-propagation, and roll back
+  ///   explicitly only on the branches that back out).
+  ///
+  /// [`commit`](Transaction::commit) and [`rollback`](Transaction::rollback) are available
+  /// on either flavour; only the *drop* behaviour differs.
+  #[cfg_attr(not(tarpaulin), inline)]
+  pub fn begin_with<D: DropPolicy>(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, D> {
     let ckp = self.save();
     Transaction {
       input: self,
       ckp: Some(ckp),
+      _policy: PhantomData,
     }
   }
 
@@ -453,12 +477,36 @@ where
   ///   parsed stage, then `rollback_to` the best-scoring one);
   /// - [`attempt`](Self::attempt) / [`try_attempt`](Self::try_attempt) — closure-shaped
   ///   speculation;
-  /// - raw [`save`](Self::save) / [`restore`](Self::restore) — commit-by-default flows
-  ///   where progress is kept on most exits.
+  /// - [`begin_with::<Commit>`](Self::begin_with) — commit-by-default flows where progress
+  ///   is kept on most exits (raw [`save`](Self::save) / [`restore`](Self::restore) only
+  ///   where no guard shape fits).
+  ///
+  /// Dropping an undecided guard rolls back to the begin point; for a stacked guard that
+  /// instead keeps its progress on drop, use
+  /// [`begin_stacked_with::<Commit>`](Self::begin_stacked_with).
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
   #[cfg_attr(not(tarpaulin), inline)]
-  pub fn begin_stacked(&mut self) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang> {
+  pub fn begin_stacked(
+    &mut self,
+  ) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, Rollback> {
+    self.begin_stacked_with::<Rollback>()
+  }
+
+  /// Starts a stacked transaction with an explicit [`DropPolicy`] — the canonical generic
+  /// form of [`begin_stacked`](Self::begin_stacked) (see
+  /// [`begin_with`](Self::begin_with) for the policy meanings).
+  ///
+  /// `D` fixes what an *undecided* guard does on drop: [`Rollback`] rolls back to the begin
+  /// point, discarding all savepoints (the default [`begin_stacked`](Self::begin_stacked)
+  /// selects); [`Commit`] keeps the parsed progress. The savepoint operations and
+  /// `commit`/`rollback` are identical for either flavour.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  pub fn begin_stacked_with<D: DropPolicy>(
+    &mut self,
+  ) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, D> {
     // Nonce = the address of this Input's `poison_boundary` field, an Input-owned slot the
     // `InputRef` holds a `&mut` to. Two simultaneously-live Inputs are distinct structs at
     // distinct addresses (the field is never zero-sized), so their nonces differ and a
@@ -472,6 +520,7 @@ where
       base: Some(base),
       saves: Default::default(),
       nonce,
+      _policy: PhantomData,
     }
   }
 
@@ -537,10 +586,17 @@ where
 
   /// The number of live checkpoints — test-only observability for the no-growth
   /// guarantee that committing gives the lineage stack.
+  ///
+  /// Gated to exactly the feature set of its callers: the `logos` + `std` guard test
+  /// suites, whose no-growth cases additionally require `debug_assertions` +
+  /// `target_has_atomic = "ptr"`. Mirroring that set here (rather than the looser
+  /// `any(std, alloc)`) keeps the method from being dead code under `--tests` in the
+  /// `std`/`alloc`-only combinations that lack the `logos` callers.
   #[cfg(all(
     test,
     debug_assertions,
-    any(feature = "std", feature = "alloc"),
+    feature = "logos",
+    feature = "std",
     target_has_atomic = "ptr"
   ))]
   pub(crate) fn live_checkpoints_len(&self) -> usize {

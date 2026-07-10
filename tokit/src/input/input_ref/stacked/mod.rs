@@ -4,7 +4,10 @@ use core::{
 };
 
 use super::super::SavepointStack;
-use super::{Checkpoint, InputRef, Lexer, ParseContext};
+use super::{
+  Checkpoint, InputRef, Lexer, ParseContext,
+  drop_policy::{DropPolicy, Rollback},
+};
 
 /// An opaque handle to one savepoint inside a [`StackedTransaction`].
 ///
@@ -185,12 +188,16 @@ pub struct SavepointId<'t> {
 /// lifetime brand, a foreign id from another live parser and a stale id both by a runtime
 /// check in every build — see [`SavepointId`].
 ///
-/// [`commit`](Self::commit) and [`rollback`](Self::rollback) consume the transaction; an
-/// undecided transaction rolls back to the begin point on drop, discarding all
-/// savepoints — the database default. Cost when unused is low: the transaction's own
-/// savepoint `Vec` never allocates until the first [`savepoint`](Self::savepoint), and a
-/// begin captures one field address and records its base checkpoint on the input's shared
-/// lineage stack (an amortized `Vec` push) — no counter, no atomic.
+/// [`commit`](Self::commit) and [`rollback`](Self::rollback) consume the transaction and
+/// are available whatever the drop policy. What an *undecided* transaction does on drop is
+/// the compile-time [`DropPolicy`](super::DropPolicy) `P`: the default
+/// [`Rollback`](super::Rollback) (from [`begin_stacked`](InputRef::begin_stacked)) rolls
+/// back to the begin point, discarding all savepoints — the database default;
+/// [`Commit`](super::Commit) (from [`begin_stacked_with`](InputRef::begin_stacked_with))
+/// keeps the progress. Cost when unused is low: the transaction's own savepoint `Vec`
+/// never allocates until the first [`savepoint`](Self::savepoint), and a begin captures one
+/// field address and records its base checkpoint on the input's shared lineage stack (an
+/// amortized `Vec` push) — no counter, no atomic.
 ///
 /// # Mixing with raw save/restore and nested transactions
 ///
@@ -232,8 +239,15 @@ pub struct SavepointId<'t> {
 /// }
 /// txn.commit();            // keep the winning prefix
 /// ```
-pub struct StackedTransaction<'txn, 'inp, 'closure, L, Ctx, Lang: ?Sized = ()>
-where
+pub struct StackedTransaction<
+  'txn,
+  'inp,
+  'closure,
+  L,
+  Ctx,
+  Lang: ?Sized = (),
+  P: DropPolicy = Rollback,
+> where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -254,9 +268,14 @@ where
   /// those of another simultaneously-live input, which sits at a distinct address (see
   /// [`SavepointId`]).
   pub(super) nonce: usize,
+  /// The drop policy — [`Rollback`](super::Rollback) or [`Commit`](super::Commit) —
+  /// carried as a zero-sized typestate. It selects, at compile time and branch-free, what
+  /// an undecided guard's `Drop` does: roll back to the begin point, or keep the progress.
+  pub(super) _policy: PhantomData<P>,
 }
 
-impl<'txn, 'inp, L, Ctx, Lang: ?Sized> StackedTransaction<'txn, 'inp, '_, L, Ctx, Lang>
+impl<'txn, 'inp, L, Ctx, Lang: ?Sized, P: DropPolicy>
+  StackedTransaction<'txn, 'inp, '_, L, Ctx, Lang, P>
 where
   L: Lexer<'inp>,
   L::State: Clone,
@@ -369,14 +388,14 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> StackedTransaction<'_, 'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> StackedTransaction<'_, 'inp, '_, L, Ctx, Lang, P>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
 {
   /// Commits the whole transaction: keeps every parsed byte and forgets all savepoints
-  /// and the begin point without restoring.
+  /// and the begin point without restoring. Available whatever the drop policy.
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn commit(mut self) {
     // Forget youngest-first (each is the live-stack top when popped), then the base last
@@ -391,7 +410,8 @@ where
   }
 
   /// Rolls the whole transaction back to the begin point, discarding every savepoint and
-  /// all parsed progress.
+  /// all parsed progress. Available whatever the drop policy (a [`Commit`](super::Commit)
+  /// guard can still be rolled back explicitly).
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn rollback(mut self) {
     // Restoring the base pops the live stack down through it, carrying off every
@@ -402,8 +422,8 @@ where
   }
 }
 
-impl<'inp, 'closure, L, Ctx, Lang: ?Sized> Deref
-  for StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang>
+impl<'inp, 'closure, L, Ctx, Lang: ?Sized, P: DropPolicy> Deref
+  for StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, P>
 where
   L: Lexer<'inp>,
   L::State: Clone,
@@ -417,7 +437,8 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> DerefMut for StackedTransaction<'_, 'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> DerefMut
+  for StackedTransaction<'_, 'inp, '_, L, Ctx, Lang, P>
 where
   L: Lexer<'inp>,
   L::State: Clone,
@@ -429,23 +450,44 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> Drop for StackedTransaction<'_, 'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> Drop
+  for StackedTransaction<'_, 'inp, '_, L, Ctx, Lang, P>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  /// Rolls an undecided transaction back to the begin point (database default:
-  /// uncommitted work is discarded). After [`commit`](Self::commit) /
-  /// [`rollback`](Self::rollback) the base is already taken, so this is a no-op. Silent
-  /// rather than a panicking drop-bomb: tokit is `no_std`, where `thread::panicking()`
-  /// is unavailable, so a panic here could double-panic during unwinding — hence the
-  /// unchecked restore (the base is the oldest live checkpoint, so no misuse check is lost;
-  /// if a raw restore or state replacement already invalidated it, the lineage pop no-ops).
+  /// Decides an undecided transaction according to its [`DropPolicy`](super::DropPolicy).
+  /// After [`commit`](Self::commit) / [`rollback`](Self::rollback) the base and savepoints
+  /// are already taken, so this is a no-op whatever the policy.
+  ///
+  /// - [`Rollback`](super::Rollback): roll back to the begin point (the database default,
+  ///   all savepoints and progress discarded). Restoring the base pops the live stack down
+  ///   through it, carrying off every savepoint id in one step.
+  /// - [`Commit`](super::Commit): keep the progress, forgetting every savepoint id
+  ///   (youngest first) then the base — the same lineage-id hygiene as
+  ///   [`commit`](Self::commit).
+  ///
+  /// `P::ROLLBACK_ON_DROP` is a compile-time constant, so each policy monomorphizes to one
+  /// arm with the other eliminated. The rollback arm is silent (unchecked): `Drop` may run
+  /// while already unwinding, where `no_std` has no `thread::panicking()` to guard a
+  /// drop-bomb; the base is the oldest live checkpoint, so no misuse check is lost, and if
+  /// a raw restore or state replacement already invalidated it the lineage pop no-ops.
   #[cfg_attr(not(tarpaulin), inline)]
   fn drop(&mut self) {
-    if let Some(base) = self.base.take() {
-      self.input.restore_unchecked(base);
+    if P::ROLLBACK_ON_DROP {
+      if let Some(base) = self.base.take() {
+        self.input.restore_unchecked(base);
+      }
+    } else {
+      // Commit-on-drop: progress kept; forget every savepoint id (youngest first, each the
+      // live-stack top when popped) then the base, so nothing lingers on the live stack.
+      while let Some((_, ckp)) = self.saves.pop() {
+        self.input.forget_checkpoint(ckp.ckp_id);
+      }
+      if let Some(base) = self.base.take() {
+        self.input.forget_checkpoint(base.ckp_id);
+      }
     }
   }
 }

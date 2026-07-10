@@ -7,9 +7,9 @@
 //! [`SavepointId`](super::SavepointId) panics in every build.
 
 use crate::{
-  Token,
+  Commit, InputRef, Token,
   cache::DefaultCache,
-  emitter::{Silent, Verbose},
+  emitter::{Fatal, Silent, Verbose},
   error::token::UnexpectedToken,
   input::Input,
   lexer::LogosLexer,
@@ -88,6 +88,7 @@ impl Token<'_> for NumTok {
 type NumLexer<'a> = LogosLexer<'a, NumTok>;
 type NumCtx<'a> = (Silent<NumErr>, DefaultCache<'a, NumLexer<'a>>);
 type NumVerboseCtx<'a> = (Verbose<NumErr>, DefaultCache<'a, NumLexer<'a>>);
+type NumFatalCtx<'a> = (Fatal<NumErr>, DefaultCache<'a, NumLexer<'a>>);
 
 /// Builds a `Silent` input over `src` with a limit high enough never to trip.
 fn silent_input(src: &str) -> Input<'_, NumLexer<'_>, NumCtx<'_>, ()> {
@@ -331,6 +332,132 @@ fn stacked_best_match_selection() {
   );
 
   txn.commit();
+}
+
+// ── Commit drop policy (begin_stacked_with::<Commit>) ────────────────────────────
+//
+// The dual of the speculative default for the stacked guard: an undecided
+// `Commit`-policy transaction KEEPS its progress on drop (forgetting its savepoints and
+// base). `savepoint`/`rollback_to`/`release` and `commit`/`rollback` all work as usual.
+
+#[test]
+fn stacked_commit_policy_drop_keeps_progress() {
+  // An undecided Commit-policy stacked guard (with a live savepoint) keeps its progress on
+  // drop — the opposite of the Rollback default.
+  let mut input = silent_input("1 2 3 4");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let start = *inp.cursor().as_inner();
+  {
+    let mut txn = inp.begin_stacked_with::<Commit>();
+    let _ = txn.next().unwrap().expect("1");
+    let _sp = txn.savepoint();
+    let _ = txn.next().unwrap().expect("2");
+    // `txn` drops undecided → Commit policy keeps the progress, forgetting savepoint + base.
+  }
+  assert!(
+    *inp.cursor().as_inner() > start,
+    "dropping an undecided Commit-policy stacked guard keeps the consumed progress"
+  );
+  assert_eq!(
+    *inp.next().unwrap().expect("3").span_ref(),
+    SimpleSpan::new(4, 5),
+    "the input resumed past the kept tokens"
+  );
+}
+
+#[test]
+fn stacked_commit_policy_explicit_commit_keeps() {
+  // `commit` keeps progress whatever the policy.
+  let mut input = silent_input("1 2 3 4");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let start = *inp.cursor().as_inner();
+  let mut txn = inp.begin_stacked_with::<Commit>();
+  let _ = txn.next().unwrap().expect("1");
+  let _sp = txn.savepoint();
+  let _ = txn.next().unwrap().expect("2");
+  txn.commit();
+
+  assert!(
+    *inp.cursor().as_inner() > start,
+    "explicit commit on a Commit-policy stacked guard keeps progress"
+  );
+}
+
+#[test]
+fn stacked_commit_policy_explicit_rollback_restores() {
+  // `rollback` restores to the begin point whatever the policy: a Commit-policy stacked
+  // guard can still be rolled back explicitly.
+  let mut input = silent_input("1 2 3 4");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let start = *inp.cursor().as_inner();
+  let mut txn = inp.begin_stacked_with::<Commit>();
+  let _ = txn.next().unwrap().expect("1");
+  let _sp = txn.savepoint();
+  let _ = txn.next().unwrap().expect("2");
+  txn.rollback();
+
+  assert_eq!(
+    *inp.cursor().as_inner(),
+    start,
+    "explicit rollback on a Commit-policy stacked guard restores to the begin point"
+  );
+  assert_eq!(
+    *inp.next().unwrap().expect("1 again").span_ref(),
+    SimpleSpan::new(0, 1),
+    "the consumed tokens replay after the explicit rollback"
+  );
+}
+
+#[test]
+fn stacked_commit_policy_keeps_progress_on_fatal_error() {
+  // The Fatal-emitter case for the stacked guard: an error propagating via `?` out of a
+  // Commit-policy stacked guard drops it and KEEPS the progress consumed up to the error
+  // (forgetting the live savepoint and base), never rolling back.
+  let cache = DefaultCache::<'_, NumLexer<'_>>::default();
+  let mut emitter = Fatal::<NumErr>::new();
+  let mut input = Input::<NumLexer<'_>, NumFatalCtx<'_>, ()>::with_state_and_cache(
+    "1 @ 2",
+    TokenLimiter::with_limitation(usize::MAX),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  fn drive<'inp>(
+    inp: &mut InputRef<'inp, '_, NumLexer<'inp>, NumFatalCtx<'inp>>,
+  ) -> Result<(), NumErr> {
+    let mut txn = inp.begin_stacked_with::<Commit>();
+    let _ = txn.next()?; // consume "1"
+    let _sp = txn.savepoint();
+    let _ = txn.next()?; // cross "@": Fatal emits Err → `?` drops the guard (Commit: keep)
+    txn.commit();
+    Ok(())
+  }
+
+  let start = *inp.cursor().as_inner();
+  let result = drive(&mut inp);
+  assert!(
+    result.is_err(),
+    "the fatal lexer error propagated out of the stacked guard"
+  );
+  assert!(
+    *inp.cursor().as_inner() > start,
+    "the Commit-policy drop kept the progress consumed before the `?` (never rolled back)"
+  );
+  assert_eq!(
+    *inp
+      .next()
+      .unwrap()
+      .expect("resume past the kept progress")
+      .span_ref(),
+    SimpleSpan::new(4, 5),
+    "the input resumed just past the consumed `@` — the stacked guard kept its progress"
+  );
 }
 
 #[cfg(all(

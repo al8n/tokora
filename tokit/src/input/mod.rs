@@ -6,7 +6,7 @@ use super::*;
 
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
-pub use input_ref::{InputRef, Transaction};
+pub use input_ref::{Commit, DropPolicy, InputRef, Rollback, Transaction};
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use input_ref::{SavepointId, StackedTransaction};

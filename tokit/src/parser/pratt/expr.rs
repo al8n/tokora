@@ -1,5 +1,7 @@
 use core::marker::PhantomData;
 
+use crate::Commit;
+
 use super::*;
 
 /// Creates a pratt parser for a specific language
@@ -538,14 +540,20 @@ where
   // Step 2: parse rhs -- either an infix/postfix operator or the end of this pratt expression
   let mut prev_op_is_neither: Option<Power> = None;
   while !inp.is_eoi() {
-    let ckp = inp.save();
-    match parse_rhs.parse_pratt_rhs(inp)? {
+    // This loop is commit-by-default: it keeps whatever it parsed on every success and on
+    // every `?`-propagation (a fail-fast emitter error carries the consumed progress out,
+    // exactly as dropping a raw checkpoint used to), and rolls back only on the two exits
+    // where the next operator is not part of this expression. A `Commit`-policy guard is
+    // the structural match: parse through it, let the drop keep progress, and roll back
+    // explicitly on those two exits.
+    let mut txn = inp.begin_with::<Commit>();
+    match parse_rhs.parse_pratt_rhs(&mut *txn)? {
       PrattRHS::Postfix(precedenced) => {
         let (operator, op_power) = precedenced.into_components();
         if op_power >= min_precedence {
-          lhs = fold_postfix.fold_postfix(inp, lhs, Precedenced::new(operator, op_power))?;
+          lhs = fold_postfix.fold_postfix(&mut *txn, lhs, Precedenced::new(operator, op_power))?;
         } else {
-          inp.restore(ckp);
+          txn.rollback();
           break;
         }
       }
@@ -558,7 +566,7 @@ where
         };
 
         if lpower.lt(&min_precedence) || prev_op_is_neither.as_ref() == Some(lpower) {
-          inp.restore(ckp);
+          txn.rollback();
           break;
         }
 
@@ -568,7 +576,7 @@ where
           None
         };
         let rhs = parse(
-          inp,
+          &mut *txn,
           parse_lhs,
           parse_rhs,
           fold_prefix,
@@ -576,7 +584,7 @@ where
           fold_postfix,
           rpower,
         )?;
-        lhs = fold_infix.fold_infix(inp, lhs, rhs, infix)?;
+        lhs = fold_infix.fold_infix(&mut *txn, lhs, rhs, infix)?;
         prev_op_is_neither = next_neither;
       }
     }

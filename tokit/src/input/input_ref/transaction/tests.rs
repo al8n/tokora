@@ -6,9 +6,9 @@
 //! holds at compile time (see the `compile_fail` doctest on the type).
 
 use crate::{
-  InputRef, Token,
+  Commit, InputRef, Rollback, Token,
   cache::DefaultCache,
-  emitter::{Silent, Verbose},
+  emitter::{Fatal, Silent, Verbose},
   error::token::UnexpectedToken,
   input::Input,
   lexer::LogosLexer,
@@ -88,6 +88,7 @@ impl Token<'_> for NumTok {
 type NumLexer<'a> = LogosLexer<'a, NumTok>;
 type NumCtx<'a> = (Silent<NumErr>, DefaultCache<'a, NumLexer<'a>>);
 type NumVerboseCtx<'a> = (Verbose<NumErr>, DefaultCache<'a, NumLexer<'a>>);
+type NumFatalCtx<'a> = (Fatal<NumErr>, DefaultCache<'a, NumLexer<'a>>);
 
 /// Builds a `Silent` input over `src` with a limit high enough never to trip.
 fn silent_input(src: &str) -> Input<'_, NumLexer<'_>, NumCtx<'_>, ()> {
@@ -366,6 +367,196 @@ fn txn_passes_as_input_ref() {
   txn.commit();
 
   assert!(inp.is_eoi(), "progress kept — every token was consumed");
+}
+
+// ── Commit drop policy (begin_with::<Commit>) ────────────────────────────────────
+//
+// The dual of the speculative default: an undecided `Commit`-policy guard KEEPS its
+// progress on drop (like dropping a raw checkpoint). `commit`/`rollback` still work.
+
+#[test]
+fn txn_commit_policy_drop_keeps_progress() {
+  // A `Commit`-policy guard dropped without deciding keeps its progress — the opposite of
+  // the `Rollback` default, and the whole point of the policy.
+  let mut input = silent_input("1 2 3 4");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let start = *inp.cursor().as_inner();
+  {
+    let mut txn = inp.begin_with::<Commit>();
+    let _ = txn.next().unwrap().expect("first token");
+    let _ = txn.next().unwrap().expect("second token");
+    // `txn` drops here without commit/rollback → Commit policy keeps the progress.
+  }
+  assert!(
+    *inp.cursor().as_inner() > start,
+    "dropping an undecided Commit-policy guard keeps the consumed progress"
+  );
+  assert_eq!(
+    *inp.next().unwrap().expect("third token").span_ref(),
+    SimpleSpan::new(4, 5),
+    "the input resumed past the kept tokens"
+  );
+}
+
+#[test]
+fn txn_commit_policy_explicit_commit_keeps() {
+  // `commit` is available whatever the policy: on a Commit-policy guard it keeps progress,
+  // just as on the default flavour.
+  let mut input = silent_input("1 2 3 4");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let start = *inp.cursor().as_inner();
+  let mut txn = inp.begin_with::<Commit>();
+  let _ = txn.next().unwrap().expect("first token");
+  txn.commit();
+
+  assert!(
+    *inp.cursor().as_inner() > start,
+    "explicit commit on a Commit-policy guard keeps progress"
+  );
+}
+
+#[test]
+fn txn_commit_policy_explicit_rollback_restores() {
+  // `rollback` is available whatever the policy: a Commit-policy guard can still be rolled
+  // back explicitly, restoring the input to the begin point.
+  let mut input = silent_input("1 2 3 4");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let start = *inp.cursor().as_inner();
+  let mut txn = inp.begin_with::<Commit>();
+  let _ = txn.next().unwrap().expect("first token");
+  let _ = txn.next().unwrap().expect("second token");
+  txn.rollback();
+
+  assert_eq!(
+    *inp.cursor().as_inner(),
+    start,
+    "explicit rollback on a Commit-policy guard restores to the begin point"
+  );
+  assert_eq!(
+    *inp.next().unwrap().expect("token 1 again").span_ref(),
+    SimpleSpan::new(0, 1),
+    "the consumed tokens replay after the explicit rollback"
+  );
+}
+
+#[test]
+fn txn_commit_policy_keeps_progress_on_fatal_error() {
+  // The Fatal-emitter case, mirroring the old raw pratt loop: an error propagating out of a
+  // Commit-policy guard via `?` drops the still-undecided guard, which KEEPS the progress
+  // consumed up to the error rather than rolling back. A fail-fast `Fatal` emitter turns the
+  // malformed `@` into a propagating error.
+  let cache = DefaultCache::<'_, NumLexer<'_>>::default();
+  let mut emitter = Fatal::<NumErr>::new();
+  let mut input = Input::<NumLexer<'_>, NumFatalCtx<'_>, ()>::with_state_and_cache(
+    "1 @ 2",
+    TokenLimiter::with_limitation(usize::MAX),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  // Drives a Commit-policy guard that propagates the first fail-fast error via `?`. When the
+  // `@` lexer error fires, `next` commits the span up to it and returns `Err`; the `?` drops
+  // the undecided guard, whose Commit policy keeps that progress.
+  fn drive<'inp>(
+    inp: &mut InputRef<'inp, '_, NumLexer<'inp>, NumFatalCtx<'inp>>,
+  ) -> Result<(), NumErr> {
+    let mut txn = inp.begin_with::<Commit>();
+    let _ = txn.next()?; // consume "1"
+    let _ = txn.next()?; // cross "@": Fatal emits Err → `?` drops the guard (Commit: keep)
+    txn.commit();
+    Ok(())
+  }
+
+  let start = *inp.cursor().as_inner();
+  let result = drive(&mut inp);
+  assert!(
+    result.is_err(),
+    "the fatal lexer error propagated out of the guard"
+  );
+  assert!(
+    *inp.cursor().as_inner() > start,
+    "the Commit-policy drop kept the progress consumed before the `?` (never rolled back)"
+  );
+  assert_eq!(
+    *inp
+      .next()
+      .unwrap()
+      .expect("resume past the kept progress")
+      .span_ref(),
+    SimpleSpan::new(4, 5),
+    "the input resumed just past the consumed `@` — the guard kept its progress, as raw pratt did"
+  );
+}
+
+#[test]
+fn txn_nested_cross_policy() {
+  // The two policies are independent typestates: the child's policy governs the child, the
+  // parent's governs the parent.
+
+  // Case A: a Commit child inside a Rollback parent. The child's drop keeps its progress
+  // (seen through the parent), but the parent's own drop then rolls everything back.
+  {
+    let mut input = silent_input("1 2 3 4");
+    let mut emitter = Silent::<NumErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+    let start = *inp.cursor().as_inner();
+    {
+      let mut parent = inp.begin_with::<Rollback>();
+      let _ = parent.next().unwrap().expect("parent consumes 1");
+      let after_one = *parent.cursor().as_inner();
+      {
+        let mut child = parent.begin_with::<Commit>();
+        let _ = child.next().unwrap().expect("child consumes 2");
+        // child drops (Commit) → keeps its progress
+      }
+      assert!(
+        *parent.cursor().as_inner() > after_one,
+        "the Commit child kept its progress on drop (child policy governs the child)"
+      );
+      // parent drops (Rollback) → restores to the begin point
+    }
+    assert_eq!(
+      *inp.cursor().as_inner(),
+      start,
+      "the Rollback parent rolled everything back on drop, discarding the child's kept work"
+    );
+  }
+
+  // Case B: a Rollback child inside a Commit parent. The child's drop rolls back its own
+  // work; the parent's drop then keeps the parent's progress.
+  {
+    let mut input = silent_input("1 2 3 4");
+    let mut emitter = Silent::<NumErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+    let after_one;
+    {
+      let mut parent = inp.begin_with::<Commit>();
+      let _ = parent.next().unwrap().expect("parent consumes 1");
+      after_one = *parent.cursor().as_inner();
+      {
+        let mut child = parent.begin_with::<Rollback>();
+        let _ = child.next().unwrap().expect("child consumes 2");
+        // child drops (Rollback) → restores to `after_one`
+      }
+      assert_eq!(
+        *parent.cursor().as_inner(),
+        after_one,
+        "the Rollback child rolled back its own work on drop (child policy governs the child)"
+      );
+      // parent drops (Commit) → keeps its progress
+    }
+    assert_eq!(
+      *inp.cursor().as_inner(),
+      after_one,
+      "the Commit parent kept its progress on drop (parent policy governs the parent)"
+    );
+  }
 }
 
 #[cfg(all(

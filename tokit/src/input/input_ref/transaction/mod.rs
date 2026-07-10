@@ -1,6 +1,12 @@
-use core::ops::{Deref, DerefMut};
+use core::{
+  marker::PhantomData,
+  ops::{Deref, DerefMut},
+};
 
-use super::{Checkpoint, InputRef, Lexer, ParseContext};
+use super::{
+  Checkpoint, InputRef, Lexer, ParseContext,
+  drop_policy::{DropPolicy, Rollback},
+};
 
 /// A scoped backtracking transaction over an [`InputRef`].
 ///
@@ -12,15 +18,30 @@ use super::{Checkpoint, InputRef, Lexer, ParseContext};
 /// everything its children committed.
 ///
 /// [`commit`](Self::commit) and [`rollback`](Self::rollback) both consume the
-/// transaction; an undecided transaction rolls back on drop. Zero-cost:
+/// transaction and are available whatever the policy. Zero-cost:
 /// [`begin`](InputRef::begin) performs exactly one [`save`](InputRef::save), the guard
 /// is two words, and deciding is one branch — there is no journaling, because the input
 /// source is immutable and rewinding is a snapshot copy.
 ///
-/// Use `Transaction` for imperative flows with several exits (loops, `match` arms);
+/// # Drop policy
+///
+/// The final type parameter `P` is a compile-time [`DropPolicy`](super::DropPolicy) that
+/// fixes what an *undecided* guard does on drop:
+///
+/// - [`Rollback`](super::Rollback) (the default, from [`begin`](InputRef::begin)) — drop
+///   restores to the begin point; uncommitted speculative work is discarded.
+/// - [`Commit`](super::Commit) (from [`begin_with`](InputRef::begin_with)) — drop keeps
+///   the progress, the dual used by commit-by-default loops.
+///
+/// # When to reach for it
+///
+/// Use `Transaction` for imperative flows with several exits (loops, `match` arms) —
+/// [`begin`](InputRef::begin) for the speculative default, or
+/// [`begin_with::<Commit>`](InputRef::begin_with) for a commit-by-default loop that keeps
+/// progress on most exits and rolls back explicitly on the few that back out. Reach for
 /// [`attempt`](InputRef::attempt)/[`try_attempt`](InputRef::try_attempt) for
-/// single-closure speculation; raw [`save`](InputRef::save)/[`restore`](InputRef::restore)
-/// only where neither shape fits.
+/// single-closure speculation, and raw [`save`](InputRef::save)/[`restore`](InputRef::restore)
+/// only where no guard shape fits.
 ///
 /// # Compile-time last-in, first-out
 ///
@@ -43,7 +64,7 @@ use super::{Checkpoint, InputRef, Lexer, ParseContext};
 ///   inner.commit();
 /// }
 /// ```
-pub struct Transaction<'txn, 'inp, 'closure, L, Ctx, Lang: ?Sized = ()>
+pub struct Transaction<'txn, 'inp, 'closure, L, Ctx, Lang: ?Sized = (), P: DropPolicy = Rollback>
 where
   L: Lexer<'inp>,
   L::State: Clone,
@@ -51,20 +72,24 @@ where
 {
   pub(super) input: &'txn mut InputRef<'inp, 'closure, L, Ctx, Lang>,
   /// `Some` while the transaction is undecided; `None` once
-  /// [`commit`](Self::commit)/[`rollback`](Self::rollback) (or a rolling-back drop)
-  /// has consumed it. Routing every decision through this one `Option::take` is what
-  /// keeps `commit`, `rollback`, and `Drop` from ever restoring twice.
+  /// [`commit`](Self::commit)/[`rollback`](Self::rollback) (or a deciding drop) has
+  /// consumed it. Routing every decision through this one `Option::take` is what keeps
+  /// `commit`, `rollback`, and `Drop` from ever acting twice.
   pub(super) ckp: Option<Checkpoint<'inp, 'closure, L>>,
+  /// The drop policy — [`Rollback`](super::Rollback) or [`Commit`](super::Commit) —
+  /// carried as a zero-sized typestate. It selects, at compile time and branch-free, what
+  /// an undecided guard's `Drop` does: restore to the begin point, or keep the progress.
+  pub(super) _policy: PhantomData<P>,
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> Transaction<'_, 'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> Transaction<'_, 'inp, '_, L, Ctx, Lang, P>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
 {
   /// Commits the transaction: keeps the progress parsed through the guard and drops the
-  /// begin-point checkpoint without restoring.
+  /// begin-point checkpoint without restoring. Available whatever the drop policy.
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn commit(mut self) {
     // Take the checkpoint so the `Drop` guard below sees `None` and does not roll back.
@@ -80,6 +105,8 @@ where
 
   /// Rolls the transaction back: returns the input to the begin point — position, span,
   /// lexer state, emission log, dedup watermark, and poison boundary all restored.
+  /// Available whatever the drop policy (a [`Commit`](super::Commit) guard can still be
+  /// rolled back explicitly).
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn rollback(mut self) {
     if let Some(ckp) = self.ckp.take() {
@@ -88,7 +115,8 @@ where
   }
 }
 
-impl<'inp, 'closure, L, Ctx, Lang: ?Sized> Deref for Transaction<'_, 'inp, 'closure, L, Ctx, Lang>
+impl<'inp, 'closure, L, Ctx, Lang: ?Sized, P: DropPolicy> Deref
+  for Transaction<'_, 'inp, 'closure, L, Ctx, Lang, P>
 where
   L: Lexer<'inp>,
   L::State: Clone,
@@ -102,7 +130,8 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> DerefMut for Transaction<'_, 'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> DerefMut
+  for Transaction<'_, 'inp, '_, L, Ctx, Lang, P>
 where
   L: Lexer<'inp>,
   L::State: Clone,
@@ -114,23 +143,41 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> Drop for Transaction<'_, 'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> Drop for Transaction<'_, 'inp, '_, L, Ctx, Lang, P>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  /// Rolls back an undecided transaction (database default: uncommitted work is
-  /// discarded). After [`commit`](Self::commit)/[`rollback`](Self::rollback) the
-  /// checkpoint is already taken, so this is a no-op. Silent rather than a panicking
-  /// drop-bomb: tokit is `no_std`, where `thread::panicking()` is unavailable, so a
-  /// panic here could double-panic during unwinding.
+  /// Decides an undecided transaction according to its [`DropPolicy`](super::DropPolicy).
+  /// After [`commit`](Self::commit)/[`rollback`](Self::rollback) the checkpoint is
+  /// already taken, so this is a no-op whatever the policy.
+  ///
+  /// - [`Rollback`](super::Rollback): restore to the begin point (the database default,
+  ///   uncommitted work discarded).
+  /// - [`Commit`](super::Commit): keep the progress, only forgetting the checkpoint's
+  ///   lineage id — identical to dropping a raw [`Checkpoint`], including during an error
+  ///   `?`-propagation under a fail-fast emitter.
+  ///
+  /// `P::ROLLBACK_ON_DROP` is a compile-time constant, so each policy monomorphizes to
+  /// one arm with the other eliminated. Either arm is silent (no debug raw-misuse panic):
+  /// `Drop` may run while already unwinding, where `no_std` has no `thread::panicking()`
+  /// to guard a drop-bomb; the begin point is the oldest live checkpoint, so no misuse
+  /// check is lost.
   #[cfg_attr(not(tarpaulin), inline)]
   fn drop(&mut self) {
-    // Silent restore: `Drop` may run while already unwinding, where a debug raw-misuse
-    // panic would abort. The base is the oldest live checkpoint, so no check is lost.
     if let Some(ckp) = self.ckp.take() {
-      self.input.restore_unchecked(ckp);
+      if P::ROLLBACK_ON_DROP {
+        self.input.restore_unchecked(ckp);
+      } else {
+        // Commit-on-drop: progress kept; only tidy the committed checkpoint's lineage id
+        // so it does not linger on the live stack across commit-heavy loops (as
+        // `commit` does).
+        #[cfg(any(feature = "std", feature = "alloc"))]
+        self.input.forget_checkpoint(ckp.ckp_id);
+        #[cfg(not(any(feature = "std", feature = "alloc")))]
+        let _ = ckp;
+      }
     }
   }
 }
