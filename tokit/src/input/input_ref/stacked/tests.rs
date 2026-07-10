@@ -519,20 +519,137 @@ fn stacked_savepoint_after_raw_restore_panics_stale() {
 }
 
 #[test]
-#[should_panic(expected = "stacked transaction: savepoint is stale")]
-fn stacked_savepoint_after_set_state_panics_stale() {
-  // Replacing the lexer state re-keys every offset-dependent fact and invalidates every
-  // outstanding checkpoint, live savepoints included. Using one afterwards must panic as
-  // stale in every build.
-  let mut input = silent_input("1 2 3 4");
-  let mut emitter = Silent::<NumErr>::new();
-  let mut inp = input.as_ref(&mut emitter);
+fn stacked_savepoint_survives_state_surgery() {
+  // FLIPPED from the old `stacked_savepoint_after_set_state_panics_stale`. State surgery is
+  // transactional, not invalidating (the pre-copy restore architecture pure-copies every
+  // lineage fact), so a savepoint taken before it REMAINS VALID: `rollback_to` it undoes the
+  // surgery. At HEAD `set_state` cleared the live lineage, so this rollback_to panicked as
+  // stale. The savepoint's checkpoint captures a poisoned pre-surgery state; rolling back to
+  // it restores the regime, the poison boundary, the dedup watermark, and the position, and
+  // scanning resumes under the OLD regime.
+  //   "1 @ 3 4": `@` is a plain lexer error; the limit-2 limiter trips on the 3rd number.
+  use generic_arraydeque::typenum::U6;
 
-  let mut txn = inp.begin_stacked();
-  let _ = txn.next().unwrap().expect("1");
-  let sp = txn.savepoint();
-  txn.set_state(TokenLimiter::with_limitation(usize::MAX)); // invalidates `sp`
-  txn.rollback_to(sp); // stale → panic
+  let cache = DefaultCache::<'_, NumLexer<'_>>::default();
+  let mut emitter = Verbose::<NumErr>::new();
+  let mut input = Input::<NumLexer<'_>, NumVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 @ 3 4",
+    TokenLimiter::with_limitation(2),
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    let mut txn = inp.begin_stacked();
+
+    // A speculative peek seals `@`'s lexer error above the cursor (lifting the dedup
+    // watermark) and trips the limiter (latching the poison boundary), without consuming.
+    let _ = txn.peek::<U6>().unwrap();
+    assert!(
+      txn.is_poisoned(),
+      "the peek trips the limiter and latches poison"
+    );
+    let sp = txn.savepoint(); // marks the poisoned pre-surgery state
+
+    // State surgery through the guard's deref: re-keys the boundary away.
+    txn.set_state(TokenLimiter::with_limitation(usize::MAX));
+    assert!(!txn.is_poisoned(), "the surgery re-keys the boundary away");
+
+    // At HEAD this panicked as stale; post-fix `sp` is still live and rolls back across it.
+    txn.rollback_to(sp);
+
+    // The surgery is undone: the pre-surgery regime, boundary, and position returned.
+    assert!(
+      txn.is_poisoned(),
+      "boundary: the pre-surgery poison boundary returned"
+    );
+    assert_eq!(
+      txn.state().limitation(),
+      2,
+      "regime: the pre-surgery limiter returned"
+    );
+    assert_eq!(
+      txn.state().tokens(),
+      0,
+      "regime: the saved counter returned"
+    );
+    assert_eq!(
+      *txn.cursor().as_inner(),
+      0,
+      "position: rolled back to the savepoint"
+    );
+
+    // Scanning resumes under the OLD regime: the prefix replays and the stream stops at the
+    // restored boundary; the restored watermark keeps `@` deduplicated (no duplicate).
+    let mut replayed = Vec::new();
+    while let Some(tok) = txn.next().unwrap() {
+      replayed.push(*tok.span_ref());
+    }
+    assert_eq!(
+      replayed,
+      vec![SimpleSpan::new(0, 1), SimpleSpan::new(4, 5)],
+      "the prefix replays and the stream stops at the restored boundary"
+    );
+    txn.commit();
+  }
+
+  let total: usize = emitter.errors().values().map(|g| g.len()).sum();
+  assert_eq!(
+    total, 2,
+    "watermark: `@` and the limit diagnostic each stay exactly once — no duplicate on replay"
+  );
+}
+
+#[test]
+fn stacked_base_drop_undoes_state_surgery() {
+  // The base-drop twin: dropping an undecided stacked transaction after state surgery rolls
+  // back to the begin point, UNDOING the surgery (it is transactional). The base checkpoint
+  // captures a poisoned pre-surgery state; the drop restores it.
+  let cache = DefaultCache::<'_, NumLexer<'_>>::default();
+  let mut emitter = Silent::<NumErr>::new();
+  let mut input = Input::<NumLexer<'_>, NumCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    TokenLimiter::with_limitation(2),
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    // Trip the limiter before opening the transaction, so the base checkpoint is poisoned.
+    assert!(inp.next().unwrap().is_some(), "1");
+    assert!(inp.next().unwrap().is_some(), "2");
+    assert!(inp.next().unwrap().is_none(), "the 3rd scan trips → None");
+    assert!(inp.is_poisoned(), "the trip latched the poison boundary");
+    let after_trip = *inp.cursor().as_inner();
+
+    {
+      let mut txn = inp.begin_stacked();
+      let _sp = txn.savepoint();
+      txn.set_state(TokenLimiter::with_limitation(usize::MAX));
+      assert!(
+        !txn.is_poisoned(),
+        "the surgery re-keys the boundary away inside the guard"
+      );
+      // `txn` drops undecided → rollback to base, undoing the surgery.
+    }
+
+    assert!(
+      inp.is_poisoned(),
+      "the base-drop restored the pre-surgery poison boundary"
+    );
+    assert_eq!(
+      *inp.cursor().as_inner(),
+      after_trip,
+      "the base-drop rolled back to the trip point"
+    );
+    assert_eq!(
+      inp.state().limitation(),
+      2,
+      "the pre-surgery regime returned"
+    );
+    assert!(
+      inp.next().unwrap().is_none(),
+      "the restored boundary stops scanning (old regime)"
+    );
+  }
 }
 
 #[test]

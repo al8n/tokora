@@ -258,13 +258,14 @@ where
   /// The live-checkpoint lineage stack: the ids of the checkpoints that have been saved and
   /// neither restored nor invalidated by restoring an older one, youngest last. [`save`](InputRef::save)
   /// pushes the fresh id, [`restore`](InputRef::restore) pops the stack down through the
-  /// restored id (invalidating it and every younger one), state replacement clears it, and a
-  /// committed checkpoint is forgotten by [`forget_checkpoint`](InputRef::forget_checkpoint).
+  /// restored id (invalidating it and every younger one), and a committed checkpoint is
+  /// forgotten by [`forget_checkpoint`](InputRef::forget_checkpoint). State surgery leaves it
+  /// untouched — checkpoints survive state replacement, which is transactional.
   ///
   /// It is the single source of truth for lineage validity in **every** allocator build — no
   /// atomics, no interior mutability, just a `Vec` — so [`StackedTransaction`] can reject a
-  /// savepoint whose checkpoint a raw restore or a state replacement invalidated, on release
-  /// and no-`target_has_atomic`-ptr targets alike. In debug + ptr builds the same stack also
+  /// savepoint whose checkpoint a raw restore below it invalidated, on release and
+  /// no-`target_has_atomic`-ptr targets alike. In debug + ptr builds the same stack also
   /// backs `restore`'s non-LIFO and foreign-input panics.
   #[cfg(any(feature = "std", feature = "alloc"))]
   live_ckpts: LineageStack,

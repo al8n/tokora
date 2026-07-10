@@ -583,3 +583,253 @@ fn txn_commit_removes_id_from_live_stack() {
     "each commit forgets its id — the live stack returns to its baseline length"
   );
 }
+
+// ── State surgery is transactional: checkpoints survive it ───────────────────────
+//
+// `Transaction` derefs to `InputRef`, so `set_state` / `state_mut` are reachable inside a
+// guard. State surgery re-keys the FORWARD-scanning facts (cache, poison boundary, dedup
+// watermark) but is itself transactional: a checkpoint saved before it — the guard's begin
+// point — pure-copies every one of those facts, so rolling back across the surgery UNDOES
+// it. Explicit `rollback` and an implicit drop-rollback therefore agree.
+
+#[test]
+fn txn_drop_and_explicit_rollback_agree_after_state_surgery() {
+  // The finding's divergence, resolved. State surgery inside a guard, then compare an
+  // implicit drop-rollback against an explicit `rollback()`. At HEAD they DIVERGED:
+  // `set_state` cleared the live-checkpoint lineage, so the drop path (`restore_unchecked`)
+  // silently restored the pre-surgery snapshot while the explicit path (checked `restore`)
+  // debug-panicked as non-LIFO. Post-fix both restore identically, undoing the surgery: the
+  // pre-surgery regime, poison boundary, dedup watermark, and position all return.
+  //   "1 @ 3 4": `@` is a plain lexer error; the limit-2 limiter trips on the 3rd number.
+  use generic_arraydeque::typenum::U6;
+
+  // Everything observable about the input after the enclosing transaction rolls back.
+  #[derive(Debug, PartialEq)]
+  struct Outcome {
+    cursor: usize,
+    limit: usize,
+    tokens: usize,
+    poisoned: bool,
+    replayed: Vec<SimpleSpan>,
+    diags: usize,
+  }
+
+  fn run(explicit: bool) -> Outcome {
+    let cache = DefaultCache::<'_, NumLexer<'_>>::default();
+    let mut emitter = Verbose::<NumErr>::new();
+    let mut input = Input::<NumLexer<'_>, NumVerboseCtx<'_>, ()>::with_state_and_cache(
+      "1 @ 3 4",
+      TokenLimiter::with_limitation(2),
+      cache,
+    );
+    let outcome;
+    {
+      let mut inp = input.as_ref(&mut emitter);
+
+      // A speculative peek seals `@`'s lexer error above the cursor (lifting the dedup
+      // watermark past it) and trips the limiter (latching the poison boundary), all
+      // without consuming — the cursor stays at 0.
+      let _ = inp.peek::<U6>().unwrap();
+      assert!(
+        inp.is_poisoned(),
+        "the peek trips the limiter and latches poison"
+      );
+      let pre_diags: usize = inp.emitter().errors().values().map(|g| g.len()).sum();
+      assert_eq!(
+        pre_diags, 2,
+        "the peek emitted the `@` lexer error and the limit diagnostic"
+      );
+
+      let mut txn = inp.begin();
+      // State surgery inside the transaction: re-keys the boundary away, resets the
+      // watermark to the committed cursor, clears the cache, swaps the regime.
+      txn.set_state(TokenLimiter::with_limitation(usize::MAX));
+      assert!(
+        !txn.is_poisoned(),
+        "the surgery re-keys the boundary away inside the guard"
+      );
+
+      if explicit {
+        txn.rollback(); // HEAD: checked restore debug-panics (lineage cleared); fix: restores
+      } else {
+        drop(txn); // HEAD: restore_unchecked silently restores; fix: restores identically
+      }
+
+      // The rollback undid the surgery: the pre-surgery facts are back.
+      let cursor = *inp.cursor().as_inner();
+      let limit = inp.state().limitation();
+      let tokens = inp.state().tokens();
+      let poisoned = inp.is_poisoned();
+
+      // Drain to completion under the restored (old) regime: the prefix replays and the
+      // stream stops at the restored boundary. The restored watermark keeps `@`
+      // deduplicated, so no diagnostic is duplicated.
+      let mut replayed = Vec::new();
+      while let Some(tok) = inp.next().unwrap() {
+        replayed.push(*tok.span_ref());
+      }
+      let diags = inp.emitter().errors().values().map(|g| g.len()).sum();
+
+      outcome = Outcome {
+        cursor,
+        limit,
+        tokens,
+        poisoned,
+        replayed,
+        diags,
+      };
+    }
+    outcome
+  }
+
+  let dropped = run(false);
+  let explicit = run(true);
+
+  // The finding, resolved: the two rollback paths produce identical state.
+  assert_eq!(
+    dropped, explicit,
+    "drop-rollback and explicit rollback produce identical state after state surgery"
+  );
+  // Both undid the surgery — all four pre-surgery facts returned.
+  assert_eq!(
+    dropped.cursor, 0,
+    "position: rolled back to the begin-point cursor"
+  );
+  assert_eq!(
+    dropped.limit, 2,
+    "regime: the pre-surgery limit-2 limiter returned, not the fresh one"
+  );
+  assert_eq!(
+    dropped.tokens, 0,
+    "regime: the saved counter returned (the peek's increments were never committed)"
+  );
+  assert!(
+    dropped.poisoned,
+    "boundary: the pre-surgery poison boundary returned"
+  );
+  assert_eq!(
+    dropped.replayed,
+    vec![SimpleSpan::new(0, 1), SimpleSpan::new(4, 5)],
+    "position: the prefix replays from the begin point and stops at the restored boundary"
+  );
+  assert_eq!(
+    dropped.diags, 2,
+    "watermark: `@` stayed deduplicated on replay — the saved watermark returned, no duplicate"
+  );
+}
+
+#[test]
+fn txn_commit_keeps_state_surgery() {
+  // The dual of the rollback tests: state surgery inside a COMMITTED transaction PERSISTS.
+  // Commit keeps the progress and the re-keyed forward-scanning facts (fresh regime, dropped
+  // boundary, reset watermark). Only rolling back across the surgery undoes it.
+  let cache = DefaultCache::<'_, NumLexer<'_>>::default();
+  let mut emitter = Verbose::<NumErr>::new();
+  let mut input = Input::<NumLexer<'_>, NumVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    TokenLimiter::with_limitation(2),
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Trip the limiter via `next`, latching the poison boundary.
+    assert!(inp.next().unwrap().is_some(), "1");
+    assert!(inp.next().unwrap().is_some(), "2");
+    assert!(inp.next().unwrap().is_none(), "the 3rd scan trips → None");
+    assert!(inp.is_poisoned(), "the trip latched the poison boundary");
+
+    let mut txn = inp.begin();
+    // Surgery inside the guard, then COMMIT: the re-key must survive the commit.
+    txn.set_state(TokenLimiter::with_limitation(usize::MAX));
+    assert!(!txn.is_poisoned(), "the surgery re-keys the boundary away");
+    txn.commit();
+
+    // Commit kept the surgery: the input stays un-poisoned and scanning resumes past the
+    // old boundary under the fresh regime.
+    assert!(
+      !inp.is_poisoned(),
+      "commit kept the surgery — the boundary stays dropped"
+    );
+    assert_eq!(
+      inp.state().limitation(),
+      usize::MAX,
+      "commit kept the fresh regime"
+    );
+
+    let mut resumed = 0usize;
+    while inp.next().unwrap().is_some() {
+      resumed += 1;
+    }
+    assert_eq!(
+      resumed, 4,
+      "scanning resumed past the old boundary: 3, 4, 5, 6"
+    );
+  }
+}
+
+#[test]
+fn txn_rollback_after_state_surgery_restores_poison_and_diagnostic() {
+  // The poison-focused twin of the divergence test. Trip the limiter (latching the boundary
+  // and emitting the limit diagnostic exactly once), begin a transaction, do state surgery
+  // (the re-key drops the boundary — R14 forward semantics), then EXPLICITLY roll back. The
+  // rollback undoes the surgery: the original poison boundary returns paired with its single
+  // retained diagnostic — no duplicate, no diagnostic-less latch. At HEAD the explicit
+  // rollback debug-panicked (the surgery cleared the lineage).
+  let cache = DefaultCache::<'_, NumLexer<'_>>::default();
+  let mut emitter = Verbose::<NumErr>::new();
+  let mut input = Input::<NumLexer<'_>, NumVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    TokenLimiter::with_limitation(2),
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    assert!(inp.next().unwrap().is_some(), "1");
+    assert!(inp.next().unwrap().is_some(), "2");
+    assert!(inp.next().unwrap().is_none(), "the 3rd scan trips → None");
+    assert!(inp.is_poisoned(), "the trip latched the poison boundary");
+    let after_trip = *inp.cursor().as_inner();
+    let diags_after_trip: usize = inp.emitter().errors().values().map(|g| g.len()).sum();
+    assert_eq!(
+      diags_after_trip, 1,
+      "the trip emitted the limit diagnostic once"
+    );
+
+    let mut txn = inp.begin();
+    txn.set_state(TokenLimiter::with_limitation(usize::MAX));
+    assert!(
+      !txn.is_poisoned(),
+      "the surgery re-keys the boundary away inside the guard"
+    );
+    txn.rollback(); // HEAD: debug-panics; post-fix: restores the pre-surgery trip state
+
+    // The original poison boundary and its single diagnostic returned, still paired.
+    assert!(
+      inp.is_poisoned(),
+      "the pre-surgery poison boundary returned after rollback"
+    );
+    assert_eq!(
+      *inp.cursor().as_inner(),
+      after_trip,
+      "position rolled back to the trip point"
+    );
+    assert_eq!(
+      inp.state().limitation(),
+      2,
+      "the pre-surgery regime returned"
+    );
+    let total: usize = inp.emitter().errors().values().map(|g| g.len()).sum();
+    assert_eq!(
+      total, 1,
+      "the limit diagnostic is retained exactly once — never duplicated"
+    );
+
+    // Scanning resumes under the OLD (tripped) regime: the boundary stops the stream.
+    assert!(
+      inp.next().unwrap().is_none(),
+      "the restored boundary stops scanning (old regime)"
+    );
+  }
+}

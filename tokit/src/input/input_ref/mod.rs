@@ -140,15 +140,15 @@ where
 
   /// Returns a mutable reference to the current lexer state (extras).
   ///
-  /// # State replacement re-keys the input's offset-dependent facts
+  /// # State replacement re-keys the input's forward-scanning facts
   ///
   /// Mutating the state through the returned reference can change how the region ahead of
-  /// the cursor lexes, so this call **eagerly** re-keys every offset-dependent fact the
-  /// input tracks: the token cache is cleared (its entries were lexed under the old state
-  /// and those offsets may lex differently now), the poison boundary is dropped, and the
-  /// lexer-error dedup watermark is reset to the current committed cursor. The re-key runs
-  /// before this returns, so it applies whether or not the caller ends up mutating through
-  /// the `&mut` — conservative, matching the eager checkpoint invalidation below.
+  /// the cursor lexes, so this call **eagerly** re-keys every offset-dependent fact that
+  /// governs forward scanning: the token cache is cleared (its entries were lexed under the
+  /// old state and those offsets may lex differently now), the poison boundary is dropped,
+  /// and the lexer-error dedup watermark is reset to the current committed cursor. The
+  /// re-key runs before this returns, so it applies whether or not the caller ends up
+  /// mutating through the `&mut`.
   ///
   /// Speculative peek-ahead diagnostics emitted under the old state for the region beyond
   /// the cursor stay in the emitter log, and the watermark reset makes that same region
@@ -156,31 +156,33 @@ where
   /// speculative diagnostics may re-report the re-lexed region under the new regime, so
   /// callers should complete or roll back speculation before replacing state.
   ///
-  /// # Checkpoint invalidation
+  /// # Transactional: checkpoints survive state surgery
   ///
-  /// All outstanding checkpoints are invalidated: the live-checkpoint lineage stack is
-  /// cleared, so a later [`restore`](Self::restore) of an outstanding checkpoint no-ops the
-  /// lineage pop and a [`StackedTransaction`] savepoint taken before this call panics as
-  /// stale (every build). Restoring a checkpoint afterwards is a contract violation (debug
-  /// builds also panic in `restore` itself).
+  /// The re-key is itself **transactional**, not invalidating. A [`Checkpoint`] pure-copies
+  /// every fact the re-key touches — regime, poison boundary, dedup watermark, cursor/span,
+  /// and the cache-push counter — so restoring one saved *before* the surgery simply undoes
+  /// it: the pre-surgery regime, boundary, watermark, and position all return, and the cache
+  /// re-lexes under the restored regime. Outstanding checkpoints therefore **remain valid**
+  /// across state surgery — a raw [`restore`](Self::restore), an [`attempt`](Self::attempt)
+  /// rollback, and a [`StackedTransaction`] savepoint taken before the surgery all roll back
+  /// across it cleanly.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn state_mut(&mut self) -> &mut L::State {
-    #[cfg(any(feature = "std", feature = "alloc"))]
-    self.live_ckpts.clear();
     self.rekey_offset_facts();
     self.state
   }
 
   /// Manually sets the lexer state (for context-sensitive lexing).
   ///
-  /// # State replacement re-keys the input's offset-dependent facts
+  /// # State replacement re-keys the input's forward-scanning facts
   ///
   /// Replacing the state can change how the region ahead of the cursor lexes, so this call
-  /// re-keys every offset-dependent fact the input tracks: the token cache is cleared (its
-  /// entries were lexed under the old state and those offsets may lex differently now), the
-  /// poison boundary is dropped, and the lexer-error dedup watermark is reset to the current
-  /// committed cursor. Dropping the poison boundary is the documented limit-recovery path —
-  /// swap in a fresh or bigger-budget state and scanning resumes past the old boundary.
+  /// re-keys every offset-dependent fact that governs forward scanning: the token cache is
+  /// cleared (its entries were lexed under the old state and those offsets may lex
+  /// differently now), the poison boundary is dropped, and the lexer-error dedup watermark
+  /// is reset to the current committed cursor. Dropping the poison boundary is the
+  /// documented limit-recovery path — swap in a fresh or bigger-budget state and scanning
+  /// resumes past the old boundary.
   ///
   /// Speculative peek-ahead diagnostics emitted under the old state for the region beyond
   /// the cursor stay in the emitter log, and the watermark reset makes that same region
@@ -188,17 +190,18 @@ where
   /// speculative diagnostics may re-report the re-lexed region under the new regime, so
   /// callers should complete or roll back speculation before replacing state.
   ///
-  /// # Checkpoint invalidation
+  /// # Transactional: checkpoints survive state surgery
   ///
-  /// All outstanding checkpoints are invalidated: the live-checkpoint lineage stack is
-  /// cleared, so a later [`restore`](Self::restore) of an outstanding checkpoint no-ops the
-  /// lineage pop and a [`StackedTransaction`] savepoint taken before this call panics as
-  /// stale (every build). Restoring a checkpoint afterwards is a contract violation (debug
-  /// builds also panic in `restore` itself).
+  /// The re-key is itself **transactional**, not invalidating. A [`Checkpoint`] pure-copies
+  /// every fact the re-key touches — regime, poison boundary, dedup watermark, cursor/span,
+  /// and the cache-push counter — so restoring one saved *before* the surgery simply undoes
+  /// it: the pre-surgery regime, boundary, watermark, and position all return, and the cache
+  /// re-lexes under the restored regime. Outstanding checkpoints therefore **remain valid**
+  /// across state surgery — a raw [`restore`](Self::restore), an [`attempt`](Self::attempt)
+  /// rollback, and a [`StackedTransaction`] savepoint taken before the surgery all roll back
+  /// across it cleanly.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn set_state(&mut self, state: L::State) {
-    #[cfg(any(feature = "std", feature = "alloc"))]
-    self.live_ckpts.clear();
     self.rekey_offset_facts();
     *self.state = state;
   }
@@ -216,14 +219,32 @@ where
   ///   replacing the state is the documented limit-recovery path (a caller swaps in a
   ///   fresh/bigger-budget state and scanning resumes);
   /// - the **lexer-error dedup watermark** is reset to the current committed cursor — not
-  ///   zero: the region behind the cursor is legally unreachable (the callers also clear the
-  ///   checkpoint lineage, invalidating every outstanding checkpoint), so it stays
-  ///   deduplicated, while the region ahead must be re-evaluatable under the new regime.
+  ///   zero: forward scanning never revisits the region behind the committed cursor (a
+  ///   consume only advances), so its already-reported errors stay deduplicated, while the
+  ///   region ahead must be re-evaluatable under the new regime.
   ///
   /// The cache is cleared first so the cursor reads the committed position (the end of the
   /// last consumed token), which is exactly where a re-lex now resumes. The cache-push
-  /// counter is deliberately left untouched: future saves snapshot its current value, and
-  /// dead checkpoints' snapshots are unreachable by contract.
+  /// counter is deliberately left untouched: future saves snapshot its current value.
+  ///
+  /// # Restoring across this re-key is consistent (state surgery is transactional)
+  ///
+  /// A [`Checkpoint`] saved before the surgery restores cleanly across it — walk each fact it
+  /// carries against this re-key and [`restore_unchecked`](Self::restore_unchecked):
+  ///
+  /// - **cursor / span / state (the regime)**: pure-copied back; the cursor follows from the
+  ///   restored span and the emptied cache.
+  /// - **poison boundary** and **dedup watermark**: pure-copied back, overwriting the
+  ///   surgery's `None` / committed-cursor reset with the saved values.
+  /// - **cache-push counter**: the surgery cleared the cache (`len 0`) but left the counter,
+  ///   so restore's tail-drop (`min(cache.len(), pushes − saved)`) drops nothing, and the
+  ///   pure-copy re-anchors the counter to the saved value — future deltas stay exact.
+  /// - **cache contents**: emptied by the surgery, so restore re-lexes the region on demand
+  ///   under the RESTORED state — the old regime — which the restored state field makes
+  ///   correct.
+  ///
+  /// Every fact therefore returns to its pre-surgery value: the surgery is simply undone,
+  /// like any other post-save mutation, so outstanding checkpoints remain valid across it.
   ///
   /// This re-key is exclusive to the public state-surgery APIs. Internal state *threading* —
   /// [`restore`](Self::restore)'s copy-back, the scan/consume paths writing
@@ -527,9 +548,9 @@ where
   ///
   /// Raw [`save`](Self::save) / [`restore`](Self::restore), state replacement, and nested
   /// transactions are all reachable through the guard's deref; see the mixing rules on
-  /// [`StackedTransaction`] for which combinations invalidate a savepoint (a raw restore
-  /// below it, or replacing the lexer state — both panic as stale in every build) and which
-  /// are always legal (nested speculation, and a LIFO-clean raw pair above the savepoints).
+  /// [`StackedTransaction`] for the one combination that invalidates a savepoint (a raw
+  /// restore below it — it panics as stale in every build) and which are always legal (state
+  /// surgery, nested speculation, and a LIFO-clean raw pair above the savepoints).
   ///
   /// Reach for the backtracking tools in order of shape:
   ///
@@ -637,8 +658,8 @@ where
 
   /// Pops the lineage stack down through `id` inclusive, invalidating it and every
   /// checkpoint saved after it. A no-op if `id` is already gone — a raw restore to a
-  /// checkpoint an earlier restore or a state replacement already invalidated (release's
-  /// unspecified-but-bounded posture; debug + ptr asserts presence in `restore` first).
+  /// checkpoint an earlier restore already invalidated (release's unspecified-but-bounded
+  /// posture; debug + ptr asserts presence in `restore` first).
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   fn live_pop_through(&mut self, id: u64) {
@@ -935,8 +956,8 @@ where
   pub(crate) fn restore_unchecked(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     // Maintain the lineage stack in every allocator build: pop it down through the restored
     // id (invalidating it and every younger checkpoint). An absent id is a no-op — a raw
-    // restore to a checkpoint an earlier restore or a state replacement already invalidated
-    // (release's unspecified-but-bounded posture; `restore` asserts presence in debug + ptr).
+    // restore to a checkpoint an earlier restore already invalidated (release's
+    // unspecified-but-bounded posture; `restore` asserts presence in debug + ptr).
     #[cfg(any(feature = "std", feature = "alloc"))]
     self.live_pop_through(checkpoint.ckp_id);
 

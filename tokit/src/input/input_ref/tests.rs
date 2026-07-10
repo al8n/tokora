@@ -2406,10 +2406,12 @@ fn boundary_replay_zero_width_token_contract() {
 // ── State surgery re-keys the cache, watermark, and poison boundary ─────────────
 //
 // `set_state`/`state_mut` document that replacing the lexer state re-keys every
-// offset-dependent fact — the token cache, the lexer-error dedup watermark, and the
-// poison boundary — and invalidates every outstanding checkpoint. These four pin that
-// the re-key actually happens on BOTH public state-surgery APIs, keyed to the current
-// committed cursor, and that it re-homes offset facts without rewriting emission history.
+// forward-scanning fact — the token cache, the lexer-error dedup watermark, and the
+// poison boundary. These four pin that the re-key actually happens on BOTH public
+// state-surgery APIs, keyed to the current committed cursor, and that it re-homes offset
+// facts without rewriting emission history. (The re-key governs FORWARD scanning and is
+// itself transactional — a checkpoint saved before the surgery restores across it,
+// undoing it; the transaction/stacked guard suites pin that.)
 
 #[test]
 fn set_state_after_limit_trip_resumes_scanning() {
