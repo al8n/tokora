@@ -141,9 +141,10 @@ where
       return Ok(self.emitter);
     }
 
-    // A sticky limit trip latches the input: never rebuild a lexer to scan past
-    // the trip. Serve whatever is already cached and stop.
-    if self.is_poisoned() {
+    // A sticky limit trip latches a poison boundary at the durable frontier: once
+    // the cursor reaches it, never rebuild a lexer to scan past the trip. Serve
+    // whatever is already cached and stop.
+    if self.reached_boundary(self.offset()) {
       self.cache.peek::<W>(buf);
       return Ok(self.emitter);
     }
@@ -154,17 +155,22 @@ where
     // tokens then become unreachable and must be truncated away (see below).
     let mut tripped = false;
 
-    // Otherwise, lex additional tokens to fill the request
+    // Otherwise, lex additional tokens to fill the request. `lex_within_boundary`
+    // stops the fill at the durable frontier during a replay, so an overflow peek
+    // after a restore re-caches only the reproducible prefix.
+    let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
     while want > 0 {
-      if let Some(lexed) = Lexed::lex_spanned(&mut lexer) {
+      if let Some(lexed) = self.lex_within_boundary(&mut lexer, &mut lex_at) {
         let (span, lexed) = lexed.into_components();
 
         match lexed {
           Lexed::Error(e) => {
-            // A limit trip is sticky: latch before the (possibly fatal) emit so a
-            // fatal early return still records the latch for later operations.
-            let limit_hit = self.latch_if_limit_tripped(&lexer);
+            // A limit trip is sticky: latch the durable frontier (the end of the
+            // last cached token) before the (possibly fatal) emit so a fatal early
+            // return still records it for later operations.
+            let boundary = self.offset().clone();
+            let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
             // Emit immediately regardless of cache fullness so an error in the
             // overflow region is never silently dropped. The dedup mark keeps a
             // later consume that re-lexes this region from reporting it twice.

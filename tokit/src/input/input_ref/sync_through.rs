@@ -42,19 +42,25 @@ where
       }
     }
 
-    // A sticky limit trip latches the input: no token remains to sync to, so
-    // return `Ok(None)` (the end-of-input outcome) without rebuilding a lexer.
-    if self.is_poisoned() {
+    // A sticky limit trip latches a poison boundary: once the cursor reaches the
+    // durable frontier no token remains to sync to, so return `Ok(None)` (the
+    // end-of-input outcome) without rebuilding a lexer. Strictly before it, the
+    // scan proceeds.
+    if self.reached_boundary(self.offset()) {
       return Ok(None);
     }
 
+    let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
 
-    while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
+    while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(&mut lexer, &mut lex_at)
+    {
       match tok {
         Lexed::Error(err) => {
-          // A limit trip is sticky: latch the input so re-entry cannot rescan.
-          let limit_hit = self.latch_if_limit_tripped(&lexer);
+          // A limit trip latches the durable frontier (the cursor: this path skips
+          // over tokens without committing progress) so re-entry cannot rescan.
+          let boundary = self.offset().clone();
+          let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
           match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
             Ok(_) => {
               if limit_hit {
@@ -164,20 +170,27 @@ where
       }
       // Otherwise, let's skip the input
       false => {
-        // A sticky limit trip latches the input: no token remains to sync to, so
-        // return the empty result (the end-of-input outcome) without rebuilding a
-        // lexer.
-        if self.is_poisoned() {
+        // A sticky limit trip latches a poison boundary: once the cursor reaches
+        // the durable frontier no token remains to sync to, so return the empty
+        // result (the end-of-input outcome) without rebuilding a lexer. Strictly
+        // before it, the scan proceeds.
+        if self.reached_boundary(self.offset()) {
           return Ok((None, GenericArrayDeque::new(), self.emitter));
         }
 
+        let mut lex_at = self.offset().clone();
         let mut lexer = self.lexer();
 
-        while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
+        while let Some(Spanned { span, data: tok }) =
+          self.lex_within_boundary(&mut lexer, &mut lex_at)
+        {
           match tok {
             Lexed::Error(err) => {
-              // A limit trip is sticky: latch the input so re-entry cannot rescan.
-              let limit_hit = self.latch_if_limit_tripped(&lexer);
+              // A limit trip latches the durable frontier (the cursor: this path
+              // skips over tokens without committing progress) so re-entry cannot
+              // rescan.
+              let boundary = self.offset().clone();
+              let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
               match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
                 Ok(_) => {
                   if limit_hit {

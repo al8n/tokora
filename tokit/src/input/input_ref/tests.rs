@@ -523,3 +523,197 @@ fn stale_younger_restore_never_leaves_poison_without_its_diagnostic() {
     "poisoned implies a retained diagnostic: the limit error is re-emitted exactly once, never lost"
   );
 }
+
+// ── The poison BOUNDARY: a drained cache prefix replays after a restore ────────
+//
+// These use a BY-VALUE limiter (`TokenLimiter`, checkpointed/restored with the
+// lexer state) rather than the shared `ProbeLimiter`. The distinction is load
+// bearing: an overflow peek never writes its temporary lexer's counter back into
+// the input state, so a checkpoint taken *after* the trip still saves a clean
+// count. Restoring it therefore lets the committed path re-lex the prefix from
+// scratch, re-counting toward the same limit and re-tripping at the very position
+// it would have — which is exactly what makes a positional boundary observable: a
+// shared counter would instead re-trip on the first replayed token and hide the
+// prefix again.
+
+use crate::state::token_tracker::{TokenLimitExceeded, TokenLimiter};
+
+#[derive(Debug, Clone, PartialEq)]
+enum ByValErr {
+  Lex,
+  Limit,
+}
+
+impl From<()> for ByValErr {
+  fn from(_: ()) -> Self {
+    ByValErr::Lex
+  }
+}
+
+impl From<TokenLimitExceeded> for ByValErr {
+  fn from(_: TokenLimitExceeded) -> Self {
+    ByValErr::Limit
+  }
+}
+
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for ByValErr {
+  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
+    ByValErr::Lex
+  }
+}
+
+#[derive(Debug, Clone, PartialEq, crate::logos::Logos)]
+#[logos(crate = crate::logos, extras = TokenLimiter, skip r"[ \t\r\n]+")]
+enum ByValTok {
+  #[regex(r"[0-9]+", |lex| { lex.extras.increase(); })]
+  Num,
+}
+
+impl core::fmt::Display for ByValTok {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "number")
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum ByValKind {
+  Num,
+}
+
+impl core::fmt::Display for ByValKind {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    write!(f, "number")
+  }
+}
+
+impl Token<'_> for ByValTok {
+  type Kind = ByValKind;
+  type Error = ByValErr;
+
+  fn kind(&self) -> ByValKind {
+    ByValKind::Num
+  }
+
+  fn is_trivia(&self) -> bool {
+    false
+  }
+}
+
+type ByValLexer<'a> = LogosLexer<'a, ByValTok>;
+type ByValVerboseCtx<'a> = (Verbose<ByValErr>, DefaultCache<'a, ByValLexer<'a>>);
+
+#[test]
+fn overflow_trip_peek_save_drain_restore_replays_prefix_and_stops_at_boundary() {
+  // THE positional-boundary case. An overflow peek trips mid-window, truncates to
+  // the cache-resident prefix, and latches the poison boundary at the DURABLE
+  // FRONTIER — the end of the last cached token. A caller then SAVES, drains the
+  // prefix speculatively, and RESTORES the same checkpoint. It must observe:
+  //   (a) the prefix tokens are consumable AGAIN (same spans, same order) — the
+  //       cache was drained, so the boundary lets lexing strictly before it
+  //       replay the prefix from source;
+  //   (b) after the prefix the stream ends AT the boundary — the trip token and
+  //       everything past it are never re-scanned (frozen scan counter);
+  //   (c) the limit diagnostic is retained exactly once.
+  //
+  // Under the old boolean latch the restore left the input fully latched, so the
+  // prefix visible at save time became unreachable (the first replay `next()`
+  // short-circuited to `None`): restore did not reproduce the saved state.
+  //
+  //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
+  //   ^0 ^2 ^4      (token 3 spans [4, 5): the durable frontier is offset 5)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U6;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    TokenLimiter::with_limitation(5),
+    cache,
+  );
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Overflow peek (U6 > U3 cache): caches 1..=3, stages 4 & 5, trips on 6. The
+    // result is truncated to the 3-token cache-resident prefix; the boundary
+    // latches at the durable frontier (end of token 3, offset 5).
+    {
+      let peeked = inp.peek::<U6>().unwrap();
+      assert_eq!(
+        peeked.len(),
+        3,
+        "the overflow trip truncates the peek to the cache-resident prefix"
+      );
+    }
+    assert!(
+      inp.is_poisoned(),
+      "the overflow trip latches the poison boundary"
+    );
+
+    // Save AFTER the trip: the checkpoint carries the boundary AND the retained
+    // limit diagnostic (its emitter mark postdates the emission).
+    let ckp = inp.save();
+
+    // Speculatively drain the cached prefix. The three cached tokens come back;
+    // then the boundary stops `next()` at the durable frontier (no phantom 4/5/6).
+    assert_eq!(
+      *inp.next().unwrap().expect("drain 1").span_ref(),
+      SimpleSpan::new(0, 1)
+    );
+    assert_eq!(
+      *inp.next().unwrap().expect("drain 2").span_ref(),
+      SimpleSpan::new(2, 3)
+    );
+    assert_eq!(
+      *inp.next().unwrap().expect("drain 3").span_ref(),
+      SimpleSpan::new(4, 5)
+    );
+    assert!(
+      inp.next().unwrap().is_none(),
+      "the drain stops at the boundary — no phantom lookahead"
+    );
+
+    // Restore the SAME checkpoint: `boundary = max(saved, current)` keeps it intact.
+    inp.restore(ckp);
+    assert!(
+      inp.is_poisoned(),
+      "the boundary survives the restore (saved == current)"
+    );
+
+    // (a) The prefix is consumable AGAIN — same spans, same order — replayed from
+    // source because the cache was drained.
+    assert_eq!(
+      *inp.next().unwrap().expect("replay 1").span_ref(),
+      SimpleSpan::new(0, 1)
+    );
+    assert_eq!(
+      *inp.next().unwrap().expect("replay 2").span_ref(),
+      SimpleSpan::new(2, 3)
+    );
+    assert_eq!(
+      *inp.next().unwrap().expect("replay 3").span_ref(),
+      SimpleSpan::new(4, 5)
+    );
+    // (b) After the prefix the stream ends exactly at the boundary.
+    assert!(
+      inp.next().unwrap().is_none(),
+      "the replay stops at the boundary — nothing past it is re-scanned"
+    );
+    // The frozen scan counter proves it: the replay re-scanned exactly the 3-token
+    // prefix (the trip token past the boundary is never reached), so the current
+    // lexer lineage's count is 3, not 4+.
+    assert_eq!(
+      inp.state().tokens(),
+      3,
+      "the replay scanned exactly the prefix (3), never the trip token past the boundary"
+    );
+  }
+
+  // (c) The limit diagnostic is retained across save → drain → restore → replay,
+  // exactly once.
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 1,
+    "the limit diagnostic survives save → drain → restore → replay, reported exactly once"
+  );
+}

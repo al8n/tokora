@@ -144,20 +144,24 @@ where
   /// already been emitted (e.g. during a peek that lexed past this point), so the
   /// consume path must not report them again when it re-lexes the same region.
   emitted_error_end: L::Offset,
-  /// Sticky limit-error latch, held at the input level so it survives across the
-  /// fresh lexers `InputRef` builds per operation.
+  /// Sticky limit-error boundary, held at the input level so it survives across
+  /// the fresh lexers `InputRef` builds per operation.
   ///
-  /// When a lexer surfaces a state/limit error (its [`check`](crate::Lexer::check)
-  /// fails after scanning a token), the temporary lexer latches to EOF, but that
-  /// latch dies with the lexer. Persisting it here means the very next
-  /// `next()`/`peek()` short-circuits to empty **without** rebuilding a lexer or
+  /// `None` is unpoisoned. `Some(off)` records the *durable frontier* a limit trip
+  /// latched at: the offset up to which the pre-trip tokens remain reproducible by
+  /// re-lexing. When a lexer surfaces a state/limit error (its
+  /// [`check`](crate::Lexer::check) fails after scanning a token) the temporary
+  /// lexer latches to EOF, but that latch dies with the lexer; persisting the
+  /// frontier here means a scanner whose lex position has reached `off`
+  /// short-circuits to its poisoned outcome **without** rebuilding a lexer or
   /// rescanning the tripping token, keeping error-recovery work bounded on
-  /// untrusted input. It is checkpointed by [`save`](InputRef::save) and obeys a
-  /// never-raise discipline under [`restore`](InputRef::restore): a restore may
-  /// only *lower* it — un-latching a speculative trip in lockstep with the emitter
-  /// rewind that removed its diagnostic — never raise it, so re-entry while latched
-  /// still never rebuilds a lexer.
-  poisoned: bool,
+  /// untrusted input. Lexing *strictly before* the frontier still proceeds, so a
+  /// cache prefix drained after the trip stays replayable. It is checkpointed by
+  /// [`save`](InputRef::save) and obeys a never-*more*-poisoned discipline under
+  /// [`restore`](InputRef::restore) (smaller offset = more poisoned, `None` =
+  /// +infinity): a restore may only relax the frontier toward the less-poisoned of
+  /// the saved and current values, never make the input more poisoned.
+  poison_boundary: Option<L::Offset>,
 }
 
 impl<'inp, L, Ctx, Lang: ?Sized> Clone for Input<'inp, L, Ctx, Lang>
@@ -176,7 +180,7 @@ where
       cursor: self.cursor.clone(),
       cache: self.cache.clone(),
       emitted_error_end: self.emitted_error_end.clone(),
-      poisoned: self.poisoned,
+      poison_boundary: self.poison_boundary.clone(),
     }
   }
 }
@@ -230,7 +234,7 @@ where
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache: DefaultCache::<'inp, L>::default(),
       emitted_error_end: L::Offset::default(),
-      poisoned: false,
+      poison_boundary: None,
     }
   }
 }
@@ -252,7 +256,7 @@ where
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache,
       emitted_error_end: L::Offset::default(),
-      poisoned: false,
+      poison_boundary: None,
     }
   }
 
@@ -268,7 +272,7 @@ where
       cache: &mut self.cache,
       span: &mut self.span,
       emitted_error_end: &mut self.emitted_error_end,
-      poisoned: &mut self.poisoned,
+      poison_boundary: &mut self.poison_boundary,
       emitter,
       _marker: PhantomData,
     }

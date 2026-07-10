@@ -42,7 +42,7 @@ where
   pub(super) span: &'closure mut L::Span,
   pub(super) cache: &'closure mut Ctx::Cache,
   pub(super) emitted_error_end: &'closure mut L::Offset,
-  pub(super) poisoned: &'closure mut bool,
+  pub(super) poison_boundary: &'closure mut Option<L::Offset>,
   pub(super) emitter: &'closure mut Ctx::Emitter,
   pub(super) _marker: PhantomData<Lang>,
 }
@@ -123,26 +123,69 @@ where
 
   /// Returns `true` if the input is poisoned by a sticky limit error.
   ///
-  /// Once a lexer trips a state/limit error, this latch is set at the input level
-  /// so subsequent scanning entry points can bail without rebuilding a lexer.
+  /// True whenever a poison boundary is latched, regardless of the current lex
+  /// position — the stable public-ish predicate. The *positional* question a
+  /// scanner asks ("has my lex position reached the boundary?") is
+  /// [`reached_boundary`](Self::reached_boundary); a poisoned input can still lex
+  /// strictly before its boundary (e.g. to replay a drained prefix).
   #[cfg_attr(not(tarpaulin), inline(always))]
+  #[cfg_attr(not(test), allow(dead_code))]
   pub(super) fn is_poisoned(&self) -> bool {
-    *self.poisoned
+    self.poison_boundary.is_some()
   }
 
-  /// Latches the input-level poison if `lexer`'s state has tripped a limit error.
+  /// Returns `true` if `pos` — the offset a scan would lex its next token at — has
+  /// reached the poison boundary (a smaller boundary is more poisoned). At or past
+  /// it a scanner yields its poisoned outcome without rebuilding a lexer; strictly
+  /// before it, lexing proceeds normally.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn reached_boundary(&self, pos: &L::Offset) -> bool {
+    matches!(self.poison_boundary.as_ref(), Some(b) if pos >= b)
+  }
+
+  /// Lexes the next token unless doing so would cross the poison boundary.
+  ///
+  /// Once the position the next token would be lexed at (`lex_at`, threaded by the
+  /// caller and advanced to each token's end) reaches the boundary, returns `None`
+  /// so the caller's end-of-input handling produces the poisoned outcome — the
+  /// tripping token and everything after it is never re-scanned. With no boundary
+  /// (or strictly before it) this is exactly [`Lexed::lex_spanned`].
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn lex_within_boundary(
+    &self,
+    lexer: &mut L,
+    lex_at: &mut L::Offset,
+  ) -> Option<Spanned<Lexed<'inp, L::Token>, L::Span>> {
+    if self.reached_boundary(lex_at) {
+      return None;
+    }
+    let lexed = Lexed::<L::Token>::lex_spanned(lexer)?;
+    *lex_at = lexed.span_ref().end_ref().clone();
+    Some(lexed)
+  }
+
+  /// Latches the input-level poison boundary if `lexer`'s state has tripped a limit
+  /// error, recording `boundary` — the durable frontier (the offset up to which the
+  /// pre-trip tokens stay reproducible by re-lexing) — as the trip position.
   ///
   /// A limit-class error is sticky: it manifests as a failing
-  /// [`check`](crate::Lexer::check) (the exact condition the lexer's own latch
-  /// keys on). Because `InputRef` rebuilds a fresh lexer per operation, that
-  /// per-lexer latch would be lost; recording it here bounds the work a recovering
-  /// caller can trigger by re-entering `next()`/`peek()`. Returns whether it
-  /// latched. A plain (non-limit) lexer error leaves `check()` `Ok` and does not
-  /// latch, so the caller keeps scanning for the next valid token.
+  /// [`check`](crate::Lexer::check) (the exact condition the lexer's own latch keys
+  /// on). Because `InputRef` rebuilds a fresh lexer per operation, that per-lexer
+  /// latch would be lost; recording the frontier here bounds the work a recovering
+  /// caller can trigger by re-entering a scanner. Returns whether it latched. A
+  /// plain (non-limit) lexer error leaves `check()` `Ok` and does not latch, so the
+  /// caller keeps scanning for the next valid token.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn latch_if_limit_tripped(&mut self, lexer: &L) -> bool {
+  fn latch_if_limit_tripped(&mut self, lexer: &L, boundary: L::Offset) -> bool {
     if lexer.check().is_err() {
-      *self.poisoned = true;
+      // A trip can only maintain or increase poison: clamp to the more-poisoned
+      // (smaller) of any existing frontier and this one. In practice a live scan
+      // never reaches a trip past an already-latched boundary (it stops at the
+      // boundary first), so this only ever records the frontier or lowers it.
+      match self.poison_boundary.as_ref() {
+        Some(existing) if *existing <= boundary => {}
+        _ => *self.poison_boundary = Some(boundary),
+      }
       true
     } else {
       false
@@ -304,7 +347,7 @@ where
       self.state.clone(),
       self.emitter.checkpoint(),
       self.emitted_error_end.clone(),
-      self.is_poisoned(),
+      self.poison_boundary.clone(),
     )
   }
 
@@ -340,20 +383,23 @@ where
   /// This rewinds the cache, resets the cursor position, and restores the lexer
   /// state.
   ///
-  /// The sticky limit-error latch is checkpointed like the dedup watermark and
-  /// obeys the same never-raise discipline: a restore may only *lower* it, never
-  /// raise it. Un-latching keeps the latch paired with its diagnostic — a restore
-  /// that rewinds a speculative limit diagnostic also drops the poison it latched,
-  /// so the committed path re-lexes and re-emits rather than stopping on a
-  /// diagnostic-less latch (which would masquerade as clean EOF). A poisoned
-  /// checkpoint can never *re-arm* a latch a younger restore already cleared.
+  /// The sticky limit-error boundary is checkpointed like the dedup watermark and
+  /// obeys the same never-*more*-poisoned discipline: a restore may only relax the
+  /// frontier toward the less-poisoned of the saved and current values (a max under
+  /// the ordering where a smaller offset is more poisoned and `None` is +infinity),
+  /// never make the input more poisoned. Relaxing keeps the frontier paired with
+  /// its diagnostic — a restore that rewinds a speculative limit diagnostic also
+  /// drops the poison it latched, so the committed path re-lexes and re-emits rather
+  /// than stopping on a diagnostic-less latch (which would masquerade as clean EOF).
+  /// A poisoned checkpoint can never *re-arm* a frontier a younger restore already
+  /// cleared.
   ///
-  /// Bounded-work note: un-poisoning via an explicit restore means a caller-driven
-  /// save/restore loop re-scans the region once per restore. That is ordinary
-  /// backtracking cost — one rescan per caller action — categorically different
-  /// from the internal, caller-invisible rescan loops the latch exists to prevent
-  /// (a poisoned input re-entered through `next()`/`peek()` still never rebuilds a
-  /// lexer or rescans the tripping token).
+  /// Bounded-work note: the region *before* the boundary may be re-scanned once per
+  /// explicit restore — ordinary backtracking cost, one rescan per caller action.
+  /// Nothing ever scans *past* the boundary (the guarantee the latch exists for),
+  /// and a poisoned input re-entered at or past its boundary still never rebuilds a
+  /// lexer or rescans the tripping token — categorically different from the
+  /// internal, caller-invisible rescan loops the latch prevents.
   #[doc(alias = "rewinds")]
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
@@ -385,24 +431,34 @@ where
     if checkpoint.emitted_error_end < *self.emitted_error_end {
       *self.emitted_error_end = checkpoint.emitted_error_end;
     }
-    // Poison is checkpointed state under the SAME never-raise discipline as the
-    // watermark: a restore may only LOWER the latch, never raise it. Boolean
-    // min-clamp — `poisoned = saved && current`. Case walk:
-    //   - LIFO restore across a trip (saved = false, current = true → false): the
-    //     speculative peek latched poison and emitted the limit diagnostic; the
-    //     emitter rewind above removed that speculative copy, so the committed path
-    //     must re-lex the region. Un-latching lets it: it re-trips, re-latches, and
-    //     RE-EMITS the diagnostic (the watermark min-clamp already permits it) —
+    // The poison boundary is checkpointed state under the SAME never-more-poisoned
+    // discipline as the watermark: a restore relaxes it toward the LESS-poisoned of
+    // the saved and current values — a max under the ordering "smaller offset = more
+    // poisoned, None = unpoisoned (+infinity)", so either side being `None` wins.
+    // Case walk:
+    //   - LIFO restore across a trip (saved = None, current = Some(X) → None): the
+    //     speculative peek latched the frontier and emitted the limit diagnostic;
+    //     the emitter rewind above removed that speculative copy, so the committed
+    //     path must re-lex the region. Un-latching lets it: it re-trips, re-latches,
+    //     and RE-EMITS the diagnostic (the watermark min-clamp permits it) —
     //     exactly-once holds because only the speculative copy was rewound.
-    //   - Checkpoint taken after a committed trip (saved = true, current = true →
-    //     true): the latch persists; its diagnostic predates the emitter mark, so
-    //     the rewind retained it — latch and diagnostic stay paired.
-    //   - Stale younger restore after an older restore (saved = true, current =
-    //     false → false): poison cannot be resurrected without its diagnostic. The
-    //     older restore already unwound the diagnostic and dropped `current` to
-    //     false, so the AND keeps it false; the region stays re-lexable and
-    //     re-trips naturally.
-    *self.poisoned = checkpoint.poisoned && *self.poisoned;
+    //   - Checkpoint taken after a committed trip (Some(X), Some(X) → Some(X)): the
+    //     frontier persists; its diagnostic predates the emitter mark, so the rewind
+    //     retained it — frontier and diagnostic stay paired.
+    //   - Stale younger restore after an older restore (Some(X), None → None): a
+    //     frontier cannot be resurrected without its diagnostic. The older restore
+    //     already unwound the diagnostic and cleared `current`, so the max keeps it
+    //     None; the region stays re-lexable and re-trips naturally.
+    //   - Save after a truncated overflow peek (Some(X), Some(X) → Some(X)) with the
+    //     cache prefix drained: the restore rewinds the cursor before the prefix and
+    //     keeps the frontier, so scanners re-lex up to X (prefix REPLAYABLE) and stop
+    //     at X; the retained diagnostic stays exactly-once (the dedup watermark sits
+    //     at or above the error's end, since the error predates the checkpoint).
+    *self.poison_boundary = match (checkpoint.poison_boundary, self.poison_boundary.take()) {
+      // Larger offset = less poisoned; either side unpoisoned ⇒ result unpoisoned.
+      (Some(saved), Some(current)) => Some(saved.max(current)),
+      _ => None,
+    };
     self.set_span((&checkpoint.span).into());
     *self.state = checkpoint.state;
   }
@@ -424,9 +480,11 @@ where
       return Ok(Some(Spanned::new(span, lexed)));
     }
 
-    // A sticky limit trip latches the input: once the cache is drained, stop
-    // without rebuilding a lexer or rescanning the tripping token.
-    if self.is_poisoned() {
+    // A sticky limit trip latches a poison boundary: once the cache is drained and
+    // the cursor has reached the durable frontier, stop without rebuilding a lexer
+    // or rescanning the tripping token. Strictly before it, `next()` re-lexes (e.g.
+    // to replay a drained prefix after a restore).
+    if self.reached_boundary(self.offset()) {
       return Ok(None);
     }
 
@@ -482,13 +540,18 @@ where
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
+    let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
 
-    while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
+    while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(&mut lexer, &mut lex_at)
+    {
       match tok {
         Lexed::Error(err) => {
-          // A limit trip is sticky: latch the input so re-entry cannot rescan.
-          let limit_hit = self.latch_if_limit_tripped(&lexer);
+          // A limit trip latches the durable frontier — here the cursor, since
+          // `next()` commits no progress before returning its poisoned outcome — so
+          // re-entry cannot rescan.
+          let boundary = self.offset().clone();
+          let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
           match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
             Ok(_) => {
               if limit_hit {

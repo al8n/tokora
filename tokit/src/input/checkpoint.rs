@@ -51,17 +51,20 @@ pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
   /// checkpoint were unwound from the emitter, and this mark (predating them)
   /// correctly permits their re-emission if the committed path re-lexes them.
   pub(crate) emitted_error_end: L::Offset,
-  /// The input-level sticky limit-error latch at save time.
+  /// The input-level sticky limit-error boundary at save time.
   ///
-  /// Poison is checkpointed alongside the emitter mark and the dedup watermark
-  /// because the three move together: a speculative peek that trips the limit
-  /// latches poison *and* emits the limit diagnostic *and* lifts the watermark. A
+  /// `None` is unpoisoned; `Some(off)` is the durable frontier a trip latched (see
+  /// [`Input::poison_boundary`](crate::input::Input)). It is checkpointed alongside
+  /// the emitter mark and the dedup watermark because the three move together: a
+  /// speculative peek that trips the limit latches the frontier *and* emits the
+  /// limit diagnostic *and* lifts the watermark. A
   /// [`restore`](crate::InputRef::restore) that rewinds the diagnostic must also
-  /// lower the latch, or the latch would outlive its diagnostic and a post-restore
+  /// relax the frontier, or it would outlive its diagnostic and a post-restore
   /// drain would stop on a diagnostic-less poison — truncation masquerading as
-  /// clean EOF. Restore only ever *lowers* poison toward this saved value (a
-  /// boolean min-clamp), never raises it.
-  pub(crate) poisoned: bool,
+  /// clean EOF. Restore only ever moves the frontier toward the *less-poisoned* of
+  /// this saved value and the current one (a max under the ordering where a smaller
+  /// offset is more poisoned and `None` is +infinity), never more poisoned.
+  pub(crate) poison_boundary: Option<L::Offset>,
   _m: PhantomData<fn(&'closure ()) -> &'closure ()>,
 }
 
@@ -74,7 +77,7 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
     state: L::State,
     emitter_checkpoint: u64,
     emitted_error_end: L::Offset,
-    poisoned: bool,
+    poison_boundary: Option<L::Offset>,
   ) -> Self {
     Self {
       cursor,
@@ -82,7 +85,7 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
       state,
       emitter_checkpoint,
       emitted_error_end,
-      poisoned,
+      poison_boundary,
       _m: PhantomData,
     }
   }
