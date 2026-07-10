@@ -42,18 +42,32 @@ where
       }
     }
 
+    // A sticky limit trip latches the input: no token remains to sync to, so
+    // return `Ok(None)` (the end-of-input outcome) without rebuilding a lexer.
+    if self.is_poisoned() {
+      return Ok(None);
+    }
+
     let mut lexer = self.lexer();
 
     while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
       match tok {
-        Lexed::Error(err) => match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-          Ok(_) => {}
-          Err(e) => {
-            self.set_span_after_consume(lexer.span().into());
-            *self.state = lexer.into_state();
-            return Err(e);
+        Lexed::Error(err) => {
+          // A limit trip is sticky: latch the input so re-entry cannot rescan.
+          let limit_hit = self.latch_if_limit_tripped(&lexer);
+          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
+            Ok(_) => {
+              if limit_hit {
+                return Ok(None);
+              }
+            }
+            Err(e) => {
+              self.set_span_after_consume(lexer.span().into());
+              *self.state = lexer.into_state();
+              return Err(e);
+            }
           }
-        },
+        }
         Lexed::Token(tok) => {
           let tok = Spanned::new(span, tok);
           // if the token matches, we return it
@@ -150,18 +164,33 @@ where
       }
       // Otherwise, let's skip the input
       false => {
+        // A sticky limit trip latches the input: no token remains to sync to, so
+        // return the empty result (the end-of-input outcome) without rebuilding a
+        // lexer.
+        if self.is_poisoned() {
+          return Ok((None, GenericArrayDeque::new(), self.emitter));
+        }
+
         let mut lexer = self.lexer();
 
         while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
           match tok {
-            Lexed::Error(err) => match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-              Ok(_) => {}
-              Err(e) => {
-                self.set_span_after_consume(lexer.span().into());
-                *self.state = lexer.into_state();
-                return Err(e);
+            Lexed::Error(err) => {
+              // A limit trip is sticky: latch the input so re-entry cannot rescan.
+              let limit_hit = self.latch_if_limit_tripped(&lexer);
+              match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
+                Ok(_) => {
+                  if limit_hit {
+                    return Ok((None, GenericArrayDeque::new(), self.emitter));
+                  }
+                }
+                Err(e) => {
+                  self.set_span_after_consume(lexer.span().into());
+                  *self.state = lexer.into_state();
+                  return Err(e);
+                }
               }
-            },
+            }
             Lexed::Token(tok) => {
               let tok = Spanned::new(span, tok);
               // if the token matches, we cache it and return it

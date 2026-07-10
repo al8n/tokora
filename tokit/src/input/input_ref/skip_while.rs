@@ -48,6 +48,12 @@ where
       return Ok(());
     }
 
+    // A sticky limit trip latches the input: nothing remains to skip, so return
+    // `Ok(())` (the empty-input outcome) without rebuilding a lexer.
+    if self.is_poisoned() {
+      return Ok(());
+    }
+
     // Otherwise keep skipping straight from the lexer.
     let mut lexer = self.lexer();
     let mut end = self.span.clone();
@@ -55,17 +61,27 @@ where
 
     while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
       match tok {
-        Lexed::Error(err) => match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-          Ok(_) => {
-            end = lexer.span();
-            state = lexer.state().clone();
+        Lexed::Error(err) => {
+          // A limit trip is sticky: latch the input so re-entry cannot rescan.
+          let limit_hit = self.latch_if_limit_tripped(&lexer);
+          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
+            Ok(_) => {
+              if limit_hit {
+                // Commit the tokens skipped before the trip; stop at the poison.
+                self.set_span_after_consume(end.into());
+                *self.state = state;
+                return Ok(());
+              }
+              end = lexer.span();
+              state = lexer.state().clone();
+            }
+            Err(e) => {
+              self.set_span_after_consume(lexer.span().into());
+              *self.state = lexer.into_state();
+              return Err(e);
+            }
           }
-          Err(e) => {
-            self.set_span_after_consume(lexer.span().into());
-            *self.state = lexer.into_state();
-            return Err(e);
-          }
-        },
+        }
         Lexed::Token(tok) => {
           let tok = Spanned::new(span, tok);
           if pred(tok.as_ref()) {

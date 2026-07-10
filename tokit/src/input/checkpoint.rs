@@ -39,6 +39,18 @@ pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
   /// replays it into [`Emitter::rewind`](crate::emitter::Emitter::rewind) so an
   /// emission-aware emitter drops exactly the diagnostics of the abandoned branch.
   pub(crate) emitter_checkpoint: u64,
+  /// The lexer-error dedup high-water mark at save time.
+  ///
+  /// A speculative branch may seal (emit) a lexer error whose span end sits
+  /// *above* the checkpoint cursor — e.g. a `peek` that scans past the cursor.
+  /// [`Emitter::rewind`](crate::emitter::Emitter::rewind) keeps that error (it
+  /// predates the emission checkpoint), so restoring the watermark to the cursor
+  /// would drop it below the retained error and let a re-lex emit it a second
+  /// time. Restoring *this* saved mark instead keeps the watermark above the
+  /// retained error, preserving exactly-once emission; errors sealed *after* the
+  /// checkpoint were unwound from the emitter, and this mark (predating them)
+  /// correctly permits their re-emission if the committed path re-lexes them.
+  pub(crate) emitted_error_end: L::Offset,
   _m: PhantomData<fn(&'closure ()) -> &'closure ()>,
 }
 
@@ -50,12 +62,14 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
     span: L::Span,
     state: L::State,
     emitter_checkpoint: u64,
+    emitted_error_end: L::Offset,
   ) -> Self {
     Self {
       cursor,
       span,
       state,
       emitter_checkpoint,
+      emitted_error_end,
       _m: PhantomData,
     }
   }

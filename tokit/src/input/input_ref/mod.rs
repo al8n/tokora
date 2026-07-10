@@ -303,6 +303,7 @@ where
       self.span.clone(),
       self.state.clone(),
       self.emitter.checkpoint(),
+      self.emitted_error_end.clone(),
     )
   }
 
@@ -347,10 +348,14 @@ where
     self.cache_mut().rewind(&checkpoint);
     let cur = checkpoint.cursor();
     self.emitter().rewind(cur, checkpoint.emitter_checkpoint);
-    // The emitter rewind discards lexer errors past the restore point, so the
-    // dedup mark must fall back with it — otherwise a re-parse would wrongly
-    // suppress errors it must re-report. Errors up to the cursor stay retained.
-    *self.emitted_error_end = cur.as_inner().clone();
+    // Restore the dedup mark to its value at save time, not to the cursor. The
+    // emitter's emission-log rewind retains every error sealed *before* the
+    // checkpoint — including one whose span sits above the cursor (a peek that
+    // scanned ahead) — so dropping the mark to the cursor would let a re-lex
+    // re-emit that retained error. The saved mark stays above it (exactly-once);
+    // errors sealed *after* the checkpoint were unwound, and the saved mark
+    // predates them, so a re-lexing commit path can report them again.
+    *self.emitted_error_end = checkpoint.emitted_error_end;
     self.set_span((&checkpoint.span).into());
     *self.state = checkpoint.state;
   }

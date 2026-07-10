@@ -339,18 +339,33 @@ where
       Spanned<&L::Token, &L::Span>,
     ) -> Option<Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>>,
   {
+    // A sticky limit trip latches the input: stop without rebuilding a lexer,
+    // mirroring the poisoned-input short-circuit in `next()`. A scan that finds
+    // no matching token yields `Ok(None)`, so that is the poisoned outcome too.
+    if self.is_poisoned() {
+      return Ok(None);
+    }
+
     let mut lexer = self.lexer();
 
     while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
       match tok {
-        Lexed::Error(err) => match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-          Ok(_) => {}
-          Err(e) => {
-            self.set_span_after_consume(lexer.span().into());
-            *self.state = lexer.into_state();
-            return Err(e);
+        Lexed::Error(err) => {
+          // A limit trip is sticky: latch the input so re-entry cannot rescan.
+          let limit_hit = self.latch_if_limit_tripped(&lexer);
+          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
+            Ok(_) => {
+              if limit_hit {
+                return Ok(None);
+              }
+            }
+            Err(e) => {
+              self.set_span_after_consume(lexer.span().into());
+              *self.state = lexer.into_state();
+              return Err(e);
+            }
           }
-        },
+        }
         Lexed::Token(tok) => {
           let tok = Spanned::new(span, tok);
           // if the token matches, we return it
@@ -383,18 +398,33 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
+    // A sticky limit trip latches the input: stop without rebuilding a lexer,
+    // mirroring the poisoned-input short-circuit in `next()`. A scan that finds
+    // no matching token yields `Ok(None)`, so that is the poisoned outcome too.
+    if self.is_poisoned() {
+      return Ok(None);
+    }
+
     let mut lexer = self.lexer();
 
     while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
       match tok {
-        Lexed::Error(err) => match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-          Ok(_) => {}
-          Err(e) => {
-            self.set_span_after_consume(lexer.span().into());
-            *self.state = lexer.into_state();
-            return Err(e);
+        Lexed::Error(err) => {
+          // A limit trip is sticky: latch the input so re-entry cannot rescan.
+          let limit_hit = self.latch_if_limit_tripped(&lexer);
+          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
+            Ok(_) => {
+              if limit_hit {
+                return Ok(None);
+              }
+            }
+            Err(e) => {
+              self.set_span_after_consume(lexer.span().into());
+              *self.state = lexer.into_state();
+              return Err(e);
+            }
           }
-        },
+        }
         Lexed::Token(tok) => {
           let tok = Spanned::new(span, tok);
           // if the token matches, we return it
@@ -427,18 +457,33 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> Option<O>,
   {
+    // A sticky limit trip latches the input: stop without rebuilding a lexer,
+    // mirroring the poisoned-input short-circuit in `next()`. A scan that finds
+    // no matching token yields `Ok(None)`, so that is the poisoned outcome too.
+    if self.is_poisoned() {
+      return Ok(None);
+    }
+
     let mut lexer = self.lexer();
 
     while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
       match tok {
-        Lexed::Error(err) => match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-          Ok(_) => {}
-          Err(e) => {
-            self.set_span_after_consume(lexer.span().into());
-            *self.state = lexer.into_state();
-            return Err(e);
+        Lexed::Error(err) => {
+          // A limit trip is sticky: latch the input so re-entry cannot rescan.
+          let limit_hit = self.latch_if_limit_tripped(&lexer);
+          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
+            Ok(_) => {
+              if limit_hit {
+                return Ok(None);
+              }
+            }
+            Err(e) => {
+              self.set_span_after_consume(lexer.span().into());
+              *self.state = lexer.into_state();
+              return Err(e);
+            }
           }
-        },
+        }
         Lexed::Token(tok) => {
           let tok = Spanned::new(span, tok);
           // if the token matches, we return it
