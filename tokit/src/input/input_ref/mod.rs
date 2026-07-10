@@ -754,7 +754,12 @@ where
   /// - the cursor, last-consumed span, and lexer state are restored; consuming
   ///   resumes from the saved position. Cached tokens appended after the save belong to
   ///   the abandoned continuation and are dropped so their region re-lexes (re-emitting
-  ///   any lexer error it held); tokens cached before the save re-lex identically;
+  ///   any lexer error it held); tokens cached before the save re-lex identically — this
+  ///   includes a pre-save cached token the abandoned branch already consumed out of the
+  ///   cache: it is re-lexed on demand after the restore. By the `Lexer` determinism
+  ///   contract that replay is identical (the same token and span, its diagnostics
+  ///   exactly once, an in-`State` limiter recounting the same), while scan-count
+  ///   instrumentation held outside the lexer state will observe the additional scans;
   /// - diagnostics emitted after the save are rolled back — the emitter's emission
   ///   log is truncated to the saved mark (see
   ///   [`Emitter::rewind`](crate::emitter::Emitter::rewind));

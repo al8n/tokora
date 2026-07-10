@@ -26,7 +26,10 @@ use super::{Cursor, Lexer};
 ///
 /// Restores that follow this discipline are exact: the token stream, the retained
 /// diagnostics, the exactly-once lexer-error guarantee, and the poison boundary all
-/// replay precisely as they stood at save time.
+/// replay precisely as they stood at save time. Cache entries the abandoned branch
+/// dropped or consumed before the restore are not memoized back; they re-lex on demand,
+/// and by the `Lexer` determinism contract that replay reproduces them identically
+/// (scan-count instrumentation held outside the lexer state does observe the extra scans).
 ///
 /// In debug builds [`restore`](crate::InputRef::restore) verifies the discipline and
 /// panics on violation; see its documentation for release behavior. Prefer

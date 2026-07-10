@@ -618,6 +618,269 @@ fn nested_restore_with_shared_limiter_no_spurious_poison() {
 }
 
 #[test]
+fn consumed_pre_save_cache_entry_relexes_identically_on_restore() {
+  // A legal last-in, first-out shape over a CONSUMED pre-save cache entry. `peek(1)`
+  // stages token `T`; `save` snapshots the lineage; `next()` consumes `T` FROM CACHE;
+  // `restore` returns to the save. The abandoned branch already drained `T` out of the
+  // cache, so the cache no longer holds it and the first post-restore read RE-LEXES `T`
+  // from source. That re-lex is the architecture — a restore replays a dropped or
+  // consumed cached token on demand — and by the `Lexer` determinism contract it is
+  // observationally identical: the same token, the same span, the diagnostics exactly
+  // once, and an in-`State` limiter recounting the same total. Only instrumentation that
+  // lives OUTSIDE the lexer state (here a shared scan counter) sees the extra scan.
+  //
+  // This pins the current behavior: a change that snapshotted consumed cache entries to
+  // skip the re-lex would alter the scan counts or the stream below and trip it.
+  //   1 @ 2 3      (`@` is a lexer error spanning [2, 3); the limit never trips)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U1;
+
+  const SRC: &str = "1 @ 2 3";
+
+  // A fresh single pass over the same source: the faithful stream, the scan count, and
+  // the diagnostic count the replay must reproduce.
+  let (oracle_spans, oracle_scans, oracle_diags): (Vec<SimpleSpan>, usize, usize) = {
+    let limiter = ProbeLimiter::with_limit(usize::MAX);
+    let scanned = limiter.counter();
+    let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+    let mut emitter = Verbose::<ProbeErr>::new();
+    let mut input =
+      Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(SRC, limiter, cache);
+    let spans = {
+      let mut inp = input.as_ref(&mut emitter);
+      let mut toks = Vec::new();
+      while let Some(t) = inp.next().unwrap() {
+        toks.push(*t.span_ref());
+      }
+      toks
+    };
+    let diags: usize = emitter.errors().values().map(|group| group.len()).sum();
+    (spans, scanned.get(), diags)
+  };
+  assert_eq!(
+    oracle_spans,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7)
+    ],
+    "single-pass oracle: the faithful token stream"
+  );
+  assert_eq!(
+    oracle_scans, 3,
+    "single-pass oracle: three Nums, each scanned once"
+  );
+  assert_eq!(oracle_diags, 1, "single-pass oracle: the `@` error, once");
+
+  // ── Shared observer: the consumed `T` re-lexes with exactly one extra scan. ──
+  let limiter = ProbeLimiter::with_limit(usize::MAX);
+  let scanned = limiter.counter();
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Verbose::<ProbeErr>::new();
+  let mut input =
+    Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_cache(SRC, limiter, cache);
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Stage `T` (`1`): exactly one scan.
+    let _ = inp.peek::<U1>().unwrap();
+    assert_eq!(scanned.get(), 1, "peek(1) scans `T` exactly once");
+
+    let ckp = inp.save();
+
+    // Consume `T` FROM CACHE: served from the cache, so no scan runs.
+    let before_consume = scanned.get();
+    let consumed = inp.next().unwrap().expect("consume `T` from cache");
+    assert_eq!(
+      *consumed.span_ref(),
+      SimpleSpan::new(0, 1),
+      "the consumed token is `T`"
+    );
+    assert_eq!(
+      scanned.get(),
+      before_consume,
+      "consuming `T` from cache re-scans nothing"
+    );
+
+    // Abandon the branch. `T` is no longer cached, so the next read re-lexes it.
+    inp.restore(ckp);
+
+    // The first post-restore read RE-LEXES `T`: exactly one additional scan, and only
+    // the shared counter (instrumentation outside the lexer state) observes it. This is
+    // expected by design — the replay re-lexes on demand.
+    let before_replay = scanned.get();
+    let replayed = inp.next().unwrap().expect("re-lex `T`");
+    assert_eq!(
+      *replayed.span_ref(),
+      SimpleSpan::new(0, 1),
+      "`T` re-lexes to the same span"
+    );
+    assert_eq!(
+      scanned.get(),
+      before_replay + 1,
+      "re-lexing `T` is exactly one additional scan"
+    );
+
+    let mut toks = std::vec![*replayed.span_ref()];
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  // (i) The drained stream is the full faithful sequence — `T` appears exactly once.
+  assert_eq!(
+    drained, oracle_spans,
+    "the drained stream is the full faithful token sequence — `T` appears exactly once"
+  );
+  // (ii) Exactly one scan beyond a single pass: the consumed `T`'s replay.
+  assert_eq!(
+    scanned.get(),
+    oracle_scans + 1,
+    "the replay costs exactly one scan beyond a single pass — only outside-state instrumentation observes it"
+  );
+  // (iv) Diagnostics are emitted exactly once, matching a single pass.
+  let diags: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    diags, oracle_diags,
+    "the `@` error is emitted exactly once, as in a single pass"
+  );
+
+  // ── By-value limiter: restore rewinds its state, so the replay recounts identically. ──
+  // The knife-edge budget equals the single-pass scan count. The consumed `T`'s replay
+  // re-lexes the whole source once, and because `restore` rewinds the in-`State` counter
+  // the recount reaches exactly that total — not one past it — so the budget never trips.
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    SRC,
+    TokenLimiter::with_limitation(3),
+    cache,
+  );
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+    let _ = inp.peek::<U1>().unwrap();
+    let ckp = inp.save();
+    let _ = inp.next().unwrap().expect("consume `T` from cache");
+    inp.restore(ckp);
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    // The rewound limiter recounts the replay identically to a first pass, reaching the
+    // knife-edge exactly.
+    assert!(
+      !inp.is_poisoned(),
+      "the restored by-value limiter recounts the replay identically; a single-pass budget never trips"
+    );
+    assert_eq!(
+      inp.state().tokens(),
+      3,
+      "the replay counts exactly the single-pass token total"
+    );
+    toks
+  };
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7)
+    ],
+    "the by-value replay drains the full faithful stream"
+  );
+  let diags: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    diags, 1,
+    "the by-value replay emits the `@` error exactly once"
+  );
+}
+
+#[test]
+fn consume_all_cached_then_restore_replays_faithfully() {
+  // The same consumed-prefix architecture, but the abandoned branch drains the WHOLE
+  // cached run at once through `consume_all_cached` before the restore. Nothing pre-save
+  // survives in the cache, so the committed path re-lexes the entire run on demand. By
+  // the `Lexer` determinism contract the replay is faithful: the full token stream
+  // returns, the lexer error is emitted exactly once, and the by-value limiter — its
+  // state rewound by the restore — recounts the replay identically, so a knife-edge
+  // budget equal to the single-pass token count never trips.
+  //
+  // This pins the current behavior: a change that snapshotted the consumed run to skip
+  // the re-lex would alter the stream, the diagnostics, or the recount below and trip it.
+  //   1 @ 2 3 4 5      (`@` is a lexer error spanning [2, 3))
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U3;
+
+  const SRC: &str = "1 @ 2 3 4 5";
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    SRC,
+    // Knife-edge: the single pass scans five Nums, so a budget of five tolerates the
+    // faithful replay exactly and one less would trip.
+    TokenLimiter::with_limitation(5),
+    cache,
+  );
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Fill the cache with the first three tokens (crossing and sealing `@`).
+    let _ = inp.peek::<U3>().unwrap();
+    let ckp = inp.save();
+
+    // Consume the ENTIRE cached run at once; it returns the last cached token (`3`).
+    let last = inp.consume_all_cached().expect("consume the cached run");
+    assert_eq!(
+      *last.span_ref(),
+      SimpleSpan::new(6, 7),
+      "consume_all_cached returns the last cached token (`3`)"
+    );
+
+    // Abandon the branch. The run is gone from the cache, so the drain re-lexes it.
+    inp.restore(ckp);
+
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    // The rewound by-value limiter recounts the whole replay from scratch, reaching the
+    // knife-edge exactly — re-lexing the consumed run costs no spurious trip.
+    assert!(
+      !inp.is_poisoned(),
+      "the restored by-value limiter recounts the replay identically; the knife-edge budget never trips"
+    );
+    assert_eq!(
+      inp.state().tokens(),
+      5,
+      "the replay counts exactly the single-pass token total"
+    );
+    toks
+  };
+
+  // The whole run re-lexes, then the tokens past it follow — the full faithful stream.
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7),
+      SimpleSpan::new(8, 9),
+      SimpleSpan::new(10, 11),
+    ],
+    "the drained stream is the full faithful token sequence"
+  );
+  // The `@` error is emitted exactly once across peek → consume-run → restore → drain.
+  let diags: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    diags, 1,
+    "the `@` error is emitted exactly once, as in a single pass"
+  );
+}
+
+#[test]
 #[cfg(debug_assertions)]
 #[should_panic(expected = "non-LIFO checkpoint restore")]
 fn non_lifo_watermark_restore_is_rejected_in_debug() {

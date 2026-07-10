@@ -323,6 +323,21 @@ where
 /// uphold this itself. Debug builds assert it at the input layer's single lexing
 /// chokepoint; release builds omit the check, and a violation then leaves the input in
 /// an unspecified — but still memory-safe — state.
+///
+/// # Contract: scanning is deterministic in source, position, and state
+///
+/// Every scan-visible behavior — which token [`lex`](Lexer::lex) decides, its span,
+/// whether the item is a token or an [`Error`](Lexed::Error), and any limit accounting
+/// [`check`](Lexer::check) reports — must derive entirely from the source, the position
+/// being lexed at, and the lexer [`State`](Lexer::State). The input layer rebuilds a
+/// fresh lexer per operation and re-lexes on demand any region a restore rewinds —
+/// including a cached token an abandoned branch dropped or consumed — so it relies on
+/// this determinism: re-lexing the same source from the same position and state
+/// reproduces the identical item and the identical accounting, which is what makes a
+/// restore's replay observationally identical to the run it rewound. Behavior routed
+/// through state that lives *outside* `State` — a shared counter, an ambient global,
+/// anything a checkpoint's `State` snapshot cannot capture and a restore therefore
+/// cannot rewind — breaks that replay identity and is out of contract.
 pub trait Lexer<'inp>: 'inp {
   /// The state of the lexer.
   type State: State;
