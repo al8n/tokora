@@ -274,6 +274,18 @@ where
   /// and a popped id can never be mistaken for a live one.
   #[cfg(any(feature = "std", feature = "alloc"))]
   next_ckp_id: u64,
+  /// The pinned checkpoint ids: the begin-point checkpoint of every currently-live transaction
+  /// guard and [`attempt`](InputRef::attempt)/[`try_attempt`](InputRef::try_attempt). A
+  /// guard/attempt logically borrows the timeline from its begin point forward, so a raw
+  /// [`restore`](InputRef::restore) that would pop a pinned id off
+  /// [`live_ckpts`](Self::live_ckpts) — tearing that begin point out from under a live guard —
+  /// **panics at the restore** rather than silently invalidating it. Every guard/attempt
+  /// constructor pins its held id on entry and every settle path unpins, so this holds exactly
+  /// the live begin points and stays bounded across commit-heavy loops. It lives beside
+  /// `live_ckpts` under the same allocator gate; allocator-less builds maintain no pin set and
+  /// fall back on the detect-at-use backstops (unspecified-but-bounded on misuse).
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  pinned: LineageStack,
   /// Debug-only witness of the input identity a checkpoint was created under (see
   /// [`InputRef::restore`]); the lineage stack itself is [`live_ckpts`](Self::live_ckpts).
   #[cfg(all(
@@ -315,6 +327,9 @@ where
       live_ckpts: LineageStack::new(),
       #[cfg(any(feature = "std", feature = "alloc"))]
       next_ckp_id: 0,
+      // A clone is a new input with no live guards, so it starts with an empty pin set.
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      pinned: LineageStack::new(),
       // A clone is a new input: `Witness::clone` mints a fresh identity, so the clone's
       // checkpoints and the original's never cross.
       #[cfg(all(
@@ -383,6 +398,8 @@ where
       live_ckpts: LineageStack::new(),
       #[cfg(any(feature = "std", feature = "alloc"))]
       next_ckp_id: 0,
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      pinned: LineageStack::new(),
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -417,6 +434,8 @@ where
       live_ckpts: LineageStack::new(),
       #[cfg(any(feature = "std", feature = "alloc"))]
       next_ckp_id: 0,
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      pinned: LineageStack::new(),
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -446,6 +465,8 @@ where
       live_ckpts: &mut self.live_ckpts,
       #[cfg(any(feature = "std", feature = "alloc"))]
       next_ckp_id: &mut self.next_ckp_id,
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      pinned: &mut self.pinned,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),

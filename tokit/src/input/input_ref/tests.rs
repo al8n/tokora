@@ -2253,21 +2253,25 @@ fn try_attempt_nested_lifo() {
   }
 }
 
-// ── attempt / try_attempt held-checkpoint restores verify lineage liveness ──────
+// ── attempt / try_attempt: raw restore below the checkpoint panics AT THE RESTORE ─
 //
-// The closure receives `&mut InputRef` and can raw-restore to a checkpoint saved BEFORE
-// the attempt began. That legal (LIFO) raw restore pops the attempt's own held checkpoint
-// off the live lineage. When the closure then declines (`None` / `Err`), the rollback arm
-// would rewind to that invalidated checkpoint. It now consults liveness and panics as
-// stale in every allocator build — never silently resurrecting the abandoned base.
+// The closure receives `&mut InputRef` and can raw-restore to a checkpoint saved BEFORE the
+// attempt began. `attempt` PINS its held checkpoint on entry, so such a restore — which would
+// pop that pinned checkpoint off the live lineage — panics AT THE RESTORE, inside the closure,
+// in every allocator build. A LIFO-clean raw pair taken and released above the attempt's own
+// checkpoint is unaffected. (The former detect-at-use behavior — a stale panic in the decline
+// arm — is now an unreachable backstop in allocator builds.)
 
 #[test]
-#[should_panic(expected = "attempt checkpoint is stale (invalidated by an earlier restore)")]
-fn attempt_rollback_after_inner_raw_restore_below_checkpoint() {
-  // Inside the attempt, raw-restore to a checkpoint older than the attempt's own, then
-  // decline. The raw restore pops the attempt's checkpoint off the live lineage, so the
-  // decline's rollback arm panics as stale. At HEAD release silently resurrects and debug
-  // panics with the generic non-LIFO message; post-fix the pinned stale message fires.
+#[should_panic(
+  expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+)]
+fn attempt_inner_raw_restore_below_checkpoint_panics_at_restore() {
+  // Converted from `attempt_rollback_after_inner_raw_restore_below_checkpoint`. Inside the
+  // attempt, raw-restore to a checkpoint older than the attempt's own. The attempt pins its
+  // checkpoint on entry, so the raw restore panics AT THE RESTORE. At HEAD the raw restore
+  // succeeded and the decline's rollback arm panicked as stale ("attempt checkpoint is
+  // stale"); post-fix the pinned restore panics first.
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut emitter = Silent::<ProbeErr>::new();
   let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
@@ -2282,15 +2286,18 @@ fn attempt_rollback_after_inner_raw_restore_below_checkpoint() {
 
   let _out: Option<()> = inp.attempt(|inp| {
     let _ = inp.next().unwrap().expect("consume 2");
-    inp.restore(a); // raw restore below the attempt's held checkpoint
-    None // decline → the rollback arm finds its checkpoint invalidated
+    inp.restore(a); // POST-FIX: panics here — restoring A would pop the attempt's pinned checkpoint
+    None
   });
 }
 
 #[test]
-#[should_panic(expected = "attempt checkpoint is stale (invalidated by an earlier restore)")]
-fn try_attempt_err_after_inner_raw_restore_below_checkpoint() {
-  // The `try_attempt` Err-arm twin of the attempt test.
+#[should_panic(
+  expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+)]
+fn try_attempt_inner_raw_restore_below_checkpoint_panics_at_restore() {
+  // The `try_attempt` twin of the attempt test: the pinned restore panics inside the closure.
+  // Converted from `try_attempt_err_after_inner_raw_restore_below_checkpoint`.
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut emitter = Silent::<ProbeErr>::new();
   let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
@@ -2305,9 +2312,37 @@ fn try_attempt_err_after_inner_raw_restore_below_checkpoint() {
 
   let _out: Result<(), ()> = inp.try_attempt(|inp| {
     let _ = inp.next().unwrap().expect("consume 2");
-    inp.restore(a); // raw restore below the attempt's held checkpoint
-    Err(()) // the Err rollback arm finds its checkpoint invalidated
+    inp.restore(a); // POST-FIX: panics here
+    Err(())
   });
+}
+
+#[test]
+fn attempt_inner_lifo_clean_raw_pair_is_legal() {
+  // Negative control: a raw save/restore pair taken and released entirely inside the attempt
+  // (ABOVE the attempt's own pinned checkpoint) is LIFO-legal and must NOT trip the pin — the
+  // attempt's checkpoint sits below it and is never popped. The attempt keeps its progress.
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  let _ = inp.next().unwrap().expect("consume 1");
+  let out: Option<u32> = inp.attempt(|inp| {
+    let c = inp.save(); // raw checkpoint ABOVE the attempt's checkpoint
+    let _ = inp.next().unwrap().expect("consume 2");
+    inp.restore(c); // legal (LIFO): pops only c — the attempt's pinned checkpoint stays live
+    Some(7)
+  });
+  assert_eq!(
+    out,
+    Some(7),
+    "the attempt kept its progress after the legal inner raw pair"
+  );
 }
 
 // ── A hand-rolled lexer that yields a ZERO-WIDTH token span ────────────────────

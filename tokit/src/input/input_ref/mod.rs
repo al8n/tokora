@@ -74,6 +74,11 @@ where
   /// [`Input::next_ckp_id`](super::Input)).
   #[cfg(any(feature = "std", feature = "alloc"))]
   pub(super) next_ckp_id: &'closure mut u64,
+  /// The pinned begin-point ids of the currently-live transaction guards and attempts (see
+  /// [`Input::pinned`](super::Input)). A raw [`restore`](Self::restore) that would pop a pinned
+  /// id off the lineage panics at the restore.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  pub(super) pinned: &'closure mut super::LineageStack,
   /// Debug-only witness of the input identity, for `restore`'s foreign-input check.
   #[cfg(all(
     debug_assertions,
@@ -432,10 +437,12 @@ where
   /// holds by construction, even under nesting.
   ///
   /// A raw [`restore`](Self::restore) inside `f` to a checkpoint saved *before* the attempt
-  /// began invalidates the attempt's own checkpoint (it pops it off the live lineage). If `f`
-  /// then declines, the rollback panics as stale in every allocator build rather than
-  /// resurrecting the abandoned base; a LIFO-clean raw save/restore pair taken and released
-  /// entirely inside `f` is unaffected.
+  /// began would tear out the attempt's own begin point (it pops it off the live lineage).
+  /// Allocator builds pin that begin point, so such a restore **panics at the restore** — its
+  /// message names a live transaction guard or attempt — rather than letting `f` continue on a
+  /// torn foundation and detecting it only at the decline. A LIFO-clean raw save/restore pair
+  /// taken and released entirely inside `f`, above the attempt's checkpoint, is unaffected.
+  /// Allocator-less targets keep no pin set, so this mixing is unspecified-but-bounded there.
   ///
   /// For fallible closures that carry an error value, see
   /// [`try_attempt`](Self::try_attempt).
@@ -444,25 +451,35 @@ where
     F: FnOnce(&mut Self) -> Option<R>,
   {
     let ckp = self.save();
+    // Pin the attempt's begin point: a raw restore below it inside `f` panics at the restore.
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    self.pin_checkpoint(ckp.ckp_id);
 
     match f(self) {
       Some(result) => {
-        // Progress kept: the checkpoint is dropped without restoring, so drop its
-        // lineage id too rather than leaving it to grow the live stack.
+        // Progress kept: the checkpoint is dropped without restoring, so unpin and drop its
+        // lineage id too rather than leaving either to grow the live stack.
         #[cfg(any(feature = "std", feature = "alloc"))]
-        self.forget_checkpoint(ckp.ckp_id);
+        {
+          self.unpin_checkpoint(ckp.ckp_id);
+          self.forget_checkpoint(ckp.ckp_id);
+        }
         Some(result)
       }
       None => {
-        // The closure held `&mut Self` and may have raw-restored to a checkpoint older than
-        // this one, popping this one off the live lineage. Rolling back to an invalidated
-        // checkpoint would resurrect an abandoned base, so refuse it loudly in every allocator
-        // build (the explicit counterpart to a rolling-back drop, which quietly skips instead).
+        // Roll back to the attempt's own checkpoint. Unpin it FIRST so the restore below does
+        // not see the attempt's own begin point as pinned (rolling back to it is legal). A raw
+        // restore *below* this checkpoint through `f` would already have panicked at that
+        // restore (detect-at-cause), so the stale assert here is now an unreachable backstop —
+        // kept for defense in depth and for the allocator-less path, which pins nothing.
         #[cfg(any(feature = "std", feature = "alloc"))]
-        assert!(
-          self.live_contains(ckp.ckp_id),
-          "attempt checkpoint is stale (invalidated by an earlier restore)"
-        );
+        {
+          self.unpin_checkpoint(ckp.ckp_id);
+          assert!(
+            self.live_contains(ckp.ckp_id),
+            "attempt checkpoint is stale (invalidated by an earlier restore)"
+          );
+        }
         self.restore(ckp);
         None
       }
@@ -485,29 +502,39 @@ where
   /// scoped to the closure, so the last-in, first-out discipline documented on
   /// [`restore`](Self::restore) holds by construction, even under nesting. As with `attempt`,
   /// a raw [`restore`](Self::restore) inside `f` to a checkpoint saved *before* the attempt
-  /// invalidates the attempt's own checkpoint, so an `Err` rollback then panics as stale rather
-  /// than resurrecting the abandoned base.
+  /// would tear out the attempt's own begin point; allocator builds pin it, so such a restore
+  /// **panics at the restore** rather than letting `f` continue on a torn foundation.
   pub fn try_attempt<F, T, E>(&mut self, f: F) -> Result<T, E>
   where
     F: FnOnce(&mut Self) -> Result<T, E>,
   {
     let ckp = self.save();
+    // Pin the attempt's begin point: a raw restore below it inside `f` panics at the restore.
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    self.pin_checkpoint(ckp.ckp_id);
 
     match f(self) {
       Ok(result) => {
-        // Progress kept: drop the checkpoint's lineage id (see `attempt`).
+        // Progress kept: unpin and drop the checkpoint's lineage id (see `attempt`).
         #[cfg(any(feature = "std", feature = "alloc"))]
-        self.forget_checkpoint(ckp.ckp_id);
+        {
+          self.unpin_checkpoint(ckp.ckp_id);
+          self.forget_checkpoint(ckp.ckp_id);
+        }
         Ok(result)
       }
       Err(e) => {
-        // See `attempt`: a raw restore below this checkpoint through the closure invalidates
-        // it, and rolling back to it would resurrect an abandoned base — refuse it loudly.
+        // See `attempt`: unpin FIRST (rolling back to the attempt's own base is legal), then the
+        // now-unreachable stale backstop. A raw restore below this checkpoint through `f` would
+        // already have panicked at that restore (detect-at-cause).
         #[cfg(any(feature = "std", feature = "alloc"))]
-        assert!(
-          self.live_contains(ckp.ckp_id),
-          "attempt checkpoint is stale (invalidated by an earlier restore)"
-        );
+        {
+          self.unpin_checkpoint(ckp.ckp_id);
+          assert!(
+            self.live_contains(ckp.ckp_id),
+            "attempt checkpoint is stale (invalidated by an earlier restore)"
+          );
+        }
         self.restore(ckp);
         Err(e)
       }
@@ -549,6 +576,10 @@ where
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn begin_with<D: DropPolicy>(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, D> {
     let ckp = self.save();
+    // Pin the begin point: a raw restore below it (through the guard's `DerefMut`) now panics at
+    // the restore. Every settle path (commit, rollback, Drop — both policy flavors) unpins.
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    self.pin_checkpoint(ckp.ckp_id);
     Transaction {
       input: self,
       ckp: Some(ckp),
@@ -624,6 +655,10 @@ where
     // reallocated. NOT the source pointer: two Inputs can share one `&str`.
     let nonce = core::ptr::from_ref(&*self.poison_boundary).addr();
     let base = self.save();
+    // Pin the begin point (only the base — savepoints keep their detect-at-use staleness rule):
+    // a raw restore below the base now panics at the restore. Every whole-transaction settle
+    // path (commit, rollback, Drop) unpins the base.
+    self.pin_checkpoint(base.ckp_id);
     StackedTransaction {
       input: self,
       base: Some(base),
@@ -690,6 +725,76 @@ where
   fn live_pop_through(&mut self, id: u64) {
     if let Some(pos) = self.live_ckpts.iter().position(|&x| x == id) {
       self.live_ckpts.truncate(pos);
+    }
+  }
+
+  /// Pins `id` — the begin-point checkpoint of a transaction guard or an
+  /// [`attempt`](Self::attempt) — so a raw [`restore`](Self::restore) that would pop it off the
+  /// lineage (a restore reaching *below* the guard's begin point) panics at the restore instead
+  /// of silently tearing out the guard's foundation. Every guard constructor
+  /// ([`begin_with`](Self::begin_with), [`begin_stacked_with`](Self::begin_stacked_with)) and
+  /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) pins on entry; the matching
+  /// [`unpin_checkpoint`](Self::unpin_checkpoint) runs on every settle path.
+  ///
+  /// Nested guards are borrowck-serialized: an inner guard mutably borrows its parent for its
+  /// whole life, so the inner settles (and unpins) before the outer is usable again. An outer
+  /// rollback therefore never finds a live inner pin sitting above its base — only its own
+  /// (just-unpinned) begin point and any LIFO-clean raw checkpoints, none pinned. An
+  /// [`attempt`](Self::attempt) nested inside a guard pins and unpins entirely within its
+  /// closure's extent for the same reason.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  fn pin_checkpoint(&mut self, id: u64) {
+    self.pinned.push(id);
+  }
+
+  /// Removes `id` from the pin set when its guard or attempt settles. Mirrors
+  /// [`forget_checkpoint`](Self::forget_checkpoint): `O(1)` when `id` is the top (the LIFO
+  /// common case — guards and attempts are borrowck-serialized, so the settling one is
+  /// innermost), a linear removal otherwise. Called on **every** settle path (commit, explicit
+  /// rollback, `Drop`, and both closure arms of the attempts), so the pin set stays bounded and
+  /// holds exactly the begin points of the currently-live guards and attempts.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  fn unpin_checkpoint(&mut self, id: u64) {
+    if self.pinned.last() == Some(&id) {
+      self.pinned.pop();
+    } else if let Some(pos) = self.pinned.iter().position(|&x| x == id) {
+      self.pinned.remove(pos);
+    }
+  }
+
+  /// Panics if restoring to `target_id` would pop a **pinned** checkpoint off the live lineage —
+  /// i.e. if it would tear the begin point out from under a still-live transaction guard or
+  /// attempt. This is the detect-at-cause check: a raw restore below a live guard/attempt begin
+  /// point is refused right where it is requested, in every allocator build, rather than leaving
+  /// the guard on a torn foundation for its settle to discover (the older detect-at-use
+  /// behaviors, now backstops).
+  ///
+  /// A [`restore`](Self::restore) pops the target and every younger checkpoint
+  /// ([`live_pop_through`](Self::live_pop_through)). A guard's own settle unpins its held id
+  /// **before** routing through `restore`, so a guard rolling back to its own base never trips
+  /// its own pin; only a restore reaching *below* a live begin point finds that begin point
+  /// still pinned above the target. A [`StackedTransaction`] savepoint `rollback_to` restores a
+  /// checkpoint *above* the base, so it can never reach the pinned base. A target that is not
+  /// live pops nothing, so it cannot invalidate anything pinned.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  fn assert_restore_preserves_pins(&self, target_id: u64) {
+    let Some(pos) = self.live_ckpts.iter().position(|&x| x == target_id) else {
+      // The target is already gone: `restore_unchecked` will pop nothing, so nothing pinned can
+      // be invalidated (release's unspecified-but-bounded posture for an already-dead target).
+      return;
+    };
+    // The restore truncates `live_ckpts` at `pos`, popping the target and every younger
+    // checkpoint. If any of those is pinned, the restore would invalidate a live guard/attempt.
+    if self.live_ckpts[pos..]
+      .iter()
+      .any(|id| self.pinned.contains(id))
+    {
+      panic!(
+        "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+      );
     }
   }
 
@@ -966,6 +1071,13 @@ where
         "non-LIFO checkpoint restore: this checkpoint was invalidated by restoring an older one (restores must be last-in, first-out)"
       );
     }
+    // Detect-at-cause, in EVERY allocator build (unlike the debug-only misuse panics above):
+    // refuse a restore that would tear the begin point out from under a live transaction guard
+    // or attempt — a raw restore below its pinned base. A guard's own settle unpins its held id
+    // before reaching here, so this never trips a guard rolling back to its own base.
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    self.assert_restore_preserves_pins(checkpoint.ckp_id);
+
     self.restore_unchecked(checkpoint);
   }
 
@@ -1042,13 +1154,20 @@ where
   ///
   /// If the checkpoint is still live it rewinds exactly as
   /// [`restore_unchecked`](Self::restore_unchecked). If an earlier restore already invalidated
-  /// it, the input already sits where that older restore left it — the truth — so this skips the
-  /// rewind rather than copying the stale saved state back over it. It never panics: a `Drop`
-  /// may run while already unwinding, and an explicit [`rollback`](Transaction::rollback)
-  /// (checked, never mid-unwind) is where a caller's stale request is reported loudly instead.
-  /// Reads the lineage stack without popping — the pop-through happens only inside the rewind it
-  /// forwards to. Allocator-less builds keep no lineage stack, so the rewind always proceeds
-  /// there (behavior unchanged, unspecified-but-bounded on misuse as documented on the guards).
+  /// it, the input already sits where that older restore left it, so this skips the rewind
+  /// rather than copying the stale saved state back over it. It never panics: a `Drop` may run
+  /// while already unwinding, so it must stay silent.
+  ///
+  /// # Now a backstop
+  ///
+  /// The guards pin their begin point, so in allocator builds a raw restore that would pop it
+  /// off the lineage panics **at the restore** ([`restore`](Self::restore)'s pin check) — the
+  /// base can no longer go stale while its guard is live, so the skip branch here is
+  /// unreachable and this always rewinds. The skip is retained as **defense in depth** and for
+  /// allocator-less builds, which keep no pin set and no lineage stack: there the rewind always
+  /// proceeds regardless, unspecified-but-bounded on misuse as documented on the guards. Reads
+  /// the lineage stack without popping — the pop-through happens only inside the rewind it
+  /// forwards to.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(crate) fn restore_unchecked_if_live(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     #[cfg(any(feature = "std", feature = "alloc"))]

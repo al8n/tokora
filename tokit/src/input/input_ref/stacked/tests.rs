@@ -713,62 +713,49 @@ fn stacked_savepoints_survive_nested_attempt_and_transaction() {
   txn.commit();
 }
 
-// ── Held-base restores verify lineage liveness ──────────────────────────────────
+// ── Raw restore below a live base panics AT THE RESTORE (detect-at-cause) ────────
 //
-// The base-checkpoint twin of the savepoint staleness rule. A raw restore below the base
-// (a checkpoint saved BEFORE `begin_stacked`) pops the base off the live lineage. The
-// whole-transaction restores now consult liveness: an explicit `rollback` panics as stale
-// in every build; a rolling-back drop skips the base restore rather than resurrecting the
-// dead base.
+// The base-checkpoint twin of the detect-at-cause rule. A raw restore below the base (a
+// checkpoint saved BEFORE `begin_stacked`) would pop the pinned base off the live lineage.
+// The checked `restore` path refuses it loudly, right where it is requested, in every
+// allocator build. The savepoint staleness rule below still detects-at-use: savepoints are
+// not pinned (only the base is), so a raw restore that invalidates only a savepoint — above
+// the base — succeeds, and its `rollback_to` panics as stale.
 
 #[test]
-fn stacked_base_drop_after_raw_restore_below_base_does_not_resurrect() {
-  // Raw save A, consume, begin_stacked (base above A), savepoint, consume, then raw-restore
-  // to A through the guard: this pops the base and its savepoint off the live lineage and
-  // moves the input back to A. Dropping the undecided guard must NOT resurrect the base. At
-  // HEAD the rolling-back drop calls `restore_unchecked` on the dead base, silently moving
-  // the input forward off A; post-fix the drop skips the restore and the input stays at A.
+#[should_panic(
+  expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+)]
+fn stacked_raw_restore_below_base_panics_at_the_restore() {
+  // The stacked twin of Codex's scenario, converted from `stacked_base_drop_after_raw_restore_
+  // below_base_does_not_resurrect`. save A, begin_stacked (base above A), savepoint, consume,
+  // then raw-restore to A through the guard. A predates the guard's begin point, so restoring
+  // it would invalidate the pinned base (and every savepoint above it) — the pin check panics
+  // AT THE RESTORE. At HEAD the restore succeeded and the rolling-back drop silently committed
+  // the abandoned work.
   let mut input = silent_input("1 2 3 4 5");
   let mut emitter = Silent::<NumErr>::new();
   let mut inp = input.as_ref(&mut emitter);
 
   let a = inp.save(); // raw checkpoint, below the guard's begin point
-  let a_pos = *inp.cursor().as_inner();
   let _ = inp.next().unwrap().expect("consume 1"); // advance past A before begin
 
-  {
-    let mut txn = inp.begin_stacked(); // base checkpoint, above A
-    let _ = txn.next().unwrap().expect("consume 2");
-    let _sp = txn.savepoint(); // a live savepoint above the base
-    let _ = txn.next().unwrap().expect("consume 3");
-    txn.restore(a); // raw restore below the base: pops the base + savepoint off the lineage
-    assert_eq!(
-      *txn.cursor().as_inner(),
-      a_pos,
-      "the raw restore moved the input back to A"
-    );
-    // `txn` drops here undecided (Rollback policy). HEAD: resurrects the base. Fix: skips.
-  }
-
-  assert_eq!(
-    *inp.cursor().as_inner(),
-    a_pos,
-    "the base-drop did not resurrect the invalidated base — the input stays at A"
-  );
-  assert_eq!(
-    *inp.next().unwrap().expect("resume at 1").span_ref(),
-    SimpleSpan::new(0, 1),
-    "the stream resumes from A's restore point, not the resurrected base"
-  );
+  let mut txn = inp.begin_stacked(); // base checkpoint, above A
+  let _ = txn.next().unwrap().expect("consume 2");
+  let _sp = txn.savepoint(); // a live savepoint above the base
+  let _ = txn.next().unwrap().expect("consume 3");
+  txn.restore(a); // POST-FIX: panics — restoring A would pop the pinned base off the lineage
 }
 
 #[test]
-#[should_panic(expected = "transaction base is stale (invalidated by an earlier restore)")]
-fn stacked_explicit_rollback_after_raw_restore_below_base_panics_stale() {
-  // The explicit twin. A raw restore below the base invalidates it; an explicit `rollback`
-  // then requests a rewind that cannot be honored and panics as stale in every build. At HEAD
-  // release silently resurrects and debug panics with the generic non-LIFO message; post-fix
-  // the pinned stale message fires in every allocator build.
+#[should_panic(
+  expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+)]
+fn stacked_explicit_rollback_after_raw_restore_below_base_panics_at_restore() {
+  // Converted from `stacked_explicit_rollback_after_raw_restore_below_base_panics_stale`. The
+  // panic now fires AT THE RAW RESTORE, before the explicit `rollback`. At HEAD the raw restore
+  // succeeded and `rollback` panicked as stale ("transaction base is stale"); post-fix the
+  // pinned restore panics first.
   let mut input = silent_input("1 2 3 4 5");
   let mut emitter = Silent::<NumErr>::new();
   let mut inp = input.as_ref(&mut emitter);
@@ -778,6 +765,41 @@ fn stacked_explicit_rollback_after_raw_restore_below_base_panics_stale() {
 
   let mut txn = inp.begin_stacked();
   let _ = txn.next().unwrap().expect("consume 2");
-  txn.restore(a); // invalidates the base
-  txn.rollback(); // base is stale → panic in every build
+  txn.restore(a); // POST-FIX: panics here (was: succeeded, then `rollback` panicked as stale)
+  txn.rollback(); // unreachable post-fix
+}
+
+#[test]
+fn stacked_rollback_to_savepoint_with_live_base_is_legal() {
+  // Negative control: `rollback_to` restores a savepoint's checkpoint, which sits ABOVE the
+  // pinned base — so it pops only savepoints, never the base. The base stays pinned and the
+  // savepoint stays reusable; the pin check must not fire on this ordinary savepoint rollback.
+  let mut input = silent_input("1 2 3 4 5");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let mut txn = inp.begin_stacked(); // base pinned
+  let _ = txn.next().unwrap().expect("consume 1");
+  let sp = txn.savepoint(); // above the base
+  let at_sp = *txn.cursor().as_inner();
+  let _ = txn.next().unwrap().expect("consume 2");
+  let _ = txn.next().unwrap().expect("consume 3");
+  txn.rollback_to(sp); // legal: restores the savepoint (above the base), base untouched
+  assert_eq!(
+    *txn.cursor().as_inner(),
+    at_sp,
+    "rolled back to the savepoint"
+  );
+  txn.rollback_to(sp); // still reusable after the first rollback_to
+  assert_eq!(
+    *txn.cursor().as_inner(),
+    at_sp,
+    "the savepoint is reusable — the pinned base was never disturbed"
+  );
+  txn.commit();
+  assert_eq!(
+    *inp.cursor().as_inner(),
+    at_sp,
+    "committed at the savepoint position"
+  );
 }

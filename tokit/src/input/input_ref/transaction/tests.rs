@@ -834,63 +834,49 @@ fn txn_rollback_after_state_surgery_restores_poison_and_diagnostic() {
   }
 }
 
-// ── Held-checkpoint restores verify lineage liveness ─────────────────────────────
+// ── Raw restore below a live guard base panics AT THE RESTORE (detect-at-cause) ──
 //
-// A raw restore through the guard (`DerefMut`) to a checkpoint saved BEFORE the guard
-// began pops the guard's own begin-point checkpoint off the live lineage. Restoring it
-// afterwards would rewind to an invalidated base. The guard's held-checkpoint restores
-// now consult lineage liveness: an explicit `rollback` panics as stale in every build; a
-// rolling-back drop skips the restore (the input already sits where the older raw restore
-// left it), never resurrecting the dead base; a Commit-policy drop only forgets the
-// (already-absent) id, a harmless no-op.
+// A raw restore through the guard (`DerefMut`) to a checkpoint saved BEFORE the guard began
+// would tear out the guard's begin point from under it. The guard PINS its base id on entry,
+// so the checked `restore` path refuses the invalidating restore loudly, right where it is
+// requested, in every allocator build — instead of letting it succeed and detecting the
+// wreckage later at the guard's settle. This is the third strengthening of this area: silent
+// commit → detect-at-use (stale panic at `rollback` / skip at drop) → detect-at-cause (panic
+// at the raw restore). The detect-at-use backstops remain as defense in depth (and for
+// no-alloc, which maintains no pin set).
 
 #[test]
-fn txn_drop_after_raw_restore_below_base_does_not_resurrect() {
-  // Raw save A, consume, begin (base above A), consume, then raw-restore to A through the
-  // guard: this pops the base off the live lineage and moves the input back to A. Dropping
-  // the undecided guard must NOT resurrect the base. At HEAD the rolling-back drop calls
-  // `restore_unchecked` on the dead base, silently copying its stale state back and moving
-  // the input forward off A; post-fix the drop skips the restore and the input stays at A.
+#[should_panic(
+  expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+)]
+fn txn_raw_restore_below_base_panics_at_the_restore() {
+  // Codex's exact scenario, converted from `txn_drop_after_raw_restore_below_base_does_not_
+  // resurrect`. save A, begin (rollback policy), consume, then raw-restore to A through the
+  // guard. A predates the guard's begin point, so restoring it would invalidate the guard's
+  // pinned base — the pin check panics AT THE RESTORE. At HEAD the restore instead succeeded
+  // and, with further parsing before the drop, the rolling-back drop silently committed the
+  // abandoned work (the report captures that left-1/right-0 diagnostic evidence).
   let mut input = silent_input("1 2 3 4 5");
   let mut emitter = Silent::<NumErr>::new();
   let mut inp = input.as_ref(&mut emitter);
 
   let a = inp.save(); // raw checkpoint, below the guard's begin point
-  let a_pos = *inp.cursor().as_inner();
   let _ = inp.next().unwrap().expect("consume 1"); // advance past A before begin
 
-  {
-    let mut txn = inp.begin(); // base checkpoint, above A
-    let _ = txn.next().unwrap().expect("consume 2"); // advance past the base
-    txn.restore(a); // raw restore below the base: pops the base off the live lineage
-    assert_eq!(
-      *txn.cursor().as_inner(),
-      a_pos,
-      "the raw restore moved the input back to A"
-    );
-    // `txn` drops here undecided (Rollback policy). HEAD: resurrects the base. Fix: skips.
-  }
-
-  assert_eq!(
-    *inp.cursor().as_inner(),
-    a_pos,
-    "the drop did not resurrect the invalidated base — the input stays where the raw restore left it"
-  );
-  assert_eq!(
-    *inp.next().unwrap().expect("resume at 1").span_ref(),
-    SimpleSpan::new(0, 1),
-    "the stream resumes from A's restore point, not the resurrected base"
-  );
+  let mut txn = inp.begin(); // base checkpoint, above A
+  let _ = txn.next().unwrap().expect("consume 2"); // advance past the base
+  txn.restore(a); // POST-FIX: panics right here — the target predates the guard's begin point
 }
 
 #[test]
-#[should_panic(expected = "transaction base is stale (invalidated by an earlier restore)")]
-fn txn_explicit_rollback_after_raw_restore_below_base_panics_stale() {
-  // The explicit twin of the drop test. A raw restore below the base invalidates it, then an
-  // explicit `rollback` requests a rewind that cannot be honored. It panics as stale in every
-  // build (the lineage stack is maintained alloc-wide). At HEAD the release build silently
-  // resurrects and the debug build panics with the generic non-LIFO message; post-fix the
-  // pinned stale message fires in every allocator build.
+#[should_panic(
+  expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+)]
+fn txn_explicit_rollback_after_raw_restore_below_base_panics_at_restore() {
+  // Converted from `txn_explicit_rollback_after_raw_restore_below_base_panics_stale`. The panic
+  // now fires AT THE RAW RESTORE (detect-at-cause), before the explicit `rollback` is ever
+  // reached. At HEAD the raw restore succeeded and the later `rollback` panicked as stale
+  // ("transaction base is stale"); post-fix the pinned restore panics first.
   let mut input = silent_input("1 2 3 4 5");
   let mut emitter = Silent::<NumErr>::new();
   let mut inp = input.as_ref(&mut emitter);
@@ -900,43 +886,89 @@ fn txn_explicit_rollback_after_raw_restore_below_base_panics_stale() {
 
   let mut txn = inp.begin();
   let _ = txn.next().unwrap().expect("consume 2");
-  txn.restore(a); // invalidates the base
-  txn.rollback(); // base is stale → panic in every build
+  txn.restore(a); // POST-FIX: panics here (was: succeeded, then `rollback` panicked as stale)
+  txn.rollback(); // unreachable post-fix
 }
 
 #[test]
-fn txn_commit_policy_drop_after_raw_restore_below_base_is_noop() {
-  // The Commit-policy drop flavor is unaffected: it never restores on drop, only forgetting
-  // the base's lineage id. A raw restore below the base already popped that id, so the
-  // forget is a harmless no-op — no panic, and the input stays where the raw restore left it.
+#[should_panic(
+  expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+)]
+fn txn_commit_policy_raw_restore_below_base_panics_at_restore() {
+  // Converted from `txn_commit_policy_drop_after_raw_restore_below_base_is_noop`. A Commit-
+  // policy guard pins its base on entry exactly like a Rollback-policy one — it still logically
+  // owns the region from its begin point forward — so a raw restore below the base panics AT
+  // THE RESTORE too. At HEAD the restore succeeded and the Commit-policy drop was a harmless
+  // no-op (it only forgets the already-absent id); post-fix the restore never lands.
   let mut input = silent_input("1 2 3 4 5");
   let mut emitter = Silent::<NumErr>::new();
   let mut inp = input.as_ref(&mut emitter);
 
   let a = inp.save();
-  let a_pos = *inp.cursor().as_inner();
   let _ = inp.next().unwrap().expect("consume 1");
 
-  {
-    let mut txn = inp.begin_with::<Commit>();
-    let _ = txn.next().unwrap().expect("consume 2");
-    txn.restore(a); // raw restore below the base
-    assert_eq!(
-      *txn.cursor().as_inner(),
-      a_pos,
-      "the raw restore moved the input back to A"
-    );
-    // `txn` drops undecided → Commit policy only forgets the (already-absent) base id.
-  }
+  let mut txn = inp.begin_with::<Commit>();
+  let _ = txn.next().unwrap().expect("consume 2");
+  txn.restore(a); // POST-FIX: panics here (a Commit-policy guard pins its base too)
+}
+
+// ── Negative controls: legal mixing must NOT trip the pin ───────────────────────
+
+#[test]
+fn txn_lifo_clean_raw_pair_above_base_is_legal() {
+  // A raw save/restore pair taken and released entirely ABOVE the guard's begin point is
+  // LIFO-legal and must NOT trip the pin — the pinned base sits BELOW the raw checkpoint, so
+  // restoring the raw one pops only itself, never the base. The guard commits normally after.
+  let mut input = silent_input("1 2 3 4 5");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let mut txn = inp.begin(); // base pinned
+  let _ = txn.next().unwrap().expect("consume 1"); // advance past the base
+  let c = txn.save(); // raw checkpoint ABOVE the base
+  let mid = *txn.cursor().as_inner();
+  let _ = txn.next().unwrap().expect("consume 2");
+  txn.restore(c); // legal (LIFO): pops only c — the base stays live and pinned
+  assert_eq!(
+    *txn.cursor().as_inner(),
+    mid,
+    "the legal raw restore returned to c"
+  );
+  txn.commit(); // commits at c's position
 
   assert_eq!(
     *inp.cursor().as_inner(),
-    a_pos,
-    "the Commit-policy drop forgets the absent base id and leaves the input at A"
+    mid,
+    "the guard committed the progress up to the legal raw restore point"
   );
+}
+
+#[test]
+fn txn_nested_attempt_is_legal() {
+  // An `attempt` nested inside a live transaction pins and unpins entirely within the
+  // closure's extent. A declining attempt rolls back to ITS OWN checkpoint (above the guard's
+  // base), never below the base, so it never trips the guard's pin; the guard is usable after.
+  let mut input = silent_input("1 2 3 4 5");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let mut txn = inp.begin();
+  let _ = txn.next().unwrap().expect("consume 1");
+  let before = *txn.cursor().as_inner();
+  let out: Option<()> = txn.attempt(|inp| {
+    let _ = inp.next().unwrap().expect("consume 2 inside attempt");
+    None // decline → rolls back to the attempt's own checkpoint (above the base)
+  });
+  assert!(out.is_none(), "the attempt declined");
   assert_eq!(
-    *inp.next().unwrap().expect("resume at 1").span_ref(),
-    SimpleSpan::new(0, 1),
-    "the input resumes from A's restore point"
+    *txn.cursor().as_inner(),
+    before,
+    "the declined attempt rolled back to its own checkpoint, not below the base"
+  );
+  txn.commit();
+  assert_eq!(
+    *inp.cursor().as_inner(),
+    before,
+    "the guard committed at the post-attempt position"
   );
 }

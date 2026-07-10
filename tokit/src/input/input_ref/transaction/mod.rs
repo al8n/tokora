@@ -69,14 +69,19 @@ use super::{
 ///
 /// The guard deref-coerces to [`InputRef`], so raw [`save`](InputRef::save) /
 /// [`restore`](InputRef::restore) are reachable through it. A raw restore to a checkpoint saved
-/// *before* the guard began rolls the lineage back past the guard's own begin-point checkpoint,
-/// invalidating it. What each decision then does is deterministic in every allocator build: an
-/// explicit [`rollback`](Self::rollback) panics as stale (`transaction base is stale`); a
-/// rolling-back drop quietly keeps the older restore's state instead of resurrecting the dead
-/// base; [`commit`](Self::commit) is unaffected (it never restores). A LIFO-clean raw
-/// save/restore pair taken and released entirely *above* the begin point, and state surgery
-/// (which is transactional), leave the guard's checkpoint intact. On allocator-less targets
-/// there is no lineage stack, so this mixing is unspecified-but-bounded rather than checked.
+/// *before* the guard began would roll the lineage back past the guard's own begin-point
+/// checkpoint, tearing out the region the guard borrows from its begin point forward. In
+/// allocator builds the guard **pins** its begin point, so such a restore **panics at the
+/// restore itself** (`restore would invalidate a live transaction guard or attempt …`) — the
+/// violation is refused where it is caused, before any commit/rollback decision. A LIFO-clean
+/// raw save/restore pair taken and released entirely *above* the begin point, and state surgery
+/// (which is transactional), leave the guard's checkpoint intact and never trip the pin.
+///
+/// On allocator-less targets there is no pin set and no lineage stack, so this mixing is
+/// unspecified-but-bounded rather than checked. In allocator builds the older detect-at-use
+/// behaviors remain as backstops behind the pin check — an explicit [`rollback`](Self::rollback)
+/// still asserts a live base, a rolling-back drop still skips a stale one — defense in depth that
+/// the pin check now makes unreachable in ordinary use.
 pub struct Transaction<'txn, 'inp, 'closure, L, Ctx, Lang: ?Sized = (), P: DropPolicy = Rollback>
 where
   L: Lexer<'inp>,
@@ -107,10 +112,13 @@ where
   pub fn commit(mut self) {
     // Take the checkpoint so the `Drop` guard below sees `None` and does not roll back.
     if let Some(ckp) = self.ckp.take() {
-      // Kept, not restored: drop its lineage id so it does not linger on the live stack
-      // across commit-heavy loops.
+      // Kept, not restored: unpin the begin point and drop its lineage id so neither lingers on
+      // the live/pin stacks across commit-heavy loops.
       #[cfg(any(feature = "std", feature = "alloc"))]
-      self.input.forget_checkpoint(ckp.ckp_id);
+      {
+        self.input.unpin_checkpoint(ckp.ckp_id);
+        self.input.forget_checkpoint(ckp.ckp_id);
+      }
       #[cfg(not(any(feature = "std", feature = "alloc")))]
       let _ = ckp;
     }
@@ -123,16 +131,20 @@ where
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn rollback(mut self) {
     if let Some(ckp) = self.ckp.take() {
-      // A raw restore below the begin point (through this guard's `DerefMut`) pops the base
-      // off the live lineage. An explicit rollback to an invalidated base cannot be honored —
-      // it would resurrect an abandoned lineage — so refuse it loudly in every allocator build,
-      // matching the [`StackedTransaction`] and savepoint precedent. (A rolling-back drop, which
-      // may run mid-unwind, quietly skips the restore instead.)
+      // Unpin the begin point FIRST so the checked restore below does not see it as pinned — a
+      // guard rolling back to its own base is legal. A raw restore *below* the base (through
+      // this guard's `DerefMut`) would already have panicked at that restore (detect-at-cause),
+      // so the stale assert here is now an unreachable backstop, kept for defense in depth and
+      // for allocator-less builds. (A rolling-back drop, which may run mid-unwind, quietly skips
+      // the restore instead.)
       #[cfg(any(feature = "std", feature = "alloc"))]
-      assert!(
-        self.input.live_contains(ckp.ckp_id),
-        "transaction base is stale (invalidated by an earlier restore)"
-      );
+      {
+        self.input.unpin_checkpoint(ckp.ckp_id);
+        assert!(
+          self.input.live_contains(ckp.ckp_id),
+          "transaction base is stale (invalidated by an earlier restore)"
+        );
+      }
       self.input.restore(ckp);
     }
   }
@@ -185,25 +197,31 @@ where
   /// `P::ROLLBACK_ON_DROP` is a compile-time constant, so each policy monomorphizes to
   /// one arm with the other eliminated. Either arm is silent (no debug raw-misuse panic):
   /// `Drop` may run while already unwinding, where `no_std` has no `thread::panicking()`
-  /// to guard a drop-bomb. The begin point is usually the oldest live checkpoint; if a raw
-  /// restore below it (through this guard) has invalidated it first, the rollback arm skips
-  /// the rewind rather than resurrecting the dead base (the input already sits where that
-  /// older restore left it), so nothing silent is ever restored to a stale lineage.
+  /// to guard a drop-bomb. Both arms first unpin the begin point (exception-safe — it happens
+  /// even on the rollback arm's skip). The pin check makes a raw restore below the begin point
+  /// panic at that restore, so the base cannot go stale while the guard is live and the rollback
+  /// arm normally just rewinds; the stale-base skip it still performs is a backstop (defense in
+  /// depth, and the behavior for allocator-less builds, which pin nothing).
   #[cfg_attr(not(tarpaulin), inline)]
   fn drop(&mut self) {
     if let Some(ckp) = self.ckp.take() {
       if P::ROLLBACK_ON_DROP {
-        // Skip the rewind if a raw restore below the base already invalidated it: the input
-        // sits where that older restore left it, and resurrecting the dead base would be wrong
-        // (and this may run mid-unwind, where panicking is forbidden). An explicit `rollback`
-        // reports that stale case loudly instead; here we stay silent and truthful.
+        // Unpin the begin point first — exception-safe, so it happens even though the rewind
+        // below may be skipped (a `Drop` may run mid-unwind, where panicking is forbidden). The
+        // pin check makes the base go-stale case unreachable in allocator builds, so this
+        // normally just rewinds; the skip stays as a backstop. An explicit `rollback` reports a
+        // stale base loudly; here we stay silent and truthful.
+        #[cfg(any(feature = "std", feature = "alloc"))]
+        self.input.unpin_checkpoint(ckp.ckp_id);
         self.input.restore_unchecked_if_live(ckp);
       } else {
-        // Commit-on-drop: progress kept; only tidy the committed checkpoint's lineage id
-        // so it does not linger on the live stack across commit-heavy loops (as
-        // `commit` does).
+        // Commit-on-drop: progress kept; unpin the begin point and forget its lineage id so
+        // neither lingers on the live/pin stacks across commit-heavy loops (as `commit` does).
         #[cfg(any(feature = "std", feature = "alloc"))]
-        self.input.forget_checkpoint(ckp.ckp_id);
+        {
+          self.input.unpin_checkpoint(ckp.ckp_id);
+          self.input.forget_checkpoint(ckp.ckp_id);
+        }
         #[cfg(not(any(feature = "std", feature = "alloc")))]
         let _ = ckp;
       }
