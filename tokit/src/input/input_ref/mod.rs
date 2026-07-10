@@ -63,12 +63,22 @@ where
   /// life of the input.
   #[cfg(any(feature = "std", feature = "alloc"))]
   pub(super) savepoint_seq: &'closure mut u64,
+  /// The input's live-checkpoint lineage stack (see [`Input::live_ckpts`](super::Input)),
+  /// maintained by [`save`](InputRef::save) / [`restore`](InputRef::restore) in every
+  /// allocator build and read by [`StackedTransaction`] to reject a stale savepoint.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  pub(super) live_ckpts: &'closure mut std::vec::Vec<u64>,
+  /// Monotone id source for [`live_ckpts`](Self::live_ckpts) (see
+  /// [`Input::next_ckp_id`](super::Input)).
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  pub(super) next_ckp_id: &'closure mut u64,
+  /// Debug-only witness of the input identity, for `restore`'s foreign-input check.
   #[cfg(all(
     debug_assertions,
     any(feature = "std", feature = "alloc"),
     target_has_atomic = "ptr"
   ))]
-  pub(super) witness: &'closure mut super::Witness,
+  pub(super) witness: &'closure super::Witness,
   pub(super) emitter: &'closure mut Ctx::Emitter,
   pub(super) _marker: PhantomData<Lang>,
 }
@@ -132,16 +142,15 @@ where
   ///
   /// Replacing the lexer state re-keys every offset-dependent fact the input tracks
   /// (cache spans, dedup watermark, poison boundary). All outstanding checkpoints are
-  /// invalidated; restoring one afterwards is a contract violation (debug builds
-  /// panic).
+  /// invalidated: the live-checkpoint lineage stack is cleared, so a later
+  /// [`restore`](Self::restore) of an outstanding checkpoint no-ops the lineage pop and a
+  /// [`StackedTransaction`] savepoint taken before this call panics as stale (every build).
+  /// Restoring a checkpoint afterwards is a contract violation (debug builds also panic in
+  /// `restore` itself).
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn state_mut(&mut self) -> &mut L::State {
-    #[cfg(all(
-      debug_assertions,
-      any(feature = "std", feature = "alloc"),
-      target_has_atomic = "ptr"
-    ))]
-    self.witness.clear();
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    self.live_ckpts.clear();
     self.state
   }
 
@@ -151,16 +160,15 @@ where
   ///
   /// Replacing the lexer state re-keys every offset-dependent fact the input tracks
   /// (cache spans, dedup watermark, poison boundary). All outstanding checkpoints are
-  /// invalidated; restoring one afterwards is a contract violation (debug builds
-  /// panic).
+  /// invalidated: the live-checkpoint lineage stack is cleared, so a later
+  /// [`restore`](Self::restore) of an outstanding checkpoint no-ops the lineage pop and a
+  /// [`StackedTransaction`] savepoint taken before this call panics as stale (every build).
+  /// Restoring a checkpoint afterwards is a contract violation (debug builds also panic in
+  /// `restore` itself).
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn set_state(&mut self, state: L::State) {
-    #[cfg(all(
-      debug_assertions,
-      any(feature = "std", feature = "alloc"),
-      target_has_atomic = "ptr"
-    ))]
-    self.witness.clear();
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    self.live_ckpts.clear();
     *self.state = state;
   }
 
@@ -346,12 +354,8 @@ where
     match f(self) {
       Some(result) => {
         // Progress kept: the checkpoint is dropped without restoring, so drop its
-        // debug-witness id too rather than leaving it to grow the live stack.
-        #[cfg(all(
-          debug_assertions,
-          any(feature = "std", feature = "alloc"),
-          target_has_atomic = "ptr"
-        ))]
+        // lineage id too rather than leaving it to grow the live stack.
+        #[cfg(any(feature = "std", feature = "alloc"))]
         self.forget_checkpoint(ckp.ckp_id);
         Some(result)
       }
@@ -385,12 +389,8 @@ where
 
     match f(self) {
       Ok(result) => {
-        // Progress kept: drop the checkpoint's debug-witness id (see `attempt`).
-        #[cfg(all(
-          debug_assertions,
-          any(feature = "std", feature = "alloc"),
-          target_has_atomic = "ptr"
-        ))]
+        // Progress kept: drop the checkpoint's lineage id (see `attempt`).
+        #[cfg(any(feature = "std", feature = "alloc"))]
         self.forget_checkpoint(ckp.ckp_id);
         Ok(result)
       }
@@ -437,6 +437,12 @@ where
   /// [`SavepointId`] is caught in layers: a temporally-misused id (kept past its
   /// transaction) at compile time via its lifetime brand, and a foreign or a stale id by a
   /// runtime check in every build; see [`SavepointId`].
+  ///
+  /// Raw [`save`](Self::save) / [`restore`](Self::restore), state replacement, and nested
+  /// transactions are all reachable through the guard's deref; see the mixing rules on
+  /// [`StackedTransaction`] for which combinations invalidate a savepoint (a raw restore
+  /// below it, or replacing the lexer state — both panic as stale in every build) and which
+  /// are always legal (nested speculation, and a LIFO-clean raw pair above the savepoints).
   ///
   /// Reach for the backtracking tools in order of shape:
   ///
@@ -486,26 +492,51 @@ where
     seq
   }
 
-  /// Drops `id` from the debug live-checkpoint stack because its checkpoint was kept
+  /// Drops `id` from the live-checkpoint lineage stack because its checkpoint was kept
   /// (committed) rather than restored — see [`Transaction::commit`],
-  /// [`attempt`](Self::attempt), and [`try_attempt`](Self::try_attempt).
+  /// [`attempt`](Self::attempt), [`try_attempt`](Self::try_attempt), and the
+  /// [`StackedTransaction`] release/commit paths.
   ///
   /// A restored checkpoint is popped off the stack by [`restore`](Self::restore); a
-  /// *committed* one never reaches `restore`, so without this its id would linger and
-  /// grow the stack across commit-heavy loops. Removing it keeps the witness exact and
-  /// bounded.
-  #[cfg(all(
-    debug_assertions,
-    any(feature = "std", feature = "alloc"),
-    target_has_atomic = "ptr"
-  ))]
+  /// *committed* one never reaches `restore`, so without this its id would linger and grow
+  /// the stack across commit-heavy loops. Removing it keeps the lineage stack exact and
+  /// bounded. `O(1)` when `id` is the stack top (the common case for a committed
+  /// checkpoint); a linear removal otherwise (e.g. a raw checkpoint saved above it was
+  /// dropped without restoring). Removing a non-top id keeps the rest of the stack in
+  /// order, so an older restore still pops cleanly through it.
+  #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
-  pub(crate) fn forget_checkpoint(&self, id: u64) {
-    self.witness.forget(id);
+  pub(crate) fn forget_checkpoint(&mut self, id: u64) {
+    if self.live_ckpts.last() == Some(&id) {
+      self.live_ckpts.pop();
+    } else if let Some(pos) = self.live_ckpts.iter().position(|&x| x == id) {
+      self.live_ckpts.remove(pos);
+    }
+  }
+
+  /// Returns whether `id` is still live on the lineage stack. Backs both the
+  /// [`StackedTransaction`] savepoint-staleness check (every build) and, in debug + ptr
+  /// builds, [`restore`](Self::restore)'s non-LIFO panic.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  pub(super) fn live_contains(&self, id: u64) -> bool {
+    self.live_ckpts.contains(&id)
+  }
+
+  /// Pops the lineage stack down through `id` inclusive, invalidating it and every
+  /// checkpoint saved after it. A no-op if `id` is already gone — a raw restore to a
+  /// checkpoint an earlier restore or a state replacement already invalidated (release's
+  /// unspecified-but-bounded posture; debug + ptr asserts presence in `restore` first).
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  fn live_pop_through(&mut self, id: u64) {
+    if let Some(pos) = self.live_ckpts.iter().position(|&x| x == id) {
+      self.live_ckpts.truncate(pos);
+    }
   }
 
   /// The number of live checkpoints — test-only observability for the no-growth
-  /// guarantee that committing gives the live stack.
+  /// guarantee that committing gives the lineage stack.
   #[cfg(all(
     test,
     debug_assertions,
@@ -513,7 +544,7 @@ where
     target_has_atomic = "ptr"
   ))]
   pub(crate) fn live_checkpoints_len(&self) -> usize {
-    self.witness.live_len()
+    self.live_ckpts.len()
   }
 
   /// Returns a slice of the current token from the input source.
@@ -592,15 +623,29 @@ where
   /// boundary — everything [`restore`](Self::restore) needs to make this exact moment
   /// the live state again.
   ///
-  /// Saving is O(1): it clones the lexer state and a few offsets, and allocates
-  /// nothing in release builds. Saving never invalidates other checkpoints; only
-  /// restoring does (see [`Checkpoint`]'s validity section).
+  /// Saving is amortized O(1): it clones the lexer state and a few offsets, and — in
+  /// allocator builds — records the checkpoint's id on the input's live-checkpoint
+  /// lineage stack (one `Vec` push) so restore ordering and savepoint validity can be
+  /// tracked in every build; allocator-less builds allocate nothing. Saving never
+  /// invalidates other checkpoints; only restoring does (see [`Checkpoint`]'s validity
+  /// section).
   ///
   /// Prefer [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) when the
   /// save/restore pair brackets a single speculative computation — they enforce the
   /// restore discipline by construction.
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn save(&self) -> Checkpoint<'inp, 'closure, L> {
+  pub fn save(&mut self) -> Checkpoint<'inp, 'closure, L> {
+    // Record this checkpoint on the live-checkpoint lineage stack (every allocator build)
+    // and stamp its fresh id into the checkpoint. `restore` pops the stack down through
+    // that id, and a `StackedTransaction` checks the id is still present before honoring a
+    // savepoint — the check that makes stale savepoints panic on release and no-ptr targets.
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    let ckp_id = {
+      let id = *self.next_ckp_id;
+      *self.next_ckp_id += 1;
+      self.live_ckpts.push(id);
+      id
+    };
     Checkpoint::new(
       self.cursor().clone(),
       self.span.clone(),
@@ -615,12 +660,8 @@ where
         target_has_atomic = "ptr"
       ))]
       self.witness.input_id(),
-      #[cfg(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      ))]
-      self.witness.push(),
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      ckp_id,
     )
   }
 
@@ -739,8 +780,9 @@ where
   pub fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     // Verify the last-in, first-out discipline exactly, before any mutation: the
     // checkpoint must belong to this input, and it must still be live (restoring an
-    // older checkpoint invalidates every one saved after it). Release builds omit
-    // this and copy unconditionally.
+    // older checkpoint invalidates every one saved after it). Release and no-ptr builds
+    // omit these panics; the lineage stack itself is still maintained in every allocator
+    // build inside `restore_unchecked`.
     #[cfg(all(
       debug_assertions,
       any(feature = "std", feature = "alloc"),
@@ -752,11 +794,29 @@ where
         "checkpoint restored into a foreign input: this checkpoint was created by a different input"
       );
       assert!(
-        self.witness.contains(checkpoint.ckp_id),
+        self.live_contains(checkpoint.ckp_id),
         "non-LIFO checkpoint restore: this checkpoint was invalidated by restoring an older one (restores must be last-in, first-out)"
       );
-      self.witness.pop_through(checkpoint.ckp_id);
     }
+    self.restore_unchecked(checkpoint);
+  }
+
+  /// Rewinds to `checkpoint` without the debug raw-misuse panics, used by the transaction
+  /// guards' `Drop`, whose base restore is internally managed — always the oldest live
+  /// checkpoint — and must stay silent: `Drop` may run while already unwinding, and `no_std`
+  /// has no `thread::panicking()` to guard a drop-bomb, so a debug assert firing here would
+  /// abort. It still maintains the lineage stack (popping through the restored id if present)
+  /// and replays the saved lineage exactly, identically to [`restore`](Self::restore) in
+  /// release. (An explicit [`rollback`](Transaction::rollback) restores through the checked
+  /// [`restore`](Self::restore), since it never runs during an unwind.)
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) fn restore_unchecked(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+    // Maintain the lineage stack in every allocator build: pop it down through the restored
+    // id (invalidating it and every younger checkpoint). An absent id is a no-op — a raw
+    // restore to a checkpoint an earlier restore or a state replacement already invalidated
+    // (release's unspecified-but-bounded posture; `restore` asserts presence in debug + ptr).
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    self.live_pop_through(checkpoint.ckp_id);
 
     self.cache_mut().rewind(&checkpoint);
     // Drop the cache entries pushed after the save. They were lexed on the continuation

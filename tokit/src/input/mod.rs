@@ -15,12 +15,15 @@ mod checkpoint;
 mod cursor;
 mod input_ref;
 
-/// Debug-only exact witness for the last-in, first-out checkpoint discipline that
-/// [`InputRef::restore`] documents.
+/// Debug-only witness of the input identity a checkpoint was created under, used by
+/// [`InputRef::restore`] to reject a checkpoint restored into a foreign input.
 ///
-/// It exists only in debug builds that have an allocator (`std` or `alloc`); in
-/// release builds, and in allocator-less builds, it is absent and `restore` is an
-/// unchecked pure copy of the saved lineage state.
+/// The live-checkpoint *lineage* stack that enforces the last-in, first-out discipline
+/// lives on [`Input`] itself (see [`Input::live_ckpts`]) and is maintained in **every**
+/// allocator build; this witness carries only the cross-input identity, whose atomic id
+/// source keeps it behind the debug + `target_has_atomic = "ptr"` gate. In release builds,
+/// and in allocator-less builds, it is absent and `restore` performs no foreign-input
+/// check.
 #[cfg(all(
   debug_assertions,
   any(feature = "std", feature = "alloc"),
@@ -34,42 +37,24 @@ pub(crate) use witness::Witness;
   target_has_atomic = "ptr"
 ))]
 mod witness {
-  use core::{
-    cell::{Cell, RefCell},
-    sync::atomic::{AtomicUsize, Ordering},
-  };
-
-  use std::vec::Vec;
+  use core::sync::atomic::{AtomicUsize, Ordering};
 
   /// Hands out a distinct identity to every [`Input`](super::Input) so a checkpoint
   /// carries a witness of the input that produced it.
   static NEXT_INPUT_ID: AtomicUsize = AtomicUsize::new(0);
 
-  /// Tracks the checkpoints that are still live for one input.
-  ///
-  /// A live checkpoint is one that has been saved and neither restored nor
-  /// invalidated by restoring an older one. Restoring pops the stack down through
-  /// the restored id (inclusive), which is exactly the set of checkpoints the
-  /// restore invalidates. The counter is monotone and never reused, so an id popped
-  /// off the stack can never be mistaken for a live one.
-  ///
-  /// The cells give `save` (which takes `&self`) a place to record without widening
-  /// its signature; the whole type is debug-only scaffolding.
+  /// A process-unique identity for one input, stamped into every checkpoint it saves so
+  /// a restore can reject a checkpoint that belongs to a different input.
   #[derive(Debug)]
   pub(crate) struct Witness {
     input_id: usize,
-    next_ckp_id: Cell<u64>,
-    live: RefCell<Vec<u64>>,
   }
 
   impl Witness {
-    /// Creates a witness with a fresh, process-unique input identity and no live
-    /// checkpoints.
+    /// Creates a witness with a fresh, process-unique input identity.
     pub(crate) fn new() -> Self {
       Self {
         input_id: NEXT_INPUT_ID.fetch_add(1, Ordering::Relaxed),
-        next_ckp_id: Cell::new(0),
-        live: RefCell::new(Vec::new()),
       }
     }
 
@@ -77,61 +62,11 @@ mod witness {
     pub(crate) fn input_id(&self) -> usize {
       self.input_id
     }
-
-    /// Records a freshly saved checkpoint and returns its id.
-    pub(crate) fn push(&self) -> u64 {
-      let id = self.next_ckp_id.get();
-      self.next_ckp_id.set(id + 1);
-      self.live.borrow_mut().push(id);
-      id
-    }
-
-    /// Returns whether `id` is still a live checkpoint of this input.
-    pub(crate) fn contains(&self, id: u64) -> bool {
-      self.live.borrow().contains(&id)
-    }
-
-    /// Pops the live stack down through `id` inclusive, invalidating it and every
-    /// checkpoint saved after it.
-    pub(crate) fn pop_through(&self, id: u64) {
-      let mut live = self.live.borrow_mut();
-      if let Some(pos) = live.iter().position(|&x| x == id) {
-        live.truncate(pos);
-      }
-    }
-
-    /// Drops `id` from the live stack without restoring it — the checkpoint is kept
-    /// (committed) rather than rewound, so its id must not linger and grow the stack
-    /// across commit-heavy loops. O(1) when `id` is the stack top (the common case
-    /// for a committed checkpoint); a linear removal otherwise (e.g. a raw checkpoint
-    /// saved above it was dropped without restoring). Removing a non-top id keeps the
-    /// rest of the stack in order, so an older restore still pops cleanly through it.
-    pub(crate) fn forget(&self, id: u64) {
-      let mut live = self.live.borrow_mut();
-      if live.last() == Some(&id) {
-        live.pop();
-      } else if let Some(pos) = live.iter().position(|&x| x == id) {
-        live.remove(pos);
-      }
-    }
-
-    /// Invalidates every live checkpoint (used when lexer state is replaced).
-    pub(crate) fn clear(&self) {
-      self.live.borrow_mut().clear();
-    }
-
-    /// The number of live checkpoints. Test-only observability for the no-growth
-    /// guarantee that `forget` gives `commit`/`attempt`/`try_attempt`.
-    #[cfg(test)]
-    pub(crate) fn live_len(&self) -> usize {
-      self.live.borrow().len()
-    }
   }
 
   impl Clone for Witness {
-    /// A clone is a **new** input: it gets a fresh identity and no live checkpoints,
-    /// so a clone's checkpoints and the original's can never be confused for one
-    /// another.
+    /// A clone is a **new** input: it gets a fresh identity, so a clone's checkpoints and
+    /// the original's can never be confused for one another.
     fn clone(&self) -> Self {
       Self::new()
     }
@@ -302,8 +237,26 @@ where
   /// counter is per-input.
   #[cfg(any(feature = "std", feature = "alloc"))]
   savepoint_seq: u64,
-  /// Debug-only witness of the last-in, first-out checkpoint discipline (see
-  /// [`InputRef::restore`]).
+  /// The live-checkpoint lineage stack: the ids of the checkpoints that have been saved and
+  /// neither restored nor invalidated by restoring an older one, youngest last. [`save`](InputRef::save)
+  /// pushes the fresh id, [`restore`](InputRef::restore) pops the stack down through the
+  /// restored id (invalidating it and every younger one), state replacement clears it, and a
+  /// committed checkpoint is forgotten by [`forget_checkpoint`](InputRef::forget_checkpoint).
+  ///
+  /// It is the single source of truth for lineage validity in **every** allocator build — no
+  /// atomics, no interior mutability, just a `Vec` — so [`StackedTransaction`] can reject a
+  /// savepoint whose checkpoint a raw restore or a state replacement invalidated, on release
+  /// and no-`target_has_atomic`-ptr targets alike. In debug + ptr builds the same stack also
+  /// backs `restore`'s non-LIFO and foreign-input panics.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  live_ckpts: std::vec::Vec<u64>,
+  /// Monotone id source for [`live_ckpts`](Self::live_ckpts): each [`save`](InputRef::save)
+  /// takes the current value and bumps it, so an id is never reused for the life of the input
+  /// and a popped id can never be mistaken for a live one.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  next_ckp_id: u64,
+  /// Debug-only witness of the input identity a checkpoint was created under (see
+  /// [`InputRef::restore`]); the lineage stack itself is [`live_ckpts`](Self::live_ckpts).
   #[cfg(all(
     debug_assertions,
     any(feature = "std", feature = "alloc"),
@@ -336,9 +289,15 @@ where
       // original's regardless of the starting value.
       #[cfg(any(feature = "std", feature = "alloc"))]
       savepoint_seq: self.savepoint_seq,
-      // A clone is a new input: `Witness::clone` mints a fresh identity and an empty
-      // live-checkpoint stack, so the clone's checkpoints and the original's never
-      // cross.
+      // A clone is a new input: it starts with an empty lineage stack and a fresh id
+      // counter, so a checkpoint from the original is never mistaken for one of the
+      // clone's (restoring it is caught as a foreign input in debug + ptr builds).
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      live_ckpts: std::vec::Vec::new(),
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      next_ckp_id: 0,
+      // A clone is a new input: `Witness::clone` mints a fresh identity, so the clone's
+      // checkpoints and the original's never cross.
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -401,6 +360,10 @@ where
       cache_pushes: 0,
       #[cfg(any(feature = "std", feature = "alloc"))]
       savepoint_seq: 0,
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      live_ckpts: std::vec::Vec::new(),
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      next_ckp_id: 0,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -431,6 +394,10 @@ where
       cache_pushes: 0,
       #[cfg(any(feature = "std", feature = "alloc"))]
       savepoint_seq: 0,
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      live_ckpts: std::vec::Vec::new(),
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      next_ckp_id: 0,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -456,12 +423,16 @@ where
       cache_pushes: &mut self.cache_pushes,
       #[cfg(any(feature = "std", feature = "alloc"))]
       savepoint_seq: &mut self.savepoint_seq,
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      live_ckpts: &mut self.live_ckpts,
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      next_ckp_id: &mut self.next_ckp_id,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
         target_has_atomic = "ptr"
       ))]
-      witness: &mut self.witness,
+      witness: &self.witness,
       emitter,
       _marker: PhantomData,
     }

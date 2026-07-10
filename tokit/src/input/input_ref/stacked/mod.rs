@@ -35,8 +35,10 @@ use super::{Checkpoint, InputRef, Lexer, ParseContext};
 ///   *different* input — **panics in every build**: each id carries the address of an
 ///   Input-owned field, and two live inputs occupy distinct addresses.
 /// - **Intra-transaction staleness** — an id destroyed by an earlier `rollback_to` /
-///   `release` on the same transaction — **panics in every build** via a membership scan
-///   of the live savepoints (see [`rollback_to`](StackedTransaction::rollback_to)).
+///   `release` on the same transaction, or one whose checkpoint a raw restore or a lexer
+///   state replacement invalidated (see the mixing rules on [`StackedTransaction`]) —
+///   **panics in every build** via a membership scan of the live savepoints and their
+///   lineage (see [`rollback_to`](StackedTransaction::rollback_to)).
 ///
 /// # Compile-time rejections
 ///
@@ -186,9 +188,29 @@ pub struct SavepointId<'t> {
 ///
 /// [`commit`](Self::commit) and [`rollback`](Self::rollback) consume the transaction; an
 /// undecided transaction rolls back to the begin point on drop, discarding all
-/// savepoints — the database default. Cost when unused is zero: the empty savepoint
-/// `Vec` never allocates, and a begin captures one field address — no counter, no atomic,
-/// no allocation.
+/// savepoints — the database default. Cost when unused is low: the transaction's own
+/// savepoint `Vec` never allocates until the first [`savepoint`](Self::savepoint), and a
+/// begin captures one field address and records its base checkpoint on the input's shared
+/// lineage stack (an amortized `Vec` push) — no counter, no atomic.
+///
+/// # Mixing with raw save/restore and nested transactions
+///
+/// The guard deref-coerces to [`InputRef`], so raw [`save`](InputRef::save) /
+/// [`restore`](InputRef::restore) and the nested backtracking tools are all reachable
+/// through it. Two rules govern how they interact with the live savepoints:
+///
+/// - **A raw restore below a savepoint, or replacing the lexer state, invalidates that
+///   savepoint.** Restoring a raw checkpoint taken *before* a savepoint rolls the lineage
+///   back past the savepoint's own checkpoint; [`set_state`](InputRef::set_state) /
+///   [`state_mut`](InputRef::state_mut) invalidate every outstanding checkpoint. In both
+///   cases the savepoint's checkpoint is no longer on a live lineage, and
+///   [`rollback_to`](Self::rollback_to) / [`release`](Self::release) with it **panics as
+///   stale in every build** — release and no-`target_has_atomic`-ptr targets included — not
+///   just debug witness builds. Restoring the wrong lineage is never silently honored.
+/// - **Nested `attempt` / `try_attempt` / [`Transaction`](super::Transaction), and a
+///   LIFO-clean raw save/restore pair taken *above* the savepoints, are fully legal and do
+///   not disturb them.** A nested speculation that saves and then restores or commits its
+///   own younger checkpoint leaves every savepoint below it untouched and usable.
 ///
 /// ```ignore
 /// // Best-match selection across three stages: keep a fallback after each, then return
@@ -275,12 +297,14 @@ where
   /// # Panics
   ///
   /// Panics if `sp` was issued by a different, simultaneously-live transaction
-  /// (`stacked transaction: savepoint belongs to a different transaction`) or was
-  /// destroyed by an earlier `rollback_to` / [`release`](Self::release)
-  /// (`stacked transaction: savepoint is stale (destroyed by an earlier rollback or
-  /// release)`). Both checks — an address compare and a short stack scan — run in every
-  /// build. (Using an id after its transaction ended is a compile error, not a panic; see
-  /// [`SavepointId`].)
+  /// (`stacked transaction: savepoint belongs to a different transaction`), was destroyed by
+  /// an earlier `rollback_to` / [`release`](Self::release) (`stacked transaction: savepoint
+  /// is stale (destroyed by an earlier rollback or release)`), or had its checkpoint
+  /// invalidated by a raw restore through the transaction or a lexer state replacement
+  /// (`stacked transaction: savepoint is stale (invalidated by a raw restore or state
+  /// replacement)`). All three checks — an address compare and two short stack scans — run in
+  /// every build. (Using an id after its transaction ended is a compile error, not a panic;
+  /// see [`SavepointId`].)
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn rollback_to(&mut self, sp: SavepointId<'txn>) {
     let idx = self.slot(sp);
@@ -313,35 +337,36 @@ where
     // checkpoint is restored.
     while self.saves.len() > idx {
       let (_, ckp) = self.saves.pop().expect("len > idx implies a value to pop");
-      #[cfg(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      ))]
       self.input.forget_checkpoint(ckp.ckp_id);
-      #[cfg(not(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      )))]
-      let _ = ckp;
     }
   }
 
-  /// Validates `sp` and returns its index in `saves`, panicking on a foreign or a
-  /// destroyed id. An address compare plus a short scan, on a cold path.
+  /// Validates `sp` and returns its index in `saves`, panicking on a foreign, a destroyed,
+  /// or a lineage-invalidated id. An address compare plus two short scans, on a cold path.
   #[cfg_attr(not(tarpaulin), inline)]
   fn slot(&self, sp: SavepointId<'txn>) -> usize {
     assert!(
       sp.nonce == self.nonce,
       "stacked transaction: savepoint belongs to a different transaction"
     );
-    match self.saves.iter().position(|(seq, _)| *seq == sp.seq) {
+    let idx = match self.saves.iter().position(|(seq, _)| *seq == sp.seq) {
       Some(idx) => idx,
       None => panic!(
         "stacked transaction: savepoint is stale (destroyed by an earlier rollback or release)"
       ),
-    }
+    };
+    // Lineage validity, in every build: the `seq` is still in `saves`, but the checkpoint
+    // that slot marks must still be live on the input's lineage stack. A raw restore through
+    // the transaction (via `DerefMut`) to a checkpoint older than this savepoint, or a lexer
+    // state replacement, pops it off that stack without touching `saves` — leaving a stale
+    // slot that the nonce + membership check alone would honor, restoring the wrong lineage.
+    // This is a plain `Vec` membership scan (no atomics), so it closes the hole on release
+    // and no-`target_has_atomic`-ptr targets exactly as in a debug witness build.
+    assert!(
+      self.input.live_contains(self.saves[idx].1.ckp_id),
+      "stacked transaction: savepoint is stale (invalidated by a raw restore or state replacement)"
+    );
+    idx
   }
 }
 
@@ -359,32 +384,10 @@ where
     // (it is the deepest, so it is the top once the savepoints are gone). Taking `base`
     // leaves the `Drop` guard nothing to restore.
     while let Some((_, ckp)) = self.saves.pop() {
-      #[cfg(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      ))]
       self.input.forget_checkpoint(ckp.ckp_id);
-      #[cfg(not(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      )))]
-      let _ = ckp;
     }
     if let Some(base) = self.base.take() {
-      #[cfg(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      ))]
       self.input.forget_checkpoint(base.ckp_id);
-      #[cfg(not(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      )))]
-      let _ = base;
     }
   }
 
@@ -437,11 +440,13 @@ where
   /// uncommitted work is discarded). After [`commit`](Self::commit) /
   /// [`rollback`](Self::rollback) the base is already taken, so this is a no-op. Silent
   /// rather than a panicking drop-bomb: tokit is `no_std`, where `thread::panicking()`
-  /// is unavailable, so a panic here could double-panic during unwinding.
+  /// is unavailable, so a panic here could double-panic during unwinding — hence the
+  /// unchecked restore (the base is the oldest live checkpoint, so no misuse check is lost;
+  /// if a raw restore or state replacement already invalidated it, the lineage pop no-ops).
   #[cfg_attr(not(tarpaulin), inline)]
   fn drop(&mut self) {
     if let Some(base) = self.base.take() {
-      self.input.restore(base);
+      self.input.restore_unchecked(base);
     }
   }
 }

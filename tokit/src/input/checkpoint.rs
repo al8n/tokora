@@ -89,12 +89,12 @@ pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
     target_has_atomic = "ptr"
   ))]
   pub(crate) input_id: usize,
-  /// This checkpoint's id in its input's live-checkpoint stack (debug-only witness).
-  #[cfg(all(
-    debug_assertions,
-    any(feature = "std", feature = "alloc"),
-    target_has_atomic = "ptr"
-  ))]
+  /// This checkpoint's id on its input's live-checkpoint lineage stack. Present in every
+  /// allocator build (not just debug witness builds), so a
+  /// [`StackedTransaction`](crate::StackedTransaction) can check that a savepoint's lineage
+  /// is still live before honoring it, and so a restore can pop the lineage down through
+  /// this checkpoint. See [`InputRef::save`](crate::InputRef::save).
+  #[cfg(any(feature = "std", feature = "alloc"))]
   pub(crate) ckp_id: u64,
   _m: PhantomData<fn(&'closure ()) -> &'closure ()>,
 }
@@ -117,12 +117,7 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
       target_has_atomic = "ptr"
     ))]
     input_id: usize,
-    #[cfg(all(
-      debug_assertions,
-      any(feature = "std", feature = "alloc"),
-      target_has_atomic = "ptr"
-    ))]
-    ckp_id: u64,
+    #[cfg(any(feature = "std", feature = "alloc"))] ckp_id: u64,
   ) -> Self {
     Self {
       cursor,
@@ -138,11 +133,7 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
         target_has_atomic = "ptr"
       ))]
       input_id,
-      #[cfg(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      ))]
+      #[cfg(any(feature = "std", feature = "alloc"))]
       ckp_id,
       _m: PhantomData,
     }

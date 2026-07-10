@@ -69,19 +69,11 @@ where
   pub fn commit(mut self) {
     // Take the checkpoint so the `Drop` guard below sees `None` and does not roll back.
     if let Some(ckp) = self.ckp.take() {
-      // Kept, not restored: drop its debug-witness id so it does not linger on the
-      // live stack across commit-heavy loops.
-      #[cfg(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      ))]
+      // Kept, not restored: drop its lineage id so it does not linger on the live stack
+      // across commit-heavy loops.
+      #[cfg(any(feature = "std", feature = "alloc"))]
       self.input.forget_checkpoint(ckp.ckp_id);
-      #[cfg(not(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      )))]
+      #[cfg(not(any(feature = "std", feature = "alloc")))]
       let _ = ckp;
     }
   }
@@ -135,8 +127,10 @@ where
   /// panic here could double-panic during unwinding.
   #[cfg_attr(not(tarpaulin), inline)]
   fn drop(&mut self) {
+    // Silent restore: `Drop` may run while already unwinding, where a debug raw-misuse
+    // panic would abort. The base is the oldest live checkpoint, so no check is lost.
     if let Some(ckp) = self.ckp.take() {
-      self.input.restore(ckp);
+      self.input.restore_unchecked(ckp);
     }
   }
 }

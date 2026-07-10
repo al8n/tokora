@@ -361,3 +361,110 @@ fn stacked_commit_removes_all_ids_from_live_stack() {
     "commit forgets the base and every savepoint id — the live stack returns to baseline"
   );
 }
+
+// ── Savepoint lineage validity (all builds) ─────────────────────────────────────
+//
+// A `SavepointId` passing the nonce + `saves`-membership check is not enough: the
+// checkpoint the slot holds must still be on a live lineage. A raw restore through the
+// transaction (`DerefMut`) to a checkpoint older than a savepoint, or replacing the lexer
+// state, invalidates the savepoint's checkpoint without removing its `saves` entry. Using
+// it afterwards must panic as stale in *every* build (plain `Vec` membership, no atomics),
+// making the docs' promise true on release and no-`target_has_atomic`-ptr targets alike.
+
+#[test]
+#[should_panic(expected = "stacked transaction: savepoint is stale")]
+fn stacked_savepoint_after_raw_restore_panics_stale() {
+  // A raw checkpoint saved *before* a savepoint, then restored through the transaction,
+  // rolls the lineage back past the savepoint's checkpoint while leaving its `seq` in
+  // `saves`. The nonce + membership check alone waves the stale id through; the lineage
+  // check must reject it.
+  let mut input = silent_input("1 2 3 4");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let mut txn = inp.begin_stacked();
+  let _ = txn.next().unwrap().expect("1");
+  let raw = txn.save(); // raw checkpoint, older than the savepoint
+  let _ = txn.next().unwrap().expect("2");
+  let sp = txn.savepoint(); // younger: its lineage sits above `raw`
+  txn.restore(raw); // rolls back past the savepoint's checkpoint
+  txn.rollback_to(sp); // `sp` is stale → panic in every build
+}
+
+#[test]
+#[should_panic(expected = "stacked transaction: savepoint is stale")]
+fn stacked_savepoint_after_set_state_panics_stale() {
+  // Replacing the lexer state re-keys every offset-dependent fact and invalidates every
+  // outstanding checkpoint, live savepoints included. Using one afterwards must panic as
+  // stale in every build.
+  let mut input = silent_input("1 2 3 4");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let mut txn = inp.begin_stacked();
+  let _ = txn.next().unwrap().expect("1");
+  let sp = txn.savepoint();
+  txn.set_state(TokenLimiter::with_limitation(usize::MAX)); // invalidates `sp`
+  txn.rollback_to(sp); // stale → panic
+}
+
+#[test]
+fn stacked_savepoints_survive_nested_attempt_and_transaction() {
+  // False-positive guard: legal nested speculation, and a LIFO-clean raw save/restore pair
+  // entirely *above* the savepoints, must not disturb them. Two savepoints stay valid
+  // across a failing attempt, a succeeding try_attempt, a nested begin/commit and a nested
+  // begin/rollback, and a raw save/restore pair — and rollback_to each still resumes at
+  // exactly its mark.
+  let mut input = silent_input("1 2 3 4 5 6 7 8");
+  let mut emitter = Silent::<NumErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let mut txn = inp.begin_stacked();
+  let _ = txn.next().unwrap().expect("1");
+  let sp1 = txn.savepoint(); // after "1"
+  let _ = txn.next().unwrap().expect("2");
+  let sp2 = txn.savepoint(); // after "2"
+
+  // A failing attempt consumes a token then rolls back.
+  let attempted: Option<()> = txn.attempt(|inp| {
+    let _ = inp.next().unwrap();
+    None
+  });
+  assert!(attempted.is_none(), "the attempt failed and rolled back");
+
+  // A succeeding try_attempt keeps its (empty) progress.
+  let tried: Result<(), ()> = txn.try_attempt(|_inp| Ok(()));
+  assert!(tried.is_ok(), "the try_attempt succeeded");
+
+  // A nested Transaction that commits its progress, then one that rolls back.
+  {
+    let mut nested = txn.begin();
+    let _ = nested.next().unwrap().expect("3");
+    nested.commit();
+  }
+  {
+    let mut nested = txn.begin();
+    let _ = nested.next().unwrap().expect("4");
+    nested.rollback();
+  }
+
+  // A LIFO-clean raw save/restore pair entirely above the savepoints.
+  let raw = txn.save();
+  let _ = txn.next().unwrap().expect("4 again");
+  txn.restore(raw);
+
+  // Both savepoints survived. Youngest first keeps the elder valid (SQL parity).
+  txn.rollback_to(sp2);
+  assert_eq!(
+    *txn.next().unwrap().expect("resume at 3").span_ref(),
+    SimpleSpan::new(4, 5),
+    "sp2 survived the nested work and resumes exactly at its mark",
+  );
+  txn.rollback_to(sp1);
+  assert_eq!(
+    *txn.next().unwrap().expect("resume at 2").span_ref(),
+    SimpleSpan::new(2, 3),
+    "sp1 survived and resumes exactly at its mark",
+  );
+  txn.commit();
+}

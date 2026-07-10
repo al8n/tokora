@@ -866,7 +866,7 @@ fn restore_with_foreign_checkpoint_rejected_in_debug() {
   );
 
   let foreign = {
-    let r1 = in1.as_ref(&mut em1);
+    let mut r1 = in1.as_ref(&mut em1);
     r1.save()
   };
   let mut r2 = in2.as_ref(&mut em2);
@@ -890,7 +890,7 @@ fn restore_with_clone_sibling_checkpoint_rejected_in_debug() {
   let mut sibling = original.clone();
 
   let from_original = {
-    let r = original.as_ref(&mut em1);
+    let mut r = original.as_ref(&mut em1);
     r.save()
   };
   let mut r2 = sibling.as_ref(&mut em2);
@@ -1489,9 +1489,11 @@ fn try_attempt_nested_lifo() {
 // lexing chokepoint (`lex_within_boundary`) debug-asserts against it. This fixture
 // yields one `[0, 0)` token to drive that assert.
 
+#[cfg(debug_assertions)]
 #[derive(Debug, Clone, PartialEq)]
 struct ZeroWidthErr;
 
+#[cfg(debug_assertions)]
 impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>>
   for ZeroWidthErr
 {
@@ -1500,24 +1502,29 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, L
   }
 }
 
+#[cfg(debug_assertions)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ZeroWidthTok;
 
+#[cfg(debug_assertions)]
 impl core::fmt::Display for ZeroWidthTok {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "zero-width")
   }
 }
 
+#[cfg(debug_assertions)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ZeroWidthKind;
 
+#[cfg(debug_assertions)]
 impl core::fmt::Display for ZeroWidthKind {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "zero-width")
   }
 }
 
+#[cfg(debug_assertions)]
 impl Token<'_> for ZeroWidthTok {
   type Kind = ZeroWidthKind;
   type Error = ZeroWidthErr;
@@ -1532,12 +1539,14 @@ impl Token<'_> for ZeroWidthTok {
 }
 
 /// A lexer that yields exactly one zero-width `[0, 0)` token, then end of input.
+#[cfg(debug_assertions)]
 struct ZeroWidthLexer<'inp> {
   src: &'inp str,
   state: (),
   yielded: bool,
 }
 
+#[cfg(debug_assertions)]
 impl<'inp> crate::Lexer<'inp> for ZeroWidthLexer<'inp> {
   type State = ();
   type Source = str;
@@ -1601,6 +1610,7 @@ impl<'inp> crate::Lexer<'inp> for ZeroWidthLexer<'inp> {
   fn bump(&mut self, _n: &usize) {}
 }
 
+#[cfg(debug_assertions)]
 type ZeroWidthVerboseCtx<'a> = (Verbose<ZeroWidthErr>, DefaultCache<'a, ZeroWidthLexer<'a>>);
 
 #[cfg(debug_assertions)]
