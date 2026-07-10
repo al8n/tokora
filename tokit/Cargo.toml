@@ -102,6 +102,16 @@ rowan = { version = "0.16", optional = true }
 criterion = "0.8"
 tempfile = "3"
 
+# Disable the default libtest bench harness; all benches go through criterion.
+[lib]
+bench = false
+
+[[bench]]
+name = "input_scan"
+path = "benches/input_scan.rs"
+harness = false
+required-features = ["logos", "std"]
+
 [[example]]
 name = "json"
 path = "examples/json.rs"
