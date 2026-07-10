@@ -8,7 +8,7 @@ pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
 pub use input_ref::{InputRef, Transaction};
 
-#[cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64"))]
+#[cfg(any(feature = "std", feature = "alloc"))]
 pub use input_ref::{SavepointId, StackedTransaction};
 
 mod checkpoint;
@@ -292,6 +292,16 @@ where
   /// abandoned continuation — so their region re-lexes and re-emits its scan side effects.
   /// It is correctness state in every build.
   cache_pushes: u64,
+  /// Input-global savepoint sequence counter for [`StackedTransaction`], bumped by
+  /// [`InputRef::next_savepoint_seq`] on each [`savepoint`](StackedTransaction::savepoint).
+  ///
+  /// It is monotone across every stacked transaction of this input and never reset, so a
+  /// [`SavepointId`]'s `seq` is unique for the whole life of the input: an id that crosses
+  /// transactions (nested or sequential) can never collide with a live savepoint's `seq`
+  /// in another transaction's stack. There is no atomic and no process-wide state — the
+  /// counter is per-input.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  savepoint_seq: u64,
   /// Debug-only witness of the last-in, first-out checkpoint discipline (see
   /// [`InputRef::restore`]).
   #[cfg(all(
@@ -321,6 +331,11 @@ where
       // The clone shares the cache contents, so it carries the push count forward and its
       // own future saves and restores stay consistent with it.
       cache_pushes: self.cache_pushes,
+      // Carried forward so the clone's savepoint seqs stay monotone; the clone is a
+      // distinct struct with a distinct nonce anyway, so its ids never cross the
+      // original's regardless of the starting value.
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      savepoint_seq: self.savepoint_seq,
       // A clone is a new input: `Witness::clone` mints a fresh identity and an empty
       // live-checkpoint stack, so the clone's checkpoints and the original's never
       // cross.
@@ -384,6 +399,8 @@ where
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
       cache_pushes: 0,
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      savepoint_seq: 0,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -412,6 +429,8 @@ where
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
       cache_pushes: 0,
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      savepoint_seq: 0,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -435,6 +454,8 @@ where
       emitted_error_end: &mut self.emitted_error_end,
       poison_boundary: &mut self.poison_boundary,
       cache_pushes: &mut self.cache_pushes,
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      savepoint_seq: &mut self.savepoint_seq,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),

@@ -1,59 +1,158 @@
 use core::{
+  marker::PhantomData,
   ops::{Deref, DerefMut},
-  sync::atomic::{AtomicU64, Ordering},
 };
 
 use std::vec::Vec;
 
 use super::{Checkpoint, InputRef, Lexer, ParseContext};
 
-/// Process-wide source of stacked-transaction nonces.
-///
-/// Every [`begin_stacked`](InputRef::begin_stacked) in the process takes the next value, so
-/// each transaction — across every [`Input`](crate::input::Input), not just successive
-/// transactions on one input — carries a distinct nonce. A [`SavepointId`] is therefore
-/// foreign to every transaction but the one that issued it, and the transaction-nonce
-/// check rejects a stale or cross-input id instead of it matching another transaction's
-/// first savepoint (whose per-input nonce and `seq` once coincided). Relaxed ordering
-/// suffices: only uniqueness matters, not inter-thread ordering.
-static TXN_NONCE: AtomicU64 = AtomicU64::new(0);
-
-/// Returns a fresh, process-unique stacked-transaction nonce.
-#[cfg_attr(not(tarpaulin), inline)]
-pub(super) fn next_txn_nonce() -> u64 {
-  TXN_NONCE.fetch_add(1, Ordering::Relaxed)
-}
-
 /// An opaque handle to one savepoint inside a [`StackedTransaction`].
 ///
 /// Returned by [`savepoint`](StackedTransaction::savepoint) and consumed by
 /// [`rollback_to`](StackedTransaction::rollback_to) and
-/// [`release`](StackedTransaction::release). It is a small `Copy` token that borrows
-/// nothing, so it can be stashed in a list of candidates or returned up the call stack
-/// while the transaction stays open.
+/// [`release`](StackedTransaction::release). It is a small `Copy` token that holds no
+/// runtime borrow, so it can be stashed in a list of candidates or returned up the call
+/// stack while the transaction stays open.
 ///
-/// An id is valid only for the transaction that issued it, and only while its savepoint
-/// is live: rolling back to an older savepoint destroys the younger ones (SQL
-/// `ROLLBACK TO`), and releasing forgets a savepoint and everything above it. Using a
-/// destroyed or foreign id panics — see [`rollback_to`](StackedTransaction::rollback_to).
+/// # Not a durable position token
+///
+/// A `SavepointId` is *branded* with the lifetime of the transaction that issued it, so
+/// it cannot outlive that transaction or the input loan behind it — keeping one past the
+/// parse is a compile error, not a dangling handle. For a position that must survive
+/// beyond the transaction, capture a [`Cursor`](super::Cursor) or a span instead.
+///
+/// # How a misused id is caught
+///
+/// Identity is layered, from compile time down to a runtime check, with no global state
+/// — no counter, no atomic — behind any of it:
+///
+/// - **Temporal misuse** — using an id after its transaction ended, or holding one across
+///   the next [`begin_stacked`](InputRef::begin_stacked) on the same input — is a
+///   **compile error**: the id's invariant lifetime brand keeps the input loan open while
+///   the id is live, so the borrow checker rejects reopening it.
+/// - **Cross-parser misuse** — an id from another, simultaneously-live transaction over a
+///   *different* input — **panics in every build**: each id carries the address of an
+///   Input-owned field, and two live inputs occupy distinct addresses.
+/// - **Intra-transaction staleness** — an id destroyed by an earlier `rollback_to` /
+///   `release` on the same transaction — **panics in every build** via a membership scan
+///   of the live savepoints (see [`rollback_to`](StackedTransaction::rollback_to)).
+///
+/// # Compile-time rejections
+///
+/// The temporal and nesting misuses never reach a runtime check — the borrow checker
+/// rejects them. Each snippet below fails to compile.
+///
+/// Reusing an id after its transaction ended (here, across the next `begin_stacked` on the
+/// same input) — the id keeps the first transaction's loan on `input` open, so the second
+/// `begin_stacked` cannot re-borrow it:
+///
+/// ```compile_fail
+/// use tokit::{InputRef, Lexer, ParseContext};
+///
+/// fn temporal_misuse<'inp, L, Ctx>(input: &mut InputRef<'inp, '_, L, Ctx>)
+/// where
+///   L: Lexer<'inp>,
+///   L::State: Clone,
+///   Ctx: ParseContext<'inp, L>,
+/// {
+///   let sp = {
+///     let mut txn = input.begin_stacked();
+///     let sp = txn.savepoint();
+///     txn.commit();
+///     sp
+///   };
+///   let mut txn2 = input.begin_stacked(); // error[E0499]: `input` is still borrowed by `sp`
+///   txn2.rollback_to(sp);
+/// }
+/// ```
+///
+/// Storing an id past the parse (returning it out of the transaction) — the brand cannot
+/// outlive the input loan:
+///
+/// ```compile_fail
+/// use tokit::{InputRef, Lexer, ParseContext, SavepointId};
+///
+/// fn durable_misuse<'inp, 'closure, L, Ctx>(
+///   input: &mut InputRef<'inp, 'closure, L, Ctx>,
+/// ) -> SavepointId<'closure>
+/// where
+///   L: Lexer<'inp>,
+///   L::State: Clone,
+///   Ctx: ParseContext<'inp, L>,
+/// {
+///   let mut txn = input.begin_stacked();
+///   let sp = txn.savepoint();
+///   txn.commit();
+///   sp // error: the id's brand does not outlive the transaction's loan
+/// }
+/// ```
+///
+/// Passing a parent savepoint into a nested child transaction — the parent's brand region
+/// strictly contains the child's (the parent is used before the child exists), so the
+/// invariant brands cannot unify:
+///
+/// ```compile_fail
+/// use tokit::{InputRef, Lexer, ParseContext};
+///
+/// fn parent_id_in_child<'inp, L, Ctx>(input: &mut InputRef<'inp, '_, L, Ctx>)
+/// where
+///   L: Lexer<'inp>,
+///   L::State: Clone,
+///   Ctx: ParseContext<'inp, L>,
+/// {
+///   let mut parent = input.begin_stacked();
+///   let sp_parent = parent.savepoint();
+///   let mut child = parent.begin_stacked();
+///   child.rollback_to(sp_parent); // error[E0597]: brands cannot unify parent with child
+/// }
+/// ```
+///
+/// The mirror — keeping a child savepoint to use in the parent after the child ends — also
+/// fails: the child id keeps the child's borrow of the parent alive, so the parent cannot
+/// be used:
+///
+/// ```compile_fail
+/// use tokit::{InputRef, Lexer, ParseContext};
+///
+/// fn child_id_in_parent<'inp, L, Ctx>(input: &mut InputRef<'inp, '_, L, Ctx>)
+/// where
+///   L: Lexer<'inp>,
+///   L::State: Clone,
+///   Ctx: ParseContext<'inp, L>,
+/// {
+///   let mut parent = input.begin_stacked();
+///   let sp_child = {
+///     let mut child = parent.begin_stacked();
+///     let s = child.savepoint();
+///     child.commit();
+///     s
+///   };
+///   parent.rollback_to(sp_child); // error: `parent` is still borrowed by the child id
+/// }
+/// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct SavepointId {
-  /// Identifies the issuing transaction. Stamped once per
-  /// [`begin_stacked`](InputRef::begin_stacked) from a process-wide counter, so an id is
-  /// unique to its transaction across every input and outlives it as a detectable foreign
-  /// token rather than silently matching another transaction's savepoint.
-  txn_nonce: u64,
-  /// The savepoint's position in its transaction's issue order.
+pub struct SavepointId<'t> {
+  /// The savepoint's sequence number, drawn from an input-global counter that is never
+  /// reset across the input's transactions. A seq is therefore unique for the whole life
+  /// of the input, so an id that crosses transactions on one input (a nested or a
+  /// sequential one) can never collide with a live savepoint's seq in another
+  /// transaction's stack — the membership scan then panics deterministically as stale.
   seq: u64,
+  /// The address of the issuing input's `poison_boundary` field, captured at
+  /// [`begin_stacked`](InputRef::begin_stacked). Two simultaneously-live inputs are
+  /// distinct structs at distinct addresses, so this separates their transactions. The
+  /// lifetime brand — not this address — rules out the address-reuse case where a dropped
+  /// input's slot is later reallocated, because a live id keeps its own input's loan open.
+  nonce: usize,
+  /// Invariant in `'t`, the transaction's borrow of the input. The fn-pointer form (not a
+  /// bare reference, which would be covariant and defeat the brand) is what keeps the id
+  /// from outliving its loan and makes a parent/child swap under nesting fail to unify.
+  _brand: PhantomData<fn(&'t ()) -> &'t ()>,
 }
 
 /// A scoped backtracking transaction that holds several live savepoints at once,
 /// mirroring SQL savepoint semantics.
-///
-/// Available only on targets that expose 64-bit atomics (`target_has_atomic = "64"`) and
-/// an allocator (`std` or `alloc`), since it stamps each transaction with a process-wide
-/// [`AtomicU64`](core::sync::atomic::AtomicU64) nonce; the core [`Transaction`](super::Transaction)
-/// and the raw save/restore API remain available everywhere.
 ///
 /// The lean [`Transaction`](super::Transaction) captures a single begin point;
 /// `StackedTransaction` adds an internal last-in, first-out stack of savepoints so a
@@ -80,14 +179,16 @@ pub struct SavepointId {
 ///
 /// Rolling back to an older savepoint always destroys every newer one, so out-of-order
 /// revival is impossible by construction — the [`restore`](InputRef::restore) discipline
-/// holds because the internal stack only ever shrinks from the top. A destroyed or
-/// foreign [`SavepointId`] panics in every build (a foreign or stale id is a logic bug,
-/// not a backtracking choice); see [`rollback_to`](Self::rollback_to).
+/// holds because the internal stack only ever shrinks from the top. A misused
+/// [`SavepointId`] is rejected in layers: a temporally-misused id at compile time via its
+/// lifetime brand, a foreign id from another live parser and a stale id both by a runtime
+/// check in every build — see [`SavepointId`].
 ///
 /// [`commit`](Self::commit) and [`rollback`](Self::rollback) consume the transaction; an
 /// undecided transaction rolls back to the begin point on drop, discarding all
 /// savepoints — the database default. Cost when unused is zero: the empty savepoint
-/// `Vec` never allocates, and a begin costs one relaxed atomic increment for the nonce.
+/// `Vec` never allocates, and a begin captures one field address — no counter, no atomic,
+/// no allocation.
 ///
 /// ```ignore
 /// // Best-match selection across three stages: keep a fallback after each, then return
@@ -127,13 +228,14 @@ where
   /// checkpoint saved at that mark. `rollback_to` / `release` truncate this vector from
   /// the top, which is what makes destroy-younger structural rather than a runtime check.
   pub(super) saves: Vec<(u64, Checkpoint<'inp, 'closure, L>)>,
-  /// This transaction's nonce, stamped into every [`SavepointId`] it issues.
-  pub(super) txn_nonce: u64,
-  /// The next savepoint `seq` to hand out.
-  pub(super) next_seq: u64,
+  /// The address of this input's `poison_boundary` field, stamped into every
+  /// [`SavepointId`] this transaction issues. It separates this input's savepoints from
+  /// those of another simultaneously-live input, which sits at a distinct address (see
+  /// [`SavepointId`]).
+  pub(super) nonce: usize,
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> StackedTransaction<'_, 'inp, '_, L, Ctx, Lang>
+impl<'txn, 'inp, L, Ctx, Lang: ?Sized> StackedTransaction<'txn, 'inp, '_, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
   L::State: Clone,
@@ -143,16 +245,19 @@ where
   ///
   /// The returned [`SavepointId`] stays usable for [`rollback_to`](Self::rollback_to)
   /// and [`release`](Self::release) until an older savepoint destroys it or it is
-  /// released.
+  /// released. Its lifetime is branded to this transaction, so it cannot escape the
+  /// transaction's scope.
   #[cfg_attr(not(tarpaulin), inline)]
-  pub fn savepoint(&mut self) -> SavepointId {
-    let seq = self.next_seq;
-    self.next_seq += 1;
+  pub fn savepoint(&mut self) -> SavepointId<'txn> {
+    // Sequence numbers come from the input, not this transaction, so they never reset:
+    // an id can only ever match the one live slot that pushed it (or none, if stale).
+    let seq = self.input.next_savepoint_seq();
     let ckp = self.input.save();
     self.saves.push((seq, ckp));
     SavepointId {
-      txn_nonce: self.txn_nonce,
       seq,
+      nonce: self.nonce,
+      _brand: PhantomData,
     }
   }
 
@@ -169,14 +274,15 @@ where
   ///
   /// # Panics
   ///
-  /// Panics if `sp` was issued by a different transaction
+  /// Panics if `sp` was issued by a different, simultaneously-live transaction
   /// (`stacked transaction: savepoint belongs to a different transaction`) or was
   /// destroyed by an earlier `rollback_to` / [`release`](Self::release)
   /// (`stacked transaction: savepoint is stale (destroyed by an earlier rollback or
-  /// release)`). Both checks — a nonce compare and a short stack scan — run in every
-  /// build.
+  /// release)`). Both checks — an address compare and a short stack scan — run in every
+  /// build. (Using an id after its transaction ended is a compile error, not a panic; see
+  /// [`SavepointId`].)
   #[cfg_attr(not(tarpaulin), inline)]
-  pub fn rollback_to(&mut self, sp: SavepointId) {
+  pub fn rollback_to(&mut self, sp: SavepointId<'txn>) {
     let idx = self.slot(sp);
     // Drop the younger savepoints' checkpoints. Their live-checkpoint ids are still on
     // the input stack at this point; the restore below pops the stack down through the
@@ -200,7 +306,7 @@ where
   ///
   /// Same as [`rollback_to`](Self::rollback_to): a foreign or already-destroyed id panics.
   #[cfg_attr(not(tarpaulin), inline)]
-  pub fn release(&mut self, sp: SavepointId) {
+  pub fn release(&mut self, sp: SavepointId<'txn>) {
     let idx = self.slot(sp);
     // Forget from the youngest down to `sp` inclusive, so each removed id is the
     // live-stack top when it is forgotten (the `O(1)` fast path). Progress is kept: no
@@ -223,11 +329,11 @@ where
   }
 
   /// Validates `sp` and returns its index in `saves`, panicking on a foreign or a
-  /// destroyed id. Two integer compares plus a short scan, on a cold path.
+  /// destroyed id. An address compare plus a short scan, on a cold path.
   #[cfg_attr(not(tarpaulin), inline)]
-  fn slot(&self, sp: SavepointId) -> usize {
+  fn slot(&self, sp: SavepointId<'txn>) -> usize {
     assert!(
-      sp.txn_nonce == self.txn_nonce,
+      sp.nonce == self.nonce,
       "stacked transaction: savepoint belongs to a different transaction"
     );
     match self.saves.iter().position(|(seq, _)| *seq == sp.seq) {

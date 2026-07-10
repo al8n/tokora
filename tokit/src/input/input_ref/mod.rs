@@ -24,7 +24,7 @@ mod fold;
 mod peek;
 mod pratt;
 mod skip_while;
-#[cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64"))]
+#[cfg(any(feature = "std", feature = "alloc"))]
 mod stacked;
 mod sync_through;
 mod sync_to;
@@ -33,11 +33,8 @@ mod try_expect;
 
 pub use transaction::Transaction;
 
-#[cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64"))]
-#[cfg_attr(
-  docsrs,
-  doc(cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64")))
-)]
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub use stacked::{SavepointId, StackedTransaction};
 
 #[cfg(all(test, feature = "logos", feature = "std"))]
@@ -59,6 +56,13 @@ where
   /// [`cache_push_back`](InputRef::cache_push_back) and read by [`save`](InputRef::save) /
   /// [`restore`](InputRef::restore) to drop entries pushed on an abandoned continuation.
   pub(super) cache_pushes: &'closure mut u64,
+  /// The input-global savepoint sequence counter (see
+  /// [`Input::savepoint_seq`](super::Input)). Handed out monotonically by
+  /// [`next_savepoint_seq`](InputRef::next_savepoint_seq) and never reset across the
+  /// input's stacked transactions, so a [`SavepointId`]'s `seq` is unique for the whole
+  /// life of the input.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  pub(super) savepoint_seq: &'closure mut u64,
   #[cfg(all(
     debug_assertions,
     any(feature = "std", feature = "alloc"),
@@ -429,8 +433,10 @@ where
   /// progress; [`commit`](StackedTransaction::commit) /
   /// [`rollback`](StackedTransaction::rollback) decide the whole transaction. Savepoints
   /// follow SQL database semantics: rolling back to an older savepoint always destroys
-  /// the newer ones — out-of-order revival is impossible by construction, and a destroyed
-  /// or foreign [`SavepointId`] panics.
+  /// the newer ones — out-of-order revival is impossible by construction. A misused
+  /// [`SavepointId`] is caught in layers: a temporally-misused id (kept past its
+  /// transaction) at compile time via its lifetime brand, and a foreign or a stale id by a
+  /// runtime check in every build; see [`SavepointId`].
   ///
   /// Reach for the backtracking tools in order of shape:
   ///
@@ -443,26 +449,41 @@ where
   ///   speculation;
   /// - raw [`save`](Self::save) / [`restore`](Self::restore) — commit-by-default flows
   ///   where progress is kept on most exits.
-  #[cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64"))]
-  #[cfg_attr(
-    docsrs,
-    doc(cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64")))
-  )]
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn begin_stacked(&mut self) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang> {
-    // Every transaction in the process gets a distinct nonce from the global counter, so a
-    // savepoint id is foreign to every transaction but its own — across inputs, not just an
-    // earlier transaction on this one — and a stale or cross-input id is detected rather
-    // than silently matching another transaction's first savepoint.
-    let txn_nonce = stacked::next_txn_nonce();
+    // Nonce = the address of this Input's `poison_boundary` field, an Input-owned slot the
+    // `InputRef` holds a `&mut` to. Two simultaneously-live Inputs are distinct structs at
+    // distinct addresses (the field is never zero-sized), so their nonces differ and a
+    // cross-parser id is caught at runtime; the `'txn` brand on `SavepointId` — not this
+    // address — rules out the address-reuse case where a dropped Input's slot is later
+    // reallocated. NOT the source pointer: two Inputs can share one `&str`.
+    let nonce = core::ptr::from_ref(&*self.poison_boundary).addr();
     let base = self.save();
     StackedTransaction {
       input: self,
       base: Some(base),
       saves: std::vec::Vec::new(),
-      txn_nonce,
-      next_seq: 0,
+      nonce,
     }
+  }
+
+  /// Hands out the next input-global savepoint sequence number, bumping the counter.
+  ///
+  /// The counter lives on the [`Input`](super::Input), not on any one transaction, so it
+  /// is monotone across every stacked transaction of this input and never reset. That
+  /// makes a [`SavepointId`]'s `seq` unique for the whole life of the input: an id that
+  /// crosses transactions (a nested or a sequential one) can never collide with a live
+  /// savepoint's `seq` in another transaction's stack, so the membership scan in
+  /// [`rollback_to`](StackedTransaction::rollback_to) / [`release`](StackedTransaction::release)
+  /// panics deterministically wherever the lifetime brand does not already reject the id.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  pub(super) fn next_savepoint_seq(&mut self) -> u64 {
+    let seq = *self.savepoint_seq;
+    *self.savepoint_seq += 1;
+    seq
   }
 
   /// Drops `id` from the debug live-checkpoint stack because its checkpoint was kept
