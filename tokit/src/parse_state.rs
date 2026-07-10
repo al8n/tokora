@@ -49,8 +49,10 @@ where
   /// Delegates to [`InputRef::state_mut`](crate::InputRef::state_mut): taking the state
   /// mutably eagerly re-keys every offset-dependent fact the input tracks — the token cache
   /// is cleared, the poison boundary is dropped, and the lexer-error dedup watermark is
-  /// reset to the current committed cursor. All outstanding checkpoints are invalidated;
-  /// restoring one afterwards is a contract violation (debug builds panic).
+  /// reset to the current committed cursor. The re-key is itself transactional, not
+  /// invalidating: checkpoints and savepoints saved before the state mutation remain
+  /// valid, and restoring one afterwards simply undoes the surgery — the prior regime,
+  /// boundary, watermark, and position all return.
   ///
   /// State surgery with outstanding speculative diagnostics may re-report the re-lexed
   /// region under the new regime, so callers should complete or roll back speculation
