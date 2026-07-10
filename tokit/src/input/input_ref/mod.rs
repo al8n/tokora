@@ -1094,8 +1094,8 @@ trait Frontier<'inp, L: Lexer<'inp>> {
 }
 
 /// Frontier for scans that commit no progress before stopping (`next`,
-/// `try_expect*`, `sync_through`): a trip latches at the cursor and nothing
-/// accumulates, so advancing is a no-op.
+/// `try_expect*`): a trip latches at the cursor and nothing accumulates, so
+/// advancing is a no-op.
 struct AtCursor;
 
 impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtCursor {
@@ -1108,9 +1108,10 @@ impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtCursor {
   fn advance(&mut self, _lexer: &L) {}
 }
 
-/// Frontier for scans that consume tokens as they go (`skip_while`, `sync_to`):
-/// a trip latches at — and the scan commits — the end of the last consumed
-/// token, tracked here as its span and the lexer state that produced it.
+/// Frontier for scans that consume tokens as they go (`skip_while`, `sync_to`,
+/// `sync_through`): a trip latches at — and the scan commits — the end of the
+/// last consumed token, tracked here as its span and the lexer state that
+/// produced it.
 struct AtFrontier<S, St> {
   span: S,
   state: St,

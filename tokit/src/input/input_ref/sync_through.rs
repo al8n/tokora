@@ -52,7 +52,12 @@ where
 
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
-    let mut frontier = AtCursor;
+    // The frontier tracks the end of the last synced-over token; a trip latches
+    // and commits there.
+    let mut frontier = AtFrontier {
+      span: self.span.clone(),
+      state: self.state.clone(),
+    };
 
     loop {
       match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
@@ -67,11 +72,20 @@ where
             self.emitter().emit_unexpected_token(
               UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
             )?;
+            frontier.advance(&lexer);
           }
         }
-        // This path commits no progress, so both a trip and end of input leave
-        // the cursor put and yield `None`.
-        Scan::Tripped | Scan::Eof => return Ok(None),
+        Scan::Tripped => {
+          // Commit the diagnosed prefix before the trip; the boundary latches at
+          // the end of the last skipped token, so a later scan yields the poisoned
+          // outcome there instead of stranding the diagnosed tokens at the cursor.
+          self.set_span_after_consume(frontier.span.into());
+          *self.state = frontier.state;
+          return Ok(None);
+        }
+        // No match reached the end of input; this path commits no progress and
+        // yields `None`.
+        Scan::Eof => return Ok(None),
       }
     }
   }
@@ -162,7 +176,12 @@ where
 
         let mut lex_at = self.offset().clone();
         let mut lexer = self.lexer();
-        let mut frontier = AtCursor;
+        // The frontier tracks the end of the last synced-over token; a trip latches
+        // and commits there.
+        let mut frontier = AtFrontier {
+          span: self.span.clone(),
+          state: self.state.clone(),
+        };
 
         loop {
           match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
@@ -178,9 +197,17 @@ where
                 self.emitter().emit_unexpected_token(
                   UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
                 )?;
+                frontier.advance(&lexer);
               }
             }
-            Scan::Tripped => return Ok((None, GenericArrayDeque::new(), self.emitter)),
+            Scan::Tripped => {
+              // Commit the diagnosed prefix before the trip; the boundary latches at
+              // the end of the last skipped token, so a later scan yields the poisoned
+              // outcome there instead of stranding the diagnosed tokens at the cursor.
+              self.set_span_after_consume(frontier.span.into());
+              *self.state = frontier.state;
+              return Ok((None, GenericArrayDeque::new(), self.emitter));
+            }
             Scan::Eof => {
               // No matched token found, we just update the cursor and state
               self.set_span_after_consume(lexer.span().into());

@@ -1189,6 +1189,169 @@ fn overflow_trip_peek_save_drain_restore_replays_prefix_and_stops_at_boundary() 
   );
 }
 
+#[test]
+fn sync_through_trip_after_skips_commits_the_diagnosed_prefix() {
+  // `sync_through` scans forward diagnosing every non-matching token; if a limit trips
+  // after some are skipped, the diagnosed prefix must be COMMITTED at the durable
+  // frontier — the end of the last skipped token — so the boundary latches there and a
+  // later scan yields the poisoned outcome at that frontier, never rewinding to the
+  // pre-call cursor and stranding tokens that were already diagnosed.
+  //
+  // A by-value in-`State` limiter makes the commit observable: the frontier snapshots
+  // the lexer state at the moment it advances over a token, so the committed count is
+  // the pre-trip prefix count (2), distinct from the total scanned (3, incl. the trip
+  // token). `sync_through(|_| false, ..)` matches nothing, so it skips-and-diagnoses `1`
+  // and `2`, then the 3rd scanned token (`3`, span [4, 5)) trips before any target.
+  //   1 2 3 4 5 6   (limit 2 → the 3rd scanned token trips; `2` ends at offset 3)
+  use crate::span::SimpleSpan;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    TokenLimiter::with_limitation(2),
+    cache,
+  );
+
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    // Pre-call anchor: nothing consumed yet.
+    assert_eq!(inp.span(), &SimpleSpan::new(0, 0), "pre-call span anchor");
+    assert_eq!(inp.state().tokens(), 0, "pre-call token count");
+
+    // No target is ever matched: the scan diagnoses `1` and `2`, then trips on `3`.
+    assert!(
+      inp.sync_through(|_| false, || None).unwrap().is_none(),
+      "the trip yields the poisoned outcome — no matching token"
+    );
+
+    // (i) The diagnosed prefix is COMMITTED at the durable frontier (end of `2`,
+    // offset 3), NOT stranded at the stale pre-call anchor (offset 0) that the old
+    // `AtCursor` policy left behind. At HEAD this span was still `[0, 0)` and the
+    // token count still 0 — the regression this test pins.
+    assert!(inp.is_poisoned(), "the trip latches the poison boundary");
+    assert_eq!(
+      inp.span(),
+      &SimpleSpan::new(2, 3),
+      "committed span sits at the end of the last diagnosed token (`2`)"
+    );
+    assert_eq!(
+      inp.state().tokens(),
+      2,
+      "committed state counts exactly the diagnosed prefix (`1`, `2`) — not the trip token"
+    );
+
+    // (ii) A subsequent `next()` yields the poisoned outcome AT that boundary without
+    // rescanning the diagnosed tokens: the committed by-value counter stays frozen at 2
+    // (no re-lex of `1`/`2`) and nothing past the boundary is scanned.
+    assert!(
+      inp.next().unwrap().is_none(),
+      "next() stops at the committed boundary"
+    );
+    assert_eq!(
+      inp.state().tokens(),
+      2,
+      "the committed lineage's scan counter is frozen — `1`/`2` are not rescanned"
+    );
+  }
+
+  // (iii) Each skipped token is diagnosed exactly once (`1`, `2` → two unexpected-token
+  // errors) and the limit trip exactly once (`3` → one limit error).
+  let unexpected = emitter
+    .errors()
+    .values()
+    .flatten()
+    .filter(|e| **e == ByValErr::Lex)
+    .count();
+  let limit = emitter
+    .errors()
+    .values()
+    .flatten()
+    .filter(|e| **e == ByValErr::Limit)
+    .count();
+  assert_eq!(
+    unexpected, 2,
+    "each skipped token is diagnosed exactly once (`1`, `2`)"
+  );
+  assert_eq!(limit, 1, "the limit trip is diagnosed exactly once (`3`)");
+}
+
+#[test]
+fn sync_through_then_peek_trip_after_skips_commits_the_diagnosed_prefix() {
+  // The twin of `sync_through_trip_after_skips_commits_the_diagnosed_prefix` for the
+  // separately-reachable `sync_through_then_peek` loop: the same commit-at-the-frontier
+  // behavior must hold there too. `sync_through_then_peek(|_| false, ..)` matches
+  // nothing, diagnoses `1` and `2`, then trips on `3` and returns no matched token and
+  // an empty peek — committing the diagnosed prefix at the durable frontier (offset 3).
+  //   1 2 3 4 5 6   (limit 2 → the 3rd scanned token trips; `2` ends at offset 3)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U1;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6",
+    TokenLimiter::with_limitation(2),
+    cache,
+  );
+
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let (matched, peeked) = inp
+      .sync_through_then_peek::<_, _, U1>(|_| false, || None)
+      .unwrap();
+    assert!(matched.is_none(), "the trip yields no matched token");
+    assert!(peeked.is_empty(), "the trip yields an empty peek");
+    // `peeked` borrows `inp` for its lifetime; release it before reusing `inp`.
+    drop(peeked);
+
+    // The diagnosed prefix is committed at the durable frontier (end of `2`, offset 3),
+    // not stranded at the pre-call anchor.
+    assert!(inp.is_poisoned(), "the trip latches the poison boundary");
+    assert_eq!(
+      inp.span(),
+      &SimpleSpan::new(2, 3),
+      "committed span sits at the end of the last diagnosed token (`2`)"
+    );
+    assert_eq!(
+      inp.state().tokens(),
+      2,
+      "committed state counts exactly the diagnosed prefix (`1`, `2`)"
+    );
+
+    // A subsequent `next()` stops at that boundary without rescanning `1`/`2`.
+    assert!(
+      inp.next().unwrap().is_none(),
+      "next() stops at the committed boundary"
+    );
+    assert_eq!(
+      inp.state().tokens(),
+      2,
+      "the committed lineage's scan counter is frozen"
+    );
+  }
+
+  let unexpected = emitter
+    .errors()
+    .values()
+    .flatten()
+    .filter(|e| **e == ByValErr::Lex)
+    .count();
+  let limit = emitter
+    .errors()
+    .values()
+    .flatten()
+    .filter(|e| **e == ByValErr::Limit)
+    .count();
+  assert_eq!(
+    unexpected, 2,
+    "each skipped token is diagnosed exactly once (`1`, `2`)"
+  );
+  assert_eq!(limit, 1, "the limit trip is diagnosed exactly once (`3`)");
+}
+
 // ── Last-in, first-out contract: the debug witness ─────────────────────────────
 //
 // Restoring a checkpoint invalidates every checkpoint saved after it, so restores
