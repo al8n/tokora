@@ -26,7 +26,10 @@ mod pratt;
 mod skip_while;
 mod sync_through;
 mod sync_to;
+mod transaction;
 mod try_expect;
+
+pub use transaction::Transaction;
 
 #[cfg(all(test, feature = "logos", feature = "std"))]
 mod tests;
@@ -295,7 +298,13 @@ where
     let ckp = self.save();
 
     match f(self) {
-      Some(result) => Some(result),
+      Some(result) => {
+        // Progress kept: the checkpoint is dropped without restoring, so drop its
+        // debug-witness id too rather than leaving it to grow the live stack.
+        #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+        self.forget_checkpoint(ckp.ckp_id);
+        Some(result)
+      }
       None => {
         self.restore(ckp);
         None
@@ -325,12 +334,60 @@ where
     let ckp = self.save();
 
     match f(self) {
-      Ok(result) => Ok(result),
+      Ok(result) => {
+        // Progress kept: drop the checkpoint's debug-witness id (see `attempt`).
+        #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+        self.forget_checkpoint(ckp.ckp_id);
+        Ok(result)
+      }
       Err(e) => {
         self.restore(ckp);
         Err(e)
       }
     }
+  }
+
+  /// Starts a transaction: a scoped, compile-time-safe form of [`save`](Self::save)
+  /// and [`restore`](Self::restore).
+  ///
+  /// The returned [`Transaction`] guard mutably borrows this input; parse through the
+  /// guard (it dereferences to `InputRef`), then decide with
+  /// [`commit`](Transaction::commit) (keep the progress) or
+  /// [`rollback`](Transaction::rollback) (return to the begin point). Dropping the
+  /// guard without deciding rolls back — uncommitted speculative work is discarded, as
+  /// in a database transaction.
+  ///
+  /// Prefer this for imperative flows with several exits (loops, `match` arms);
+  /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) for single-closure
+  /// speculation; raw `save`/`restore` only where neither shape fits.
+  #[cfg_attr(not(tarpaulin), inline)]
+  pub fn begin(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang> {
+    let ckp = self.save();
+    Transaction {
+      input: self,
+      ckp: Some(ckp),
+    }
+  }
+
+  /// Drops `id` from the debug live-checkpoint stack because its checkpoint was kept
+  /// (committed) rather than restored — see [`Transaction::commit`],
+  /// [`attempt`](Self::attempt), and [`try_attempt`](Self::try_attempt).
+  ///
+  /// A restored checkpoint is popped off the stack by [`restore`](Self::restore); a
+  /// *committed* one never reaches `restore`, so without this its id would linger and
+  /// grow the stack across commit-heavy loops. Removing it keeps the witness exact and
+  /// bounded.
+  #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  pub(crate) fn forget_checkpoint(&self, id: u64) {
+    self.witness.forget(id);
+  }
+
+  /// The number of live checkpoints — test-only observability for the no-growth
+  /// guarantee that committing gives the live stack.
+  #[cfg(all(test, debug_assertions, any(feature = "std", feature = "alloc")))]
+  pub(crate) fn live_checkpoints_len(&self) -> usize {
+    self.witness.live_len()
   }
 
   /// Returns a slice of the current token from the input source.

@@ -6,7 +6,7 @@ use super::*;
 
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
-pub use input_ref::InputRef;
+pub use input_ref::{InputRef, Transaction};
 
 mod checkpoint;
 mod cursor;
@@ -89,9 +89,31 @@ mod witness {
       }
     }
 
+    /// Drops `id` from the live stack without restoring it — the checkpoint is kept
+    /// (committed) rather than rewound, so its id must not linger and grow the stack
+    /// across commit-heavy loops. O(1) when `id` is the stack top (the common case
+    /// for a committed checkpoint); a linear removal otherwise (e.g. a raw checkpoint
+    /// saved above it was dropped without restoring). Removing a non-top id keeps the
+    /// rest of the stack in order, so an older restore still pops cleanly through it.
+    pub(crate) fn forget(&self, id: u64) {
+      let mut live = self.live.borrow_mut();
+      if live.last() == Some(&id) {
+        live.pop();
+      } else if let Some(pos) = live.iter().position(|&x| x == id) {
+        live.remove(pos);
+      }
+    }
+
     /// Invalidates every live checkpoint (used when lexer state is replaced).
     pub(crate) fn clear(&self) {
       self.live.borrow_mut().clear();
+    }
+
+    /// The number of live checkpoints. Test-only observability for the no-growth
+    /// guarantee that `forget` gives `commit`/`attempt`/`try_attempt`.
+    #[cfg(test)]
+    pub(crate) fn live_len(&self) -> usize {
+      self.live.borrow().len()
     }
   }
 

@@ -18,7 +18,7 @@ pub use logos_0_16 as logos;
 pub use cache::{Cache, DefaultCache};
 pub use check::Check;
 pub use emitter::Emitter;
-pub use input::InputRef;
+pub use input::{InputRef, Transaction};
 pub use lexer::{Lexed, Lexer};
 pub use located::*;
 pub use parse_choice::*;
