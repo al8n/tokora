@@ -3,8 +3,7 @@ use core::{
   ops::{Deref, DerefMut},
 };
 
-use std::vec::Vec;
-
+use super::super::SavepointStack;
 use super::{Checkpoint, InputRef, Lexer, ParseContext};
 
 /// An opaque handle to one savepoint inside a [`StackedTransaction`].
@@ -249,7 +248,7 @@ where
   /// The live savepoints, youngest last. Each entry pairs a savepoint's `seq` with the
   /// checkpoint saved at that mark. `rollback_to` / `release` truncate this vector from
   /// the top, which is what makes destroy-younger structural rather than a runtime check.
-  pub(super) saves: Vec<(u64, Checkpoint<'inp, 'closure, L>)>,
+  pub(super) saves: SavepointStack<'inp, 'closure, L>,
   /// The address of this input's `poison_boundary` field, stamped into every
   /// [`SavepointId`] this transaction issues. It separates this input's savepoints from
   /// those of another simultaneously-live input, which sits at a distinct address (see

@@ -67,7 +67,7 @@ where
   /// maintained by [`save`](InputRef::save) / [`restore`](InputRef::restore) in every
   /// allocator build and read by [`StackedTransaction`] to reject a stale savepoint.
   #[cfg(any(feature = "std", feature = "alloc"))]
-  pub(super) live_ckpts: &'closure mut std::vec::Vec<u64>,
+  pub(super) live_ckpts: &'closure mut super::LineageStack,
   /// Monotone id source for [`live_ckpts`](Self::live_ckpts) (see
   /// [`Input::next_ckp_id`](super::Input)).
   #[cfg(any(feature = "std", feature = "alloc"))]
@@ -470,7 +470,7 @@ where
     StackedTransaction {
       input: self,
       base: Some(base),
-      saves: std::vec::Vec::new(),
+      saves: Default::default(),
       nonce,
     }
   }

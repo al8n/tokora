@@ -15,6 +15,24 @@ mod checkpoint;
 mod cursor;
 mod input_ref;
 
+/// Storage for [`Input`]'s live-checkpoint lineage stack: inline for 8 ids so the common
+/// many-small-parses workload backtracks with no per-parse heap allocation (live-checkpoint
+/// nesting depth is typically 1-4), spilling to the heap only past that.
+#[cfg(all(any(feature = "std", feature = "alloc"), feature = "smallvec_1"))]
+pub(crate) type LineageStack = smallvec_1::SmallVec<[u64; 8]>;
+#[cfg(all(any(feature = "std", feature = "alloc"), not(feature = "smallvec_1")))]
+pub(crate) type LineageStack = std::vec::Vec<u64>;
+
+/// Storage for a [`StackedTransaction`]'s live savepoints: inline for 2 (savepoint depth per
+/// transaction is typically 1-4) so opening a transaction needs no per-parse heap allocation on
+/// the common path, spilling to the heap only past that.
+#[cfg(all(any(feature = "std", feature = "alloc"), feature = "smallvec_1"))]
+pub(crate) type SavepointStack<'inp, 'closure, L> =
+  smallvec_1::SmallVec<[(u64, Checkpoint<'inp, 'closure, L>); 2]>;
+#[cfg(all(any(feature = "std", feature = "alloc"), not(feature = "smallvec_1")))]
+pub(crate) type SavepointStack<'inp, 'closure, L> =
+  std::vec::Vec<(u64, Checkpoint<'inp, 'closure, L>)>;
+
 /// Debug-only witness of the input identity a checkpoint was created under, used by
 /// [`InputRef::restore`] to reject a checkpoint restored into a foreign input.
 ///
@@ -249,7 +267,7 @@ where
   /// and no-`target_has_atomic`-ptr targets alike. In debug + ptr builds the same stack also
   /// backs `restore`'s non-LIFO and foreign-input panics.
   #[cfg(any(feature = "std", feature = "alloc"))]
-  live_ckpts: std::vec::Vec<u64>,
+  live_ckpts: LineageStack,
   /// Monotone id source for [`live_ckpts`](Self::live_ckpts): each [`save`](InputRef::save)
   /// takes the current value and bumps it, so an id is never reused for the life of the input
   /// and a popped id can never be mistaken for a live one.
@@ -293,7 +311,7 @@ where
       // counter, so a checkpoint from the original is never mistaken for one of the
       // clone's (restoring it is caught as a foreign input in debug + ptr builds).
       #[cfg(any(feature = "std", feature = "alloc"))]
-      live_ckpts: std::vec::Vec::new(),
+      live_ckpts: LineageStack::new(),
       #[cfg(any(feature = "std", feature = "alloc"))]
       next_ckp_id: 0,
       // A clone is a new input: `Witness::clone` mints a fresh identity, so the clone's
@@ -361,7 +379,7 @@ where
       #[cfg(any(feature = "std", feature = "alloc"))]
       savepoint_seq: 0,
       #[cfg(any(feature = "std", feature = "alloc"))]
-      live_ckpts: std::vec::Vec::new(),
+      live_ckpts: LineageStack::new(),
       #[cfg(any(feature = "std", feature = "alloc"))]
       next_ckp_id: 0,
       #[cfg(all(
@@ -395,7 +413,7 @@ where
       #[cfg(any(feature = "std", feature = "alloc"))]
       savepoint_seq: 0,
       #[cfg(any(feature = "std", feature = "alloc"))]
-      live_ckpts: std::vec::Vec::new(),
+      live_ckpts: LineageStack::new(),
       #[cfg(any(feature = "std", feature = "alloc"))]
       next_ckp_id: 0,
       #[cfg(all(
