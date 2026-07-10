@@ -75,7 +75,10 @@ use super::{
 /// restore itself** (`restore would invalidate a live transaction guard or attempt …`) — the
 /// violation is refused where it is caused, before any commit/rollback decision. A LIFO-clean
 /// raw save/restore pair taken and released entirely *above* the begin point, and state surgery
-/// (which is transactional), leave the guard's checkpoint intact and never trip the pin.
+/// (which is transactional), leave the guard's checkpoint intact and never trip the pin. Such a
+/// raw checkpoint should itself end in [`restore`](InputRef::restore) or
+/// [`commit`](InputRef::commit) — dropping it strands its lineage entry, exactly as in
+/// standalone raw use.
 ///
 /// On allocator-less targets there is no pin set and no lineage stack, so this mixing is
 /// unspecified-but-bounded rather than checked. In allocator builds the older detect-at-use

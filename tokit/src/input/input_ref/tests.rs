@@ -2920,3 +2920,155 @@ fn set_state_resets_watermark_to_cursor() {
     "the `@` lexer error reports once per regime: at the peek, then again after the re-key re-lexes it"
   );
 }
+
+// ── Raw checkpoints: the save → (restore | commit) discipline ────────────────────
+//
+// Every saved checkpoint should end in exactly one of `restore` (abandon progress) or
+// `commit` (keep progress). The two tests below pin both halves: a checkpoint MERELY
+// DROPPED on the success path strands its lineage id (the documented leak, kept as a
+// pinned-behavior test), while `commit` is the verb that keeps the progress AND releases
+// the id so the input-owned lineage stack stays bounded across commit-heavy loops.
+
+/// LEAK CAPTURE (pinned behavior, NOT a bug to fix with a `Drop` impl): a raw checkpoint
+/// that is simply dropped on the success path never releases its lineage id — only
+/// [`restore`] or [`commit`] do. A `Checkpoint` owns no borrow it could release on drop,
+/// so 100 successful speculations that drop their checkpoints grow the input's live
+/// lineage stack by 100. The fix for the unbounded growth is the explicit `commit` verb
+/// (see `raw_checkpoint_commit_releases_lineage`), not a `Drop` impl — this test freezes
+/// the drop-leaks behavior so a future `Drop`-based change would be caught here.
+///
+/// [`restore`]: crate::InputRef::restore
+/// [`commit`]: crate::InputRef::commit
+#[test]
+fn raw_checkpoint_drop_leaks_lineage_without_commit() {
+  let (mut input, _scanned) = probe_input("1 2 3 4");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let baseline = inp.live_checkpoints_len();
+  for _ in 0..100 {
+    let _ckp = inp.save();
+    // Success path: drop the checkpoint without restoring OR committing. Nothing pops
+    // its id, so it lingers on the live lineage stack.
+  }
+  assert_eq!(
+    inp.live_checkpoints_len(),
+    baseline + 100,
+    "a raw checkpoint dropped without commit strands its lineage id: 100 drops grow the stack by 100"
+  );
+}
+
+/// The fix: [`commit`](crate::InputRef::commit) consumes a raw checkpoint, keeps all
+/// progress, and releases its lineage id — the verb missing next to `restore`. 100
+/// save → commit cycles must leave the lineage stack at baseline every iteration, so the
+/// stack stays bounded across successful speculation (contrast the drop-leak sibling).
+#[test]
+fn raw_checkpoint_commit_releases_lineage() {
+  let (mut input, _scanned) = probe_input("1 2 3 4");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let baseline = inp.live_checkpoints_len();
+  for _ in 0..100 {
+    let ckp = inp.save();
+    // Success path: keep progress, release the lineage id (O(1) — the id is the stack top).
+    inp.commit(ckp);
+    assert_eq!(
+      inp.live_checkpoints_len(),
+      baseline,
+      "each commit forgets its id — the live stack returns to baseline every iteration"
+    );
+  }
+}
+
+/// The documented retry pattern with the success arm committing: each round runs a couple
+/// of speculative probes that `restore` (fail), then a succeeding attempt that `commit`s
+/// (keep). The lineage stack is flat after every round, and the consumed token stream is
+/// faithful (all four tokens, in order), proving `commit` keeps progress while the probes'
+/// restores rewind cleanly.
+#[test]
+fn raw_retry_loop_with_commit_stays_flat() {
+  // A high limit: the speculative probes re-scan tokens, and we do not want the shared
+  // limiter to trip and turn `next()` into a bounded `None` mid-stream.
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4",
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  let baseline = inp.live_checkpoints_len();
+  let mut consumed = Vec::new();
+
+  loop {
+    // Two failed speculative probes that roll back to the current position…
+    for _ in 0..2 {
+      let probe = inp.save();
+      let _ = inp.next().unwrap(); // look ahead speculatively
+      inp.restore(probe); // fail: roll back to where we were
+    }
+    // …then the succeeding attempt keeps its progress via `commit`.
+    let ckp = inp.save();
+    match inp.next().unwrap() {
+      Some(tok) => {
+        consumed.push(*tok.span_ref());
+        inp.commit(ckp); // success: keep progress, release the lineage id
+      }
+      None => {
+        inp.commit(ckp); // end of input: nothing consumed, still release the id
+        break;
+      }
+    }
+    assert_eq!(
+      inp.live_checkpoints_len(),
+      baseline,
+      "retry round leaves the stack flat: failed probes restored, the success committed"
+    );
+  }
+
+  assert_eq!(
+    consumed.len(),
+    4,
+    "the retry loop consumed all four tokens despite the speculative probes"
+  );
+  assert!(
+    consumed.windows(2).all(|w| w[0].start < w[1].start),
+    "the committed token stream is faithful and in order"
+  );
+}
+
+/// Committing an already-invalidated checkpoint is a harmless no-op — no panic (even under
+/// debug assertions), no state change. Save A, save B, restore the older A (which pops B
+/// off the live lineage), then commit the dead B: its id is simply absent, so the forget
+/// removes nothing and the input state is untouched.
+#[test]
+fn commit_of_invalidated_checkpoint_is_noop() {
+  let (mut input, _scanned) = probe_input("1 2 3 4");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let a = inp.save();
+  let _ = inp.next().unwrap(); // consume `1` so B captures a distinct position
+  let b = inp.save();
+
+  // Restoring the OLDER `a` rolls back to position 0 and invalidates the younger `b`.
+  inp.restore(a);
+  let len_after_restore = inp.live_checkpoints_len();
+  let cursor_after_restore = *inp.cursor().as_inner();
+
+  // Commit the dead `b`: no panic, and nothing changes.
+  inp.commit(b);
+
+  assert_eq!(
+    inp.live_checkpoints_len(),
+    len_after_restore,
+    "committing a dead checkpoint removes nothing — the lineage stack is unchanged"
+  );
+  assert_eq!(
+    *inp.cursor().as_inner(),
+    cursor_after_restore,
+    "committing a dead checkpoint touches no input state"
+  );
+}

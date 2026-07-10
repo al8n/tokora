@@ -24,6 +24,14 @@ use super::{Cursor, Lexer};
 /// - Checkpoints are single-use, cannot be cloned, and must be restored into the same
 ///   input that created them.
 ///
+/// Every saved checkpoint should end in exactly one of two verbs:
+/// [`restore`](crate::InputRef::restore) to abandon the branch and rewind, or
+/// [`commit`](crate::InputRef::commit) to keep the branch's progress and release the
+/// checkpoint's lineage entry. Merely dropping a checkpoint keeps its progress but, in
+/// allocator builds, strands that lineage entry on the input's live-checkpoint stack until an
+/// older restore pops through it — so speculation that drops rather than commits its
+/// checkpoints grows that stack for the life of the input.
+///
 /// Restores that follow this discipline are exact: the token stream, the retained
 /// diagnostics, the exactly-once lexer-error guarantee, and the poison boundary all
 /// replay precisely as they stood at save time. Cache entries the abandoned branch

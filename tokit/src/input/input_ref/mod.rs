@@ -898,6 +898,11 @@ where
   /// invalidates other checkpoints; only restoring does (see [`Checkpoint`]'s validity
   /// section).
   ///
+  /// Every checkpoint `save` returns should end in exactly one of [`restore`](Self::restore)
+  /// (abandon this branch and rewind) or [`commit`](Self::commit) (keep this branch's progress
+  /// and release the checkpoint's lineage entry); a checkpoint merely dropped keeps its progress
+  /// but strands that lineage entry until an older restore pops through it.
+  ///
   /// Prefer [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) when the
   /// save/restore pair brackets a single speculative computation — they enforce the
   /// restore discipline by construction.
@@ -996,18 +1001,18 @@ where
   /// Both of these are fine:
   ///
   /// ```ignore
-  /// // Nested speculation — inner restored (or dropped) before outer:
+  /// // Nested speculation — inner ended before outer (each ends in commit or restore):
   /// let outer = input.save();
   /// let inner = input.save();
-  /// if !try_variant_a(input) { input.restore(inner); }   // youngest first
-  /// if !try_variant_b(input) { input.restore(outer); }   // then the older one
+  /// if try_variant_a(input) { input.commit(inner) } else { input.restore(inner) } // youngest first
+  /// if try_variant_b(input) { input.commit(outer) } else { input.restore(outer) } // then the older
   ///
   /// // Retry loop — a fresh checkpoint per iteration:
   /// loop {
   ///   let ckp = input.save();
   ///   match try_parse(input) {
-  ///     Ok(v) => break v,
-  ///     Err(_) => input.restore(ckp),                    // always the youngest live one
+  ///     Ok(v) => { input.commit(ckp); break v }          // success: keep progress, release the id
+  ///     Err(_) => input.restore(ckp),                    // failure: the youngest live one
   ///   }
   /// }
   /// ```
@@ -1079,6 +1084,74 @@ where
     self.assert_restore_preserves_pins(checkpoint.ckp_id);
 
     self.restore_unchecked(checkpoint);
+  }
+
+  /// Commits `checkpoint`: keeps every bit of progress made since its save and releases the
+  /// checkpoint's lineage entry. This is the success-path counterpart to
+  /// [`restore`](Self::restore) — the verb for a speculative branch that *worked out*.
+  ///
+  /// # Contract: end each checkpoint in exactly one of restore or commit
+  ///
+  /// A saved [`Checkpoint`] should end its life in exactly one of two ways: hand it to
+  /// [`restore`](Self::restore) to abandon the branch and rewind, or hand it to `commit` to
+  /// keep the branch's progress. A checkpoint that is merely **dropped** keeps the progress
+  /// too — dropping rewinds nothing — but in allocator builds its id lingers on the input's
+  /// live-checkpoint lineage stack until an older [`restore`](Self::restore) happens to pop
+  /// through it. Repeated successful speculation that drops rather than commits therefore grows
+  /// that stack for the life of the input; `commit` is what keeps it bounded. (The stranded ids
+  /// are inert lineage bookkeeping, not unsafety: every restore still replays its lineage
+  /// exactly.)
+  ///
+  /// A retry loop keeps its progress by committing the youngest live checkpoint on success:
+  ///
+  /// ```ignore
+  /// loop {
+  ///   let ckp = input.save();
+  ///   match try_parse(input) {
+  ///     Ok(v) => { input.commit(ckp); break v }   // success: keep progress, release the id
+  ///     Err(_) => input.restore(ckp),             // failure: rewind to the save
+  ///   }
+  /// }
+  /// ```
+  ///
+  /// Releasing is `O(1)` when `checkpoint` is the youngest live checkpoint — the common
+  /// retry-loop case — and a linear removal otherwise (e.g. a younger raw checkpoint was dropped
+  /// above it); the rest of the stack keeps its order either way, so an older restore still pops
+  /// cleanly through the gap. Committing an already-invalidated checkpoint — one an older
+  /// [`restore`](Self::restore) already popped off the lineage — is a harmless **no-op**: its id
+  /// is simply absent, so nothing is released and no state changes (no panic, in any build).
+  ///
+  /// Allocator-less builds keep no lineage stack, so `commit` there merely drops the checkpoint;
+  /// the growth it prevents cannot arise without a stack to grow.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn commit(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+    // Cheap sanity in debug + ptr builds, mirroring `restore`'s foreign-input guard: a
+    // checkpoint may only be committed into the input that created it. Presence is NOT
+    // asserted — committing a dead checkpoint is the documented no-op handled below.
+    #[cfg(all(
+      debug_assertions,
+      any(feature = "std", feature = "alloc"),
+      target_has_atomic = "ptr"
+    ))]
+    assert!(
+      checkpoint.input_id == self.witness.input_id(),
+      "checkpoint committed into a foreign input: this checkpoint was created by a different input"
+    );
+
+    // Keep all progress; release ONLY the lineage entry, never the pin set. `forget_checkpoint`
+    // is `O(1)` at the stack top and pops nothing for an already-invalidated id (the no-op case).
+    //
+    // No pin check is needed, and none could ever trip: a pinned id is the begin point of a live
+    // transaction guard or `attempt`, which holds that begin-point `Checkpoint` internally and
+    // never hands it out. A caller can only reach a checkpoint's id THROUGH a `Checkpoint` value,
+    // and this method consumes one it was given — so the committed id is a raw, unpinned
+    // checkpoint by construction. There is no reachable way to commit a guard's pinned base and
+    // unpin-bypass it, and `forget_checkpoint` leaves `pinned` untouched regardless.
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    self.forget_checkpoint(checkpoint.ckp_id);
+
+    #[cfg(not(any(feature = "std", feature = "alloc")))]
+    let _ = checkpoint;
   }
 
   /// Rewinds to `checkpoint` without the debug raw-misuse panics, the shared primitive behind
