@@ -294,13 +294,13 @@ where
 ///
 /// # Caveats
 ///
-/// When the primary parser fails, `Recover` restores the input position via
-/// checkpoint but does **not** roll back errors already emitted to the
-/// [`Emitter`](crate::Emitter). If the primary parser emitted errors before
-/// returning `Err`, those errors remain in the emitter even if recovery
-/// succeeds. This is important when using [`Verbose`](crate::emitter::Verbose)
-/// or other stateful emitters — successful recovery may leave spurious errors
-/// from the failed attempt.
+/// When the primary parser fails, `Recover` rolls the input back to the
+/// pre-attempt state — position, lexer state, **and** diagnostics: emissions
+/// made by the failed attempt are rewound from the
+/// [`Emitter`](crate::Emitter)'s log, so a successful recovery leaves no
+/// spurious errors behind. The failure itself reaches the [`Recoverer`] as the
+/// error value; whether to emit a diagnostic for it is the recoverer's
+/// decision.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Recover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
   parser: P,
