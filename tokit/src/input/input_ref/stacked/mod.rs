@@ -50,6 +50,11 @@ pub struct SavepointId {
 /// A scoped backtracking transaction that holds several live savepoints at once,
 /// mirroring SQL savepoint semantics.
 ///
+/// Available only on targets that expose 64-bit atomics (`target_has_atomic = "64"`) and
+/// an allocator (`std` or `alloc`), since it stamps each transaction with a process-wide
+/// [`AtomicU64`](core::sync::atomic::AtomicU64) nonce; the core [`Transaction`](super::Transaction)
+/// and the raw save/restore API remain available everywhere.
+///
 /// The lean [`Transaction`](super::Transaction) captures a single begin point;
 /// `StackedTransaction` adds an internal last-in, first-out stack of savepoints so a
 /// parser can keep **several fallback positions live simultaneously** and return to any
@@ -202,9 +207,17 @@ where
     // checkpoint is restored.
     while self.saves.len() > idx {
       let (_, ckp) = self.saves.pop().expect("len > idx implies a value to pop");
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       self.input.forget_checkpoint(ckp.ckp_id);
-      #[cfg(not(all(debug_assertions, any(feature = "std", feature = "alloc"))))]
+      #[cfg(not(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      )))]
       let _ = ckp;
     }
   }
@@ -240,15 +253,31 @@ where
     // (it is the deepest, so it is the top once the savepoints are gone). Taking `base`
     // leaves the `Drop` guard nothing to restore.
     while let Some((_, ckp)) = self.saves.pop() {
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       self.input.forget_checkpoint(ckp.ckp_id);
-      #[cfg(not(all(debug_assertions, any(feature = "std", feature = "alloc"))))]
+      #[cfg(not(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      )))]
       let _ = ckp;
     }
     if let Some(base) = self.base.take() {
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       self.input.forget_checkpoint(base.ckp_id);
-      #[cfg(not(all(debug_assertions, any(feature = "std", feature = "alloc"))))]
+      #[cfg(not(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      )))]
       let _ = base;
     }
   }

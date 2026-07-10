@@ -344,7 +344,11 @@ fn stacked_best_match_selection() {
   txn.commit();
 }
 
-#[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+#[cfg(all(
+  debug_assertions,
+  any(feature = "std", feature = "alloc"),
+  target_has_atomic = "ptr"
+))]
 #[test]
 fn stacked_commit_removes_all_ids_from_live_stack() {
   // Committing keeps the parsed progress but forgets the base and every savepoint id, so

@@ -368,7 +368,11 @@ fn txn_passes_as_input_ref() {
   assert!(inp.is_eoi(), "progress kept — every token was consumed");
 }
 
-#[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+#[cfg(all(
+  debug_assertions,
+  any(feature = "std", feature = "alloc"),
+  target_has_atomic = "ptr"
+))]
 #[test]
 fn txn_commit_removes_id_from_live_stack() {
   // Committing drops a checkpoint that was never restored; its debug-witness id must be

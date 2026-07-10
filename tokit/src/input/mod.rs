@@ -8,7 +8,7 @@ pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
 pub use input_ref::{InputRef, Transaction};
 
-#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64"))]
 pub use input_ref::{SavepointId, StackedTransaction};
 
 mod checkpoint;
@@ -21,10 +21,18 @@ mod input_ref;
 /// It exists only in debug builds that have an allocator (`std` or `alloc`); in
 /// release builds, and in allocator-less builds, it is absent and `restore` is an
 /// unchecked pure copy of the saved lineage state.
-#[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+#[cfg(all(
+  debug_assertions,
+  any(feature = "std", feature = "alloc"),
+  target_has_atomic = "ptr"
+))]
 pub(crate) use witness::Witness;
 
-#[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+#[cfg(all(
+  debug_assertions,
+  any(feature = "std", feature = "alloc"),
+  target_has_atomic = "ptr"
+))]
 mod witness {
   use core::{
     cell::{Cell, RefCell},
@@ -286,7 +294,11 @@ where
   cache_pushes: u64,
   /// Debug-only witness of the last-in, first-out checkpoint discipline (see
   /// [`InputRef::restore`]).
-  #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+  #[cfg(all(
+    debug_assertions,
+    any(feature = "std", feature = "alloc"),
+    target_has_atomic = "ptr"
+  ))]
   witness: Witness,
 }
 
@@ -312,7 +324,11 @@ where
       // A clone is a new input: `Witness::clone` mints a fresh identity and an empty
       // live-checkpoint stack, so the clone's checkpoints and the original's never
       // cross.
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       witness: self.witness.clone(),
     }
   }
@@ -368,7 +384,11 @@ where
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
       cache_pushes: 0,
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       witness: Witness::new(),
     }
   }
@@ -392,7 +412,11 @@ where
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
       cache_pushes: 0,
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       witness: Witness::new(),
     }
   }
@@ -411,7 +435,11 @@ where
       emitted_error_end: &mut self.emitted_error_end,
       poison_boundary: &mut self.poison_boundary,
       cache_pushes: &mut self.cache_pushes,
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       witness: &mut self.witness,
       emitter,
       _marker: PhantomData,

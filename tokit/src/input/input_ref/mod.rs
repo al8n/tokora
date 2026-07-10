@@ -24,7 +24,7 @@ mod fold;
 mod peek;
 mod pratt;
 mod skip_while;
-#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64"))]
 mod stacked;
 mod sync_through;
 mod sync_to;
@@ -33,8 +33,11 @@ mod try_expect;
 
 pub use transaction::Transaction;
 
-#[cfg(any(feature = "std", feature = "alloc"))]
-#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+#[cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64"))]
+#[cfg_attr(
+  docsrs,
+  doc(cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64")))
+)]
 pub use stacked::{SavepointId, StackedTransaction};
 
 #[cfg(all(test, feature = "logos", feature = "std"))]
@@ -56,7 +59,11 @@ where
   /// [`cache_push_back`](InputRef::cache_push_back) and read by [`save`](InputRef::save) /
   /// [`restore`](InputRef::restore) to drop entries pushed on an abandoned continuation.
   pub(super) cache_pushes: &'closure mut u64,
-  #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+  #[cfg(all(
+    debug_assertions,
+    any(feature = "std", feature = "alloc"),
+    target_has_atomic = "ptr"
+  ))]
   pub(super) witness: &'closure mut super::Witness,
   pub(super) emitter: &'closure mut Ctx::Emitter,
   pub(super) _marker: PhantomData<Lang>,
@@ -125,7 +132,11 @@ where
   /// panic).
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn state_mut(&mut self) -> &mut L::State {
-    #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+    #[cfg(all(
+      debug_assertions,
+      any(feature = "std", feature = "alloc"),
+      target_has_atomic = "ptr"
+    ))]
     self.witness.clear();
     self.state
   }
@@ -140,7 +151,11 @@ where
   /// panic).
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn set_state(&mut self, state: L::State) {
-    #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+    #[cfg(all(
+      debug_assertions,
+      any(feature = "std", feature = "alloc"),
+      target_has_atomic = "ptr"
+    ))]
     self.witness.clear();
     *self.state = state;
   }
@@ -328,7 +343,11 @@ where
       Some(result) => {
         // Progress kept: the checkpoint is dropped without restoring, so drop its
         // debug-witness id too rather than leaving it to grow the live stack.
-        #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+        #[cfg(all(
+          debug_assertions,
+          any(feature = "std", feature = "alloc"),
+          target_has_atomic = "ptr"
+        ))]
         self.forget_checkpoint(ckp.ckp_id);
         Some(result)
       }
@@ -363,7 +382,11 @@ where
     match f(self) {
       Ok(result) => {
         // Progress kept: drop the checkpoint's debug-witness id (see `attempt`).
-        #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+        #[cfg(all(
+          debug_assertions,
+          any(feature = "std", feature = "alloc"),
+          target_has_atomic = "ptr"
+        ))]
         self.forget_checkpoint(ckp.ckp_id);
         Ok(result)
       }
@@ -420,8 +443,11 @@ where
   ///   speculation;
   /// - raw [`save`](Self::save) / [`restore`](Self::restore) — commit-by-default flows
   ///   where progress is kept on most exits.
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+  #[cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64"))]
+  #[cfg_attr(
+    docsrs,
+    doc(cfg(all(any(feature = "std", feature = "alloc"), target_has_atomic = "64")))
+  )]
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn begin_stacked(&mut self) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang> {
     // Every transaction in the process gets a distinct nonce from the global counter, so a
@@ -447,7 +473,11 @@ where
   /// *committed* one never reaches `restore`, so without this its id would linger and
   /// grow the stack across commit-heavy loops. Removing it keeps the witness exact and
   /// bounded.
-  #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+  #[cfg(all(
+    debug_assertions,
+    any(feature = "std", feature = "alloc"),
+    target_has_atomic = "ptr"
+  ))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub(crate) fn forget_checkpoint(&self, id: u64) {
     self.witness.forget(id);
@@ -455,7 +485,12 @@ where
 
   /// The number of live checkpoints — test-only observability for the no-growth
   /// guarantee that committing gives the live stack.
-  #[cfg(all(test, debug_assertions, any(feature = "std", feature = "alloc")))]
+  #[cfg(all(
+    test,
+    debug_assertions,
+    any(feature = "std", feature = "alloc"),
+    target_has_atomic = "ptr"
+  ))]
   pub(crate) fn live_checkpoints_len(&self) -> usize {
     self.witness.live_len()
   }
@@ -553,9 +588,17 @@ where
       self.emitted_error_end.clone(),
       self.poison_boundary.clone(),
       *self.cache_pushes,
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       self.witness.input_id(),
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       self.witness.push(),
     )
   }
@@ -677,7 +720,11 @@ where
     // checkpoint must belong to this input, and it must still be live (restoring an
     // older checkpoint invalidates every one saved after it). Release builds omit
     // this and copy unconditionally.
-    #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+    #[cfg(all(
+      debug_assertions,
+      any(feature = "std", feature = "alloc"),
+      target_has_atomic = "ptr"
+    ))]
     {
       assert!(
         checkpoint.input_id == self.witness.input_id(),

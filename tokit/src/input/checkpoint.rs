@@ -83,10 +83,18 @@ pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
   /// entries. It is correctness state in every build, not a debug-only witness.
   pub(crate) cache_pushes: u64,
   /// The identity of the input that produced this checkpoint (debug-only witness).
-  #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+  #[cfg(all(
+    debug_assertions,
+    any(feature = "std", feature = "alloc"),
+    target_has_atomic = "ptr"
+  ))]
   pub(crate) input_id: usize,
   /// This checkpoint's id in its input's live-checkpoint stack (debug-only witness).
-  #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+  #[cfg(all(
+    debug_assertions,
+    any(feature = "std", feature = "alloc"),
+    target_has_atomic = "ptr"
+  ))]
   pub(crate) ckp_id: u64,
   _m: PhantomData<fn(&'closure ()) -> &'closure ()>,
 }
@@ -103,8 +111,18 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
     emitted_error_end: L::Offset,
     poison_boundary: Option<L::Offset>,
     cache_pushes: u64,
-    #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))] input_id: usize,
-    #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))] ckp_id: u64,
+    #[cfg(all(
+      debug_assertions,
+      any(feature = "std", feature = "alloc"),
+      target_has_atomic = "ptr"
+    ))]
+    input_id: usize,
+    #[cfg(all(
+      debug_assertions,
+      any(feature = "std", feature = "alloc"),
+      target_has_atomic = "ptr"
+    ))]
+    ckp_id: u64,
   ) -> Self {
     Self {
       cursor,
@@ -114,9 +132,17 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
       emitted_error_end,
       poison_boundary,
       cache_pushes,
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       input_id,
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       ckp_id,
       _m: PhantomData,
     }

@@ -71,9 +71,17 @@ where
     if let Some(ckp) = self.ckp.take() {
       // Kept, not restored: drop its debug-witness id so it does not linger on the
       // live stack across commit-heavy loops.
-      #[cfg(all(debug_assertions, any(feature = "std", feature = "alloc")))]
+      #[cfg(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      ))]
       self.input.forget_checkpoint(ckp.ckp_id);
-      #[cfg(not(all(debug_assertions, any(feature = "std", feature = "alloc"))))]
+      #[cfg(not(all(
+        debug_assertions,
+        any(feature = "std", feature = "alloc"),
+        target_has_atomic = "ptr"
+      )))]
       let _ = ckp;
     }
   }
