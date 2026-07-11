@@ -112,6 +112,12 @@ path = "benches/input_scan.rs"
 harness = false
 required-features = ["logos", "std"]
 
+[[bench]]
+name = "backtrack"
+path = "benches/backtrack.rs"
+harness = false
+required-features = ["logos", "std"]
+
 [[example]]
 name = "json"
 path = "examples/json.rs"
