@@ -734,7 +734,11 @@ fn sync_through_no_match() {
 
 // ── cache rewind (from cache_rewind_coverage) ────────────────────────────────
 
+// Helpers for the cache-rewind tests below, which are all `#[cfg(feature = "unstable-raw")]`;
+// under the valve-off flavor (`--features logos,std`, no `unstable-raw`) they are unused, so
+// opt out of dead-code denial rather than gate every impl/import behind the feature.
 #[derive(Debug)]
+#[allow(dead_code)]
 struct E;
 impl From<()> for E {
   fn from(_: ()) -> Self {
@@ -752,6 +756,7 @@ impl From<UnexpectedEot> for E {
   }
 }
 
+#[allow(dead_code)]
 struct TestEm;
 impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEm {
   type Error = E;
@@ -786,6 +791,7 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEm {
   }
 }
 
+#[allow(dead_code)]
 fn ctx() -> ParserContext<'static, TestLexer<'static>, TestEm> {
   ParserContext::new(TestEm)
 }
