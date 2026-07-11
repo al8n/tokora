@@ -1511,3 +1511,169 @@ fn restore_keeps_pre_checkpoint_zero_width_at_same_offset() {
     .parse_str("12");
   r.unwrap();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Diagnostic labels: `labelled` context captured into the emission log
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// A sub-parser that records one custom diagnostic at 0..1 without consuming input, so a
+// `labelled` wrapper around it exercises the enter/emit/exit path for any emitter.
+fn emit_marker<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<(), EmitterTestError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = EmitterTestError>,
+{
+  inp.emitter().emit_error(Spanned::new(
+    SimpleSpan::new(0usize, 1usize),
+    EmitterTestError::Custom,
+  ))
+}
+
+fn builtin_fatal_ctx() -> ParserContext<'static, TestLexer<'static>, Fatal<EmitterTestError>> {
+  ParserContext::new(Fatal::new())
+}
+
+// A diagnostic recorded inside a `labelled` scope is stamped with the label, readable
+// per-diagnostic through the public `Verbose::labels` accessor (parallel to `errors`).
+#[test]
+fn labelled_stamps_context_visible_through_labels_accessor() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    let mut p = tokit::labelled("while parsing item", emit_marker);
+    p.parse_input(inp)?;
+
+    let labels = inp.emitter().labels();
+    assert_eq!(
+      labels[&SimpleSpan::new(0usize, 1usize)],
+      vec![vec!["while parsing item"]],
+      "diagnostic recorded inside the labelled scope carries the label"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(run)
+    .parse_str("12");
+  r.unwrap();
+}
+
+// Under a non-collecting (Fatal) emitter, `labelled` is behaviorally transparent: the wrapped
+// sub-parser's Err propagates unchanged and the label push/pop are inlined-away no-ops. The
+// labelled result must equal the bare result, value for value.
+#[test]
+fn labelled_zero_behavior_on_fatal_path() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Fatal<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Bare: the sub-parser emits fatally → Err(Custom).
+    let bare = emit_marker(inp);
+    assert!(
+      matches!(bare, Err(EmitterTestError::Custom)),
+      "bare Fatal emission is fatal"
+    );
+    // Labelled: identical Err(Custom); the label scope changes nothing on the Fatal path.
+    let mut p = tokit::labelled("while parsing item", emit_marker);
+    let via_label = p.parse_input(inp);
+    assert!(
+      matches!(via_label, Err(EmitterTestError::Custom)),
+      "labelled leaves the Fatal path unchanged"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(builtin_fatal_ctx())
+    .apply(run)
+    .parse_str("12");
+  r.unwrap();
+}
+
+// The pinned rewind rule: a guard rollback across a labelled emission drops the entry together
+// with its captured labels; a later re-emission under a DIFFERENT label re-derives its labels
+// from the then-current stack — labels are captured at emit time, not bound to the span.
+#[test]
+fn labelled_guard_rollback_drops_labels_then_reemission_rederives() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    let survivor = SimpleSpan::new(0usize, 1usize);
+    let speculative = SimpleSpan::new(1usize, 2usize);
+
+    // Baseline emission under "outer", BEFORE any guard — must survive the rollback.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::enter_label(
+      inp.emitter(),
+      "outer",
+    );
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(survivor, EmitterTestError::Custom),
+    )?;
+
+    // Speculative labelled emission inside a transaction guard, then rolled back.
+    {
+      let mut tx = inp.begin();
+      <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::enter_label(
+        tx.emitter(),
+        "spec",
+      );
+      <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+        tx.emitter(),
+        Spanned::new(speculative, EmitterTestError::Custom),
+      )?;
+      <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::exit_label(tx.emitter());
+      tx.rollback();
+    }
+
+    // Re-emit at the same span under a DIFFERENT label; labels re-derive from the current stack.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::enter_label(
+      inp.emitter(),
+      "final",
+    );
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(speculative, EmitterTestError::Custom),
+    )?;
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::exit_label(inp.emitter());
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::exit_label(inp.emitter());
+
+    let labels = inp.emitter().labels();
+    assert_eq!(
+      labels[&survivor],
+      vec![vec!["outer"]],
+      "the pre-guard diagnostic survives with its label"
+    );
+    assert_eq!(
+      labels[&speculative],
+      vec![vec!["outer", "final"]],
+      "the speculative [outer, spec] snapshot was rewound; re-emission re-derived [outer, final]"
+    );
+    assert_eq!(
+      inp.emitter().errors()[&speculative].len(),
+      1,
+      "only the re-emitted diagnostic remains at the speculative span"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(run)
+    .parse_str("12 34");
+  r.unwrap();
+}

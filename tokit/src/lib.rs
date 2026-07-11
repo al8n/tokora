@@ -40,7 +40,7 @@ pub use parse_choice::*;
 pub use parse_context::{FatalContext, ParseContext, ParserContext};
 pub use parse_input::*;
 pub use parse_state::ParseState;
-pub use parser::{Parse, Parser};
+pub use parser::{Labelled, Parse, Parser, labelled};
 pub use require::Require;
 pub use slice::Slice;
 pub use source::Source;

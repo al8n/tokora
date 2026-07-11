@@ -178,6 +178,32 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   fn rewind(&mut self, cursor: &Cursor<'a, '_, L>, checkpoint: u64)
   where
     L: Lexer<'a>;
+
+  /// Pushes a diagnostic label onto the emitter's open-label stack, opening a
+  /// *"while parsing X"* context for the duration of a [`labelled`](crate::labelled)
+  /// sub-parse.
+  ///
+  /// This is an additive capability with a **blanket no-op default**: stateless
+  /// emitters ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::marker::Ignored))
+  /// inherit the empty body, so a label pair around them costs nothing — the two
+  /// calls inline away. A collecting emitter like [`Verbose`] overrides this to
+  /// maintain the stack and snapshot it into every diagnostic it records.
+  ///
+  /// Labels are `&'static str` (parser names are static), so a push never allocates.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn enter_label(&mut self, label: &'static str) {
+    let _ = label;
+  }
+
+  /// Pops the most recently [`enter_label`](Self::enter_label)ed label as its
+  /// [`labelled`](crate::labelled) scope closes.
+  ///
+  /// No-op by default (see [`enter_label`](Self::enter_label)); [`Verbose`] overrides
+  /// it to pop its open-label stack. The stack therefore follows the call structure of
+  /// the `labelled` wrappers exactly, so a checkpoint restore needs no label handling —
+  /// no label state lives outside the wrapper scopes and the recorded log entries.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn exit_label(&mut self) {}
 }
 
 impl<'a, L, U, Lang: ?Sized> Emitter<'a, L, Lang> for &mut U
@@ -227,6 +253,16 @@ where
     L: Lexer<'a>,
   {
     (**self).rewind(cursor, checkpoint)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn enter_label(&mut self, label: &'static str) {
+    (**self).enter_label(label)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn exit_label(&mut self) {
+    (**self).exit_label()
   }
 }
 

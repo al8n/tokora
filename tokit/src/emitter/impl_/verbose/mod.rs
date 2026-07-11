@@ -82,16 +82,43 @@ mod unexpected_trailing_separator;
 /// your parser needs. `Verbose`, `Fatal`, and `Silent` are pre-built bundles that implement all atomic
 /// traits with consistent behavior, but you're encouraged to create custom emitters by implementing just
 /// the specific traits relevant to your parser.
+///
+/// # Diagnostic labels — context captured at emit time
+///
+/// [`labelled`](crate::labelled) opens a *"while parsing X"* context around a
+/// sub-parse by pushing a `&'static str` onto this emitter's open-label stack
+/// (via [`enter_label`](Emitter::enter_label)) and popping it as the scope closes.
+/// Labels are captured **into the emission log at emit time**: each recorded
+/// diagnostic carries a snapshot of the label stack that was open when it was
+/// emitted, retrievable per-diagnostic through [`labels()`](Self::labels) in
+/// lockstep with [`errors()`](Self::errors). Because the snapshot rides with the
+/// entry, a [`rewind`](Emitter::rewind) that drops an entry drops its labels with
+/// it, and a later re-emission re-derives its labels from the then-current stack;
+/// the live stack itself follows the call structure of the wrapper scopes, so a
+/// checkpoint restore needs no label handling at all.
 #[derive(Debug)]
 pub struct Verbose<Error, S = SimpleSpan, Lang: ?Sized = ()> {
   errs: BTreeMap<S, Vec<Error>>,
+  /// Parallel to `errs`: the open-label snapshot captured when each error was
+  /// recorded, kept in lockstep with the error groups (same span keys, same
+  /// per-span `Vec` lengths). `label_snapshots[span][i]` is the *"while parsing X"*
+  /// context stack that was open when `errs[span][i]` was emitted. A separate map
+  /// (rather than pairing the label into the error) keeps [`errors()`](Self::errors)
+  /// returning exactly `&BTreeMap<S, Vec<Error>>`.
+  label_snapshots: BTreeMap<S, Vec<Vec<&'static str>>>,
   /// The span of every emission, in emission order. An entry's index in this log
   /// is its monotonic sequence number; [`checkpoint`](Emitter::checkpoint) is the
   /// log length and [`rewind`](Emitter::rewind) unwinds the tail back to a mark,
-  /// popping the matching error off each span's `Vec`. This is what lets rewind
-  /// drop a speculative zero-width diagnostic while keeping an earlier one at the
-  /// same span — a distinction span-ordered storage alone cannot make.
+  /// popping the matching error — and its label snapshot — off each span's `Vec`.
+  /// This is what lets rewind drop a speculative zero-width diagnostic while keeping
+  /// an earlier one at the same span — a distinction span-ordered storage alone
+  /// cannot make.
   log: Vec<S>,
+  /// The currently-open label stack, pushed by [`enter_label`](Emitter::enter_label)
+  /// and popped by [`exit_label`](Emitter::exit_label). Snapshotted (cloned) into
+  /// `label_snapshots` at each emit; a push/pop never allocates and an empty snapshot
+  /// clones for free.
+  stack: Vec<&'static str>,
   _lang: PhantomData<Lang>,
 }
 
@@ -100,7 +127,9 @@ impl<Error, Span, Lang: ?Sized> Default for Verbose<Error, Span, Lang> {
   fn default() -> Self {
     Self {
       errs: BTreeMap::new(),
+      label_snapshots: BTreeMap::new(),
       log: Vec::new(),
+      stack: Vec::new(),
       _lang: PhantomData,
     }
   }
@@ -115,7 +144,9 @@ where
   fn clone(&self) -> Self {
     Self {
       errs: self.errs.clone(),
+      label_snapshots: self.label_snapshots.clone(),
       log: self.log.clone(),
+      stack: self.stack.clone(),
       _lang: PhantomData,
     }
   }
@@ -136,19 +167,31 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   pub const fn new() -> Self {
     Self {
       errs: BTreeMap::new(),
+      label_snapshots: BTreeMap::new(),
       log: Vec::new(),
+      stack: Vec::new(),
       _lang: PhantomData,
     }
   }
 
   /// Records `err` at `span`, appending it to the span's group and logging the
   /// emission order so a later [`rewind`](Emitter::rewind) can undo it precisely.
+  ///
+  /// A snapshot of the currently-open label stack is captured alongside the error,
+  /// into `label_snapshots` at the same span/index — this is the *capture-at-emit*
+  /// point for diagnostic labels. Cloning an empty stack does not allocate, so an
+  /// unlabelled emission pays nothing beyond the parallel bookkeeping.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn record(&mut self, span: S, err: Error)
   where
     S: Ord + Clone,
   {
     self.log.push(span.clone());
+    self
+      .label_snapshots
+      .entry(span.clone())
+      .or_default()
+      .push(self.stack.clone());
     self.errs.entry(span).or_default().push(err);
   }
 
@@ -175,6 +218,28 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn errors(&self) -> &BTreeMap<S, Vec<Error>> {
     &self.errs
+  }
+
+  /// Returns the per-diagnostic label snapshots, parallel to [`errors()`](Self::errors).
+  ///
+  /// The returned map mirrors [`errors()`](Self::errors) span-for-span and
+  /// index-for-index: `labels()[span][i]` is the open-label stack — outermost
+  /// [`labelled`](crate::labelled) context first — that was captured when
+  /// `errors()[span][i]` was emitted. An unlabelled diagnostic maps to an empty
+  /// stack. The two accessors are meant to be read together, e.g. by zipping each
+  /// span's error group with its label group.
+  ///
+  /// ```ignore
+  /// for (span, errs) in emitter.errors() {
+  ///     let labels = &emitter.labels()[span];
+  ///     for (err, ctx) in errs.iter().zip(labels) {
+  ///         println!("{err} at {span:?} (while parsing {ctx:?})");
+  ///     }
+  /// }
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn labels(&self) -> &BTreeMap<S, Vec<Vec<&'static str>>> {
+    &self.label_snapshots
   }
 }
 
@@ -242,7 +307,10 @@ where
     let mark = (checkpoint as usize).min(self.log.len());
     while self.log.len() > mark {
       // Unwind newest-first: each span's `Vec` grows in emission order, so the
-      // matching entry to drop is always its last one.
+      // matching entry to drop is always its last one. The dropped entry takes its
+      // label snapshot with it — labels captured into an entry are rewound together
+      // with it, and any later re-emission re-derives labels from the then-current
+      // stack.
       let span = self.log.pop().expect("log length exceeds the mark");
       if let Some(group) = self.errs.get_mut(&span) {
         group.pop();
@@ -250,7 +318,26 @@ where
           self.errs.remove(&span);
         }
       }
+      if let Some(group) = self.label_snapshots.get_mut(&span) {
+        group.pop();
+        if group.is_empty() {
+          self.label_snapshots.remove(&span);
+        }
+      }
     }
+  }
+
+  /// Pushes a *"while parsing X"* label onto the open-label stack; the next
+  /// [`record`](Self::record) snapshots it into the diagnostic it emits.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn enter_label(&mut self, label: &'static str) {
+    self.stack.push(label);
+  }
+
+  /// Pops the innermost open label as its [`labelled`](crate::labelled) scope closes.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn exit_label(&mut self) {
+    self.stack.pop();
   }
 }
 
