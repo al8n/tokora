@@ -8,6 +8,7 @@
 
 use std::{collections::BTreeMap, vec::Vec};
 
+use super::Channel;
 use crate::emitter::Severity;
 
 /// A borrowing, read-side view of a single collected diagnostic.
@@ -72,15 +73,18 @@ impl<'a, S, E> Diagnostic<'a, S, E> {
 /// the error and warning channels — in true emission order.
 ///
 /// Constructed by [`Verbose::diagnostics`](super::Verbose::diagnostics). It walks the emitter's
-/// shared emission `log`; each log entry names a channel (via its [`Severity`] tag) and a span,
-/// and the iterator hands back the matching payload and label snapshot from that channel. A
-/// per-channel, per-span cursor tracks how far into each span's group the walk has advanced, so
-/// same-span diagnostics come out in the order they were emitted. The result is the two
-/// span-keyed maps *interleaved* on one timeline — the ordering a renderer wants and that
-/// neither map can express alone.
+/// shared emission `log`; each log entry names a channel and a span, and the iterator hands
+/// back the matching payload and label snapshot from that channel. A per-channel, per-span
+/// cursor tracks how far into each span's group the walk has advanced, so same-span diagnostics
+/// come out in the order they were emitted. The result is the two span-keyed maps *interleaved*
+/// on one timeline — the ordering a renderer wants and that neither map can express alone.
+///
+/// Skipped-region records ([`Verbose::skipped_regions`](super::Verbose::skipped_regions)) ride
+/// the same log for exact rewind and ordering but carry no error payload, so this iterator
+/// passes over them without disturbing the payload channels' cursors.
 #[derive(Debug)]
 pub struct Diagnostics<'a, S, E> {
-  log: &'a [(Severity, S)],
+  log: &'a [(Channel, S)],
   errs: &'a BTreeMap<S, Vec<E>>,
   err_labels: &'a BTreeMap<S, Vec<Vec<&'static str>>>,
   warns: &'a BTreeMap<S, Vec<E>>,
@@ -94,7 +98,7 @@ impl<'a, S, E> Diagnostics<'a, S, E> {
   /// Builds the iterator from the emitter's channels and shared log.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(crate) fn new(
-    log: &'a [(Severity, S)],
+    log: &'a [(Channel, S)],
     errs: &'a BTreeMap<S, Vec<E>>,
     err_labels: &'a BTreeMap<S, Vec<Vec<&'static str>>>,
     warns: &'a BTreeMap<S, Vec<E>>,
@@ -121,22 +125,31 @@ where
 
   #[cfg_attr(not(tarpaulin), inline)]
   fn next(&mut self) -> Option<Self::Item> {
-    let (severity, span) = self.log.get(self.index)?;
-    self.index += 1;
+    loop {
+      let (channel, span) = self.log.get(self.index)?;
+      self.index += 1;
 
-    // The `Severity` tag routes to the channel this entry was recorded in; the per-channel
-    // cursor advances one step into this span's group, mirroring how `record`/`record_warning`
-    // appended it. Group index == prior same-span emissions in this channel.
-    let (groups, labels, cursor) = match severity {
-      Severity::Error => (self.errs, self.err_labels, &mut self.err_cursor),
-      Severity::Warning => (self.warns, self.warn_labels, &mut self.warn_cursor),
-    };
-    let slot = cursor.entry(span).or_insert(0);
-    let idx = *slot;
-    *slot += 1;
+      // The `Channel` tag routes to the maps this entry was recorded in; the per-channel
+      // cursor advances one step into this span's group, mirroring how
+      // `record`/`record_warning` appended it. Group index == prior same-span emissions in
+      // this channel. A skipped-region record has no payload to yield: pass over it — its
+      // count lives in `Verbose::skipped_regions` — leaving the payload channels' cursors
+      // untouched so their interleaving stays exact.
+      let severity = match channel {
+        Channel::Diagnostic(severity) => *severity,
+        Channel::SkippedRegion => continue,
+      };
+      let (groups, labels, cursor) = match severity {
+        Severity::Error => (self.errs, self.err_labels, &mut self.err_cursor),
+        Severity::Warning => (self.warns, self.warn_labels, &mut self.warn_cursor),
+      };
+      let slot = cursor.entry(span).or_insert(0);
+      let idx = *slot;
+      *slot += 1;
 
-    let payload = &groups[span][idx];
-    let labels = labels[span][idx].as_slice();
-    Some(Diagnostic::new(span, *severity, labels, payload))
+      let payload = &groups[span][idx];
+      let labels = labels[span][idx].as_slice();
+      return Some(Diagnostic::new(span, severity, labels, payload));
+    }
   }
 }

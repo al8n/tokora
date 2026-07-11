@@ -6,7 +6,9 @@ use super::*;
 
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
-pub use input_ref::{Commit, DropPolicy, InputRef, Rollback, Transaction};
+pub use input_ref::{
+  Balance, Commit, DelimClass, DropPolicy, Hole, InputRef, Rollback, Transaction,
+};
 pub(crate) use lineage::Lineage;
 
 #[cfg(any(feature = "std", feature = "alloc"))]

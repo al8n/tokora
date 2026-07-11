@@ -2,14 +2,16 @@
 //! [`scan_with`](InputRef::scan_with), parameterized by a [`SyncMode`] policy that decides
 //! how a matched sync token settles and what end of input does.
 //!
-//! The three public sync loops differ in only two decisions — how a match settles (a `to`
-//! scan stops *before* the token and commits at the frontier; a `through` scan consumes it)
-//! and what end of input does (a `to` scan commits at the lexer's end; a `through` scan
-//! rewinds the full pre-call state so a no-match run leaves no trace). Everything else — the
-//! poison-boundary short-circuit, the per-skipped-token unexpected-token diagnostic, the
-//! dedup watermark lifted through [`scan_with`](InputRef::scan_with), and the trip-commit at
-//! the durable frontier — is identical, so it lives here once and the contracts documented on
-//! the public methods become structural instead of re-implemented per method.
+//! The public sync loops differ in only three decisions — how a match settles (a `to` scan
+//! stops *before* the token and commits at the frontier; a `through` scan consumes it), what
+//! end of input does (a `to` scan commits at the lexer's end; a `through` scan rewinds the
+//! full pre-call state so a no-match run leaves no trace), and whether each skipped token is
+//! reported as unexpected (the to/through family does; the balanced scan describes the whole
+//! hole with one diagnostic instead). Everything else — the poison-boundary short-circuit,
+//! the dedup watermark lifted through [`scan_with`](InputRef::scan_with), and the
+//! trip-commit at the durable frontier — is identical, so it lives here once and the
+//! contracts documented on the public methods become structural instead of re-implemented
+//! per method.
 
 use super::*;
 
@@ -70,6 +72,12 @@ where
   /// a [`ThroughEntry`] for `through` (it rewinds to it).
   type Snapshot;
 
+  /// Whether the scan reports each skipped token through `emit_unexpected_token`. The
+  /// to/through family diagnoses per skipped token; the balanced scan suppresses the
+  /// per-token reports because one skipped-region diagnostic describes the whole hole (see
+  /// [`sync_balanced`](InputRef::sync_balanced)).
+  const REPORT_SKIPPED: bool;
+
   /// Settle the input on a matched sync token and produce the carried token. `to` commits at
   /// `frontier` (the end of the last skipped token, i.e. before the match) and returns `None`;
   /// `through` consumes the match (commits at its span, adopting the lexer state) and returns
@@ -98,6 +106,8 @@ where
   Lang: ?Sized,
 {
   type Snapshot = ();
+
+  const REPORT_SKIPPED: bool = true;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn on_match(
@@ -135,6 +145,8 @@ where
 {
   type Snapshot = ThroughEntry<L::Span, L::State, L::Offset>;
 
+  const REPORT_SKIPPED: bool = true;
+
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn on_match(
     ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -168,6 +180,41 @@ where
   }
 }
 
+/// Stop *before* the sync token like [`SyncTo`], but rewind the full pre-call state at end of
+/// input like [`SyncThrough`], and report no per-token diagnostics — the hole diagnostic that
+/// [`sync_balanced`](InputRef::sync_balanced) emits on success describes the whole skipped
+/// region. Composed from the other two modes' settles.
+pub(super) struct SyncBalanced;
+
+impl<'inp, L, Ctx, Lang> SyncMode<'inp, L, Ctx, Lang> for SyncBalanced
+where
+  L: Lexer<'inp>,
+  L::State: Clone,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Lang: ?Sized,
+{
+  type Snapshot = ThroughEntry<L::Span, L::State, L::Offset>;
+
+  const REPORT_SKIPPED: bool = false;
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn on_match(
+    ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    frontier: AtFrontier<L::Span, L::State>,
+    lexer: L,
+    tok: Spanned<L::Token, L::Span>,
+  ) -> Option<Spanned<L::Token, L::Span>> {
+    // Stop before the sync point, exactly as `sync_to` does.
+    <SyncTo as SyncMode<'inp, L, Ctx, Lang>>::on_match(ir, frontier, lexer, tok)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, lexer: L, snapshot: Self::Snapshot) {
+    // A failed balanced sync leaves no trace, exactly as `sync_through`'s no-match exit.
+    <SyncThrough as SyncMode<'inp, L, Ctx, Lang>>::on_eof(ir, lexer, snapshot)
+  }
+}
+
 impl<'inp, L, Ctx, Lang> InputRef<'inp, '_, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
@@ -184,9 +231,10 @@ where
   /// left as the drain committed it. Otherwise it loops over
   /// [`scan_with`](Self::scan_with), which centralizes the poison-latch, dedup, and fatal-emit
   /// discipline: a matched token settles via [`SyncMode::on_match`] ([`Synced::Found`]); a
-  /// non-matching token is reported once via `emit_unexpected_token` and skipped; a limit trip
-  /// commits the diagnosed prefix at the durable frontier; end of input settles via
-  /// [`SyncMode::on_eof`] (both [`Synced::Exhausted`]).
+  /// non-matching token is skipped — and reported once via `emit_unexpected_token` when
+  /// [`SyncMode::REPORT_SKIPPED`] holds; a limit trip commits the diagnosed prefix at the
+  /// durable frontier; end of input settles via [`SyncMode::on_eof`] (both
+  /// [`Synced::Exhausted`]).
   #[cfg_attr(not(tarpaulin), inline)]
   pub(super) fn sync_with<M, F, Exp>(
     &mut self,
@@ -220,10 +268,12 @@ where
           if pred(tok.as_ref()) {
             return Ok(Synced::Found(M::on_match(self, frontier, lexer, tok)));
           }
-          let (span, tok) = tok.into_components();
-          self.emitter().emit_unexpected_token(
-            UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
-          )?;
+          if M::REPORT_SKIPPED {
+            let (span, tok) = tok.into_components();
+            self.emitter().emit_unexpected_token(
+              UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
+            )?;
+          }
           frontier.advance(&lexer);
         }
         Scan::Tripped => {

@@ -28,6 +28,7 @@ mod skip_while;
 #[cfg(any(feature = "std", feature = "alloc"))]
 mod stacked;
 mod sync;
+mod sync_balanced;
 mod sync_through;
 mod sync_to;
 #[cfg(feature = "trace")]
@@ -36,6 +37,7 @@ mod transaction;
 mod try_expect;
 
 pub use drop_policy::{Commit, DropPolicy, Rollback};
+pub use sync_balanced::{Balance, DelimClass, Hole};
 pub use transaction::Transaction;
 
 #[cfg(any(feature = "std", feature = "alloc"))]

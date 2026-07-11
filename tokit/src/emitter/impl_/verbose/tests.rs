@@ -165,3 +165,45 @@ fn verbose_labels_parallel_to_errors_same_span_group() {
     "one snapshot per diagnostic"
   );
 }
+
+// ── Skipped-region records: the third channel on the shared log ──────────────
+
+fn hole(v: &mut Verbose<(), SimpleSpan>, span: SimpleSpan, skipped: usize) {
+  let _ = <Verbose<(), SimpleSpan> as Emitter<'_, crate::lexer::DummyLexer>>::emit_skipped_region(
+    v, span, skipped,
+  );
+}
+
+// A hole record lands in `skipped_regions()` (with its label snapshot), advances the
+// emission checkpoint, and does NOT surface through `diagnostics()` — which must keep
+// yielding the payload channels in exact order around it (the hole entry must not shift
+// the per-span cursors).
+#[test]
+fn verbose_hole_records_share_the_log_without_disturbing_diagnostics() {
+  let mut v = Verbose::<(), SimpleSpan>::new();
+  let a = SimpleSpan::new(0usize, 1usize);
+  let b = SimpleSpan::new(2usize, 5usize);
+
+  enter(&mut v, "ctx");
+  emit(&mut v, a); // log[0]: error at a
+  hole(&mut v, b, 3); // log[1]: hole at b
+  emit(&mut v, b); // log[2]: error at b — same span as the hole
+  exit(&mut v);
+
+  // Every record advanced the shared checkpoint.
+  let ckp = <Verbose<(), SimpleSpan> as Emitter<'_, crate::lexer::DummyLexer>>::checkpoint(&v);
+  assert_eq!(ckp, 3, "the hole record rides the shared emission log");
+
+  // The hole is read through its own accessor, labels captured like any record.
+  assert_eq!(v.skipped_regions().get(&b), Some(&vec![3usize]));
+  assert_eq!(v.skipped_region_labels()[&b], vec![vec!["ctx"]]);
+
+  // diagnostics() yields ONLY the payload channels, in emission order, with the same-span
+  // error at `b` intact — the hole entry did not consume its cursor slot.
+  let spans: Vec<SimpleSpan> = v.diagnostics().map(|d| *d.span()).collect();
+  assert_eq!(
+    spans,
+    vec![a, b],
+    "payload records replay in order around the hole"
+  );
+}

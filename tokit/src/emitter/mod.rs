@@ -179,6 +179,27 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
     Ok(())
   }
 
+  /// Emits the one-per-hole diagnostic for a region that balanced synchronization skipped:
+  /// `span` covers the skipped region and `skipped` counts the tokens it dropped (see
+  /// [`Hole`](crate::input::Hole) and [`sync_balanced`](crate::InputRef::sync_balanced)).
+  ///
+  /// Like [`emit_warning`](Self::emit_warning) and the diagnostic-label capabilities, this is
+  /// an additive capability with a **blanket no-op default**: stateless emitters ([`Fatal`],
+  /// [`Silent`], [`Ignored`](crate::utils::marker::Ignored)) inherit the empty body — a
+  /// fail-fast parse keeps no record of recovery skips, so the note is dropped and parsing
+  /// continues (`Ok(())`). A collecting emitter like [`Verbose`] overrides this to record the
+  /// hole on its shared emission log, so a checkpoint rewind unwinds it together with the
+  /// other diagnostics of the abandoned branch. The `Result` return lets a bespoke emitter
+  /// reject a skip as fatal (e.g. a hole budget); the built-in emitters never do.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_skipped_region(&mut self, span: L::Span, skipped: usize) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    let _ = (span, skipped);
+    Ok(())
+  }
+
   /// Captures the emitter's current emission checkpoint for a later [`rewind`](Self::rewind).
   ///
   /// A checkpoint is a monotonically increasing emission mark: emitters that
@@ -273,6 +294,14 @@ where
     L: Lexer<'a>,
   {
     (**self).emit_warning(warning)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_skipped_region(&mut self, span: L::Span, skipped: usize) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    (**self).emit_skipped_region(span, skipped)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

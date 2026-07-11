@@ -3372,3 +3372,549 @@ fn commit_of_invalidated_checkpoint_is_noop() {
     "committing a dead checkpoint touches no input state"
   );
 }
+
+// ── Balanced synchronization: the sync_balanced contract ─────────────────────
+//
+// A delimiter-capable token set behind the by-value `TokenLimiter` (high limit unless a
+// test trips it), with `ByValErr` as the shared error type. The classifier marks the
+// parentheses as a pair; everything else is neutral.
+
+use crate::input::Balance;
+
+#[derive(Debug, Clone, PartialEq, crate::logos::Logos)]
+#[logos(crate = crate::logos, extras = TokenLimiter, skip r"[ \t\r\n]+")]
+enum BalTok {
+  #[regex(r"[0-9]+", |lex| { lex.extras.increase(); })]
+  Num,
+  #[token("(", |lex| { lex.extras.increase(); })]
+  LParen,
+  #[token(")", |lex| { lex.extras.increase(); })]
+  RParen,
+  #[token(";", |lex| { lex.extras.increase(); })]
+  Semi,
+}
+
+impl core::fmt::Display for BalTok {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.write_str(match self {
+      Self::Num => "number",
+      Self::LParen => "`(`",
+      Self::RParen => "`)`",
+      Self::Semi => "`;`",
+    })
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum BalKind {
+  Num,
+  LParen,
+  RParen,
+  Semi,
+}
+
+impl core::fmt::Display for BalKind {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.write_str(match self {
+      Self::Num => "number",
+      Self::LParen => "`(`",
+      Self::RParen => "`)`",
+      Self::Semi => "`;`",
+    })
+  }
+}
+
+impl Token<'_> for BalTok {
+  type Kind = BalKind;
+  type Error = ByValErr;
+
+  fn kind(&self) -> BalKind {
+    match self {
+      Self::Num => BalKind::Num,
+      Self::LParen => BalKind::LParen,
+      Self::RParen => BalKind::RParen,
+      Self::Semi => BalKind::Semi,
+    }
+  }
+
+  fn is_trivia(&self) -> bool {
+    false
+  }
+}
+
+type BalLexer<'a> = LogosLexer<'a, BalTok>;
+type BalVerboseCtx<'a> = (Verbose<ByValErr>, DefaultCache<'a, BalLexer<'a>>);
+type BalFatalCtx<'a> = (
+  crate::emitter::Fatal<ByValErr>,
+  DefaultCache<'a, BalLexer<'a>>,
+);
+
+/// The parenthesis pair table: `(` opens, `)` closes, everything else is neutral.
+fn parens(kind: &BalKind) -> Balance<char> {
+  match kind {
+    BalKind::LParen => Balance::Open('('),
+    BalKind::RParen => Balance::Close('('),
+    _ => Balance::Neutral,
+  }
+}
+
+fn bal_input(src: &str, limit: usize) -> Input<'_, BalLexer<'_>, BalVerboseCtx<'_>, ()> {
+  Input::with_state_and_cache(
+    src,
+    TokenLimiter::with_limitation(limit),
+    DefaultCache::<'_, BalLexer<'_>>::default(),
+  )
+}
+
+#[test]
+fn sync_balanced_skips_enclosed_sync_tokens() {
+  // Nesting: the `;` inside the parenthesized garbage is at depth 1, where the sync
+  // predicate is never consulted, so the skip runs through it to the depth-0 `;`.
+  //   ( ; ) ;
+  //   0 2 4 6
+  use crate::span::SimpleSpan;
+
+  let mut input = bal_input("( ; ) ;", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let hole = inp
+      .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+      .unwrap()
+      .expect("the depth-0 `;` is a sync point");
+    assert_eq!(
+      hole.span(),
+      SimpleSpan::new(0, 5),
+      "the hole covers the skipped region `( ; )`"
+    );
+    assert_eq!(hole.skipped(), 3, "three tokens skipped into the hole");
+
+    // Stopped BEFORE the depth-0 sync token: committed at the last skipped token.
+    assert_eq!(inp.span(), &SimpleSpan::new(4, 5), "committed at `)`");
+    let next = inp.next().unwrap().expect("the sync token is next");
+    assert_eq!(*next.span_ref(), SimpleSpan::new(6, 7), "the depth-0 `;`");
+    assert!(matches!(next.data(), BalTok::Semi));
+  }
+
+  // One diagnostic per hole — and no per-token unexpected-token noise.
+  assert_eq!(
+    emitter
+      .skipped_regions()
+      .get(&crate::span::SimpleSpan::new(0, 5)),
+    Some(&std::vec![3usize]),
+    "exactly one skipped-region record, with the hole span and count"
+  );
+  assert_eq!(
+    emitter
+      .skipped_regions()
+      .values()
+      .map(|g| g.len())
+      .sum::<usize>(),
+    1,
+    "exactly one emit_skipped_region call"
+  );
+  let total: usize = emitter.errors().values().map(|g| g.len()).sum();
+  assert_eq!(total, 0, "the skipped tokens are not reported individually");
+}
+
+#[test]
+fn sync_balanced_stray_closer_is_garbage_and_depth_saturates() {
+  // A stray `)` at depth 0 that is not a sync point is skipped as garbage; the depth
+  // saturates at zero, so the following depth-0 `;` still syncs.
+  //   ) 1 ;
+  //   0 2 4
+  use crate::span::SimpleSpan;
+
+  let mut input = bal_input(") 1 ;", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let hole = inp
+      .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+      .unwrap()
+      .expect("the `;` is a sync point");
+    assert_eq!(hole.span(), SimpleSpan::new(0, 3), "the hole covers `) 1`");
+    assert_eq!(hole.skipped(), 2);
+
+    let next = inp.next().unwrap().expect("the sync token is next");
+    assert!(matches!(next.data(), BalTok::Semi));
+    assert_eq!(*next.span_ref(), SimpleSpan::new(4, 5));
+  }
+}
+
+#[test]
+fn sync_balanced_stray_closer_in_sync_set_syncs_at_depth_zero() {
+  // The classic `}` recovery target: a closer at depth 0 that IS in the sync set syncs —
+  // the predicate is consulted before the classifier at depth 0.
+  //   1 )
+  //   0 2
+  use crate::span::SimpleSpan;
+
+  let mut input = bal_input("1 )", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let hole = inp
+      .sync_balanced(parens, |t| matches!(t.data(), BalTok::RParen))
+      .unwrap()
+      .expect("the depth-0 `)` is the sync point");
+    assert_eq!(hole.span(), SimpleSpan::new(0, 1), "the hole covers `1`");
+    assert_eq!(hole.skipped(), 1);
+
+    let next = inp.next().unwrap().expect("the sync token is next");
+    assert!(matches!(next.data(), BalTok::RParen));
+    assert_eq!(*next.span_ref(), SimpleSpan::new(2, 3));
+  }
+}
+
+#[test]
+fn sync_balanced_opener_in_sync_set_syncs_before_counting() {
+  // The depth-0 predicate is consulted before the classifier for openers too: syncing to
+  // `(` stops before it instead of opening a pair.
+  //   1 (
+  //   0 2
+  use crate::span::SimpleSpan;
+
+  let mut input = bal_input("1 (", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let hole = inp
+      .sync_balanced(parens, |t| matches!(t.data(), BalTok::LParen))
+      .unwrap()
+      .expect("the depth-0 `(` is the sync point");
+    assert_eq!(hole.skipped(), 1);
+
+    let next = inp.next().unwrap().expect("the sync token is next");
+    assert!(matches!(next.data(), BalTok::LParen));
+    assert_eq!(*next.span_ref(), SimpleSpan::new(2, 3));
+  }
+}
+
+#[test]
+fn sync_balanced_zero_skip_success_emits_no_diagnostic() {
+  // The sync point is the very next token: success with an empty, zero-width hole at the
+  // resume position — and one-diagnostic-per-hole means no diagnostic for an empty hole.
+  use crate::span::SimpleSpan;
+
+  let mut input = bal_input("; 1", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let hole = inp
+      .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+      .unwrap()
+      .expect("the `;` is immediately at hand");
+    assert_eq!(hole.skipped(), 0, "nothing was skipped");
+    assert_eq!(
+      hole.span(),
+      SimpleSpan::new(0, 0),
+      "a zero-skip hole is zero-width at the resume position"
+    );
+
+    assert_eq!(inp.span(), &SimpleSpan::new(0, 0), "no progress committed");
+    let next = inp.next().unwrap().expect("the sync token is next");
+    assert!(matches!(next.data(), BalTok::Semi));
+  }
+
+  let holes: usize = emitter.skipped_regions().values().map(|g| g.len()).sum();
+  assert_eq!(holes, 0, "an empty hole is not reported");
+}
+
+#[test]
+fn sync_balanced_finds_sync_point_in_prefilled_cache() {
+  // The skipped prefix and the sync point can both sit in peeked lookahead: the drain
+  // commits the skipped cached tokens (with no per-token diagnostics) and stops at the
+  // cached sync point, which stays cached for the caller.
+  //   1 ;
+  //   0 2
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U2;
+
+  let mut input = bal_input("1 ;", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    drop(inp.peek::<U2>().unwrap());
+
+    let hole = inp
+      .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+      .unwrap()
+      .expect("the cached `;` is the sync point");
+    assert_eq!(hole.span(), SimpleSpan::new(0, 1), "the hole covers `1`");
+    assert_eq!(hole.skipped(), 1);
+
+    assert_eq!(inp.span(), &SimpleSpan::new(0, 1), "committed at `1`");
+    let next = inp.next().unwrap().expect("the cached sync token is next");
+    assert!(matches!(next.data(), BalTok::Semi));
+    assert_eq!(*next.span_ref(), SimpleSpan::new(2, 3));
+  }
+
+  let holes: usize = emitter.skipped_regions().values().map(|g| g.len()).sum();
+  assert_eq!(holes, 1, "exactly one hole for the drained prefix");
+  let total: usize = emitter.errors().values().map(|g| g.len()).sum();
+  assert_eq!(total, 0, "no per-token diagnostics for the drained prefix");
+}
+
+#[test]
+fn failed_sync_balanced_leaves_no_trace() {
+  // No sync point before end of input: the balanced sync fails and the no-trace law
+  // applies — position and state rewound to the pre-call anchor, and no hole diagnostic
+  // (one diagnostic per hole means none for a failed hole).
+  //   1 2 3
+  use crate::span::SimpleSpan;
+
+  let mut input = bal_input("1 2 3", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    assert!(
+      inp
+        .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+        .unwrap()
+        .is_none(),
+      "no sync point: the balanced sync fails"
+    );
+
+    assert_eq!(
+      inp.span(),
+      &SimpleSpan::new(0, 0),
+      "span stays at the pre-call anchor"
+    );
+    assert_eq!(inp.state().tokens(), 0, "state stays at the pre-call count");
+
+    let mut spans = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      spans.push(*t.span_ref());
+    }
+    assert_eq!(
+      spans,
+      std::vec![
+        SimpleSpan::new(0, 1),
+        SimpleSpan::new(2, 3),
+        SimpleSpan::new(4, 5)
+      ],
+      "the drain consumes the full token sequence normally"
+    );
+  }
+
+  let holes: usize = emitter.skipped_regions().values().map(|g| g.len()).sum();
+  assert_eq!(holes, 0, "a failed hole is never reported");
+  let total: usize = emitter.errors().values().map(|g| g.len()).sum();
+  assert_eq!(total, 0, "a failed balanced sync leaves no diagnostics");
+}
+
+#[test]
+fn failed_sync_balanced_with_prefilled_cache_leaves_no_trace() {
+  // The no-trace law holds across a prefilled cache: the drained cached prefix is rewound
+  // too, and the next read re-lexes it identically.
+  //   1 2 3
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U2;
+
+  let mut input = bal_input("1 2 3", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    drop(inp.peek::<U2>().unwrap());
+
+    assert!(
+      inp
+        .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+        .unwrap()
+        .is_none(),
+      "no sync point: the balanced sync fails"
+    );
+
+    assert_eq!(
+      inp.span(),
+      &SimpleSpan::new(0, 0),
+      "the drained cache prefix is rewound with the rest"
+    );
+
+    let mut spans = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      spans.push(*t.span_ref());
+    }
+    assert_eq!(
+      spans,
+      std::vec![
+        SimpleSpan::new(0, 1),
+        SimpleSpan::new(2, 3),
+        SimpleSpan::new(4, 5)
+      ],
+      "the formerly-cached tokens replay identically"
+    );
+  }
+
+  let holes: usize = emitter.skipped_regions().values().map(|g| g.len()).sum();
+  assert_eq!(holes, 0, "a failed hole is never reported");
+}
+
+#[test]
+fn failed_sync_balanced_reemits_crossed_lexer_error_once() {
+  // A failed balanced sync unwinds the lexer errors it crossed AND restores the dedup
+  // watermark, so the genuine consume that follows re-reports each exactly once.
+  //   1 @ 2   (`@` is a lexer error spanning [2, 3))
+  use crate::span::SimpleSpan;
+
+  let mut input = bal_input("1 @ 2", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    assert!(
+      inp
+        .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+        .unwrap()
+        .is_none(),
+      "no sync point: the balanced sync fails"
+    );
+
+    while inp.next().unwrap().is_some() {}
+  }
+
+  let at = SimpleSpan::new(2, 3);
+  assert_eq!(
+    emitter.errors().get(&at).map(|g| g.len()).unwrap_or(0),
+    1,
+    "the crossed lexer error re-emits exactly once on the genuine consume"
+  );
+  let total: usize = emitter.errors().values().map(|g| g.len()).sum();
+  assert_eq!(total, 1, "no other diagnostics survive the failed sync");
+}
+
+#[test]
+fn sync_balanced_trip_commits_prefix_without_hole_diagnostic() {
+  // A resource-limit trip mid-skip follows the sync-family trip contract: the skipped
+  // prefix is committed at the durable frontier and the poison latches there — but the
+  // sync itself failed, so NO hole diagnostic is emitted (only the limit error persists).
+  //   1 2 3 4   (limit 2 → the 3rd scanned token trips; `2` ends at offset 3)
+  use crate::span::SimpleSpan;
+
+  let mut input = bal_input("1 2 3 4", 2);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    assert!(
+      inp
+        .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+        .unwrap()
+        .is_none(),
+      "the trip yields the poisoned outcome — no sync point"
+    );
+
+    assert!(inp.is_poisoned(), "the trip latches the poison boundary");
+    assert_eq!(
+      inp.span(),
+      &SimpleSpan::new(2, 3),
+      "committed at the end of the last skipped token (`2`)"
+    );
+    assert_eq!(
+      inp.state().tokens(),
+      2,
+      "committed state counts exactly the skipped prefix"
+    );
+  }
+
+  let holes: usize = emitter.skipped_regions().values().map(|g| g.len()).sum();
+  assert_eq!(holes, 0, "a tripped (failed) sync reports no hole");
+  let limit = emitter
+    .errors()
+    .values()
+    .flatten()
+    .filter(|e| **e == ByValErr::Limit)
+    .count();
+  assert_eq!(limit, 1, "the limit trip is diagnosed exactly once");
+  let lex = emitter
+    .errors()
+    .values()
+    .flatten()
+    .filter(|e| **e == ByValErr::Lex)
+    .count();
+  assert_eq!(lex, 0, "no per-token unexpected diagnostics from the skip");
+}
+
+#[test]
+fn sync_balanced_fatal_emitter_mid_skip_commits_the_error_token() {
+  // A fatal emitter rejection during a mid-skip emission follows the sync-family
+  // fatal-exit discipline (the sync_through trip-commit precedent): the token that trips
+  // the fatal emitter is committed, and the error propagates.
+  //   1 @ ;   (`@` is a lexer error spanning [2, 3); `Fatal` rejects its emission)
+  use crate::span::SimpleSpan;
+
+  let mut input = Input::<BalLexer<'_>, BalFatalCtx<'_>, ()>::with_state_and_cache(
+    "1 @ ;",
+    TokenLimiter::with_limitation(usize::MAX),
+    DefaultCache::<'_, BalLexer<'_>>::default(),
+  );
+  let mut emitter = crate::emitter::Fatal::<ByValErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let r = inp.sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi));
+  assert_eq!(
+    r,
+    Err(ByValErr::Lex),
+    "the fatal emitter's rejection propagates"
+  );
+  assert_eq!(
+    inp.span(),
+    &SimpleSpan::new(2, 3),
+    "the token that tripped the fatal emitter is committed"
+  );
+}
+
+#[test]
+fn sync_balanced_hole_emission_unwinds_on_rollback() {
+  // The hole diagnostic is rewind-safe by construction: it rides the emitter log, so an
+  // enclosing attempt that rolls the skip back unwinds it like any other emission — and a
+  // clean re-run records it exactly once again.
+  //   1 2 ;
+  use crate::span::SimpleSpan;
+
+  let mut input = bal_input("1 2 ;", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+
+    let declined: Option<()> = inp.attempt(|inp| {
+      let hole = inp
+        .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+        .unwrap()
+        .expect("the `;` is a sync point");
+      assert_eq!(hole.skipped(), 2);
+      None
+    });
+    assert!(declined.is_none(), "the attempt declines and rolls back");
+
+    assert_eq!(
+      inp.span(),
+      &SimpleSpan::new(0, 0),
+      "the rollback restores the pre-skip position"
+    );
+    // The rolled-back hole emission is gone; a clean re-run records it exactly once.
+    let hole = inp
+      .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+      .unwrap()
+      .expect("the `;` is still the sync point");
+    assert_eq!(hole.span(), SimpleSpan::new(0, 3));
+    assert_eq!(hole.skipped(), 2);
+  }
+
+  assert_eq!(
+    emitter
+      .skipped_regions()
+      .get(&crate::span::SimpleSpan::new(0, 3)),
+    Some(&std::vec![2usize]),
+    "exactly one hole record survives: the rolled-back one was unwound"
+  );
+  let holes: usize = emitter.skipped_regions().values().map(|g| g.len()).sum();
+  assert_eq!(holes, 1);
+}
