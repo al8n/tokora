@@ -1,5 +1,9 @@
 use crate::{
-  Window, cache::Peeked, input::InputRef, parser::PeekThenChoice, try_parse_input::ParseAttempt,
+  Token, Window,
+  cache::Peeked,
+  input::InputRef,
+  parser::{DispatchOnKind, PeekThenChoice},
+  try_parse_input::ParseAttempt,
 };
 
 use super::*;
@@ -40,6 +44,10 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
   /// parsing is stopped and return the error from the handler.
+  ///
+  /// The handler owns its failure diagnostic — including any `expected one of …` set. To derive
+  /// that set automatically from a static table of viable first-token kinds instead, see
+  /// [`dispatch_on_kind`](Self::dispatch_on_kind).
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn peek_then_choice<H, W: Window>(self, condition: H) -> PeekThenChoice<Self, H, L, Ctx, W, Lang>
   where
@@ -73,6 +81,36 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     ) -> Result<Option<Self::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     PeekThenChoice::of(self, condition)
+  }
+
+  /// Creates a [`DispatchOnKind`] combinator that dispatches on the kind of the next token
+  /// using a **static table** of viable first-token kinds.
+  ///
+  /// `table[i]` is the viable first-token [`Kind`](Token::Kind) for branch `i`, in branch
+  /// order. The combinator peeks a single token, looks its kind up in the table, and runs the
+  /// matching branch. On a **committed dispatch failure** — the next token's kind is absent from
+  /// the table — the returned [`UnexpectedToken`](crate::error::token::UnexpectedToken) carries
+  /// the *whole* table as its expected set (`expected one of …`, an
+  /// [`Expected::OneOf`](crate::utils::Expected::OneOf)); at end-of-input it returns an
+  /// [`UnexpectedEot`](crate::error::UnexpectedEot). The expected set is exact and never
+  /// speculative because the viable set is precisely the table.
+  ///
+  /// Unlike [`peek_then_choice`](Self::peek_then_choice), whose handler must build any failure
+  /// diagnostic by hand, `dispatch_on_kind` derives the expected set from the table automatically.
+  /// For many-to-one dispatch (several kinds routing to one branch) use
+  /// [`peek_then_choice`](Self::peek_then_choice) instead.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn dispatch_on_kind(
+    self,
+    table: &'static [<L::Token as Token<'inp>>::Kind],
+  ) -> DispatchOnKind<Self, <L::Token as Token<'inp>>::Kind, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    <L::Token as Token<'inp>>::Kind: 'static,
+  {
+    DispatchOnKind::of(self, table)
   }
 }
 
@@ -206,6 +244,17 @@ impl<const N: usize> Branch<N> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn id(&self) -> usize {
     self.0
+  }
+
+  /// Constructs a branch from a raw index.
+  ///
+  /// Crate-internal: the caller must guarantee `index <= N` (the in-bounds contract every
+  /// `ParseChoice` dispatch relies on). Used by [`DispatchOnKind`](crate::parser::DispatchOnKind)
+  /// after a table lookup, where the matched table position is a valid branch index.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) const fn from_index(index: usize) -> Self {
+    debug_assert!(index <= N, "Branch index out of range");
+    Branch(index)
   }
 }
 
