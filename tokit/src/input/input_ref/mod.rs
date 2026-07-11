@@ -19,6 +19,7 @@ use crate::{
 
 use super::{
   Cache, Checkpoint, Complete, Completeness, Cursor, Lexed, Lexer, Lineage, Source, Span,
+  SurfaceIncomplete,
 };
 
 mod consume_cached;
@@ -48,6 +49,9 @@ pub use stacked::{SavepointId, StackedTransaction};
 
 #[cfg(all(test, feature = "logos", feature = "std"))]
 mod tests;
+
+#[cfg(all(test, feature = "logos", feature = "std"))]
+mod partial_tests;
 
 /// A reference to an `Input` instance.
 pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = (), Cmpl = Complete>
@@ -1326,10 +1330,33 @@ where
   ///
   /// Skips over lexer errors, emitting them through the provided emitter.
   /// Non-fatal errors are emitted and the method continues to the next token.
+  ///
+  /// # Partial-input frontier (`Partial`, non-final)
+  ///
+  /// On a [`Partial`](crate::input::Partial) input that is not yet final
+  /// ([`is_final`](Self::is_final) `== false`), three conservative rules keep a construct that
+  /// later input could still extend from being mistaken for a finished one — each surfaces an
+  /// [`Incomplete`](crate::error::Incomplete) on the `Err` channel instead:
+  ///
+  /// 1. **Frontier holdback** — a token whose span **end touches the buffer end** is not yielded;
+  ///    it may be a prefix of a longer token once more input arrives.
+  /// 2. **Frontier error** — a lexer error whose span **touches the buffer end** is not emitted; it
+  ///    may be a truncation artifact.
+  /// 3. **Non-final EOF** — lexer exhaustion is not treated as genuine end of input; more may come.
+  ///
+  /// A genuine limit trip (poison boundary) still yields `Ok(None)` — it is terminal, not
+  /// incomplete. With [`is_final`](Self::is_final) `== true`, or on a
+  /// [`Complete`](crate::input::Complete) input, all three rules are off and `next` behaves
+  /// identically to before this typestate existed (the checks are eliminated at monomorphization).
+  /// The frontier holdback means the last token only becomes visible after more input arrives or
+  /// the input is marked final — a **one-token latency** that is correct by construction. See the
+  /// [`input`](crate::input) module docs for the Sans-I/O resumption loop.
   #[allow(clippy::should_implement_trait)]
   pub fn next(
     &mut self,
   ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   {
     if let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();
@@ -1411,6 +1438,24 @@ where
   /// [`AtCursor`] for scans that commit no progress first, [`AtFrontier`] for
   /// scans that consume tokens as they go — and advances over each error the
   /// loop skips on the way to the next event.
+  ///
+  /// # The partial-input frontier rules live here
+  ///
+  /// This is the sole driver of the single lexing site
+  /// ([`lex_within_boundary`](Self::lex_within_boundary)), so the three partial-input frontier
+  /// rules are applied here once for every consume path (`next`, `try_expect*`, `skip_while`, the
+  /// `sync` family) rather than scattered across them. In [`Partial`](crate::input::Partial)
+  /// non-final mode they surface an [`Incomplete`](crate::error::Incomplete) on the `Err` channel,
+  /// which every `scan_with(..)?` caller propagates unchanged:
+  ///
+  /// - **frontier holdback / frontier error** — a lexed item (token *or* error) whose span end
+  ///   touches the buffer end is withheld, since more input could extend it;
+  /// - **non-final EOF** — lexer exhaustion that is *not* a poison-boundary trip surfaces
+  ///   Incomplete, since more input may still arrive.
+  ///
+  /// All three are written `if Cmpl::PARTIAL && …`; on a [`Complete`](crate::input::Complete)
+  /// input `Cmpl::PARTIAL` is a `false` constant, so the whole block is eliminated at
+  /// monomorphization and this compiles to the pre-typestate scanner byte for byte.
   #[cfg_attr(not(tarpaulin), inline)]
   fn scan_with<Fr>(
     &mut self,
@@ -1420,8 +1465,17 @@ where
   ) -> Result<Scan<'inp, L>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Fr: Frontier<'inp, L>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   {
     while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(lexer, lex_at) {
+      // Frontier holdback (rule 1) and frontier error (rule 2): in partial, non-final mode a
+      // lexed item whose span END touches the buffer end may be a prefix of a longer construct
+      // once more input arrives, so it is neither yielded nor emitted — surface Incomplete
+      // instead. Const-gated: `Complete::PARTIAL` is `false`, so this is dead-code-eliminated and
+      // `is_final()` is never even evaluated on the complete path.
+      if Cmpl::PARTIAL && !self.is_final() && span.end_ref() >= &self.input.len() {
+        return Err(Cmpl::surface_incomplete(span.end_ref().clone()));
+      }
       match tok {
         Lexed::Error(err) => {
           let boundary = frontier.boundary(self.offset());
@@ -1443,6 +1497,14 @@ where
         }
         Lexed::Token(tok) => return Ok(Scan::Token(Spanned::new(span, tok))),
       }
+    }
+
+    // Non-final EOF (rule 3): the lexer is exhausted, but in partial non-final mode more input
+    // may still arrive, so this is not genuine end of input — surface Incomplete. A poison-boundary
+    // trip is exempt: it is a terminal limit outcome (re-lexing the same prefix re-trips), so it
+    // stands as `Eof`. Const-gated, so `Complete` never reaches this and yields `Eof` as before.
+    if Cmpl::PARTIAL && !self.is_final() && !self.reached_boundary(lex_at) {
+      return Err(Cmpl::surface_incomplete(lex_at.clone()));
     }
 
     Ok(Scan::Eof)

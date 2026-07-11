@@ -169,6 +169,17 @@ where
       if let Some(lexed) = self.lex_within_boundary(&mut lexer, &mut lex_at) {
         let (span, lexed) = lexed.into_components();
 
+        // Frontier holdback (partial, non-final): a lexed item whose span END touches the buffer
+        // end may extend with more input, so it must never enter the cache — a later `next()`
+        // serves cached tokens without re-lexing, which would bypass the scan-path holdback — nor
+        // be emitted. Stop filling and withhold it; the peek returns a short window, and the
+        // Incomplete surfaces when a consume path re-lexes the frontier via `scan_with`. This
+        // preserves the invariant that the cache never holds a frontier token in this mode.
+        // Const-gated: `Complete::PARTIAL` is `false`, so this is eliminated at monomorphization.
+        if Cmpl::PARTIAL && !self.is_final() && span.end_ref() >= &self.input.len() {
+          break;
+        }
+
         match lexed {
           Lexed::Error(e) => {
             // A limit trip is sticky: latch the durable frontier (the end of the

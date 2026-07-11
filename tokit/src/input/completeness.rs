@@ -24,6 +24,8 @@
 
 use core::fmt::Debug;
 
+use crate::{Emitter, Lexer, ParseContext, error::Incomplete};
+
 pub(crate) mod sealed {
   /// Seals [`Completeness`](super::Completeness): only [`Complete`](super::Complete) and
   /// [`Partial`](super::Partial), defined in this crate, implement it, so the set of input modes
@@ -115,5 +117,58 @@ impl Completeness for Partial {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn set_final(finality: &mut Self::Finality, is_final: bool) {
     *finality = is_final;
+  }
+}
+
+/// Constructs the emitter's error as an [`Incomplete`] partial-input sentinel — the
+/// incomplete-surfacing mechanism the frontier rules call at the scan chokepoint.
+///
+/// This is the **minimal least-surface bound** that keeps the complete path bound-free. The scan
+/// methods need to build the user's error type as an incomplete, but requiring that everywhere
+/// would force the bound onto every complete-mode caller. Routing it through this trait — which
+/// [`Completeness`] extends — makes the requirement *conditional on the typestate*:
+///
+/// - [`Complete`] implements it **unconditionally**, with an `unreachable!()` body. Complete mode
+///   never surfaces an incomplete ([`Completeness::PARTIAL`] is `false`, so every call site is
+///   dead-code-eliminated), so it needs no construction and imposes **no new bound** — a complete
+///   parse compiles exactly as before.
+/// - [`Partial`] implements it only where `<Ctx::Emitter>::Error: From<Incomplete<L::Offset>>`, so
+///   that `From` requirement lands **only** on partial-mode parses.
+///
+/// The trait is sealed through its [`Completeness`] supertrait (only [`Complete`] and [`Partial`]
+/// exist), and the orphan rule keeps downstream from implementing it for either.
+pub trait SurfaceIncomplete<'inp, L, Ctx, Lang: ?Sized>: Completeness
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  /// Builds the emitter's error as an [`Incomplete`] at `offset` — the offset the input ran out
+  /// at (the frontier). Called only in partial, non-final mode.
+  fn surface_incomplete(offset: L::Offset) -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error;
+}
+
+impl<'inp, L, Ctx, Lang: ?Sized> SurfaceIncomplete<'inp, L, Ctx, Lang> for Complete
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn surface_incomplete(_offset: L::Offset) -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error {
+    // Unreachable by construction: `Complete::PARTIAL` is `false`, so every frontier rule is
+    // written `if Cmpl::PARTIAL && …` and this call is eliminated at monomorphization. Providing
+    // an unconditional (bound-free) impl is what keeps `From<Incomplete>` off the complete path.
+    unreachable!("Complete-mode input never surfaces Incomplete (PARTIAL == false)")
+  }
+}
+
+impl<'inp, L, Ctx, Lang: ?Sized> SurfaceIncomplete<'inp, L, Ctx, Lang> for Partial
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<Incomplete<L::Offset>>,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn surface_incomplete(offset: L::Offset) -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error {
+    Incomplete::new(offset).into()
   }
 }

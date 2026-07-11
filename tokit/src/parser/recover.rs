@@ -653,6 +653,15 @@ mod tests {
     }
   }
 
+  // The exact construction path W5's frontier rules use (`SurfaceIncomplete` builds the emitter
+  // error as `Error::from(Incomplete::new(off))`); pairing it with `MaybeIncomplete` below keeps
+  // construct-and-detect coherent, which is what makes the never-recoverable law hold end to end.
+  impl From<crate::error::Incomplete<usize>> for RecErr {
+    fn from(_: crate::error::Incomplete<usize>) -> Self {
+      RecErr::Incomplete
+    }
+  }
+
   impl crate::error::MaybeIncomplete for RecErr {
     fn is_incomplete(&self) -> bool {
       matches!(self, RecErr::Incomplete)
@@ -714,6 +723,40 @@ mod tests {
     assert!(
       !invoked.get(),
       "the recoverer must never run for an Incomplete"
+    );
+  }
+
+  // The W5 partial-input incomplete: the value the frontier rules actually surface is built via
+  // `From<Incomplete>` (not the hand-written `RecErr::Incomplete` literal above). Prove that value
+  // reports itself incomplete and that `Recover` re-raises it untouched — the never-recoverable law
+  // wired to the real surfacing mechanism.
+  #[test]
+  fn recover_reraises_a_from_incomplete_built_error() {
+    let surfaced: RecErr = crate::error::Incomplete::new(7usize).into();
+    assert!(
+      surfaced.is_incomplete(),
+      "an error built the way the frontier rules build it must report itself incomplete"
+    );
+
+    let mut input = Input::<Lex<'_>, RCtx<'_>, ()>::new("1 2 3");
+    let mut emitter = Silent::<RecErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+
+    let invoked = core::cell::Cell::new(false);
+    let mut rec = Recover::<_, _, (), Lex<'_>, RCtx<'_>, ()>::new(
+      FailWith(surfaced.clone()),
+      FlagRecover { invoked: &invoked },
+    );
+
+    let r = rec.parse_input(&mut inp);
+    assert_eq!(
+      r,
+      Err(surfaced),
+      "the partial-mode incomplete is re-raised untouched"
+    );
+    assert!(
+      !invoked.get(),
+      "the recoverer never runs for a partial-mode incomplete"
     );
   }
 

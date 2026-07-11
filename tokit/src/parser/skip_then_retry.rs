@@ -186,6 +186,15 @@ mod tests {
     }
   }
 
+  // The construction path W5's frontier rules use (`SurfaceIncomplete` → `Error::from(Incomplete)`),
+  // kept coherent with `is_incomplete()` below so the never-recoverable law holds for the value the
+  // input layer actually surfaces.
+  impl From<crate::error::Incomplete<usize>> for RtErr {
+    fn from(_: crate::error::Incomplete<usize>) -> Self {
+      RtErr::Incomplete
+    }
+  }
+
   impl crate::error::MaybeIncomplete for RtErr {
     fn is_incomplete(&self) -> bool {
       matches!(self, RtErr::Incomplete)
@@ -428,6 +437,48 @@ mod tests {
     assert_eq!(holes, 0, "nothing was skipped");
     let total: usize = emitter.errors().values().map(|g| g.len()).sum();
     assert_eq!(total, 0, "nothing was emitted");
+  }
+
+  #[test]
+  fn skip_then_retry_reraises_a_from_incomplete_built_error() {
+    // The value W5's frontier rules surface is built via `From<Incomplete>`. Prove that value is
+    // recognized as incomplete and re-raised before any skip — the classifier and sync predicate
+    // never run, nothing is emitted.
+    let surfaced: RtErr = crate::error::Incomplete::new(4usize).into();
+    assert!(surfaced.is_incomplete());
+
+    let mut input = Input::<Lex<'_>, Ctx<'_>, ()>::new("1 2 3");
+    let mut emitter = Verbose::<RtErr>::new();
+    let calls = Rc::new(Cell::new(0));
+    let classified = Cell::new(false);
+    let synced = Cell::new(false);
+    {
+      let mut inp = input.as_ref(&mut emitter);
+      let mut p = SkipThenRetry::<_, _, _, (), Lex<'_>, Ctx<'_>, ()>::new(
+        FailWith {
+          err: surfaced.clone(),
+          calls: calls.clone(),
+        },
+        |_k: &RtKind| {
+          classified.set(true);
+          Balance::<()>::Neutral
+        },
+        |_t: Spanned<&RtTok, &SimpleSpan>| {
+          synced.set(true);
+          false
+        },
+      );
+      assert_eq!(
+        p.parse_input(&mut inp),
+        Err(surfaced),
+        "a From<Incomplete>-built error is re-raised untouched"
+      );
+    }
+    assert_eq!(calls.get(), 1, "the parser ran once; no retry");
+    assert!(!classified.get(), "the classifier never runs");
+    assert!(!synced.get(), "the sync predicate never runs");
+    let holes: usize = emitter.skipped_regions().values().map(|g| g.len()).sum();
+    assert_eq!(holes, 0, "nothing was skipped");
   }
 
   #[test]
