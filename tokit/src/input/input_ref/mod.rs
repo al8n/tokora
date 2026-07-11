@@ -681,25 +681,27 @@ where
     self.lineage.pop_through(id);
   }
 
-  /// Pins `id` — the begin-point checkpoint of a transaction guard or an
-  /// [`attempt`](Self::attempt) — so a raw [`restore`](Self::restore) reaching below it panics at
-  /// the restore. Every guard constructor ([`begin_with`](Self::begin_with),
-  /// [`begin_stacked_with`](Self::begin_stacked_with)) and
-  /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) pins on entry; the matching
+  /// Pins `id` — the begin-point checkpoint of a transaction guard, an
+  /// [`attempt`](Self::attempt), or a [`ParseState`](crate::ParseState) session point — so a raw
+  /// [`restore`](Self::restore) reaching below it panics at the restore. Every guard constructor
+  /// ([`begin_with`](Self::begin_with), [`begin_stacked_with`](Self::begin_stacked_with)),
+  /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt), and
+  /// [`ParseState::begin_point`](crate::ParseState::begin_point) pins on entry; the matching
   /// [`unpin_checkpoint`](Self::unpin_checkpoint) runs on every settle path. See
-  /// [`Lineage::pin`](super::Lineage::pin) for the borrowck-serialization argument.
+  /// [`Lineage::pin`](super::Lineage::pin) for the borrowck-serialization argument (session points
+  /// are serialized instead by their own last-in, first-out stack).
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
-  fn pin_checkpoint(&mut self, id: u64) {
+  pub(crate) fn pin_checkpoint(&mut self, id: u64) {
     self.lineage.pin(id);
   }
 
-  /// Removes `id` from the pin set when its guard or attempt settles; see
+  /// Removes `id` from the pin set when its guard, attempt, or session point settles; see
   /// [`Lineage::unpin`](super::Lineage::unpin). Called on **every** settle path (commit, explicit
-  /// rollback, `Drop`, and both closure arms of the attempts).
+  /// rollback, `Drop`, both closure arms of the attempts, and both session-point verbs).
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
-  fn unpin_checkpoint(&mut self, id: u64) {
+  pub(crate) fn unpin_checkpoint(&mut self, id: u64) {
     self.lineage.unpin(id);
   }
 

@@ -43,6 +43,10 @@ use super::{
 /// single-closure speculation, and raw [`save`](InputRef::save)/[`restore`](InputRef::restore)
 /// only where no guard shape fits.
 ///
+/// The guards fit lexical scopes; for owned, externally-driven speculation — a driver that owns
+/// its input and is stepped across separate calls — reach for
+/// [`ParseState`](crate::ParseState)'s session points; raw checkpoints sit beneath both.
+///
 /// # Compile-time last-in, first-out
 ///
 /// A nested transaction mutably borrows its parent for as long as it is alive, so the
