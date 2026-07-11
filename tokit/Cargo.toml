@@ -34,6 +34,13 @@ logos_0_14 = ["dep:logos_0_14"]
 logos_0_15 = ["dep:logos_0_15"]
 logos_0_16 = ["dep:logos_0_16"]
 
+# Exposes the raw, unstable checkpoint backtracking API — `InputRef::{save, restore, commit}`
+# and, with them, the `Checkpoint` type's construction and consumption. Off by default: the
+# supported backtracking surface is the transaction guards (`begin`/`begin_stacked`), the
+# `ParseState` session points, and `attempt`/`try_attempt`. No dependencies; opting in only
+# flips those three methods from crate-internal to public.
+unstable-raw = []
+
 rowan = ["dep:rowan", "std"]
 
 bytes = ["bytes_1"]
@@ -116,7 +123,9 @@ required-features = ["logos", "std"]
 name = "backtrack"
 path = "benches/backtrack.rs"
 harness = false
-required-features = ["logos", "std"]
+# Exercises the raw checkpoint triple (`save`/`restore`/`commit`), which is public only under
+# `unstable-raw`; require it so the bench is skipped rather than failing to compile when off.
+required-features = ["logos", "std", "unstable-raw"]
 
 [[example]]
 name = "json"

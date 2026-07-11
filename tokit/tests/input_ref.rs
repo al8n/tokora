@@ -790,6 +790,7 @@ fn ctx() -> ParserContext<'static, TestLexer<'static>, TestEm> {
   ParserContext::new(TestEm)
 }
 
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn rewind_to_start_after_consuming() {
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<(i64, i64), E>
@@ -821,6 +822,7 @@ fn rewind_to_start_after_consuming() {
   assert_eq!(a, 42);
 }
 
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn rewind_after_peek_populates_cache() {
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, E>
@@ -845,6 +847,7 @@ fn rewind_after_peek_populates_cache() {
   assert_eq!(r.unwrap(), 42);
 }
 
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn rewind_mid_stream() {
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, E>
@@ -870,6 +873,7 @@ fn rewind_mid_stream() {
   assert_eq!(nums, vec![2, 3]);
 }
 
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn rewind_with_empty_remaining_input() {
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, E>

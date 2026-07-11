@@ -1255,6 +1255,7 @@ fn verbose_emit_unexpected_token() {
 // Verbose emitter: restore rewinds using the front cached token's start offset
 // ═══════════════════════════════════════════════════════════════════════════════
 
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn restore_rewinds_verbose_errors_using_front_cache_start() {
   fn parse<'inp>(
@@ -1303,6 +1304,7 @@ fn restore_rewinds_verbose_errors_using_front_cache_start() {
   r.unwrap();
 }
 
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn restore_rewinds_verbose_errors_adjacent_to_checkpoint() {
   fn parse<'inp>(
@@ -1363,6 +1365,7 @@ fn restore_rewinds_verbose_errors_adjacent_to_checkpoint() {
 // two pre-checkpoint errors were emitted before `save()` (so they survive) and the
 // two speculative errors after it (so they drop) — even though every error shares the
 // same span as another, the emission-order mark splits them cleanly.
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn restore_rewinds_verbose_same_span_vec_by_span_end() {
   fn parse<'inp>(
@@ -1426,6 +1429,7 @@ fn restore_rewinds_verbose_same_span_vec_by_span_end() {
 // restore offset, so a *zero-width* error emitted AT the checkpoint offset during an
 // abandoned branch (its end == the offset) survived as a ghost. Emission-aware rewind
 // drops it because it was recorded after the checkpoint mark, regardless of span.
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn restore_drops_speculative_zero_width_ghost_at_checkpoint() {
   fn parse<'inp>(
@@ -1463,6 +1467,7 @@ fn restore_drops_speculative_zero_width_ghost_at_checkpoint() {
 // The inverse the offset heuristic could not express: a zero-width error emitted
 // BEFORE the checkpoint at the SAME offset must SURVIVE, while a later speculative one
 // at that offset drops. Emission order separates them; span end alone cannot.
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn restore_keeps_pre_checkpoint_zero_width_at_same_offset() {
   fn parse<'inp>(

@@ -6,6 +6,21 @@ use super::{Cursor, Lexer};
 /// from it: the cursor, the last-consumed span, the lexer state, the emitter's
 /// emission mark, the lexer-error deduplication watermark, and the poison boundary.
 ///
+/// # Unstable: obtainable only under `unstable-raw`
+///
+/// This type is public so it can be named (the [`Cache`](crate::Cache) trait's
+/// [`rewind`](crate::Cache::rewind) hook takes `&Checkpoint`, and the guards, savepoints, and
+/// session points hold it internally), but its lifecycle is **sealed** to the `unstable-raw`
+/// feature: [`save`](crate::InputRef::save) (the only way to obtain one),
+/// [`restore`](crate::InputRef::restore), and [`commit`](crate::InputRef::commit) (the only ways
+/// to consume one) are public only with that feature. Without it, a `Checkpoint` cannot be
+/// created or spent from another crate, so the raw contract below is unrepresentable downstream —
+/// the supported backtracking surface is the transaction guards
+/// ([`begin`](crate::InputRef::begin) / [`begin_stacked`](crate::InputRef::begin_stacked)), the
+/// [`ParseState`](crate::ParseState) session points, and
+/// [`attempt`](crate::InputRef::attempt)/[`try_attempt`](crate::InputRef::try_attempt). With the
+/// feature on, the last-in, first-out / lineage contract that follows applies unchanged.
+///
 /// A checkpoint is a snapshot of one **lineage**: the concrete history of tokens
 /// lexed and diagnostics emitted up to the moment of the save. Restoring makes that
 /// history the live one again. Because diagnostics roll back by truncation (see

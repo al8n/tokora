@@ -4,6 +4,12 @@
 #![cfg_attr(docsrs, allow(unused_attributes))]
 #![allow(clippy::double_parens, clippy::type_complexity)]
 #![deny(missing_docs, warnings)]
+// With `unstable-raw` off, `InputRef::{save, restore, commit}` are `pub(crate)`, so the many
+// public items documenting the raw checkpoint contract (the `Checkpoint` type, the transaction
+// guards, `ParseState`, `attempt`) link to crate-private methods. Those links are intentionally
+// inert in that build and fully live under the feature (and on docs.rs, which builds all
+// features); relax the lint only when the feature is off so the on-feature docs stay strict.
+#![cfg_attr(not(feature = "unstable-raw"), allow(rustdoc::private_intra_doc_links))]
 
 #[cfg(all(not(feature = "std"), feature = "alloc"))]
 extern crate alloc as std;

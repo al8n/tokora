@@ -231,6 +231,11 @@ pub struct SavepointId<'t> {
 ///   watermark, and position all return). A nested speculation that saves and then restores
 ///   or commits its own younger checkpoint leaves every savepoint below it untouched.
 ///
+/// The raw-restore rules above are reachable only with the `unstable-raw` feature. Without it,
+/// raw [`save`](InputRef::save) / [`restore`](InputRef::restore) are crate-internal, so a
+/// downstream crate cannot mix a raw restore into a live transaction at all — only the savepoint
+/// operations and nested guards remain, and none of those can invalidate a savepoint.
+///
 /// ```ignore
 /// // Best-match selection across three stages: keep a fallback after each, then return
 /// // to the highest-scoring one and resume from exactly there.

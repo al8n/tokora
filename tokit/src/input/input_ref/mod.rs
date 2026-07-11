@@ -532,7 +532,7 @@ where
   ///
   /// Prefer this for imperative flows with several exits (loops, `match` arms);
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) for single-closure
-  /// speculation; raw `save`/`restore` only where no guard shape fits.
+  /// speculation; raw `save`/`restore` (feature `unstable-raw`) only where no guard shape fits.
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn begin(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, Rollback> {
     self.begin_with::<Rollback>()
@@ -596,8 +596,13 @@ where
   /// - [`attempt`](Self::attempt) / [`try_attempt`](Self::try_attempt) — closure-shaped
   ///   speculation;
   /// - [`begin_with::<Commit>`](Self::begin_with) — commit-by-default flows where progress
-  ///   is kept on most exits (raw [`save`](Self::save) / [`restore`](Self::restore) only
-  ///   where no guard shape fits).
+  ///   is kept on most exits;
+  /// - [`ParseState`](crate::ParseState) session points — owned, non-lexical speculation a
+  ///   driver steps across separate calls.
+  ///
+  /// Raw [`save`](Self::save) / [`restore`](Self::restore) sit beneath all of these as the
+  /// `unstable-raw` escape hatch — reachable only with that feature, for the rare shape no guard
+  /// or session point fits.
   ///
   /// Dropping an undecided guard rolls back to the begin point; for a stacked guard that
   /// instead keeps its progress on drop, use
@@ -803,6 +808,18 @@ where
 
   /// Saves the current state as a [`Checkpoint`] for backtracking.
   ///
+  /// # Unstable: feature-gated raw API
+  ///
+  /// `save` is one third of the raw checkpoint triple (`save` / [`restore`](Self::restore) /
+  /// [`commit`](Self::commit)) and is public **only** under the `unstable-raw` feature; without
+  /// it the method is crate-internal, so a [`Checkpoint`] can be neither obtained nor consumed
+  /// from another crate. The supported backtracking surface is the transaction guards
+  /// ([`begin`](Self::begin) / [`begin_stacked`](Self::begin_stacked)), the
+  /// [`ParseState`](crate::ParseState) session points, and
+  /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) — together these cover every
+  /// legal backtracking shape. The last-in, first-out / lineage contract documented here and on
+  /// [`restore`](Self::restore) governs the raw triple unchanged whenever the feature is on.
+  ///
   /// The checkpoint captures the cursor, the last-consumed span, the lexer state, the
   /// emitter's emission mark, the lexer-error dedup watermark, and the poison
   /// boundary — everything [`restore`](Self::restore) needs to make this exact moment
@@ -823,8 +840,26 @@ where
   /// Prefer [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) when the
   /// save/restore pair brackets a single speculative computation — they enforce the
   /// restore discipline by construction.
+  #[cfg(feature = "unstable-raw")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "unstable-raw")))]
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn save(&mut self) -> Checkpoint<'inp, 'closure, L> {
+    self.save_checkpoint()
+  }
+
+  /// The crate-internal raw `save`, used when the `unstable-raw` valve is off — the primitive the
+  /// transaction guards, [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt), and the
+  /// [`ParseState`](crate::ParseState) session points build on. Same body as the public flavor;
+  /// only its visibility differs.
+  #[cfg(not(feature = "unstable-raw"))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) fn save(&mut self) -> Checkpoint<'inp, 'closure, L> {
+    self.save_checkpoint()
+  }
+
+  /// Shared body of the [`save`](Self::save) twins.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn save_checkpoint(&mut self) -> Checkpoint<'inp, 'closure, L> {
     // Open a lineage entry (every allocator build): take a fresh id, record it on the
     // live-checkpoint stack, and stamp it into the checkpoint. `restore` pops the stack down
     // through that id, and a `StackedTransaction` checks the id is still present before honoring
@@ -878,6 +913,17 @@ where
   }
 
   /// Rewinds the input to `checkpoint`'s save point.
+  ///
+  /// # Unstable: feature-gated raw API
+  ///
+  /// `restore` is part of the raw checkpoint triple ([`save`](Self::save) / `restore` /
+  /// [`commit`](Self::commit)) and is public **only** under the `unstable-raw` feature; without
+  /// it the method is crate-internal. The supported backtracking surface is the transaction
+  /// guards ([`begin`](Self::begin) / [`begin_stacked`](Self::begin_stacked)), the
+  /// [`ParseState`](crate::ParseState) session points, and
+  /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt); each enforces the
+  /// last-in, first-out discipline below by construction. That contract applies to the raw
+  /// triple unchanged whenever the feature is on.
   ///
   /// After a restore, the input behaves exactly as it did the moment the checkpoint
   /// was taken:
@@ -965,9 +1011,29 @@ where
   /// attributed to the wrong branch, and the replayed token stream may differ from
   /// what was visible at the save. The only well-specified use of a checkpoint is
   /// restoring it while it is still valid.
+  #[cfg(feature = "unstable-raw")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "unstable-raw")))]
   #[doc(alias = "rewinds")]
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+    self.restore_checked(checkpoint)
+  }
+
+  /// The crate-internal raw `restore`, used when the `unstable-raw` valve is off. Same body as
+  /// the public flavor; only its visibility differs. The transaction guards, the
+  /// [`ParseState`](crate::ParseState) session points, and
+  /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) rewind through it.
+  #[cfg(not(feature = "unstable-raw"))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+    self.restore_checked(checkpoint)
+  }
+
+  /// Shared body of the [`restore`](Self::restore) twins: verifies the last-in, first-out and
+  /// foreign-input discipline (debug + ptr builds) and refuses a restore that would tear out a
+  /// pinned guard/attempt begin point (every allocator build), then rewinds.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn restore_checked(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     // Verify the last-in, first-out discipline exactly, before any mutation: the
     // checkpoint must belong to this input, and it must still be live (restoring an
     // older checkpoint invalidates every one saved after it). Release and no-ptr builds
@@ -1002,6 +1068,16 @@ where
   /// checkpoint's lineage entry. This is the success-path counterpart to
   /// [`restore`](Self::restore) — the verb for a speculative branch that *worked out*.
   ///
+  /// # Unstable: feature-gated raw API
+  ///
+  /// `commit` is part of the raw checkpoint triple ([`save`](Self::save) /
+  /// [`restore`](Self::restore) / `commit`) and is public **only** under the `unstable-raw`
+  /// feature; without it the method is crate-internal. The supported backtracking surface is the
+  /// transaction guards ([`begin`](Self::begin) / [`begin_stacked`](Self::begin_stacked)), the
+  /// [`ParseState`](crate::ParseState) session points, and
+  /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt); the lineage contract below
+  /// applies to the raw triple unchanged whenever the feature is on.
+  ///
   /// # Contract: end each checkpoint in exactly one of restore or commit
   ///
   /// A saved [`Checkpoint`] should end its life in exactly one of two ways: hand it to
@@ -1035,8 +1111,37 @@ where
   ///
   /// Allocator-less builds keep no lineage stack, so `commit` there merely drops the checkpoint;
   /// the growth it prevents cannot arise without a stack to grow.
+  #[cfg(feature = "unstable-raw")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "unstable-raw")))]
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn commit(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+    self.commit_checkpoint(checkpoint)
+  }
+
+  /// The crate-internal raw `commit`, used when the `unstable-raw` valve is off. Same body as the
+  /// public flavor; only its visibility differs. Its sole in-crate caller is the allocator-gated
+  /// [`ParseState::commit_point`](crate::ParseState::commit_point) (the guards release their kept
+  /// begin points through unpin/forget directly), so in an allocator-less valve-off build it is
+  /// deliberately uncalled — kept defined so the raw triple stays whole in every configuration.
+  #[cfg(not(feature = "unstable-raw"))]
+  #[cfg_attr(not(any(feature = "std", feature = "alloc")), allow(dead_code))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) fn commit(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+    self.commit_checkpoint(checkpoint)
+  }
+
+  /// Shared body of the [`commit`](Self::commit) twins. Reachable only through them, so in the
+  /// one configuration where both are uncalled (valve off, no allocator — see the twin above) it
+  /// shares their deliberate-dead-code allowance.
+  #[cfg_attr(
+    all(
+      not(feature = "unstable-raw"),
+      not(any(feature = "std", feature = "alloc"))
+    ),
+    allow(dead_code)
+  )]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn commit_checkpoint(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     // Cheap sanity in debug + ptr builds, mirroring `restore`'s foreign-input guard: a
     // checkpoint may only be committed into the input that created it. Presence is NOT
     // asserted — committing a dead checkpoint is the documented no-op handled below.

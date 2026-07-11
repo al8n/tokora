@@ -177,6 +177,7 @@ fn attempt_failure_rolls_back() {
 
 // ── InputRef::save / restore ────────────────────────────────────────────────
 
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn save_and_restore() {
   fn parse<'inp, Ctx>(

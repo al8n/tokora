@@ -717,6 +717,7 @@ fn sync_through_empty_input() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Option cache: rewind to before cached token clears it.
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn option_cache_rewind_before_cached_token() {
   fn parse<'inp, Ctx>(
@@ -771,6 +772,7 @@ fn option_cache_rewind_at_cached_token_position() {
 }
 
 /// Option cache: rewind with non-empty cache where cursor is AFTER cached token.
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn option_cache_rewind_cursor_after_cached_span() {
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<Token>, ()>

@@ -40,7 +40,8 @@ use super::{
 /// [`begin_with::<Commit>`](InputRef::begin_with) for a commit-by-default loop that keeps
 /// progress on most exits and rolls back explicitly on the few that back out. Reach for
 /// [`attempt`](InputRef::attempt)/[`try_attempt`](InputRef::try_attempt) for
-/// single-closure speculation, and raw [`save`](InputRef::save)/[`restore`](InputRef::restore)
+/// single-closure speculation. Raw [`save`](InputRef::save)/[`restore`](InputRef::restore) sit
+/// beneath all of these as the `unstable-raw` escape hatch, reachable only with that feature and
 /// only where no guard shape fits.
 ///
 /// The guards fit lexical scopes; for owned, externally-driven speculation — a driver that owns
@@ -89,6 +90,11 @@ use super::{
 /// behaviors remain as backstops behind the pin check — an explicit [`rollback`](Self::rollback)
 /// still asserts a live base, a rolling-back drop still skips a stale one — defense in depth that
 /// the pin check now makes unreachable in ordinary use.
+///
+/// This entire mixing surface exists only with the `unstable-raw` feature. Without it, raw
+/// [`save`](InputRef::save) / [`restore`](InputRef::restore) are crate-internal, so a downstream
+/// crate cannot express a raw restore beneath a live guard at all — the hazard is unrepresentable
+/// there, and the guard is the whole story.
 pub struct Transaction<'txn, 'inp, 'closure, L, Ctx, Lang: ?Sized = (), P: DropPolicy = Rollback>
 where
   L: Lexer<'inp>,

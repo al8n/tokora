@@ -143,7 +143,9 @@ where
   /// base carries applies until the point is settled: a raw [`restore`](crate::InputRef::restore)
   /// that would rewind the lineage *below* this point would tear its foundation out, and the pin
   /// makes such a restore **panic where it is requested** rather than corrupt the timeline
-  /// silently. Settle the point with [`commit_point`](Self::commit_point) (keep the progress) or
+  /// silently. That raw restore is reachable only with the `unstable-raw` feature, so without it
+  /// the hazard is unrepresentable downstream and session points are the whole story. Settle the
+  /// point with [`commit_point`](Self::commit_point) (keep the progress) or
   /// [`rollback_point`](Self::rollback_point) (return to it); points settle newest-first.
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn begin_point(&mut self) {
