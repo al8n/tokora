@@ -712,3 +712,6 @@ fn assert_stream_eq<'inp, L>(
     );
   }
 }
+
+#[cfg(test)]
+mod tests;
