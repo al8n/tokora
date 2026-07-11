@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use derive_more::Display;
 
-use crate::utils::CowStr;
+use crate::utils::{CowStr, Expected};
 
 /// A zero-sized marker indicating the parser expected more bytes when the file ended.
 ///
@@ -216,11 +216,28 @@ pub struct PrattLhsHint;
 ///     Ok(config)
 /// }
 /// ```
+/// # The optional expected-set (`Set`)
+///
+/// The final type parameter `Set` is the element type of an **optional** end-of-input expected
+/// set — the "…, expected one of X, Y, Z" table a committed dispatch failure at end of input can
+/// attach (see [`DispatchOnKind`](crate::parser::DispatchOnKind)). It is purely additive: `Set`
+/// defaults to `&'static str` and every existing constructor leaves the set `None`, so the common
+/// end-of-input errors (`eof`/`eot`/`eos`) and the [type aliases](UnexpectedEof) are unchanged.
+/// The set is populated only through the dedicated `*_expected_*` constructors and read back
+/// through [`expected`](Self::expected).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct UnexpectedEnd<Hint, O = usize, Lang: ?Sized = ()> {
+pub struct UnexpectedEnd<Hint, O = usize, Lang: ?Sized = (), Set = &'static str>
+where
+  Set: Clone + 'static,
+{
   offset: O,
   name: Option<CowStr>,
   hint: Hint,
+  /// The optional end-of-input expected set (`None` for every legacy constructor). Stored with a
+  /// `'static` set lifetime because the expected tables that feed it are `&'static` (static
+  /// dispatch tables), which keeps `Set` a single trailing type parameter rather than forcing a
+  /// lifetime onto the whole type.
+  expected: Option<Expected<'static, Set>>,
   _lang: PhantomData<Lang>,
 }
 
@@ -549,6 +566,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
       offset,
       name,
       hint,
+      expected: None,
       _lang: PhantomData,
     }
   }
@@ -588,6 +606,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
       offset,
       name: None,
       hint,
+      expected: None,
       _lang: PhantomData,
     }
   }
@@ -718,6 +737,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
       offset: self.offset,
       name: self.name,
       hint: f(self.hint),
+      expected: self.expected,
       _lang: PhantomData,
     }
   }
@@ -863,21 +883,113 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   }
 }
 
-impl<Hint, O, Lang: ?Sized> From<UnexpectedEnd<Hint, O, Lang>> for () {
+impl<Hint, O, Lang: ?Sized, Set> UnexpectedEnd<Hint, O, Lang, Set>
+where
+  Set: Clone + 'static,
+{
+  /// Creates an unexpected end carrying an explicit **optional expected set** — the additive
+  /// end-of-input variant. The other constructors leave the set `None`; this is the general form
+  /// that populates it.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use tokit::{error::{TokenHint, UnexpectedEnd}, utils::{CowStr, Expected}};
+  ///
+  /// let error: UnexpectedEnd<TokenHint, usize, (), &'static str> = UnexpectedEnd::maybe_expected_of(
+  ///     10,
+  ///     Some(CowStr::from_static("token stream")),
+  ///     TokenHint,
+  ///     Some(Expected::one_of(&["if", "while"])),
+  /// );
+  /// assert!(matches!(error.expected(), Some(Expected::OneOf(_))));
+  /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn from(_: UnexpectedEnd<Hint, O, Lang>) -> Self {}
+  pub const fn maybe_expected_of(
+    offset: O,
+    name: Option<CowStr>,
+    hint: Hint,
+    expected: Option<Expected<'static, Set>>,
+  ) -> Self {
+    Self {
+      offset,
+      name,
+      hint,
+      expected,
+      _lang: PhantomData,
+    }
+  }
+
+  /// Returns the optional end-of-input expected set, if one was attached.
+  ///
+  /// `None` for every end-of-input error built through the legacy constructors
+  /// (`eof`/`eot`/`eos`/…); `Some` only for the `*_expected_*` forms — e.g. a committed
+  /// [`DispatchOnKind`](crate::parser::DispatchOnKind) failure at end of input reports its whole
+  /// dispatch table here.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn expected(&self) -> Option<&Expected<'static, Set>> {
+    self.expected.as_ref()
+  }
+}
+
+impl<O, Lang: ?Sized, Set> UnexpectedEnd<TokenHint, O, Lang, Set>
+where
+  Set: Clone + 'static,
+{
+  /// Creates an unexpected **end of token stream** (EOT) carrying the full **expected set** — the
+  /// "…, expected one of X, Y, Z" table a committed dispatch failure attaches at end of input.
+  ///
+  /// This is the end-of-input sibling of
+  /// [`UnexpectedToken::expected_one_of`](crate::error::token::UnexpectedToken::expected_one_of):
+  /// same "token stream" name and [`TokenHint`] as [`eot`](Self::eot), plus the expected set.
+  ///
+  /// ## Example
+  ///
+  /// ```rust
+  /// use tokit::{error::{TokenHint, UnexpectedEnd}, utils::Expected};
+  ///
+  /// let error: UnexpectedEnd<TokenHint, usize, ()> =
+  ///     UnexpectedEnd::eot_expected_one_of(50, &["if", "while", "for"]);
+  /// assert_eq!(error.offset(), 50);
+  /// assert_eq!(error.name(), Some("token stream"));
+  /// if let Some(Expected::OneOf(set)) = error.expected() {
+  ///     assert_eq!(set.as_slice(), &["if", "while", "for"]);
+  /// }
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub const fn eot_expected_one_of(offset: O, expected: &'static [Set]) -> Self {
+    Self::maybe_expected_of(
+      offset,
+      Some(CowStr::from_static("token stream")),
+      TokenHint,
+      Some(Expected::one_of(expected)),
+    )
+  }
+}
+
+impl<Hint, O, Lang: ?Sized, Set> From<UnexpectedEnd<Hint, O, Lang, Set>> for ()
+where
+  Set: Clone + 'static,
+{
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: UnexpectedEnd<Hint, O, Lang, Set>) -> Self {}
 }
 
 /// A type alias for unexpected EOF.
-pub type UnexpectedEof<O = usize, Lang = ()> = UnexpectedEnd<FileHint, O, Lang>;
+pub type UnexpectedEof<O = usize, Lang = (), Set = &'static str> =
+  UnexpectedEnd<FileHint, O, Lang, Set>;
 /// A type alias for unexpected end of token stream.
-pub type UnexpectedEot<O = usize, Lang = ()> = UnexpectedEnd<TokenHint, O, Lang>;
+pub type UnexpectedEot<O = usize, Lang = (), Set = &'static str> =
+  UnexpectedEnd<TokenHint, O, Lang, Set>;
 /// A type alias for unexpected end of string.
-pub type UnexpectedEos<O = usize, Lang = ()> = UnexpectedEnd<CharacterHint, O, Lang>;
+pub type UnexpectedEos<O = usize, Lang = (), Set = &'static str> =
+  UnexpectedEnd<CharacterHint, O, Lang, Set>;
 /// A type alias for unexpected end of right hand side.
-pub type UnexpectedEoRhs<O = usize, Lang = ()> = UnexpectedEnd<PrattRhsHint, O, Lang>;
+pub type UnexpectedEoRhs<O = usize, Lang = (), Set = &'static str> =
+  UnexpectedEnd<PrattRhsHint, O, Lang, Set>;
 /// A type alias for unexpected end of left hand side.
-pub type UnexpectedEoLhs<O = usize, Lang = ()> = UnexpectedEnd<PrattLhsHint, O, Lang>;
+pub type UnexpectedEoLhs<O = usize, Lang = (), Set = &'static str> =
+  UnexpectedEnd<PrattLhsHint, O, Lang, Set>;
 
 impl<Hint, O, Lang: ?Sized> From<(O, Hint)> for UnexpectedEnd<Hint, O, Lang> {
   #[cfg_attr(not(tarpaulin), inline(always))]

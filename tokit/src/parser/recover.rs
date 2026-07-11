@@ -1,4 +1,4 @@
-use crate::input::Cursor;
+use crate::{error::MaybeIncomplete, input::Cursor};
 
 use super::*;
 
@@ -333,6 +333,7 @@ where
   R: RecoverInput<'inp, L, O, Ctx, Lang>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: MaybeIncomplete,
   Lang: ?Sized,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -348,6 +349,11 @@ where
     // from the restored position exactly as the raw save/restore pair did.
     match inp.try_attempt(|input| self.parser.parse_input(input)) {
       Ok(output) => Ok(output),
+      // The never-recoverable law: an `Incomplete` rides the `Err` channel untouched. Recovery
+      // fabricates a value from a malformed construct, but an incomplete one is merely
+      // unfinished, so re-raise it verbatim rather than invoking the recoverer — see
+      // [`Incomplete`](crate::error::Incomplete) / [`MaybeIncomplete`](crate::error::MaybeIncomplete).
+      Err(e) if e.is_incomplete() => Err(e),
       Err(e) => self.recoverer.recover_input(inp, e),
     }
   }
@@ -526,6 +532,9 @@ mod tests {
     }
   }
 
+  // `LexErr` never carries an incomplete signal, so it takes the blanket `false` default.
+  impl crate::error::MaybeIncomplete for LexErr {}
+
   #[derive(Debug, Clone, PartialEq, Eq, crate::logos::Logos)]
   #[logos(crate = crate::logos, skip r"[ \t\r\n]+")]
   enum Tok {
@@ -626,5 +635,104 @@ mod tests {
         inp.live_checkpoints_len(),
       );
     }
+  }
+
+  // ── The never-recoverable law: Recover re-raises an Incomplete, untouched ──────
+
+  // An error type that can carry an incomplete signal (`Incomplete`) or an ordinary failure
+  // (`Other`). `is_incomplete()` is what `Recover` keys the law off of.
+  #[derive(Debug, Clone, PartialEq)]
+  enum RecErr {
+    Incomplete,
+    Other,
+  }
+
+  impl From<()> for RecErr {
+    fn from(_: ()) -> Self {
+      RecErr::Other
+    }
+  }
+
+  impl crate::error::MaybeIncomplete for RecErr {
+    fn is_incomplete(&self) -> bool {
+      matches!(self, RecErr::Incomplete)
+    }
+  }
+
+  type RCtx<'a> = (Silent<RecErr>, DefaultCache<'a, Lex<'a>>);
+  type REmitErr<'a> =
+    <<RCtx<'a> as ParseContext<'a, Lex<'a>, ()>>::Emitter as Emitter<'a, Lex<'a>, ()>>::Error;
+
+  /// A primary parser that fails outright with a chosen error, without consuming input.
+  struct FailWith(RecErr);
+
+  impl<'inp> ParseInput<'inp, Lex<'inp>, (), RCtx<'inp>, ()> for FailWith {
+    fn parse_input(
+      &mut self,
+      _inp: &mut InputRef<'inp, '_, Lex<'inp>, RCtx<'inp>, ()>,
+    ) -> Result<(), REmitErr<'inp>> {
+      Err(self.0.clone())
+    }
+  }
+
+  /// A recoverer that records whether it was invoked and otherwise succeeds.
+  struct FlagRecover<'f> {
+    invoked: &'f core::cell::Cell<bool>,
+  }
+
+  impl<'inp> RecoverInput<'inp, Lex<'inp>, (), RCtx<'inp>, ()> for FlagRecover<'_> {
+    fn recover_input(
+      &mut self,
+      _inp: &mut InputRef<'inp, '_, Lex<'inp>, RCtx<'inp>, ()>,
+      _err: REmitErr<'inp>,
+    ) -> Result<(), REmitErr<'inp>> {
+      self.invoked.set(true);
+      Ok(())
+    }
+  }
+
+  // The law, value-asserted: when the primary fails with an `Incomplete`, `Recover` re-raises it
+  // verbatim on the `Err` channel and NEVER invokes the recoverer.
+  #[test]
+  fn recover_reraises_incomplete_and_never_invokes_recoverer() {
+    let mut input = Input::<Lex<'_>, RCtx<'_>, ()>::new("1 2 3");
+    let mut emitter = Silent::<RecErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+
+    let invoked = core::cell::Cell::new(false);
+    let mut rec = Recover::<_, _, (), Lex<'_>, RCtx<'_>, ()>::new(
+      FailWith(RecErr::Incomplete),
+      FlagRecover { invoked: &invoked },
+    );
+
+    let r = rec.parse_input(&mut inp);
+    assert_eq!(
+      r,
+      Err(RecErr::Incomplete),
+      "an Incomplete is re-raised untouched on the Err channel"
+    );
+    assert!(
+      !invoked.get(),
+      "the recoverer must never run for an Incomplete"
+    );
+  }
+
+  // The scoping guard: an ordinary (non-incomplete) failure still recovers as before — the law
+  // does not swallow every error, only the incomplete sentinel.
+  #[test]
+  fn recover_still_recovers_an_ordinary_error() {
+    let mut input = Input::<Lex<'_>, RCtx<'_>, ()>::new("1 2 3");
+    let mut emitter = Silent::<RecErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+
+    let invoked = core::cell::Cell::new(false);
+    let mut rec = Recover::<_, _, (), Lex<'_>, RCtx<'_>, ()>::new(
+      FailWith(RecErr::Other),
+      FlagRecover { invoked: &invoked },
+    );
+
+    let r = rec.parse_input(&mut inp);
+    assert_eq!(r, Ok(()), "an ordinary error is recovered");
+    assert!(invoked.get(), "the recoverer runs for an ordinary error");
   }
 }

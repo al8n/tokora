@@ -1,5 +1,6 @@
 pub use errors::{DefaultContainer, Errors};
 pub use hex_escape::*;
+pub use incomplete::*;
 pub use incomplete_syntax::*;
 pub use incomplete_token::*;
 pub use invalid::*;
@@ -33,6 +34,7 @@ pub mod token;
 pub mod syntax;
 
 mod hex_escape;
+mod incomplete;
 mod incomplete_syntax;
 mod incomplete_token;
 mod invalid;

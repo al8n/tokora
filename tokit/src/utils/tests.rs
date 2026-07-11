@@ -57,11 +57,11 @@ fn str_is_ascii_digit() {
 #[test]
 fn slice_is_ascii_char() {
   assert!(IsAsciiChar::is_ascii_char(
-    [b'a'].as_slice(),
+    b"a".as_slice(),
     ascii::AsciiChar::a
   ));
   assert!(!IsAsciiChar::is_ascii_char(
-    [b'a', b'b'].as_slice(),
+    b"ab".as_slice(),
     ascii::AsciiChar::a
   ));
   assert!(!IsAsciiChar::is_ascii_char(
@@ -72,9 +72,9 @@ fn slice_is_ascii_char() {
 
 #[test]
 fn slice_is_ascii_digit() {
-  assert!(IsAsciiChar::is_ascii_digit([b'5'].as_slice()));
-  assert!(!IsAsciiChar::is_ascii_digit([b'a'].as_slice()));
-  assert!(!IsAsciiChar::is_ascii_digit([b'5', b'6'].as_slice()));
+  assert!(IsAsciiChar::is_ascii_digit(b"5".as_slice()));
+  assert!(!IsAsciiChar::is_ascii_digit(b"a".as_slice()));
+  assert!(!IsAsciiChar::is_ascii_digit(b"56".as_slice()));
   assert!(!IsAsciiChar::is_ascii_digit([].as_slice()));
 }
 

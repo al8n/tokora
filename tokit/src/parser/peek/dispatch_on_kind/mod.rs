@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use crate::{
   Branch, Emitter, InputRef, Lexer, ParseChoice, ParseContext, ParseInput, Span, Token,
   cache::PeekedTokenExt,
-  error::{UnexpectedEot, token::UnexpectedToken},
+  error::{UnexpectedEnd, UnexpectedEot, token::UnexpectedToken},
 };
 
 /// A deterministic dispatch combinator driven by a **static table** of viable
@@ -107,7 +107,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   <L::Token as Token<'inp>>::Kind: 'static,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<UnexpectedEot<L::Offset, Lang>>,
+    + From<UnexpectedEot<L::Offset, Lang, <L::Token as Token<'inp>>::Kind>>,
   Lang: ?Sized,
 {
   fn parse_input(
@@ -141,7 +141,13 @@ where
     // Phase 2: act now that the peek borrow is released.
     match dispatched {
       Dispatched::Hit(index) => self.parser.parse_choice(inp, &Branch::from_index(index)),
-      Dispatched::Eot => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
+      // End of input at a committed dispatch point: report the whole table as the expected set,
+      // exactly as the `Miss` arm does — the viable first-token set is precisely `self.table`.
+      // Built through `UnexpectedEnd` (not the `UnexpectedEot` alias) so the expected-set element
+      // type is inferred as the token kind from `self.table`, matching the `From` bound above.
+      Dispatched::Eot => {
+        Err(UnexpectedEnd::eot_expected_one_of(inp.span().end(), self.table).into())
+      }
       Dispatched::Miss { span, found } => Err(
         UnexpectedToken::<_, _, _, Lang>::expected_one_of(span, self.table)
           .with_found(found)

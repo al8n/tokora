@@ -23,7 +23,11 @@ enum DispatchError {
     expected: Vec<TokenKind>,
     found: Option<TokenKind>,
   },
-  Eot,
+  // End of token stream now carries the expected set (the whole dispatch table), lifted from the
+  // `UnexpectedEot`'s optional expected field.
+  Eot {
+    expected: Vec<TokenKind>,
+  },
   Lexer,
 }
 
@@ -48,9 +52,25 @@ impl<'a, S, Lang: ?Sized> From<UnexpectedToken<'a, Token, TokenKind, S, Lang>> f
   }
 }
 
+// The kind-set EOT that `DispatchOnKind` raises at a committed end-of-input: extract the table.
+impl<O, Lang: ?Sized> From<UnexpectedEot<O, Lang, TokenKind>> for DispatchError {
+  fn from(err: UnexpectedEot<O, Lang, TokenKind>) -> Self {
+    let expected = match err.expected() {
+      Some(Expected::One(kind)) => vec![*kind],
+      Some(Expected::OneOf(one_of)) => one_of.as_slice().to_vec(),
+      _ => Vec::new(),
+    };
+    DispatchError::Eot { expected }
+  }
+}
+
+// The plain EOT (default expected-set element type) that the branch parsers (`Any`) can raise —
+// distinct source type from the kind-set form above, so both conversions coexist.
 impl<O, Lang: ?Sized> From<UnexpectedEot<O, Lang>> for DispatchError {
   fn from(_: UnexpectedEot<O, Lang>) -> Self {
-    DispatchError::Eot
+    DispatchError::Eot {
+      expected: Vec::new(),
+    }
   }
 }
 
@@ -109,9 +129,15 @@ fn dispatch_failure_reports_full_expected_set_in_table_order() {
 
 #[test]
 fn dispatch_eof_reports_eot() {
-  // End-of-input at the dispatch point: `UnexpectedEot`, which carries no set.
+  // End-of-input at the dispatch point: `UnexpectedEot` now carries the full expected set — the
+  // whole table, in table order — exactly like the `Miss` arm's `UnexpectedToken`.
   let r = Parser::new().apply(dispatch3).parse_str("");
-  assert_eq!(r, Err(DispatchError::Eot));
+  assert_eq!(
+    r,
+    Err(DispatchError::Eot {
+      expected: vec![TokenKind::Num, TokenKind::Plus, TokenKind::LParen],
+    })
+  );
 }
 
 #[test]
