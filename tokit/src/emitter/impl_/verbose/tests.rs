@@ -1,5 +1,5 @@
 use super::*;
-use std::format;
+use std::{format, vec};
 
 #[test]
 fn verbose_new_is_empty() {
