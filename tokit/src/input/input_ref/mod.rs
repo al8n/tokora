@@ -17,7 +17,9 @@ use crate::{
   utils::Expected,
 };
 
-use super::{Cache, Checkpoint, Cursor, Lexed, Lexer, Lineage, Source, Span};
+use super::{
+  Cache, Checkpoint, Complete, Completeness, Cursor, Lexed, Lexer, Lineage, Source, Span,
+};
 
 mod consume_cached;
 mod drop_policy;
@@ -48,15 +50,20 @@ pub use stacked::{SavepointId, StackedTransaction};
 mod tests;
 
 /// A reference to an `Input` instance.
-pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = ()>
+pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = (), Cmpl = Complete>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   pub(super) input: &'closure &'inp L::Source,
   pub(super) state: &'closure mut L::State,
   pub(super) span: &'closure mut L::Span,
   pub(super) cache: &'closure mut Ctx::Cache,
+  /// The completeness finality (`is_final`) flag, copied by value from the owning [`Input`] (a ZST
+  /// for [`Complete`], a `bool` for [`Partial`]). The frontier rules read it only under
+  /// [`Completeness::PARTIAL`]; [`set_final`](Self::set_final) updates it as chunks arrive.
+  pub(super) finality: Cmpl::Finality,
   pub(super) emitted_error_end: &'closure mut L::Offset,
   pub(super) poison_boundary: &'closure mut Option<L::Offset>,
   /// The input's lineage memos (see [`Lineage`](super::Lineage)): the live-checkpoint stack, the
@@ -80,10 +87,11 @@ where
   pub(super) _marker: PhantomData<Lang>,
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> InputRef<'inp, '_, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   /// Returns a reference to the tokenizer's cache.
   ///
@@ -129,6 +137,29 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn state(&self) -> &L::State {
     self.state
+  }
+
+  /// Returns whether this input is **final** — the last chunk of a stream, or a
+  /// [`Complete`](crate::input::Complete) input (always final).
+  ///
+  /// A [`Partial`](crate::input::Partial) input reports the runtime flag last set by
+  /// [`set_final`](Self::set_final) (default `false`); a [`Complete`](crate::input::Complete) input
+  /// is final by definition, so this returns `true` and the partial-input frontier rules are inert.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn is_final(&self) -> bool {
+    Cmpl::is_final(&self.finality)
+  }
+
+  /// Marks whether this is the **final** chunk of a partial stream.
+  ///
+  /// Set `false` while more input may still arrive, `true` for the last chunk. While non-final, the
+  /// frontier rules hold back any construct that later input could extend, surfacing an
+  /// [`Incomplete`](crate::error::Incomplete); once final, a [`Partial`](crate::input::Partial)
+  /// input behaves exactly like a [`Complete`](crate::input::Complete) one. On a
+  /// [`Complete`](crate::input::Complete) input this is a no-op (its finality is a zero-sized type).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn set_final(&mut self, is_final: bool) {
+    Cmpl::set_final(&mut self.finality, is_final);
   }
 
   /// Returns a mutable reference to the current lexer state (extras).
@@ -407,11 +438,12 @@ where
   }
 }
 
-impl<'inp, 'closure, L, Ctx, Lang: ?Sized> InputRef<'inp, 'closure, L, Ctx, Lang>
+impl<'inp, 'closure, L, Ctx, Lang: ?Sized, Cmpl> InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   /// Attempts to parse with the given function, rolling back on failure.
   ///
@@ -548,7 +580,7 @@ where
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) for single-closure
   /// speculation; raw `save`/`restore` (feature `unstable-raw`) only where no guard shape fits.
   #[cfg_attr(not(tarpaulin), inline)]
-  pub fn begin(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, Rollback> {
+  pub fn begin(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, Rollback, Cmpl> {
     self.begin_with::<Rollback>()
   }
 
@@ -566,7 +598,9 @@ where
   /// [`commit`](Transaction::commit) and [`rollback`](Transaction::rollback) are available
   /// on either flavour; only the *drop* behaviour differs.
   #[cfg_attr(not(tarpaulin), inline)]
-  pub fn begin_with<D: DropPolicy>(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, D> {
+  pub fn begin_with<D: DropPolicy>(
+    &mut self,
+  ) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, D, Cmpl> {
     trace_event!(self, "begin");
     let ckp = self.save();
     // Pin the begin point: a raw restore below it (through the guard's `DerefMut`) now panics at
@@ -627,7 +661,7 @@ where
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn begin_stacked(
     &mut self,
-  ) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, Rollback> {
+  ) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, Rollback, Cmpl> {
     self.begin_stacked_with::<Rollback>()
   }
 
@@ -644,7 +678,7 @@ where
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn begin_stacked_with<D: DropPolicy>(
     &mut self,
-  ) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, D> {
+  ) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, D, Cmpl> {
     trace_event!(self, "begin_stacked");
     // Nonce = the address of this Input's `poison_boundary` field, an Input-owned slot the
     // `InputRef` holds a `&mut` to. Two simultaneously-live Inputs are distinct structs at

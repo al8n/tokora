@@ -5,6 +5,7 @@ use crate::{ParseContext, span::Span};
 use super::*;
 
 pub use checkpoint::Checkpoint;
+pub use completeness::{Complete, Completeness, Partial};
 pub use cursor::Cursor;
 pub use input_ref::{
   Balance, Commit, DelimClass, DropPolicy, Hole, InputRef, Rollback, Transaction,
@@ -15,6 +16,7 @@ pub(crate) use lineage::Lineage;
 pub use input_ref::{SavepointId, StackedTransaction};
 
 mod checkpoint;
+mod completeness;
 mod cursor;
 mod input_ref;
 mod lineage;
@@ -213,15 +215,21 @@ impl<E, C> InputContext<E, C> {
 ///     alternative_parser.parse(checkpoint);
 /// }
 /// ```
-pub(crate) struct Input<'inp, L, Ctx = DefaultCache<'inp, L>, Lang: ?Sized = ()>
+pub(crate) struct Input<'inp, L, Ctx = DefaultCache<'inp, L>, Lang: ?Sized = (), Cmpl = Complete>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   input: &'inp L::Source,
   state: L::State,
   span: L::Span,
   cache: Ctx::Cache,
+  /// The completeness finality (`is_final`) storage: the zero-sized `()` for [`Complete`] — so the
+  /// complete input has the identical layout it had before this typestate existed — and a `bool`
+  /// for [`Partial`]. The frontier rules read it only when [`Completeness::PARTIAL`] holds, so it
+  /// is inert (and free) on the complete path.
+  finality: Cmpl::Finality,
   /// High-water mark: lexer errors whose span ends at or before this offset have
   /// already been emitted (e.g. during a peek that lexed past this point), so the
   /// consume path must not report them again when it re-lexes the same region.
@@ -265,12 +273,13 @@ where
   witness: Witness,
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> Clone for Input<'inp, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> Clone for Input<'inp, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Cache: Clone,
+  Cmpl: Completeness,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn clone(&self) -> Self {
@@ -279,6 +288,9 @@ where
       state: self.state.clone(),
       span: self.span.clone(),
       cache: self.cache.clone(),
+      // The finality flag is `Copy` (a ZST for `Complete`, a `bool` for `Partial`); a clone shares
+      // the same completeness regime as the original.
+      finality: self.finality,
       emitted_error_end: self.emitted_error_end.clone(),
       poison_boundary: self.poison_boundary.clone(),
       // A clone is a new input that shares the cache contents: `Lineage::forked` carries the
@@ -300,13 +312,14 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> core::fmt::Debug for Input<'inp, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> core::fmt::Debug for Input<'inp, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   L::Source: core::fmt::Debug,
   L::State: core::fmt::Debug,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Cache: core::fmt::Debug,
+  Cmpl: Completeness,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -319,11 +332,12 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> Input<'inp, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> Input<'inp, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Default,
   Ctx: ParseContext<'inp, L, Lang, Cache = DefaultCache<'inp, L>>,
+  Cmpl: Completeness,
 {
   /// Creates a new lexer from the given input.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -333,10 +347,11 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> Input<'inp, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> Input<'inp, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang, Cache = DefaultCache<'inp, L>>,
+  Cmpl: Completeness,
 {
   /// Creates a new lexer from the given input and state.
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -347,6 +362,9 @@ where
       state,
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache: DefaultCache::<'inp, L>::default(),
+      // A fresh input starts non-final (`Partial`) or final-by-definition (`Complete`); callers
+      // that are streaming set the flag via [`InputRef::set_final`] as chunks arrive.
+      finality: Cmpl::finality(false),
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
       lineage: Lineage::new(),
@@ -362,10 +380,11 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> Input<'inp, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> Input<'inp, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn with_state_and_cache(input: &'inp L::Source, state: L::State, cache: Ctx::Cache) -> Self
@@ -377,6 +396,9 @@ where
       state,
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache,
+      // Non-final by default for `Partial`; the ZST regime for `Complete`. Streaming callers set
+      // the flag with [`InputRef::set_final`] as chunks arrive.
+      finality: Cmpl::finality(false),
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
       lineage: Lineage::new(),
@@ -396,12 +418,15 @@ where
   pub const fn as_ref<'closure>(
     &'closure mut self,
     emitter: &'closure mut Ctx::Emitter,
-  ) -> InputRef<'inp, 'closure, L, Ctx, Lang> {
+  ) -> InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl> {
     InputRef {
       input: &self.input,
       state: &mut self.state,
       cache: &mut self.cache,
       span: &mut self.span,
+      // `Copy` (a ZST for `Complete`); copied into the reference so the frontier rules read it
+      // without an extra borrow, keeping the `Complete` reference layout unchanged.
+      finality: self.finality,
       emitted_error_end: &mut self.emitted_error_end,
       poison_boundary: &mut self.poison_boundary,
       lineage: &mut self.lineage,

@@ -5,7 +5,7 @@ use core::{
 
 use super::super::SavepointStack;
 use super::{
-  Checkpoint, InputRef, Lexer, ParseContext,
+  Checkpoint, Complete, Completeness, InputRef, Lexer, ParseContext,
   drop_policy::{DropPolicy, Rollback},
 };
 
@@ -265,12 +265,14 @@ pub struct StackedTransaction<
   Ctx,
   Lang: ?Sized = (),
   P: DropPolicy = Rollback,
+  Cmpl = Complete,
 > where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
-  pub(super) input: &'txn mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+  pub(super) input: &'txn mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
   /// The begin point. `Some` while the transaction is undecided; `None` once
   /// [`commit`](Self::commit) / [`rollback`](Self::rollback) (or a rolling-back drop)
   /// has consumed it. Routing the whole-transaction decision through this one
@@ -292,12 +294,13 @@ pub struct StackedTransaction<
   pub(super) _policy: PhantomData<P>,
 }
 
-impl<'txn, 'inp, L, Ctx, Lang: ?Sized, P: DropPolicy>
-  StackedTransaction<'txn, 'inp, '_, L, Ctx, Lang, P>
+impl<'txn, 'inp, L, Ctx, Lang: ?Sized, P: DropPolicy, Cmpl>
+  StackedTransaction<'txn, 'inp, '_, L, Ctx, Lang, P, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   /// Marks the current position as a savepoint and returns its id (SQL `SAVEPOINT`).
   ///
@@ -409,11 +412,13 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> StackedTransaction<'_, 'inp, '_, L, Ctx, Lang, P>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy, Cmpl>
+  StackedTransaction<'_, 'inp, '_, L, Ctx, Lang, P, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   /// Commits the whole transaction: keeps every parsed byte and forgets all savepoints
   /// and the begin point without restoring. Available whatever the drop policy.
@@ -457,14 +462,15 @@ where
   }
 }
 
-impl<'inp, 'closure, L, Ctx, Lang: ?Sized, P: DropPolicy> Deref
-  for StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, P>
+impl<'inp, 'closure, L, Ctx, Lang: ?Sized, P: DropPolicy, Cmpl> Deref
+  for StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, P, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
-  type Target = InputRef<'inp, 'closure, L, Ctx, Lang>;
+  type Target = InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref(&self) -> &Self::Target {
@@ -472,12 +478,13 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> DerefMut
-  for StackedTransaction<'_, 'inp, '_, L, Ctx, Lang, P>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy, Cmpl> DerefMut
+  for StackedTransaction<'_, 'inp, '_, L, Ctx, Lang, P, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref_mut(&mut self) -> &mut Self::Target {
@@ -485,12 +492,13 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> Drop
-  for StackedTransaction<'_, 'inp, '_, L, Ctx, Lang, P>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy, Cmpl> Drop
+  for StackedTransaction<'_, 'inp, '_, L, Ctx, Lang, P, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   /// Decides an undecided transaction according to its [`DropPolicy`](super::DropPolicy).
   /// After [`commit`](Self::commit) / [`rollback`](Self::rollback) the base and savepoints

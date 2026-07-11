@@ -5,13 +5,14 @@
 //! is handed to [`crate::trace::write_line`], which routes it out of band (stderr, or the
 //! test capture buffer) — never through the emitter.
 
-use super::InputRef;
+use super::{Completeness, InputRef};
 use crate::{Lexer, ParseContext, source::Source};
 
-impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> InputRef<'inp, '_, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   /// A short, generic preview of the source at the cursor: the current offset plus a debug
   /// window of the remaining source, truncated. Cheap and works for every [`Source`].

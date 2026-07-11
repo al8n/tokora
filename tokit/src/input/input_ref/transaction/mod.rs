@@ -4,7 +4,7 @@ use core::{
 };
 
 use super::{
-  Checkpoint, InputRef, Lexer, ParseContext,
+  Checkpoint, Complete, Completeness, InputRef, Lexer, ParseContext,
   drop_policy::{DropPolicy, Rollback},
 };
 
@@ -95,13 +95,22 @@ use super::{
 /// [`save`](InputRef::save) / [`restore`](InputRef::restore) are crate-internal, so a downstream
 /// crate cannot express a raw restore beneath a live guard at all — the hazard is unrepresentable
 /// there, and the guard is the whole story.
-pub struct Transaction<'txn, 'inp, 'closure, L, Ctx, Lang: ?Sized = (), P: DropPolicy = Rollback>
-where
+pub struct Transaction<
+  'txn,
+  'inp,
+  'closure,
+  L,
+  Ctx,
+  Lang: ?Sized = (),
+  P: DropPolicy = Rollback,
+  Cmpl = Complete,
+> where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
-  pub(super) input: &'txn mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+  pub(super) input: &'txn mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
   /// `Some` while the transaction is undecided; `None` once
   /// [`commit`](Self::commit)/[`rollback`](Self::rollback) (or a deciding drop) has
   /// consumed it. Routing every decision through this one `Option::take` is what keeps
@@ -113,11 +122,13 @@ where
   pub(super) _policy: PhantomData<P>,
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> Transaction<'_, 'inp, '_, L, Ctx, Lang, P>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy, Cmpl>
+  Transaction<'_, 'inp, '_, L, Ctx, Lang, P, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   /// Commits the transaction: keeps the progress parsed through the guard and drops the
   /// begin-point checkpoint without restoring. Available whatever the drop policy.
@@ -165,14 +176,15 @@ where
   }
 }
 
-impl<'inp, 'closure, L, Ctx, Lang: ?Sized, P: DropPolicy> Deref
-  for Transaction<'_, 'inp, 'closure, L, Ctx, Lang, P>
+impl<'inp, 'closure, L, Ctx, Lang: ?Sized, P: DropPolicy, Cmpl> Deref
+  for Transaction<'_, 'inp, 'closure, L, Ctx, Lang, P, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
-  type Target = InputRef<'inp, 'closure, L, Ctx, Lang>;
+  type Target = InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref(&self) -> &Self::Target {
@@ -180,12 +192,13 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> DerefMut
-  for Transaction<'_, 'inp, '_, L, Ctx, Lang, P>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy, Cmpl> DerefMut
+  for Transaction<'_, 'inp, '_, L, Ctx, Lang, P, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn deref_mut(&mut self) -> &mut Self::Target {
@@ -193,11 +206,13 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy> Drop for Transaction<'_, 'inp, '_, L, Ctx, Lang, P>
+impl<'inp, L, Ctx, Lang: ?Sized, P: DropPolicy, Cmpl> Drop
+  for Transaction<'_, 'inp, '_, L, Ctx, Lang, P, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   /// Decides an undecided transaction according to its [`DropPolicy`](super::DropPolicy).
   /// After [`commit`](Self::commit)/[`rollback`](Self::rollback) the checkpoint is
