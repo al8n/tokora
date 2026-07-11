@@ -29,6 +29,8 @@ mod skip_while;
 mod stacked;
 mod sync_through;
 mod sync_to;
+#[cfg(feature = "trace")]
+mod trace;
 mod transaction;
 mod try_expect;
 
@@ -59,6 +61,11 @@ where
   /// operations. [`save`](InputRef::save) / [`restore`](InputRef::restore) / [`commit`](InputRef::commit)
   /// and the transaction guards are the sole writers.
   pub(super) lineage: &'closure mut Lineage,
+  /// Trace nesting depth, borrowed from the owning [`Input`] (the `trace` feature). Its sole
+  /// mutators are [`traced`](crate::traced)'s enter/exit hooks; internal leaf events only read
+  /// it for indentation.
+  #[cfg(feature = "trace")]
+  pub(super) depth: &'closure mut usize,
   /// Debug-only witness of the input identity, for `restore`'s foreign-input check.
   #[cfg(all(
     debug_assertions,
@@ -428,6 +435,7 @@ where
   where
     F: FnOnce(&mut Self) -> Option<R>,
   {
+    trace_event!(self, "attempt");
     let ckp = self.save();
     // Pin the attempt's begin point: a raw restore below it inside `f` panics at the restore.
     #[cfg(any(feature = "std", feature = "alloc"))]
@@ -458,6 +466,7 @@ where
             "attempt checkpoint is stale (invalidated by an earlier restore)"
           );
         }
+        trace_event!(self, "rollback");
         self.restore(ckp);
         None
       }
@@ -486,6 +495,7 @@ where
   where
     F: FnOnce(&mut Self) -> Result<T, E>,
   {
+    trace_event!(self, "try_attempt");
     let ckp = self.save();
     // Pin the attempt's begin point: a raw restore below it inside `f` panics at the restore.
     #[cfg(any(feature = "std", feature = "alloc"))]
@@ -513,6 +523,7 @@ where
             "attempt checkpoint is stale (invalidated by an earlier restore)"
           );
         }
+        trace_event!(self, "rollback");
         self.restore(ckp);
         Err(e)
       }
@@ -553,6 +564,7 @@ where
   /// on either flavour; only the *drop* behaviour differs.
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn begin_with<D: DropPolicy>(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, D> {
+    trace_event!(self, "begin");
     let ckp = self.save();
     // Pin the begin point: a raw restore below it (through the guard's `DerefMut`) now panics at
     // the restore. Every settle path (commit, rollback, Drop — both policy flavors) unpins.
@@ -630,6 +642,7 @@ where
   pub fn begin_stacked_with<D: DropPolicy>(
     &mut self,
   ) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, D> {
+    trace_event!(self, "begin_stacked");
     // Nonce = the address of this Input's `poison_boundary` field, an Input-owned slot the
     // `InputRef` holds a `&mut` to. Two simultaneously-live Inputs are distinct structs at
     // distinct addresses (the field is never zero-sized), so their nonces differ and a

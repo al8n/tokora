@@ -180,6 +180,7 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
+    trace_event!(self, "try_expect");
     // if cache is empty, directly try expect on input
     if self.cache.is_empty() {
       return self.try_expect_on_input(pred);
@@ -255,6 +256,7 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> Option<O>,
   {
+    trace_event!(self, "try_expect_map");
     // if cache is empty, directly try expect on input
     if self.cache.is_empty() {
       return self.try_expect_map_on_input(pred);
@@ -299,6 +301,7 @@ where
       Spanned<&L::Token, &L::Span>,
     ) -> Option<Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>>,
   {
+    trace_event!(self, "try_expect_and_then");
     // if cache is empty, directly try expect on input
     if self.cache.is_empty() {
       return self.try_expect_and_then_on_input(pred);

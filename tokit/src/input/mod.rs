@@ -247,6 +247,12 @@ where
   /// single-writer taxonomy) and kept after the ground-truth cells above, so the scanner-hot
   /// fields pack ahead of it on the `next()` path.
   lineage: Lineage,
+  /// Trace nesting depth (the `trace` feature). [`traced`](crate::traced) bumps it on enter
+  /// and drops it on exit, so instrumentation indents by call depth. A plain field, borrowed
+  /// by [`InputRef`]; trace events travel out of band (stderr), never through the emitter, so
+  /// a rewind never eats them.
+  #[cfg(feature = "trace")]
+  depth: usize,
   /// Debug-only witness of the input identity a checkpoint was created under (see
   /// [`InputRef::restore`]); the lineage stack itself lives in the [`Lineage`] memos.
   #[cfg(all(
@@ -277,6 +283,9 @@ where
       // cache-push and savepoint counters forward and starts a fresh, empty live-checkpoint
       // lineage and pin set (see it for the per-cell rationale).
       lineage: self.lineage.forked(),
+      // Carry the trace depth forward so nested traces keep indenting across a clone.
+      #[cfg(feature = "trace")]
+      depth: self.depth,
       // A clone is a new input: `Witness::clone` mints a fresh identity, so the clone's
       // checkpoints and the original's never cross.
       #[cfg(all(
@@ -339,6 +348,8 @@ where
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
       lineage: Lineage::new(),
+      #[cfg(feature = "trace")]
+      depth: 0,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -367,6 +378,8 @@ where
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
       lineage: Lineage::new(),
+      #[cfg(feature = "trace")]
+      depth: 0,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -390,6 +403,8 @@ where
       emitted_error_end: &mut self.emitted_error_end,
       poison_boundary: &mut self.poison_boundary,
       lineage: &mut self.lineage,
+      #[cfg(feature = "trace")]
+      depth: &mut self.depth,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),

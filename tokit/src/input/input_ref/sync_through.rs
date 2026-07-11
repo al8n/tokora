@@ -33,6 +33,7 @@ where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
+    trace_event!(self, "sync_through");
     // A no-match run to end of input must leave no trace — even across a prefilled cache.
     // `sync_matched_in_cache` below drains the non-matching cached prefix, advancing
     // span/state and emitting an unexpected-token diagnostic per drained token; the later
@@ -202,6 +203,7 @@ where
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
     W: Window,
   {
+    trace_event!(self, "sync_through_then_peek");
     // A no-match run to end of input must leave no trace — even across a prefilled cache.
     // `sync_matched_in_cache` below drains the non-matching cached prefix, advancing
     // span/state and emitting an unexpected-token diagnostic per drained token; the later

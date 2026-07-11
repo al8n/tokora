@@ -50,6 +50,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
+    trace_event!(inp, "separated_while");
     let mut state = State::Start;
     let anchor = inp.cursor().clone();
     let mut num_elems = 0;

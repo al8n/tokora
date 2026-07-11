@@ -419,6 +419,7 @@ where
   /// and the begin point without restoring. Available whatever the drop policy.
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn commit(mut self) {
+    trace_event!(self.input, "commit");
     // Forget youngest-first (each is the live-stack top when popped), then the base last
     // (it is the deepest, so it is the top once the savepoints are gone). Taking `base`
     // leaves the `Drop` guard nothing to restore.
@@ -437,6 +438,7 @@ where
   /// guard can still be rolled back explicitly).
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn rollback(mut self) {
+    trace_event!(self.input, "rollback");
     // Restoring the base pops the live stack down through it, carrying off every
     // savepoint id in one step; the savepoint checkpoints then just drop with `self`.
     if let Some(base) = self.base.take() {

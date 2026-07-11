@@ -17,6 +17,12 @@ extern crate alloc as std;
 #[cfg(feature = "std")]
 extern crate std;
 
+// Declared before the combinator modules so the internal `trace_event!` hook macro is in
+// scope for them. With the `trace` feature off the macro expands to nothing, so every hook
+// site compiles away entirely.
+#[macro_use]
+mod trace;
+
 #[cfg(feature = "logos_0_16")]
 #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_16")))]
 pub use logos_0_16 as logos;
@@ -42,6 +48,16 @@ pub use span::{SimpleSpan, Span};
 pub use state::State;
 pub use token::Token;
 pub use try_parse_input::TryParseInput;
+
+#[cfg(feature = "trace")]
+#[cfg_attr(docsrs, doc(cfg(feature = "trace")))]
+pub use trace::Traced;
+/// Parser tracing DX: wrap any parser in [`traced`] to print an indented event tree of its
+/// run — enter, exit-ok with the consumed span, exit-err — interleaved with the crate's own
+/// instrumented combinators (`try_expect`, `peek`, the `sync` family, the transaction guards,
+/// `attempt`/`try_attempt`, and the separated/repeated drivers) as they fire. Gated on the
+/// `trace` feature; with it off, [`traced`] is the identity and every hook compiles away.
+pub use trace::traced;
 
 /// Concrete Syntax Tree (CST) representations and utilities.
 ///

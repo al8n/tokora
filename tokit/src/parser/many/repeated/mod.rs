@@ -253,6 +253,7 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
     Container: crate::container::Container<O>,
     RH: RepeatedHandler<'inp, 'c, O, L, Ctx, Lang>,
   {
+    trace_event!(inp, "repeated");
     let mut num = 0;
     let anchor = inp.cursor().clone();
     let mut cursor = anchor.clone();

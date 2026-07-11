@@ -34,6 +34,15 @@ logos_0_14 = ["dep:logos_0_14"]
 logos_0_15 = ["dep:logos_0_15"]
 logos_0_16 = ["dep:logos_0_16"]
 
+# Parser tracing. Turns on `traced(name, parser)` — a wrapper that prints an indented
+# enter / exit-ok / exit-err / rollback event tree to stderr with an input preview — and
+# instruments the crate's own combinators (`try_expect`, `peek`, the `sync` family, the
+# transaction guards' begin/commit/rollback, `attempt`/`try_attempt`, and the
+# separated/repeated drivers) to emit their name at the current depth. Std-implied (uses
+# stderr and thread-locals) and zero extra dependencies. Zero-cost when off: `traced` is the
+# identity and every internal hook site is `#[cfg]`'d out of existence, not runtime-guarded.
+trace = ["std"]
+
 # Exposes the raw, unstable checkpoint backtracking API — `InputRef::{save, restore, commit}`
 # and, with them, the `Checkpoint` type's construction and consumption. Off by default: the
 # supported backtracking surface is the transaction guards (`begin`/`begin_stacked`), the

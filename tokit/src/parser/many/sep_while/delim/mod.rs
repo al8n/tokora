@@ -50,6 +50,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
+    trace_event!(inp, "separated_while");
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let anchor = inp.cursor().clone();
     let mut first_kind = None;

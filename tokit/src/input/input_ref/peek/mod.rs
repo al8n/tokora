@@ -129,6 +129,7 @@ where
   where
     W: Window,
   {
+    trace_event!(self, "peek");
     let buf_len = buf.len();
     let remaining_cap = buf.capacity() - buf_len;
     let mut in_cache = self.cache().len();

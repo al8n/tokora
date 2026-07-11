@@ -123,6 +123,7 @@ where
   /// begin-point checkpoint without restoring. Available whatever the drop policy.
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn commit(mut self) {
+    trace_event!(self.input, "commit");
     // Take the checkpoint so the `Drop` guard below sees `None` and does not roll back.
     if let Some(ckp) = self.ckp.take() {
       // Kept, not restored: unpin the begin point and drop its lineage id so neither lingers on
@@ -143,6 +144,7 @@ where
   /// rolled back explicitly).
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn rollback(mut self) {
+    trace_event!(self.input, "rollback");
     if let Some(ckp) = self.ckp.take() {
       // Unpin the begin point FIRST so the checked restore below does not see it as pinned — a
       // guard rolling back to its own base is legal. A raw restore *below* the base (through
@@ -219,6 +221,7 @@ where
   fn drop(&mut self) {
     if let Some(ckp) = self.ckp.take() {
       if P::ROLLBACK_ON_DROP {
+        trace_event!(self.input, "rollback");
         // Unpin the begin point first — exception-safe, so it happens even though the rewind
         // below may be skipped (a `Drop` may run mid-unwind, where panicking is forbidden). The
         // pin check makes the base go-stale case unreachable in allocator builds, so this
@@ -228,6 +231,7 @@ where
         self.input.unpin_checkpoint(ckp.ckp_id);
         self.input.restore_unchecked_if_live(ckp);
       } else {
+        trace_event!(self.input, "commit");
         // Commit-on-drop: progress kept; unpin the begin point and forget its lineage id so
         // neither lingers on the live/pin stacks across commit-heavy loops (as `commit` does).
         #[cfg(any(feature = "std", feature = "alloc"))]

@@ -49,6 +49,7 @@ where
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
     W: Window,
   {
+    trace_event!(self, "sync_to");
     self.sync_matched_in_cache(&mut pred, &mut exp)?;
 
     // as the matched token will not be consumed, we just peek it

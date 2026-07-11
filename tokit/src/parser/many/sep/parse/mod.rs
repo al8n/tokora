@@ -49,6 +49,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
+    trace_event!(inp, "separated");
     let mut state = State::Start;
     let anchor = inp.cursor().clone();
     let mut cursor = anchor.clone();
