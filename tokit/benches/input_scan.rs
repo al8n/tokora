@@ -236,7 +236,7 @@ fn synthetic_source() -> String {
     let a = i;
     let m = i.wrapping_mul(2654435761) % 100_000;
     let b = i % 4093;
-    let _ = write!(s, "var{a} = {m} + val{b} ;\n");
+    let _ = writeln!(s, "var{a} = {m} + val{b} ;");
     i = i.wrapping_add(1);
   }
   s

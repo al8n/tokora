@@ -289,26 +289,23 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
     loop {
       let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
 
-      match self.condition.decide(peeked, emitter) {
-        Err(err) => return Err(err),
-        Ok(action) => match action {
-          Action::Stop => {
+      match self.condition.decide(peeked, emitter)? {
+        Action::Stop => {
+          let span = inp.span_since(&anchor);
+          return rh.on_stop(nums, inp, &anchor).map(|_| span);
+        }
+        Action::Continue => {
+          rh.on_element(nums, inp, &anchor)?;
+          if container.push(self.f.parse_input(inp)?).is_err() {
             let span = inp.span_since(&anchor);
-            return rh.on_stop(nums, inp, &anchor).map(|_| span);
+            inp.emitter().emit_full_container(FullContainer::of(
+              span,
+              nums + 1,
+              container.max_capacity(),
+            ))?;
           }
-          Action::Continue => {
-            rh.on_element(nums, inp, &anchor)?;
-            if container.push(self.f.parse_input(inp)?).is_err() {
-              let span = inp.span_since(&anchor);
-              inp.emitter().emit_full_container(FullContainer::of(
-                span,
-                nums + 1,
-                container.max_capacity(),
-              ))?;
-            }
-            nums += 1;
-          }
-        },
+          nums += 1;
+        }
       }
     }
   }

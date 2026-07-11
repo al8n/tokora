@@ -86,29 +86,26 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
         }
         None => {
           let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
-          match self.parser.condition.decide(peeked, emitter) {
-            Err(err) => return Err(err),
-            Ok(action) => match action {
-              // missing ending delimiter
-              Action::Stop => {
-                if let Some(err) = err {
-                  inp.emitter().emit_unexpected_token(err)?;
-                }
-                return Ok(mem::take(container));
+          match self.parser.condition.decide(peeked, emitter)? {
+            // missing ending delimiter
+            Action::Stop => {
+              if let Some(err) = err {
+                inp.emitter().emit_unexpected_token(err)?;
               }
-              Action::Continue => {
-                // TODO(al8n): tracing dropped element
-                if let Err(_e) = container.push(self.parser.f.parse_input(inp)?) {
-                  let span = inp.span_since(&anchor);
-                  inp.emitter().emit_full_container(FullContainer::of(
-                    span,
-                    nums,
-                    container.max_capacity(),
-                  ))?;
-                }
-                nums += 1;
+              return Ok(mem::take(container));
+            }
+            Action::Continue => {
+              // TODO(al8n): tracing dropped element
+              if let Err(_e) = container.push(self.parser.f.parse_input(inp)?) {
+                let span = inp.span_since(&anchor);
+                inp.emitter().emit_full_container(FullContainer::of(
+                  span,
+                  nums,
+                  container.max_capacity(),
+                ))?;
               }
-            },
+              nums += 1;
+            }
           }
         }
       }
