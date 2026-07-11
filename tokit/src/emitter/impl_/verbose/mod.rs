@@ -1,7 +1,10 @@
 use crate::{
   Lexer,
+  emitter::Severity,
   span::{SimpleSpan, Span, Spanned},
 };
+
+pub use diagnostic::{Diagnostic, Diagnostics};
 
 use super::super::{
   separated::{
@@ -15,6 +18,7 @@ use std::{collections::BTreeMap, vec::Vec};
 
 use core::marker::PhantomData;
 
+mod diagnostic;
 mod full_container;
 mod missing_leading_separator;
 mod missing_trailing_separator;
@@ -96,6 +100,18 @@ mod unexpected_trailing_separator;
 /// it, and a later re-emission re-derives its labels from the then-current stack;
 /// the live stack itself follows the call structure of the wrapper scopes, so a
 /// checkpoint restore needs no label handling at all.
+///
+/// # Two channels — errors and warnings
+///
+/// `Verbose` collects two parallel channels of diagnostics: hard [`errors()`](Self::errors)
+/// (the [`Severity::Error`] tier, fed by the ordinary emit paths) and soft
+/// [`warnings()`](Self::warnings) (the [`Severity::Warning`] tier, fed by
+/// [`emit_warning`](Emitter::emit_warning)). Each channel keeps its own span-keyed groups and
+/// its own parallel label snapshots ([`labels()`](Self::labels) /
+/// [`warning_labels()`](Self::warning_labels)). A single emission `log` tags every entry with
+/// its channel, so [`rewind`](Emitter::rewind) drops the abandoned branch's entries from the
+/// correct channel and [`diagnostics()`](Self::diagnostics) can replay *both* channels
+/// interleaved in true emission order.
 #[derive(Debug)]
 pub struct Verbose<Error, S = SimpleSpan, Lang: ?Sized = ()> {
   errs: BTreeMap<S, Vec<Error>>,
@@ -106,17 +122,25 @@ pub struct Verbose<Error, S = SimpleSpan, Lang: ?Sized = ()> {
   /// (rather than pairing the label into the error) keeps [`errors()`](Self::errors)
   /// returning exactly `&BTreeMap<S, Vec<Error>>`.
   label_snapshots: BTreeMap<S, Vec<Vec<&'static str>>>,
-  /// The span of every emission, in emission order. An entry's index in this log
-  /// is its monotonic sequence number; [`checkpoint`](Emitter::checkpoint) is the
-  /// log length and [`rewind`](Emitter::rewind) unwinds the tail back to a mark,
-  /// popping the matching error — and its label snapshot — off each span's `Vec`.
-  /// This is what lets rewind drop a speculative zero-width diagnostic while keeping
-  /// an earlier one at the same span — a distinction span-ordered storage alone
-  /// cannot make.
-  log: Vec<S>,
+  /// The warning channel: mirrors `errs` in shape but is fed by
+  /// [`emit_warning`](Emitter::emit_warning) rather than the error emit paths. Kept separate so
+  /// [`errors()`](Self::errors) and [`warnings()`](Self::warnings) each return a clean
+  /// `&BTreeMap<S, Vec<Error>>` for their own [`Severity`] tier.
+  warns: BTreeMap<S, Vec<Error>>,
+  /// Parallel to `warns`, exactly as `label_snapshots` is parallel to `errs`.
+  warn_label_snapshots: BTreeMap<S, Vec<Vec<&'static str>>>,
+  /// The `(severity, span)` of every emission, in emission order — the single ordering
+  /// authority across *both* channels. An entry's index in this log is its monotonic sequence
+  /// number; [`checkpoint`](Emitter::checkpoint) is the log length and
+  /// [`rewind`](Emitter::rewind) unwinds the tail back to a mark, popping the matching error —
+  /// and its label snapshot — off the channel named by the entry's [`Severity`] tag. This is
+  /// what lets rewind drop a speculative zero-width diagnostic while keeping an earlier one at
+  /// the same span, and what lets [`diagnostics()`](Self::diagnostics) reconstruct the true
+  /// interleaving of the two channels — a distinction span-ordered storage alone cannot make.
+  log: Vec<(Severity, S)>,
   /// The currently-open label stack, pushed by [`enter_label`](Emitter::enter_label)
   /// and popped by [`exit_label`](Emitter::exit_label). Snapshotted (cloned) into
-  /// `label_snapshots` at each emit; a push/pop never allocates and an empty snapshot
+  /// the recording channel at each emit; a push/pop never allocates and an empty snapshot
   /// clones for free.
   stack: Vec<&'static str>,
   _lang: PhantomData<Lang>,
@@ -128,6 +152,8 @@ impl<Error, Span, Lang: ?Sized> Default for Verbose<Error, Span, Lang> {
     Self {
       errs: BTreeMap::new(),
       label_snapshots: BTreeMap::new(),
+      warns: BTreeMap::new(),
+      warn_label_snapshots: BTreeMap::new(),
       log: Vec::new(),
       stack: Vec::new(),
       _lang: PhantomData,
@@ -145,6 +171,8 @@ where
     Self {
       errs: self.errs.clone(),
       label_snapshots: self.label_snapshots.clone(),
+      warns: self.warns.clone(),
+      warn_label_snapshots: self.warn_label_snapshots.clone(),
       log: self.log.clone(),
       stack: self.stack.clone(),
       _lang: PhantomData,
@@ -168,14 +196,17 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
     Self {
       errs: BTreeMap::new(),
       label_snapshots: BTreeMap::new(),
+      warns: BTreeMap::new(),
+      warn_label_snapshots: BTreeMap::new(),
       log: Vec::new(),
       stack: Vec::new(),
       _lang: PhantomData,
     }
   }
 
-  /// Records `err` at `span`, appending it to the span's group and logging the
-  /// emission order so a later [`rewind`](Emitter::rewind) can undo it precisely.
+  /// Records `err` in the **error** channel at `span`, appending it to the span's group and
+  /// logging the emission (tagged [`Severity::Error`]) so a later [`rewind`](Emitter::rewind)
+  /// can undo it precisely.
   ///
   /// A snapshot of the currently-open label stack is captured alongside the error,
   /// into `label_snapshots` at the same span/index — this is the *capture-at-emit*
@@ -186,13 +217,32 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   where
     S: Ord + Clone,
   {
-    self.log.push(span.clone());
+    self.log.push((Severity::Error, span.clone()));
     self
       .label_snapshots
       .entry(span.clone())
       .or_default()
       .push(self.stack.clone());
     self.errs.entry(span).or_default().push(err);
+  }
+
+  /// Records `warning` in the **warning** channel at `span` — the exact mirror of
+  /// [`record`](Self::record), but into `warns`/`warn_label_snapshots` and logging the emission
+  /// tagged [`Severity::Warning`]. The shared `log` keeps both channels on one emission
+  /// timeline, so a [`rewind`](Emitter::rewind) unwinds warnings and errors together in reverse
+  /// emission order.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn record_warning(&mut self, span: S, warning: Error)
+  where
+    S: Ord + Clone,
+  {
+    self.log.push((Severity::Warning, span.clone()));
+    self
+      .warn_label_snapshots
+      .entry(span.clone())
+      .or_default()
+      .push(self.stack.clone());
+    self.warns.entry(span).or_default().push(warning);
   }
 
   /// Returns a reference to all collected errors.
@@ -241,6 +291,63 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   pub fn labels(&self) -> &BTreeMap<S, Vec<Vec<&'static str>>> {
     &self.label_snapshots
   }
+
+  /// Returns a reference to all collected **warnings**, parallel to [`errors()`](Self::errors).
+  ///
+  /// Warnings are the [`Severity::Warning`] tier, recorded via
+  /// [`emit_warning`](Emitter::emit_warning). The map has the same span-keyed,
+  /// group-per-span shape as [`errors()`](Self::errors); the two channels are independent, so a
+  /// span may carry warnings, errors, or both.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn warnings(&self) -> &BTreeMap<S, Vec<Error>> {
+    &self.warns
+  }
+
+  /// Returns the per-warning label snapshots, parallel to [`warnings()`](Self::warnings)
+  /// exactly as [`labels()`](Self::labels) is parallel to [`errors()`](Self::errors).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn warning_labels(&self) -> &BTreeMap<S, Vec<Vec<&'static str>>> {
+    &self.warn_label_snapshots
+  }
+
+  /// Returns an iterator over every collected diagnostic — **both** channels — in true
+  /// emission order.
+  ///
+  /// Each item is a borrowing [`Diagnostic`] view carrying the entry's span, its
+  /// [`Severity`] tier, its captured label snapshot, and the payload. The order is the
+  /// emission order recorded in the shared `log`, so an error emitted between two warnings
+  /// (or vice versa) appears in that exact position — the interleaving the two span-keyed
+  /// maps cannot express on their own. This is the read-side bridge a downstream renderer
+  /// (ariadne, miette, a bespoke reporter) consumes; tokit takes on no dependency on any of
+  /// them.
+  ///
+  /// ```ignore
+  /// // Sketch of an ariadne adapter (tokit does not depend on ariadne):
+  /// for diag in emitter.diagnostics() {
+  ///     let kind = match diag.severity() {
+  ///         tokit::emitter::Severity::Error => ariadne::ReportKind::Error,
+  ///         tokit::emitter::Severity::Warning => ariadne::ReportKind::Warning,
+  ///     };
+  ///     let mut report = ariadne::Report::build(kind, (), diag.span().start());
+  ///     // Each open label is a "while parsing X" context note.
+  ///     for ctx in diag.labels() {
+  ///         report = report.with_note(format!("while parsing {ctx}"));
+  ///     }
+  ///     report
+  ///         .with_message(diag.payload().to_string())
+  ///         .finish();
+  /// }
+  /// ```
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn diagnostics(&self) -> Diagnostics<'_, S, Error> {
+    Diagnostics::new(
+      &self.log,
+      &self.errs,
+      &self.label_snapshots,
+      &self.warns,
+      &self.warn_label_snapshots,
+    )
+  }
 }
 
 impl<'inp, L, S, Error, Lang: ?Sized> Emitter<'inp, L, Lang> for Verbose<Error, S, Lang>
@@ -266,6 +373,15 @@ where
   fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error> {
     let (span, err) = err.into_components();
     self.record(span, err);
+    Ok(())
+  }
+
+  /// Records the warning into the parallel warning channel (never fatal), capturing the same
+  /// label snapshot the error paths capture. See [`emit_warning`](Emitter::emit_warning).
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_warning(&mut self, warning: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error> {
+    let (span, warning) = warning.into_components();
+    self.record_warning(span, warning);
     Ok(())
   }
 
@@ -306,29 +422,33 @@ where
     let _ = cursor;
     let mark = (checkpoint as usize).min(self.log.len());
     while self.log.len() > mark {
-      // Unwind newest-first: each span's `Vec` grows in emission order, so the
-      // matching entry to drop is always its last one. The dropped entry takes its
-      // label snapshot with it — labels captured into an entry are rewound together
-      // with it, and any later re-emission re-derives labels from the then-current
-      // stack.
-      let span = self.log.pop().expect("log length exceeds the mark");
-      if let Some(group) = self.errs.get_mut(&span) {
+      // Unwind newest-first: each span's `Vec` grows in emission order, so the matching entry
+      // to drop is always its last one. The `Severity` tag names the channel it was recorded
+      // in, so the pop lands in the right map. The dropped entry takes its label snapshot with
+      // it — labels captured into an entry are rewound together with it, and any later
+      // re-emission re-derives labels from the then-current stack.
+      let (severity, span) = self.log.pop().expect("log length exceeds the mark");
+      let (groups, labels) = match severity {
+        Severity::Error => (&mut self.errs, &mut self.label_snapshots),
+        Severity::Warning => (&mut self.warns, &mut self.warn_label_snapshots),
+      };
+      if let Some(group) = groups.get_mut(&span) {
         group.pop();
         if group.is_empty() {
-          self.errs.remove(&span);
+          groups.remove(&span);
         }
       }
-      if let Some(group) = self.label_snapshots.get_mut(&span) {
+      if let Some(group) = labels.get_mut(&span) {
         group.pop();
         if group.is_empty() {
-          self.label_snapshots.remove(&span);
+          labels.remove(&span);
         }
       }
     }
   }
 
   /// Pushes a *"while parsing X"* label onto the open-label stack; the next
-  /// [`record`](Self::record) snapshots it into the diagnostic it emits.
+  /// recorded diagnostic snapshots it into the entry it emits.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn enter_label(&mut self, label: &'static str) {
     self.stack.push(label);

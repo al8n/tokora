@@ -14,11 +14,13 @@ pub use impl_::*;
 pub use pratt::*;
 pub use repeated::*;
 pub use separated::*;
+pub use severity::*;
 
 mod impl_;
 mod pratt;
 mod repeated;
 mod separated;
+mod severity;
 
 /// A trait for handling and emitting errors during tokenization and parsing.
 ///
@@ -154,6 +156,29 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   where
     L: Lexer<'a>;
 
+  /// Emits a warning — a diagnostic that, by contract, does not stop parsing.
+  ///
+  /// A warning carries the *same* payload as [`emit_error`](Self::emit_error) (a
+  /// [`Spanned<Self::Error, _>`](Spanned)): a warning **is** a diagnostic, just one classified
+  /// at the [`Severity::Warning`] tier rather than [`Severity::Error`]. This is an additive,
+  /// second channel for future callers (e.g. a lossless collecting parse) — nothing in the
+  /// existing emit paths reclassifies through it.
+  ///
+  /// Like the diagnostic-label capabilities, this is a method with a **blanket no-op default**:
+  /// stateless emitters ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::marker::Ignored))
+  /// inherit the empty body — a fail-fast parse has no warning sink, so the warning is dropped
+  /// and parsing continues (`Ok(())`). A collecting emitter like [`Verbose`] overrides this to
+  /// record the warning into a channel parallel to its errors. The `Result` return is what lets
+  /// a bespoke emitter escalate a warning to fatal if it wishes; the built-in emitters never do.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_warning(&mut self, warning: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    let _ = warning;
+    Ok(())
+  }
+
   /// Captures the emitter's current emission checkpoint for a later [`rewind`](Self::rewind).
   ///
   /// A checkpoint is a monotonically increasing emission mark: emitters that
@@ -240,6 +265,14 @@ where
     L: Lexer<'a>,
   {
     (**self).emit_error(err)
+  }
+
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn emit_warning(&mut self, warning: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    (**self).emit_warning(warning)
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]

@@ -15,8 +15,8 @@ use tokit::{
   emitter::{
     Fatal, FromSeparatedError, FromUnexpectedLeadingSeparatorError,
     FromUnexpectedTrailingSeparatorError, FullContainerEmitter, Ignored, PrattEmitter,
-    SeparatedEmitter, Silent, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
-    UnexpectedTrailingSeparatorEmitter, Verbose,
+    SeparatedEmitter, Severity, Silent, TooFewEmitter, TooManyEmitter,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter, Verbose,
   },
   error::{
     UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
@@ -1675,5 +1675,168 @@ fn labelled_guard_rollback_drops_labels_then_reemission_rederives() {
   let r: Result<(), _> = Parser::with_context(verbose_ctx())
     .apply(run)
     .parse_str("12 34");
+  r.unwrap();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Severity tiers: the warning channel and the diagnostic rendering bridge
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// A sub-parser that records one custom *warning* at 0..1 without consuming input, mirroring
+// `emit_marker` but on the warning channel — so a `labelled` wrapper exercises the
+// enter/emit_warning/exit path for any emitter.
+fn warn_marker<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<(), EmitterTestError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = EmitterTestError>,
+{
+  inp.emitter().emit_warning(Spanned::new(
+    SimpleSpan::new(0usize, 1usize),
+    EmitterTestError::Custom,
+  ))
+}
+
+// A warning recorded inside a `labelled` scope collects into the parallel `warnings()` channel
+// (leaving `errors()` empty) and carries its open-label snapshot in lockstep, readable through
+// the `warning_labels()` accessor.
+#[test]
+fn verbose_warnings_collect_with_labels_parallel_to_errors() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    let mut p = tokit::labelled("while linting item", warn_marker);
+    p.parse_input(inp)?;
+
+    let emitter = inp.emitter();
+    assert_eq!(emitter.warnings().len(), 1, "one warning collected");
+    assert_eq!(
+      emitter.warnings()[&SimpleSpan::new(0usize, 1usize)].len(),
+      1,
+      "the warning landed at its span"
+    );
+    assert_eq!(
+      emitter.errors().len(),
+      0,
+      "warnings are a separate channel — errors() stays empty"
+    );
+    assert_eq!(
+      emitter.warning_labels()[&SimpleSpan::new(0usize, 1usize)],
+      vec![vec!["while linting item"]],
+      "the warning carries its open-label snapshot, in lockstep with warnings()"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(run)
+    .parse_str("12");
+  r.unwrap();
+}
+
+// Under a fail-fast Fatal emitter a warning has no sink: `emit_warning` is the inherited no-op
+// that returns `Ok(())`, so parsing continues and produces its value — while an error on the
+// same emitter is still fatal (the contrast that pins "warnings never stop it").
+#[test]
+fn fatal_ignores_warnings_but_errors_still_stop() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Fatal<EmitterTestError>>,
+    >,
+  ) -> Result<i64, EmitterTestError> {
+    // Two warnings in a row: each is ignored (Ok), parsing keeps going.
+    assert!(
+      matches!(warn_marker(inp), Ok(())),
+      "Fatal ignores the first warning"
+    );
+    assert!(
+      matches!(warn_marker(inp), Ok(())),
+      "Fatal ignores the second warning — no warning sink"
+    );
+    // Contrast: an *error* on the same emitter is fatal.
+    assert!(
+      matches!(
+        <Fatal<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+          inp.emitter(),
+          Spanned::new(SimpleSpan::new(0usize, 1usize), EmitterTestError::Custom),
+        ),
+        Err(EmitterTestError::Custom)
+      ),
+      "an error under Fatal is still fatal"
+    );
+    // Value-asserted continuation: the warnings did not stop the parse.
+    Ok(7)
+  }
+
+  let r: Result<i64, _> = Parser::with_context(builtin_fatal_ctx())
+    .apply(run)
+    .parse_str("12");
+  assert!(matches!(r, Ok(7)), "the parse completed past the warnings");
+}
+
+// The rendering bridge: `diagnostics()` yields BOTH channels interleaved in true emission order,
+// each entry carrying the right severity tier and the label snapshot open when it was emitted.
+#[test]
+fn diagnostics_bridge_interleaves_both_channels_in_emission_order() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    type V = Verbose<EmitterTestError>;
+    // seq 0: Error @ 0..1 under [a]
+    <V as Emitter<'inp, TestLexer<'inp>>>::enter_label(inp.emitter(), "a");
+    <V as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(0usize, 1usize), EmitterTestError::Custom),
+    )?;
+    // seq 1: Warning @ 1..2 under [a, b]
+    <V as Emitter<'inp, TestLexer<'inp>>>::enter_label(inp.emitter(), "b");
+    <V as Emitter<'inp, TestLexer<'inp>>>::emit_warning(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(1usize, 2usize), EmitterTestError::Custom),
+    )?;
+    <V as Emitter<'inp, TestLexer<'inp>>>::exit_label(inp.emitter());
+    <V as Emitter<'inp, TestLexer<'inp>>>::exit_label(inp.emitter());
+    // seq 2: Error @ 2..3, unlabelled
+    <V as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(2usize, 3usize), EmitterTestError::Custom),
+    )?;
+
+    let replay: Vec<(Severity, usize, Vec<&'static str>)> = inp
+      .emitter()
+      .diagnostics()
+      .map(|d| (d.severity(), d.span().start(), d.labels().to_vec()))
+      .collect();
+
+    assert_eq!(
+      replay,
+      vec![
+        (Severity::Error, 0usize, vec!["a"]),
+        (Severity::Warning, 1usize, vec!["a", "b"]),
+        (Severity::Error, 2usize, Vec::new()),
+      ],
+      "the bridge replays errors and warnings interleaved in emission order, each with its \
+       severity tier and captured labels"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(run)
+    .parse_str("12 34 56");
   r.unwrap();
 }
