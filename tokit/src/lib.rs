@@ -209,6 +209,17 @@ pub mod token;
 /// intermediate buffering.
 pub mod input;
 
+/// Conformance test kit for custom [`Lexer`] implementations.
+///
+/// Provides [`Harness`](conformance::Harness), a builder that drives a lexer against
+/// the [`Lexer`] contract — replay identity, state-resume faithfulness, monotone
+/// progress, sticky exhaustion, span/slice coherence, optional gap-free tiling — and,
+/// through the input machinery, a set of deterministic save/peek/drain/restore
+/// schedules. Requires the `conformance` feature (which implies `std`).
+#[cfg(feature = "conformance")]
+#[cfg_attr(docsrs, doc(cfg(feature = "conformance")))]
+pub mod conformance;
+
 /// Convenience re-exports for common usage.
 pub mod prelude;
 

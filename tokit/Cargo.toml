@@ -50,6 +50,13 @@ trace = ["std"]
 # flips those three methods from crate-internal to public.
 unstable-raw = []
 
+# The lexer conformance test kit (`tokit::conformance`): a `Harness` that drives a custom
+# `Lexer` against the trait-level lexer contract and, through the input machinery, a set of
+# deterministic save/peek/drain/restore schedules. It is a test-time tool — it asserts, formats
+# panic context, and owns `Vec`/`String`, so it requires `std`. Off by default; enabling it only
+# compiles the `conformance` module.
+conformance = ["std"]
+
 rowan = ["dep:rowan", "std"]
 
 bytes = ["bytes_1"]
