@@ -7,6 +7,7 @@ use super::*;
 pub use checkpoint::Checkpoint;
 pub use cursor::Cursor;
 pub use input_ref::{Commit, DropPolicy, InputRef, Rollback, Transaction};
+pub(crate) use lineage::Lineage;
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 pub use input_ref::{SavepointId, StackedTransaction};
@@ -14,6 +15,7 @@ pub use input_ref::{SavepointId, StackedTransaction};
 mod checkpoint;
 mod cursor;
 mod input_ref;
+mod lineage;
 
 /// Storage for [`Input`]'s live-checkpoint lineage stack: inline for 8 ids so the common
 /// many-small-parses workload backtracks with no per-parse heap allocation (live-checkpoint
@@ -37,7 +39,7 @@ pub(crate) type SavepointStack<'inp, 'closure, L> =
 /// [`InputRef::restore`] to reject a checkpoint restored into a foreign input.
 ///
 /// The live-checkpoint *lineage* stack that enforces the last-in, first-out discipline
-/// lives on [`Input`] itself (see [`Input::live_ckpts`]) and is maintained in **every**
+/// lives on [`Input`] itself (in its [`Lineage`] memos) and is maintained in **every**
 /// allocator build; this witness carries only the cross-input identity, whose atomic id
 /// source keeps it behind the debug + `target_has_atomic = "ptr"` gate. In release builds,
 /// and in allocator-less builds, it is absent and `restore` performs no foreign-input
@@ -239,55 +241,14 @@ where
   /// copies it back verbatim, since a last-in, first-out restore returns to exactly
   /// the lineage the checkpoint recorded.
   poison_boundary: Option<L::Offset>,
-  /// Monotone count of tokens the cache has accepted over this input's life, bumped by
-  /// every successful cache push. A [`Checkpoint`] captures it at save time and
-  /// [`InputRef::restore`] drops the entries pushed since — the ones lexed on the
-  /// abandoned continuation — so their region re-lexes and re-emits its scan side effects.
-  /// It is correctness state in every build.
-  cache_pushes: u64,
-  /// Input-global savepoint sequence counter for [`StackedTransaction`], bumped by
-  /// [`InputRef::next_savepoint_seq`] on each [`savepoint`](StackedTransaction::savepoint).
-  ///
-  /// It is monotone across every stacked transaction of this input and never reset, so a
-  /// [`SavepointId`]'s `seq` is unique for the whole life of the input: an id that crosses
-  /// transactions (nested or sequential) can never collide with a live savepoint's `seq`
-  /// in another transaction's stack. There is no atomic and no process-wide state — the
-  /// counter is per-input.
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  savepoint_seq: u64,
-  /// The live-checkpoint lineage stack: the ids of the checkpoints that have been saved and
-  /// neither restored nor invalidated by restoring an older one, youngest last. [`save`](InputRef::save)
-  /// pushes the fresh id, [`restore`](InputRef::restore) pops the stack down through the
-  /// restored id (invalidating it and every younger one), and a committed checkpoint is
-  /// forgotten by [`forget_checkpoint`](InputRef::forget_checkpoint). State surgery leaves it
-  /// untouched — checkpoints survive state replacement, which is transactional.
-  ///
-  /// It is the single source of truth for lineage validity in **every** allocator build — no
-  /// atomics, no interior mutability, just a `Vec` — so [`StackedTransaction`] can reject a
-  /// savepoint whose checkpoint a raw restore below it invalidated, on release and
-  /// no-`target_has_atomic`-ptr targets alike. In debug + ptr builds the same stack also
-  /// backs `restore`'s non-LIFO and foreign-input panics.
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  live_ckpts: LineageStack,
-  /// Monotone id source for [`live_ckpts`](Self::live_ckpts): each [`save`](InputRef::save)
-  /// takes the current value and bumps it, so an id is never reused for the life of the input
-  /// and a popped id can never be mistaken for a live one.
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  next_ckp_id: u64,
-  /// The pinned checkpoint ids: the begin-point checkpoint of every currently-live transaction
-  /// guard and [`attempt`](InputRef::attempt)/[`try_attempt`](InputRef::try_attempt). A
-  /// guard/attempt logically borrows the timeline from its begin point forward, so a raw
-  /// [`restore`](InputRef::restore) that would pop a pinned id off
-  /// [`live_ckpts`](Self::live_ckpts) — tearing that begin point out from under a live guard —
-  /// **panics at the restore** rather than silently invalidating it. Every guard/attempt
-  /// constructor pins its held id on entry and every settle path unpins, so this holds exactly
-  /// the live begin points and stays bounded across commit-heavy loops. It lives beside
-  /// `live_ckpts` under the same allocator gate; allocator-less builds maintain no pin set and
-  /// fall back on the detect-at-use backstops (unspecified-but-bounded on misuse).
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  pinned: LineageStack,
+  /// The lineage memos — the bookkeeping backtracking rewinds an abandoned continuation with:
+  /// the live-checkpoint stack, the pin set, and the cache-push/checkpoint-id/savepoint counters.
+  /// Gathered behind one guardian (see [`Lineage`] and its [module](lineage) for the
+  /// single-writer taxonomy) and kept after the ground-truth cells above, so the scanner-hot
+  /// fields pack ahead of it on the `next()` path.
+  lineage: Lineage,
   /// Debug-only witness of the input identity a checkpoint was created under (see
-  /// [`InputRef::restore`]); the lineage stack itself is [`live_ckpts`](Self::live_ckpts).
+  /// [`InputRef::restore`]); the lineage stack itself lives in the [`Lineage`] memos.
   #[cfg(all(
     debug_assertions,
     any(feature = "std", feature = "alloc"),
@@ -312,24 +273,10 @@ where
       cache: self.cache.clone(),
       emitted_error_end: self.emitted_error_end.clone(),
       poison_boundary: self.poison_boundary.clone(),
-      // The clone shares the cache contents, so it carries the push count forward and its
-      // own future saves and restores stay consistent with it.
-      cache_pushes: self.cache_pushes,
-      // Carried forward so the clone's savepoint seqs stay monotone; the clone is a
-      // distinct struct with a distinct nonce anyway, so its ids never cross the
-      // original's regardless of the starting value.
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      savepoint_seq: self.savepoint_seq,
-      // A clone is a new input: it starts with an empty lineage stack and a fresh id
-      // counter, so a checkpoint from the original is never mistaken for one of the
-      // clone's (restoring it is caught as a foreign input in debug + ptr builds).
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      live_ckpts: LineageStack::new(),
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      next_ckp_id: 0,
-      // A clone is a new input with no live guards, so it starts with an empty pin set.
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      pinned: LineageStack::new(),
+      // A clone is a new input that shares the cache contents: `Lineage::forked` carries the
+      // cache-push and savepoint counters forward and starts a fresh, empty live-checkpoint
+      // lineage and pin set (see it for the per-cell rationale).
+      lineage: self.lineage.forked(),
       // A clone is a new input: `Witness::clone` mints a fresh identity, so the clone's
       // checkpoints and the original's never cross.
       #[cfg(all(
@@ -391,15 +338,7 @@ where
       cache: DefaultCache::<'inp, L>::default(),
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
-      cache_pushes: 0,
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      savepoint_seq: 0,
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      live_ckpts: LineageStack::new(),
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      next_ckp_id: 0,
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      pinned: LineageStack::new(),
+      lineage: Lineage::new(),
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -427,15 +366,7 @@ where
       cache,
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
-      cache_pushes: 0,
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      savepoint_seq: 0,
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      live_ckpts: LineageStack::new(),
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      next_ckp_id: 0,
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      pinned: LineageStack::new(),
+      lineage: Lineage::new(),
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -458,15 +389,7 @@ where
       span: &mut self.span,
       emitted_error_end: &mut self.emitted_error_end,
       poison_boundary: &mut self.poison_boundary,
-      cache_pushes: &mut self.cache_pushes,
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      savepoint_seq: &mut self.savepoint_seq,
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      live_ckpts: &mut self.live_ckpts,
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      next_ckp_id: &mut self.next_ckp_id,
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      pinned: &mut self.pinned,
+      lineage: &mut self.lineage,
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),

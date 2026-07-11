@@ -17,7 +17,7 @@ use crate::{
   utils::Expected,
 };
 
-use super::{Cache, Checkpoint, Cursor, Lexed, Lexer, Source, Span};
+use super::{Cache, Checkpoint, Cursor, Lexed, Lexer, Lineage, Source, Span};
 
 mod consume_cached;
 mod drop_policy;
@@ -54,31 +54,11 @@ where
   pub(super) cache: &'closure mut Ctx::Cache,
   pub(super) emitted_error_end: &'closure mut L::Offset,
   pub(super) poison_boundary: &'closure mut Option<L::Offset>,
-  /// The cache's monotone push count (see [`Input::cache_pushes`](super::Input)), bumped by
-  /// [`cache_push_back`](InputRef::cache_push_back) and read by [`save`](InputRef::save) /
-  /// [`restore`](InputRef::restore) to drop entries pushed on an abandoned continuation.
-  pub(super) cache_pushes: &'closure mut u64,
-  /// The input-global savepoint sequence counter (see
-  /// [`Input::savepoint_seq`](super::Input)). Handed out monotonically by
-  /// [`next_savepoint_seq`](InputRef::next_savepoint_seq) and never reset across the
-  /// input's stacked transactions, so a [`SavepointId`]'s `seq` is unique for the whole
-  /// life of the input.
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  pub(super) savepoint_seq: &'closure mut u64,
-  /// The input's live-checkpoint lineage stack (see [`Input::live_ckpts`](super::Input)),
-  /// maintained by [`save`](InputRef::save) / [`restore`](InputRef::restore) in every
-  /// allocator build and read by [`StackedTransaction`] to reject a stale savepoint.
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  pub(super) live_ckpts: &'closure mut super::LineageStack,
-  /// Monotone id source for [`live_ckpts`](Self::live_ckpts) (see
-  /// [`Input::next_ckp_id`](super::Input)).
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  pub(super) next_ckp_id: &'closure mut u64,
-  /// The pinned begin-point ids of the currently-live transaction guards and attempts (see
-  /// [`Input::pinned`](super::Input)). A raw [`restore`](Self::restore) that would pop a pinned
-  /// id off the lineage panics at the restore.
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  pub(super) pinned: &'closure mut super::LineageStack,
+  /// The input's lineage memos (see [`Lineage`](super::Lineage)): the live-checkpoint stack, the
+  /// pin set, and the cache-push/checkpoint-id/savepoint counters, reached only through their
+  /// operations. [`save`](InputRef::save) / [`restore`](InputRef::restore) / [`commit`](InputRef::commit)
+  /// and the transaction guards are the sole writers.
+  pub(super) lineage: &'closure mut Lineage,
   /// Debug-only witness of the input identity, for `restore`'s foreign-input check.
   #[cfg(all(
     debug_assertions,
@@ -111,17 +91,15 @@ where
     self.cache
   }
 
-  /// Pushes a lexed token onto the back of the cache, bumping the monotone push count on
-  /// success. Every cache push flows through here (the peek fill and the `try_expect`
-  /// put-backs), so the count tracks exactly the tokens the cache accepted: a full cache
-  /// hands the token back and leaves the count unchanged, and a blackhole cache — which
-  /// accepts no push — keeps its count at 0. [`save`](Self::save) records the count and
-  /// [`restore`](Self::restore) uses the difference to drop entries pushed after a save.
+  /// Pushes a lexed token onto the back of the cache, recording the accepted push on the lineage
+  /// memos ([`Lineage::record_cache_push`](super::Lineage::record_cache_push)) so
+  /// [`save`](Self::save) can snapshot the count and [`restore`](Self::restore) drop exactly the
+  /// entries pushed since. A full cache hands the token back and records nothing.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn cache_push_back(&mut self, tok: CachedTokenOf<'inp, L>) -> Result<(), CachedTokenOf<'inp, L>> {
     match self.cache.push_back(tok) {
       Ok(_) => {
-        *self.cache_pushes += 1;
+        self.lineage.record_cache_push();
         Ok(())
       }
       Err(tok) => Err(tok),
@@ -668,151 +646,88 @@ where
     }
   }
 
-  /// Hands out the next input-global savepoint sequence number, bumping the counter.
-  ///
-  /// The counter lives on the [`Input`](super::Input), not on any one transaction, so it
-  /// is monotone across every stacked transaction of this input and never reset. That
-  /// makes a [`SavepointId`]'s `seq` unique for the whole life of the input: an id that
-  /// crosses transactions (a nested or a sequential one) can never collide with a live
-  /// savepoint's `seq` in another transaction's stack, so the membership scan in
-  /// [`rollback_to`](StackedTransaction::rollback_to) / [`release`](StackedTransaction::release)
-  /// panics deterministically wherever the lifetime brand does not already reject the id.
+  /// Hands out the next input-global savepoint sequence number; see
+  /// [`Lineage::next_savepoint_seq`](super::Lineage::next_savepoint_seq) for the uniqueness
+  /// invariant it maintains.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub(super) fn next_savepoint_seq(&mut self) -> u64 {
-    let seq = *self.savepoint_seq;
-    *self.savepoint_seq += 1;
-    seq
+    self.lineage.next_savepoint_seq()
   }
 
   /// Drops `id` from the live-checkpoint lineage stack because its checkpoint was kept
-  /// (committed) rather than restored — see [`Transaction::commit`],
-  /// [`attempt`](Self::attempt), [`try_attempt`](Self::try_attempt), and the
-  /// [`StackedTransaction`] release/commit paths.
-  ///
-  /// A restored checkpoint is popped off the stack by [`restore`](Self::restore); a
-  /// *committed* one never reaches `restore`, so without this its id would linger and grow
-  /// the stack across commit-heavy loops. Removing it keeps the lineage stack exact and
-  /// bounded. `O(1)` when `id` is the stack top (the common case for a committed
-  /// checkpoint); a linear removal otherwise (e.g. a raw checkpoint saved above it was
-  /// dropped without restoring). Removing a non-top id keeps the rest of the stack in
-  /// order, so an older restore still pops cleanly through it.
+  /// (committed) rather than restored — see [`Transaction::commit`], [`attempt`](Self::attempt),
+  /// [`try_attempt`](Self::try_attempt), and the [`StackedTransaction`] release/commit paths.
+  /// See [`Lineage::forget`](super::Lineage::forget) for the bounding invariant and its cost.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub(crate) fn forget_checkpoint(&mut self, id: u64) {
-    if self.live_ckpts.last() == Some(&id) {
-      self.live_ckpts.pop();
-    } else if let Some(pos) = self.live_ckpts.iter().position(|&x| x == id) {
-      self.live_ckpts.remove(pos);
-    }
+    self.lineage.forget(id);
   }
 
-  /// Returns whether `id` is still live on the lineage stack. Backs both the
-  /// [`StackedTransaction`] savepoint-staleness check (every build) and, in debug + ptr
-  /// builds, [`restore`](Self::restore)'s non-LIFO panic.
+  /// Returns whether `id` is still live on the lineage stack; see
+  /// [`Lineage::contains`](super::Lineage::contains).
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub(super) fn live_contains(&self, id: u64) -> bool {
-    self.live_ckpts.contains(&id)
+    self.lineage.contains(id)
   }
 
-  /// Pops the lineage stack down through `id` inclusive, invalidating it and every
-  /// checkpoint saved after it. A no-op if `id` is already gone — a raw restore to a
-  /// checkpoint an earlier restore already invalidated (release's unspecified-but-bounded
-  /// posture; debug + ptr asserts presence in `restore` first).
+  /// Pops the lineage stack down through `id` inclusive on restore; see
+  /// [`Lineage::pop_through`](super::Lineage::pop_through).
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   fn live_pop_through(&mut self, id: u64) {
-    if let Some(pos) = self.live_ckpts.iter().position(|&x| x == id) {
-      self.live_ckpts.truncate(pos);
-    }
+    self.lineage.pop_through(id);
   }
 
   /// Pins `id` — the begin-point checkpoint of a transaction guard or an
-  /// [`attempt`](Self::attempt) — so a raw [`restore`](Self::restore) that would pop it off the
-  /// lineage (a restore reaching *below* the guard's begin point) panics at the restore instead
-  /// of silently tearing out the guard's foundation. Every guard constructor
-  /// ([`begin_with`](Self::begin_with), [`begin_stacked_with`](Self::begin_stacked_with)) and
+  /// [`attempt`](Self::attempt) — so a raw [`restore`](Self::restore) reaching below it panics at
+  /// the restore. Every guard constructor ([`begin_with`](Self::begin_with),
+  /// [`begin_stacked_with`](Self::begin_stacked_with)) and
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) pins on entry; the matching
-  /// [`unpin_checkpoint`](Self::unpin_checkpoint) runs on every settle path.
-  ///
-  /// Nested guards are borrowck-serialized: an inner guard mutably borrows its parent for its
-  /// whole life, so the inner settles (and unpins) before the outer is usable again. An outer
-  /// rollback therefore never finds a live inner pin sitting above its base — only its own
-  /// (just-unpinned) begin point and any LIFO-clean raw checkpoints, none pinned. An
-  /// [`attempt`](Self::attempt) nested inside a guard pins and unpins entirely within its
-  /// closure's extent for the same reason.
+  /// [`unpin_checkpoint`](Self::unpin_checkpoint) runs on every settle path. See
+  /// [`Lineage::pin`](super::Lineage::pin) for the borrowck-serialization argument.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   fn pin_checkpoint(&mut self, id: u64) {
-    self.pinned.push(id);
+    self.lineage.pin(id);
   }
 
-  /// Removes `id` from the pin set when its guard or attempt settles. Mirrors
-  /// [`forget_checkpoint`](Self::forget_checkpoint): `O(1)` when `id` is the top (the LIFO
-  /// common case — guards and attempts are borrowck-serialized, so the settling one is
-  /// innermost), a linear removal otherwise. Called on **every** settle path (commit, explicit
-  /// rollback, `Drop`, and both closure arms of the attempts), so the pin set stays bounded and
-  /// holds exactly the begin points of the currently-live guards and attempts.
+  /// Removes `id` from the pin set when its guard or attempt settles; see
+  /// [`Lineage::unpin`](super::Lineage::unpin). Called on **every** settle path (commit, explicit
+  /// rollback, `Drop`, and both closure arms of the attempts).
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   fn unpin_checkpoint(&mut self, id: u64) {
-    if self.pinned.last() == Some(&id) {
-      self.pinned.pop();
-    } else if let Some(pos) = self.pinned.iter().position(|&x| x == id) {
-      self.pinned.remove(pos);
-    }
+    self.lineage.unpin(id);
   }
 
   /// Panics if restoring to `target_id` would pop a **pinned** checkpoint off the live lineage —
-  /// i.e. if it would tear the begin point out from under a still-live transaction guard or
-  /// attempt. This is the detect-at-cause check: a raw restore below a live guard/attempt begin
-  /// point is refused right where it is requested, in every allocator build, rather than leaving
-  /// the guard on a torn foundation for its settle to discover (the older detect-at-use
-  /// behaviors, now backstops).
-  ///
-  /// A [`restore`](Self::restore) pops the target and every younger checkpoint
-  /// ([`live_pop_through`](Self::live_pop_through)). A guard's own settle unpins its held id
-  /// **before** routing through `restore`, so a guard rolling back to its own base never trips
-  /// its own pin; only a restore reaching *below* a live begin point finds that begin point
-  /// still pinned above the target. A [`StackedTransaction`] savepoint `rollback_to` restores a
-  /// checkpoint *above* the base, so it can never reach the pinned base. A target that is not
-  /// live pops nothing, so it cannot invalidate anything pinned.
+  /// the detect-at-cause check that refuses a raw restore below a live guard/attempt begin point,
+  /// in every allocator build. See
+  /// [`Lineage::assert_restore_preserves_pins`](super::Lineage::assert_restore_preserves_pins)
+  /// for why a guard's own settle, a savepoint `rollback_to`, and a dead target never trip it.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   fn assert_restore_preserves_pins(&self, target_id: u64) {
-    let Some(pos) = self.live_ckpts.iter().position(|&x| x == target_id) else {
-      // The target is already gone: `restore_unchecked` will pop nothing, so nothing pinned can
-      // be invalidated (release's unspecified-but-bounded posture for an already-dead target).
-      return;
-    };
-    // The restore truncates `live_ckpts` at `pos`, popping the target and every younger
-    // checkpoint. If any of those is pinned, the restore would invalidate a live guard/attempt.
-    if self.live_ckpts[pos..]
-      .iter()
-      .any(|id| self.pinned.contains(id))
-    {
-      panic!(
-        "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
-      );
-    }
+    self.lineage.assert_restore_preserves_pins(target_id);
   }
 
   /// The number of live checkpoints — test-only observability for the no-growth
   /// guarantee that committing (and a success-path [`Recover`](crate::parser::Recover))
-  /// gives the lineage stack.
+  /// gives the lineage stack (see [`Lineage::live_len`](super::Lineage::live_len)).
   ///
-  /// The stack it measures ([`live_ckpts`](super::Input::live_ckpts)) is maintained in every
-  /// allocator build, so this accessor is gated only to its callers — the `logos` + `std`
-  /// guard and recover test suites — and *not* to `debug_assertions` or
-  /// `target_has_atomic = "ptr"`, so the no-growth cases can run under the release profile
-  /// too. Keeping the `logos` + `std` constraint (rather than the looser `any(std, alloc)`)
-  /// keeps the method from being dead code under `cargo hack --each-feature --tests`, whose
-  /// single-feature combinations never enable both `logos` and `std` and so compile neither
-  /// this method nor its callers.
+  /// The stack it measures is maintained in every allocator build, so this accessor is gated
+  /// only to its callers — the `logos` + `std` guard and recover test suites — and *not* to
+  /// `debug_assertions` or `target_has_atomic = "ptr"`, so the no-growth cases can run under the
+  /// release profile too. Keeping the `logos` + `std` constraint (rather than the looser
+  /// `any(std, alloc)`) keeps the method from being dead code under
+  /// `cargo hack --each-feature --tests`, whose single-feature combinations never enable both
+  /// `logos` and `std` and so compile neither this method nor its callers.
   #[cfg(all(test, feature = "logos", feature = "std"))]
   pub(crate) fn live_checkpoints_len(&self) -> usize {
-    self.live_ckpts.len()
+    self.lineage.live_len()
   }
 
   /// Returns a slice of the current token from the input source.
@@ -908,17 +823,12 @@ where
   /// restore discipline by construction.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn save(&mut self) -> Checkpoint<'inp, 'closure, L> {
-    // Record this checkpoint on the live-checkpoint lineage stack (every allocator build)
-    // and stamp its fresh id into the checkpoint. `restore` pops the stack down through
-    // that id, and a `StackedTransaction` checks the id is still present before honoring a
-    // savepoint — the check that makes stale savepoints panic on release and no-ptr targets.
+    // Open a lineage entry (every allocator build): take a fresh id, record it on the
+    // live-checkpoint stack, and stamp it into the checkpoint. `restore` pops the stack down
+    // through that id, and a `StackedTransaction` checks the id is still present before honoring
+    // a savepoint — the check that makes stale savepoints panic on release and no-ptr targets.
     #[cfg(any(feature = "std", feature = "alloc"))]
-    let ckp_id = {
-      let id = *self.next_ckp_id;
-      *self.next_ckp_id += 1;
-      self.live_ckpts.push(id);
-      id
-    };
+    let ckp_id = self.lineage.open();
     Checkpoint::new(
       self.cursor().clone(),
       self.span.clone(),
@@ -926,7 +836,7 @@ where
       self.emitter.checkpoint(),
       self.emitted_error_end.clone(),
       self.poison_boundary.clone(),
-      *self.cache_pushes,
+      self.lineage.cache_pushes(),
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -1201,7 +1111,10 @@ where
     // prefilled pre-save token. A never-rewound count would still read stale-high here and
     // over-drop that token, forcing a re-lex whose scan side effects belong to the abandoned
     // lineage (advancing shared lexer/limit state, latching a poison the checkpoint predates).
-    let post_save = self.cache_pushes.saturating_sub(checkpoint.cache_pushes);
+    let post_save = self
+      .lineage
+      .cache_pushes()
+      .saturating_sub(checkpoint.cache_pushes);
     let survivors = (self.cache.len() as u64).min(post_save);
     for _ in 0..survivors {
       self.cache.pop_back();
@@ -1214,7 +1127,7 @@ where
     // the lineage now live (the tail-drop above already consumed its pre-rewind value), and a
     // saved boundary's diagnostic predates the saved emitter mark and therefore survives the
     // rewind above, keeping poison and its diagnostic paired.
-    *self.cache_pushes = checkpoint.cache_pushes;
+    self.lineage.restore_cache_pushes(checkpoint.cache_pushes);
     *self.emitted_error_end = checkpoint.emitted_error_end;
     *self.poison_boundary = checkpoint.poison_boundary;
     self.set_span((&checkpoint.span).into());
