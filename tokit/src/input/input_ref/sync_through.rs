@@ -1,5 +1,7 @@
 use super::*;
 
+use super::sync::{SyncThrough, Synced, ThroughEntry};
+
 impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
@@ -44,10 +46,12 @@ where
     // diagnosed prefix (the drain was real progress en route to it), so this snapshot goes
     // unused on those paths; only the no-match end-of-input exit rewinds to it. This is an
     // internal positional rewind, not a `Checkpoint`: it threads no lineage entry.
-    let entry_span = self.span.clone();
-    let entry_state = self.state.clone();
-    let entry_mark = self.emitter.checkpoint();
-    let entry_error_end = self.emitted_error_end.clone();
+    let snapshot = ThroughEntry::new(
+      self.span.clone(),
+      self.state.clone(),
+      self.emitter.checkpoint(),
+      self.emitted_error_end.clone(),
+    );
 
     if let Some(tok) = self.sync_matched_in_cache(&mut pred, &mut exp)? {
       return Ok(Some(tok));
@@ -71,70 +75,13 @@ where
       }
     }
 
-    // A sticky limit trip latches a poison boundary: once the cursor reaches the
-    // durable frontier no token remains to sync to, so return `Ok(None)` (the
-    // end-of-input outcome) without rebuilding a lexer. Strictly before it, the
-    // scan proceeds.
-    if self.reached_boundary(self.offset()) {
-      return Ok(None);
-    }
-
-    let mut lex_at = self.offset().clone();
-    let mut lexer = self.lexer();
-    // The frontier tracks the end of the last synced-over token; a trip latches
-    // and commits there.
-    let mut frontier = AtFrontier {
-      span: self.span.clone(),
-      state: self.state.clone(),
-    };
-
-    loop {
-      match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
-        Scan::Token(tok) => {
-          // if the token matches, we return it
-          if pred(tok.as_ref()) {
-            self.set_span_after_consume(tok.span_ref().into());
-            *self.state = lexer.into_state();
-            return Ok(Some(tok));
-          } else {
-            let (span, tok) = tok.into_components();
-            self.emitter().emit_unexpected_token(
-              UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
-            )?;
-            frontier.advance(&lexer);
-          }
-        }
-        Scan::Tripped => {
-          // A trip commits the diagnosed prefix at the durable frontier — the end of
-          // the last skipped token — so a later scan yields the poisoned outcome there
-          // instead of stranding the diagnosed tokens at the cursor. That commit is
-          // real progress, so its diagnostics persist.
-          self.set_span_after_consume(frontier.span.into());
-          *self.state = frontier.state;
-          return Ok(None);
-        }
-        Scan::Eof => {
-          // No match reached the end of input: this path commits no progress, so it
-          // rewinds the FULL pre-call state — the drained cache prefix included. Restore
-          // span and lexer state to their entry values, restore the dedup watermark, and
-          // unwind every emission this call made (the drained AND scanned tokens'
-          // unexpected-token diagnostics and any lexer errors crossed). The drained cache
-          // entries were popped, not put back; by the `Lexer` determinism contract the
-          // next read re-lexes them identically (the replay machinery's standing story),
-          // so the caller sees the same tokens at the same spans — at the cost of
-          // re-lexing them once. Restoring span/state BEFORE deriving the cursor lands it
-          // exactly at the pre-call position: the cache is now empty, so the cursor
-          // follows span.end, which equals the pre-call cursor. Restoring the watermark
-          // keeps a rewound lexer error re-emittable, so the caller's genuine consume
-          // reports it exactly once instead of deduplicating it silently away.
-          self.set_span((&entry_span).into());
-          *self.state = entry_state;
-          *self.emitted_error_end = entry_error_end;
-          let cursor = self.cursor().clone();
-          self.emitter().rewind(&cursor, entry_mark);
-          return Ok(None);
-        }
-      }
+    // Skip-and-diagnose to the first match through the shared scanner. `SyncThrough` consumes
+    // the match (`Synced::Found`); a poison trip commits the diagnosed prefix at the durable
+    // frontier and a no-match run to end of input rewinds to `snapshot`, both yielding the
+    // exhausted outcome (`Ok(None)`) with the position already settled.
+    match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
+      Synced::Found(tok) => Ok(tok),
+      Synced::Exhausted => Ok(None),
     }
   }
 
@@ -214,10 +161,12 @@ where
     // diagnosed prefix (the drain was real progress en route to it), so this snapshot goes
     // unused on those paths; only the no-match end-of-input exit rewinds to it. This is an
     // internal positional rewind, not a `Checkpoint`: it threads no lineage entry.
-    let entry_span = self.span.clone();
-    let entry_state = self.state.clone();
-    let entry_mark = self.emitter.checkpoint();
-    let entry_error_end = self.emitted_error_end.clone();
+    let snapshot = ThroughEntry::new(
+      self.span.clone(),
+      self.state.clone(),
+      self.emitter.checkpoint(),
+      self.emitted_error_end.clone(),
+    );
 
     if let Some(tok) = self.sync_matched_in_cache(&mut pred, &mut exp)? {
       let (peeked, emitter) = self.peek_with_emitter::<W>()?;
@@ -248,75 +197,17 @@ where
         let (peeked, emitter) = self.peek_with_emitter::<W>()?;
         Ok((None, peeked, emitter))
       }
-      // Otherwise, let's skip the input
-      false => {
-        // A sticky limit trip latches a poison boundary: once the cursor reaches
-        // the durable frontier no token remains to sync to, so return the empty
-        // result (the end-of-input outcome) without rebuilding a lexer. Strictly
-        // before it, the scan proceeds.
-        if self.reached_boundary(self.offset()) {
-          return Ok((None, GenericArrayDeque::new(), self.emitter));
+      // Otherwise, skip-and-diagnose to the first match through the shared scanner.
+      false => match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
+        // The match is consumed; peek the tokens after it.
+        Synced::Found(tok) => {
+          let (peeked, emitter) = self.peek_with_emitter::<W>()?;
+          Ok((tok, peeked, emitter))
         }
-
-        let mut lex_at = self.offset().clone();
-        let mut lexer = self.lexer();
-        // The frontier tracks the end of the last synced-over token; a trip latches
-        // and commits there.
-        let mut frontier = AtFrontier {
-          span: self.span.clone(),
-          state: self.state.clone(),
-        };
-
-        loop {
-          match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
-            Scan::Token(tok) => {
-              // if the token matches, we cache it and return it
-              if pred(tok.as_ref()) {
-                self.set_span_after_consume(tok.span_ref().into());
-                *self.state = lexer.into_state();
-                let (peeked, emitter) = self.peek_with_emitter::<W>()?;
-                return Ok((Some(tok), peeked, emitter));
-              } else {
-                let (span, tok) = tok.into_components();
-                self.emitter().emit_unexpected_token(
-                  UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
-                )?;
-                frontier.advance(&lexer);
-              }
-            }
-            Scan::Tripped => {
-              // Commit the diagnosed prefix before the trip; the boundary latches at
-              // the end of the last skipped token, so a later scan yields the poisoned
-              // outcome there instead of stranding the diagnosed tokens at the cursor.
-              self.set_span_after_consume(frontier.span.into());
-              *self.state = frontier.state;
-              return Ok((None, GenericArrayDeque::new(), self.emitter));
-            }
-            Scan::Eof => {
-              // No match reached the end of input: this path commits no progress, so it
-              // rewinds the FULL pre-call state — the drained cache prefix included — and
-              // the returned peek is empty. Restore span and lexer state to their entry
-              // values, restore the dedup watermark, and unwind every emission this call
-              // made (the drained AND scanned tokens' unexpected-token diagnostics and any
-              // lexer errors crossed). The drained cache entries were popped, not put back;
-              // by the `Lexer` determinism contract the next read re-lexes them identically
-              // (the replay machinery's standing story), so the caller sees the same tokens
-              // at the same spans — at the cost of re-lexing them once. Restoring span/state
-              // BEFORE deriving the cursor lands it exactly at the pre-call position: the
-              // cache is now empty, so the cursor follows span.end, which equals the
-              // pre-call cursor. Restoring the watermark keeps a rewound lexer error
-              // re-emittable, so the caller's genuine consume reports it exactly once
-              // instead of deduplicating it silently away.
-              self.set_span((&entry_span).into());
-              *self.state = entry_state;
-              *self.emitted_error_end = entry_error_end;
-              let cursor = self.cursor().clone();
-              self.emitter().rewind(&cursor, entry_mark);
-              return Ok((None, GenericArrayDeque::new(), self.emitter));
-            }
-          }
-        }
-      }
+        // The exhausted outcomes — a poison trip committed at the durable frontier, or a
+        // no-match run to end of input rewound to `snapshot` — yield no match and an empty peek.
+        Synced::Exhausted => Ok((None, GenericArrayDeque::new(), self.emitter)),
+      },
     }
   }
 }

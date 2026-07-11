@@ -27,6 +27,7 @@ mod pratt;
 mod skip_while;
 #[cfg(any(feature = "std", feature = "alloc"))]
 mod stacked;
+mod sync;
 mod sync_through;
 mod sync_to;
 #[cfg(feature = "trace")]

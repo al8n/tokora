@@ -1,5 +1,7 @@
 use super::*;
 
+use super::sync::{SyncTo, Synced};
+
 impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
@@ -52,60 +54,17 @@ where
     trace_event!(self, "sync_to");
     self.sync_matched_in_cache(&mut pred, &mut exp)?;
 
-    // as the matched token will not be consumed, we just peek it
+    // The matched token is left unconsumed, so peek it: either it is already the cache front
+    // (the drain above stops at it), or the shared scanner committed at the frontier before it
+    // (`SyncTo::on_match`) and the peek re-lexes it from there. The exhausted outcomes — a poison
+    // trip mid-scan or a no-match run to end of input, both of which `sync_with` has already
+    // committed — return the empty peek.
     match !self.cache().is_empty() {
-      // If the matched token is in cache, return it
       true => self.peek_with_emitter::<W>(),
-      // Otherwise, let's skip the input
-      false => {
-        // A sticky limit trip latches a poison boundary: once the cursor reaches
-        // the durable frontier no token remains to sync to, so return the empty
-        // peek (the end-of-input outcome) without rebuilding a lexer. Strictly
-        // before it, the scan proceeds.
-        if self.reached_boundary(self.offset()) {
-          return Ok((GenericArrayDeque::new(), self.emitter));
-        }
-
-        let mut lex_at = self.offset().clone();
-        let mut lexer = self.lexer();
-        // The frontier tracks the end of the last synced-over token; a trip
-        // latches and commits there.
-        let mut frontier = AtFrontier {
-          span: self.span.clone(),
-          state: self.state.clone(),
-        };
-
-        loop {
-          match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
-            Scan::Token(tok) => {
-              // if the token matches, we cache it and return it
-              if pred(tok.as_ref()) {
-                self.set_span_after_consume(frontier.span.into());
-                *self.state = frontier.state;
-                return self.peek_with_emitter::<W>();
-              } else {
-                let (span, tok) = tok.into_components();
-                self.emitter().emit_unexpected_token(
-                  UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
-                )?;
-                frontier.advance(&lexer);
-              }
-            }
-            Scan::Tripped => {
-              // Commit progress before the trip; stop at the poison.
-              self.set_span_after_consume(frontier.span.into());
-              *self.state = frontier.state;
-              return Ok((GenericArrayDeque::new(), self.emitter));
-            }
-            Scan::Eof => {
-              // No matched token found, we just update the cursor and state
-              self.set_span_after_consume(lexer.span().into());
-              *self.state = lexer.into_state();
-              return Ok((GenericArrayDeque::new(), self.emitter));
-            }
-          }
-        }
-      }
+      false => match self.sync_with::<SyncTo, _, _>(&mut pred, &mut exp, ())? {
+        Synced::Found(_) => self.peek_with_emitter::<W>(),
+        Synced::Exhausted => Ok((GenericArrayDeque::new(), self.emitter)),
+      },
     }
   }
 }
