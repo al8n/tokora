@@ -4,7 +4,7 @@ use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray, ty
 
 use crate::{
   cache::Peeked,
-  input::InputRef,
+  input::{DelimClass, InputRef},
   located::Located,
   parser::*,
   punct::*,
@@ -717,6 +717,54 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     InplaceRecover<Self, R, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     InplaceRecover::new(self, recovery)
+  }
+
+  /// Recover from errors by skipping — nesting-aware — to a synchronization point and
+  /// retrying this parser.
+  ///
+  /// If this parser fails, the input rolls back to where the attempt began, then
+  /// [`sync_balanced`](InputRef::sync_balanced) skips forward using `classifier` (which token
+  /// kinds open/close delimiter pairs — see [`Balance`](crate::input::Balance)) and the
+  /// depth-0 sync predicate `pred`, and the parser is retried from the sync point. Each
+  /// committed skip is reported once through
+  /// [`emit_skipped_region`](crate::Emitter::emit_skipped_region).
+  ///
+  /// A retry cycle that consumes nothing bails out with the original error (the
+  /// zero-consumption progress guard), and an [`Incomplete`](crate::error::Incomplete) error
+  /// is re-raised untouched without any skipping — the never-recoverable law.
+  ///
+  /// # Example
+  ///
+  /// ```ignore
+  /// use tokit::input::Balance;
+  ///
+  /// // Parse a statement; on failure skip to the next `;` (never one inside braces) and retry.
+  /// let parser = parse_statement().skip_then_retry(
+  ///     |kind| match kind {
+  ///         TokenKind::LBrace => Balance::Open('{'),
+  ///         TokenKind::RBrace => Balance::Close('{'),
+  ///         _ => Balance::Neutral,
+  ///     },
+  ///     |tok| matches!(tok.data(), Token::Semi),
+  /// );
+  /// ```
+  ///
+  /// See [`SkipThenRetry`] for the full loop and progress-guard contract.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn skip_then_retry<D, F>(
+    self,
+    classifier: D,
+    pred: F,
+  ) -> SkipThenRetry<Self, D, F, O, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    D: DelimClass<<L::Token as Token<'inp>>::Kind>,
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
+    Ctx: ParseContext<'inp, L, Lang>,
+    SkipThenRetry<Self, D, F, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+  {
+    SkipThenRetry::new(self, classifier, pred)
   }
 
   /// Creates a parser that accepts any token with optional padding.
