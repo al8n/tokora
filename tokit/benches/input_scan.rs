@@ -25,10 +25,12 @@ use std::hint::black_box;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 
 use tokit::{
-  Emitter, InputRef, Parse, ParseContext, Parser, Token,
-  error::token::UnexpectedToken,
+  Emitter, InputRef, Parse, ParseChoice, ParseContext, ParseInput, Parser, State, Token,
+  cache::PeekedTokenExt,
+  error::{UnexpectedEnd, token::UnexpectedToken},
   lexer::LogosLexer,
   logos::{self, Logos},
+  parser::Any,
 };
 
 // ── Fixture: a small ident/int/punct/whitespace-trivia token enum ─────────────
@@ -114,6 +116,15 @@ impl From<()> for BenchError {
 
 impl<'a, T, K: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, K, S, Lang>> for BenchError {
   fn from(_: UnexpectedToken<'a, T, K, S, Lang>) -> Self {
+    BenchError
+  }
+}
+
+// The dispatch benches route the committed-dispatch-failure / end-of-input errors of
+// `DispatchOnKind` (and the `Any` arms) through the `Err` channel; the source is
+// well-formed so these are only ever the final end-of-input at drain end.
+impl<H, O, Lang: ?Sized, Set: Clone + 'static> From<UnexpectedEnd<H, O, Lang, Set>> for BenchError {
+  fn from(_: UnexpectedEnd<H, O, Lang, Set>) -> Self {
     BenchError
   }
 }
@@ -303,5 +314,314 @@ fn bench(c: &mut Criterion) {
   group.finish();
 }
 
-criterion_group!(benches, bench);
+// ── Fixture: an N-kind dispatch token enum (dense discriminants) ──────────────
+//
+// Eight distinct kinds so a kind-keyed dispatch table does real linear-scan work
+// per token (the `position` lookup `DispatchOnKind` runs). Same ident/int/punct/
+// whitespace shape as `BenchTok`, but `+ * = , ;` each get their own kind rather
+// than collapsing into one `Punct`. The discriminants are dense (0..8) so a match
+// on kind compiles to a jump table.
+
+#[derive(Debug, Clone, PartialEq, Logos)]
+#[logos(crate = logos)]
+enum DispTok {
+  #[regex(r"[ \t\r\n]+")]
+  Ws,
+  #[regex(r"[A-Za-z_][A-Za-z0-9_]*")]
+  Ident,
+  #[regex(r"[0-9]+")]
+  Int,
+  #[token("+")]
+  Plus,
+  #[token("*")]
+  Star,
+  #[token("=")]
+  Eq,
+  #[token(",")]
+  Comma,
+  #[token(";")]
+  Semi,
+}
+
+/// Deliberately heavy lexer state: a 256-byte array the cache must clone faithfully
+/// on every staged token. Legal (`Clone + Default + State`) but an anti-pattern — it
+/// quantifies the `CachedToken` state-clone cost the peek→consume round trip pays and
+/// the fused lex-once→commit shape avoids.
+#[derive(Debug, Clone, Default)]
+// `scratch` is never read by bench code — it exists purely to give `State` clones a
+// 256-byte copy cost. The clone (a memcpy the analysis ignores) is the whole point.
+#[allow(dead_code)]
+struct HeavyState {
+  scratch: [u64; 32],
+}
+
+impl State for HeavyState {
+  type Error = ();
+
+  fn check(&self) -> Result<(), ()> {
+    Ok(())
+  }
+}
+
+// Same grammar as `DispTok`, but carrying the heavy state so the cache's per-token
+// `State` clone is a 256-byte copy.
+#[derive(Debug, Clone, PartialEq, Logos)]
+#[logos(crate = logos, extras = HeavyState)]
+enum DispTokHeavy {
+  #[regex(r"[ \t\r\n]+")]
+  Ws,
+  #[regex(r"[A-Za-z_][A-Za-z0-9_]*")]
+  Ident,
+  #[regex(r"[0-9]+")]
+  Int,
+  #[token("+")]
+  Plus,
+  #[token("*")]
+  Star,
+  #[token("=")]
+  Eq,
+  #[token(",")]
+  Comma,
+  #[token(";")]
+  Semi,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum DispKind {
+  Ws,
+  Ident,
+  Int,
+  Plus,
+  Star,
+  Eq,
+  Comma,
+  Semi,
+}
+
+impl core::fmt::Display for DispKind {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    let s = match self {
+      DispKind::Ws => "whitespace",
+      DispKind::Ident => "identifier",
+      DispKind::Int => "integer",
+      DispKind::Plus => "'+'",
+      DispKind::Star => "'*'",
+      DispKind::Eq => "'='",
+      DispKind::Comma => "','",
+      DispKind::Semi => "';'",
+    };
+    f.write_str(s)
+  }
+}
+
+/// The dispatch table shared by every dispatch driver: `table[i]` is the viable
+/// first-token kind for branch `i`, in branch order. Eight arms → `Branch<7>`.
+const DISP_TABLE: &[DispKind] = &[
+  DispKind::Ws,
+  DispKind::Ident,
+  DispKind::Int,
+  DispKind::Plus,
+  DispKind::Star,
+  DispKind::Eq,
+  DispKind::Comma,
+  DispKind::Semi,
+];
+
+macro_rules! disp_token_impl {
+  ($tok:ident) => {
+    impl core::fmt::Display for $tok {
+      fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(&self.kind(), f)
+      }
+    }
+
+    impl Token<'_> for $tok {
+      type Kind = DispKind;
+      type Error = ();
+
+      fn kind(&self) -> DispKind {
+        match self {
+          $tok::Ws => DispKind::Ws,
+          $tok::Ident => DispKind::Ident,
+          $tok::Int => DispKind::Int,
+          $tok::Plus => DispKind::Plus,
+          $tok::Star => DispKind::Star,
+          $tok::Eq => DispKind::Eq,
+          $tok::Comma => DispKind::Comma,
+          $tok::Semi => DispKind::Semi,
+        }
+      }
+
+      fn is_trivia(&self) -> bool {
+        matches!(self, $tok::Ws)
+      }
+    }
+  };
+}
+
+disp_token_impl!(DispTok);
+disp_token_impl!(DispTokHeavy);
+
+type DispLexer<'a> = LogosLexer<'a, DispTok>;
+type HeavyLexer<'a> = LogosLexer<'a, DispTokHeavy>;
+
+// ── Dispatch drivers ──────────────────────────────────────────────────────────
+//
+// Three shapes over the same N-kind stream, stamped for the light and heavy lexers:
+//   * `peek_combinator` — the real `DispatchOnKind` combinator surface: peek one,
+//     look the kind up in the table, run the winning `Any` arm (which consumes the
+//     cache-staged token). THE peek shape.
+//   * `peek_inputref` — the underlying InputRef peek path by hand: `peek_one` +
+//     match-on-kind + `next`. Same round trip, no combinator wrapper.
+//   * `fused_inputref` — the fused try_expect shape: `try_expect_map` lexes once,
+//     classifies on kind, and commits directly — no cache round trip. The ceiling
+//     a fused dispatch combinator would reach.
+
+macro_rules! dispatch_drivers {
+  ($lexer:ident, $peekc:ident, $peekr:ident, $fused:ident) => {
+    fn $peekc<'inp, Ctx>(
+      inp: &mut InputRef<'inp, '_, $lexer<'inp>, Ctx>,
+    ) -> Result<usize, BenchError>
+    where
+      Ctx: ParseContext<'inp, $lexer<'inp>>,
+      Ctx::Emitter: Emitter<'inp, $lexer<'inp>, Error = BenchError>,
+    {
+      let mut n = 0usize;
+      let mut parser = (
+        Any::<$lexer<'inp>, Ctx>::new(),
+        Any::<$lexer<'inp>, Ctx>::new(),
+        Any::<$lexer<'inp>, Ctx>::new(),
+        Any::<$lexer<'inp>, Ctx>::new(),
+        Any::<$lexer<'inp>, Ctx>::new(),
+        Any::<$lexer<'inp>, Ctx>::new(),
+        Any::<$lexer<'inp>, Ctx>::new(),
+        Any::<$lexer<'inp>, Ctx>::new(),
+      )
+        .dispatch_on_kind(DISP_TABLE);
+      loop {
+        match parser.parse_input(inp) {
+          Ok(tok) => {
+            black_box(&tok);
+            n += 1;
+          }
+          // Well-formed source + complete table: the only Err is the final EOT.
+          Err(_) => break,
+        }
+      }
+      Ok(n)
+    }
+
+    fn $peekr<'inp, Ctx>(
+      inp: &mut InputRef<'inp, '_, $lexer<'inp>, Ctx>,
+    ) -> Result<usize, BenchError>
+    where
+      Ctx: ParseContext<'inp, $lexer<'inp>>,
+      Ctx::Emitter: Emitter<'inp, $lexer<'inp>, Error = BenchError>,
+    {
+      let mut n = 0usize;
+      loop {
+        let hit = {
+          match inp.peek_one()? {
+            Some(peeked) => {
+              let kind = peeked.token().kind();
+              black_box(DISP_TABLE.iter().position(|c| *c == kind));
+              true
+            }
+            None => false,
+          }
+        };
+        if !hit {
+          break;
+        }
+        let tok = inp.next()?;
+        black_box(&tok);
+        n += 1;
+      }
+      Ok(n)
+    }
+
+    fn $fused<'inp, Ctx>(
+      inp: &mut InputRef<'inp, '_, $lexer<'inp>, Ctx>,
+    ) -> Result<usize, BenchError>
+    where
+      Ctx: ParseContext<'inp, $lexer<'inp>>,
+      Ctx::Emitter: Emitter<'inp, $lexer<'inp>, Error = BenchError>,
+    {
+      let mut n = 0usize;
+      // `try_expect_map` lexes one token, classifies on kind, and commits the token
+      // directly on a match — the fused path, no cache staging. Always matches here.
+      while let Some((idx, tok)) =
+        inp.try_expect_map(|t| DISP_TABLE.iter().position(|c| *c == t.data.kind()))?
+      {
+        black_box((idx, &tok));
+        n += 1;
+      }
+      Ok(n)
+    }
+  };
+}
+
+dispatch_drivers!(
+  DispLexer,
+  dispatch_peek_combinator,
+  dispatch_peek_inputref,
+  dispatch_fused_inputref
+);
+dispatch_drivers!(
+  HeavyLexer,
+  dispatch_peek_combinator_heavy,
+  dispatch_peek_inputref_heavy,
+  dispatch_fused_inputref_heavy
+);
+
+/// ~128 KiB of well-formed `var = int * ident , int + ident ;` lines. Every token is
+/// a dispatch target and all eight kinds fire. Kept separate from `synthetic_source`
+/// so the existing scanner benches keep their fixture (and baseline) unchanged.
+fn dispatch_source() -> String {
+  const TARGET: usize = 128 * 1024;
+  let mut s = String::with_capacity(TARGET + 64);
+  let mut i = 0u32;
+  while s.len() < TARGET {
+    let a = i;
+    let m = i.wrapping_mul(2654435761) % 100_000;
+    let b = i % 4093;
+    let _ = writeln!(s, "var{a} = {m} * val{b} , {a} + w{b} ;");
+    i = i.wrapping_add(1);
+  }
+  s
+}
+
+fn dispatch_bench(c: &mut Criterion) {
+  let src = dispatch_source();
+
+  let mut group = c.benchmark_group("input/dispatch");
+  group.throughput(Throughput::Bytes(src.len() as u64));
+  group.measurement_time(Duration::from_secs(3));
+  group.warm_up_time(Duration::from_secs(1));
+
+  macro_rules! bench_driver {
+    ($name:literal, $driver:ident) => {
+      group.bench_function($name, |b| {
+        b.iter(|| {
+          let n = Parser::new()
+            .apply($driver)
+            .parse_str(black_box(src.as_str()))
+            .unwrap();
+          black_box(n)
+        })
+      });
+    };
+  }
+
+  bench_driver!("peek_combinator", dispatch_peek_combinator);
+  bench_driver!("peek_inputref", dispatch_peek_inputref);
+  bench_driver!("fused_inputref", dispatch_fused_inputref);
+  bench_driver!("peek_combinator_heavy", dispatch_peek_combinator_heavy);
+  bench_driver!("peek_inputref_heavy", dispatch_peek_inputref_heavy);
+  bench_driver!("fused_inputref_heavy", dispatch_fused_inputref_heavy);
+
+  group.finish();
+}
+
+criterion_group!(benches, bench, dispatch_bench);
 criterion_main!(benches);
