@@ -30,7 +30,10 @@ pub use logos_0_16 as logos;
 pub use cache::{Cache, DefaultCache};
 pub use check::Check;
 pub use emitter::Emitter;
-pub use input::{Balance, Commit, DelimClass, DropPolicy, Hole, InputRef, Rollback, Transaction};
+pub use input::{
+  Balance, Commit, Complete, Completeness, DelimClass, DropPolicy, Hole, InputRef, Partial,
+  Rollback, SurfaceIncomplete, Transaction, parse_partial,
+};
 #[cfg(any(feature = "std", feature = "alloc"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub use input::{SavepointId, StackedTransaction};

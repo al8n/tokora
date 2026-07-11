@@ -294,3 +294,171 @@ fn complete_never_surfaces_incomplete() {
   assert_eq!(run.kinds, std::vec![PKind::Word]);
   assert_eq!(run.result, Ok(None), "complete mode reaches genuine EOF");
 }
+
+// ── Exhaustive chunked-equivalence oracle over every split point ──────────────────────
+
+/// A full observation of a drain: each yielded token as `(kind, start, end)`, each emitted lexer
+/// error's `(start, end)` in span order, and the terminating result.
+struct Trace {
+  tokens: std::vec::Vec<(PKind, usize, usize)>,
+  errors: std::vec::Vec<(usize, usize)>,
+  result: Result<Option<()>, PErr>,
+}
+
+/// Drains a partial input over `src` at the given `is_final`, capturing the full [`Trace`].
+fn trace_partial(src: &str, is_final: bool) -> Trace {
+  let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_cache(
+    src,
+    (),
+    DefaultCache::<'_, Lex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  let (tokens, result) = {
+    let mut inp = input.as_ref(&mut emitter);
+    inp.set_final(is_final);
+    let mut tokens = std::vec::Vec::new();
+    let result = loop {
+      match inp.next() {
+        Ok(Some(t)) => tokens.push((t.data().kind(), *t.span().start_ref(), *t.span().end_ref())),
+        Ok(None) => break Ok(None),
+        Err(e) => break Err(e),
+      }
+    };
+    (tokens, result)
+  };
+  let errors = collect_errors(&emitter);
+  Trace {
+    tokens,
+    errors,
+    result,
+  }
+}
+
+/// Drains a complete input over `src`, capturing the full [`Trace`] — the oracle a chunked partial
+/// run is checked against.
+fn trace_complete(src: &str) -> Trace {
+  let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+    src,
+    (),
+    DefaultCache::<'_, Lex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  let (tokens, result) = {
+    let mut inp = input.as_ref(&mut emitter);
+    let mut tokens = std::vec::Vec::new();
+    let result = loop {
+      match inp.next() {
+        Ok(Some(t)) => tokens.push((t.data().kind(), *t.span().start_ref(), *t.span().end_ref())),
+        Ok(None) => break Ok(None),
+        Err(e) => break Err(e),
+      }
+    };
+    (tokens, result)
+  };
+  let errors = collect_errors(&emitter);
+  Trace {
+    tokens,
+    errors,
+    result,
+  }
+}
+
+/// Collects every emitted lexer error's `(start, end)` in span order from a verbose emitter.
+fn collect_errors(emitter: &Verbose<PErr>) -> std::vec::Vec<(usize, usize)> {
+  emitter
+    .errors()
+    .iter()
+    .flat_map(|(span, group)| {
+      let se = (*span.start_ref(), *span.end_ref());
+      group.iter().map(move |_| se)
+    })
+    .collect()
+}
+
+/// The correctness oracle (crate-side, exhaustive): for **every** split point `k` of each corpus
+/// string, a non-final partial drain of the prefix `src[0..k]` must
+///
+/// 1. yield exactly the complete-parse tokens that lie strictly before `k` (the frontier holdback
+///    withholds the one touching the cut),
+/// 2. emit exactly the complete-parse lexer errors that lie strictly before `k` (the frontier error
+///    is held back), and
+/// 3. always terminate with an `Incomplete` (a non-final drain never reports genuine end of input),
+///
+/// while a *final* drain of the whole string reproduces the complete parse exactly (the "complete
+/// over the full input" leg of the resumption loop). Together these are the chunked-equivalence
+/// guarantee: reassembling the chunk-by-chunk prefixes yields the same tokens and emission log as a
+/// single complete parse.
+#[test]
+fn chunked_equivalence_over_every_split_point() {
+  // A corpus mixing words, numbers, trailing/leading/interior whitespace, and lexer errors (`@`).
+  const CORPUS: &[&str] = &[
+    "",
+    "a",
+    "foo bar baz",
+    "12 ab 345 cd",
+    "  lead",
+    "trail  ",
+    "ab@cd",
+    "foo @ bar @ baz",
+    "a b c d e f",
+    "x1 y2 z3",
+  ];
+
+  for &src in CORPUS {
+    let complete = trace_complete(src);
+
+    // The "complete over the full input" leg: a final partial drain equals the complete parse.
+    let final_partial = trace_partial(src, true);
+    assert_eq!(
+      final_partial.tokens, complete.tokens,
+      "final partial tokens must equal complete for {src:?}"
+    );
+    assert_eq!(
+      final_partial.errors, complete.errors,
+      "final partial emission log must equal complete for {src:?}"
+    );
+    assert_eq!(
+      final_partial.result, complete.result,
+      "final partial terminal must equal complete for {src:?}"
+    );
+
+    for k in 0..=src.len() {
+      if !src.is_char_boundary(k) {
+        continue;
+      }
+      let prefix = trace_partial(&src[..k], false);
+
+      let expected_tokens: std::vec::Vec<_> = complete
+        .tokens
+        .iter()
+        .copied()
+        .filter(|&(_, _, end)| end < k)
+        .collect();
+      assert_eq!(
+        prefix.tokens, expected_tokens,
+        "prefix tokens diverge from the complete prefix for {src:?} at k={k}"
+      );
+
+      let expected_errors: std::vec::Vec<_> = complete
+        .errors
+        .iter()
+        .copied()
+        .filter(|&(_, end)| end < k)
+        .collect();
+      assert_eq!(
+        prefix.errors, expected_errors,
+        "prefix emission log diverges from the complete prefix for {src:?} at k={k}"
+      );
+
+      match &prefix.result {
+        Err(e) => assert!(
+          e.is_incomplete(),
+          "a non-final prefix must terminate Incomplete for {src:?} at k={k}, got {e:?}"
+        ),
+        Ok(none) => panic!(
+          "a non-final prefix never reports genuine end of input for {src:?} at k={k}, got Ok({none:?})"
+        ),
+      }
+    }
+  }
+}

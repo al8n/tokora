@@ -36,6 +36,14 @@
 //! `nested-savepoints`) and requiring the committed token stream to equal the
 //! straight-lex stream. No randomness — the schedules are enumerated.
 //!
+//! **Partial-input tier** (`run_partial`, a separate entry point for
+//! `usize`-offset `str` / `[u8]` sources) — driving the input in
+//! [`Partial`](crate::input::Partial) mode over **every split point** and requiring
+//! chunked-equivalence under the frontier rules: a non-final drain of each prefix yields exactly
+//! the complete-parse tokens before the cut and always ends incomplete, while a final drain of the
+//! whole source reproduces the complete parse. Catches lexers that are unfaithful under truncation
+//! (token identity depending on input beyond `(state, offset)`).
+//!
 //! # Violation posture
 //!
 //! A failing check is a bug in the *lexer* (or a mismatch with the documented
@@ -46,7 +54,8 @@ use crate::{
   Lexer, Slice, Source, Span, Token,
   cache::DefaultCache,
   emitter::Silent,
-  input::{Input, InputRef},
+  error::{Incomplete, MaybeIncomplete},
+  input::{Complete, Input, InputRef, Partial},
 };
 
 /// Default anti-hang budget: a run may not exceed `8 * source_len + 64` items.
@@ -225,6 +234,221 @@ where
       .budget_multiple
       .saturating_mul(units)
       .saturating_add(BUDGET_FLOOR)
+  }
+}
+
+impl<'inp, L> Harness<'inp, L>
+where
+  L: Lexer<'inp, Offset = usize>,
+  L::State: Clone,
+  // A prefix of the source is itself a `&L::Source` — true for the byte/`str` sources partial
+  // parsing targets (`str[..k] : str`, `[u8][..k] : [u8]`). This is what lets the check feed the
+  // lexer honest truncations without a growable source.
+  L::Source: core::ops::Index<core::ops::RangeTo<usize>, Output = L::Source>,
+  <L::Token as Token<'inp>>::Kind: PartialEq + core::fmt::Debug,
+{
+  /// Runs the **partial-input (Sans-I/O) chunked-equivalence** check against every input.
+  ///
+  /// A separate entry point from [`run`](Self::run) because it needs a `usize`-offset,
+  /// prefix-sliceable source (`str` / `[u8]`) and drives the input in
+  /// [`Partial`] mode. For every split point `k` of each source it verifies
+  /// that a **non-final** drain of the prefix `src[0..k]` yields exactly the complete-parse tokens
+  /// lying strictly before `k` (the frontier holdback withholds the one touching the cut) and
+  /// always terminates as incomplete, while a **final** drain of the whole source reproduces the
+  /// complete parse exactly. Together these are the chunked-equivalence guarantee: reassembling the
+  /// chunk-by-chunk prefixes reproduces the single-shot parse.
+  ///
+  /// This is where a lexer that is not faithful under truncation is caught — one whose token
+  /// identity depends on input beyond its own span (e.g. lookahead past a token, or a
+  /// [`with_state`](crate::Lexer::with_state) + [`bump`](crate::Lexer::bump) resume that does not
+  /// reproduce the suffix) diverges from the complete prefix and trips this check.
+  ///
+  /// # Panics
+  ///
+  /// Panics — tagged `partial-equivalence`, with the input index, split point, and expected-vs-got
+  /// — on the first divergence. Returns normally on full conformance.
+  pub fn run_partial(&self) {
+    assert!(
+      !self.inputs.is_empty(),
+      "tokit conformance: Harness has no inputs; construct it with `new`/`over` over at least one source"
+    );
+    for (idx, &src) in self.inputs.iter().enumerate() {
+      let budget = self.budget(src);
+      check_partial::<L>(idx, src, budget);
+    }
+  }
+}
+
+/// The emitter error the partial check surfaces: the input layer builds it from the frontier
+/// [`Incomplete`] (via [`SurfaceIncomplete`](crate::input::SurfaceIncomplete)), and the
+/// [`Silent`] emitter — which needs no bound on its error — swallows every real lexer error, so the
+/// check compares only committed token streams. It never inspects the payload, only that `next`
+/// returned `Err` at the frontier.
+enum PartialProbe {
+  Incomplete,
+}
+
+impl<O> From<Incomplete<O>> for PartialProbe {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn from(_: Incomplete<O>) -> Self {
+    PartialProbe::Incomplete
+  }
+}
+
+impl MaybeIncomplete for PartialProbe {
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn is_incomplete(&self) -> bool {
+    true
+  }
+}
+
+/// The partial-check context: a [`Silent`] emitter over [`PartialProbe`] and the default cache.
+type PartialConfCtx<'inp, L> = (Silent<PartialProbe>, DefaultCache<'inp, L>);
+
+/// Drives a partial input over `src` at `is_final`, returning the committed `(kind, span)` stream
+/// and whether the drain terminated incomplete (rather than at genuine end of input).
+fn partial_stream<'inp, L>(
+  src: &'inp L::Source,
+  is_final: bool,
+  budget: usize,
+  idx: usize,
+) -> (Vec<(<L::Token as Token<'inp>>::Kind, L::Span)>, bool)
+where
+  L: Lexer<'inp>,
+  L::State: Clone,
+{
+  let cache = DefaultCache::<'inp, L>::default();
+  let mut emitter = Silent::<PartialProbe>::new();
+  let state = L::new(src).into_state();
+  let mut input =
+    Input::<'inp, L, PartialConfCtx<'inp, L>, (), Partial>::with_state_and_cache(src, state, cache);
+  let mut ir = input.as_ref(&mut emitter);
+  ir.set_final(is_final);
+  let mut out = Vec::new();
+  loop {
+    if out.len() > budget {
+      panic!(
+        "tokit conformance [input #{idx} partial-equivalence] a partial drain exceeded the budget of {budget} tokens (the lexer may not terminate or re-lexes without progress)"
+      );
+    }
+    match ir.next() {
+      Ok(Some(spanned)) => {
+        let (span, tok) = spanned.into_components();
+        out.push((tok.kind(), span));
+      }
+      Ok(None) => return (out, false),
+      Err(_) => return (out, true),
+    }
+  }
+}
+
+/// Drives a complete input over `src`, returning the committed `(kind, span)` stream — the oracle a
+/// chunked partial run is checked against.
+fn complete_stream<'inp, L>(
+  src: &'inp L::Source,
+  budget: usize,
+  idx: usize,
+) -> Vec<(<L::Token as Token<'inp>>::Kind, L::Span)>
+where
+  L: Lexer<'inp>,
+  L::State: Clone,
+{
+  let cache = DefaultCache::<'inp, L>::default();
+  let mut emitter = Silent::<PartialProbe>::new();
+  let state = L::new(src).into_state();
+  let mut input = Input::<'inp, L, PartialConfCtx<'inp, L>, (), Complete>::with_state_and_cache(
+    src, state, cache,
+  );
+  let mut ir = input.as_ref(&mut emitter);
+  let mut out = Vec::new();
+  loop {
+    if out.len() > budget {
+      panic!(
+        "tokit conformance [input #{idx} partial-equivalence] a complete drain exceeded the budget of {budget} tokens"
+      );
+    }
+    match ir
+      .next()
+      .unwrap_or_else(|_| unreachable!("complete mode never surfaces Incomplete"))
+    {
+      Some(spanned) => {
+        let (span, tok) = spanned.into_components();
+        out.push((tok.kind(), span));
+      }
+      None => return out,
+    }
+  }
+}
+
+/// The partial-equivalence check for one source: exhaustive over every split point.
+fn check_partial<'inp, L>(idx: usize, src: &'inp L::Source, budget: usize)
+where
+  L: Lexer<'inp, Offset = usize>,
+  L::State: Clone,
+  L::Source: core::ops::Index<core::ops::RangeTo<usize>, Output = L::Source>,
+  <L::Token as Token<'inp>>::Kind: PartialEq + core::fmt::Debug,
+{
+  let complete = complete_stream::<L>(src, budget, idx);
+
+  // The "complete over the full input" leg: a final partial drain reproduces the complete parse.
+  let (final_tokens, final_incomplete) = partial_stream::<L>(src, true, budget, idx);
+  if final_incomplete {
+    panic!(
+      "tokit conformance [input #{idx} partial-equivalence] a FINAL partial drain surfaced Incomplete; a final input must reach genuine end of input like a complete parse"
+    );
+  }
+  assert_partial_stream_eq::<L>(idx, usize::MAX, &complete, &final_tokens);
+
+  let len = src.len();
+  for k in 0..=len {
+    if !src.is_boundary(k) {
+      continue;
+    }
+    let prefix: &L::Source = &src[..k];
+    let (prefix_tokens, incomplete) = partial_stream::<L>(prefix, false, budget, idx);
+
+    // A non-final prefix yields exactly the complete tokens strictly before the cut; the one whose
+    // span reaches (or crosses) `k` is held back.
+    let expected: Vec<_> = complete
+      .iter()
+      .filter(|(_, span)| *span.end_ref() < k)
+      .cloned()
+      .collect();
+    assert_partial_stream_eq::<L>(idx, k, &expected, &prefix_tokens);
+
+    if !incomplete {
+      panic!(
+        "tokit conformance [input #{idx} partial-equivalence] split k={k}: a non-final prefix drain reached genuine end of input; it must surface Incomplete (more input may arrive)"
+      );
+    }
+  }
+}
+
+/// Asserts two committed `(kind, span)` streams are identical, tagged `partial-equivalence`.
+fn assert_partial_stream_eq<'inp, L>(
+  idx: usize,
+  k: usize,
+  expected: &[(<L::Token as Token<'inp>>::Kind, L::Span)],
+  got: &[(<L::Token as Token<'inp>>::Kind, L::Span)],
+) where
+  L: Lexer<'inp>,
+  <L::Token as Token<'inp>>::Kind: PartialEq + core::fmt::Debug,
+{
+  let n = expected.len().min(got.len());
+  for i in 0..n {
+    if expected[i] != got[i] {
+      panic!(
+        "tokit conformance [input #{idx} partial-equivalence] split k={k}, position {i}: prefix token diverges from the complete prefix: expected {:?}, got {:?}",
+        expected[i], got[i]
+      );
+    }
+  }
+  if expected.len() != got.len() {
+    panic!(
+      "tokit conformance [input #{idx} partial-equivalence] split k={k}: prefix token count diverges from the complete prefix: expected {}, got {}",
+      expected.len(),
+      got.len()
+    );
   }
 }
 

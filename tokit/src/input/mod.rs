@@ -1,3 +1,136 @@
+//! The input layer: [`InputRef`], its backtracking guards, and the completeness typestate.
+//!
+//! # Partial input (Sans-I/O mode)
+//!
+//! An input carries a [`Completeness`] typestate. The default, [`Complete`], is the whole source —
+//! today's behaviour, with identical generated code. [`Partial`] is a **prefix of a stream that may
+//! still grow**, carrying a runtime `is_final` flag ([`InputRef::set_final`]) the caller flips as
+//! chunks arrive. While a partial input is non-final, three conservative *frontier rules* at the
+//! scan chokepoint keep a construct that later input could still extend from being mistaken for a
+//! finished one — each surfaces an [`Incomplete`](crate::error::Incomplete) instead of yielding,
+//! emitting, or reporting end of input (see [`InputRef::next`]).
+//!
+//! ## One-token frontier latency
+//!
+//! The holdback withholds a token whose span reaches the buffer end, so **the last token becomes
+//! visible only after more input arrives or the input is marked final**. This one-token latency is
+//! correct by construction: a token abutting the end could be the prefix of a longer one (`ab` may
+//! become `abc`), and the only proof it will not is more bytes — or `is_final`. With `is_final`
+//! set, or on a [`Complete`] input, the rules are inert and the last token yields immediately.
+//!
+//! ## No growable source; the caller owns the buffer
+//!
+//! tokit deliberately has **no growable internal source**. An [`InputRef`] borrows one immutable
+//! slice for its whole life, which is what makes zero-copy slices, checkpoints, and rollback a
+//! snapshot-copy rather than a journalled edit. Resumption therefore lives with the caller: it owns
+//! the byte buffer, and on an incomplete result it appends the next chunk to *its own* buffer and
+//! rebuilds the input over the larger slice. Re-lexing the whole prefix each round is cheap and
+//! keeps the frontier rules a pure function of the current slice.
+//!
+//! ## The Sans-I/O resumption loop
+//!
+//! Each attempt parses under a rollback-on-drop [`Transaction`], so an incomplete attempt unwinds
+//! its emissions and cursor before the retry; [`parse_partial`] wires this up and hands the closure
+//! a [`Partial`] [`InputRef`]. The only requirement partial mode adds is that the emitter error
+//! implement `From<Incomplete<L::Offset>>`.
+//!
+//! ```
+//! use core::convert::Infallible;
+//! use tokit::{InputRef, Lexer, Partial, SimpleSpan, Source, Token, parse_partial};
+//! use tokit::cache::DefaultCache;
+//! use tokit::emitter::Fatal;
+//! use tokit::error::{Incomplete, MaybeIncomplete};
+//!
+//! // A tiny word lexer: `[a-z]+` runs, spaces skipped. Resume re-skips spaces from the bumped
+//! // offset, so it is faithful under the input layer's re-lexing.
+//! #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+//! struct WordKind;
+//! impl core::fmt::Display for WordKind {
+//!   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { f.write_str("word") }
+//! }
+//! #[derive(Clone, Debug)]
+//! struct Word;
+//! impl Token<'_> for Word {
+//!   type Kind = WordKind;
+//!   type Error = Infallible;
+//!   fn kind(&self) -> WordKind { WordKind }
+//!   fn is_trivia(&self) -> bool { false }
+//! }
+//! struct WordLexer<'a> { src: &'a str, start: usize, end: usize, state: () }
+//! impl<'a> Lexer<'a> for WordLexer<'a> {
+//!   type State = (); type Source = str; type Token = Word;
+//!   type Span = SimpleSpan; type Offset = usize;
+//!   fn new(src: &'a str) -> Self { Self { src, start: 0, end: 0, state: () } }
+//!   fn with_state(src: &'a str, state: ()) -> Self { Self { src, start: 0, end: 0, state } }
+//!   fn check(&self) -> Result<(), Infallible> { Ok(()) }
+//!   fn state(&self) -> &() { &self.state }
+//!   fn state_mut(&mut self) -> &mut () { &mut self.state }
+//!   fn into_state(self) {}
+//!   fn source(&self) -> &'a str { self.src }
+//!   fn span(&self) -> SimpleSpan { SimpleSpan::new(self.start, self.end) }
+//!   fn slice(&self) -> &'a str { &self.src[self.start..self.end] }
+//!   fn lex(&mut self) -> Option<Result<Word, Infallible>> {
+//!     let b = self.src.as_bytes();
+//!     self.start = self.end;
+//!     while self.start < b.len() && b[self.start] == b' ' { self.start += 1; }
+//!     if self.start >= b.len() { self.end = self.start; return None; }
+//!     let mut e = self.start;
+//!     while e < b.len() && b[e] != b' ' { e += 1; }
+//!     self.end = e;
+//!     Some(Ok(Word))
+//!   }
+//!   fn bump(&mut self, n: &usize) { self.end += *n; }
+//! }
+//!
+//! // The emitter error must build from an incomplete signal (the one partial-mode requirement)
+//! // and report itself incomplete so the refill loop can detect it.
+//! #[derive(Debug, PartialEq)]
+//! enum PErr { Incomplete, Other }
+//! impl From<Infallible> for PErr { fn from(x: Infallible) -> Self { match x {} } }
+//! impl From<Incomplete<usize>> for PErr { fn from(_: Incomplete<usize>) -> Self { PErr::Incomplete } }
+//! impl MaybeIncomplete for PErr {
+//!   fn is_incomplete(&self) -> bool { matches!(self, PErr::Incomplete) }
+//! }
+//! impl<'a, T, K: Clone, S, Lg: ?Sized> From<tokit::error::token::UnexpectedToken<'a, T, K, S, Lg>>
+//!   for PErr { fn from(_: tokit::error::token::UnexpectedToken<'a, T, K, S, Lg>) -> Self { PErr::Other } }
+//!
+//! type Lex<'a> = WordLexer<'a>;
+//! type Ctx<'a> = (Fatal<PErr>, DefaultCache<'a, Lex<'a>>);
+//!
+//! // The parser: collect every word to end of input, under a rollback-on-drop transaction so an
+//! // incomplete attempt leaves no trace. `?` propagates the frontier Incomplete; the guard's drop
+//! // then rolls back.
+//! fn parse_words<'inp>(
+//!   inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>, (), Partial>,
+//! ) -> Result<Vec<String>, PErr> {
+//!   let mut txn = inp.begin();
+//!   let mut words = Vec::new();
+//!   while txn.next()?.is_some() {
+//!     words.push(txn.slice().to_string());
+//!   }
+//!   txn.commit();
+//!   Ok(words)
+//! }
+//!
+//! // The chunks arrive in pieces; the caller owns `buffer` and grows it.
+//! let chunks = ["foo b", "ar ", "baz"];
+//! let mut buffer = String::new();
+//! let mut parsed = None;
+//! let mut incompletes = 0;
+//! for (i, chunk) in chunks.iter().enumerate() {
+//!   buffer.push_str(chunk);
+//!   let is_final = i + 1 == chunks.len();
+//!   let ctx: Ctx = (Fatal::of(), DefaultCache::<'_, Lex<'_>>::default());
+//!   match parse_partial(ctx, buffer.as_str(), (), is_final, parse_words) {
+//!     Ok(words) => { parsed = Some(words); break; }        // success: whole sentence parsed
+//!     Err(e) if e.is_incomplete() => { incompletes += 1; } // frontier: append and re-drive
+//!     Err(_) => panic!("a real parse error"),
+//!   }
+//! }
+//! assert_eq!(parsed.unwrap(), ["foo", "bar", "baz"]);
+//! assert_eq!(incompletes, 2, "the first two non-final chunks each cut a word at the frontier");
+//! ```
+
 use core::marker::PhantomData;
 
 use crate::{ParseContext, span::Span};
@@ -442,6 +575,52 @@ where
       _marker: PhantomData,
     }
   }
+}
+
+/// Opens a **Sans-I/O partial parse session** over `src` and drives `f` on a
+/// [`Partial`] [`InputRef`], returning whatever `f` returns.
+///
+/// This is the entry point for partial-input parsing (the combinator [`Parse`] API
+/// is complete-only). `f` receives an [`InputRef`] in [`Partial`] mode set to `is_final`, so the
+/// [frontier rules](crate::input) are active while non-final: consuming across the frontier
+/// surfaces an [`Incomplete`](crate::error::Incomplete) on the `Err` channel, which the closure
+/// propagates out. `ctx` supplies the emitter and cache exactly as [`Parse`] does.
+///
+/// The `Partial: SurfaceIncomplete` bound requires only that the emitter's error implements
+/// `From<Incomplete<L::Offset>>` — the single least-surface requirement partial mode adds; complete
+/// parses never see it.
+///
+/// # The refill loop
+///
+/// The caller owns the buffer. Each attempt builds a fresh input over the current buffer slice, so
+/// there is **no growable source inside tokit**: on an incomplete result the caller appends the
+/// next chunk to *its own* buffer and calls this again over the larger slice. Inside `f`, parsing
+/// under a rollback-on-drop [`Transaction`] means an incomplete attempt unwinds its emissions and
+/// cursor cleanly before the retry. See the [`input`] module docs for the full
+/// runnable loop and the one-token frontier-latency guarantee.
+#[cfg_attr(not(tarpaulin), inline)]
+pub fn parse_partial<'inp, L, Ctx, Lang, O, F>(
+  ctx: Ctx,
+  src: &'inp L::Source,
+  state: L::State,
+  is_final: bool,
+  f: F,
+) -> Result<O, <Ctx::Emitter as crate::Emitter<'inp, L, Lang>>::Error>
+where
+  L: Lexer<'inp>,
+  L::State: Clone,
+  Lang: ?Sized,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Partial: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  F: for<'closure> FnOnce(
+    &mut InputRef<'inp, 'closure, L, Ctx, Lang, Partial>,
+  ) -> Result<O, <Ctx::Emitter as crate::Emitter<'inp, L, Lang>>::Error>,
+{
+  let (mut emitter, cache) = ctx.provide().into_components();
+  let mut input = Input::<L, Ctx, Lang, Partial>::with_state_and_cache(src, state, cache);
+  let mut input_ref = input.as_ref(&mut emitter);
+  input_ref.set_final(is_final);
+  f(&mut input_ref)
 }
 
 #[cfg(test)]

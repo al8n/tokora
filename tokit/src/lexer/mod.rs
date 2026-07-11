@@ -395,6 +395,21 @@ where
 /// backend guarantee documented on its `LogosLexer`, not a requirement on every
 /// lexer.)
 ///
+/// ## Truncation faithfulness (partial-input mode only)
+///
+/// When the input layer is driven in [`Partial`](crate::input::Partial) (Sans-I/O) mode, one
+/// further property is assumed — it is inert for a [`Complete`](crate::input::Complete) parse. A
+/// produced item (token or [`Error`](Lexed::Error)) whose span ends **strictly before the buffer
+/// end** must be **stable under appended input**: its decision — token-vs-error, kind, and span —
+/// must derive only from source bytes up to its own span end, never from bytes further ahead. The
+/// frontier holdback withholds exactly the one item whose span *reaches* the buffer end (the
+/// maximal-munch one-boundary-byte lookahead is safe, because that boundary byte is present
+/// precisely when the item is yielded), so a lexer that decides an item from bytes *beyond* its
+/// span breaks the chunked-equivalence guarantee — a prefix parse would produce a different item
+/// than the whole. A maximal-munch lexer (the Logos backend, and every hand-written lexer that
+/// commits each item from its own bytes) satisfies this; the `conformance` kit's `run_partial`
+/// check exercises it over every split point.
+///
 /// ## Span / slice coherence
 ///
 /// [`slice`](Lexer::slice) must equal the source content at [`span`](Lexer::span):

@@ -571,6 +571,129 @@ fn nondeterministic_lexer_is_caught() {
   Harness::<NonDetLexer<'_>>::new("abcd").run();
 }
 
+// ── Partial-input (Sans-I/O) chunked-equivalence check ──────────────────────────────
+
+#[test]
+fn tile_lexer_passes_partial_equivalence() {
+  // A faithful per-character lexer reassembles chunk-by-chunk exactly like a single parse.
+  Harness::<TileLexer<'_>>::over(["hello world", "a", "", "x y  z", "café"]).run_partial();
+}
+
+#[test]
+fn syntactic_lexer_passes_partial_equivalence() {
+  // A trivia-skipping lexer is fine too: tokens strictly before a cut are unaffected by later
+  // bytes, and the frontier holdback covers the one abutting the cut.
+  Harness::<SyntacticLexer<'_>>::over(["ab cd ef", "one  two", "solo", ""]).run_partial();
+}
+
+/// A per-character lexer whose token **kind depends on the buffer's final byte** — a lookahead
+/// beyond `(state, offset)`. It is deterministic on a *fixed* buffer (so it passes every trait-tier
+/// check) but its interior tokens change under truncation, so chunked equivalence rejects it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum PeekKind {
+  Plain,
+  Marked,
+}
+
+impl core::fmt::Display for PeekKind {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.write_str(match self {
+      PeekKind::Plain => "plain",
+      PeekKind::Marked => "marked",
+    })
+  }
+}
+
+#[derive(Clone, Debug)]
+struct PeekTok(PeekKind);
+
+impl Token<'_> for PeekTok {
+  type Kind = PeekKind;
+  type Error = Infallible;
+  fn kind(&self) -> PeekKind {
+    self.0
+  }
+  fn is_trivia(&self) -> bool {
+    false
+  }
+}
+
+struct LastBytePeekLexer<'a> {
+  src: &'a str,
+  start: usize,
+  end: usize,
+  state: (),
+}
+
+impl<'a> Lexer<'a> for LastBytePeekLexer<'a> {
+  type State = ();
+  type Source = str;
+  type Token = PeekTok;
+  type Span = SimpleSpan;
+  type Offset = usize;
+
+  fn new(src: &'a str) -> Self {
+    Self {
+      src,
+      start: 0,
+      end: 0,
+      state: (),
+    }
+  }
+  fn with_state(src: &'a str, state: ()) -> Self {
+    Self {
+      src,
+      start: 0,
+      end: 0,
+      state,
+    }
+  }
+  fn check(&self) -> Result<(), Infallible> {
+    Ok(())
+  }
+  fn state(&self) -> &() {
+    &self.state
+  }
+  fn state_mut(&mut self) -> &mut () {
+    &mut self.state
+  }
+  fn into_state(self) {}
+  fn source(&self) -> &'a str {
+    self.src
+  }
+  fn span(&self) -> SimpleSpan {
+    SimpleSpan::new(self.start, self.end)
+  }
+  fn slice(&self) -> &'a str {
+    &self.src[self.start..self.end]
+  }
+  fn lex(&mut self) -> Option<Result<PeekTok, Infallible>> {
+    self.start = self.end;
+    if self.start >= self.src.len() {
+      return None;
+    }
+    self.end = boundary_after(self.src, self.start);
+    // The bug: identity depends on the whole buffer's last byte, not on this token's own bytes.
+    let marked = self.src.as_bytes().last() == Some(&b'z');
+    Some(Ok(PeekTok(if marked {
+      PeekKind::Marked
+    } else {
+      PeekKind::Plain
+    })))
+  }
+  fn bump(&mut self, n: &usize) {
+    self.end += *n;
+  }
+}
+
+#[test]
+#[should_panic(expected = "partial-equivalence")]
+fn truncation_unfaithful_lexer_fails_partial_equivalence() {
+  // On "abz" the complete parse marks every token; on the prefix "ab" the same positions come back
+  // plain — an interior token changed under truncation, which chunked equivalence catches.
+  Harness::<LastBytePeekLexer<'_>>::new("abz").run_partial();
+}
+
 // ── Positive: the crate's real logos adapter (LogosLexer) ───────────────────────────
 
 #[cfg(feature = "logos")]
@@ -624,6 +747,13 @@ mod logos_adapter {
   #[test]
   fn logos_syntactic_passes() {
     Harness::<SynLexer<'_>>::over(["ab 12 cd", "one two three", "42", "  x  ", ""]).run();
+  }
+
+  #[test]
+  fn logos_syntactic_passes_partial_equivalence() {
+    // The real logos adapter (over `str`) is faithful under truncation, so it reassembles
+    // chunk-by-chunk exactly like a single parse.
+    Harness::<SynLexer<'_>>::over(["ab 12 cd", "one two three", "42", "  x  ", ""]).run_partial();
   }
 
   // A token where whitespace is a real token, so the stream tiles gap-free: lossless.
