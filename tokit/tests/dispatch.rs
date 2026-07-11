@@ -7,11 +7,12 @@ mod common;
 
 use common::{TestLexer, Token, TokenKind};
 use tokit::{
-  InputRef, Parse, ParseChoice, ParseContext, ParseInput, Parser, ParserContext,
-  Token as TokenTrait,
+  InputRef, Parse, ParseChoice, ParseContext, ParseInput, ParseTokenChoice, Parser, ParserContext,
+  SimpleSpan, Token as TokenTrait,
   emitter::Verbose,
   error::{UnexpectedEot, token::UnexpectedToken},
   parser::Any,
+  span::Spanned,
   utils::Expected,
 };
 
@@ -192,5 +193,280 @@ fn successful_dispatch_runs_the_selected_branch_unchanged() {
         .parse_str(src),
       Ok(want)
     );
+  }
+}
+
+// ── Fused dispatch: the lex-once twin, observationally identical to the peek shape ──
+//
+// `FusedDispatchOnKind` lexes the decision token *once* and hands it to the winning arm
+// (a `ParseTokenChoice` arm, `FnMut(head, inp) -> Result<O, E>`), where `DispatchOnKind`
+// peeks it (staging a cache round trip) and lets an `Any` arm consume it back out. These
+// tests pin that the two shapes are observationally identical for the same table and input:
+// same hit result, same committed-failure error, same stream/cache state afterward, and
+// identical rollback — the equivalence contract `FusedDispatchOnKind`'s docs promise.
+
+const TABLE3: &[TokenKind] = &[TokenKind::Num, TokenKind::Plus, TokenKind::LParen];
+const TABLE1: &[TokenKind] = &[TokenKind::Num];
+
+/// The input matrix the equivalence tests share: a hit on each arm (with and without a
+/// trailing token), committed misses, and both end-of-input shapes.
+const CASES: &[&str] = &[
+  "42",     // hit B0 (Num), nothing after
+  "42 foo", // hit B0, Ident after
+  "+ 3",    // hit B1 (Plus), Num after
+  "( )",    // hit B2 (LParen), RParen after
+  ";",      // miss (Semi), nothing after
+  "; foo",  // miss, Ident after
+  "] 3",    // miss (RBracket)
+  "* (",    // miss (Star)
+  "",       // end of input
+  "   ",    // end of input (all trivia skipped)
+];
+
+/// Shared fused arm: report the branch that ran by returning the head token's kind. Because
+/// `dispatch_on_kind` is 1:1 (table entry ↔ branch), a hit on branch `i` always hands this arm
+/// a token of kind `TABLE[i]`, so the returned kind names the branch — matching the fixed
+/// per-branch label the peek shape's `Any::new().map(|_| kind)` arms return.
+fn kind_arm<'inp, Ctx>(
+  head: Spanned<Token, SimpleSpan>,
+  _inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<TokenKind, DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokit::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  Ok(head.data.kind())
+}
+
+/// The fused twin of [`dispatch3`].
+fn fused3<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<TokenKind, DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokit::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  (kind_arm, kind_arm, kind_arm)
+    .fused_dispatch_on_kind(TABLE3)
+    .parse_input(inp)
+}
+
+/// The fused twin of [`dispatch1`].
+fn fused1<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<TokenKind, DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokit::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  (kind_arm,).fused_dispatch_on_kind(TABLE1).parse_input(inp)
+}
+
+/// Runs the peek-shape dispatcher, then reads the next token — the stream state the *following*
+/// parser observes. Returning both lets one comparison cover the hit result, the committed-failure
+/// error, and the post-dispatch cache/stream state at once (a miss leaves the missed token, a hit
+/// leaves whatever follows the consumed head).
+fn dispatch3_probe<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<(Result<TokenKind, DispatchError>, Option<TokenKind>), DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokit::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  let outcome = (
+    Any::new().map(|_| TokenKind::Num),
+    Any::new().map(|_| TokenKind::Plus),
+    Any::new().map(|_| TokenKind::LParen),
+  )
+    .dispatch_on_kind(TABLE3)
+    .parse_input(inp);
+  let leftover = inp.next()?.map(|t| t.data.kind());
+  Ok((outcome, leftover))
+}
+
+/// The fused twin of [`dispatch3_probe`].
+fn fused3_probe<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<(Result<TokenKind, DispatchError>, Option<TokenKind>), DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokit::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  let outcome = (kind_arm, kind_arm, kind_arm)
+    .fused_dispatch_on_kind(TABLE3)
+    .parse_input(inp);
+  let leftover = inp.next()?.map(|t| t.data.kind());
+  Ok((outcome, leftover))
+}
+
+/// Runs the peek-shape dispatcher inside an attempt that *always* rolls back, then reads the next
+/// token — which must be the original first token, proving the attempt unwound the dispatch (the
+/// staged/consumed token and its lineage push alike) back to the pre-attempt state.
+fn dispatch3_rollback<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Option<TokenKind>, DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokit::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  let _: Option<()> = inp.attempt(|inp| {
+    let _ = (
+      Any::new().map(|_| TokenKind::Num),
+      Any::new().map(|_| TokenKind::Plus),
+      Any::new().map(|_| TokenKind::LParen),
+    )
+      .dispatch_on_kind(TABLE3)
+      .parse_input(inp);
+    None
+  });
+  Ok(inp.next()?.map(|t| t.data.kind()))
+}
+
+/// The fused twin of [`dispatch3_rollback`].
+fn fused3_rollback<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Option<TokenKind>, DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokit::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  let _: Option<()> = inp.attempt(|inp| {
+    let _ = (kind_arm, kind_arm, kind_arm)
+      .fused_dispatch_on_kind(TABLE3)
+      .parse_input(inp);
+    None
+  });
+  Ok(inp.next()?.map(|t| t.data.kind()))
+}
+
+#[test]
+fn fused_hit_runs_correct_arm_per_branch() {
+  // Hit-path correctness: each first token selects its branch, and the fused arm receives the
+  // already-lexed head — reporting its kind names the branch that ran.
+  for (src, want) in [
+    ("42", TokenKind::Num),
+    ("+", TokenKind::Plus),
+    ("(", TokenKind::LParen),
+  ] {
+    assert_eq!(Parser::new().apply(fused3).parse_str(src), Ok(want));
+  }
+}
+
+#[test]
+fn fused_miss_reports_full_expected_set_in_table_order() {
+  // Byte-identical to `dispatch_failure_reports_full_expected_set_in_table_order`.
+  assert_eq!(
+    Parser::new().apply(fused3).parse_str(";"),
+    Err(DispatchError::Unexpected {
+      expected: vec![TokenKind::Num, TokenKind::Plus, TokenKind::LParen],
+      found: Some(TokenKind::Semi),
+    })
+  );
+}
+
+#[test]
+fn fused_eof_reports_eot_with_table() {
+  // Byte-identical to `dispatch_eof_reports_eot` (the W2c end-of-input behavior).
+  assert_eq!(
+    Parser::new().apply(fused3).parse_str(""),
+    Err(DispatchError::Eot {
+      expected: vec![TokenKind::Num, TokenKind::Plus, TokenKind::LParen],
+    })
+  );
+}
+
+#[test]
+fn fused_single_alternative_dispatch() {
+  assert_eq!(
+    Parser::new().apply(fused1).parse_str("7"),
+    Ok(TokenKind::Num)
+  );
+  assert_eq!(
+    Parser::new().apply(fused1).parse_str(";"),
+    Err(DispatchError::Unexpected {
+      expected: vec![TokenKind::Num],
+      found: Some(TokenKind::Semi),
+    })
+  );
+}
+
+#[test]
+fn fused_and_peek_return_identical_results() {
+  // The headline equivalence: for the same table and input, both dispatch shapes return the exact
+  // same `Result` — same hit value, same committed-failure `UnexpectedToken`/`UnexpectedEot`.
+  for &src in CASES {
+    assert_eq!(
+      Parser::new().apply(fused3).parse_str(src),
+      Parser::new().apply(dispatch3).parse_str(src),
+      "fused vs peek result diverged on {src:?}"
+    );
+  }
+}
+
+#[test]
+fn fused_miss_leaves_the_same_stream_state_as_peek() {
+  // Same error AND same subsequent parse: the probe reads the token left after the dispatch, so a
+  // divergence in the put-back (a missed token not restored, or restored differently) shows up as
+  // a different leftover. Fatal emitter (fail-fast).
+  for &src in CASES {
+    assert_eq!(
+      Parser::new().apply(fused3_probe).parse_str(src),
+      Parser::new().apply(dispatch3_probe).parse_str(src),
+      "fused vs peek stream state diverged on {src:?} (fatal)"
+    );
+  }
+}
+
+#[test]
+fn fused_miss_leaves_the_same_stream_state_as_peek_verbose() {
+  // Same as above under an error-collecting emitter: equal outcomes prove the emission path is
+  // shared and neither shape routes the miss/EOT through the emitter (it rides the Err channel).
+  for &src in CASES {
+    let peek = Parser::with_context(verbose_ctx())
+      .apply(dispatch3_probe)
+      .parse_str(src);
+    let fused = Parser::with_context(verbose_ctx())
+      .apply(fused3_probe)
+      .parse_str(src);
+    assert_eq!(
+      peek, fused,
+      "fused vs peek stream state diverged on {src:?} (verbose)"
+    );
+  }
+}
+
+#[test]
+fn fused_rollback_unwinds_identically_to_peek() {
+  // Rollback-equivalence: run each shape inside an attempt that always declines, then read the
+  // next token. Both must surface the original first token — the fused put-back's lineage push is
+  // dropped by the restore exactly like the peek shape's staged token.
+  for &src in CASES {
+    assert_eq!(
+      Parser::new().apply(fused3_rollback).parse_str(src),
+      Parser::new().apply(dispatch3_rollback).parse_str(src),
+      "fused vs peek rollback diverged on {src:?}"
+    );
+  }
+}
+
+#[test]
+fn fused_matches_peek_on_lexer_errors() {
+  // Lexer errors (`@`, `#` — unlexable by the test grammar) surface on the shared `scan_with`
+  // path both shapes use. Under Fatal the first lexer error is fatal, so equal results prove it is
+  // emitted at the same point; under Verbose both collect it and the dispatch then reaches the same
+  // hit/miss — proving the deduplicated emission log is identical.
+  for &src in &["@42", "@;", "@ @ 3", "# +", "@"] {
+    assert_eq!(
+      Parser::new().apply(fused3).parse_str(src),
+      Parser::new().apply(dispatch3).parse_str(src),
+      "lexer-error divergence on {src:?} (fatal)"
+    );
+    let peek = Parser::with_context(verbose_ctx())
+      .apply(dispatch3)
+      .parse_str(src);
+    let fused = Parser::with_context(verbose_ctx())
+      .apply(fused3)
+      .parse_str(src);
+    assert_eq!(peek, fused, "lexer-error divergence on {src:?} (verbose)");
   }
 }

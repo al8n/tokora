@@ -6,6 +6,9 @@ use crate::{
   error::{UnexpectedEnd, UnexpectedEot, token::UnexpectedToken},
 };
 
+mod fused;
+pub use fused::*;
+
 /// A deterministic dispatch combinator driven by a **static table** of viable
 /// first-token kinds.
 ///
@@ -43,6 +46,26 @@ use crate::{
 /// expected set) is returned as `Err`, not routed through a bespoke emitter method. Both a
 /// fail-fast [`Fatal`](crate::emitter::Fatal) emitter and an error-collecting
 /// [`Verbose`](crate::emitter::Verbose) emitter therefore observe the identical payload.
+///
+/// # The fused twin
+///
+/// [`FusedDispatchOnKind`] is the *lex-once* sibling: instead of peeking the decision token
+/// (a token-cache round trip, including a lexer-state clone) and letting the winning branch
+/// consume it again, it lexes once and hands the already-consumed head token to the winning
+/// arm. Failures are observationally identical to this combinator's; only the hot hit path
+/// differs. Pick per dispatch site: sum-type hot loops prefer the fused shape, while
+/// branches that are self-contained [`ParseInput`] parsers (reused elsewhere, or wanting
+/// the token left on the input) keep this peek shape.
+///
+/// # Performance: keep token-kind discriminants dense
+///
+/// Dispatch cost is one peek plus one table lookup, then the branch. For the *kind match*
+/// inside branch parsers — and for any hand-written `match tok.kind()` beside a dispatch
+/// table — declare the [`Kind`](Token::Kind) enum with **dense discriminants** (the default
+/// `0, 1, 2, …`; avoid sparse explicit values): rustc lowers a match over a dense fieldless
+/// enum to a real jump table or lookup, while sparse discriminants degrade to compare
+/// chains. The same advice applies to [`FusedDispatchOnKind`], which shares this
+/// table-order contract.
 ///
 /// # Examples
 ///

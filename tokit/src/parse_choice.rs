@@ -2,7 +2,8 @@ use crate::{
   Token, Window,
   cache::Peeked,
   input::InputRef,
-  parser::{DispatchOnKind, PeekThenChoice},
+  parser::{DispatchOnKind, FusedDispatchOnKind, PeekThenChoice},
+  span::Spanned,
   try_parse_input::ParseAttempt,
 };
 
@@ -114,6 +115,64 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 }
 
+/// A choice of parsers whose selected branch receives the **already-lexed** head token.
+///
+/// `ParseTokenChoice` is the arm surface of the *fused* dispatch shape
+/// ([`FusedDispatchOnKind`]). Its peek-shaped sibling [`ParseChoice`] leaves the head
+/// token on the input — the dispatcher peeks (staging the token in the cache) and the
+/// winning branch consumes it back out. The fused shape instead lexes **once**: the
+/// dispatcher consumes the head token as part of classifying it and hands it to the
+/// winning branch, which parses only the *rest* of its production from the input. The
+/// cache round trip — staging a [`CachedToken`](crate::cache::CachedToken) (including a
+/// lexer-state clone) only to unstage it on the very next consume — is skipped entirely.
+///
+/// Implemented for tuples of up to 32 arms, each an
+/// `FnMut(Spanned<Token, Span>, &mut InputRef<…>) -> Result<O, Error>` (a closure or a
+/// plain `fn`); branch `i` is tuple position `i`, identified by [`Branch`].
+pub trait ParseTokenChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+  /// The id of the parser branch.
+  type Id;
+
+  /// Parses using the branch identified by `id`, handing it the already-lexed `head`
+  /// token (the token the dispatcher consumed to make its decision).
+  fn parse_token_choice(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    id: &Self::Id,
+    head: Spanned<L::Token, L::Span>,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+
+  /// Creates a [`FusedDispatchOnKind`] combinator: the **fused** twin of
+  /// [`dispatch_on_kind`](ParseChoice::dispatch_on_kind), driven by the same kind of
+  /// **static table** of viable first-token kinds.
+  ///
+  /// `table[i]` is the viable first-token [`Kind`](Token::Kind) for branch `i`, in branch
+  /// order. The combinator lexes a single token **once**, looks its kind up in the table,
+  /// and on a hit hands the already-lexed token to the matching branch — no peek round
+  /// trip through the cache. On a miss or at end of input it fails exactly like
+  /// [`dispatch_on_kind`](ParseChoice::dispatch_on_kind): the same
+  /// [`UnexpectedToken`](crate::error::token::UnexpectedToken) /
+  /// [`UnexpectedEot`](crate::error::UnexpectedEot) carrying the whole table as the
+  /// expected set, with the missed token put back for whatever runs next. See
+  /// [`FusedDispatchOnKind`] for the full shape comparison and the equivalence contract.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn fused_dispatch_on_kind(
+    self,
+    table: &'static [<L::Token as Token<'inp>>::Kind],
+  ) -> FusedDispatchOnKind<Self, <L::Token as Token<'inp>>::Kind, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    <L::Token as Token<'inp>>::Kind: 'static,
+  {
+    FusedDispatchOnKind::of(self, table)
+  }
+}
+
 macro_rules! tuple_choice {
   (@output $end:literal; $($param:literal),+ $(,)?) => {
     ::paste::paste! {
@@ -156,6 +215,52 @@ macro_rules! tuple_choice {
 // `(P0, .., P32)` (the largest being `Branch<32>`). Tuples larger than this are
 // unsupported; nest an inner `choice(..)` to exceed the cap.
 tuple_choice!(32);
+
+macro_rules! fused_tuple_choice {
+  (@output $end:literal; $($param:literal),+ $(,)?) => {
+    ::paste::paste! {
+      impl<'inp, L, O, Ctx, Lang: ?Sized, $([< F $param >]),+>
+        ParseTokenChoice<'inp, L, O, Ctx, Lang>
+        for ($([< F $param >],)+)
+      where
+        L: Lexer<'inp>,
+        Ctx: ParseContext<'inp, L, Lang>,
+        $([< F $param >]: FnMut(
+          Spanned<L::Token, L::Span>,
+          &mut InputRef<'inp, '_, L, Ctx, Lang>,
+        ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>),+
+      {
+        type Id = Branch<$end>;
+
+        fn parse_token_choice(
+          &mut self,
+          inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+          id: &Self::Id,
+          head: Spanned<L::Token, L::Span>,
+        ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+          match id.id() {
+            $($param => (self.$param)(head, inp),)+
+            _ => unreachable!(concat!("Branch<", stringify!($end), "> guarantees in-bounds")),
+          }
+        }
+      }
+    }
+  };
+  (@mid $end:literal) => {
+    seq_macro::seq!(N in 0..=$end {
+      fused_tuple_choice!(@output $end; #(N,)*);
+    });
+  };
+  ($end:literal) => {
+    seq_macro::seq!(E in 0..=$end {
+      fused_tuple_choice!(@mid E);
+    });
+  };
+}
+
+// `ParseTokenChoice` mirrors the same arities: fused-arm tuples from `(F0,)` up to
+// `(F0, .., F32)`, each arm an `FnMut(head, inp) -> Result<O, E>`.
+fused_tuple_choice!(32);
 
 impl<'inp, L, O, Ctx, Lang: ?Sized, P, const N: usize> ParseChoice<'inp, L, O, Ctx, Lang> for [P; N]
 where

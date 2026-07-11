@@ -25,12 +25,14 @@ use std::hint::black_box;
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 
 use tokit::{
-  Emitter, InputRef, Parse, ParseChoice, ParseContext, ParseInput, Parser, State, Token,
+  Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput, ParseTokenChoice, Parser,
+  State, Token,
   cache::PeekedTokenExt,
   error::{UnexpectedEnd, token::UnexpectedToken},
   lexer::LogosLexer,
   logos::{self, Logos},
   parser::Any,
+  span::Spanned,
 };
 
 // ── Fixture: a small ident/int/punct/whitespace-trivia token enum ─────────────
@@ -467,7 +469,7 @@ type HeavyLexer<'a> = LogosLexer<'a, DispTokHeavy>;
 
 // ── Dispatch drivers ──────────────────────────────────────────────────────────
 //
-// Three shapes over the same N-kind stream, stamped for the light and heavy lexers:
+// Four shapes over the same N-kind stream, stamped for the light and heavy lexers:
 //   * `peek_combinator` — the real `DispatchOnKind` combinator surface: peek one,
 //     look the kind up in the table, run the winning `Any` arm (which consumes the
 //     cache-staged token). THE peek shape.
@@ -476,9 +478,29 @@ type HeavyLexer<'a> = LogosLexer<'a, DispTokHeavy>;
 //   * `fused_inputref` — the fused try_expect shape: `try_expect_map` lexes once,
 //     classifies on kind, and commits directly — no cache round trip. The ceiling
 //     a fused dispatch combinator would reach.
+//   * `fused_combinator` — the real `FusedDispatchOnKind` combinator surface: the
+//     same lex-once → classify → commit path as `fused_inputref`, but reached through
+//     the combinator (a `ParseTokenChoice` tuple + table). Proves the combinator layer
+//     reaches the raw fused ceiling. THE fused shape the deliverable ships.
+
+/// A no-op fused dispatch arm: receives the already-lexed head token (the token the fused
+/// dispatcher consumed to classify it) and does nothing but keep it live for the optimizer.
+/// Eight copies of this form the `FusedDispatchOnKind` arm tuple in `fused_combinator`.
+fn dispatch_head_arm<'inp, L, Ctx>(
+  head: Spanned<L::Token, L::Span>,
+  _inp: &mut InputRef<'inp, '_, L, Ctx>,
+) -> Result<(), BenchError>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L>,
+  Ctx::Emitter: Emitter<'inp, L, Error = BenchError>,
+{
+  black_box(&head);
+  Ok(())
+}
 
 macro_rules! dispatch_drivers {
-  ($lexer:ident, $peekc:ident, $peekr:ident, $fused:ident) => {
+  ($lexer:ident, $peekc:ident, $peekr:ident, $fused:ident, $fusedc:ident) => {
     fn $peekc<'inp, Ctx>(
       inp: &mut InputRef<'inp, '_, $lexer<'inp>, Ctx>,
     ) -> Result<usize, BenchError>
@@ -558,6 +580,38 @@ macro_rules! dispatch_drivers {
       }
       Ok(n)
     }
+
+    fn $fusedc<'inp, Ctx>(
+      inp: &mut InputRef<'inp, '_, $lexer<'inp>, Ctx>,
+    ) -> Result<usize, BenchError>
+    where
+      Ctx: ParseContext<'inp, $lexer<'inp>>,
+      Ctx::Emitter: Emitter<'inp, $lexer<'inp>, Error = BenchError>,
+    {
+      let mut n = 0usize;
+      let mut parser = (
+        dispatch_head_arm,
+        dispatch_head_arm,
+        dispatch_head_arm,
+        dispatch_head_arm,
+        dispatch_head_arm,
+        dispatch_head_arm,
+        dispatch_head_arm,
+        dispatch_head_arm,
+      )
+        .fused_dispatch_on_kind(DISP_TABLE);
+      loop {
+        match parser.parse_input(inp) {
+          Ok(out) => {
+            black_box(&out);
+            n += 1;
+          }
+          // Well-formed source + complete table: the only Err is the final EOT.
+          Err(_) => break,
+        }
+      }
+      Ok(n)
+    }
   };
 }
 
@@ -565,13 +619,15 @@ dispatch_drivers!(
   DispLexer,
   dispatch_peek_combinator,
   dispatch_peek_inputref,
-  dispatch_fused_inputref
+  dispatch_fused_inputref,
+  dispatch_fused_combinator
 );
 dispatch_drivers!(
   HeavyLexer,
   dispatch_peek_combinator_heavy,
   dispatch_peek_inputref_heavy,
-  dispatch_fused_inputref_heavy
+  dispatch_fused_inputref_heavy,
+  dispatch_fused_combinator_heavy
 );
 
 /// ~128 KiB of well-formed `var = int * ident , int + ident ;` lines. Every token is
@@ -616,9 +672,11 @@ fn dispatch_bench(c: &mut Criterion) {
   bench_driver!("peek_combinator", dispatch_peek_combinator);
   bench_driver!("peek_inputref", dispatch_peek_inputref);
   bench_driver!("fused_inputref", dispatch_fused_inputref);
+  bench_driver!("fused_combinator", dispatch_fused_combinator);
   bench_driver!("peek_combinator_heavy", dispatch_peek_combinator_heavy);
   bench_driver!("peek_inputref_heavy", dispatch_peek_inputref_heavy);
   bench_driver!("fused_inputref_heavy", dispatch_fused_inputref_heavy);
+  bench_driver!("fused_combinator_heavy", dispatch_fused_combinator_heavy);
 
   group.finish();
 }
