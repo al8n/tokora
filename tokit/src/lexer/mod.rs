@@ -306,38 +306,127 @@ where
 
 /// A trait for lexers.
 ///
-/// # Contract: token and error spans are nonempty
+/// # The lexer contract
 ///
-/// Every item [`lex`](Lexer::lex) produces — a token or an [`Error`](Lexed::Error) —
-/// must have a nonempty span: its [`span`](Lexer::span) end must be strictly greater
-/// than its start. A zero-width span (end equal to start) is a contract violation.
+/// tokit's input layer ([`InputRef`](crate::InputRef)) pulls tokens from a lexer on
+/// demand and, to support lookahead and backtracking, **rebuilds a fresh lexer per
+/// operation and re-lexes on demand any region it needs again** — the prefix a
+/// checkpoint restore rewinds, and any cached token an abandoned branch dropped or a
+/// cache truncation discarded. That reconstruction is always the same two steps
+/// ([`InputRef::lexer`](crate::InputRef::lexer)): `L::with_state(src, saved_state)`
+/// followed by [`bump`](Lexer::bump) to the committed offset. The clauses below are
+/// the properties that make that machinery correct.
 ///
-/// This holds because the input layer reasons about the token stream *positionally* —
-/// cached spans, the lexer-error deduplication watermark, and the poison boundary past
-/// which lexing stops are all offsets that assume every lexed item advances the
-/// position — so a zero-width item at such an offset is at once excluded (it starts at
-/// the boundary) and non-advancing (it consumes nothing), silently degrading replay and
-/// termination reasoning instead of failing loudly.
+/// They are a *contract*, not a set of `unsafe` invariants: breaking one is neither
+/// undefined behavior nor memory-unsafe, but it makes the input layer's observable
+/// behavior unspecified (see [*Violation posture*](#violation-posture)). The bundled
+/// Logos backend upholds every clause; a hand-written lexer must uphold them itself,
+/// and the `conformance` kit checks a lexer against them.
 ///
-/// The bundled Logos backend never yields a zero-width span; a hand-written lexer must
-/// uphold this itself. Debug builds assert it at the input layer's single lexing
-/// chokepoint; release builds omit the check, and a violation then leaves the input in
-/// an unspecified — but still memory-safe — state.
+/// ## Determinism: scanning is a pure function of source, position, and state
 ///
-/// # Contract: scanning is deterministic in source, position, and state
+/// Every scan-visible result — which token [`lex`](Lexer::lex) decides, its span,
+/// whether the item is a token or an [`Error`](Lexed::Error), and any limit
+/// accounting [`check`](Lexer::check) reports — must derive **entirely** from the
+/// source, the offset being lexed at, and the lexer [`State`](Lexer::State). Nothing
+/// may route through state a checkpoint's `State` snapshot cannot capture and a
+/// restore therefore cannot rewind: a shared counter, an ambient global, an
+/// allocator address. Determinism is what makes replay observationally identical to
+/// the run it rewound, and two concrete mechanisms depend on it:
 ///
-/// Every scan-visible behavior — which token [`lex`](Lexer::lex) decides, its span,
-/// whether the item is a token or an [`Error`](Lexed::Error), and any limit accounting
-/// [`check`](Lexer::check) reports — must derive entirely from the source, the position
-/// being lexed at, and the lexer [`State`](Lexer::State). The input layer rebuilds a
-/// fresh lexer per operation and re-lexes on demand any region a restore rewinds —
-/// including a cached token an abandoned branch dropped or consumed — so it relies on
-/// this determinism: re-lexing the same source from the same position and state
-/// reproduces the identical item and the identical accounting, which is what makes a
-/// restore's replay observationally identical to the run it rewound. Behavior routed
-/// through state that lives *outside* `State` — a shared counter, an ambient global,
-/// anything a checkpoint's `State` snapshot cannot capture and a restore therefore
-/// cannot rewind — breaks that replay identity and is out of contract.
+/// - **prefix replay after a checkpoint restore** —
+///   [`restore`](crate::InputRef::restore) copies the saved [`State`](Lexer::State),
+///   span, poison boundary, and lexer-error dedup watermark back, and drops the cache
+///   entries pushed since the save; the region they covered is re-lexed on demand and
+///   must reproduce the identical items;
+/// - **cache truncation** — a peek lexes ahead and caches tokens; when a branch is
+///   abandoned or the cache is drained, those tokens are dropped and re-lexed on the
+///   next read.
+///
+/// Re-lexing the same source from the same offset and state must reproduce the
+/// identical item and the identical accounting. (Scan *counting* held **outside**
+/// `State` — e.g. a test probe — legitimately observes the extra re-lex scans; that
+/// is instrumentation, not a scan-visible result.)
+///
+/// ## State faithfulness and cheapness
+///
+/// A resume point is the pair (**[`State`](Lexer::State)**, **offset**):
+/// [`with_state`](Lexer::with_state) carries the *mode* — every scanning regime the
+/// lexer can be in (nesting depth, string-vs-normal mode, a resource limiter's tally)
+/// — and [`bump`](Lexer::bump) carries the *position*. Position is deliberately **not**
+/// encoded in `State`; the input layer threads it separately through `bump`. Together
+/// the pair must be sufficient: rebuilding with `L::with_state(src, saved_state)` and
+/// bumping to the saved offset must reproduce **exactly** the suffix the original
+/// lexer would have produced from the moment that state was captured. The state that
+/// pairs with a given item is the one observed *right after* [`lex`](Lexer::lex)
+/// returned it, and the offset it pairs with is that item's span end.
+///
+/// `State` is cloned on **every** checkpoint ([`save`](crate::InputRef::save) clones
+/// it, and every cached token stores a clone), so cloning must be cheap. Keep it
+/// `Copy` or small; if it must own heavy data, store a handle (e.g. `Arc`) inside it
+/// so clones stay inexpensive.
+///
+/// ## Monotone progress: spans never move backward, every scan advances
+///
+/// Over a run, span starts are **non-decreasing**, and every produced item — a token
+/// or an [`Error`](Lexed::Error) — has a **nonempty** span: its [`span`](Lexer::span)
+/// end is strictly greater than its start. A zero-width span (end equal to start) is a
+/// contract violation. The input layer reasons about the stream *positionally* —
+/// cached spans, the lexer-error dedup watermark, and the poison boundary past which
+/// lexing stops are all offsets that assume every lexed item advances the position —
+/// so a zero-width item is at once excluded (it starts at the boundary) and
+/// non-advancing (it consumes nothing), which silently degrades replay and, worse,
+/// *termination*: a lexer that never advances yields an unbounded zero-width run.
+/// Debug builds assert the nonempty span at the input layer's single lexing chokepoint
+/// (`lex_within_boundary`); release builds omit it. [`lex`](Lexer::lex) restates this
+/// clause on the method itself.
+///
+/// ## Exhaustion is sticky
+///
+/// Once [`lex`](Lexer::lex) returns `None`, every subsequent [`lex`](Lexer::lex) on
+/// that same instance must keep returning `None` — exhaustion never "un-exhausts".
+/// The input layer never re-polls a single instance past its first `None` (both
+/// scanning loops stop there), but it relies on the *positional* face of the same
+/// property: on end of input a scan commits no progress, so the committed offset stays
+/// put and the **next** operation rebuilds a fresh lexer at that same offset and
+/// re-lexes it — which, by determinism, must return `None` again. Sticky `None` is
+/// what lets a parse terminate at end of input instead of looping. (The bundled Logos
+/// backend additionally latches a *limit* trip to sticky `None`; that is a stronger
+/// backend guarantee documented on its `LogosLexer`, not a requirement on every
+/// lexer.)
+///
+/// ## Span / slice coherence
+///
+/// [`slice`](Lexer::slice) must equal the source content at [`span`](Lexer::span):
+/// slicing the source over `span().start..span().end` yields exactly `slice()`, and
+/// every span lies within source bounds (`0 <= start <= end <= source.len()`). The
+/// input layer builds its own slices from spans over the source
+/// ([`InputRef::slice`](crate::InputRef::slice)), so a span that disagrees with the
+/// slice, or points outside the source, yields wrong text or a panic.
+///
+/// ## Composite tokens own their contents (token-level nesting)
+///
+/// A composite token — a block string, a raw/heredoc literal, a comment — is **one**
+/// token whose span covers the whole construct; the lexer must **swallow every
+/// delimiter character inside it** and emit no nested delimiter tokens for them. The
+/// recovery scanner [`sync_balanced`](crate::InputRef::sync_balanced) counts delimiter
+/// nesting **token by token**, so a `{` or `}` buried inside a block string must never
+/// reach it as a separate token — otherwise a brace inside a string literal would
+/// perturb the depth counter and mis-place a recovery sync point. See
+/// [`sync_balanced`](crate::InputRef::sync_balanced) for the counter this leans on.
+///
+/// ## Violation posture
+///
+/// A lexer that breaks a clause above is **not** undefined behavior and **not**
+/// memory-unsafe. The input layer's behavior under a violating lexer is
+/// **unspecified but bounded**, exactly the posture a misused checkpoint gets (see
+/// [`restore`](crate::InputRef::restore)'s release-build section): no undefined
+/// behavior, no leak, no panic originating in this crate, and — because a resource
+/// limiter's tally travels inside the checkpointed `State` — every scan still
+/// terminates. What is *not* guaranteed is that a replay matches the original run:
+/// diagnostics may be missing or misattributed, and the replayed token stream may
+/// differ. Debug builds turn the one locally-checkable clause (nonempty spans) into an
+/// assertion at the single lexing chokepoint.
 pub trait Lexer<'inp>: 'inp {
   /// The state of the lexer.
   type State: State;
@@ -355,6 +444,11 @@ pub trait Lexer<'inp>: 'inp {
   fn new(src: &'inp Self::Source) -> Self;
 
   /// Lexes the input source with the given initial state and returns a tokenizer.
+  ///
+  /// This is the **resume** constructor: the input layer rebuilds a lexer with a saved
+  /// [`State`](Self::State) here and then [`bump`](Self::bump)s to the resume offset.
+  /// See *State faithfulness* in the [trait contract](Self#the-lexer-contract) for what
+  /// the (state, offset) pair must reproduce.
   fn with_state(src: &'inp Self::Source, state: Self::State) -> Self;
 
   /// Checks the current state of the lexer for errors.
@@ -382,8 +476,9 @@ pub trait Lexer<'inp>: 'inp {
 
   /// Lexes the next token from the input source.
   ///
-  /// Every produced token and error must have a nonempty span; see the trait-level
-  /// contract.
+  /// Returns `None` at end of input; once it returns `None` it must keep returning
+  /// `None` (exhaustion is sticky). Every produced token and error must have a nonempty
+  /// span. See the [trait contract](Self#the-lexer-contract) for both clauses.
   fn lex(&mut self) -> Option<Result<Self::Token, <Self::Token as Token<'inp>>::Error>>;
 
   /// Bumps the end of currently lexed token by `n` offsets.
