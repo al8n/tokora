@@ -2,6 +2,8 @@
 #![allow(warnings)]
 mod common;
 
+use common::E;
+
 // Integration tests targeting additional handler/ modules for separated parsers.
 // Exercises boundary conditions, error paths, and edge cases in:
 //   - allow_trailing with at_most, bounded
@@ -32,65 +34,6 @@ use tokit::{
 };
 
 use common::{TestLexer, Token};
-
-// ── Error type ────────────────────────────────────────────────────────────────
-
-#[derive(Debug)]
-struct E;
-
-impl From<()> for E {
-  fn from(_: ()) -> Self {
-    E
-  }
-}
-
-impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
-  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
-    E
-  }
-}
-
-impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for E {
-  fn from(_: FullContainer<S, Lang>) -> Self {
-    E
-  }
-}
-
-impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for E {
-  fn from(_: TooFew<S, Lang>) -> Self {
-    E
-  }
-}
-
-impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for E {
-  fn from(_: TooMany<S, Lang>) -> Self {
-    E
-  }
-}
-
-impl From<UnexpectedEot> for E {
-  fn from(_: UnexpectedEot) -> Self {
-    E
-  }
-}
-
-impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for E {
-  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
-    E
-  }
-}
-
-impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>> for E {
-  fn from(_: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
-    E
-  }
-}
-
-impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for E {
-  fn from(_: MissingSyntax<O, Lang>) -> Self {
-    E
-  }
-}
 
 fn full_ctx() -> ParserContext<'static, TestLexer<'static>, Fatal<E>> {
   ParserContext::new(Fatal::new())
