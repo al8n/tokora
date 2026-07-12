@@ -91,23 +91,11 @@ pub type InvalidHexEscapeDigits<Char, Offset> = InvalidHexDigits<Char, 2, Offset
 /// );
 /// assert_eq!(error.span(), SimpleSpan::new(10, 13));
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
+#[error(
+  "incomplete hexadecimal escape sequence at {0}, hexadecimal escape must contains exactly two hexadecimal digits"
+)]
 pub struct IncompleteHexEscape<O = usize>(SimpleSpan<O>);
-
-impl<O> core::fmt::Display for IncompleteHexEscape<O>
-where
-  O: core::fmt::Display,
-{
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    write!(
-      f,
-      "incomplete hexadecimal escape sequence at {}, hexadecimal escape must contains exactly two hexadecimal digits",
-      self.0
-    )
-  }
-}
-
-impl<O> core::error::Error for IncompleteHexEscape<O> where O: core::fmt::Debug + core::fmt::Display {}
 
 impl<O> IncompleteHexEscape<O> {
   /// Creates a new incomplete hex escape error.

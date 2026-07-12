@@ -33,8 +33,11 @@
 /// // The marker reports itself as incomplete; that is what recovery keys off of.
 /// assert!(inc.is_incomplete());
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
+#[error("incomplete input: construct unfinished at offset {offset}")]
 pub struct Incomplete<O = usize> {
+  /// The offset at which the input ran out mid-construct — the frontier the caller should
+  /// resume from once more input arrives.
   offset: O,
 }
 
@@ -72,22 +75,6 @@ impl<O> Incomplete<O> {
     self.offset
   }
 }
-
-impl<O> core::fmt::Display for Incomplete<O>
-where
-  O: core::fmt::Display,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    write!(
-      f,
-      "incomplete input: construct unfinished at offset {}",
-      self.offset
-    )
-  }
-}
-
-impl<O> core::error::Error for Incomplete<O> where O: core::fmt::Debug + core::fmt::Display {}
 
 /// Discriminates whether an error value *is* an [`Incomplete`] partial-input sentinel.
 ///

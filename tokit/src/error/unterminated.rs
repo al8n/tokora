@@ -157,27 +157,15 @@ use crate::span::{SimpleSpan, Span};
 ///     eprintln!("Unterminated {} at {}", error.knowledge(), error.span());
 /// }
 /// ```
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
+#[error("unterminated {knowledge}")]
 pub struct Unterminated<Knowledge, S = SimpleSpan> {
+  /// The span of the incomplete sequence — where the truncated form was actually found, not
+  /// where its completion was expected.
   span: S,
+  /// What the complete sequence would have been (e.g. `"string literal"`, `"logical AND
+  /// operator"`) — the human-facing name rendered by [`Display`](core::fmt::Display).
   knowledge: Knowledge,
-}
-
-impl<Knowledge, S> core::fmt::Display for Unterminated<Knowledge, S>
-where
-  Knowledge: core::fmt::Display,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    write!(f, "unterminated {}", self.knowledge)
-  }
-}
-
-impl<Knowledge, S> core::error::Error for Unterminated<Knowledge, S>
-where
-  Knowledge: core::fmt::Display + core::fmt::Debug,
-  S: core::fmt::Debug,
-{
 }
 
 impl<Knowledge, S> Unterminated<Knowledge, S> {

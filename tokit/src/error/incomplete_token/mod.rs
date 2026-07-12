@@ -3,7 +3,19 @@ use crate::{
   utils::human_display::DisplayHuman,
 };
 
-/// An incomplete token
+/// A token that ended before its lexical form was complete.
+///
+/// Raised by lexers when the input stops (or switches to a non-continuable character) partway
+/// through a token whose shape demands more — a block string cut off mid-body, an exponent
+/// marker with no digits, a prefix with no payload. Unlike
+/// [`Incomplete`](crate::error::Incomplete) — the *control-flow* sentinel for "more input may
+/// still arrive" in partial mode — an `IncompleteToken` is a genuine *diagnostic* about text
+/// that is present but truncated.
+///
+/// The `span` covers the truncated token as far as it got: from its first byte to the offset
+/// where lexing gave up. The optional `Knowledge` names what kind of token was being lexed
+/// (rendered *"incomplete `<knowledge>` token at `<span>`"*); without it the message is the
+/// generic *"incomplete token at `<span>`"*.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IncompleteToken<Knowledge, S = SimpleSpan> {
   span: S,

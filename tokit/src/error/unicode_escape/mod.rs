@@ -1352,29 +1352,14 @@ pub enum UnpairedSurrogateHint {
 /// );
 /// assert_eq!(error.span(), SimpleSpan::new(10, 13));
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
+#[error(
+  "incomplete fixed-width unicode escape sequence at {0}, fixed-width unicode escape must contains exactly four hexadecimal digits"
+)]
 pub struct IncompleteFixedUnicodeEscape<O = usize>(SimpleSpan<O>);
 
-impl<O> core::fmt::Display for IncompleteFixedUnicodeEscape<O>
-where
-  O: core::fmt::Display,
-{
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    write!(
-      f,
-      "incomplete fixed-width unicode escape sequence at {}, fixed-width unicode escape must contains exactly four hexadecimal digits",
-      self.0
-    )
-  }
-}
-
-impl<O> core::error::Error for IncompleteFixedUnicodeEscape<O> where
-  O: core::fmt::Display + core::fmt::Debug
-{
-}
-
 impl<O> IncompleteFixedUnicodeEscape<O> {
-  /// Creates a new incomplete hex escape error.
+  /// Creates a new incomplete fixed-width unicode escape error.
   ///
   /// ## Examples
   ///
