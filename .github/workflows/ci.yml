@@ -70,6 +70,27 @@ jobs:
       - name: clippy --all-features --benches --no-deps -D warnings
         run: cargo +stable clippy --all-features --benches --no-deps -- -D warnings
 
+  # ── Gate: MSRV (the workspace `rust-version`; see the policy note in Cargo.toml) ─
+  msrv:
+    name: msrv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Cache cargo build and registry
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-msrv-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-msrv-
+      - name: Install Rust
+        run: rustup toolchain install 1.87 --no-self-update --profile minimal
+      - name: cargo +1.87 check -p tokit --all-features
+        run: cargo +1.87 check -p tokit --all-features
+
   # ── Gate: full test suite ───────────────────────────────────────────────────
   test:
     name: test (all-features)

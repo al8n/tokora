@@ -152,7 +152,17 @@ pub trait LitToken<'a>: Token<'a> {
     false
   }
 
-  /// Returns `true` when the token is any string literal (quoted text).
+  /// Returns `true` when the token is a **plain** string literal — inline
+  /// ([`is_inline_string_literal`](Self::is_inline_string_literal)) or multi-line
+  /// ([`is_multiline_string_literal`](Self::is_multiline_string_literal)) — and only those.
+  ///
+  /// Despite the general-sounding name, this predicate deliberately does **not** cover the
+  /// sibling string *families*: a raw string
+  /// ([`is_raw_string_literal`](Self::is_raw_string_literal)) and a byte string
+  /// ([`is_byte_string_literal`](Self::is_byte_string_literal)) are their own classes, ORed in
+  /// separately by [`is_literal`](Self::is_literal). The split matters to consumers that
+  /// dispatch on escape processing: a plain string is the *escape-processed* quoted form,
+  /// while a raw string is taken verbatim and a byte string is not text at all.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_string_literal(&self) -> bool {
     self.is_inline_string_literal() || self.is_multiline_string_literal()

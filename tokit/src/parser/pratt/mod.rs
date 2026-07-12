@@ -4,6 +4,24 @@ pub use expr::*;
 mod expr;
 
 /// The power level of an operator, used to determine the order of operations in Pratt parsing.
+///
+/// Implemented by tokit for every standard integer type (saturating at the type's bounds), so a
+/// plain `i64` — the default `Power` of [`Precedenced`] — works out of the box:
+///
+/// ```
+/// use tokit::parser::PrattPower;
+///
+/// assert_eq!(3i64.next(), 4);
+/// assert_eq!(3i64.prev(), 2);
+/// // Saturating at the representable bounds — never wraps, never panics.
+/// assert_eq!(u8::MAX.next(), u8::MAX);
+/// assert_eq!(i8::MIN.prev(), i8::MIN);
+/// ```
+///
+/// Custom implementations (a domain-specific precedence ladder, a newtype with named levels)
+/// remain first-class; the integer impls only cover the common numeric case that previously
+/// forced every consumer into a newtype (the orphan rule bars downstream
+/// `impl PrattPower for i64`).
 pub trait PrattPower: Default + Clone + Ord {
   /// Returns the next higher power level.
   fn next(&self) -> Self;
@@ -18,6 +36,31 @@ pub trait PrattPower: Default + Clone + Ord {
   /// underflow/panic when called on the minimum representable value.
   fn prev(&self) -> Self;
 }
+
+macro_rules! impl_pratt_power_for_int {
+  ($($int:ty),+ $(,)?) => {
+    $(
+      /// Saturating integer binding power: `next` adds one and `prev` subtracts one, both
+      /// clamped at the type's representable bounds, honoring the trait's no-underflow
+      /// requirement on [`prev`](PrattPower::prev).
+      impl PrattPower for $int {
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn next(&self) -> Self {
+          self.saturating_add(1)
+        }
+
+        #[cfg_attr(not(tarpaulin), inline(always))]
+        fn prev(&self) -> Self {
+          self.saturating_sub(1)
+        }
+      }
+    )+
+  };
+}
+
+impl_pratt_power_for_int!(
+  i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize
+);
 
 /// A type with an associated precedence level, used in Pratt parsing.
 #[derive(Debug, Clone, Copy)]
