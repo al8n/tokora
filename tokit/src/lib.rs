@@ -1,3 +1,7 @@
+#![cfg_attr(
+  all(feature = "std", feature = "logos_0_16"),
+  doc = "**New to tokit? Start with the [`guide`] module** — a chaptered tutorial that builds a small language end-to-end.\n\n"
+)]
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -222,6 +226,21 @@ pub mod input;
 #[cfg(feature = "conformance")]
 #[cfg_attr(docsrs, doc(cfg(feature = "conformance")))]
 pub mod conformance;
+
+/// A guided tour of tokit: build a small language end-to-end, chapter by chapter.
+///
+/// Ten chapters construct **Calc** — a tiny calculator language with variables — walking
+/// the crate's capability set in teaching order: tokens and the lexer contract, first
+/// parsers and typed errors, combinator composition, kind dispatch, Pratt expressions,
+/// backtracking, diagnostics, recovery, partial input, and testing. Every code block is a
+/// runnable doctest, so the guide cannot drift from the API. Start at
+/// [`guide::ch01_tokens`](guide::ch01_tokens).
+///
+/// Documentation-only: the module defines no items. It requires the `std` and `logos`
+/// features (the same set the repository's `examples/` build with).
+#[cfg(all(feature = "std", feature = "logos_0_16"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "std", feature = "logos_0_16"))))]
+pub mod guide;
 
 /// Convenience re-exports for common usage.
 pub mod prelude;
