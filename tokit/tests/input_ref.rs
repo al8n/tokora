@@ -5,18 +5,13 @@
 
 mod common;
 
+use common::E;
+
 use common::{TestLexer, Token, TokenKind};
 use tokit::{
   Emitter, InputRef, Lexer, Parse, ParseContext, Parser, ParserContext, Token as TokenTrait,
-  cache::DefaultCache,
-  emitter::Ignored,
-  error::{
-    UnexpectedEot,
-    token::{UnexpectedToken, UnexpectedTokenOf},
-  },
-  input::Cursor,
-  span::Spanned,
-  utils::Expected,
+  cache::DefaultCache, emitter::Ignored, error::token::UnexpectedTokenOf, input::Cursor,
+  span::Spanned, utils::Expected,
 };
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -737,25 +732,6 @@ fn sync_through_no_match() {
 // Helpers for the cache-rewind tests below, which are all `#[cfg(feature = "unstable-raw")]`;
 // under the valve-off flavor (`--features logos,std`, no `unstable-raw`) they are unused, so
 // opt out of dead-code denial rather than gate every impl/import behind the feature.
-#[derive(Debug)]
-#[allow(dead_code)]
-struct E;
-impl From<()> for E {
-  fn from(_: ()) -> Self {
-    E
-  }
-}
-impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
-  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
-    E
-  }
-}
-impl From<UnexpectedEot> for E {
-  fn from(_: UnexpectedEot) -> Self {
-    E
-  }
-}
-
 #[allow(dead_code)]
 struct TestEm;
 impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEm {
