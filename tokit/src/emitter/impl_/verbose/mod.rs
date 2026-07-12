@@ -4,7 +4,7 @@ use crate::{
   span::{SimpleSpan, Span, Spanned},
 };
 
-pub use diagnostic::{Diagnostic, Diagnostics};
+pub use diagnostic::{Diagnostic, DiagnosticKind, Diagnostics};
 
 use super::super::{
   separated::{
@@ -150,9 +150,11 @@ where
 /// ([`sync_balanced`](crate::InputRef::sync_balanced)) — the hole's span and its skipped-token
 /// count, read back through [`skipped_regions()`](Self::skipped_regions) with label snapshots
 /// in [`skipped_region_labels()`](Self::skipped_region_labels). Sharing the log keeps rewind
-/// exact — an abandoned branch's hole records unwind together with its diagnostics — and keeps
-/// the [`diagnostics()`](Self::diagnostics) interleaving correct around them; the iterator
-/// itself yields only the payload-carrying channels, since a hole record has no error value.
+/// exact — an abandoned branch's hole records unwind together with its diagnostics — and lets
+/// [`diagnostics()`](Self::diagnostics) replay hole records interleaved with the payload
+/// channels in emission order: each is yielded as a
+/// [`DiagnosticKind::SkippedRegion`](crate::emitter::DiagnosticKind::SkippedRegion) carrying the
+/// skipped-token count (its span and labels ride the [`Diagnostic`] as for any other record).
 #[derive(Debug)]
 pub struct Verbose<Error, S = SimpleSpan, Lang: ?Sized = ()> {
   errs: BTreeMap<S, Vec<Error>>,
@@ -394,8 +396,10 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   ///
   /// Hole records ride the same emission log as the diagnostics, so a
   /// [`rewind`](Emitter::rewind) unwinds an abandoned branch's holes together with its errors
-  /// and warnings. They carry no error payload, so [`diagnostics()`](Self::diagnostics) does
-  /// not yield them — read them here, in span order.
+  /// and warnings. This accessor returns them in span order; to see them interleaved with the
+  /// error and warning channels in emission order, walk [`diagnostics()`](Self::diagnostics),
+  /// where each hole surfaces as a
+  /// [`DiagnosticKind::SkippedRegion`](crate::emitter::DiagnosticKind::SkippedRegion).
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn skipped_regions(&self) -> &BTreeMap<S, Vec<usize>> {
     &self.holes
@@ -409,32 +413,39 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
     &self.hole_label_snapshots
   }
 
-  /// Returns an iterator over every collected diagnostic — **both** channels — in true
-  /// emission order.
+  /// Returns an iterator over every collected diagnostic — errors, warnings, **and** recovery
+  /// holes — in true emission order.
   ///
-  /// Each item is a borrowing [`Diagnostic`] view carrying the entry's span, its
-  /// [`Severity`] tier, its captured label snapshot, and the payload. The order is the
-  /// emission order recorded in the shared `log`, so an error emitted between two warnings
-  /// (or vice versa) appears in that exact position — the interleaving the two span-keyed
-  /// maps cannot express on their own. This is the read-side bridge a downstream renderer
-  /// (ariadne, miette, a bespoke reporter) consumes; tokit takes on no dependency on any of
-  /// them.
+  /// Each item is a borrowing [`Diagnostic`] view carrying the entry's span, its captured label
+  /// snapshot, and its [`DiagnosticKind`] (the record kind plus payload). The order is the
+  /// emission order recorded in the shared `log`, so a record of any kind appears in the exact
+  /// position it was emitted — the interleaving the span-keyed maps cannot express on their own.
+  /// This is the read-side bridge a downstream renderer (ariadne, miette, a bespoke reporter)
+  /// consumes; tokit takes on no dependency on any of them.
   ///
   /// ```ignore
   /// // Sketch of an ariadne adapter (tokit does not depend on ariadne):
+  /// use tokit::emitter::DiagnosticKind;
   /// for diag in emitter.diagnostics() {
-  ///     let kind = match diag.severity() {
-  ///         tokit::emitter::Severity::Error => ariadne::ReportKind::Error,
-  ///         tokit::emitter::Severity::Warning => ariadne::ReportKind::Warning,
-  ///     };
-  ///     let mut report = ariadne::Report::build(kind, (), diag.span().start());
+  ///     let mut report = ariadne::Report::build(
+  ///         match diag.severity() {
+  ///             tokit::emitter::Severity::Error => ariadne::ReportKind::Error,
+  ///             tokit::emitter::Severity::Warning => ariadne::ReportKind::Warning,
+  ///         },
+  ///         (),
+  ///         diag.span().start(),
+  ///     );
   ///     // Each open label is a "while parsing X" context note.
   ///     for ctx in diag.labels() {
   ///         report = report.with_note(format!("while parsing {ctx}"));
   ///     }
-  ///     report
-  ///         .with_message(diag.payload().to_string())
-  ///         .finish();
+  ///     let report = match diag.kind() {
+  ///         DiagnosticKind::Error(e) | DiagnosticKind::Warning(e) => report.with_message(e.to_string()),
+  ///         DiagnosticKind::SkippedRegion(skipped) => {
+  ///             report.with_message(format!("recovered by skipping {skipped} tokens"))
+  ///         }
+  ///     };
+  ///     report.finish();
   /// }
   /// ```
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -445,6 +456,8 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
       &self.label_snapshots,
       &self.warns,
       &self.warn_label_snapshots,
+      &self.holes,
+      &self.hole_label_snapshots,
     )
   }
 }

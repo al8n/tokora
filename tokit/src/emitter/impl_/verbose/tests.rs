@@ -174,12 +174,16 @@ fn hole(v: &mut Verbose<(), SimpleSpan>, span: SimpleSpan, skipped: usize) {
   );
 }
 
-// A hole record lands in `skipped_regions()` (with its label snapshot), advances the
-// emission checkpoint, and does NOT surface through `diagnostics()` — which must keep
-// yielding the payload channels in exact order around it (the hole entry must not shift
-// the per-span cursors).
+// A hole record lands in `skipped_regions()` (with its label snapshot), advances the emission
+// checkpoint, AND now surfaces through `diagnostics()` in its emitted position — interleaved with
+// the payload channels rather than skipped.
+//
+// SANCTIONED TEST UPDATE (W7 Cluster A, item 1): the former assertion here — that `diagnostics()`
+// yields only the payload channels (`spans == [a, b]`, hole excluded) — encoded the W3-era
+// known limitation. The reshape resolves that seam, so this test is updated to assert the hole
+// now appears in order as a `DiagnosticKind::SkippedRegion`.
 #[test]
-fn verbose_hole_records_share_the_log_without_disturbing_diagnostics() {
+fn verbose_hole_records_interleave_into_diagnostics_in_emission_order() {
   let mut v = Verbose::<(), SimpleSpan>::new();
   let a = SimpleSpan::new(0usize, 1usize);
   let b = SimpleSpan::new(2usize, 5usize);
@@ -194,16 +198,41 @@ fn verbose_hole_records_share_the_log_without_disturbing_diagnostics() {
   let ckp = <Verbose<(), SimpleSpan> as Emitter<'_, crate::lexer::DummyLexer>>::checkpoint(&v);
   assert_eq!(ckp, 3, "the hole record rides the shared emission log");
 
-  // The hole is read through its own accessor, labels captured like any record.
+  // The hole is still readable through its own accessor, labels captured like any record.
   assert_eq!(v.skipped_regions().get(&b), Some(&vec![3usize]));
   assert_eq!(v.skipped_region_labels()[&b], vec![vec!["ctx"]]);
 
-  // diagnostics() yields ONLY the payload channels, in emission order, with the same-span
-  // error at `b` intact — the hole entry did not consume its cursor slot.
-  let spans: Vec<SimpleSpan> = v.diagnostics().map(|d| *d.span()).collect();
+  // diagnostics() now replays ALL THREE records in emission order: error@a, hole@b, error@b.
+  // The same-span error at `b` is still intact after the hole — the hole advances only its own
+  // per-span cursor.
+  let seq: Vec<(SimpleSpan, DiagnosticKind<'_, ()>)> =
+    v.diagnostics().map(|d| (*d.span(), d.kind())).collect();
+  assert_eq!(seq.len(), 3, "all three records replay");
+  assert_eq!(seq[0].0, a);
+  assert!(seq[0].1.is_error(), "log[0] is the error at a");
+  assert_eq!(seq[1].0, b);
+  assert!(
+    seq[1].1.is_skipped_region(),
+    "log[1] is the hole at b, in order"
+  );
+  match seq[1].1 {
+    DiagnosticKind::SkippedRegion(skipped) => assert_eq!(skipped, 3, "the skipped-token count"),
+    _ => unreachable!(),
+  }
+  assert_eq!(seq[2].0, b);
+  assert!(
+    seq[2].1.is_error(),
+    "log[2] is the error at b, after the hole"
+  );
+
+  // Labels ride every record, the hole included.
+  let labels: Vec<Vec<&'static str>> = v.diagnostics().map(|d| d.labels().to_vec()).collect();
+  assert_eq!(labels, vec![vec!["ctx"], vec!["ctx"], vec!["ctx"]]);
+
+  // The hole reports as a soft (Warning-tier) event; `kind()` distinguishes it from a real
+  // warning payload.
   assert_eq!(
-    spans,
-    vec![a, b],
-    "payload records replay in order around the hole"
+    v.diagnostics().nth(1).map(|d| d.severity()),
+    Some(Severity::Warning)
   );
 }
