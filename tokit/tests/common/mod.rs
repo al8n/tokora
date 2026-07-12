@@ -335,3 +335,55 @@ impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for E {
     E
   }
 }
+
+// ── Shared emitter `TestEm` + its context constructor ─────────────────────────
+//
+// A "fail on everything" emitter (`Error = E`) with the Fatal-free context built
+// from it. Byte-identical copies previously lived in the punct and input_ref
+// suites (W7 harness consolidation); not every binary that imports common
+// exercises them, hence the `allow(dead_code)`.
+
+use tokit::{
+  Emitter, Lexer, ParserContext, error::token::UnexpectedTokenOf, input::Cursor, span::Spanned,
+};
+
+#[allow(dead_code)]
+pub struct TestEm;
+
+impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEm {
+  type Error = E;
+  fn emit_lexer_error(
+    &mut self,
+    _: Spanned<
+      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenT<'inp>>::Error,
+      <TestLexer<'inp> as Lexer<'inp>>::Span,
+    >,
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Err(E)
+  }
+  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Err(E)
+  }
+  fn emit_error(&mut self, err: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Err(err.into_data())
+  }
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64)
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+  }
+}
+
+#[allow(dead_code)]
+pub fn ctx() -> ParserContext<'static, TestLexer<'static>, TestEm> {
+  ParserContext::new(TestEm)
+}

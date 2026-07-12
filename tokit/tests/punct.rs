@@ -1,14 +1,11 @@
 #![cfg(all(feature = "std", feature = "logos"))]
 mod common;
 
-use common::E;
+use common::{E, TestEm, ctx};
 
 use tokit::{
-  Emitter, InputRef, Lexer, Parse, Parser, ParserContext, Token as TokenTrait,
-  error::token::UnexpectedTokenOf,
-  input::Cursor,
+  InputRef, Parse, Parser, ParserContext,
   punct::{Comma, Punctuator},
-  span::Spanned,
 };
 
 use common::TestLexer;
@@ -80,46 +77,6 @@ fn punctuator_kind() {
   use common::TokenKind;
   let kind = <Comma<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::kind();
   assert_eq!(kind, TokenKind::Comma);
-}
-
-// ── Alias punct helpers (shared test infrastructure) ────────────────────────
-
-struct TestEm;
-impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEm {
-  type Error = E;
-  fn emit_lexer_error(
-    &mut self,
-    _: Spanned<
-      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenTrait<'inp>>::Error,
-      <TestLexer<'inp> as Lexer<'inp>>::Span,
-    >,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-  fn emit_error(&mut self, err: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(err.into_data())
-  }
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64)
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-  }
-}
-
-fn ctx() -> ParserContext<'static, TestLexer<'static>, TestEm> {
-  ParserContext::new(TestEm)
 }
 
 // ── Alias try_expect methods ─────────────────────────────────────────────────

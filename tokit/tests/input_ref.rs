@@ -5,13 +5,15 @@
 
 mod common;
 
-use common::E;
+// `E` and `ctx` are exercised only by the `unstable-raw`-gated cache-rewind
+// tests below; gate the import to match, keeping the valve-off build clean.
+#[cfg(feature = "unstable-raw")]
+use common::{E, ctx};
 
 use common::{TestLexer, Token, TokenKind};
 use tokit::{
-  Emitter, InputRef, Lexer, Parse, ParseContext, Parser, ParserContext, Token as TokenTrait,
-  cache::DefaultCache, emitter::Ignored, error::token::UnexpectedTokenOf, input::Cursor,
-  span::Spanned, utils::Expected,
+  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, cache::DefaultCache,
+  emitter::Ignored, span::Spanned, utils::Expected,
 };
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -728,49 +730,6 @@ fn sync_through_no_match() {
 }
 
 // ── cache rewind (from cache_rewind_coverage) ────────────────────────────────
-
-// Helpers for the cache-rewind tests below, which are all `#[cfg(feature = "unstable-raw")]`;
-// under the valve-off flavor (`--features logos,std`, no `unstable-raw`) they are unused, so
-// opt out of dead-code denial rather than gate every impl/import behind the feature.
-#[allow(dead_code)]
-struct TestEm;
-impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEm {
-  type Error = E;
-  fn emit_lexer_error(
-    &mut self,
-    _: Spanned<
-      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenTrait<'inp>>::Error,
-      <TestLexer<'inp> as Lexer<'inp>>::Span,
-    >,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-  fn emit_error(&mut self, err: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(err.into_data())
-  }
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64)
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-  }
-}
-
-#[allow(dead_code)]
-fn ctx() -> ParserContext<'static, TestLexer<'static>, TestEm> {
-  ParserContext::new(TestEm)
-}
 
 #[cfg(feature = "unstable-raw")]
 #[test]
