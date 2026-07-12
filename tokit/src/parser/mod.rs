@@ -535,6 +535,56 @@ pub trait Parse<'inp, L, O, Error, Lang: ?Sized = ()>: Sized {
   {
     self.parse_with_state(src.as_ref(), state)
   }
+
+  /// Parse from [`bstr::BStr`](https://docs.rs/bstr/latest/bstr/struct.BStr.html) source.
+  #[cfg(feature = "bstr_1")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_bstr(self, src: &'inp bstr_1::BStr) -> Result<O, Error>
+  where
+    L: Lexer<'inp, Source = [u8]>,
+    L::State: Default,
+  {
+    self.parse_bstr_with_state(src, Default::default())
+  }
+
+  /// Parse from [`bstr::BStr`](https://docs.rs/bstr/latest/bstr/struct.BStr.html) source with an explicit lexer state.
+  #[cfg(feature = "bstr_1")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_bstr_with_state(self, src: &'inp bstr_1::BStr, state: L::State) -> Result<O, Error>
+  where
+    L: Lexer<'inp, Source = [u8]>,
+  {
+    self.parse_with_state(src.as_ref(), state)
+  }
+
+  /// Parse from [`hipstr::HipStr`](https://docs.rs/hipstr/latest/hipstr/type.HipStr.html) source.
+  #[cfg(feature = "hipstr_0_8")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_hipstr(self, src: &'inp hipstr_0_8::HipStr<'_>) -> Result<O, Error>
+  where
+    L: Lexer<'inp, Source = str>,
+    L::State: Default,
+  {
+    self.parse_hipstr_with_state(src, Default::default())
+  }
+
+  /// Parse from [`hipstr::HipStr`](https://docs.rs/hipstr/latest/hipstr/type.HipStr.html) source with an explicit lexer state.
+  #[cfg(feature = "hipstr_0_8")]
+  #[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn parse_hipstr_with_state(
+    self,
+    src: &'inp hipstr_0_8::HipStr<'_>,
+    state: L::State,
+  ) -> Result<O, Error>
+  where
+    L: Lexer<'inp, Source = str>,
+  {
+    self.parse_with_state(src.as_str(), state)
+  }
 }
 
 impl<'inp, F, L, O, Error, Ctx, Lang: ?Sized> Parse<'inp, L, O, Error, Lang>

@@ -13,6 +13,10 @@ pub trait State: core::fmt::Debug + Clone {
   type Error: Clone;
 
   /// Checks the state for errors.
+  ///
+  /// Not to be confused with [`Check::check`](crate::Check::check) (the parser-side value
+  /// predicate) or [`Lexer::check`](crate::Lexer::check) (the lexer-level probe that
+  /// typically wraps this one into the token's error type).
   fn check(&self) -> Result<(), Self::Error>;
 }
 

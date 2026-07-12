@@ -469,6 +469,10 @@ pub trait Lexer<'inp>: 'inp {
   /// Checks the current state of the lexer for errors.
   ///
   /// If the state is valid, returns `Ok(())`, otherwise returns an error.
+  ///
+  /// Not to be confused with [`Check::check`](crate::Check::check) (the parser-side value
+  /// predicate) or [`State::check`] (the state's own validity probe, which this method
+  /// typically wraps into the token's error type).
   fn check(&self) -> Result<(), <Self::Token as Token<'inp>>::Error>;
 
   /// Returns a reference to the current state of the lexer.
