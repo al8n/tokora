@@ -214,6 +214,7 @@ punctuator! {
   (OpenAngle, "OPEN_ANGLE", "<"),
   #[doc(alias = "GreaterThan")]
   (CloseAngle, "CLOSE_ANGLE", ">"),
+  #[doc = "The angle-bracket (`<>`) delimiter pair. Its `Delimiter` impl is provided for symmetry with the other builtin delimiter pairs and is currently exercised only through the error-type aliases."]
   (Angle, "ANGLE", "<>"),
   (OpenBrace, "OPEN_BRACE", "{"),
   (CloseBrace, "CLOSE_BRACE", "}"),
