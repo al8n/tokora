@@ -1068,3 +1068,80 @@ fn test_repeated_while_full_container_verbose_records_and_terminates() {
   let r: Result<Option<i64>, RWError> = Parser::with_context(ctx).apply(parse).parse_str("1 2 3+");
   assert_eq!(r.unwrap(), Some(1));
 }
+
+// == 12. Progress guard: a zero-consumption Continue cycle must terminate =====
+//
+// Regression tests for the `repeated_while` progress-guard parity (W7 §6 debt): a condition
+// that keeps answering `Continue` paired with an element parser that consumes nothing used to
+// loop forever — `Repeated` had the cursor-compare guard, `RepeatedWhile` did not. The guard
+// treats a no-progress cycle as end of elements, exactly as the `Repeated` family does.
+
+/// "Parses" an element without consuming any input — the pathological pair for a `Continue`
+/// condition, which sees the same lookahead on every cycle.
+fn parse_consume_nothing_rw<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<i64, RWError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RWError>,
+{
+  let _ = inp;
+  Ok(0)
+}
+
+#[test]
+fn test_repeated_while_zero_consumption_terminates() {
+  fn parse<'inp, Ctx>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+  ) -> Result<Vec<i64>, RWError>
+  where
+    Ctx: ParseContext<'inp, TestLexer<'inp>>,
+    Ctx::Emitter: RWEmitterBound<'inp>,
+  {
+    parse_consume_nothing_rw
+      .repeated_while::<_, U1>(decide_num_rw::<Ctx>)
+      .collect()
+      .parse_input(inp)
+  }
+
+  // The lookahead is a `Num`, so the condition answers `Continue`; the element parser consumes
+  // nothing. Without the guard this loops forever; with it, the first no-progress cycle stops
+  // the repetition after its single pushed element.
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse)
+    .parse_str("1 2 3+");
+  assert_eq!(
+    r.unwrap(),
+    vec![0],
+    "the no-progress cycle stops after one element instead of looping"
+  );
+}
+
+#[test]
+fn test_repeated_while_delimited_zero_consumption_terminates() {
+  fn parse<'inp, Ctx>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+  ) -> Result<Vec<i64>, RWError>
+  where
+    Ctx: ParseContext<'inp, TestLexer<'inp>>,
+    Ctx::Emitter: RWEmitterBound<'inp>,
+  {
+    parse_consume_nothing_rw
+      .repeated_while::<_, U1>(decide_num_rw::<Ctx>)
+      .delimited::<Bracket<(), (), ()>>()
+      .collect()
+      .parse_input(inp)
+  }
+
+  // Same pathological pair inside delimiters: the close-delimiter check keeps failing on `1`
+  // and the condition keeps answering `Continue`. The guard breaks to the close-delimiter
+  // epilogue, which reports the unclosed bracket through the fail-fast test emitter — the
+  // parse terminates with an error instead of looping.
+  let r: Result<Vec<i64>, RWError> = Parser::with_context(rw_ctx())
+    .apply(parse)
+    .parse_str("[1 2]+");
+  assert!(
+    r.is_err(),
+    "the no-progress cycle terminates through the close-delimiter epilogue"
+  );
+}

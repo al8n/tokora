@@ -69,6 +69,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     }
 
     let mut nums = 0;
+    let mut elem_cur = inp.cursor().clone();
 
     loop {
       let mut err = None;
@@ -109,6 +110,41 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
           }
         }
       }
+
+      // The progress guard (parity with `DelimitedBy<Repeated>`): a `Continue` cycle whose
+      // element parser consumed nothing would fail the same close-delimiter check and see the
+      // same lookahead forever. No progress means no more elements — break to the close-
+      // delimiter epilogue below, exactly as the plain `Repeated` driver does.
+      let new_cursor = inp.cursor().clone();
+      if new_cursor.as_inner() == elem_cur.as_inner() {
+        break;
+      }
+      elem_cur = new_cursor;
     }
+
+    // No progress was made — treat as end of elements (the same epilogue as
+    // `DelimitedBy<Repeated>`): accept a close delimiter if it is at hand, report it
+    // otherwise, then run the stop handler on the delimited span.
+    let mut close_err = None;
+    match inp.try_expect(|t| match Delim::is_close(&t.data.kind()) {
+      true => true,
+      false => {
+        close_err = Some(Delim::unexpected_close_token(t.cloned()));
+        false
+      }
+    })? {
+      None if close_err.is_some() => {
+        inp.emitter().emit_unexpected_token(close_err.unwrap())?;
+      }
+      None => {
+        // EOI — no tokens left, no close delimiter
+      }
+      Some(close) => {
+        container.on_close_delimiter(close);
+      }
+    }
+
+    let span = inp.span_since(&anchor);
+    on_stop(nums, inp, &span).map(|_| mem::take(container))
   }
 }

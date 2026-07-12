@@ -285,6 +285,7 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
   {
     trace_event!(inp, "repeated_while");
     let anchor = inp.cursor().clone();
+    let mut cursor = anchor.clone();
     let mut nums = 0;
 
     loop {
@@ -308,6 +309,16 @@ impl<'inp, 'c, L, F, Condition, O, Ctx, Lang: ?Sized, W>
           nums += 1;
         }
       }
+
+      // The progress guard (parity with `Repeated::parse`): a `Continue` cycle whose element
+      // parser consumed nothing would see the same lookahead and decide `Continue` forever.
+      // No progress means no more elements — stop, exactly as an `Action::Stop` would.
+      let new_cursor = inp.cursor().clone();
+      if new_cursor.as_inner() == cursor.as_inner() {
+        let span = inp.span_since(&anchor);
+        return rh.on_stop(nums, inp, &anchor).map(|_| span);
+      }
+      cursor = new_cursor;
     }
   }
 }
