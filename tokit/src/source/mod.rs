@@ -29,10 +29,9 @@ pub trait Source<Cursor>: core::fmt::Debug {
 
   /// Get a slice of the source at given range. This is analogous to
   /// `slice::get(range)`.
-  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
-    R: RangeBounds<&'a Cursor>,
-    Cursor: 'a;
+    R: RangeBounds<Cursor>;
 
   /// For `&str` sources attempts to find the closest `char` boundary at which source
   /// can be sliced, starting from `index`.
@@ -67,14 +66,13 @@ impl Source<usize> for [u8] {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
-    R: RangeBounds<&'a usize>,
-    usize: 'a,
+    R: RangeBounds<usize>,
   {
     self.get((
-      range.start_bound().map(|s| **s),
-      range.end_bound().map(|s| **s),
+      range.start_bound().map(|s| *s),
+      range.end_bound().map(|s| *s),
     ))
   }
 
@@ -101,13 +99,13 @@ impl Source<usize> for str {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
-    R: RangeBounds<&'a usize>,
+    R: RangeBounds<usize>,
   {
     self.get((
-      range.start_bound().map(|s| **s),
-      range.end_bound().map(|s| **s),
+      range.start_bound().map(|s| *s),
+      range.end_bound().map(|s| *s),
     ))
   }
 

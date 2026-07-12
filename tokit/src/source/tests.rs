@@ -29,21 +29,21 @@ fn u8_slice_len_empty() {
 #[test]
 fn u8_slice_slice_full_range() {
   let src: &[u8] = b"abcde";
-  let result = Source::slice(src, &0..&5);
+  let result = Source::slice(src, 0..5);
   assert_eq!(result, Some(b"abcde".as_slice()));
 }
 
 #[test]
 fn u8_slice_slice_partial() {
   let src: &[u8] = b"abcde";
-  let result = Source::slice(src, &1..&3);
+  let result = Source::slice(src, 1..3);
   assert_eq!(result, Some(b"bc".as_slice()));
 }
 
 #[test]
 fn u8_slice_slice_out_of_bounds() {
   let src: &[u8] = b"abc";
-  let result = Source::slice(src, &0..&10);
+  let result = Source::slice(src, 0..10);
   assert_eq!(result, None);
 }
 
@@ -97,21 +97,21 @@ fn str_len_multibyte() {
 #[test]
 fn str_slice_full_range() {
   let src: &str = "abcde";
-  let result = Source::slice(src, &0..&5);
+  let result = Source::slice(src, 0..5);
   assert_eq!(result, Some("abcde"));
 }
 
 #[test]
 fn str_slice_partial() {
   let src: &str = "abcde";
-  let result = Source::slice(src, &1..&3);
+  let result = Source::slice(src, 1..3);
   assert_eq!(result, Some("bc"));
 }
 
 #[test]
 fn str_slice_out_of_bounds() {
   let src: &str = "abc";
-  let result = Source::slice(src, &0..&10);
+  let result = Source::slice(src, 0..10);
   assert_eq!(result, None);
 }
 
@@ -119,7 +119,7 @@ fn str_slice_out_of_bounds() {
 fn str_slice_on_non_boundary_returns_none() {
   // 2-byte char: the second byte is not a valid boundary
   let src: &str = "\u{00E9}abc"; // e-acute (2 bytes) + abc
-  let result = Source::slice(src, &0..&1);
+  let result = Source::slice(src, 0..1);
   assert_eq!(result, None);
 }
 
@@ -183,6 +183,6 @@ fn str_find_boundary_at_and_beyond_len() {
 #[test]
 fn str_empty_slice() {
   let src: &str = "abc";
-  let result = Source::slice(src, &1..&1);
+  let result = Source::slice(src, 1..1);
   assert_eq!(result, Some(""));
 }

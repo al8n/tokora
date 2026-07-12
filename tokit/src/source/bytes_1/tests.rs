@@ -28,49 +28,49 @@ fn bytes_len_empty() {
 #[test]
 fn bytes_slice_full_range() {
   let src = Bytes::from_static(b"abcde");
-  let result = Source::slice(&src, &0..&5);
+  let result = Source::slice(&src, 0..5);
   assert_eq!(result.as_deref(), Some(b"abcde".as_slice()));
 }
 
 #[test]
 fn bytes_slice_partial() {
   let src = Bytes::from_static(b"abcde");
-  let result = Source::slice(&src, &1..&3);
+  let result = Source::slice(&src, 1..3);
   assert_eq!(result.as_deref(), Some(b"bc".as_slice()));
 }
 
 #[test]
 fn bytes_slice_empty_range() {
   let src = Bytes::from_static(b"abc");
-  let result = Source::slice(&src, &1..&1);
+  let result = Source::slice(&src, 1..1);
   assert_eq!(result.as_deref(), Some(b"".as_slice()));
 }
 
 #[test]
 fn bytes_slice_out_of_bounds() {
   let src = Bytes::from_static(b"abc");
-  let result = Source::slice(&src, &0..&10);
+  let result = Source::slice(&src, 0..10);
   assert!(result.is_none());
 }
 
 #[test]
 fn bytes_slice_inclusive_range() {
   let src = Bytes::from_static(b"abcde");
-  let result = Source::slice(&src, &1..=&3);
+  let result = Source::slice(&src, 1..=3);
   assert_eq!(result.as_deref(), Some(b"bcd".as_slice()));
 }
 
 #[test]
 fn bytes_slice_unbounded_start() {
   let src = Bytes::from_static(b"abcde");
-  let result = Source::slice(&src, ..&3);
+  let result = Source::slice(&src, ..3);
   assert_eq!(result.as_deref(), Some(b"abc".as_slice()));
 }
 
 #[test]
 fn bytes_slice_unbounded_end() {
   let src = Bytes::from_static(b"abcde");
-  let result = Source::slice(&src, &2..);
+  let result = Source::slice(&src, 2..);
   assert_eq!(result.as_deref(), Some(b"cde".as_slice()));
 }
 
@@ -84,14 +84,14 @@ fn bytes_slice_fully_unbounded() {
 #[test]
 fn bytes_slice_empty_source() {
   let src = Bytes::new();
-  let result = Source::slice(&src, &0..&0);
+  let result = Source::slice(&src, 0..0);
   assert_eq!(result.as_deref(), Some(b"".as_slice()));
 }
 
 #[test]
 fn bytes_slice_empty_source_out_of_range() {
   let src = Bytes::new();
-  let result = Source::slice(&src, &0..&1);
+  let result = Source::slice(&src, 0..1);
   assert!(result.is_none());
 }
 

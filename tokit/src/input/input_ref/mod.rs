@@ -815,7 +815,7 @@ where
   pub fn slice(&self) -> <L::Source as Source<L::Offset>>::Slice<'inp> {
     self
       .input
-      .slice(self.span.start_ref()..self.span.end_ref())
+      .slice(self.span.start()..self.span.end())
       .expect("lexer should guarantee slice")
   }
 
@@ -826,7 +826,9 @@ where
     cursor: &Cursor<'inp, 'closure, L>,
   ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
     let end = self.cursor();
-    self.input.slice(cursor.as_inner()..end.as_inner())
+    self
+      .input
+      .slice(cursor.as_inner().clone()..end.as_inner().clone())
   }
 
   /// Returns a slice of the input source from the given cursor to the end of the input.
@@ -835,7 +837,7 @@ where
     &self,
     cursor: &Cursor<'inp, 'closure, L>,
   ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
-    let start = cursor.as_inner();
+    let start = cursor.as_inner().clone();
     self.input.slice(start..)
   }
 
@@ -849,8 +851,8 @@ where
     R: RangeBounds<&'r Cursor<'inp, 'closure, L>>,
     'closure: 'r,
   {
-    let start = range.start_bound().map(|c| c.as_inner());
-    let end = range.end_bound().map(|c| c.as_inner());
+    let start = range.start_bound().map(|c| c.as_inner().clone());
+    let end = range.end_bound().map(|c| c.as_inner().clone());
     // SAFETY: The range is guaranteed to be within bounds as both cursors are within input length and comes from the same input.
     self.input.slice((start, end))
   }

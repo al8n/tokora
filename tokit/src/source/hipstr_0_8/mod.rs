@@ -19,15 +19,14 @@ impl<'h> Source<usize> for HipStr<'h> {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
-    R: core::ops::RangeBounds<&'a usize>,
-    usize: 'a,
+    R: core::ops::RangeBounds<usize>,
   {
     self
       .try_slice((
-        range.start_bound().map(|s| **s),
-        range.end_bound().map(|s| **s),
+        range.start_bound().map(|s| *s),
+        range.end_bound().map(|s| *s),
       ))
       .ok()
   }
@@ -70,15 +69,14 @@ impl Source<usize> for HipByt<'_> {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
-    R: core::ops::RangeBounds<&'a usize>,
-    usize: 'a,
+    R: core::ops::RangeBounds<usize>,
   {
     self
       .try_slice((
-        range.start_bound().map(|s| **s),
-        range.end_bound().map(|s| **s),
+        range.start_bound().map(|s| *s),
+        range.end_bound().map(|s| *s),
       ))
       .ok()
   }

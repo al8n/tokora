@@ -36,35 +36,35 @@ fn hipstr_len_multibyte() {
 #[test]
 fn hipstr_slice_full_range() {
   let src = HipStr::from("abcde");
-  let result = Source::slice(&src, &0..&5);
+  let result = Source::slice(&src, 0..5);
   assert_eq!(result.as_deref(), Some("abcde"));
 }
 
 #[test]
 fn hipstr_slice_partial() {
   let src = HipStr::from("abcde");
-  let result = Source::slice(&src, &1..&3);
+  let result = Source::slice(&src, 1..3);
   assert_eq!(result.as_deref(), Some("bc"));
 }
 
 #[test]
 fn hipstr_slice_empty() {
   let src = HipStr::from("abc");
-  let result = Source::slice(&src, &1..&1);
+  let result = Source::slice(&src, 1..1);
   assert_eq!(result.as_deref(), Some(""));
 }
 
 #[test]
 fn hipstr_slice_out_of_bounds() {
   let src = HipStr::from("abc");
-  let result = Source::slice(&src, &0..&10);
+  let result = Source::slice(&src, 0..10);
   assert!(result.is_none());
 }
 
 #[test]
 fn hipstr_slice_non_boundary() {
   let src = HipStr::from("\u{00E9}abc");
-  let result = Source::slice(&src, &0..&1);
+  let result = Source::slice(&src, 0..1);
   assert!(result.is_none());
 }
 
@@ -145,28 +145,28 @@ fn hipbyt_len_empty() {
 #[test]
 fn hipbyt_slice_full_range() {
   let src = HipByt::from(b"abcde" as &[u8]);
-  let result = Source::slice(&src, &0..&5);
+  let result = Source::slice(&src, 0..5);
   assert_eq!(result.as_deref(), Some(b"abcde".as_slice()));
 }
 
 #[test]
 fn hipbyt_slice_partial() {
   let src = HipByt::from(b"abcde" as &[u8]);
-  let result = Source::slice(&src, &1..&3);
+  let result = Source::slice(&src, 1..3);
   assert_eq!(result.as_deref(), Some(b"bc".as_slice()));
 }
 
 #[test]
 fn hipbyt_slice_empty() {
   let src = HipByt::from(b"abc" as &[u8]);
-  let result = Source::slice(&src, &1..&1);
+  let result = Source::slice(&src, 1..1);
   assert_eq!(result.as_deref(), Some(b"".as_slice()));
 }
 
 #[test]
 fn hipbyt_slice_out_of_bounds() {
   let src = HipByt::from(b"abc" as &[u8]);
-  let result = Source::slice(&src, &0..&10);
+  let result = Source::slice(&src, 0..10);
   assert!(result.is_none());
 }
 

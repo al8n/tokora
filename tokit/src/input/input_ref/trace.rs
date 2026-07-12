@@ -18,7 +18,7 @@ where
   /// window of the remaining source, truncated. Cheap and works for every [`Source`].
   fn trace_preview(&self) -> std::string::String {
     let off = self.offset();
-    match self.source().slice(off..) {
+    match self.source().slice(off.clone()..) {
       Some(rest) => {
         let dump = std::format!("{rest:?}");
         let mut window: std::string::String = dump.chars().take(24).collect();

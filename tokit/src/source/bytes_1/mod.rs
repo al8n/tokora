@@ -21,23 +21,23 @@ impl Source<usize> for Bytes {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
-    R: RangeBounds<&'a usize>,
+    R: RangeBounds<usize>,
   {
     use core::ops::Bound;
 
     let len = self.len();
 
     let begin = match range.start_bound() {
-      Bound::Included(&&n) => n,
-      Bound::Excluded(&&n) => n.checked_add(1)?,
+      Bound::Included(&n) => n,
+      Bound::Excluded(&n) => n.checked_add(1)?,
       Bound::Unbounded => 0,
     };
 
     let end = match range.end_bound() {
-      Bound::Included(&&n) => n.checked_add(1)?,
-      Bound::Excluded(&&n) => n,
+      Bound::Included(&n) => n.checked_add(1)?,
+      Bound::Excluded(&n) => n,
       Bound::Unbounded => len,
     };
 

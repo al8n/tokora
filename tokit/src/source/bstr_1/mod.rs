@@ -19,10 +19,9 @@ impl Source<usize> for BStr {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn slice<'a, R>(&self, range: R) -> Option<Self::Slice<'_>>
+  fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
-    R: core::ops::RangeBounds<&'a usize>,
-    usize: 'a,
+    R: core::ops::RangeBounds<usize>,
   {
     <[u8]>::slice(self, range)
   }

@@ -17,7 +17,7 @@ fn bstr_len() {
 #[test]
 fn bstr_slice() {
   let s = BStr::new(b"hello");
-  let sliced = Source::slice(s, &1..&3);
+  let sliced = Source::slice(s, 1..3);
   assert_eq!(sliced, Some(&b"el"[..]));
 }
 

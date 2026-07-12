@@ -546,7 +546,7 @@ where
       );
     }
     // 5. slice() equals the source content at span().
-    match src.slice(&start..&end) {
+    match src.slice(start.clone()..end.clone()) {
       Some(from_source) => {
         if from_source != slice {
           panic!(
