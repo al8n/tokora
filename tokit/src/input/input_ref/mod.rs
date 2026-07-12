@@ -460,13 +460,23 @@ where
   /// closure, so the last-in, first-out discipline documented on [`restore`](Self::restore)
   /// holds by construction, even under nesting.
   ///
-  /// A raw [`restore`](Self::restore) inside `f` to a checkpoint saved *before* the attempt
-  /// began would tear out the attempt's own begin point (it pops it off the live lineage).
-  /// Allocator builds pin that begin point, so such a restore **panics at the restore** — its
-  /// message names a live transaction guard or attempt — rather than letting `f` continue on a
-  /// torn foundation and detecting it only at the decline. A LIFO-clean raw save/restore pair
-  /// taken and released entirely inside `f`, above the attempt's checkpoint, is unaffected.
+  /// # Contract: the closure owns its span of the timeline
+  ///
+  /// The attempt saves at entry and settles at exit — commit-shaped on `Some`, restore-shaped
+  /// on `None` — so the last-in, first-out law holds structurally and a declined attempt leaves
+  /// **no trace** (the rewind story above: position, lexer state, emissions, watermark, poison
+  /// boundary). One violation remains expressible, only under `unstable-raw`: a raw
+  /// [`restore`](Self::restore) inside `f` to a checkpoint saved *before* the attempt began
+  /// would tear out the attempt's own begin point (it pops it off the live lineage). Allocator
+  /// builds pin that begin point, so such a restore **panics at the restore** — its message
+  /// names a live transaction guard or attempt — rather than letting `f` continue on a torn
+  /// foundation and detecting it only at the decline. A LIFO-clean raw save/restore pair taken
+  /// and released entirely inside `f`, above the attempt's checkpoint, is unaffected.
   /// Allocator-less targets keep no pin set, so this mixing is unspecified-but-bounded there.
+  /// Enforcing tests (in `src/input/input_ref/tests.rs`):
+  /// `attempt_inner_raw_restore_below_checkpoint_panics_at_restore`,
+  /// `attempt_inner_lifo_clean_raw_pair_is_legal`, and
+  /// `attempt_backtrack_over_trip_reemits_diagnostic_exactly_once`.
   ///
   /// For fallible closures that carry an error value, see
   /// [`try_attempt`](Self::try_attempt).
@@ -526,10 +536,19 @@ where
   ///
   /// Like `attempt`, this is a structural way to backtrack: the save/restore pair is
   /// scoped to the closure, so the last-in, first-out discipline documented on
-  /// [`restore`](Self::restore) holds by construction, even under nesting. As with `attempt`,
-  /// a raw [`restore`](Self::restore) inside `f` to a checkpoint saved *before* the attempt
-  /// would tear out the attempt's own begin point; allocator builds pin it, so such a restore
-  /// **panics at the restore** rather than letting `f` continue on a torn foundation.
+  /// [`restore`](Self::restore) holds by construction, even under nesting.
+  ///
+  /// # Contract: the closure owns its span of the timeline
+  ///
+  /// Exactly [`attempt`](Self::attempt)'s contract with `Err` as the declining shape: the
+  /// last-in, first-out law holds structurally, a failed attempt leaves no trace, and the one
+  /// remaining violation — a raw [`restore`](Self::restore) inside `f` to a checkpoint saved
+  /// *before* the attempt (`unstable-raw` only) — **panics at the restore** in allocator
+  /// builds, which pin the attempt's begin point, rather than letting `f` continue on a torn
+  /// foundation. Allocator-less targets are unspecified-but-bounded there. Enforcing tests
+  /// (in `src/input/input_ref/tests.rs`): `try_attempt_err_rolls_back_everything`,
+  /// `try_attempt_nested_lifo`, and
+  /// `try_attempt_inner_raw_restore_below_checkpoint_panics_at_restore`.
   pub fn try_attempt<F, T, E>(&mut self, f: F) -> Result<T, E>
   where
     F: FnOnce(&mut Self) -> Result<T, E>,
