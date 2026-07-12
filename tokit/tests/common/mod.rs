@@ -387,3 +387,26 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEm {
 pub fn ctx() -> ParserContext<'static, TestLexer<'static>, TestEm> {
   ParserContext::new(TestEm)
 }
+
+// ── Pratt binding-power newtype `Power` ──────────────────────────────────────
+//
+// A user newtype implementing `PrattPower` (the orphan rule forbids
+// `impl PrattPower for i32`), shared by the pratt and misc suites to pin the
+// user-newtype path distinct from the built-in integer impls. The field is
+// public so each suite's local `PREC_*` constants can construct it; not every
+// binary that imports common uses it, hence `allow(dead_code)`.
+
+use tokit::parser::PrattPower;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(dead_code)]
+pub struct Power(pub i32);
+
+impl PrattPower for Power {
+  fn next(&self) -> Self {
+    Power(self.0 + 1)
+  }
+  fn prev(&self) -> Self {
+    Power(self.0 - 1)
+  }
+}
