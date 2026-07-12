@@ -1,12 +1,11 @@
 #![cfg(all(feature = "std", feature = "logos"))]
 mod common;
 
+use common::E;
+
 use tokit::{
   Emitter, InputRef, Lexer, Parse, Parser, ParserContext, Token as TokenTrait,
-  error::{
-    UnexpectedEot,
-    token::{UnexpectedToken, UnexpectedTokenOf},
-  },
+  error::token::UnexpectedTokenOf,
   input::Cursor,
   punct::{Comma, Punctuator},
   span::Spanned,
@@ -84,24 +83,6 @@ fn punctuator_kind() {
 }
 
 // ── Alias punct helpers (shared test infrastructure) ────────────────────────
-
-#[derive(Debug)]
-struct E;
-impl From<()> for E {
-  fn from(_: ()) -> Self {
-    E
-  }
-}
-impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
-  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
-    E
-  }
-}
-impl From<UnexpectedEot> for E {
-  fn from(_: UnexpectedEot) -> Self {
-    E
-  }
-}
 
 struct TestEm;
 impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEm {

@@ -8,11 +8,12 @@
 
 mod common;
 
+use common::E;
+
 use tokit::{
   Accumulator, DefaultCache, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser,
   ParserContext, Token as TokenTrait, TryParseInput,
   emitter::{FullContainerEmitter, TooFewEmitter, TooManyEmitter},
-  error::{UnexpectedEot, token::UnexpectedToken},
   input::Cursor,
   parser::{Any, Empty, fail},
   span::Spanned,
@@ -466,27 +467,6 @@ fn test_repeated_at_most() {
 
 // ── Parser construction ───────────────────────────────────────────────────────
 // (merged from parser_construction.rs)
-
-#[derive(Debug)]
-struct E;
-
-impl From<()> for E {
-  fn from(_: ()) -> Self {
-    E
-  }
-}
-
-impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
-  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
-    E
-  }
-}
-
-impl From<UnexpectedEot> for E {
-  fn from(_: UnexpectedEot) -> Self {
-    E
-  }
-}
 
 struct TestEmitter;
 

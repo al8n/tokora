@@ -1,37 +1,16 @@
 #![cfg(all(feature = "std", feature = "logos"))]
 mod common;
 
+use common::E;
+
 use tokit::{
   Emitter, InputRef, Lexer, Parse, Parser, ParserContext, Token as TokenTrait,
-  error::{
-    UnexpectedEot,
-    token::{UnexpectedToken, UnexpectedTokenOf},
-  },
-  input::Cursor,
-  span::Spanned,
+  error::token::UnexpectedTokenOf, input::Cursor, span::Spanned,
 };
 
 use common::{TestLexer, Token};
 
 // ── Fatal emitter: errors on lexer errors ───────────────────────────────────
-
-#[derive(Debug)]
-struct E;
-impl From<()> for E {
-  fn from(_: ()) -> Self {
-    E
-  }
-}
-impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
-  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
-    E
-  }
-}
-impl From<UnexpectedEot> for E {
-  fn from(_: UnexpectedEot) -> Self {
-    E
-  }
-}
 
 struct FatalEm;
 impl<'inp> Emitter<'inp, TestLexer<'inp>> for FatalEm {
