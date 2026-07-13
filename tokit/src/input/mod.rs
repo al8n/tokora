@@ -140,6 +140,7 @@ use super::*;
 pub use checkpoint::Checkpoint;
 pub use completeness::{Complete, Completeness, Partial, SurfaceIncomplete};
 pub use cursor::Cursor;
+pub(crate) use input_ref::Session;
 pub use input_ref::{
   Balance, Commit, DelimClass, DropPolicy, Hole, InputRef, Rollback, Transaction,
 };
@@ -546,6 +547,28 @@ where
     }
   }
 
+  /// The number of **pinned** checkpoints on this input's [`Lineage`] — the begin points of the
+  /// currently-live guards, attempts, and [session points](InputRef::begin_point).
+  ///
+  /// Asked of the [`Input`] rather than of an [`InputRef`] because the question this answers is
+  /// about the moment *after* a handle dies: an [`InputRef`] dropped with session points still
+  /// open releases their pins ([`InputRef`]'s `Drop`), so this reads `0` again — the pin set holds
+  /// exactly the live begin points, and with no handle alive there are none. Gated to its callers
+  /// (the session tests).
+  #[cfg(all(test, feature = "logos", feature = "std"))]
+  pub(crate) fn pinned_checkpoints_len(&self) -> usize {
+    self.lineage.pinned_len()
+  }
+
+  /// The number of **live** checkpoints on this input's [`Lineage`] — the ids saved and neither
+  /// restored nor released. The [`Input`]-level twin of
+  /// [`InputRef::live_checkpoints_len`](InputRef), for the same after-the-handle-dies question:
+  /// an abandoned session point releases its lineage entry too, so it does not strand one.
+  #[cfg(all(test, feature = "logos", feature = "std"))]
+  pub(crate) fn live_checkpoints_len(&self) -> usize {
+    self.lineage.live_len()
+  }
+
   /// Creates a zero-copy reference adapter for this input.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub const fn as_ref<'closure>(
@@ -562,7 +585,11 @@ where
       finality: self.finality,
       emitted_error_end: &mut self.emitted_error_end,
       poison_boundary: &mut self.poison_boundary,
-      lineage: &mut self.lineage,
+      // The lineage memos and the session-point stack, in one cell (see `input_ref::session`): the
+      // stack starts empty and stays unallocated until the first `InputRef::begin_point`, so a
+      // reference that never opens a session pays three zeroed words once, here, and nothing
+      // thereafter. The cell's `Drop` is what releases a point abandoned with the handle.
+      session: Session::new(&mut self.lineage),
       #[cfg(feature = "trace")]
       depth: &mut self.depth,
       #[cfg(all(
@@ -572,11 +599,6 @@ where
       ))]
       witness: &self.witness,
       emitter,
-      // The session-point stack starts empty and stays unallocated until the first
-      // `InputRef::begin_point` — a reference that never opens a session pays three zeroed words
-      // once, at `as_ref`, and nothing thereafter.
-      #[cfg(any(feature = "std", feature = "alloc"))]
-      points: std::vec::Vec::new(),
       _marker: PhantomData,
     }
   }

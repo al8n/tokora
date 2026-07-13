@@ -75,7 +75,8 @@ pub(crate) struct Lineage {
   #[cfg(any(feature = "std", feature = "alloc"))]
   next_ckp_id: u64,
   /// The pinned checkpoint ids: the begin-point checkpoint of every currently-live transaction
-  /// guard and [`attempt`](super::InputRef::attempt)/[`try_attempt`](super::InputRef::try_attempt).
+  /// guard, [`attempt`](super::InputRef::attempt)/[`try_attempt`](super::InputRef::try_attempt), and
+  /// [session point](super::InputRef::begin_point).
   /// A guard/attempt logically borrows the timeline from its begin point forward, so a raw
   /// [`restore`](super::InputRef::restore) that would pop a pinned id off
   /// [`live_ckpts`](Self::live_ckpts) — tearing that begin point out from under a live guard —
@@ -83,6 +84,13 @@ pub(crate) struct Lineage {
   /// constructor pins its held id on entry and every settle path unpins, so this holds exactly
   /// the live begin points and stays bounded across commit-heavy loops. Allocator-less builds
   /// maintain no pin set and fall back on the detect-at-use backstops.
+  ///
+  /// "Every settle path" includes one that is **not** a verb: an [`InputRef`](super::InputRef)
+  /// dropped with session points still open releases their pins in its `Drop`. A guard cannot leak
+  /// a pin (it borrows the handle, so it must settle before the handle can die), but a session point
+  /// is a *value on* the handle while its pin lives out here on the longer-lived
+  /// [`Input`](super::Input) — so the handle's death is a settle path, and unpinning there is what
+  /// keeps "exactly the live begin points" true.
   #[cfg(any(feature = "std", feature = "alloc"))]
   pinned: LineageStack,
 }
@@ -232,12 +240,13 @@ impl Lineage {
     self.pinned.push(id);
   }
 
-  /// Removes `id` from the pin set when its guard or attempt settles. Mirrors
+  /// Removes `id` from the pin set when its guard, attempt, or session point settles. Mirrors
   /// [`forget`](Self::forget): `O(1)` when `id` is the top (the LIFO common case — guards and
   /// attempts are borrowck-serialized, so the settling one is innermost), a linear removal
-  /// otherwise. Called on **every** settle path (commit, explicit rollback, `Drop`, and both
-  /// closure arms of the attempts), so the pin set stays bounded and holds exactly the begin
-  /// points of the currently-live guards and attempts.
+  /// otherwise. Called on **every** settle path (commit, explicit rollback, `Drop`, both closure
+  /// arms of the attempts, both session-point verbs, and the [`InputRef`](super::InputRef) `Drop`
+  /// that releases session points abandoned with the handle), so the pin set stays bounded and holds
+  /// exactly the begin points of the currently-live guards, attempts, and session points.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub(crate) fn unpin(&mut self, id: u64) {
     if self.pinned.last() == Some(&id) {
@@ -295,5 +304,20 @@ impl Lineage {
   #[cfg(all(test, feature = "logos", feature = "std"))]
   pub(crate) fn live_len(&self) -> usize {
     self.live_ckpts.len()
+  }
+
+  /// The number of pinned checkpoints — observability for the law this set states about itself:
+  /// it holds **exactly** the begin points of the currently-live guards, attempts, and session
+  /// points, and is therefore empty whenever none is live. It backs the drop-path release the
+  /// [`InputRef`](super::InputRef)'s `Drop` performs for abandoned session points (a pin whose
+  /// point nobody can settle would otherwise sit here for the life of the input).
+  ///
+  /// Reachable from the owning [`Input`](super::Input), not just from a handle, because that is
+  /// exactly where the question is asked: *after* the handle that opened the points is gone.
+  /// Gated to its callers — the `logos` + `std` session tests — so it is never dead code under
+  /// `cargo hack --each-feature --tests`.
+  #[cfg(all(test, feature = "logos", feature = "std"))]
+  pub(crate) fn pinned_len(&self) -> usize {
+    self.pinned.len()
   }
 }

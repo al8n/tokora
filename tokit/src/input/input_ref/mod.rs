@@ -22,11 +22,14 @@ use super::{
   SurfaceIncomplete,
 };
 
+pub(crate) use session::Session;
+
 mod consume_cached;
 mod drop_policy;
 mod fold;
 mod peek;
 mod pratt;
+pub(crate) mod session;
 mod skip_while;
 #[cfg(any(feature = "std", feature = "alloc"))]
 mod stacked;
@@ -73,11 +76,17 @@ where
   pub(super) finality: Cmpl::Finality,
   pub(super) emitted_error_end: &'closure mut L::Offset,
   pub(super) poison_boundary: &'closure mut Option<L::Offset>,
-  /// The input's lineage memos (see [`Lineage`](super::Lineage)): the live-checkpoint stack, the
-  /// pin set, and the cache-push/checkpoint-id/savepoint counters, reached only through their
-  /// operations. [`save`](InputRef::save) / [`restore`](InputRef::restore) / [`commit`](InputRef::commit)
-  /// and the transaction guards are the sole writers.
-  pub(super) lineage: &'closure mut Lineage,
+  /// The **session cell**: the input's lineage memos (the live-checkpoint stack, the pin set, and
+  /// the cache-push/checkpoint-id/savepoint counters) together with the live
+  /// [session points](Self::begin_point) opened on this handle.
+  ///
+  /// They are one cell because an abandoned session point has to release bookkeeping it does not
+  /// own — the pin lives on the [`Input`](super::Input), which outlives this handle, while the
+  /// point's [`Checkpoint`] lives here and dies with it. [`Session`]'s `Drop` reconciles them (see
+  /// its [module docs](session) for that, and for why the destructor lives on this cell rather than
+  /// on the handle: a `Drop` on `InputRef` would escape *every* field to the destructor and cost the
+  /// scanner its registers).
+  pub(super) session: Session<'inp, 'closure, L>,
   /// Trace nesting depth, borrowed from the owning [`Input`] (the `trace` feature). Its sole
   /// mutators are [`traced`](crate::traced)'s enter/exit hooks; internal leaf events only read
   /// it for indentation.
@@ -91,20 +100,6 @@ where
   ))]
   pub(super) witness: &'closure super::Witness,
   pub(super) emitter: &'closure mut Ctx::Emitter,
-  /// The live **session points**, oldest first: the checkpoints [`begin_point`](Self::begin_point)
-  /// has saved and neither committed nor rolled back. The vector *is* the last-in, first-out
-  /// stack — [`commit_point`](Self::commit_point) and [`rollback_point`](Self::rollback_point) pop
-  /// its back — so nesting is structural and needs no id validation.
-  ///
-  /// It is the one **owned** field on this otherwise all-borrowed handle, and that is the point:
-  /// a session point is a value, not a borrow, so opening one leaves nothing borrowed and the
-  /// consume surface stays callable — the non-lexical property a [`Transaction`] guard cannot
-  /// have (see [`begin_point`](Self::begin_point)). It never allocates until the first
-  /// [`begin_point`](Self::begin_point), and it is declared **last** so the scanner-hot borrowed
-  /// fields above it keep their offsets. Gated to the allocator builds, exactly like the guards'
-  /// savepoint stack.
-  #[cfg(any(feature = "std", feature = "alloc"))]
-  pub(super) points: std::vec::Vec<Checkpoint<'inp, 'closure, L>>,
   pub(super) _marker: PhantomData<Lang>,
 }
 
@@ -138,7 +133,7 @@ where
   fn cache_push_back(&mut self, tok: CachedTokenOf<'inp, L>) -> Result<(), CachedTokenOf<'inp, L>> {
     match self.cache.push_back(tok) {
       Ok(_) => {
-        self.lineage.record_cache_push();
+        self.session.lineage.record_cache_push();
         Ok(())
       }
       Err(tok) => Err(tok),
@@ -785,14 +780,48 @@ where
   ///
   /// Settle your points before the scope that opened them ends and neither can arise.
   ///
-  /// # No implicit rollback on drop
+  /// # Contract: a point is scoped to *this handle*, and never outlives it
+  ///
+  /// A session point is non-lexical — it outlives the *call* that opened it — but it is **not**
+  /// unbounded: it lives on this `InputRef` and dies with it. It cannot be carried to another
+  /// handle, not even one taken from the same input, and this is a *law*, not a convention.
+  ///
+  /// The reason is what a [`Checkpoint`] carries. Among its facts is the **emitter's emission
+  /// mark** — an index into the log of *the emitter this handle borrows*
+  /// ([`Emitter::checkpoint`](crate::emitter::Emitter::checkpoint)), which
+  /// [`rollback_point`](Self::rollback_point) replays into
+  /// [`Emitter::rewind`](crate::emitter::Emitter::rewind). A point saved while emitter *A* was
+  /// borrowed and settled while emitter *B* is would truncate *B*'s log at *A*'s mark: a diagnostic
+  /// count from one timeline, applied to another. So a checkpoint is only meaningful within the one
+  /// emitter borrow that produced it, and a session point — a checkpoint held across calls — must be
+  /// scoped to that borrow.
+  ///
+  /// That scope *is* this handle: `as_ref` takes the emitter borrow, the handle holds it, and the
+  /// borrow ends when the handle dies. The type system enforces it — the `'closure` brand on
+  /// [`Checkpoint`] (and [`Cursor`]) is invariant in the emitter-borrow lifetime, so a checkpoint
+  /// cannot even be *held* across the moment a second handle is taken from the same input; the
+  /// attempt is a borrow error, not a runtime surprise. The point stack is therefore a field of the
+  /// handle rather than of the input, on purpose.
+  ///
+  /// # Dropping the handle with points open: pins released, progress kept, nothing rewound
   ///
   /// Unlike a guard — whose drop rolls back (or, under [`Commit`], keeps) its undecided scope —
-  /// dropping the input with live session points does **nothing** for them: the checkpoints are
-  /// discarded with it and the input dies alongside them. A session ends *explicitly*. Rolling an
-  /// owned session back implicitly on drop would silently paper over a driver that lost track of
-  /// its own points — the deliberate opposite of a guard's drop policy — so the end is left
-  /// explicit to surface that bug instead.
+  /// dropping the handle with live session points performs **no rollback**. Their speculative work
+  /// is *kept*: every token consumed, every diagnostic emitted, and every state change made through
+  /// an open point stands, exactly as if each had been committed. A session ends *explicitly*;
+  /// rolling an abandoned one back implicitly would silently paper over a driver that lost track of
+  /// its own points — the deliberate opposite of a guard's drop policy — so the end is left explicit
+  /// to surface that bug instead.
+  ///
+  /// What the drop *does* do is **release the bookkeeping**: each remaining point's pin and its
+  /// live-checkpoint lineage entry are dropped from the input's lineage memos (see [`InputRef`]'s
+  /// `Drop`). It has to, precisely because the point is split across two lifetimes — the
+  /// [`Checkpoint`] dies with the handle, but the pin lives on the *input*, which does not. A pin
+  /// left behind would stand for a point nobody can ever settle, so the pin set would no longer hold
+  /// exactly the live begin points and would grow for the life of the input. Enforcing tests (in
+  /// `src/input/input_ref/session_tests.rs`): `dropping_the_handle_releases_the_open_points`,
+  /// `dropping_the_handle_keeps_the_progress_of_the_open_points`, and
+  /// `a_second_handle_rewinds_across_an_abandoned_point`.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
   #[cfg_attr(not(tarpaulin), inline)]
@@ -800,9 +829,10 @@ where
     trace_event!(self, "begin_point");
     let ckp = self.save();
     // Pin the base exactly like a guard: a rewind reaching below this point now panics at that
-    // rewind instead of silently invalidating the session's foundation.
+    // rewind instead of silently invalidating the session's foundation. Every settle path unpins —
+    // `commit_point`, `rollback_point`, and the handle's `Drop` for a point abandoned outright.
     self.pin_checkpoint(ckp.ckp_id);
-    self.points.push(ckp);
+    self.session.points.push(ckp);
   }
 
   /// Settles the newest session point by **committing** it: pops it off the internal stack,
@@ -818,7 +848,11 @@ where
   #[cfg_attr(not(tarpaulin), inline)]
   pub fn commit_point(&mut self) {
     trace_event!(self, "commit_point");
-    let ckp = self.points.pop().expect("no live session point to commit");
+    let ckp = self
+      .session
+      .points
+      .pop()
+      .expect("no live session point to commit");
     // Kept, not restored: unpin the base, then the raw consuming commit keeps the progress and
     // releases the lineage entry.
     self.unpin_checkpoint(ckp.ckp_id);
@@ -841,6 +875,7 @@ where
   pub fn rollback_point(&mut self) {
     trace_event!(self, "rollback_point");
     let ckp = self
+      .session
       .points
       .pop()
       .expect("no live session point to roll back");
@@ -858,7 +893,7 @@ where
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn points(&self) -> usize {
-    self.points.len()
+    self.session.points.len()
   }
 
   /// Hands out the next input-global savepoint sequence number; see
@@ -867,7 +902,7 @@ where
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub(super) fn next_savepoint_seq(&mut self) -> u64 {
-    self.lineage.next_savepoint_seq()
+    self.session.lineage.next_savepoint_seq()
   }
 
   /// Drops `id` from the live-checkpoint lineage stack because its checkpoint was kept
@@ -877,7 +912,7 @@ where
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub(crate) fn forget_checkpoint(&mut self, id: u64) {
-    self.lineage.forget(id);
+    self.session.lineage.forget(id);
   }
 
   /// Returns whether `id` is still live on the lineage stack; see
@@ -885,7 +920,7 @@ where
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub(super) fn live_contains(&self, id: u64) -> bool {
-    self.lineage.contains(id)
+    self.session.lineage.contains(id)
   }
 
   /// Pops the lineage stack down through `id` inclusive on restore; see
@@ -893,7 +928,7 @@ where
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   fn live_pop_through(&mut self, id: u64) {
-    self.lineage.pop_through(id);
+    self.session.lineage.pop_through(id);
   }
 
   /// Pins `id` — the begin-point checkpoint of a transaction guard, an
@@ -908,16 +943,19 @@ where
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub(crate) fn pin_checkpoint(&mut self, id: u64) {
-    self.lineage.pin(id);
+    self.session.lineage.pin(id);
   }
 
   /// Removes `id` from the pin set when its guard, attempt, or session point settles; see
   /// [`Lineage::unpin`](super::Lineage::unpin). Called on **every** settle path (commit, explicit
-  /// rollback, `Drop`, both closure arms of the attempts, and both session-point verbs).
+  /// rollback, `Drop`, both closure arms of the attempts, and both session-point verbs). A session
+  /// point abandoned with the handle settles through this handle's `Drop`, which reaches
+  /// [`Lineage::unpin`](super::Lineage::unpin) directly — a `Drop` impl may not add the
+  /// `L::State: Clone` bound this method's impl block carries.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   pub(crate) fn unpin_checkpoint(&mut self, id: u64) {
-    self.lineage.unpin(id);
+    self.session.lineage.unpin(id);
   }
 
   /// Panics if restoring to `target_id` would pop a **pinned** checkpoint off the live lineage —
@@ -928,7 +966,10 @@ where
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(not(tarpaulin), inline)]
   fn assert_restore_preserves_pins(&self, target_id: u64) {
-    self.lineage.assert_restore_preserves_pins(target_id);
+    self
+      .session
+      .lineage
+      .assert_restore_preserves_pins(target_id);
   }
 
   /// The number of live checkpoints — test-only observability for the no-growth
@@ -944,7 +985,7 @@ where
   /// `logos` and `std` and so compile neither this method nor its callers.
   #[cfg(all(test, feature = "logos", feature = "std"))]
   pub(crate) fn live_checkpoints_len(&self) -> usize {
-    self.lineage.live_len()
+    self.session.lineage.live_len()
   }
 
   /// Returns a slice of the current token from the input source.
@@ -1077,7 +1118,7 @@ where
     // through that id, and a `StackedTransaction` checks the id is still present before honoring
     // a savepoint — the check that makes stale savepoints panic on release and no-ptr targets.
     #[cfg(any(feature = "std", feature = "alloc"))]
-    let ckp_id = self.lineage.open();
+    let ckp_id = self.session.lineage.open();
     Checkpoint::new(
       self.cursor().clone(),
       self.span.clone(),
@@ -1085,7 +1126,7 @@ where
       self.emitter.checkpoint(),
       self.emitted_error_end.clone(),
       self.poison_boundary.clone(),
-      self.lineage.cache_pushes(),
+      self.session.lineage.cache_pushes(),
       #[cfg(all(
         debug_assertions,
         any(feature = "std", feature = "alloc"),
@@ -1431,6 +1472,7 @@ where
     // over-drop that token, forcing a re-lex whose scan side effects belong to the abandoned
     // lineage (advancing shared lexer/limit state, latching a poison the checkpoint predates).
     let post_save = self
+      .session
       .lineage
       .cache_pushes()
       .saturating_sub(checkpoint.cache_pushes);
@@ -1446,7 +1488,10 @@ where
     // the lineage now live (the tail-drop above already consumed its pre-rewind value), and a
     // saved boundary's diagnostic predates the saved emitter mark and therefore survives the
     // rewind above, keeping poison and its diagnostic paired.
-    self.lineage.restore_cache_pushes(checkpoint.cache_pushes);
+    self
+      .session
+      .lineage
+      .restore_cache_pushes(checkpoint.cache_pushes);
     *self.emitted_error_end = checkpoint.emitted_error_end;
     *self.poison_boundary = checkpoint.poison_boundary;
     self.set_span((&checkpoint.span).into());

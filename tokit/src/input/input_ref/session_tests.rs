@@ -434,3 +434,118 @@ fn settled_points_do_not_grow_the_lineage() {
   }
   assert_eq!(ir.points(), 0);
 }
+
+// ── 7. A point does not survive the handle: dropping releases it ─────────────────────────────
+//
+// The pin and the lineage entry of a session point live in the `Lineage` memos on the *owning*
+// `Input`, which outlives the handle; the point's `Checkpoint` lives in the handle's own stack.
+// `InputRef`'s `Drop` is what keeps the two in step — an abandoned point releases both, keeps its
+// progress, and rewinds nothing.
+
+#[test]
+fn dropping_the_handle_releases_the_open_points() {
+  // Two points opened and NEITHER settled, then the handle dies. The input's pin set must hold
+  // exactly the live begin points — and with no handle alive there are none.
+  let mut input = silent_input("1 2 3 4 5");
+  let mut emitter = Silent::<NumErr>::new();
+  {
+    let mut ir = input.as_ref(&mut emitter);
+    ir.begin_point();
+    let _ = ir.next().unwrap().expect("1");
+    ir.begin_point();
+    let _ = ir.next().unwrap().expect("2");
+    assert_eq!(ir.points(), 2, "two points are open");
+    assert_eq!(
+      ir.live_checkpoints_len(),
+      2,
+      "each open point holds a live lineage entry"
+    );
+    // …and the handle is dropped here, with both points still open.
+  }
+  assert_eq!(
+    input.pinned_checkpoints_len(),
+    0,
+    "an abandoned point releases its pin: the pin set holds exactly the live begin points, and \
+     with the handle gone there are none"
+  );
+  assert_eq!(
+    input.live_checkpoints_len(),
+    0,
+    "…and its lineage entry, exactly as a `commit_point` would — nobody can ever settle it"
+  );
+}
+
+#[test]
+fn dropping_the_handle_keeps_the_progress_of_the_open_points() {
+  // The no-rollback-on-drop law. Abandoning a point releases its bookkeeping but rewinds nothing:
+  // the tokens consumed through it stay consumed, and a later handle resumes where they left off.
+  let mut input = verbose_input("1 2 3 4");
+  let mut emitter = Verbose::<NumErr>::new();
+  let after_three;
+  {
+    let mut ir = input.as_ref(&mut emitter);
+    assert_eq!(take(&mut ir), "1", "committed work before the session");
+    ir.begin_point();
+    assert_eq!(take(&mut ir), "2", "speculative work through the point");
+    assert_eq!(take(&mut ir), "3");
+    emit(&mut ir, 0, NumErr::Lex);
+    after_three = *ir.cursor().as_inner();
+    assert_eq!(ir.points(), 1, "the point is still open at the drop");
+  }
+  {
+    let mut ir = input.as_ref(&mut emitter);
+    assert_eq!(
+      *ir.cursor().as_inner(),
+      after_three,
+      "drop kept the progress: the cursor did NOT rewind to the abandoned point"
+    );
+    assert_eq!(
+      diag_count(&mut ir),
+      1,
+      "and kept the diagnostic emitted through it — drop is not a rollback"
+    );
+    assert_eq!(take(&mut ir), "4", "the stream resumes past the kept work");
+    assert_eq!(ir.points(), 0, "a fresh handle starts with no points");
+  }
+}
+
+#[test]
+fn a_second_handle_rewinds_across_an_abandoned_point() {
+  // End-to-end: the scenario a leaked pin would poison. From the SAME input, a first handle opens
+  // a point and dies without settling it; a second handle then saves and restores over the region
+  // that point covered. Every rewind the second handle can express — a raw `restore`, a fresh
+  // session point, an `attempt` — must run to completion, never tripping a pin left behind by a
+  // point nobody holds.
+  let mut input = silent_input("1 2 3 4 5 6");
+  let mut emitter = Silent::<NumErr>::new();
+  {
+    let mut ir = input.as_ref(&mut emitter);
+    let _ = ir.next().unwrap().expect("1");
+    ir.begin_point(); // opened, pinned — and never settled
+    let _ = ir.next().unwrap().expect("2");
+  }
+  let mut ir = input.as_ref(&mut emitter);
+  let at = *ir.cursor().as_inner();
+
+  // A raw save/restore pair over the abandoned point's region.
+  let ckp = ir.save();
+  let _ = ir.next().unwrap().expect("3");
+  ir.restore(ckp);
+  assert_eq!(*ir.cursor().as_inner(), at, "the raw restore rewound");
+
+  // A fresh session point, and an attempt that declines — both rewind through the same checked
+  // `restore`, and neither may see a stale pin.
+  ir.begin_point();
+  let _ = ir.next().unwrap().expect("3");
+  ir.rollback_point();
+  assert_eq!(*ir.cursor().as_inner(), at, "the new point rolled back");
+
+  assert!(
+    ir.attempt(|ir| {
+      let _ = ir.next().unwrap();
+      None::<()>
+    })
+    .is_none()
+  );
+  assert_eq!(*ir.cursor().as_inner(), at, "the declined attempt rewound");
+}
