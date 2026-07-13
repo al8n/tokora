@@ -460,6 +460,15 @@ where
 /// - Errors from the **recovery parser are propagated**
 /// - Recovery parser sees input from where the primary parser stopped
 ///
+/// # The never-recoverable law
+///
+/// An [`Incomplete`](crate::error::Incomplete) error is re-raised untouched — before the
+/// recovery parser runs — exactly as [`Recover`] and
+/// [`skip_then_retry`](crate::ParseInput::skip_then_retry) do: recovery synthesizes progress
+/// over a *malformed* construct, but an incomplete one is merely unfinished, so continuing past
+/// it would fabricate output from input that has not finished arriving. See
+/// [`MaybeIncomplete`](crate::error::MaybeIncomplete).
+///
 /// # See Also
 ///
 /// - [`Recover`] - Error recovery with backtracking
@@ -495,6 +504,7 @@ where
   R: InplaceRecoverInput<'inp, L, O, Ctx, Lang>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: MaybeIncomplete,
   Lang: ?Sized,
 {
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -507,6 +517,11 @@ where
     let cursor = inp.cursor().clone();
     match self.parser.parse_input(inp) {
       Ok(output) => Ok(output),
+      // The never-recoverable law: an `Incomplete` rides the `Err` channel untouched. Recovery
+      // fabricates a value from a malformed construct, but an incomplete one is merely
+      // unfinished, so re-raise it verbatim rather than invoking the recoverer — see
+      // [`Incomplete`](crate::error::Incomplete) / [`MaybeIncomplete`](crate::error::MaybeIncomplete).
+      Err(e) if e.is_incomplete() => Err(e),
       Err(e) => self.recoverer.inplace_recover_input(inp, cursor, e),
     }
   }
@@ -519,8 +534,13 @@ where
 mod tests {
   use super::*;
   use crate::{
-    Emitter, ParseContext, Token, cache::DefaultCache, emitter::Silent, input::Input,
+    Emitter, ParseContext, Token,
+    cache::DefaultCache,
+    emitter::{Silent, Verbose},
+    error::token::UnexpectedToken,
+    input::Input,
     lexer::LogosLexer,
+    span::Spanned,
   };
 
   #[derive(Debug, Clone, PartialEq)]
@@ -653,6 +673,20 @@ mod tests {
     }
   }
 
+  // The two conversions the collecting `Verbose` emitter asks of an error type (`FromEmitterError`):
+  // the lexer's own error, and an unexpected token. Neither is an incomplete signal.
+  impl From<LexErr> for RecErr {
+    fn from(_: LexErr) -> Self {
+      RecErr::Other
+    }
+  }
+
+  impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for RecErr {
+    fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
+      RecErr::Other
+    }
+  }
+
   // The exact construction path W5's frontier rules use (`SurfaceIncomplete` builds the emitter
   // error as `Error::from(Incomplete::new(off))`); pairing it with `MaybeIncomplete` below keeps
   // construct-and-detect coherent, which is what makes the never-recoverable law hold end to end.
@@ -777,5 +811,139 @@ mod tests {
     let r = rec.parse_input(&mut inp);
     assert_eq!(r, Ok(()), "an ordinary error is recovered");
     assert!(invoked.get(), "the recoverer runs for an ordinary error");
+  }
+
+  // ── The same law, binding the in-place path: InplaceRecover re-raises an Incomplete ──────
+  //
+  // The in-place path never backtracks, so it cannot undo a recovery it should never have begun —
+  // which is precisely why the check must happen *before* the handler runs. These run over the
+  // collecting `Verbose` emitter so the "no emissions" half of the law is observable: the handler
+  // records a diagnostic whenever it runs, so an untouched pass-through must leave the log empty.
+
+  type VCtx<'a> = (Verbose<RecErr>, DefaultCache<'a, Lex<'a>>);
+  type VEmitErr<'a> =
+    <<VCtx<'a> as ParseContext<'a, Lex<'a>, ()>>::Emitter as Emitter<'a, Lex<'a>, ()>>::Error;
+
+  /// The `Verbose`-context twin of `FailWith`: fails outright with a chosen error, consuming
+  /// nothing, so every application takes the recovery path.
+  struct VFailWith(RecErr);
+
+  impl<'inp> ParseInput<'inp, Lex<'inp>, (), VCtx<'inp>, ()> for VFailWith {
+    fn parse_input(
+      &mut self,
+      _inp: &mut InputRef<'inp, '_, Lex<'inp>, VCtx<'inp>, ()>,
+    ) -> Result<(), VEmitErr<'inp>> {
+      Err(self.0.clone())
+    }
+  }
+
+  /// An in-place recoverer that records that it ran — and emits while doing so, so a run is
+  /// visible on the diagnostic channel too — then succeeds.
+  struct InplaceFlagRecover<'f> {
+    invoked: &'f core::cell::Cell<bool>,
+  }
+
+  impl<'inp> InplaceRecoverInput<'inp, Lex<'inp>, (), VCtx<'inp>, ()> for InplaceFlagRecover<'_> {
+    fn inplace_recover_input(
+      &mut self,
+      inp: &mut InputRef<'inp, '_, Lex<'inp>, VCtx<'inp>, ()>,
+      _cursor: Cursor<'inp, '_, Lex<'inp>>,
+      err: VEmitErr<'inp>,
+    ) -> Result<(), VEmitErr<'inp>> {
+      self.invoked.set(true);
+      let span = *inp.span();
+      <Verbose<RecErr> as Emitter<'inp, Lex<'inp>>>::emit_error(
+        inp.emitter(),
+        Spanned::new(span, err),
+      )?;
+      Ok(())
+    }
+  }
+
+  /// The input reference the in-place law tests run on, over the verbose (collecting) context.
+  type VIr<'inp, 'closure> = InputRef<'inp, 'closure, Lex<'inp>, VCtx<'inp>, ()>;
+
+  /// The number of diagnostics the input's emitter is holding.
+  fn vdiags(inp: &mut VIr<'_, '_>) -> usize {
+    inp.emitter().errors().values().map(|g| g.len()).sum()
+  }
+
+  // The law, value-asserted on the in-place path: an `Incomplete` is re-raised verbatim, the
+  // recoverer never runs, and nothing is emitted.
+  #[test]
+  fn inplace_recover_reraises_incomplete_and_never_invokes_recoverer() {
+    let mut input = Input::<Lex<'_>, VCtx<'_>, ()>::new("1 2 3");
+    let mut emitter = Verbose::<RecErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+
+    let invoked = core::cell::Cell::new(false);
+    let mut rec = InplaceRecover::<_, _, (), Lex<'_>, VCtx<'_>, ()>::new(
+      VFailWith(RecErr::Incomplete),
+      InplaceFlagRecover { invoked: &invoked },
+    );
+
+    let r = rec.parse_input(&mut inp);
+    assert_eq!(
+      r,
+      Err(RecErr::Incomplete),
+      "an Incomplete is re-raised untouched on the Err channel"
+    );
+    assert!(
+      !invoked.get(),
+      "the recoverer must never run for an Incomplete"
+    );
+    assert_eq!(vdiags(&mut inp), 0, "and nothing is emitted on its behalf");
+  }
+
+  // The W5 partial-input incomplete: the value the frontier rules actually surface is built via
+  // `From<Incomplete>`, not a hand-written literal. The in-place path re-raises that one too.
+  #[test]
+  fn inplace_recover_reraises_a_from_incomplete_built_error() {
+    let surfaced: RecErr = crate::error::Incomplete::new(7usize).into();
+    assert!(
+      surfaced.is_incomplete(),
+      "an error built the way the frontier rules build it must report itself incomplete"
+    );
+
+    let mut input = Input::<Lex<'_>, VCtx<'_>, ()>::new("1 2 3");
+    let mut emitter = Verbose::<RecErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+
+    let invoked = core::cell::Cell::new(false);
+    let mut rec = InplaceRecover::<_, _, (), Lex<'_>, VCtx<'_>, ()>::new(
+      VFailWith(surfaced.clone()),
+      InplaceFlagRecover { invoked: &invoked },
+    );
+
+    let r = rec.parse_input(&mut inp);
+    assert_eq!(
+      r,
+      Err(surfaced),
+      "the partial-mode incomplete is re-raised untouched"
+    );
+    assert!(
+      !invoked.get(),
+      "the recoverer never runs for a partial-mode incomplete"
+    );
+    assert_eq!(vdiags(&mut inp), 0, "and nothing is emitted on its behalf");
+  }
+
+  // The scoping guard, in-place flavour: an ordinary failure still recovers exactly as before.
+  #[test]
+  fn inplace_recover_still_recovers_an_ordinary_error() {
+    let mut input = Input::<Lex<'_>, VCtx<'_>, ()>::new("1 2 3");
+    let mut emitter = Verbose::<RecErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+
+    let invoked = core::cell::Cell::new(false);
+    let mut rec = InplaceRecover::<_, _, (), Lex<'_>, VCtx<'_>, ()>::new(
+      VFailWith(RecErr::Other),
+      InplaceFlagRecover { invoked: &invoked },
+    );
+
+    let r = rec.parse_input(&mut inp);
+    assert_eq!(r, Ok(()), "an ordinary error is recovered in place");
+    assert!(invoked.get(), "the recoverer runs for an ordinary error");
+    assert_eq!(vdiags(&mut inp), 1, "and its diagnostic is on the log");
   }
 }
