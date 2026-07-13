@@ -1,6 +1,6 @@
 use super::*;
 
-use super::sync::{SyncThrough, Synced, ThroughEntry};
+use super::scan::{Scanned, SyncThrough, ThroughEntry};
 
 impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
 where
@@ -40,7 +40,7 @@ where
   /// much of it had been prefetched. (The one thing a caller *can* see is that a peek emits
   /// the lexer errors it crosses when it crosses them, so prefetching moves such a diagnostic
   /// earlier in the log; the dedup watermark still reports it exactly once.) The
-  /// `sync_cache_transparency_matrix` tests in `src/input/input_ref/tests.rs` pin this
+  /// `cache_transparency_matrix` tests in `src/input/input_ref/tests.rs` pin this
   /// across the whole family.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
@@ -70,13 +70,13 @@ where
       self.emitted_error_end.clone(),
     );
 
-    // `SyncThrough` consumes the match (`Synced::Found`) — the same two lines whether the scanner
+    // `SyncThrough` consumes the match (`Scanned::Found`) — the same two lines whether the scanner
     // popped it off the cache or lexed it; a poison trip commits the diagnosed prefix at the
     // durable frontier and a no-match run to end of input rewinds to `snapshot`, both yielding the
     // exhausted outcome (`Ok(None)`) with the position already settled.
-    match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
-      Synced::Found(tok) => Ok(tok),
-      Synced::Exhausted => Ok(None),
+    match self.skip_until::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
+      Scanned::Found(tok) => Ok(tok),
+      Scanned::Exhausted => Ok(None),
     }
   }
 
@@ -159,15 +159,15 @@ where
       self.emitted_error_end.clone(),
     );
 
-    match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
+    match self.skip_until::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
       // The match is consumed, cached or lexed; peek the tokens after it.
-      Synced::Found(tok) => {
+      Scanned::Found(tok) => {
         let (peeked, emitter) = self.peek_with_emitter::<W>()?;
         Ok((tok, peeked, emitter))
       }
       // The exhausted outcomes — a poison trip committed at the durable frontier, or a
       // no-match run to end of input rewound to `snapshot` — yield no match and an empty peek.
-      Synced::Exhausted => Ok((None, GenericArrayDeque::new(), self.emitter)),
+      Scanned::Exhausted => Ok((None, GenericArrayDeque::new(), self.emitter)),
     }
   }
 }

@@ -353,7 +353,7 @@ where
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
 
-    match self.scan_with(&mut lexer, &mut lex_at, &mut AtCursor)? {
+    match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
       Scan::Token(tok) => match pred(tok.as_ref()) {
         Some(output) => {
           self.set_span_after_consume(tok.span_ref().into());
@@ -391,7 +391,7 @@ where
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
 
-    match self.scan_with(&mut lexer, &mut lex_at, &mut AtCursor)? {
+    match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
       Scan::Token(tok) => {
         // if the token matches, we return it
         if pred(tok.as_ref()) {
@@ -432,7 +432,7 @@ where
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
 
-    match self.scan_with(&mut lexer, &mut lex_at, &mut AtCursor)? {
+    match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
       Scan::Token(tok) => {
         // if the token matches, we return it
         if let Some(out) = pred(tok.as_ref()) {

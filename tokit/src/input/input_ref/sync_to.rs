@@ -1,6 +1,6 @@
 use super::*;
 
-use super::sync::{SyncTo, Synced};
+use super::scan::{Scanned, SyncTo};
 
 impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
 where
@@ -64,11 +64,11 @@ where
     // `SyncTo` leaves the match unconsumed at the cache FRONT — whether the scanner popped it out
     // of the cache or lexed it — so the peek that follows always serves it straight back out of the
     // cache and fills the rest of the window behind it. The exhausted outcomes — a poison trip
-    // mid-scan or a no-match run to end of input, both of which `sync_with` has already settled —
+    // mid-scan or a no-match run to end of input, both of which `skip_until` has already settled —
     // return the empty peek.
-    match self.sync_with::<SyncTo, _, _>(&mut pred, &mut exp, ())? {
-      Synced::Found(_) => self.peek_with_emitter::<W>(),
-      Synced::Exhausted => Ok((GenericArrayDeque::new(), self.emitter)),
+    match self.skip_until::<SyncTo, _, _>(&mut pred, &mut exp, ())? {
+      Scanned::Found(_) => self.peek_with_emitter::<W>(),
+      Scanned::Exhausted => Ok((GenericArrayDeque::new(), self.emitter)),
     }
   }
 }

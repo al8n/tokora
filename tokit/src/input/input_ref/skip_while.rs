@@ -1,5 +1,7 @@
 use super::*;
 
+use super::scan::SkipWhile;
+
 impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
@@ -21,6 +23,19 @@ where
   /// This is the primitive used to skip trivia (whitespace, comments) in the
   /// `padded`, `padded_left`, and `padded_right` combinators, where trivia must
   /// be consumed but must never surface as an error.
+  ///
+  /// # The token that stops the skip is left at the cache front
+  ///
+  /// A token this call examined but did not consume is **unconsumed**: it is put back at the front
+  /// of the peek cache — where [`try_expect`](Self::try_expect) puts the token its predicate
+  /// declined, and the one place [`cursor`](Self::cursor) reads. So the resume cursor after a skip
+  /// is the stopping token's start, whether that token had been peeked into the cache beforehand or
+  /// this call lexed it a moment ago, and the next read serves it without re-lexing. The cache is
+  /// an invisible optimization here as everywhere: nothing a caller can observe about a
+  /// `skip_while` — the committed span and lexer state, the cursor, the diagnostics, the poison
+  /// boundary, the dedup watermark, the tokens read next — depends on how deep it had peeked. The
+  /// `cache_transparency_matrix` tests in `src/input/input_ref/tests.rs` pin that across this
+  /// method and `padded`.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn skip_while<F>(
     &mut self,
@@ -29,68 +44,15 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
-    // Drain matching tokens already sitting in the cache. `pop_front_if` stops
-    // (and leaves the token in place) at the first non-matching token, so a
-    // cached stopper — and anything peeked after it — is preserved.
-    while let Some(tok) = self
-      .cache
-      .pop_front_if(|t| pred(Spanned::new(t.token().span(), t.token().data())))
-    {
-      let (lexed, state) = tok.into_components();
-      let (span, _) = lexed.into_components();
-      self.set_span_after_consume((&span).into());
-      *self.state = state;
-    }
-
-    // If a non-matching token remains cached, the cursor is already positioned
-    // before it and there is nothing left to lex.
-    if !self.cache().is_empty() {
-      return Ok(());
-    }
-
-    // A sticky limit trip latches a poison boundary: once the cursor reaches the
-    // durable frontier, nothing remains to skip, so return `Ok(())` (the empty
-    // outcome) without rebuilding a lexer. Strictly before it, skipping proceeds.
-    if self.reached_boundary(self.offset()) {
-      return Ok(());
-    }
-
-    // Otherwise keep skipping straight from the lexer, stopping at the frontier.
-    // The frontier tracks the end of the last skipped token; a trip latches and
-    // commits there.
-    let mut lex_at = self.offset().clone();
-    let mut lexer = self.lexer();
-    let mut frontier = AtFrontier {
-      span: self.span.clone(),
-      state: self.state.clone(),
-    };
-
-    loop {
-      match self.scan_with(&mut lexer, &mut lex_at, &mut frontier)? {
-        Scan::Token(tok) => {
-          if pred(tok.as_ref()) {
-            // Matching (e.g. trivia): consume it and keep going.
-            frontier.advance(&lexer);
-          } else {
-            // Non-matching: stop before it, leaving it unconsumed.
-            self.set_span_after_consume(frontier.span.into());
-            *self.state = frontier.state;
-            return Ok(());
-          }
-        }
-        Scan::Tripped => {
-          // Commit the tokens skipped before the trip; stop at the poison.
-          self.set_span_after_consume(frontier.span.into());
-          *self.state = frontier.state;
-          return Ok(());
-        }
-        Scan::Eof => {
-          // Reached end of input: everything from the cursor matched and was consumed.
-          self.set_span_after_consume(lexer.span().into());
-          *self.state = lexer.into_state();
-          return Ok(());
-        }
-      }
-    }
+    // A trivia skip and a recovery sync are the same scan: take each token from the cache while one
+    // is there and from the lexer once it is not, settle every skipped token behind the frontier,
+    // and stop on the first token the predicate picks out — leaving it unconsumed at the cache
+    // front. They differ only in the mode ([`SkipWhile`]: report nothing, commit at end of input)
+    // and in the POLARITY of the predicate, which is this one negation: a sync stops on the token
+    // it matches, a skip stops on the first token it does not. Sharing the loop is what keeps the
+    // hot trivia path and the cold recovery path from drifting apart — the defect they twice did.
+    self
+      .skip_until::<SkipWhile, _, _>(|t| !pred(t), || None, ())
+      .map(|_| ())
   }
 }

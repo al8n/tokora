@@ -29,11 +29,11 @@ mod drop_policy;
 mod fold;
 mod peek;
 mod pratt;
+mod scan;
 pub(crate) mod session;
 mod skip_while;
 #[cfg(any(feature = "std", feature = "alloc"))]
 mod stacked;
-mod sync;
 mod sync_balanced;
 mod sync_through;
 mod sync_to;
@@ -471,8 +471,8 @@ where
   ///
   /// A scan that consumes tokens as it goes accumulates them behind the frontier and writes the
   /// input's position back only when it stops; every such stop — a limit trip, a fatal emitter
-  /// exit, the poison short-circuit, and a `to`-shaped match — commits through this one call, so
-  /// the position a sync leaves behind is a function of the tokens it skipped and nothing else.
+  /// exit, the poison short-circuit, and a `to`-shaped stop — commits through this one call, so
+  /// the position a scan leaves behind is a function of the tokens it skipped and nothing else.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn commit_at(&mut self, frontier: AtFrontier<L::Span, L::State>) {
     self.set_span_after_consume(frontier.span.into());
@@ -1618,7 +1618,7 @@ where
     // latches at the cursor and yields `None` on both a trip and end of input.
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
-    match self.scan_with(&mut lexer, &mut lex_at, &mut AtCursor)? {
+    match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
       Scan::Token(tok) => {
         self.set_span_after_consume(tok.span_ref().into());
         *self.state = lexer.into_state();
@@ -1663,7 +1663,7 @@ where
     &mut self,
     lexer: &mut L,
     lex_at: &mut L::Offset,
-    frontier: &mut Fr,
+    frontier: &Fr,
   ) -> Result<Scan<'inp, L>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Fr: Frontier<'inp, L>,
@@ -1687,8 +1687,14 @@ where
               if limit_hit {
                 return Ok(Scan::Tripped);
               }
-              // Non-limit error: skip over it and keep scanning for a token.
-              frontier.advance(lexer);
+              // Non-limit error: skip over it and keep scanning for a token. The frontier does NOT
+              // move — an error is not a token. `lex_at` already carries the scan past it, and the
+              // token this loop goes on to find carries the post-error lexer state, so the position
+              // is threaded by the same two things that thread it everywhere else. Settling the
+              // error behind the frontier would put its span into `self.span` — which every other
+              // path in this crate reserves for the last consumed TOKEN — and, worse, would make
+              // that span depend on WHO crossed the error: a scan crosses it and would move; a
+              // *peek* that lexed the same region into the cache never can. See `AtFrontier`.
             }
             Err(e) => {
               self.set_span_after_consume(lexer.span().into());
@@ -1740,25 +1746,20 @@ where
   Eof,
 }
 
-/// Where a scan latches the poison boundary on a limit trip, and how it advances
-/// that frontier over each error it skips.
+/// Where a scan latches the poison boundary on a limit trip: the **durable frontier**, the offset
+/// up to which what the scan has already passed stays reproducible.
 ///
-/// Two shapes cover the eight scanner paths: a scan that commits no progress
-/// before its poisoned/exhausted outcome latches at the cursor ([`AtCursor`]); a
-/// scan that consumes tokens as it goes latches at — and later commits — the end
-/// of the last consumed token ([`AtFrontier`]).
+/// Two shapes cover every scanner path: a scan that commits no progress before its
+/// poisoned/exhausted outcome latches at the cursor ([`AtCursor`]); a scan that consumes tokens as
+/// it goes latches at — and later commits — the end of the last consumed token ([`AtFrontier`]).
 trait Frontier<'inp, L: Lexer<'inp>> {
   /// The offset a trip latches as the durable frontier. `cursor` is the current
   /// scan position, used by scans that accumulate no progress of their own.
   fn boundary(&self, cursor: &L::Offset) -> L::Offset;
-
-  /// Advances the frontier past a token or error the scan has skipped over.
-  fn advance(&mut self, lexer: &L);
 }
 
 /// Frontier for scans that commit no progress before stopping (`next`,
-/// `try_expect*`): a trip latches at the cursor and nothing accumulates, so
-/// advancing is a no-op.
+/// `try_expect*`): a trip latches at the cursor, since nothing accumulates.
 struct AtCursor;
 
 impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtCursor {
@@ -1766,15 +1767,28 @@ impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtCursor {
   fn boundary(&self, cursor: &L::Offset) -> L::Offset {
     cursor.clone()
   }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn advance(&mut self, _lexer: &L) {}
 }
 
-/// Frontier for scans that consume tokens as they go (`skip_while`, `sync_to`,
-/// `sync_through`): a trip latches at — and the scan commits — the end of the
-/// last consumed token, tracked here as its span and the lexer state that
-/// produced it.
+/// Frontier for scans that consume tokens as they go (`skip_while` and the `sync` family, through
+/// the shared [scanner](scan)): a trip latches at — and the scan commits — the end of the last
+/// consumed token, tracked here as its span and the lexer state that produced it.
+///
+/// # It tracks TOKENS — a skipped lexer error is not one
+///
+/// The only thing that ever settles behind this frontier is a token the scan skipped
+/// ([`adopt`](Self::adopt)). A lexer error the scan crosses on the way does **not** move it, and
+/// that is a rule, not an omission: the frontier's span is what [`commit_at`](InputRef::commit_at)
+/// writes into `self.span`, which every path in this crate reserves for the last consumed *token*
+/// (`next` and `try_expect` set it from the token they consumed, never from an error they skipped
+/// past, and a `peek` sets it from nothing at all).
+///
+/// Letting an error settle here also made `self.span` — and the boundary a later trip latched —
+/// depend on **who crossed the error**. A scan that lexes across one would move; a *peek* that
+/// lexed the very same region into the cache cannot, so the identical call committed a different
+/// span, and latched a different durable frontier, purely as a function of how deep the caller had
+/// peeked. The scan needs neither: `lex_at` already carries it past the error, and the next token
+/// it finds arrives paired with the post-error lexer state, so both facts are threaded by the same
+/// two carriers that thread them everywhere else.
 struct AtFrontier<S, St> {
   span: S,
   state: St,
@@ -1784,10 +1798,10 @@ impl<S, St> AtFrontier<S, St> {
   /// Settles a token the scan skipped behind the frontier: its span, and the state that produced
   /// it.
   ///
-  /// The counterpart of [`Frontier::advance`] for a token that arrived from the **cache**, which
-  /// carries both facts with it instead of leaving them to be read off a lexer. The two feeds are
-  /// the whole of the cached-vs-lexed difference in the sync loop; the frontier they both write is
-  /// what the scan commits, so what the input ends up at cannot depend on which fed it.
+  /// This is the frontier's **only** mutator. The token arrives carrying both facts — from the
+  /// cache, or freshly lexed and paired with the lexer's state — so the two feeds write the same
+  /// thing and the position a scan commits cannot depend on which fed it. See the type's docs for
+  /// why a crossed lexer error is not among them.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn adopt(&mut self, span: S, state: St) {
     self.span = span;
@@ -1795,18 +1809,9 @@ impl<S, St> AtFrontier<S, St> {
   }
 }
 
-impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtFrontier<L::Span, L::State>
-where
-  L::State: Clone,
-{
+impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtFrontier<L::Span, L::State> {
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn boundary(&self, _cursor: &L::Offset) -> L::Offset {
     self.span.end_ref().clone()
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn advance(&mut self, lexer: &L) {
-    self.span = lexer.span();
-    self.state = lexer.state().clone();
   }
 }

@@ -2,7 +2,7 @@ use derive_more::IsVariant;
 
 use crate::span::SimpleSpan;
 
-use super::sync::{SyncBalanced, Synced, ThroughEntry};
+use super::scan::{Scanned, SyncBalanced, ThroughEntry};
 use super::*;
 
 /// How a token kind participates in delimiter nesting: it opens a pair, closes a pair, or is
@@ -264,9 +264,9 @@ where
     // `SyncBalanced` stops before the match like `sync_to` — leaving it unconsumed at the cache
     // front — and takes `sync_through`'s no-trace exit at end of input. No per-token diagnostic is
     // made (`REPORT_SKIPPED` is `false`): the one hole note below describes the whole region.
-    match self.sync_with::<SyncBalanced, _, _>(&mut decide, || None, snapshot)? {
-      Synced::Found(_) => {}
-      Synced::Exhausted => return Ok(None),
+    match self.skip_until::<SyncBalanced, _, _>(&mut decide, || None, snapshot)? {
+      Scanned::Found(_) => {}
+      Scanned::Exhausted => return Ok(None),
     }
 
     let hole = match (first, last) {
