@@ -1279,6 +1279,36 @@ where
   ///   if re-reached); an input poisoned at save time gets the saved boundary and its
   ///   retained diagnostic back, still paired.
   ///
+  /// # A checkpoint restores only into the handle that saved it
+  ///
+  /// A [`Checkpoint`] is branded with the `'closure` lifetime of the handle that
+  /// [`save`](Self::save)d it, and that brand is **invariant**, so `restore` (and
+  /// [`commit`](Self::commit)) accept only a checkpoint carrying *this* handle's own brand. Every
+  /// handle a parser receives arrives through the closure that produced it (`apply` hands it a
+  /// `for<'closure>` borrow), so any two handles carry rigidly distinct brands that cannot unify.
+  /// Restoring a checkpoint that a *different* handle produced — even a second handle over the same
+  /// source, reached through a nested parse — is therefore a **compile error**, not a runtime
+  /// check. A debug assert additionally re-checks input identity as a backstop (see [Debug
+  /// builds](#debug-builds)).
+  ///
+  /// ```compile_fail
+  /// use tokit::{InputRef, Lexer, ParseContext};
+  ///
+  /// // Two handles of the same input carry distinct, unrelated `'closure` brands, so a
+  /// // checkpoint saved on `a` cannot be restored into `b`.
+  /// fn foreign_restore<'inp, L, Ctx>(
+  ///   a: &mut InputRef<'inp, '_, L, Ctx>,
+  ///   b: &mut InputRef<'inp, '_, L, Ctx>,
+  /// ) where
+  ///   L: Lexer<'inp>,
+  ///   L::State: Clone,
+  ///   Ctx: ParseContext<'inp, L>,
+  /// {
+  ///   let ckp = a.save();
+  ///   b.restore(ckp); // error: the two handles' `'closure` brands cannot unify
+  /// }
+  /// ```
+  ///
   /// # Contract: restores are last-in, first-out
   ///
   /// Restoring this checkpoint **invalidates every checkpoint saved after it**.
@@ -1323,10 +1353,15 @@ where
   /// # Debug builds
   ///
   /// Debug builds track live checkpoints exactly and **panic** on any out-of-order
-  /// restore (message begins `non-LIFO checkpoint restore`), and on restoring a
-  /// checkpoint into an input that did not create it. `cargo test` compiles with
+  /// restore (message begins `non-LIFO checkpoint restore`). `cargo test` compiles with
   /// debug assertions by default, so exercising your parser's backtracking paths in
   /// tests surfaces violations immediately.
+  ///
+  /// A debug assert *also* re-checks that the checkpoint belongs to this input — a backstop for
+  /// the one construction the `'closure` brand cannot catch: two inputs borrowed in a single scope,
+  /// where the compiler is free to unify their brands. Through the public closure API the brand
+  /// already makes every foreign restore a compile error, so this assert is defense in depth; it is
+  /// compiled out entirely in release, where it costs nothing.
   ///
   /// # Release builds
   ///
@@ -1345,7 +1380,7 @@ where
   #[cfg_attr(docsrs, doc(cfg(feature = "unstable-raw")))]
   #[doc(alias = "rewinds")]
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+  pub fn restore(&mut self, checkpoint: Checkpoint<'inp, 'closure, L>) {
     self.restore_checked(checkpoint)
   }
 
@@ -1355,7 +1390,7 @@ where
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) rewind through it.
   #[cfg(not(feature = "unstable-raw"))]
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn restore(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+  pub(crate) fn restore(&mut self, checkpoint: Checkpoint<'inp, 'closure, L>) {
     self.restore_checked(checkpoint)
   }
 
@@ -1364,11 +1399,17 @@ where
   /// pinned guard/attempt begin point (every allocator build), then rewinds.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn restore_checked(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
-    // Verify the last-in, first-out discipline exactly, before any mutation: the
-    // checkpoint must belong to this input, and it must still be live (restoring an
-    // older checkpoint invalidates every one saved after it). Release and no-ptr builds
-    // omit these panics; the lineage stack itself is still maintained in every allocator
-    // build inside `restore_unchecked`.
+    // Verify the discipline exactly, before any mutation. Two debug + ptr checks: (1) the
+    // checkpoint belongs to this input. The invariant `'closure` brand on this method's signature
+    // makes a foreign restore a COMPILE error for any two handles with distinct brands — which is
+    // every pair a downstream parser can hold, since each arrives through a `for<'closure>` closure
+    // (`apply`) and their brands never unify. This assert still backstops the one construction the
+    // brand cannot separate: two `Input`s borrowed in a single scope (crate-internal `as_ref`),
+    // whose `'closure` regions the compiler is free to unify — see the `..._rejected_in_debug`
+    // tests. (2) it is still live (restoring an older checkpoint invalidates every one saved after
+    // it) — the LIFO witness the type system does NOT replace. Release and no-ptr builds omit both
+    // panics; the lineage stack itself is still maintained in every allocator build inside
+    // `restore_unchecked`.
     #[cfg(all(
       debug_assertions,
       any(feature = "std", feature = "alloc"),
@@ -1408,6 +1449,9 @@ where
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt); the lineage contract below
   /// applies to the raw triple unchanged whenever the feature is on.
   ///
+  /// Like [`restore`](Self::restore), `commit` accepts only a checkpoint carrying *this* handle's
+  /// own invariant `'closure` brand; committing one a different handle saved is a compile error.
+  ///
   /// # Contract: end each checkpoint in exactly one of restore or commit
   ///
   /// A saved [`Checkpoint`] should end its life in exactly one of two ways: hand it to
@@ -1444,7 +1488,7 @@ where
   #[cfg(feature = "unstable-raw")]
   #[cfg_attr(docsrs, doc(cfg(feature = "unstable-raw")))]
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn commit(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+  pub fn commit(&mut self, checkpoint: Checkpoint<'inp, 'closure, L>) {
     self.commit_checkpoint(checkpoint)
   }
 
@@ -1456,7 +1500,7 @@ where
   #[cfg(not(feature = "unstable-raw"))]
   #[cfg_attr(not(any(feature = "std", feature = "alloc")), allow(dead_code))]
   #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(crate) fn commit(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+  pub(crate) fn commit(&mut self, checkpoint: Checkpoint<'inp, 'closure, L>) {
     self.commit_checkpoint(checkpoint)
   }
 
@@ -1473,8 +1517,11 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn commit_checkpoint(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     // Cheap sanity in debug + ptr builds, mirroring `restore`'s foreign-input guard: a
-    // checkpoint may only be committed into the input that created it. Presence is NOT
-    // asserted — committing a dead checkpoint is the documented no-op handled below.
+    // checkpoint may only be committed into the input that created it. The invariant `'closure`
+    // brand on `commit` makes a foreign commit a compile error for handles with distinct brands
+    // (every pair a downstream parser can hold); this assert backstops the crate-internal case the
+    // brand cannot separate (two `Input`s in one scope). Presence is NOT asserted: committing a
+    // dead checkpoint is the documented no-op handled below.
     #[cfg(all(
       debug_assertions,
       any(feature = "std", feature = "alloc"),

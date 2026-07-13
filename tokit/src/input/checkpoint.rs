@@ -38,7 +38,9 @@ use super::{Cursor, Lexer};
 ///   has been rolled back, and a truncated emission log cannot be rebuilt. There is
 ///   no correct state such a restore could produce.
 /// - Checkpoints are single-use, cannot be cloned, and must be restored into the same
-///   input that created them.
+///   input — indeed the same handle — that created them. The handle's invariant `'closure`
+///   brand enforces this at compile time: a checkpoint one handle saved cannot be restored or
+///   committed into another (see [`InputRef::restore`](crate::InputRef::restore)).
 ///
 /// Every saved checkpoint should end in exactly one of two verbs:
 /// [`restore`](crate::InputRef::restore) to abandon the branch and rewind, or
