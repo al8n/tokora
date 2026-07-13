@@ -145,6 +145,12 @@ harness = false
 required-features = ["logos", "std"]
 
 [[bench]]
+name = "parser_combinators"
+path = "benches/parser_combinators.rs"
+harness = false
+required-features = ["logos", "std"]
+
+[[bench]]
 name = "backtrack"
 path = "benches/backtrack.rs"
 harness = false
