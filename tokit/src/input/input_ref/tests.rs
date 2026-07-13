@@ -3732,6 +3732,17 @@ enum BalTok {
   RParen,
   #[token(";", |lex| { lex.extras.increase(); })]
   Semi,
+  /// The one kind [`Token::is_trivia`] reports as skippable, so the `padded` combinators — which
+  /// are `skip_while(is_trivia)` around a parser — have something to skip in the
+  /// [cache-transparency matrix](cache_transparency_matrix).
+  ///
+  /// It is a real token, not lexer-level `skip`ped whitespace, and that distinction is what gives
+  /// this fixture its teeth: the lexer skips the spaces *between* tokens, so the end of one token
+  /// and the start of the next are DIFFERENT offsets. A resume cursor placed at the former rather
+  /// than the latter is therefore visible here — which is exactly the divergence a skip that threw
+  /// its stopping token away used to produce.
+  #[token("~", |lex| { lex.extras.increase(); })]
+  Trivia,
 }
 
 impl core::fmt::Display for BalTok {
@@ -3741,6 +3752,7 @@ impl core::fmt::Display for BalTok {
       Self::LParen => "`(`",
       Self::RParen => "`)`",
       Self::Semi => "`;`",
+      Self::Trivia => "trivia",
     })
   }
 }
@@ -3751,6 +3763,7 @@ enum BalKind {
   LParen,
   RParen,
   Semi,
+  Trivia,
 }
 
 impl core::fmt::Display for BalKind {
@@ -3760,6 +3773,7 @@ impl core::fmt::Display for BalKind {
       Self::LParen => "`(`",
       Self::RParen => "`)`",
       Self::Semi => "`;`",
+      Self::Trivia => "trivia",
     })
   }
 }
@@ -3774,11 +3788,12 @@ impl Token<'_> for BalTok {
       Self::LParen => BalKind::LParen,
       Self::RParen => BalKind::RParen,
       Self::Semi => BalKind::Semi,
+      Self::Trivia => BalKind::Trivia,
     }
   }
 
   fn is_trivia(&self) -> bool {
-    false
+    matches!(self, Self::Trivia)
   }
 }
 
@@ -4354,23 +4369,28 @@ fn try_attempt_closure_panic_releases_the_pinned_begin_point() {
   );
 }
 
-// ── The sync cache-transparency matrix ───────────────────────────────────────
+// ── The cache-transparency matrix ────────────────────────────────────────────
 //
-// The sync family has TWO parallel implementations of "skip a token and report it": the
-// cache-drain prologue (`sync_matched_in_cache`, which pops tokens a peek already lexed) and
-// the `sync_with` loop (which lexes them itself). Nothing in the types forces the two to agree,
-// and yet the peek cache is an INVISIBLE OPTIMIZATION — whether a token happened to be
-// prefetched must not change one thing a caller can observe about a sync call.
+// Every scanner in this crate skips a run of tokens and then stops on one: the sync family
+// (`sync_to`/`sync_through`/`sync_balanced`) stops on the token its predicate matches, and
+// `skip_while` — the trivia path, and therefore `padded` — stops on the first token its predicate
+// rejects. Each used to be TWO parallel implementations of "take a token and act on it": a
+// cache-drain prologue popping tokens a peek had already lexed, and a loop lexing them itself.
+// Nothing in the types forced the two to agree, and yet the peek cache is an INVISIBLE
+// OPTIMIZATION — whether a token happened to be prefetched must not change one thing a caller can
+// observe about the call.
 //
-// This matrix is the enforcement. Every entry point in the family runs the same logical token
-// stream twice — once from an empty cache, once with the first N tokens peeked into it — and the
-// two runs must agree on everything the caller sees:
+// This matrix is the enforcement. Every entry point runs the same logical token stream twice —
+// once from an empty cache, once with the first N tokens peeked into it — and the two runs must
+// agree on everything the caller sees:
 //
-//   * the return value (matched token, peeked window, hole);
+//   * the return value (matched token, peeked window, hole, `padded`'s parsed output);
 //   * the committed span and lexer state;
 //   * the poison boundary;
-//   * the resume cursor, and the tokens a later drain yields — the "a recovery retries after the
-//     error" law, the one the fatal-trip divergence broke;
+//   * the tokens a later drain yields — the "a recovery retries after the error" law, the one the
+//     fatal-trip divergence broke;
+//   * the resume cursor. For the scans that never report a skipped token this is asserted
+//     EXACTLY (see `Entry::pins_the_resume_cursor`); for the rest, the bounded law below;
 //   * the diagnostics the call itself emits, in order, and every diagnostic of the whole run
 //     exactly once;
 //   * which tokens the predicate was asked about, in order: a stateful `FnMut` must not be able
@@ -4380,8 +4400,8 @@ fn try_attempt_closure_panic_releases_the_pinned_begin_point() {
 // (`sync_through`, and the dedup rule on `emit_lexer_error_deduped`):
 //
 //   1. the cache holds lookahead the uncached run has not lexed yet, so `offset()` (the lex
-//      frontier) and the cache depth run ahead of it. `cursor()` — the resume position — and the
-//      token stream do not, and those are what is asserted;
+//      frontier) and the cache depth run ahead of it. The token stream does not, and that is what
+//      is asserted;
 //   2. a peek EMITS the lexer errors it crosses, when it crosses them. Prefetching therefore
 //      moves such a diagnostic earlier in the timeline, and the dedup watermark then keeps the
 //      sync (or a later replay) from repeating it. The invariant that survives — and is asserted
@@ -4389,12 +4409,12 @@ fn try_attempt_closure_panic_releases_the_pinned_begin_point() {
 //      emitted, minus the entries the prefill had already reported, and that no diagnostic is
 //      ever lost or doubled.
 //
-// Adding a cell is one row in `CELLS`.
+// Adding a cell is one row in `CELLS`; every cell runs against every entry point.
 
 use generic_arraydeque::typenum::{U1 as W1, U2 as W2, U3 as W3};
 
 use crate::{
-  InputRef, Window,
+  InputRef, ParseInput, Window,
   cache::{Peeked, PeekedTokenExt},
   emitter::Emitter,
   error::token::UnexpectedTokenOf,
@@ -4511,9 +4531,10 @@ where
 type MatrixCtx<'a> = (MatrixEmitter, DefaultCache<'a, BalLexer<'a>>);
 type MatrixRef<'inp, 'closure> = InputRef<'inp, 'closure, BalLexer<'inp>, MatrixCtx<'inp>, ()>;
 
-/// The six public entry points of the sync family. Every one of them runs the cache-drain
-/// prologue and may then run the `sync_with` loop, so every one of them is on the hook for
-/// cache transparency.
+/// Every public entry point that drives the shared scanner: the six of the sync family, plus
+/// `skip_while` — the trivia path — and `padded`, the combinator built on it. Each takes its
+/// tokens from the cache while one is there and from the lexer once it is not, so each is on the
+/// hook for cache transparency.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Entry {
   To,
@@ -4522,6 +4543,8 @@ enum Entry {
   ThroughThenPeek,
   ThroughThenPeekWithEmitter,
   Balanced,
+  SkipWhile,
+  Padded,
 }
 
 impl Entry {
@@ -4532,6 +4555,8 @@ impl Entry {
     Entry::ThroughThenPeek,
     Entry::ThroughThenPeekWithEmitter,
     Entry::Balanced,
+    Entry::SkipWhile,
+    Entry::Padded,
   ];
 
   const fn name(self) -> &'static str {
@@ -4542,7 +4567,60 @@ impl Entry {
       Entry::ThroughThenPeek => "sync_through_then_peek",
       Entry::ThroughThenPeekWithEmitter => "sync_through_then_peek_with_emitter",
       Entry::Balanced => "sync_balanced",
+      Entry::SkipWhile => "skip_while",
+      Entry::Padded => "padded",
     }
+  }
+
+  /// Whether this entry point's resume [`cursor`](InputRef::cursor) is asserted **exactly** equal
+  /// across the two runs, rather than only by the bounded law.
+  ///
+  /// `cursor()` is `front cached token's start`, or the committed span's end when nothing is
+  /// cached. A scan therefore pins it exactly — cached or not — when both of these hold:
+  ///
+  /// - it **leaves the token it stopped on unconsumed**, so that token is the cache front in both
+  ///   runs (any deeper lookahead the prefill bought sits *behind* it and cannot be seen), and any
+  ///   leftover-free exit — end of input, a limit trip, a fatal lexer error — is reached only with
+  ///   the cache drained, so both runs land on the committed span's end;
+  /// - it **reports no skipped token**, so it has no fatal exit that can strand an un-drained
+  ///   prefill at the cache front. `sync_to` fails exactly here: an emitter that rejects a skipped
+  ///   token's diagnostic stops the drain mid-cache, leaving the rest of the prefill in front of
+  ///   the cursor — real, declared cache-dependence, and why the reporting entries get the bounded
+  ///   law instead.
+  ///
+  /// `skip_while`, `padded` and `sync_balanced` satisfy both. For `skip_while` and `padded` that is
+  /// the whole point of this matrix: the cursor after a trivia skip was the cache-dependent
+  /// observable, moving with the caller's lookahead depth, until the skip started leaving its
+  /// stopping token at the cache front on both origins.
+  const fn pins_the_resume_cursor(self) -> bool {
+    matches!(self, Entry::Balanced | Entry::SkipWhile | Entry::Padded)
+  }
+}
+
+/// `padded`'s inner parser in the matrix: consumes exactly one token and reports it, so a cell can
+/// compare `padded`'s parsed output as well as the state it left behind.
+///
+/// It emits nothing itself, so every diagnostic a `padded` cell makes comes from the two trivia
+/// skips around it — which is precisely what the cell is comparing.
+struct TakeOne;
+
+/// The emitter error the matrix context surfaces — spelled through the associated-type chain the
+/// [`ParseInput`] signature demands (it is `ByValErr`, but the trait will not take the shortcut).
+type MatrixErr<'inp> =
+  <<MatrixCtx<'inp> as crate::ParseContext<'inp, BalLexer<'inp>, ()>>::Emitter as Emitter<
+    'inp,
+    BalLexer<'inp>,
+    (),
+  >>::Error;
+
+impl<'inp> ParseInput<'inp, BalLexer<'inp>, Option<(SimpleSpan, BalTok)>, MatrixCtx<'inp>, ()>
+  for TakeOne
+{
+  fn parse_input(
+    &mut self,
+    inp: &mut MatrixRef<'inp, '_>,
+  ) -> Result<Option<(SimpleSpan, BalTok)>, MatrixErr<'inp>> {
+    Ok(inp.next()?.map(Spanned::into_components))
   }
 }
 
@@ -4587,6 +4665,9 @@ struct Obs {
   span: SimpleSpan,
   tokens: usize,
   poison: Option<usize>,
+  /// The poison boundary once the stream has been drained: by then the two runs have read exactly
+  /// the same source, so the same limit trips at the same durable frontier — it must agree exactly.
+  poison_drained: Option<usize>,
   cursor: usize,
   /// The lexer-error dedup watermark right after the call.
   watermark: usize,
@@ -4626,12 +4707,12 @@ struct MatrixCell {
   /// uncached run of the same cell.
   prefills: &'static [usize],
   /// Entry points this cell is KNOWN to diverge on. The main matrix skips exactly these pairs
-  /// and [`sync_cache_transparency_known_divergences`] drives them instead, so the divergence is
+  /// and [`cache_transparency_known_divergences`] drives them instead, so the divergence is
   /// parked and named, never silently accepted.
   ///
   /// **Empty for every cell.** The family has one skip-and-report path and one match settle for
   /// cached and lexed tokens alike, so there is no divergence left to park — and
-  /// [`sync_cache_transparency_known_divergences`] now enforces that the parking lot stays empty.
+  /// [`cache_transparency_known_divergences`] now enforces that the parking lot stays empty.
   diverges: &'static [Entry],
 }
 
@@ -4763,6 +4844,85 @@ const CELLS: &[MatrixCell] = &[
     prefills: &[1, 2, 3],
     diverges: &[],
   },
+  // ── The trivia cells: `padded`'s five stop shapes ──────────────────────────────────────────
+  //
+  // `~` is the one trivia kind, so these are the cells where `padded`'s own predicate (`is_trivia`)
+  // has a run to skip and its two skips actually scan. The sync entries and `skip_while` drive them
+  // too, from the same `;` sync point.
+  //
+  // Trivia BOTH SIDES: the leading skip drops `~`, the parse takes `1`, the trailing skip drops the
+  // second `~` and stops before `;`. The stop shape is "stops after k".
+  MatrixCell {
+    name: "trivia_padding_both_sides",
+    src: "~ 1 ~ ;",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // Trivia STOPS IMMEDIATELY: no leading trivia at all, so the leading skip stops on the very first
+  // token it looks at — the zero-skip shape, on both origins.
+  MatrixCell {
+    name: "trivia_absent_stops_immediately",
+    src: "1 ~ ;",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // Trivia RUNS TO EOF: everything is trivia, so `padded`'s leading skip consumes the whole input,
+  // the inner parse sees end of input, and the trailing skip has nothing left.
+  MatrixCell {
+    name: "trivia_runs_to_eof",
+    src: "~ ~ ~",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // A LEXER ERROR CROSSED by the trivia skip, non-fatally: `@` sits between the trivia and the
+  // token the skip stops on, so the uncached run crosses it inside the skip's own scan while the
+  // cached run's PEEK crossed it long before — and the two must still commit the same span, the
+  // same lexer state, and the same cursor. (This is the shape that pinned the frontier's second
+  // notion of "how far have we got": a skipped lexer error is not a token, and settling on it made
+  // the committed span depend on who crossed it.)
+  MatrixCell {
+    name: "trivia_crosses_a_lexer_error",
+    src: "~ @ 1 ;",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // A FATAL EMITTER trips on that crossed lexer error. A lexer error is never cached, so this can
+  // only ever trip inside a scan — but the cached run reaches it with a drained trivia prefix
+  // behind it. The prefill stops at 1: a deeper peek would cross `@` and trip the emitter during
+  // the setup, and the two runs would not be comparable.
+  MatrixCell {
+    name: "trivia_fatal_on_a_lexer_error",
+    src: "~ @ 1 ;",
+    limit: usize::MAX,
+    fatal_at: Some(SimpleSpan { start: 2, end: 3 }),
+    consume_first: 0,
+    prefills: &[1],
+    diverges: &[],
+  },
+  // A LIMIT TRIP mid-trivia-run: the 3rd token trips. At prefill 3 the PEEK trips and latches the
+  // boundary; at prefill 1/2 and uncached the leading skip's own scan does. Both must commit the
+  // skipped trivia at the same durable frontier, and `padded` must then see the poisoned input.
+  MatrixCell {
+    name: "trivia_limit_trip_mid_run",
+    src: "~ ~ ~ ~ ;",
+    limit: 2,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
 ];
 
 /// The spans of a peeked window, in order.
@@ -4844,6 +5004,31 @@ fn run_entry(
       },
       Err(e) => Ret::fatal(e),
     },
+    // The trivia path, driven over the very same cells and the very same sync point: `skip_while`
+    // stops on the token its predicate REJECTS, so the negated sync predicate makes it skip to
+    // exactly where `sync_to` syncs to — a direct differential against the reporting twin, over
+    // every stop shape the cells provoke (immediate, after k, end of input, across a lexer error,
+    // into a limit trip, into a fatal emitter). The instrumented predicate rides along, so the
+    // exactly-once law is pinned here too.
+    Entry::SkipWhile => {
+      let mut stop = pred!();
+      match inp.skip_while(|t| !stop(t)) {
+        Ok(()) => Ret::empty(),
+        Err(e) => Ret::fatal(e),
+      }
+    }
+    // `padded` — `skip_while(is_trivia)` on either side of a parser — driven through the real
+    // combinator, so the cells cover the composite: the leading skip, the parse, the trailing
+    // skip, and the parsed value itself (carried in `matched`). Its predicate is `is_trivia`, not
+    // the cells' sync predicate, so `pred_calls` stays empty for it; the trivia cells are what give
+    // it a run to skip.
+    Entry::Padded => match TakeOne.padded().parse_input(inp) {
+      Ok(parsed) => Ret {
+        matched: parsed,
+        ..Ret::empty()
+      },
+      Err(e) => Ret::fatal(e),
+    },
   }
 }
 
@@ -4916,12 +5101,14 @@ fn run_cell(cell: &MatrixCell, entry: Entry, prefill: usize) -> Obs {
   }
   let replay_log = inp.emitter().log[sync_mark..].to_vec();
   let watermark_drained = *inp.emitted_error_end;
+  let poison_drained = *inp.poison_boundary;
 
   Obs {
     ret,
     span,
     tokens,
     poison,
+    poison_drained,
     cursor,
     watermark,
     watermark_drained,
@@ -4998,17 +5185,44 @@ fn assert_cache_transparent(
     cached.tokens, uncached.tokens,
     "[{at}] the committed lexer state must not depend on the cache"
   );
+  // The poison boundary is a fact about how far the input has been LEXED, not about what the call
+  // did — and a prefill genuinely lexes further, so a peek deep enough to trip the token limiter
+  // latches the boundary before the call under test even runs. (Every cell whose *scan* reaches the
+  // trip therefore latches it in both runs, and lands in the first assertion below; only an entry
+  // that stops short — `padded`, whose skips scan trivia and nothing else — can meet a cell whose
+  // trip lies past where it ever looks.) So the law is stated over the three things that are the
+  // scanner's and not the peek's:
+  //
+  //   1. WHERE it latched. A durable frontier is the end of the last durable token, which is a
+  //      function of the token stream and the limit — never of who lexed it. Two runs that both
+  //      latched must therefore name the SAME offset. This is the assertion `limit_trip_mid_skip`
+  //      was built for: the sync's own trip and the peek's must agree on the frontier.
+  //   2. That a prefetch may only find the trip EARLIER, never hide it: an uncached run that
+  //      latched forces the cached run — which lexed at least as far — to have latched too.
+  //   3. That nothing is lost. Once the stream is drained both runs have read exactly the same
+  //      source, so the same limit trips at the same place: they must agree exactly.
+  match (uncached.poison, cached.poison) {
+    (Some(u), Some(c)) => assert_eq!(
+      c, u,
+      "[{at}] a latched poison boundary must name the same durable frontier, cached or not"
+    ),
+    (Some(u), None) => panic!(
+      "[{at}] the cached run lexed at least as far, so it cannot have MISSED a limit trip the \
+       uncached run latched (uncached {u}, cached none)"
+    ),
+    (None, _) => {}
+  }
   assert_eq!(
-    cached.poison, uncached.poison,
-    "[{at}] the poison boundary must not depend on the cache"
+    cached.poison_drained, uncached.poison_drained,
+    "[{at}] once the stream is drained the poison boundary must agree"
   );
-  // `cursor()` is DECLARED cache-dependent: its own contract says it "points to the start of the
-  // first cached token" when one is cached and to the committed position otherwise, and a plain
-  // `next()` already moves it differently depending on whether the next token was peeked (the
-  // cached run has lexed across the intervening trivia; the uncached one has not). So the law
-  // here is the BOUNDED one — the cursor never precedes what the call committed, and never
-  // passes the token the stream yields next — plus monotonicity: a prefetch may only SHARPEN the
-  // resume point, never move it backwards. Both runs then denote the same next token, which the
+  // `cursor()` is DECLARED cache-dependent in general: its own contract says it "points to the
+  // start of the first cached token" when one is cached and to the committed position otherwise,
+  // and a plain `next()` already moves it differently depending on whether the next token was
+  // peeked (the cached run has lexed across the intervening whitespace; the uncached one has not).
+  // So the law here is the BOUNDED one — the cursor never precedes what the call committed, and
+  // never passes the token the stream yields next — plus monotonicity: a prefetch may only SHARPEN
+  // the resume point, never move it backwards. Both runs then denote the same next token, which the
   // replay above already pinned.
   for (label, obs) in [("uncached", uncached), ("cached", cached)] {
     assert!(
@@ -5032,6 +5246,22 @@ fn assert_cache_transparent(
     cached.cursor,
     uncached.cursor
   );
+  // …and for the scans that leave their stopping token unconsumed and report none of what they
+  // skipped, the bounded law is not the law: the cursor is EXACTLY cache-independent. Both runs
+  // leave the same token at the cache front (any deeper prefill sits behind it), and every
+  // leftover-free exit is reached with the cache drained. `skip_while` — the trivia path, and so
+  // `padded` — is the scan this pins: its cursor used to move with the caller's lookahead depth,
+  // because a stopping token it had LEXED was thrown away while a cached one was kept. See
+  // `Entry::pins_the_resume_cursor`.
+  if entry.pins_the_resume_cursor() {
+    assert_eq!(
+      cached.cursor, uncached.cursor,
+      "[{at}] the resume cursor must not depend on the cache: this scan leaves the token it \
+       stopped on at the cache front whichever origin it came from \
+       (cached cache {}, uncached cache {})",
+      cached.cache_len, uncached.cache_len
+    );
+  }
 
   // The two DECLARED artifacts of a prefilled cache, pinned in the only direction they may move:
   // a peek lexes further ahead and holds more lookahead than the uncached run — never less. A
@@ -5116,14 +5346,15 @@ fn assert_cache_transparent(
   );
 }
 
-/// Every (entry point x scenario x prefill) triple — and the family is transparent on all of them.
+/// Every (entry point x scenario x prefill) triple — and every scanner is transparent on all of
+/// them.
 ///
 /// There are **no exclusions**: `cell.diverges` is empty for every cell, so the `continue` below
 /// never fires and every triple is asserted here, in the default suite.
-/// [`sync_cache_transparency_known_divergences`] holds the mechanism that would park one, and
+/// [`cache_transparency_known_divergences`] holds the mechanism that would park one, and
 /// enforces that nothing ever is.
 #[test]
-fn sync_cache_transparency_matrix() {
+fn cache_transparency_matrix() {
   for cell in CELLS {
     for &entry in Entry::ALL {
       if cell.diverges.contains(&entry) {
@@ -5138,32 +5369,33 @@ fn sync_cache_transparency_matrix() {
   }
 }
 
-/// The parking lot for cells the sync family is NOT transparent on — **and it is empty**.
+/// The parking lot for cells a scanner is NOT transparent on — **and it is empty**.
 ///
-/// It was not always. While the family had two implementations of "skip a token and report it" —
-/// a cache-drain prologue and the `sync_with` loop — nothing forced them to settle a match the same
-/// way, and they did not: the drain stopped with the matched token still at the cache front, while
-/// the loop lexed the match, settled before it, and left the cache empty. `sync_balanced` anchors
-/// its zero-skip [`Hole`](crate::input::Hole) at `cursor()`, which reads the cache, so the same
-/// call returned a different hole depending on how deep the caller had peeked — a returned value
-/// moving with the lookahead depth, which no contract states. This test drove that cell, was
-/// expected to fail, and was ignored to keep the suite green while the divergence stood.
+/// It was not always. While each scanner had two implementations of "take a token and act on it" —
+/// a cache-drain prologue and a lexing loop — nothing forced them to settle the stopping token the
+/// same way, and they did not: the drain stopped with that token still at the cache front, while
+/// the loop lexed it, settled before it, and threw it away. `sync_balanced` anchors its zero-skip
+/// [`Hole`](crate::input::Hole) at `cursor()`, which reads the cache, so the same call returned a
+/// different hole depending on how deep the caller had peeked — a returned value moving with the
+/// lookahead depth, which no contract states. `skip_while` had the identical split and leaked it
+/// into the resume cursor instead of a return value. This test drove those cells, was expected to
+/// fail, and was ignored to keep the suite green while the divergence stood.
 ///
-/// The family now has ONE loop over cached and lexed tokens alike, one skip-and-report path, and
-/// one match settle that leaves the sync token unconsumed at the cache front whichever origin it
-/// came from — so the divergence has nowhere to live, every cell is transparent, and
-/// [`sync_cache_transparency_matrix`] above drives all of them with no exclusions.
+/// There is now ONE loop over cached and lexed tokens alike, one skip-and-report path, and one
+/// settle that leaves the stopping token unconsumed at the cache front whichever origin it came
+/// from — so the divergence has nowhere to live, every cell is transparent, and
+/// [`cache_transparency_matrix`] above drives all of them with no exclusions.
 ///
 /// What is left here is the mechanism, kept honest in both directions: the parking lot must STAY
 /// empty (a future divergence may not be quietly parked out of the main matrix), and anything ever
 /// parked in it must still satisfy the very same assertions.
 #[test]
-fn sync_cache_transparency_known_divergences() {
+fn cache_transparency_known_divergences() {
   for cell in CELLS {
     assert!(
       cell.diverges.is_empty(),
-      "[{}] a cache divergence was parked out of the main matrix. The sync family has one \
-       skip-and-report path and one match settle for cached and lexed tokens alike, so a \
+      "[{}] a cache divergence was parked out of the main matrix. The crate has one \
+       skip-and-report path and one settle for cached and lexed tokens alike, so a \
        divergence is a defect in that path — fix it, do not park it: {:?}",
       cell.name,
       cell.diverges,
