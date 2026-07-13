@@ -40,6 +40,22 @@ pub(crate) mod sealed {
 /// flag: the associated const [`PARTIAL`](Self::PARTIAL) gates every partial-input rule, so the
 /// [`Complete`] path compiles to identical code with the rules eliminated (see the
 /// [`input`](crate::input) module docs).
+///
+/// # Finality is a WORLD fact: monotone, and driver-owned
+///
+/// The one piece of runtime state this typestate carries — [`Finality`](Self::Finality), the
+/// `is_final` bit — is not a fact about the *parse*. It is a fact about the **world**: *the caller
+/// has told us no more bytes are coming.* Two laws follow, and the whole surface below exists to
+/// make them unbreakable:
+///
+/// - **Monotone.** [`seal`](Self::seal) is the only transition, it goes one way, and it has no
+///   inverse — anywhere, in any build. **A stream cannot un-end.**
+/// - **Driver-owned.** Only the code that owns the byte buffer can know the stream ended; a parser
+///   combinator cannot possibly know it. So the sole writer is the owning input — never an
+///   [`InputRef`](crate::InputRef), which is all a parser is ever handed. That is what makes
+///   finality *provably* outside the rollback set rather than accidentally omitted from it: the
+///   handle borrows the input for its whole life, so the cell cannot change while a parse runs, so
+///   no rollback can observe it change. See [`InputRef::is_final`](crate::InputRef::is_final).
 pub trait Completeness: sealed::Sealed + Sized {
   /// `true` for [`Partial`], `false` for [`Complete`]. Every frontier rule is written
   /// `if Cmpl::PARTIAL && …`, so this constant is what erases the rules from the complete path at
@@ -50,17 +66,23 @@ pub trait Completeness: sealed::Sealed + Sized {
   /// carrying it costs nothing and never grows the input) and a `bool` for [`Partial`].
   type Finality: Copy + Debug;
 
-  /// Builds the finality storage for a freshly-constructed input. [`Complete`] ignores the flag;
-  /// [`Partial`] records it.
-  fn finality(is_final: bool) -> Self::Finality;
+  /// The finality a freshly-constructed input starts at: **open** — the stream has not ended.
+  /// [`Complete`] has nothing to store (a whole input is final by definition); [`Partial`] starts
+  /// non-final and reaches finality only through [`seal`](Self::seal).
+  fn initial() -> Self::Finality;
 
   /// Reads whether the input is final. Always `true` for [`Complete`] (a whole input is final by
   /// definition — every frontier rule is thereby inert); the stored flag for [`Partial`].
   fn is_final(finality: &Self::Finality) -> bool;
 
-  /// Sets the runtime `is_final` flag. A no-op for [`Complete`] (its finality is the ZST `()`); it
-  /// records the flag for [`Partial`].
-  fn set_final(finality: &mut Self::Finality, is_final: bool);
+  /// **Seals** the input: the stream has ended, and no further bytes will arrive.
+  ///
+  /// The one and only finality transition, and it is **monotone** — `false` → `true`, with no
+  /// inverse. There is deliberately no `set_final(bool)`: a `false` argument would be a claim that
+  /// an ended stream can be re-opened, which is not a state the world can be in. Sealing an
+  /// already-sealed input is a no-op. A no-op entirely for [`Complete`] (its finality is the ZST
+  /// `()`, and it is final by definition).
+  fn seal(finality: &mut Self::Finality);
 }
 
 /// The default completeness: the input is the **whole** source.
@@ -74,10 +96,15 @@ pub struct Complete;
 
 /// The partial completeness: the input is a **prefix** of a stream that may still grow.
 ///
-/// Carries a runtime `is_final: bool` the caller sets as chunks arrive. While non-final the
+/// Carries a runtime `is_final: bool` — a fact about the **world**, which the *driver* states by
+/// sealing the input when the last chunk lands ([`parse_partial`](crate::parse_partial)'s
+/// `is_final` argument). While non-final the
 /// [frontier rules](crate::input#partial-input-sans-io-mode) hold back any construct that might be
 /// extended by later input, surfacing an [`Incomplete`](crate::error::Incomplete) so the caller can
 /// refill and re-drive; once final it behaves exactly like [`Complete`].
+///
+/// A parser cannot reach the bit: it is settable only through the owning input, which an
+/// [`InputRef`](crate::InputRef) borrows for its whole life. See [`Completeness`].
 ///
 /// The rules hold back only what more input could **change**. A **terminal** condition — a
 /// resource-limit trip and the poison boundary it latches — is not such a thing: it fires through
@@ -93,7 +120,7 @@ impl Completeness for Complete {
   type Finality = ();
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn finality(_is_final: bool) -> Self::Finality {}
+  fn initial() -> Self::Finality {}
 
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn is_final(_finality: &Self::Finality) -> bool {
@@ -102,7 +129,7 @@ impl Completeness for Complete {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn set_final(_finality: &mut Self::Finality, _is_final: bool) {}
+  fn seal(_finality: &mut Self::Finality) {}
 }
 
 impl sealed::Sealed for Partial {}
@@ -111,8 +138,9 @@ impl Completeness for Partial {
   type Finality = bool;
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn finality(is_final: bool) -> Self::Finality {
-    is_final
+  fn initial() -> Self::Finality {
+    // A partial input is born OPEN: more bytes may arrive until a driver says otherwise.
+    false
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -121,8 +149,10 @@ impl Completeness for Partial {
   }
 
   #[cfg_attr(not(tarpaulin), inline(always))]
-  fn set_final(finality: &mut Self::Finality, is_final: bool) {
-    *finality = is_final;
+  fn seal(finality: &mut Self::Finality) {
+    // Monotone: the only write in the crate that ever touches this bit, and it only ever raises
+    // it. Nothing can lower it — a stream cannot un-end.
+    *finality = true;
   }
 }
 

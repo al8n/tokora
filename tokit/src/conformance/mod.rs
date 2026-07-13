@@ -322,8 +322,11 @@ where
   let state = L::new(src).into_state();
   let mut input =
     Input::<'inp, L, PartialConfCtx<'inp, L>, (), Partial>::with_state_and_cache(src, state, cache);
+  // The driver states the world fact before any handle exists — the only place it can.
+  if is_final {
+    input.seal();
+  }
   let mut ir = input.as_ref(&mut emitter);
-  ir.set_final(is_final);
   let mut out = Vec::new();
   loop {
     if out.len() > budget {

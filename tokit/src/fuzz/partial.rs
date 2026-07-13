@@ -1,16 +1,31 @@
-//! The **partial-input** driver: fuzzes the `Partial` completeness typestate — `set_final`, the
-//! frontier holdback, and the `Incomplete` channel — via chunked equivalence, the same law the
+//! The **partial-input** driver: fuzzes the `Partial` completeness typestate — the driver's seal,
+//! the frontier holdback, and the `Incomplete` channel — via chunked equivalence, the same law the
 //! conformance kit's `run_partial` checks, but over fuzzed (error-bearing) streams and randomized
 //! cuts rather than an exhaustive sweep.
 //!
-//! Two shapes are checked against the single-shot complete parse (the oracle):
+//! Three shapes are checked against the single-shot complete parse (the oracle):
 //!
 //! - **In-place two-phase.** One `Partial` input over the whole source: a non-final drain yields
 //!   every token strictly before the buffer end and ends `Incomplete` (the frontier withholds the
-//!   last token / trailing error); flipping [`set_final(true)`](crate::InputRef::set_final) and
-//!   draining on reproduces the rest. The concatenation must equal the complete parse.
+//!   last token / trailing error); the driver then **seals** it and drains on, reproducing the rest.
+//!   The concatenation must equal the complete parse.
+//! - **Seal survives rollback.** A sealed stream, put through every rollback shape the crate has —
+//!   `attempt`, `try_attempt`, explicit and drop-path transaction rollback, a stacked savepoint, a
+//!   session point — is *still sealed* afterwards, and drains to genuine end of input rather than
+//!   asking for a refill that can never come. This is the law that forecloses the mirror bug (see
+//!   below).
 //! - **Chunked prefixes.** For random cut points `k`, a non-final drain of `src[..k]` yields exactly
 //!   the complete tokens whose span ends strictly before `k` and always ends `Incomplete`.
+//!
+//! # What the harness can and cannot express about finality
+//!
+//! It cannot express "a speculative branch flips finality and rolls back", and that is the point:
+//! finality is a **world fact**, so it is settable only through the owning input
+//! ([`Input::seal`](crate::input::Input::seal), monotone), which an `InputRef` mutably borrows for
+//! its whole life. There is no method on a handle, at any depth, in any speculative branch, that
+//! could flip it — so there is no such operation to fuzz, and the leak it used to cause is
+//! *unrepresentable* rather than merely untriggered. What remains fuzzable is the mirror half — a
+//! rollback must not un-*end* a stream — and `seal_survives_rollback` is exactly that oracle.
 //!
 //! This is error-agnostic (it compares committed token streams, which skip lexer errors
 //! identically in both modes), so — unlike the consume driver — the fuzzed streams here **do**
@@ -35,9 +50,9 @@
 //!
 //! # Fuzz coverage (`OP_SURFACE_CENSUS`)
 //!
-//! This adds an **oracle**, not an operation: it drives [`Op::Next`] and [`Op::SetFinal`], both
-//! already in the alphabet and already marked here. The alphabet's size is unchanged, so
-//! `EXPECTED_OP_COUNT` does not move (grep `OP_SURFACE_CENSUS`).
+//! This adds **oracles**, not operations: they drive [`Op::Next`] and [`Op::Seal`], both already in
+//! the alphabet and already marked here. The alphabet's size is unchanged, so `EXPECTED_OP_COUNT`
+//! does not move (grep `OP_SURFACE_CENSUS`).
 
 use std::vec::Vec;
 
@@ -89,8 +104,10 @@ fn partial_stream(src: &[u8], is_final: bool, budget: usize) -> (Vec<Tok>, bool)
     crate::input::Input::<'_, ScriptLexer<'_>, FuzzCtx<'_>, (), Partial>::with_state_and_cache(
       src, state, cache,
     );
+  if is_final {
+    input.seal();
+  }
   let mut ir = input.as_ref(&mut emitter);
-  ir.set_final(is_final);
   let mut out = Vec::new();
   loop {
     assert!(
@@ -115,9 +132,15 @@ fn partial_stream(src: &[u8], is_final: bool, budget: usize) -> (Vec<Tok>, bool)
   }
 }
 
-/// Drains one `Partial` input over the whole `src` in two phases across a live `set_final(true)`:
-/// non-final until `Incomplete`, then final to genuine end of input. Returns the concatenated
+/// Drains one `Partial` input over the whole `src` in two phases across a **live seal**: non-final
+/// until `Incomplete`, then sealed and drained to genuine end of input. Returns the concatenated
 /// committed stream.
+///
+/// This is the driver shape the seal exists for — the last chunk lands carrying *no new bytes*, so
+/// the buffer is already whole and only the world fact changed. Note where the seal sits: **between
+/// handles**. `Input::seal` takes `&mut Input`, and a handle borrows the input for its whole life,
+/// so the borrow checker admits the flip exactly where a driver can honestly make it — with no
+/// parser, guard, or speculative branch in flight.
 fn two_phase_stream(src: &[u8], budget: usize) -> Vec<Tok> {
   let cache = cache();
   let mut emitter = CountEmitter::new();
@@ -126,45 +149,141 @@ fn two_phase_stream(src: &[u8], budget: usize) -> Vec<Tok> {
     crate::input::Input::<'_, ScriptLexer<'_>, FuzzCtx<'_>, (), Partial>::with_state_and_cache(
       src, state, cache,
     );
-  let mut ir = input.as_ref(&mut emitter);
   let mut out = Vec::new();
 
   // Phase 1: non-final. Drains everything before the frontier, ending Incomplete (or genuine EOF
   // for an empty stream — either way, stop).
-  ir.set_final(false);
-  loop {
-    assert!(out.len() <= budget, "two-phase drain exceeded budget");
-    match ir.next() {
-      Ok(Some(sp)) => {
-        let (span, tok) = sp.into_components();
-        out.push((tok.kind(), span));
-      }
-      Ok(None) => break,
-      Err(e) => {
-        assert_eq!(
-          e,
-          FuzzError::Incomplete,
-          "phase-1 drain surfaced a non-Incomplete error"
-        );
-        break;
+  {
+    let mut ir = input.as_ref(&mut emitter);
+    loop {
+      assert!(out.len() <= budget, "two-phase drain exceeded budget");
+      match ir.next() {
+        Ok(Some(sp)) => {
+          let (span, tok) = sp.into_components();
+          out.push((tok.kind(), span));
+        }
+        Ok(None) => break,
+        Err(e) => {
+          assert_eq!(
+            e,
+            FuzzError::Incomplete,
+            "phase-1 drain surfaced a non-Incomplete error"
+          );
+          break;
+        }
       }
     }
   }
 
-  // Phase 2: mark final in place and drain the withheld remainder to genuine end of input.
-  ir.set_final(true);
+  // The socket closed: the driver seals. Monotone, and only reachable here.
+  input.seal();
+
+  // Phase 2: a fresh handle over the same input — same cache, same cursor, same lexer state — now
+  // sealed. It drains the withheld remainder to genuine end of input.
+  {
+    let mut ir = input.as_ref(&mut emitter);
+    assert!(ir.is_final(), "the seal is visible to the next handle");
+    loop {
+      assert!(out.len() <= budget, "two-phase drain exceeded budget");
+      match ir.next() {
+        Ok(Some(sp)) => {
+          let (span, tok) = sp.into_components();
+          out.push((tok.kind(), span));
+        }
+        Ok(None) => break,
+        Err(_) => panic!("a final input must never surface Incomplete"),
+      }
+    }
+  }
+  out
+}
+
+/// The **seal-survives-rollback** oracle: a stream the driver has already ended cannot be un-ended
+/// by a parser rolling back.
+///
+/// This is the law that rules out the mirror bug — "checkpoint the finality flag and restore it" —
+/// which closes the frontier leak by opening a *hang*: a rollback across a legitimate seal would
+/// revert `is_final` to `false`, and the parser would sit asking for bytes that will never arrive.
+///
+/// So: seal (the last chunk landed), then throw the whole speculative surface at the input and roll
+/// every bit of it back. The input must still be final afterwards, and the drain must reach genuine
+/// end of input — never `Incomplete`.
+fn seal_survives_rollback(src: &[u8], budget: usize, complete: &[Tok]) {
+  let cache = cache();
+  let mut emitter = CountEmitter::new();
+  let state = initial_state(src);
+  let mut input =
+    crate::input::Input::<'_, ScriptLexer<'_>, FuzzCtx<'_>, (), Partial>::with_state_and_cache(
+      src, state, cache,
+    );
+  // The world fact: the stream has ENDED.
+  input.seal();
+
+  let mut ir = input.as_ref(&mut emitter);
+  assert!(ir.is_final(), "the input is sealed");
+
+  // Speculate across every rollback shape the crate has, and abandon all of it.
+  let declined: Option<()> = ir.attempt(|i| {
+    let _ = i.next();
+    let _ = i.next();
+    None
+  });
+  assert!(declined.is_none());
+
+  let errored: Result<(), ()> = ir.try_attempt(|i| {
+    let _ = i.next();
+    Err(())
+  });
+  assert!(errored.is_err());
+
+  {
+    let mut txn = ir.begin();
+    let _ = txn.next();
+    txn.rollback();
+  }
+  {
+    // Undecided drop: the rollback-on-drop policy.
+    let mut txn = ir.begin();
+    let _ = txn.next();
+  }
+  {
+    let mut txn = ir.begin_stacked();
+    let _ = txn.next();
+    let sp = txn.savepoint();
+    let _ = txn.next();
+    txn.rollback_to(sp);
+    txn.rollback();
+  }
+  ir.begin_point();
+  let _ = ir.next();
+  ir.rollback_point();
+
+  // The stream is STILL ended. Nothing a parser did could have un-ended it.
+  assert!(
+    ir.is_final(),
+    "A ROLLBACK UN-ENDED A SEALED STREAM: the parser will now wait forever for bytes that will \
+     never arrive (this is what checkpointing the finality flag would buy)"
+  );
+
+  // And the drain proves it observably: genuine end of input, never Incomplete.
+  let mut out = Vec::new();
   loop {
-    assert!(out.len() <= budget, "two-phase drain exceeded budget");
+    assert!(out.len() <= budget, "sealed drain exceeded budget");
     match ir.next() {
       Ok(Some(sp)) => {
         let (span, tok) = sp.into_components();
         out.push((tok.kind(), span));
       }
       Ok(None) => break,
-      Err(_) => panic!("a final input must never surface Incomplete"),
+      Err(e) => panic!(
+        "a SEALED stream surfaced {e:?} after a rollback — the refill it asks for can never come"
+      ),
     }
   }
-  out
+  assert_eq!(
+    out, complete,
+    "the sealed drain after a full rollback diverged from the complete parse"
+  );
 }
 
 // ── The limit oracle: a terminal trip is not an incomplete frontier ──────────────────────────────
@@ -206,9 +325,11 @@ fn limited_stream(src: &[u8], limit: usize, is_final: bool, budget: usize) -> Li
       ScriptState::with_limit(limit),
       cache,
     );
+  if is_final {
+    input.seal();
+  }
   let (tokens, incomplete) = {
     let mut ir = input.as_ref(&mut emitter);
-    ir.set_final(is_final);
     let mut tokens = Vec::new();
     let incomplete = loop {
       assert!(
@@ -288,7 +409,7 @@ fn check_limited_prefix(src: &[u8], limit: usize, k: usize, budget: usize) {
 /// Runs one partial case: builds a fuzzed (error-bearing) stream and checks both chunked-equivalence
 /// shapes against the complete parse, then the limit oracle at the chunk boundary.
 pub(crate) fn run(src: &[u8], seed: u64, cov: &mut Coverage) {
-  cov.mark(Op::SetFinal);
+  cov.mark(Op::Seal);
   let budget = src.len() + 4;
   let complete = complete_stream(src, budget);
 
@@ -303,12 +424,15 @@ pub(crate) fn run(src: &[u8], seed: u64, cov: &mut Coverage) {
     "final partial drain diverged from the complete parse"
   );
 
-  // 2. In-place two-phase: non-final then set_final(true) reproduces the complete parse.
+  // 2. In-place two-phase: non-final, then a live driver seal, reproduces the complete parse.
   assert_eq!(
     two_phase_stream(src, budget),
     complete,
-    "in-place set_final two-phase diverged from the complete parse"
+    "in-place seal two-phase diverged from the complete parse"
   );
+
+  // 2b. A sealed stream cannot be un-ended by a parser rolling back (the no-hang law).
+  seal_survives_rollback(src, budget, &complete);
 
   // 3. Chunked prefixes at random cut points: a non-final prefix yields exactly the complete
   //    tokens ending strictly before the cut, and always ends Incomplete.

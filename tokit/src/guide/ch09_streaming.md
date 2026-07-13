@@ -18,8 +18,8 @@ An input carries a [`Completeness`](crate::Completeness) parameter:
   typestate is not a runtime mode, and the fast path pays exactly nothing for the existence of
   the slow one.
 - [`Partial`](crate::Partial) — the source is a **prefix of a stream that may still grow**. It
-  carries one runtime bit, `is_final`, that the caller flips with
-  [`set_final`](crate::InputRef::set_final) when the last chunk lands.
+  carries one runtime bit, `is_final`, that the **driver** states when the last chunk lands —
+  [`parse_partial`](crate::parse_partial)'s `is_final` argument.
 
 # The three frontier rules
 
@@ -39,6 +39,33 @@ of a non-final buffer becomes visible only when more input arrives *or* `is_fina
 That is not a limitation to be engineered around — it is the only sound answer. The sole proof
 that `2` is not the start of `23` is another byte, or a promise that there will not be one.
 
+# `is_final` belongs to the driver, and it only goes one way
+
+Notice who makes that promise. `is_final` is not a fact about the *parse* — it is a fact about the
+**world**: *the caller has told us no more bytes are coming.* A parser combinator cannot possibly
+know it. Only the code holding the socket can.
+
+So there is no `set_final` on an [`InputRef`](crate::InputRef), and there never will be. You state
+finality where you build the input — `parse_partial`'s `is_final` argument — and the parser you hand
+the input to simply cannot reach it. That is enforced by the borrow checker, not by convention: the
+flag lives on the input, the handle borrows the input, and the borrow lasts as long as the handle
+does.
+
+Two bugs fall out of that one line, and it is worth seeing both, because they are mirrors:
+
+- **A parser that could end a stream** would break the holdback. Speculate, call `set_final(true)`,
+  fail, roll back — and the rollback would not undo it, because rolling back the *world* is not a
+  thing rollback does. The next read would then hand you a token the frontier owed an `Incomplete`
+  for: the very `2`-that-might-be-`23` this chapter is about.
+- **A rollback that could un-end a stream** — the "obvious" fix of checkpointing the flag and
+  restoring it — is worse. Your last chunk lands, you mark the stream final, the parser rolls back
+  across that moment, and `is_final` quietly reverts to `false`. Now the parser asks for a refill
+  that can never come, and your program waits forever. That trades a wrong token for a hang.
+
+The way out is to notice that the two bugs share a premise — that a parser can touch the bit at all.
+Take that away and both are gone: finality is set by the driver, before any parser exists, and it is
+**monotone** (a stream cannot un-end). Nothing to roll back, and nothing that would want to.
+
 # No growable source: the caller owns the buffer
 
 tokit has **no internal growable source**, and that is a deliberate architectural line, not an
@@ -53,8 +80,8 @@ the current slice — which is what "Sans-I/O" means: tokit never reads, never w
 a socket. It parses what you hand it and tells you when it needs more.
 
 [`parse_partial`](crate::parse_partial) wires up one round of that loop: it builds a
-[`Partial`](crate::Partial) input over your slice, sets `is_final`, and hands your parser an
-[`InputRef`](crate::InputRef). Partial mode adds exactly **one** requirement to your code —
+[`Partial`](crate::Partial) input over your slice, seals it if this is the last chunk, and hands your
+parser an [`InputRef`](crate::InputRef). Partial mode adds exactly **one** requirement to your code —
 the emitter's error type must implement `From<Incomplete<L::Offset>>`, so the frontier has a
 way to speak. Give it a variant and it is done.
 

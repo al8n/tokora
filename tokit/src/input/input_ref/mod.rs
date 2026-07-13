@@ -70,9 +70,15 @@ where
   pub(super) state: &'closure mut L::State,
   pub(super) span: &'closure mut L::Span,
   pub(super) cache: &'closure mut Ctx::Cache,
-  /// The completeness finality (`is_final`) flag, copied by value from the owning [`Input`] (a ZST
-  /// for [`Complete`], a `bool` for [`Partial`]). The frontier rules read it only under
-  /// [`Completeness::PARTIAL`]; [`set_final`](Self::set_final) updates it as chunks arrive.
+  /// A **read-only snapshot** of the owning [`Input`]'s finality world cell (a ZST for
+  /// [`Complete`], a `bool` for [`Partial`]), copied by value at
+  /// [`as_ref`](super::Input::as_ref). The frontier rules read it only under
+  /// [`Completeness::PARTIAL`].
+  ///
+  /// There is no mutator — see [`is_final`](Self::is_final) for the law. Taking this handle
+  /// mutably borrows the input, which locks out the seal for the handle's whole life, so the
+  /// snapshot cannot go stale: finality is *constant* while a handle lives, and therefore outside
+  /// the rollback set by construction (a [`Checkpoint`] does not carry it, and does not need to).
   pub(super) finality: Cmpl::Finality,
   pub(super) emitted_error_end: &'closure mut L::Offset,
   pub(super) poison_boundary: &'closure mut Option<L::Offset>,
@@ -158,24 +164,52 @@ where
   /// Returns whether this input is **final** — the last chunk of a stream, or a
   /// [`Complete`](crate::input::Complete) input (always final).
   ///
-  /// A [`Partial`](crate::input::Partial) input reports the runtime flag last set by
-  /// [`set_final`](Self::set_final) (default `false`); a [`Complete`](crate::input::Complete) input
-  /// is final by definition, so this returns `true` and the partial-input frontier rules are inert.
+  /// A [`Partial`](crate::input::Partial) input reports the flag the **driver** stated
+  /// ([`parse_partial`](crate::parse_partial)'s `is_final` argument); a
+  /// [`Complete`](crate::input::Complete) input is final by definition, so this returns `true` and
+  /// the partial-input frontier rules are inert.
+  ///
+  /// # Read-only, and constant for this handle's life
+  ///
+  /// There is no `set_final` on an [`InputRef`], and that absence is a **law**, not an omission.
+  /// `is_final` is a fact about the **world** — *the caller has told us no more bytes are coming* —
+  /// and a parser combinator cannot possibly know it. Only the code that owns the byte buffer can.
+  ///
+  /// So the sole writer is the owning input's seal, which takes `&mut Input` — and this handle
+  /// mutably borrows that input for its entire life. A parser therefore **cannot** end a stream, at
+  /// any depth, inside any speculative branch. Nor can it un-end one: the seal is monotone and has
+  /// no inverse anywhere in the crate.
+  ///
+  /// That is what keeps finality safely out of the rollback set. It cannot change while this handle
+  /// lives, so no rollback can observe it change — a [`Checkpoint`] has nothing to save, and a
+  /// restore has nothing to undo. The two laws this pins:
+  ///
+  /// - a failed speculative branch can never cost the frontier holdback (it could not have touched
+  ///   finality to begin with);
+  /// - a rollback can never un-end a stream the driver already ended (the hang that "roll finality
+  ///   back too" would introduce).
+  ///
+  /// A parser reaching for the flag does not compile — through the handle, or through a guard's
+  /// `DerefMut`:
+  ///
+  /// ```compile_fail
+  /// use tokit::{InputRef, Lexer, ParseContext, Partial};
+  ///
+  /// fn end_the_stream<'inp, L, Ctx>(inp: &mut InputRef<'inp, '_, L, Ctx, (), Partial>)
+  /// where
+  ///   L: Lexer<'inp>,
+  ///   L::State: Clone,
+  ///   Ctx: ParseContext<'inp, L>,
+  /// {
+  ///   inp.set_final(true); // error: no method named `set_final` — finality is the driver's
+  /// }
+  /// ```
+  ///
+  /// Enforcing tests (in `src/input/input_ref/partial_tests.rs`):
+  /// `speculation_cannot_end_the_stream` and `rollback_cannot_un_end_a_sealed_stream`.
   #[cfg_attr(not(tarpaulin), inline(always))]
   pub fn is_final(&self) -> bool {
     Cmpl::is_final(&self.finality)
-  }
-
-  /// Marks whether this is the **final** chunk of a partial stream.
-  ///
-  /// Set `false` while more input may still arrive, `true` for the last chunk. While non-final, the
-  /// frontier rules hold back any construct that later input could extend, surfacing an
-  /// [`Incomplete`](crate::error::Incomplete); once final, a [`Partial`](crate::input::Partial)
-  /// input behaves exactly like a [`Complete`](crate::input::Complete) one. On a
-  /// [`Complete`](crate::input::Complete) input this is a no-op (its finality is a zero-sized type).
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn set_final(&mut self, is_final: bool) {
-    Cmpl::set_final(&mut self.finality, is_final);
   }
 
   /// Returns a mutable reference to the current lexer state (extras).

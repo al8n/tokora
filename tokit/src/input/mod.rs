@@ -4,11 +4,36 @@
 //!
 //! An input carries a [`Completeness`] typestate. The default, [`Complete`], is the whole source —
 //! today's behaviour, with identical generated code. [`Partial`] is a **prefix of a stream that may
-//! still grow**, carrying a runtime `is_final` flag ([`InputRef::set_final`]) the caller flips as
-//! chunks arrive. While a partial input is non-final, three conservative *frontier rules* at the
-//! scan chokepoint keep a construct that later input could still extend from being mistaken for a
-//! finished one — each surfaces an [`Incomplete`](crate::error::Incomplete) instead of yielding,
-//! emitting, or reporting end of input (see [`InputRef::next`]).
+//! still grow**, carrying a runtime `is_final` flag the **driver** states — through
+//! [`parse_partial`]'s `is_final` argument — when the last chunk lands. While a partial input is
+//! non-final, three conservative *frontier rules* at the scan chokepoint keep a construct that
+//! later input could still extend from being mistaken for a finished one — each surfaces an
+//! [`Incomplete`](crate::error::Incomplete) instead of yielding, emitting, or reporting end of
+//! input (see [`InputRef::next`]).
+//!
+//! ## Finality belongs to the driver, and it only ever goes one way
+//!
+//! `is_final` is a fact about the **world** — *the caller has told us no more bytes are coming* —
+//! not a fact about the parse. Two laws follow, and both are structural rather than advisory:
+//!
+//! - **A stream cannot un-end.** The bit is monotone: the internal `Input::seal` raises it and
+//!   nothing lowers it. No rollback restores it, because none can: it cannot change while a parse
+//!   is running.
+//! - **A parser cannot end a stream.** Only the owner of the byte buffer can know the stream ended;
+//!   a combinator cannot possibly know it. So the sole writer is `Input::seal`, which takes
+//!   `&mut Input` — and an [`InputRef`] borrows that input for its whole life. The borrow checker
+//!   therefore forbids sealing while *any* handle is alive, which is to say: while any parser,
+//!   guard, attempt, or speculative branch is running. There is no `set_final` on an [`InputRef`],
+//!   and that absence is the law (see [`InputRef::is_final`], which carries the compile-fail proof).
+//!
+//! The second law is what keeps finality out of the rollback set safely. Because it cannot change
+//! during a handle's life, no rollback within that life can observe it change — so a
+//! [`Checkpoint`](crate::input::Checkpoint) has nothing to save, and a restore has nothing to undo.
+//! Checkpointing it would be the mirror bug: a driver seals when the last chunk lands, the parse
+//! rolls back to a checkpoint taken earlier, finality reverts to `false`, and the parser waits
+//! forever for bytes that will never arrive. Rollback rewinds the parse; it does not rewind the
+//! world. The crate-internal `input::lineage` module carries the full cell taxonomy this sits in
+//! (grep `CELL_CENSUS`).
 //!
 //! ## One-token frontier latency
 //!
@@ -398,6 +423,26 @@ where
   /// complete input has the identical layout it had before this typestate existed — and a `bool`
   /// for [`Partial`]. The frontier rules read it only when [`Completeness::PARTIAL`] holds, so it
   /// is inert (and free) on the complete path.
+  ///
+  /// # The one WORLD cell, and why it is not in the rollback set
+  ///
+  /// This is the crate's only **world fact** (see the [cell taxonomy](lineage)): it records what
+  /// the *caller* knows about the outside world — *no more bytes are coming* — not what the parse
+  /// has done. It is therefore **monotone** ([`seal`](Self::seal) raises it; nothing lowers it) and
+  /// **driver-owned**: its sole writer is [`seal`](Self::seal), which takes `&mut Input`.
+  ///
+  /// That last part is the whole guarantee, and the borrow checker enforces it. An
+  /// [`InputRef`](InputRef) — the only thing a parser is ever handed — mutably borrows this
+  /// `Input` for its entire life, so **while any handle exists, this cell is unreachable**. Every
+  /// parser, guard, attempt, and speculative branch lives inside such a handle. So finality is
+  /// *constant for the life of a handle*, no rollback can ever observe it change, and a
+  /// [`Checkpoint`] has nothing to save. It is outside the rollback set by construction, not by
+  /// omission.
+  ///
+  /// Checkpointing it instead would be the **mirror bug**: a driver seals when the last chunk
+  /// lands, a parse rolls back to a checkpoint taken earlier, finality reverts to `false`, and the
+  /// parser waits forever for bytes that will never arrive. Rollback rewinds the *parse*; it does
+  /// not rewind the *world*.
   finality: Cmpl::Finality,
   /// High-water mark: lexer errors whose span ends at or before this offset have
   /// already been emitted (e.g. during a peek that lexed past this point), so the
@@ -543,9 +588,9 @@ where
       state,
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache: DefaultCache::<'inp, L>::default(),
-      // A fresh input starts non-final (`Partial`) or final-by-definition (`Complete`); callers
-      // that are streaming set the flag via [`InputRef::set_final`] as chunks arrive.
-      finality: Cmpl::finality(false),
+      // Born OPEN: non-final (`Partial`) or final-by-definition (`Complete`). A streaming driver
+      // states the world fact by calling [`seal`](Self::seal) when the last chunk lands.
+      finality: Cmpl::initial(),
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
       lineage: Lineage::new(),
@@ -577,9 +622,9 @@ where
       state,
       span: L::Span::new(L::Offset::default(), L::Offset::default()),
       cache,
-      // Non-final by default for `Partial`; the ZST regime for `Complete`. Streaming callers set
-      // the flag with [`InputRef::set_final`] as chunks arrive.
-      finality: Cmpl::finality(false),
+      // Born OPEN (see the twin above): a streaming driver states the end of the stream by calling
+      // [`seal`](Self::seal), the one monotone finality transition.
+      finality: Cmpl::initial(),
       emitted_error_end: L::Offset::default(),
       poison_boundary: None,
       lineage: Lineage::new(),
@@ -592,6 +637,37 @@ where
       ))]
       witness: Witness::new(),
     }
+  }
+
+  /// **Seals** the input: the stream has ended, and no further bytes will arrive. The sole writer
+  /// of the [`finality`](Self::finality) world cell, and the sole way a
+  /// [`Partial`] input ever becomes final.
+  ///
+  /// # Monotone, and driver-only
+  ///
+  /// Two properties, and each is load bearing:
+  ///
+  /// - **Monotone.** It raises the bit and has no inverse — there is no `set_final(false)`, in any
+  ///   build, on any type. **A stream cannot un-end**, so nothing in the crate can express the
+  ///   claim that it did. Sealing twice is a no-op; sealing a [`Complete`] input is a no-op (it is
+  ///   final by definition).
+  /// - **Driver-only.** It takes `&mut Input` — and an [`InputRef`] mutably borrows the `Input` for
+  ///   its whole life. So a driver may seal only when **no handle is alive**, and therefore never
+  ///   while a parser, a guard, an attempt, or any speculative branch is running. The borrow
+  ///   checker, not a convention, is what keeps a combinator from asserting a fact about the world
+  ///   that only the owner of the byte buffer can know.
+  ///
+  /// Together they put finality *outside the rollback set by construction*: it cannot change during
+  /// a handle's life, so no rollback within that life can observe it change, so a [`Checkpoint`]
+  /// has nothing to save and a restore has nothing to undo.
+  ///
+  /// A driver that already knows the finality at construction says so through
+  /// [`parse_partial`]'s `is_final` argument, which routes here. A driver holding a live input
+  /// across chunks (the in-place two-phase shape: drain non-final, learn the socket closed, drain
+  /// on) seals between handles.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub(crate) fn seal(&mut self) {
+    Cmpl::seal(&mut self.finality);
   }
 
   /// The number of **pinned** checkpoints on this input's [`Lineage`] — the begin points of the
@@ -630,8 +706,11 @@ where
       state: &mut self.state,
       cache: &mut self.cache,
       span: &mut self.span,
-      // `Copy` (a ZST for `Complete`); copied into the reference so the frontier rules read it
-      // without an extra borrow, keeping the `Complete` reference layout unchanged.
+      // A read-only SNAPSHOT of the world cell, `Copy` (a ZST for `Complete`) — copied rather than
+      // borrowed so the frontier rules read it without an extra word, keeping the `Complete`
+      // reference layout unchanged (a `&()` would still cost a pointer). The handle exposes no
+      // mutator, and this borrow of `self` locks out `seal` for the handle's whole life, so the
+      // snapshot cannot go stale: finality is CONSTANT while any handle lives.
       finality: self.finality,
       emitted_error_end: &mut self.emitted_error_end,
       poison_boundary: &mut self.poison_boundary,
@@ -695,8 +774,13 @@ where
 {
   let (mut emitter, cache) = ctx.provide().into_components();
   let mut input = Input::<L, Ctx, Lang, Partial>::with_state_and_cache(src, state, cache);
+  // The driver states the world fact BEFORE the parser ever sees a handle — and it is the only
+  // party that can. `seal` takes `&mut Input`, so it is unreachable from the `&mut InputRef` `f`
+  // is handed: `f` cannot end the stream, at any depth, inside any speculative branch.
+  if is_final {
+    input.seal();
+  }
   let mut input_ref = input.as_ref(&mut emitter);
-  input_ref.set_final(is_final);
   f(&mut input_ref)
 }
 

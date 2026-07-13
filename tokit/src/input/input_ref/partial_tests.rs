@@ -136,10 +136,12 @@ fn run_partial(src: &str, is_final: bool) -> Run {
     (),
     DefaultCache::<'_, Lex<'_>>::default(),
   );
+  if is_final {
+    input.seal();
+  }
   let mut emitter = Verbose::<PErr>::new();
   let (kinds, result) = {
     let mut inp = input.as_ref(&mut emitter);
-    inp.set_final(is_final);
     let mut kinds = std::vec::Vec::new();
     let result = loop {
       match inp.next() {
@@ -330,10 +332,12 @@ fn trace_partial(src: &str, is_final: bool) -> Trace {
     (),
     DefaultCache::<'_, Lex<'_>>::default(),
   );
+  if is_final {
+    input.seal();
+  }
   let mut emitter = Verbose::<PErr>::new();
   let (tokens, result) = {
     let mut inp = input.as_ref(&mut emitter);
-    inp.set_final(is_final);
     let mut tokens = std::vec::Vec::new();
     let result = loop {
       match inp.next() {
@@ -598,10 +602,12 @@ fn run_limited(src: &str, limit: usize, is_final: bool) -> LimRun {
     tracker,
     DefaultCache::<'_, LimLex<'_>>::default(),
   );
+  if is_final {
+    input.seal();
+  }
   let mut emitter = Verbose::<PErr>::new();
   let (kinds, result, poisoned) = {
     let mut inp = input.as_ref(&mut emitter);
-    inp.set_final(is_final);
     let mut kinds = std::vec::Vec::new();
     let result = loop {
       match inp.next() {
@@ -670,8 +676,8 @@ fn frontier_limit_trip_is_terminal_on_the_peek_fill() {
   let (peeked, poisoned, after) = {
     use generic_arraydeque::typenum::U4;
 
+    // Born open: a fresh `Partial` input is non-final until a driver seals it.
     let mut inp = input.as_ref(&mut emitter);
-    inp.set_final(false);
 
     // A window of 4 over a 3-token source: the fill runs into the tripping token.
     let peeked = inp
@@ -902,5 +908,205 @@ fn refill_loop_still_refills_on_a_genuine_incomplete() {
   assert_eq!(
     incompletes, 2,
     "the two non-final chunks each cut a word at the frontier and DID ask for more"
+  );
+}
+
+// ── Finality is a WORLD fact: monotone, driver-owned, and outside the rollback set ────────────
+//
+// The two halves of one law, and they are mirrors of each other. Break either and a streaming
+// parser is wrong in a way the type system used to permit:
+//
+//   * a parser that could END a stream would lose the frontier holdback — speculate,
+//     `set_final(true)`, fail, roll back, and the rollback would not undo it (rollback rewinds the
+//     PARSE, not the WORLD), so the next read hands back a token the frontier owed an `Incomplete`
+//     for. That is the leak.
+//   * a rollback that could UN-END a stream — the "obvious" fix of checkpointing the flag and
+//     restoring it — would leave a parser asking for a refill that can never come. That is a hang,
+//     and it is strictly worse than the leak it fixes.
+//
+// Both bugs share the premise that a parser can touch the bit at all. It cannot: `is_final` is
+// settable only through the owning `Input` (`seal`, monotone), which an `InputRef` mutably borrows
+// for its whole life. The compile-fail proof of the unreachability lives on `InputRef::is_final`;
+// these two are the observable laws it buys.
+
+/// LAW: a failed speculative branch cannot cost the frontier holdback.
+///
+/// The source ends mid-construct (`cd` touches the buffer end of a non-final buffer), so every read
+/// past `ab` owes an `Incomplete`. A parser throws the crate's entire speculative surface at the
+/// input and abandons all of it. Nothing it did — at any depth, through any guard — may leave the
+/// input final, and the frontier must still owe `Incomplete` afterwards.
+#[test]
+fn speculation_cannot_end_the_stream() {
+  let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_cache(
+    "ab cd",
+    (),
+    DefaultCache::<'_, Lex<'_>>::default(),
+  );
+  // NOT sealed: the driver has not said the stream ended, so `cd` may yet become `cdef`.
+  let mut emitter = Verbose::<PErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+  assert!(!inp.is_final(), "a fresh partial input is born open");
+
+  // `ab` is clear of the frontier and yields normally.
+  assert!(inp.next().expect("ab is clear of the frontier").is_some());
+
+  // Every rollback shape the crate has, all of them abandoned.
+  let declined: Option<()> = inp.attempt(|i| {
+    let _ = i.next();
+    None
+  });
+  assert!(declined.is_none());
+
+  let errored: Result<(), ()> = inp.try_attempt(|i| {
+    let _ = i.next();
+    Err(())
+  });
+  assert!(errored.is_err());
+
+  {
+    let mut txn = inp.begin();
+    let _ = txn.next();
+    txn.rollback();
+  }
+  {
+    // Undecided drop under the `Rollback` policy.
+    let mut txn = inp.begin();
+    let _ = txn.next();
+  }
+  {
+    let mut txn = inp.begin_stacked();
+    let _ = txn.next();
+    let sp = txn.savepoint();
+    let _ = txn.next();
+    txn.rollback_to(sp);
+    txn.rollback();
+  }
+  inp.begin_point();
+  let _ = inp.next();
+  inp.rollback_point();
+
+  // The world did not move: no parser said the stream ended, so it did not end.
+  assert!(
+    !inp.is_final(),
+    "a speculative branch ENDED THE STREAM: the frontier holdback is gone and the next read will \
+     hand back a token that later input could still extend"
+  );
+
+  // And the observable half: the frontier still owes an Incomplete for `cd`.
+  match inp.next() {
+    Err(PErr::Incomplete(at)) => assert_eq!(at, 5, "the frontier is the buffer end"),
+    other => panic!(
+      "LAW VIOLATED: a rolled-back speculative branch cost the frontier holdback — `cd` touches a \
+       NON-FINAL buffer end and is owed an Incomplete, but next() yielded {other:?}"
+    ),
+  }
+}
+
+/// LAW (the mirror): a rollback cannot un-end a stream the driver already ended.
+///
+/// The driver seals — the last chunk landed, the socket is closed, there are no more bytes. A parser
+/// then speculates across that fact and rolls every bit of it back. The input must still be final,
+/// and the drain must reach genuine end of input: an `Incomplete` here would be a request for a
+/// refill that can never be satisfied, and the caller would loop forever.
+///
+/// This is the test that fails on the "obvious" fix (checkpoint the finality flag, restore it on
+/// rollback) — it closes the leak the sibling test guards and opens this hang in its place.
+#[test]
+fn rollback_cannot_un_end_a_sealed_stream() {
+  let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_cache(
+    "ab cd",
+    (),
+    DefaultCache::<'_, Lex<'_>>::default(),
+  );
+  // The world fact: the stream has ENDED. Only the driver can say this, and only here — with no
+  // handle alive, which is exactly when a driver can honestly know it.
+  input.seal();
+
+  let mut emitter = Verbose::<PErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+  assert!(inp.is_final(), "the driver sealed the stream");
+
+  // The same full speculative surface, all of it abandoned.
+  let declined: Option<()> = inp.attempt(|i| {
+    let _ = i.next();
+    let _ = i.next();
+    None
+  });
+  assert!(declined.is_none());
+
+  let errored: Result<(), ()> = inp.try_attempt(|i| {
+    let _ = i.next();
+    Err(())
+  });
+  assert!(errored.is_err());
+
+  {
+    let mut txn = inp.begin();
+    let _ = txn.next();
+    txn.rollback();
+  }
+  {
+    let mut txn = inp.begin();
+    let _ = txn.next();
+  }
+  {
+    let mut txn = inp.begin_stacked();
+    let _ = txn.next();
+    let sp = txn.savepoint();
+    let _ = txn.next();
+    txn.rollback_to(sp);
+    txn.rollback();
+  }
+  inp.begin_point();
+  let _ = inp.next();
+  inp.rollback_point();
+
+  assert!(
+    inp.is_final(),
+    "A ROLLBACK UN-ENDED A SEALED STREAM: the parser will now wait forever for bytes that will \
+     never arrive"
+  );
+
+  // The observable half: a full drain reaches genuine end of input, and NEVER Incomplete —
+  // including on `cd`, which touches the buffer end but is no longer a frontier, because the
+  // frontier is gone: the stream ended.
+  let mut kinds = std::vec::Vec::new();
+  loop {
+    match inp.next() {
+      Ok(Some(t)) => kinds.push(t.data().kind()),
+      Ok(None) => break,
+      Err(e) => panic!(
+        "LAW VIOLATED: a SEALED stream surfaced {e:?} after a rollback — the refill it asks for can \
+         never come, so the caller loops forever"
+      ),
+    }
+  }
+  assert_eq!(
+    kinds,
+    [PKind::Word, PKind::Word],
+    "a sealed drain yields every token, including the one at the buffer end"
+  );
+}
+
+/// The seal is **monotone**: sealing twice is a no-op, and there is no inverse anywhere in the
+/// crate to un-seal with. The type system carries the law — this pins that `seal` itself does not
+/// quietly toggle.
+#[test]
+fn the_seal_is_monotone() {
+  let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_cache(
+    "ab cd",
+    (),
+    DefaultCache::<'_, Lex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  assert!(!input.as_ref(&mut emitter).is_final(), "born open");
+
+  input.seal();
+  assert!(input.as_ref(&mut emitter).is_final(), "sealed");
+
+  input.seal();
+  assert!(
+    input.as_ref(&mut emitter).is_final(),
+    "sealing an already-sealed stream is a no-op, never a toggle"
   );
 }

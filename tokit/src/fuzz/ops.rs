@@ -88,8 +88,8 @@ define_ops! {
   SyncBalanced => "sync_balanced",
   /// `InputRef::is_eoi` — end-of-input query.
   IsEoi => "is_eoi",
-  /// `InputRef::set_final` / `is_final` — the partial-input finality flag.
-  SetFinal => "set_final",
+  /// `Input::seal` / `InputRef::is_final` — the partial-input finality world fact: monotone, and driver-only (a handle can READ it; nothing but the owning input can write it).
+  Seal => "seal",
   /// `InputRef::attempt(|_| Some(..))` — a closure attempt whose progress is kept.
   AttemptCommit => "attempt(commit)",
   /// `InputRef::attempt(|_| None)` — a closure attempt that declines and rolls back.

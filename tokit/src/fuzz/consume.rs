@@ -107,7 +107,7 @@ const LEAVES: &[Op] = &[
   Op::SyncThrough,
   Op::SyncBalanced,
   Op::IsEoi,
-  Op::SetFinal,
+  Op::Seal,
 ];
 
 /// The speculation-scope operations (each carries a nested body).
@@ -221,7 +221,7 @@ fn run_step(
     | Op::SyncThrough
     | Op::SyncBalanced
     | Op::IsEoi
-    | Op::SetFinal => run_leaf(ir, op, model, cov),
+    | Op::Seal => run_leaf(ir, op, model, cov),
 
     // ── closure attempts ──
     Op::AttemptCommit => run_attempt(
@@ -691,14 +691,14 @@ fn run_leaf(ir: &mut Ir<'_, '_>, op: Op, model: &mut Model<'_>, cov: &mut Covera
         assert!(eoi, "is_eoi: false at end of input");
       }
     }
-    Op::SetFinal => {
-      // Complete mode: `set_final` is a no-op and `is_final` is always true.
-      ir.set_final(false);
+    Op::Seal => {
+      // Complete mode: the input is final by definition, and a handle has no way to say otherwise —
+      // `is_final` is read-only, and the seal lives on the owning `Input`, which this handle borrows.
       assert!(
         ir.is_final(),
-        "Complete input must report is_final == true regardless of set_final"
+        "a Complete input must report is_final == true"
       );
-      assert_cursor(ir, model.o, "set_final moved the cursor");
+      assert_cursor(ir, model.o, "is_final moved the cursor");
     }
     other => unreachable!("run_leaf received a non-leaf op: {}", other.label()),
   }
