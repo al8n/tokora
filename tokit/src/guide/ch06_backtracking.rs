@@ -19,7 +19,7 @@
 //! | [`begin`](crate::InputRef::begin) → [`Transaction`](crate::Transaction) | imperative flow with several exits (loops, `match` arms) |
 //! | [`begin_with::<Commit>`](crate::InputRef::begin_with) | the same, but *keeping* progress is the common case |
 //! | [`begin_stacked`](crate::InputRef::begin_stacked) → [`StackedTransaction`](crate::StackedTransaction) | several live fallback points at once (best/longest match) |
-//! | [`ParseState`](crate::ParseState) session points | speculation a driver owns, settled across separate calls |
+//! | [`begin_point`](crate::InputRef::begin_point) session points | speculation settled across separate calls |
 //!
 //! All of them are the *same* mechanism — save a checkpoint, maybe restore it — wearing a
 //! different shape. A rollback is total: position, span, lexer state, the token cache, the
@@ -563,16 +563,13 @@
 //! parses a fragment, speculates, and decides on a later call. A borrowing guard cannot be stored
 //! beside the input it borrows.
 //!
-//! [`ParseState`](crate::ParseState) — the handle the state-carrying combinator callbacks
-//! ([`map_with`](crate::ParseInput::map_with), [`and_then_with`](crate::ParseInput::and_then_with),
-//! [`validate_with`](crate::ParseInput::validate_with), [`fold`](crate::TryParseInput::fold)) hand
-//! you — closes that shape by moving the speculation *inside* the state:
-//! [`begin_point`](crate::ParseState::begin_point) pushes a checkpoint onto an internal stack,
-//! and [`commit_point`](crate::ParseState::commit_point) /
-//! [`rollback_point`](crate::ParseState::rollback_point) settle the newest one;
-//! [`points()`](crate::ParseState::points) is the live depth. The stack *is* the last-in,
+//! **Session points** close that shape by putting the speculation on the input handle itself:
+//! [`begin_point`](crate::InputRef::begin_point) pushes a checkpoint onto the input's own stack,
+//! and [`commit_point`](crate::InputRef::commit_point) /
+//! [`rollback_point`](crate::InputRef::rollback_point) settle the newest one;
+//! [`points()`](crate::InputRef::points) is the live depth. The stack *is* the last-in,
 //! first-out order, so nesting needs no ids. One difference from the guards, and it is
-//! deliberate: dropping a `ParseState` with live points does **nothing** — a session ends
+//! deliberate: dropping an input with live points does **nothing** — a session ends
 //! explicitly, because implicitly rolling back an owned session would paper over a driver that
 //! lost track of its own points.
 //!

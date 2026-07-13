@@ -17,7 +17,8 @@ use super::{Cursor, Lexer};
 /// created or spent from another crate, so the raw contract below is unrepresentable downstream —
 /// the supported backtracking surface is the transaction guards
 /// ([`begin`](crate::InputRef::begin) / [`begin_stacked`](crate::InputRef::begin_stacked)), the
-/// [`ParseState`](crate::ParseState) session points, and
+/// [`InputRef`](crate::InputRef) session points
+/// ([`begin_point`](crate::InputRef::begin_point)), and
 /// [`attempt`](crate::InputRef::attempt)/[`try_attempt`](crate::InputRef::try_attempt). With the
 /// feature on, the last-in, first-out / lineage contract that follows applies unchanged.
 ///

@@ -112,7 +112,7 @@ impl Token<'_> for FuzzTok {
 
 /// [`ScriptLexer`]'s state: a single observable `tag` that plays no part in lexing (the byte-per-
 /// token stream ignores it) but rides every checkpoint, so the session-point driver can re-key it
-/// through [`ParseState::state_mut`](crate::ParseState::state_mut) and watch a rollback restore it.
+/// through [`InputRef::state_mut`](crate::InputRef::state_mut) and watch a rollback restore it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ScriptState {
   /// An opaque marker the harness sets to observe state save/restore. Lexing never reads it.

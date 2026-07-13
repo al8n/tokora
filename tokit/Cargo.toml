@@ -46,7 +46,7 @@ trace = ["std"]
 # Exposes the raw, unstable checkpoint backtracking API — `InputRef::{save, restore, commit}`
 # and, with them, the `Checkpoint` type's construction and consumption. Off by default: the
 # supported backtracking surface is the transaction guards (`begin`/`begin_stacked`), the
-# `ParseState` session points, and `attempt`/`try_attempt`. No dependencies; opting in only
+# `InputRef` session points, and `attempt`/`try_attempt`. No dependencies; opting in only
 # flips those three methods from crate-internal to public.
 unstable-raw = []
 

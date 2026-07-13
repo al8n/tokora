@@ -46,7 +46,7 @@ use super::{
 ///
 /// The guards fit lexical scopes; for owned, externally-driven speculation — a driver that owns
 /// its input and is stepped across separate calls — reach for
-/// [`ParseState`](crate::ParseState)'s session points; raw checkpoints sit beneath both.
+/// the [session points](crate::InputRef::begin_point); raw checkpoints sit beneath both.
 ///
 /// # Compile-time last-in, first-out
 ///

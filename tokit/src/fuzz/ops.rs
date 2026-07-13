@@ -118,9 +118,9 @@ define_ops! {
   RollbackToSavepoint => "rollback_to",
   /// `StackedTransaction::release` — forget savepoints, keeping progress.
   ReleaseSavepoint => "release",
-  /// `ParseState::begin_point` + `commit_point` — a session point kept.
+  /// `InputRef::begin_point` + `commit_point` — a session point kept.
   SessionCommit => "session.commit_point",
-  /// `ParseState::begin_point` + `rollback_point` — a session point rolled back.
+  /// `InputRef::begin_point` + `rollback_point` — a session point rolled back.
   SessionRollback => "session.rollback_point",
 }
 

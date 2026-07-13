@@ -572,6 +572,11 @@ where
       ))]
       witness: &self.witness,
       emitter,
+      // The session-point stack starts empty and stays unallocated until the first
+      // `InputRef::begin_point` — a reference that never opens a session pays three zeroed words
+      // once, at `as_ref`, and nothing thereafter.
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      points: std::vec::Vec::new(),
       _marker: PhantomData,
     }
   }

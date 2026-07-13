@@ -1,20 +1,20 @@
-//! The **session-point** driver: fuzzes [`ParseState`] session points — the owned, non-lexical
-//! speculation the transaction guards cannot express.
+//! The **session-point** driver: fuzzes [`InputRef`] session points — the non-lexical speculation
+//! the transaction guards cannot express.
 //!
-//! A [`ParseState`] borrows the input and does not expose the consume surface, so — exactly as the
-//! crate's own `parse_state` unit tests do — speculation is driven through the reachable
-//! [`state_mut`](ParseState::state_mut) (re-key the observable state tag) and
-//! [`emitter`](ParseState::emitter) (record a diagnostic) surface, and a rollback is watched to
-//! restore both. The generated sequence is a well-formed last-in, first-out stream of
-//! `begin_point` / `commit_point` / `rollback_point` (never settling with no live point), with a
-//! shadow stack asserting depth, the emission count, and the state tag after every step.
+//! A session point lives on the input handle itself, so — unlike a borrowing guard — it can be
+//! opened, *parsed through*, and settled in unrelated steps. This driver exercises exactly that:
+//! the generated sequence is a well-formed last-in, first-out stream of `begin_point` /
+//! `commit_point` / `rollback_point` (never settling with no live point) interleaved with real
+//! **token consumption**, diagnostic emission, and state re-keying, with a shadow stack asserting
+//! the depth, the cursor, the emission count, and the state tag after every step.
 //!
 //! # Oracles
 //!
 //! - **LIFO depth** — `points()` always equals the shadow stack depth.
-//! - **Commit keeps** — after `commit_point`, the current emission count and state tag survive.
-//! - **Rollback restores** — after `rollback_point`, the emission count and state tag return to the
-//!   values captured when that point opened.
+//! - **Commit keeps** — after `commit_point`, the current cursor, emission count, and state tag
+//!   survive.
+//! - **Rollback restores** — after `rollback_point`, the cursor, emission count, and state tag all
+//!   return to the values captured when that point opened.
 
 use std::vec::Vec;
 
@@ -24,16 +24,20 @@ use super::{
   rng::Rng,
 };
 use crate::{
-  ParseState,
+  InputRef,
   emitter::Emitter,
   span::{SimpleSpan, Spanned},
 };
 
-/// A session sub-operation. Only `Commit`/`Rollback` map to census ops; `Begin`/`Emit`/`Rekey` are
-/// the checkpoint-tracked "work" a point speculates over.
+/// The session handle this driver steps: the input reference the session points live on.
+type Ir<'a, 'inp> = InputRef<'a, 'inp, ScriptLexer<'a>, FuzzCtx<'a>>;
+
+/// A session sub-operation. Only `Commit`/`Rollback` map to census ops; `Begin`/`Consume`/`Emit`/
+/// `Rekey` are the checkpoint-tracked "work" a point speculates over.
 #[derive(Debug, Clone, Copy)]
 enum SOp {
   Begin,
+  Consume,
   Emit,
   Rekey(u64),
   Commit,
@@ -48,22 +52,24 @@ fn gen_session(rng: &mut Rng) -> Vec<SOp> {
   let mut out = Vec::with_capacity(n + 2);
   for _ in 0..n {
     if depth == 0 {
-      match rng.below(3) {
+      match rng.below(4) {
         0 | 1 => {
           out.push(SOp::Begin);
           depth += 1;
         }
+        2 => out.push(SOp::Consume),
         _ => out.push(SOp::Emit),
       }
     } else {
-      match rng.below(6) {
+      match rng.below(7) {
         0 => {
           out.push(SOp::Begin);
           depth += 1;
         }
         1 => out.push(SOp::Emit),
         2 => out.push(SOp::Rekey(rng.next_u64())),
-        3 => {
+        3 | 4 => out.push(SOp::Consume),
+        5 => {
           out.push(SOp::Commit);
           depth -= 1;
         }
@@ -85,18 +91,23 @@ fn gen_session(rng: &mut Rng) -> Vec<SOp> {
   out
 }
 
-/// Records a diagnostic through the state's emitter (bumps the emission count).
-fn emit<'inp>(ps: &mut ParseState<'_, 'inp, '_, ScriptLexer<'inp>, FuzzCtx<'inp>>) {
+/// Records a diagnostic through the input's emitter (bumps the emission count).
+fn emit<'inp>(ir: &mut Ir<'inp, '_>) {
   <CountEmitter as Emitter<'inp, ScriptLexer<'inp>>>::emit_error(
-    ps.emitter(),
+    ir.emitter(),
     Spanned::new(SimpleSpan::new(0, 1), FuzzError::Diagnostic),
   )
   .expect("CountEmitter is non-fatal");
 }
 
-/// The live emission count observed through the state's emitter.
-fn count<'inp>(ps: &mut ParseState<'_, 'inp, '_, ScriptLexer<'inp>, FuzzCtx<'inp>>) -> u64 {
-  ps.emitter().count()
+/// The live emission count observed through the input's emitter.
+fn count(ir: &mut Ir<'_, '_>) -> u64 {
+  ir.emitter().count()
+}
+
+/// The live cursor offset — the fact only real token consumption moves.
+fn at(ir: &Ir<'_, '_>) -> usize {
+  *ir.cursor().as_inner()
 }
 
 /// Runs one session case over `src`, checking the session-point oracles.
@@ -120,57 +131,71 @@ pub(crate) fn run(src: &[u8], seq_seed: u64, cov: &mut Coverage) {
 
   let seq = gen_session(&mut rng);
 
-  let start = *ir.cursor();
-  let mut ps = ParseState::new(&mut ir, start);
-  // Each live point remembers the emission count and state tag captured when it opened.
-  let mut stack: Vec<(u64, u64)> = Vec::new();
-  let mut cur_tag: u64 = ps.state().tag;
+  // Each live point remembers the emission count, state tag, and cursor captured when it opened.
+  let mut stack: Vec<(u64, u64, usize)> = Vec::new();
+  let mut cur_tag: u64 = ir.state().tag;
 
   for sop in seq {
     match sop {
       SOp::Begin => {
-        let snap = (count(&mut ps), cur_tag);
-        ps.begin_point();
+        let snap = (count(&mut ir), cur_tag, at(&ir));
+        ir.begin_point();
         stack.push(snap);
         assert_eq!(
-          ps.points(),
+          ir.points(),
           stack.len(),
           "session: points() diverged from the shadow depth"
         );
       }
-      SOp::Emit => emit(&mut ps),
+      // Real parsing *through* an open point — the thing a borrowing guard cannot be held across.
+      SOp::Consume => {
+        let _ = ir.next().expect("complete + non-fatal");
+      }
+      SOp::Emit => emit(&mut ir),
       SOp::Rekey(t) => {
-        *ps.state_mut() = ScriptState { tag: t };
+        *ir.state_mut() = ScriptState { tag: t };
         cur_tag = t;
       }
       SOp::Commit => {
         cov.mark(Op::SessionCommit);
-        ps.commit_point();
+        let before = at(&ir);
+        ir.commit_point();
         stack.pop();
         assert_eq!(
-          ps.points(),
+          ir.points(),
           stack.len(),
           "session: commit_point left the wrong depth"
         );
-        // Commit keeps: the current count and tag are unchanged; nothing to assert beyond depth.
+        // Commit keeps: the progress made through the point stays exactly where it was.
+        assert_eq!(
+          at(&ir),
+          before,
+          "session: commit_point moved the cursor instead of keeping the progress"
+        );
       }
       SOp::Rollback => {
         cov.mark(Op::SessionRollback);
-        let (saved_count, saved_tag) = stack.pop().expect("generator keeps the stream well-formed");
-        ps.rollback_point();
+        let (saved_count, saved_tag, saved_at) =
+          stack.pop().expect("generator keeps the stream well-formed");
+        ir.rollback_point();
         cur_tag = saved_tag;
         assert_eq!(
-          ps.points(),
+          ir.points(),
           stack.len(),
           "session: rollback_point left the wrong depth"
         );
         assert_eq!(
-          count(&mut ps),
+          at(&ir),
+          saved_at,
+          "session: rollback did not restore the cursor"
+        );
+        assert_eq!(
+          count(&mut ir),
           saved_count,
           "session: rollback did not restore the emission count"
         );
         assert_eq!(
-          ps.state().tag,
+          ir.state().tag,
           saved_tag,
           "session: rollback did not restore the state tag"
         );
@@ -178,7 +203,7 @@ pub(crate) fn run(src: &[u8], seq_seed: u64, cov: &mut Coverage) {
     }
   }
   assert_eq!(
-    ps.points(),
+    ir.points(),
     0,
     "session: points left open at the end of the case"
   );

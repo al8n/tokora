@@ -53,6 +53,9 @@ mod tests;
 #[cfg(all(test, feature = "logos", feature = "std"))]
 mod partial_tests;
 
+#[cfg(all(test, feature = "logos", feature = "std"))]
+mod session_tests;
+
 /// A reference to an `Input` instance.
 pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = (), Cmpl = Complete>
 where
@@ -88,6 +91,20 @@ where
   ))]
   pub(super) witness: &'closure super::Witness,
   pub(super) emitter: &'closure mut Ctx::Emitter,
+  /// The live **session points**, oldest first: the checkpoints [`begin_point`](Self::begin_point)
+  /// has saved and neither committed nor rolled back. The vector *is* the last-in, first-out
+  /// stack — [`commit_point`](Self::commit_point) and [`rollback_point`](Self::rollback_point) pop
+  /// its back — so nesting is structural and needs no id validation.
+  ///
+  /// It is the one **owned** field on this otherwise all-borrowed handle, and that is the point:
+  /// a session point is a value, not a borrow, so opening one leaves nothing borrowed and the
+  /// consume surface stays callable — the non-lexical property a [`Transaction`] guard cannot
+  /// have (see [`begin_point`](Self::begin_point)). It never allocates until the first
+  /// [`begin_point`](Self::begin_point), and it is declared **last** so the scanner-hot borrowed
+  /// fields above it keep their offsets. Gated to the allocator builds, exactly like the guards'
+  /// savepoint stack.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  pub(super) points: std::vec::Vec<Checkpoint<'inp, 'closure, L>>,
   pub(super) _marker: PhantomData<Lang>,
 }
 
@@ -669,8 +686,8 @@ where
   ///   speculation;
   /// - [`begin_with::<Commit>`](Self::begin_with) — commit-by-default flows where progress
   ///   is kept on most exits;
-  /// - [`ParseState`](crate::ParseState) session points — owned, non-lexical speculation a
-  ///   driver steps across separate calls.
+  /// - [`begin_point`](Self::begin_point) session points — **non-lexical** speculation a driver
+  ///   opens in one call and settles in a later one (the shape a borrowing guard cannot express).
   ///
   /// Raw [`save`](Self::save) / [`restore`](Self::restore) sit beneath all of these as the
   /// `unstable-raw` escape hatch — reachable only with that feature, for the rare shape no guard
@@ -724,6 +741,126 @@ where
     }
   }
 
+  /// Opens a **session point**: saves a checkpoint of the current position onto the input's
+  /// internal point stack and **pins** its lineage id, exactly as a transaction guard pins its
+  /// begin point. Returns nothing — and that is the whole feature.
+  ///
+  /// # The shape the guards cannot express
+  ///
+  /// Every guard ([`begin`](Self::begin), [`begin_stacked`](Self::begin_stacked)) and both
+  /// attempts are **lexical**: the guard *is* a borrow of this input, so while one is alive the
+  /// input is not, and the speculative scope can only end where the borrow does — inside one
+  /// expression, one block, one call. A driver that is stepped across *separate method calls* — a
+  /// REPL, an IDE that parses a fragment, speculates, and decides on a later call — cannot hold a
+  /// guard beside the input it borrows: that value would be self-referential.
+  ///
+  /// A session point is a **value on the input**, not a borrow of it. `begin_point` takes
+  /// `&mut self`, pushes, and returns; the borrow ends with the call, so the whole consume surface
+  /// ([`next`](Self::next), [`peek`](Self::peek), [`try_expect`](Self::try_expect), any parser you
+  /// hand this input to) stays callable *with the point still open*, in this call and in later
+  /// ones:
+  ///
+  /// ```ignore
+  /// inp.begin_point();          // mark — nothing is borrowed afterwards
+  /// let t = inp.next()?;        // parse, in this call or a later one
+  /// let u = inp.next()?;        // …and again
+  /// inp.rollback_point();       // unmark: cursor, span, state, cache, diagnostics all return
+  /// ```
+  ///
+  /// Settle the point with [`commit_point`](Self::commit_point) (keep the progress) or
+  /// [`rollback_point`](Self::rollback_point) (return to it). The stack *is* the last-in,
+  /// first-out order — points settle newest-first — so nesting is structural and needs no id.
+  /// [`points`](Self::points) is the live depth.
+  ///
+  /// # A point pins its base
+  ///
+  /// A session point is the base of a speculative scope, so it carries the same hazard a guard
+  /// base does until it is settled: a rewind reaching *below* it would tear its foundation out.
+  /// The pin makes such a rewind **panic where it is requested** rather than corrupt the timeline
+  /// silently. Two ways to reach it, both caller bugs:
+  ///
+  /// - a raw [`restore`](Self::restore) below the point (reachable only under `unstable-raw`);
+  /// - leaving a point open across the end of an enclosing guard or attempt, whose own settle then
+  ///   rewinds below it.
+  ///
+  /// Settle your points before the scope that opened them ends and neither can arise.
+  ///
+  /// # No implicit rollback on drop
+  ///
+  /// Unlike a guard — whose drop rolls back (or, under [`Commit`], keeps) its undecided scope —
+  /// dropping the input with live session points does **nothing** for them: the checkpoints are
+  /// discarded with it and the input dies alongside them. A session ends *explicitly*. Rolling an
+  /// owned session back implicitly on drop would silently paper over a driver that lost track of
+  /// its own points — the deliberate opposite of a guard's drop policy — so the end is left
+  /// explicit to surface that bug instead.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  pub fn begin_point(&mut self) {
+    trace_event!(self, "begin_point");
+    let ckp = self.save();
+    // Pin the base exactly like a guard: a rewind reaching below this point now panics at that
+    // rewind instead of silently invalidating the session's foundation.
+    self.pin_checkpoint(ckp.ckp_id);
+    self.points.push(ckp);
+  }
+
+  /// Settles the newest session point by **committing** it: pops it off the internal stack,
+  /// releases its pin, and keeps every bit of progress made since it opened — the consuming
+  /// [`commit`](Self::commit) that releases the checkpoint's lineage entry.
+  ///
+  /// # Panics
+  ///
+  /// Panics with a message prefixed `no live session point` when there is no open point to
+  /// commit.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  pub fn commit_point(&mut self) {
+    trace_event!(self, "commit_point");
+    let ckp = self.points.pop().expect("no live session point to commit");
+    // Kept, not restored: unpin the base, then the raw consuming commit keeps the progress and
+    // releases the lineage entry.
+    self.unpin_checkpoint(ckp.ckp_id);
+    self.commit(ckp);
+  }
+
+  /// Settles the newest session point by **rolling back** to it: pops it off the internal stack,
+  /// releases its pin **first** — so restoring to the point does not trip its own pin, mirroring
+  /// the guards' settle ordering — then performs the checked [`restore`](Self::restore). Position,
+  /// span, lexer state, token cache, emission log, dedup watermark, and poison boundary all return
+  /// to where the point opened.
+  ///
+  /// # Panics
+  ///
+  /// Panics with a message prefixed `no live session point` when there is no open point to roll
+  /// back.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+  #[cfg_attr(not(tarpaulin), inline)]
+  pub fn rollback_point(&mut self) {
+    trace_event!(self, "rollback_point");
+    let ckp = self
+      .points
+      .pop()
+      .expect("no live session point to roll back");
+    // Unpin the base FIRST so the checked restore below does not see the point's own begin point
+    // as pinned — rolling back to it is legal. A rewind *below* it would already have panicked at
+    // that rewind (the pin's detect-at-cause check).
+    self.unpin_checkpoint(ckp.ckp_id);
+    self.restore(ckp);
+  }
+
+  /// The number of live session points — the depth of the speculation stack
+  /// [`begin_point`](Self::begin_point) pushes onto, for a driver tracking where it sits in a
+  /// nested speculation.
+  #[cfg(any(feature = "std", feature = "alloc"))]
+  #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  pub fn points(&self) -> usize {
+    self.points.len()
+  }
+
   /// Hands out the next input-global savepoint sequence number; see
   /// [`Lineage::next_savepoint_seq`](super::Lineage::next_savepoint_seq) for the uniqueness
   /// invariant it maintains.
@@ -760,11 +897,11 @@ where
   }
 
   /// Pins `id` — the begin-point checkpoint of a transaction guard, an
-  /// [`attempt`](Self::attempt), or a [`ParseState`](crate::ParseState) session point — so a raw
+  /// [`attempt`](Self::attempt), or a [session point](Self::begin_point) — so a raw
   /// [`restore`](Self::restore) reaching below it panics at the restore. Every guard constructor
   /// ([`begin_with`](Self::begin_with), [`begin_stacked_with`](Self::begin_stacked_with)),
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt), and
-  /// [`ParseState::begin_point`](crate::ParseState::begin_point) pins on entry; the matching
+  /// [`begin_point`](Self::begin_point) pins on entry; the matching
   /// [`unpin_checkpoint`](Self::unpin_checkpoint) runs on every settle path. See
   /// [`Lineage::pin`](super::Lineage::pin) for the borrowck-serialization argument (session points
   /// are serialized instead by their own last-in, first-out stack).
@@ -890,7 +1027,7 @@ where
   /// it the method is crate-internal, so a [`Checkpoint`] can be neither obtained nor consumed
   /// from another crate. The supported backtracking surface is the transaction guards
   /// ([`begin`](Self::begin) / [`begin_stacked`](Self::begin_stacked)), the
-  /// [`ParseState`](crate::ParseState) session points, and
+  /// [session points](Self::begin_point), and
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) — together these cover every
   /// legal backtracking shape. The last-in, first-out / lineage contract documented here and on
   /// [`restore`](Self::restore) governs the raw triple unchanged whenever the feature is on.
@@ -924,7 +1061,7 @@ where
 
   /// The crate-internal raw `save`, used when the `unstable-raw` valve is off — the primitive the
   /// transaction guards, [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt), and the
-  /// [`ParseState`](crate::ParseState) session points build on. Same body as the public flavor;
+  /// [session points](Self::begin_point) build on. Same body as the public flavor;
   /// only its visibility differs.
   #[cfg(not(feature = "unstable-raw"))]
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -995,7 +1132,7 @@ where
   /// [`commit`](Self::commit)) and is public **only** under the `unstable-raw` feature; without
   /// it the method is crate-internal. The supported backtracking surface is the transaction
   /// guards ([`begin`](Self::begin) / [`begin_stacked`](Self::begin_stacked)), the
-  /// [`ParseState`](crate::ParseState) session points, and
+  /// [session points](Self::begin_point), and
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt); each enforces the
   /// last-in, first-out discipline below by construction. That contract applies to the raw
   /// triple unchanged whenever the feature is on.
@@ -1096,7 +1233,7 @@ where
 
   /// The crate-internal raw `restore`, used when the `unstable-raw` valve is off. Same body as
   /// the public flavor; only its visibility differs. The transaction guards, the
-  /// [`ParseState`](crate::ParseState) session points, and
+  /// [session points](Self::begin_point), and
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) rewind through it.
   #[cfg(not(feature = "unstable-raw"))]
   #[cfg_attr(not(tarpaulin), inline(always))]
@@ -1149,7 +1286,7 @@ where
   /// [`restore`](Self::restore) / `commit`) and is public **only** under the `unstable-raw`
   /// feature; without it the method is crate-internal. The supported backtracking surface is the
   /// transaction guards ([`begin`](Self::begin) / [`begin_stacked`](Self::begin_stacked)), the
-  /// [`ParseState`](crate::ParseState) session points, and
+  /// [session points](Self::begin_point), and
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt); the lineage contract below
   /// applies to the raw triple unchanged whenever the feature is on.
   ///
@@ -1195,7 +1332,7 @@ where
 
   /// The crate-internal raw `commit`, used when the `unstable-raw` valve is off. Same body as the
   /// public flavor; only its visibility differs. Its sole in-crate caller is the allocator-gated
-  /// [`ParseState::commit_point`](crate::ParseState::commit_point) (the guards release their kept
+  /// [`commit_point`](Self::commit_point) (the guards release their kept
   /// begin points through unpin/forget directly), so in an allocator-less valve-off build it is
   /// deliberately uncalled — kept defined so the raw triple stays whole in every configuration.
   #[cfg(not(feature = "unstable-raw"))]

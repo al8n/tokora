@@ -43,7 +43,7 @@
 //! 6. [`ch06_backtracking`](crate::guide::ch06_backtracking) — speculation: [`attempt`](crate::InputRef::attempt) /
 //!    [`try_attempt`](crate::InputRef::try_attempt), the [`Transaction`](crate::Transaction)
 //!    guards and their [`DropPolicy`](crate::DropPolicy) typestate, and
-//!    [`ParseState`](crate::ParseState) session points.
+//!    the [`InputRef`](crate::InputRef) session points.
 //! 7. [`ch07_diagnostics`](crate::guide::ch07_diagnostics) — diagnostics: [`Fatal`](crate::emitter::Fatal) versus
 //!    [`Verbose`](crate::emitter::Verbose), [`Severity`](crate::emitter::Severity), labels,
 //!    expected sets, and the [`diagnostics()`](crate::emitter::Verbose::diagnostics) view.
