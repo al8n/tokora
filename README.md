@@ -247,6 +247,27 @@ Error recovery works seamlessly with the atomically composable emitter system - 
   - `Window` - Type-level peek buffer capacity for deterministic lookahead
   - **Note**: Lookahead windows support 1-32 token capacity via `typenum::{U1..U32}`
 
+## The Guide
+
+`tokit::guide` is a ten-chapter tutorial that builds a small language ("Calc") end to end — lexing,
+combinators, dispatch, Pratt expressions, backtracking, diagnostics, recovery, partial input, and
+testing. It ships with the crate, so it renders on docs.rs alongside the API reference.
+
+The chapters live in `tokit/src/guide/*.md` and are the single source: `mod.rs` pulls each one in
+with `#[doc = include_str!]`, so every code block is a doctest that `cargo test --doc` compiles and
+runs, and mdbook renders the same files as a book:
+
+```sh
+cargo install mdbook          # once
+cd tokit && mdbook build      # -> target/book/index.html
+cd tokit && mdbook serve      # live preview on localhost:3000
+```
+
+The chapters use rustdoc intra-doc links (`crate::InputRef`), which rustdoc validates under
+`-D warnings`. A small mdbook preprocessor, `tokit/tools/mdbook_docs_links.py`, rewrites them to
+docs.rs URLs for the book, and fails the book build on any target missing from its map — so a new
+link in the guide cannot silently become a dead link in the book.
+
 ## Examples
 
 All examples are self-contained and runnable with `cargo run --example <name> --features std,logos`.
