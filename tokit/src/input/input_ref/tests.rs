@@ -3918,3 +3918,98 @@ fn sync_balanced_hole_emission_unwinds_on_rollback() {
   let holes: usize = emitter.skipped_regions().values().map(|g| g.len()).sum();
   assert_eq!(holes, 1);
 }
+
+// ── Panic safety: an unwinding closure must not strand the attempt's pinned begin point ──────
+//
+// `attempt`/`try_attempt` pin their begin point and then hand the input to user code. If that
+// code panics and the host catches the unwind — a test harness, a fuzzer, an editor server: any
+// host that refuses to die on a panic — the settle arms never run. So the begin point is *held*
+// by a rollback-on-drop `Transaction`, and its `Drop` releases the pin and the lineage id on the
+// unwind edge exactly as it does on a decline. Without that, the pin would sit on the input for
+// the rest of its life, for an attempt nobody can ever settle: a later restore to an older target
+// scans upward, meets the orphan, and panics spuriously — and the live stack grows without bound.
+//
+// `catch_unwind` needs an unwinding runtime. A `panic = "abort"` build cannot run these two, and
+// has no need to: there the process dies at the panic, so no input survives to be poisoned.
+
+/// An unlimited `Silent` probe input: the attempts below speculate over real tokens, so the
+/// limiter must never trip (contrast [`probe_input`], whose limit of 2 is the point of it).
+fn unlimited_probe_input(src: &str) -> Input<'_, ProbeLexer<'_>, ProbeCtx<'_>, ()> {
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache(
+    src,
+    ProbeLimiter::with_limit(usize::MAX),
+    cache,
+  )
+}
+
+#[test]
+fn attempt_closure_panic_releases_the_pinned_begin_point() {
+  let mut input = unlimited_probe_input("1 2 3 4 5");
+  let mut emitter = Silent::<ProbeErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    let baseline = inp.live_checkpoints_len();
+
+    // An OLDER checkpoint — the restore target a stranded pin would poison.
+    let outer = inp.save();
+    let _ = inp.next().unwrap().expect("1");
+
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let _: Option<()> = inp.attempt(|inp| {
+        let _ = inp.next().unwrap().expect("2");
+        panic!("the attempt's closure unwinds")
+      });
+    }));
+    assert!(caught.is_err(), "the panic unwound out of the attempt");
+
+    // The abandoned begin point released BOTH memos on the way out, so the older checkpoint is
+    // still restorable. A pin left above `outer` would make this restore panic instead
+    // ("restore would invalidate a live transaction guard or attempt").
+    inp.restore(outer);
+    assert_eq!(
+      inp.live_checkpoints_len(),
+      baseline,
+      "the unwind left no live checkpoint behind either"
+    );
+  }
+  assert_eq!(
+    input.pinned_checkpoints_len(),
+    0,
+    "a caught panic inside `attempt` leaves no pin: the pin set holds exactly the live begin \
+     points, and with the attempt gone there are none"
+  );
+}
+
+#[test]
+fn try_attempt_closure_panic_releases_the_pinned_begin_point() {
+  let mut input = unlimited_probe_input("1 2 3 4 5");
+  let mut emitter = Silent::<ProbeErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    let baseline = inp.live_checkpoints_len();
+
+    let outer = inp.save();
+    let _ = inp.next().unwrap().expect("1");
+
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+      let _: Result<(), ()> = inp.try_attempt(|inp| {
+        let _ = inp.next().unwrap().expect("2");
+        panic!("the attempt's closure unwinds")
+      });
+    }));
+    assert!(caught.is_err(), "the panic unwound out of the attempt");
+
+    inp.restore(outer);
+    assert_eq!(
+      inp.live_checkpoints_len(),
+      baseline,
+      "the unwind left no live checkpoint behind either"
+    );
+  }
+  assert_eq!(
+    input.pinned_checkpoints_len(),
+    0,
+    "a caught panic inside `try_attempt` leaves no pin either"
+  );
+}

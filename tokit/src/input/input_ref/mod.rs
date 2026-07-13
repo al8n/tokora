@@ -490,6 +490,14 @@ where
   /// `attempt_inner_lifo_clean_raw_pair_is_legal`, and
   /// `attempt_backtrack_over_trip_reemits_diagnostic_exactly_once`.
   ///
+  /// # If the closure panics
+  ///
+  /// The begin point is *held* by a [`Transaction`] for the whole span of `f`, so an unwind out
+  /// of `f` settles it exactly as a decline does — the guard's `Drop` rolls back to the begin
+  /// point and releases its pin and its lineage id. A host that catches the unwind
+  /// (`catch_unwind`: a test harness, a fuzzer, an editor server) is therefore handed an input
+  /// that is still consistent and still usable, with nothing pinned on its behalf.
+  ///
   /// For fallible closures that carry an error value, see
   /// [`try_attempt`](Self::try_attempt).
   pub fn attempt<F, R>(&mut self, f: F) -> Option<R>
@@ -497,38 +505,29 @@ where
     F: FnOnce(&mut Self) -> Option<R>,
   {
     trace_event!(self, "attempt");
-    let ckp = self.save();
-    // Pin the attempt's begin point: a raw restore below it inside `f` panics at the restore.
-    #[cfg(any(feature = "std", feature = "alloc"))]
-    self.pin_checkpoint(ckp.ckp_id);
+    // The begin point is *held* by a rollback-on-drop [`Transaction`], not by a bare local: `f`
+    // is user code, and user code can unwind. A `Checkpoint` dropped by an unwind releases
+    // neither its pin nor its lineage id, so a caught panic would strand a pinned begin point
+    // that nothing can ever settle — a later restore reaching past it would then panic
+    // spuriously, and the live stack would grow for the input's lifetime. The guard's `Drop` is
+    // the crate's existing, silent, drop-safe settle, and it is what runs on that edge.
+    let mut txn = self.guard_with::<Rollback>();
 
-    match f(self) {
+    match f(&mut txn) {
+      // Progress kept: `commit` unpins the begin point and drops its lineage id, rather than
+      // leaving either to grow the live stack. The now-decided guard's `Drop` is a no-op.
       Some(result) => {
-        // Progress kept: the checkpoint is dropped without restoring, so unpin and drop its
-        // lineage id too rather than leaving either to grow the live stack.
-        #[cfg(any(feature = "std", feature = "alloc"))]
-        {
-          self.unpin_checkpoint(ckp.ckp_id);
-          self.forget_checkpoint(ckp.ckp_id);
-        }
+        txn.commit();
         Some(result)
       }
+      // Declined: `rollback` unpins the begin point FIRST (rolling back to it is legal, so the
+      // checked restore must not see it pinned), then rewinds — position, lexer state,
+      // emissions, dedup watermark, poison boundary — leaving no trace. A raw restore *below*
+      // this checkpoint through `f` would already have panicked at that restore
+      // (detect-at-cause), so the stale-base assert inside `rollback` is an unreachable
+      // backstop, kept for defense in depth and for the allocator-less path, which pins nothing.
       None => {
-        // Roll back to the attempt's own checkpoint. Unpin it FIRST so the restore below does
-        // not see the attempt's own begin point as pinned (rolling back to it is legal). A raw
-        // restore *below* this checkpoint through `f` would already have panicked at that
-        // restore (detect-at-cause), so the stale assert here is now an unreachable backstop —
-        // kept for defense in depth and for the allocator-less path, which pins nothing.
-        #[cfg(any(feature = "std", feature = "alloc"))]
-        {
-          self.unpin_checkpoint(ckp.ckp_id);
-          assert!(
-            self.live_contains(ckp.ckp_id),
-            "attempt checkpoint is stale (invalidated by an earlier restore)"
-          );
-        }
-        trace_event!(self, "rollback");
-        self.restore(ckp);
+        txn.rollback();
         None
       }
     }
@@ -561,40 +560,34 @@ where
   /// (in `src/input/input_ref/tests.rs`): `try_attempt_err_rolls_back_everything`,
   /// `try_attempt_nested_lifo`, and
   /// `try_attempt_inner_raw_restore_below_checkpoint_panics_at_restore`.
+  ///
+  /// # If the closure panics
+  ///
+  /// Exactly [`attempt`](Self::attempt)'s guarantee: the begin point rides in a [`Transaction`]
+  /// for the whole span of `f`, so an unwind settles it like a decline — roll back, unpin,
+  /// release the lineage id — and a host that catches the panic keeps a consistent input with
+  /// nothing pinned on its behalf.
   pub fn try_attempt<F, T, E>(&mut self, f: F) -> Result<T, E>
   where
     F: FnOnce(&mut Self) -> Result<T, E>,
   {
     trace_event!(self, "try_attempt");
-    let ckp = self.save();
-    // Pin the attempt's begin point: a raw restore below it inside `f` panics at the restore.
-    #[cfg(any(feature = "std", feature = "alloc"))]
-    self.pin_checkpoint(ckp.ckp_id);
+    // See `attempt`: the begin point rides in a rollback-on-drop [`Transaction`] for the whole
+    // span of `f`, so an unwind out of user code settles it through the guard's `Drop` instead
+    // of stranding a pin nobody can release.
+    let mut txn = self.guard_with::<Rollback>();
 
-    match f(self) {
+    match f(&mut txn) {
+      // Progress kept: `commit` unpins and drops the checkpoint's lineage id (see `attempt`).
       Ok(result) => {
-        // Progress kept: unpin and drop the checkpoint's lineage id (see `attempt`).
-        #[cfg(any(feature = "std", feature = "alloc"))]
-        {
-          self.unpin_checkpoint(ckp.ckp_id);
-          self.forget_checkpoint(ckp.ckp_id);
-        }
+        txn.commit();
         Ok(result)
       }
+      // Declined: `rollback` unpins FIRST (rolling back to the attempt's own base is legal) and
+      // then rewinds through the checked restore; its stale-base assert is the same unreachable
+      // backstop `attempt` describes.
       Err(e) => {
-        // See `attempt`: unpin FIRST (rolling back to the attempt's own base is legal), then the
-        // now-unreachable stale backstop. A raw restore below this checkpoint through `f` would
-        // already have panicked at that restore (detect-at-cause).
-        #[cfg(any(feature = "std", feature = "alloc"))]
-        {
-          self.unpin_checkpoint(ckp.ckp_id);
-          assert!(
-            self.live_contains(ckp.ckp_id),
-            "attempt checkpoint is stale (invalidated by an earlier restore)"
-          );
-        }
-        trace_event!(self, "rollback");
-        self.restore(ckp);
+        txn.rollback();
         Err(e)
       }
     }
@@ -637,6 +630,19 @@ where
     &mut self,
   ) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, D, Cmpl> {
     trace_event!(self, "begin");
+    self.guard_with::<D>()
+  }
+
+  /// The untraced core of [`begin_with`](Self::begin_with): saves the begin point, pins it, and
+  /// hands both to a [`Transaction`], whose `Drop` owns their release from that moment on.
+  ///
+  /// Split out so [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) can hold *their*
+  /// begin point in the very same guard — the crate's one drop-safe answer to a pinned checkpoint
+  /// that must outlive a call into user code — while still tracing under their own name.
+  #[cfg_attr(not(tarpaulin), inline)]
+  fn guard_with<D: DropPolicy>(
+    &mut self,
+  ) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, D, Cmpl> {
     let ckp = self.save();
     // Pin the begin point: a raw restore below it (through the guard's `DerefMut`) now panics at
     // the restore. Every settle path (commit, rollback, Drop — both policy flavors) unpins.
