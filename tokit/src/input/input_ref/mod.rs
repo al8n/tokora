@@ -390,6 +390,12 @@ where
   /// caller can trigger by re-entering a scanner. Returns whether it latched. A
   /// plain (non-limit) lexer error leaves `check()` `Ok` and does not latch, so the
   /// caller keeps scanning for the next valid token.
+  ///
+  /// This is the crate's **terminal predicate**, and [`classify`](Self::classify) — the sole caller
+  /// — asks it *first*, before the partial-input frontier holdback is even considered. That order is
+  /// the law: a tripped limit is terminal, so it may never be withheld as an
+  /// [`Incomplete`](crate::error::Incomplete) merely because the tripping token landed on a chunk
+  /// boundary.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn latch_if_limit_tripped(&mut self, lexer: &L, boundary: L::Offset) -> bool {
     if lexer.check().is_err() {
@@ -1580,12 +1586,21 @@ where
   ///
   /// 1. **Frontier holdback** — a token whose span **end touches the buffer end** is not yielded;
   ///    it may be a prefix of a longer token once more input arrives.
-  /// 2. **Frontier error** — a lexer error whose span **touches the buffer end** is not emitted; it
-  ///    may be a truncation artifact.
+  /// 2. **Frontier error** — a **non-terminal** lexer error whose span **touches the buffer end** is
+  ///    not emitted; it may be a truncation artifact.
   /// 3. **Non-final EOF** — lexer exhaustion is not treated as genuine end of input; more may come.
   ///
-  /// A genuine limit trip (poison boundary) still yields `Ok(None)` — it is terminal, not
-  /// incomplete. With [`is_final`](Self::is_final) `== true`, or on a
+  /// # A terminal trip outranks all three
+  ///
+  /// Every rule above says *"more input may change this"* — so none of them may apply to a condition
+  /// no input can change. A limit trip (and the poison boundary it latches) is exactly that: it
+  /// emits its diagnostic and yields `Ok(None)` **even when the tripping token ends on the buffer
+  /// end**, because a limiter's tally is monotone and no refill can un-trip it. Terminal beats
+  /// incomplete, always — see the [law](crate::input#terminal-beats-incomplete-and-they-never-substitute),
+  /// the dual of the crate's
+  /// [never-recoverable law](crate::error::Incomplete#the-never-recoverable-law).
+  ///
+  /// With [`is_final`](Self::is_final) `== true`, or on a
   /// [`Complete`](crate::input::Complete) input, all three rules are off and `next` behaves
   /// identically to before this typestate existed (the checks are eliminated at monomorphization).
   /// The frontier holdback means the last token only becomes visible after more input arrives or
@@ -1628,6 +1643,131 @@ where
     }
   }
 
+  /// Asks the partial-input frontier holdback (rules 1 and 2) about one lexed item: in
+  /// [`Partial`](crate::input::Partial) non-final mode, an item whose span END touches the buffer
+  /// end may be a prefix of a longer construct once more input arrives, so it is neither yielded nor
+  /// emitted.
+  ///
+  /// **It may only ever be asked about a NON-TERMINAL item.** The holdback's whole premise is that
+  /// more input could change the answer; a terminal condition is precisely the one that no input can
+  /// change, so it is ranked first and never reaches here. [`classify`](Self::classify) is the only
+  /// caller, and it asks in that order — see its docs for the law.
+  ///
+  /// Const-gated: on a [`Complete`](crate::input::Complete) input `Cmpl::PARTIAL` is a `false`
+  /// constant, so this is dead-code-eliminated and `is_final()` is never even evaluated.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn withhold_at_frontier(&self, span: &L::Span) -> bool {
+    Cmpl::PARTIAL && !self.is_final() && span.end_ref() >= &self.input.len()
+  }
+
+  /// The fatal-emit exit every lexing driver shares: the emitter **rejected** a lexer error's
+  /// diagnostic, so settle the input at the lexer — the rejected item's span, and the state that
+  /// produced it — and hand the error back to be propagated.
+  ///
+  /// A trip's poison boundary is already latched by the time this can run
+  /// ([`classify`](Self::classify) latches before the verdict is even returned), so a fatal exit
+  /// records the trip for every later operation instead of losing it with the unwind.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn settle_fatal(
+    &mut self,
+    lexer: &L,
+    e: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  ) -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error {
+    self.set_span_after_consume(lexer.span().into());
+    *self.state = lexer.state().clone();
+    e
+  }
+
+  /// Ranks one freshly-lexed item into the [`Verdict`] its driver must act on — **the** choke point
+  /// where a terminal condition meets the partial-input frontier, and the single place their
+  /// precedence is decided.
+  ///
+  /// # The law: a terminal trip outranks an incomplete frontier
+  ///
+  /// Two verdicts stop a scan, and they mean **opposite** things:
+  ///
+  /// - [`Incomplete`](crate::error::Incomplete) means *"more input may fix this"* — refill and
+  ///   retry;
+  /// - a **terminal** condition (a limit trip; the poison boundary it latches) means *"no amount of
+  ///   input will fix this"* — stop.
+  ///
+  /// They are mutually exclusive, and **terminal wins**. So the limit is probed — and latched —
+  /// **before** the frontier holdback is even consulted, and only an item that is *not* terminal can
+  /// be [`Withheld`](Verdict::Withheld). Ordering them the other way is not a cosmetic bug: the
+  /// Logos backend reports a limit trip as a `Lexed::Error` carrying the *tripping token's* span, so
+  /// a holdback that ran first would swallow every trip whose token happened to end on a chunk
+  /// boundary — emitting no diagnostic, latching nothing, and telling a streaming caller to feed
+  /// more bytes to a limit that had **already** been exceeded. An attacker who aligns a payload to
+  /// that boundary would bypass the recursion/token limit outright.
+  ///
+  /// The asymmetry is not arbitrary, and it is what makes the ranking total. A frontier *item* is
+  /// **provisional**: whether those bytes are a token or an error depends on bytes that have not
+  /// arrived, so withholding it is the conservative answer. A limit trip is not about the item at
+  /// all — it is a fact about the lexer's accumulated tally, which is **monotone**: re-lexing the
+  /// same prefix re-trips, and appending bytes can only add to it. No refill can clear it, so
+  /// reporting it as "incomplete" would be reporting a falsehood.
+  ///
+  /// This is the **dual** of the crate's [never-recoverable
+  /// law](crate::error::Incomplete#the-never-recoverable-law) — recovery may not swallow an
+  /// `Incomplete` — and the two halves are one rule: *an* `Incomplete` *and a terminal condition
+  /// never substitute for each other, in either direction.*
+  ///
+  /// # Both lexing drivers rank here
+  ///
+  /// [`scan_with`](Self::scan_with) (every consume path) and the peek fill
+  /// (`peek_with_emitter_inner`) are the crate's only two drivers of the single lexing site
+  /// ([`lex_within_boundary`](Self::lex_within_boundary)), and both classify through this one
+  /// method. The precedence therefore has exactly one home: a driver cannot re-derive it, and a
+  /// third driver cannot get it wrong. `frontier` chooses where a trip latches — [`AtCursor`] for
+  /// scans that commit no progress first (`next`, `try_expect*`, and the peek fill, which commits
+  /// nothing and latches at the end of the last CACHED token), [`AtFrontier`] for scans that consume
+  /// tokens as they go.
+  ///
+  /// The complete path is untouched: [`Verdict::Withheld`] is built only under `Cmpl::PARTIAL`, a
+  /// `false` constant for [`Complete`](crate::input::Complete), so the holdback — and the whole
+  /// incomplete arm of the ranking — is eliminated at monomorphization, leaving the terminal probe
+  /// exactly where it has always been.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn classify<Fr>(
+    &mut self,
+    lexer: &L,
+    frontier: &Fr,
+    item: Spanned<Lexed<'inp, L::Token>, L::Span>,
+  ) -> Verdict<'inp, L>
+  where
+    Fr: Frontier<'inp, L>,
+  {
+    let (span, lexed) = item.into_components();
+    match lexed {
+      Lexed::Error(err) => {
+        // TERMINAL FIRST. The probe (and its latch) run before the frontier is consulted, so a trip
+        // whose tripping token ends exactly on a non-final buffer end is reported as a trip — not
+        // withheld as Incomplete. A plain lexer error leaves `check()` `Ok` and latches nothing, so
+        // this costs the non-terminal path only the probe it already paid for.
+        let boundary = frontier.boundary(self.offset());
+        if self.latch_if_limit_tripped(lexer, boundary) {
+          return Verdict::Trip(Spanned::new(span, err));
+        }
+        // Frontier error (rule 2), now asked only of a NON-terminal error: a truncated buffer really
+        // can make a valid token look like a lex error, so this one is withheld — un-emitted — and
+        // the caller refills. That rule is correct and survives the ranking intact.
+        if self.withhold_at_frontier(&span) {
+          return Verdict::Withheld(span.end_ref().clone());
+        }
+        Verdict::Error(Spanned::new(span, err))
+      }
+      // Frontier holdback (rule 1). A token is never terminal — the backend reports a trip as a
+      // `Lexed::Error` on the tripping token (`check()` runs after each token; a failure *replaces*
+      // it), so there is no terminal condition to outrank here and no `check()` on the token path.
+      Lexed::Token(tok) => {
+        if self.withhold_at_frontier(&span) {
+          return Verdict::Withheld(span.end_ref().clone());
+        }
+        Verdict::Token(Spanned::new(span, tok))
+      }
+    }
+  }
+
   /// Runs the shared scanner loop: lex within the poison boundary and handle
   /// every lexer error in one place — latch the durable frontier on a limit
   /// trip, deduplicate-and-emit the diagnostic, and take the identical fatal
@@ -1643,19 +1783,23 @@ where
   ///
   /// # The partial-input frontier rules live here
   ///
-  /// This is the sole driver of the single lexing site
-  /// ([`lex_within_boundary`](Self::lex_within_boundary)), so the three partial-input frontier
-  /// rules are applied here once for every consume path (`next`, `try_expect*`, `skip_while`, the
-  /// `sync` family) rather than scattered across them. In [`Partial`](crate::input::Partial)
-  /// non-final mode they surface an [`Incomplete`](crate::error::Incomplete) on the `Err` channel,
-  /// which every `scan_with(..)?` caller propagates unchanged:
+  /// This is one of the two drivers of the single lexing site
+  /// ([`lex_within_boundary`](Self::lex_within_boundary)) — and the only one every *consume* path
+  /// goes through (`next`, `try_expect*`, `skip_while`, the `sync` family) — so the partial-input
+  /// frontier rules are applied here once rather than scattered across them. In
+  /// [`Partial`](crate::input::Partial) non-final mode they surface an
+  /// [`Incomplete`](crate::error::Incomplete) on the `Err` channel, which every `scan_with(..)?`
+  /// caller propagates unchanged:
   ///
   /// - **frontier holdback / frontier error** — a lexed item (token *or* error) whose span end
-  ///   touches the buffer end is withheld, since more input could extend it;
+  ///   touches the buffer end is withheld, since more input could extend it — *unless it is
+  ///   terminal*, which [`classify`](Self::classify) ranks first (a limit trip fires here even at
+  ///   the frontier);
   /// - **non-final EOF** — lexer exhaustion that is *not* a poison-boundary trip surfaces
-  ///   Incomplete, since more input may still arrive.
+  ///   Incomplete, since more input may still arrive. A trip is exempt for the same reason it
+  ///   outranks the holdback: it is terminal, and re-lexing the same prefix re-trips.
   ///
-  /// All three are written `if Cmpl::PARTIAL && …`; on a [`Complete`](crate::input::Complete)
+  /// All of it is written `if Cmpl::PARTIAL && …`; on a [`Complete`](crate::input::Complete)
   /// input `Cmpl::PARTIAL` is a `false` constant, so the whole block is eliminated at
   /// monomorphization and this compiles to the pre-typestate scanner byte for byte.
   #[cfg_attr(not(tarpaulin), inline)]
@@ -1669,48 +1813,41 @@ where
     Fr: Frontier<'inp, L>,
     Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   {
-    while let Some(Spanned { span, data: tok }) = self.lex_within_boundary(lexer, lex_at) {
-      // Frontier holdback (rule 1) and frontier error (rule 2): in partial, non-final mode a
-      // lexed item whose span END touches the buffer end may be a prefix of a longer construct
-      // once more input arrives, so it is neither yielded nor emitted — surface Incomplete
-      // instead. Const-gated: `Complete::PARTIAL` is `false`, so this is dead-code-eliminated and
-      // `is_final()` is never even evaluated on the complete path.
-      if Cmpl::PARTIAL && !self.is_final() && span.end_ref() >= &self.input.len() {
-        return Err(Cmpl::surface_incomplete(span.end_ref().clone()));
-      }
-      match tok {
-        Lexed::Error(err) => {
-          let boundary = frontier.boundary(self.offset());
-          let limit_hit = self.latch_if_limit_tripped(lexer, boundary);
-          match self.emit_lexer_error_deduped(Spanned::new(span, err)) {
-            Ok(()) => {
-              if limit_hit {
-                return Ok(Scan::Tripped);
-              }
-              // Non-limit error: skip over it and keep scanning for a token. The frontier does NOT
-              // move — an error is not a token. `lex_at` already carries the scan past it, and the
-              // token this loop goes on to find carries the post-error lexer state, so the position
-              // is threaded by the same two things that thread it everywhere else. Settling the
-              // error behind the frontier would put its span into `self.span` — which every other
-              // path in this crate reserves for the last consumed TOKEN — and, worse, would make
-              // that span depend on WHO crossed the error: a scan crosses it and would move; a
-              // *peek* that lexed the same region into the cache never can. See `AtFrontier`.
-            }
-            Err(e) => {
-              self.set_span_after_consume(lexer.span().into());
-              *self.state = lexer.state().clone();
-              return Err(e);
-            }
-          }
+    while let Some(item) = self.lex_within_boundary(lexer, lex_at) {
+      match self.classify(lexer, frontier, item) {
+        Verdict::Token(tok) => return Ok(Scan::Token(tok)),
+        // A terminal trip: the poison boundary is already latched, so even the fatal exit below
+        // keeps it. Emit the diagnostic and stop — this arm runs whether or not the tripping token
+        // sits on the frontier, which is the whole of the law.
+        Verdict::Trip(err) => {
+          return match self.emit_lexer_error_deduped(err) {
+            Ok(()) => Ok(Scan::Tripped),
+            Err(e) => Err(self.settle_fatal(lexer, e)),
+          };
         }
-        Lexed::Token(tok) => return Ok(Scan::Token(Spanned::new(span, tok))),
+        Verdict::Error(err) => match self.emit_lexer_error_deduped(err) {
+          Ok(()) => {
+            // Non-limit error: skip over it and keep scanning for a token. The frontier does NOT
+            // move — an error is not a token. `lex_at` already carries the scan past it, and the
+            // token this loop goes on to find carries the post-error lexer state, so the position
+            // is threaded by the same two things that thread it everywhere else. Settling the
+            // error behind the frontier would put its span into `self.span` — which every other
+            // path in this crate reserves for the last consumed TOKEN — and, worse, would make
+            // that span depend on WHO crossed the error: a scan crosses it and would move; a
+            // *peek* that lexed the same region into the cache never can. See `AtFrontier`.
+          }
+          Err(e) => return Err(self.settle_fatal(lexer, e)),
+        },
+        // The holdback, reached only by a non-terminal item (see `classify`).
+        Verdict::Withheld(at) => return Err(Cmpl::surface_incomplete(at)),
       }
     }
 
     // Non-final EOF (rule 3): the lexer is exhausted, but in partial non-final mode more input
     // may still arrive, so this is not genuine end of input — surface Incomplete. A poison-boundary
     // trip is exempt: it is a terminal limit outcome (re-lexing the same prefix re-trips), so it
-    // stands as `Eof`. Const-gated, so `Complete` never reaches this and yields `Eof` as before.
+    // stands as `Eof` — the same precedence `classify` applies to an item, applied to exhaustion.
+    // Const-gated, so `Complete` never reaches this and yields `Eof` as before.
     if Cmpl::PARTIAL && !self.is_final() && !self.reached_boundary(lex_at) {
       return Err(Cmpl::surface_incomplete(lex_at.clone()));
     }
@@ -1744,6 +1881,36 @@ where
   /// The input is exhausted (or the boundary was already reached). The caller
   /// yields its end-of-input outcome.
   Eof,
+}
+
+/// What one freshly-lexed item *means*, as ranked by [`InputRef::classify`] — the crate's single
+/// classification of a scan outcome, and therefore the single home of the rule that a **terminal**
+/// condition outranks an **incomplete** frontier.
+///
+/// The variants are ordered by that precedence, and the ordering is the contract: [`Trip`](Self::Trip)
+/// is decided *before* [`Withheld`](Self::Withheld) is even considered, so no terminal condition can
+/// be disguised as an [`Incomplete`](crate::error::Incomplete). Both lexing drivers — the scanner
+/// ([`scan_with`](InputRef::scan_with), behind every consume path) and the peek fill — act on this
+/// one verdict, so neither can re-derive the ranking and get it wrong. See
+/// [`classify`](InputRef::classify) for the law and why the two verdicts are mutually exclusive.
+enum Verdict<'inp, L>
+where
+  L: Lexer<'inp>,
+{
+  /// A valid token, clear of the frontier: the scanner yields it, the peek fill caches it.
+  Token(Spanned<L::Token, L::Span>),
+  /// **Terminal.** This item tripped a resource limit: the poison boundary is *already latched* at
+  /// the durable frontier, so even a fatal emitter cannot lose it. The driver emits the diagnostic
+  /// (deduplicated) and stops. Reached whether or not the tripping item touches the buffer end.
+  Trip(Spanned<<L::Token as Token<'inp>>::Error, L::Span>),
+  /// A **non-terminal** lexer error, clear of the frontier: the driver emits it (deduplicated) and
+  /// skips over it. Nothing is latched — the scan goes on looking for a token.
+  Error(Spanned<<L::Token as Token<'inp>>::Error, L::Span>),
+  /// The partial-input frontier holdback: a **non-terminal** item whose span end touches a non-final
+  /// buffer end, so later input could still change what it is. Carries the frontier offset the
+  /// [`Incomplete`](crate::error::Incomplete) reports. Built only under `Cmpl::PARTIAL`, so a
+  /// [`Complete`](crate::input::Complete) input never constructs it and the arm compiles away.
+  Withheld(L::Offset),
 }
 
 /// Where a scan latches the poison boundary on a limit trip: the **durable frontier**, the offset

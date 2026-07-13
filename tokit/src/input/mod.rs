@@ -18,6 +18,41 @@
 //! become `abc`), and the only proof it will not is more bytes — or `is_final`. With `is_final`
 //! set, or on a [`Complete`] input, the rules are inert and the last token yields immediately.
 //!
+//! ## Terminal beats incomplete, and they never substitute
+//!
+//! Two verdicts stop a scan, and they mean **opposite** things:
+//!
+//! - an [`Incomplete`](crate::error::Incomplete) means *"more input may fix this"* — the caller
+//!   refills and re-drives;
+//! - a **terminal** condition — a resource-limit trip ([`Lexer::check`](crate::Lexer::check) failing
+//!   after a token) and the poison boundary it latches — means *"no amount of input will fix this"*
+//!   — the caller must stop.
+//!
+//! They are mutually exclusive, and **the terminal one wins**. Nothing in this crate may disguise a
+//! terminal condition as an `Incomplete`: the limit is probed, and latched, *before* the frontier
+//! rules are consulted, so only a **non-terminal** item is ever withheld. A limit trip fires — its
+//! diagnostic emitted, its poison boundary latched — even when the tripping token ends exactly on
+//! the buffer end.
+//!
+//! The ranking is total because the two conditions are facts about different things. A frontier
+//! *item* is **provisional**: whether those bytes are a token or a lexer error depends on bytes that
+//! have not arrived, so withholding it is the conservative answer, and a truncated buffer really can
+//! make a valid token look like a lex error. A limit trip is not about the item at all — it is a
+//! fact about the lexer's accumulated tally, which is **monotone**: re-lexing the same prefix
+//! re-trips, and appending bytes can only add to it. No refill can clear it, so answering
+//! "incomplete" would be answering with a falsehood — and a costly one. A caller parsing untrusted
+//! input would refill, retry, and refill again, re-lexing an ever-growing buffer while the limit
+//! that exists to bound exactly that work **never fires**; an attacker who aligns a payload to the
+//! chunk boundary (a token that keeps growing keeps ending at it) would bypass the recursion and
+//! token limits outright. That is the denial-of-service the ranking forecloses, in the one mode —
+//! network and protocol parsing — that exists to face it.
+//!
+//! This is the **dual** of the [never-recoverable
+//! law](crate::error::Incomplete#the-never-recoverable-law), and the pair is one rule read from both
+//! ends: recovery may not swallow an `Incomplete` (an unfinished construct is not a malformed one),
+//! and the frontier may not swallow a terminal condition (a tripped limit is not an unfinished
+//! construct). Neither verdict may be spent as the other.
+//!
 //! ## No growable source; the caller owns the buffer
 //!
 //! tokit deliberately has **no growable internal source**. An [`InputRef`] borrows one immutable
@@ -384,6 +419,18 @@ where
   /// lineage: [`save`](InputRef::save) captures it and [`restore`](InputRef::restore)
   /// copies it back verbatim, since a last-in, first-out restore returns to exactly
   /// the lineage the checkpoint recorded.
+  ///
+  /// # A trip is TERMINAL, and terminal outranks incomplete
+  ///
+  /// A latched boundary is the crate's **terminal** condition: it means *no amount of further input
+  /// will change this outcome*. That is what separates it from an
+  /// [`Incomplete`](crate::error::Incomplete), which means the opposite — *more input may fix
+  /// this* — and the two must never substitute for each other. In [`Partial`] mode they can meet, on
+  /// the very item the frontier rules hold back, and the rule is that **the trip wins**: it is
+  /// probed and latched *before* the holdback is consulted, so a trip whose tripping token happens
+  /// to end exactly on a chunk boundary still emits its diagnostic and still latches here. See
+  /// [the law](crate::input#terminal-beats-incomplete-and-they-never-substitute) for why the ranking
+  /// is total, and what an attacker could do without it.
   poison_boundary: Option<L::Offset>,
   /// The lineage memos — the bookkeeping backtracking rewinds an abandoned continuation with:
   /// the live-checkpoint stack, the pin set, and the cache-push/checkpoint-id/savepoint counters.

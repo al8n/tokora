@@ -93,6 +93,16 @@ where
   ///
   /// If not enough tokens are cached, lexes more tokens to fill the buffer.
   /// The returned deque contains references to peeked tokens.
+  ///
+  /// # Partial mode: a short window, but never a hidden trip
+  ///
+  /// On a non-final [`Partial`](crate::input::Partial) input the fill stops at the frontier — a
+  /// token touching the buffer end never enters the cache — so a peek there simply returns a
+  /// **shorter window** than asked for; the [`Incomplete`](crate::error::Incomplete) surfaces when a
+  /// consume path reaches the same frontier. A **terminal** condition is not held back that way: a
+  /// limit trip during the fill emits its diagnostic and latches the poison boundary before the
+  /// holdback is consulted, so a peek can no more hide a tripped limit than a consume can. See
+  /// [terminal beats incomplete](crate::input#terminal-beats-incomplete-and-they-never-substitute).
   #[inline]
   pub fn peek<'p, W>(
     &'p mut self,
@@ -166,39 +176,41 @@ where
     let mut lex_at = self.offset().clone();
     let mut lexer = self.lexer();
     while want > 0 {
-      if let Some(lexed) = self.lex_within_boundary(&mut lexer, &mut lex_at) {
-        let (span, lexed) = lexed.into_components();
-
-        // Frontier holdback (partial, non-final): a lexed item whose span END touches the buffer
-        // end may extend with more input, so it must never enter the cache — a later `next()`
-        // serves cached tokens without re-lexing, which would bypass the scan-path holdback — nor
-        // be emitted. Stop filling and withhold it; the peek returns a short window, and the
-        // Incomplete surfaces when a consume path re-lexes the frontier via `scan_with`. This
-        // preserves the invariant that the cache never holds a frontier token in this mode.
-        // Const-gated: `Complete::PARTIAL` is `false`, so this is eliminated at monomorphization.
-        if Cmpl::PARTIAL && !self.is_final() && span.end_ref() >= &self.input.len() {
-          break;
-        }
-
-        match lexed {
-          Lexed::Error(e) => {
-            // A limit trip is sticky: latch the durable frontier (the end of the
-            // last cached token) before the (possibly fatal) emit so a fatal early
-            // return still records it for later operations.
-            let boundary = self.offset().clone();
-            let limit_hit = self.latch_if_limit_tripped(&lexer, boundary);
+      if let Some(item) = self.lex_within_boundary(&mut lexer, &mut lex_at) {
+        // The one classifier ([`InputRef::classify`]), shared with the scanner: a terminal trip is
+        // probed and LATCHED before the frontier holdback can withhold anything, so a peek can no
+        // more disguise a limit trip as "more input may help" than a consume can. `AtCursor` is the
+        // peek's frontier — a peek commits no progress, so a trip latches at the cursor, which
+        // during a fill is the end of the last CACHED token (the staged overflow is not durable;
+        // see the truncation below).
+        match self.classify(&lexer, &AtCursor, item) {
+          // Frontier holdback (partial, non-final), reached only by a NON-terminal item: it may
+          // extend with more input, so it must never enter the cache — a later `next()` serves
+          // cached tokens without re-lexing, which would bypass the scan-path holdback — nor be
+          // emitted. Stop filling and withhold it; the peek returns a short window, and the
+          // Incomplete surfaces when a consume path re-lexes the frontier via `scan_with`. This
+          // preserves the invariant that the cache never holds a frontier token in this mode.
+          // Const-gated: `Complete::PARTIAL` is `false`, so `classify` never builds this verdict on
+          // the complete path and the arm is eliminated at monomorphization.
+          Verdict::Withheld(_) => break,
+          Verdict::Trip(err) => {
+            // A limit trip is sticky, and `classify` has already latched the durable frontier — so
+            // this (possibly fatal) emit cannot lose it: the `?` returns with the latch recorded for
+            // every later operation, and `overflowed`'s `Drop` frees any staged tokens on the way
+            // out.
+            self.emit_lexer_error_deduped(err)?;
+            tripped = true;
+            break;
+          }
+          Verdict::Error(err) => {
             // Emit immediately regardless of cache fullness so an error in the
             // overflow region is never silently dropped. The dedup mark keeps a
             // later consume that re-lexes this region from reporting it twice.
             // `overflowed`'s `Drop` frees any staged tokens on this `?`-return.
-            self.emit_lexer_error_deduped(Spanned::new(span, e))?;
-            if limit_hit {
-              tripped = true;
-              break;
-            }
+            self.emit_lexer_error_deduped(err)?;
           }
-          Lexed::Token(tok) => {
-            let cached = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
+          Verdict::Token(tok) => {
+            let cached = CachedToken::new(tok, lexer.state().clone());
 
             // Try to cache the token; if cache is full, stage it for the output buffer
             match self.cache_push_back(cached) {

@@ -23,6 +23,25 @@
 ///   flows through an [`Emitter`](crate::Emitter). Reporting it would misclassify a
 ///   resume-and-retry condition as a failure.
 ///
+/// # The other half: a terminal condition is never an `Incomplete`
+///
+/// The never-recoverable law says nothing may *swallow* an `Incomplete`. Its **dual** says nothing
+/// may *forge* one:
+///
+/// - **A terminal condition must never surface as an `Incomplete`.** An `Incomplete` promises the
+///   caller that more input may fix this. A **terminal** condition — a resource-limit trip, and the
+///   poison boundary it latches — promises the exact opposite: *no amount of input will fix this*.
+///   Where the two meet, on a partial-input frontier, the terminal one **wins**; the limit is probed
+///   and latched before the frontier holdback is consulted, so a trip fires even when the tripping
+///   token ends exactly on the buffer end. Reporting it as incomplete would send a caller parsing
+///   untrusted input back for more bytes to feed a limit that has *already* been exceeded and can
+///   never fire — the resource limit, bypassed by anyone able to align a payload to a chunk
+///   boundary. See the [input module docs](crate::input#terminal-beats-incomplete-and-they-never-substitute).
+///
+/// The two halves are one rule: an `Incomplete` and a terminal condition mean opposite things, and
+/// neither may ever be spent as the other. The first half is enforced by recovery
+/// ([`MaybeIncomplete`]); the second by the input layer's single scan-outcome classifier.
+///
 /// The payload is the [`offset`](Self::offset) at which the input ran out.
 ///
 /// ```

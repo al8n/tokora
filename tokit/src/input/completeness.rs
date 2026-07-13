@@ -78,6 +78,12 @@ pub struct Complete;
 /// [frontier rules](crate::input#partial-input-sans-io-mode) hold back any construct that might be
 /// extended by later input, surfacing an [`Incomplete`](crate::error::Incomplete) so the caller can
 /// refill and re-drive; once final it behaves exactly like [`Complete`].
+///
+/// The rules hold back only what more input could **change**. A **terminal** condition — a
+/// resource-limit trip and the poison boundary it latches — is not such a thing: it fires through
+/// the frontier rather than hiding behind them, so a streaming caller is never told to refill for a
+/// limit that can never clear. See [terminal beats
+/// incomplete](crate::input#terminal-beats-incomplete-and-they-never-substitute).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Partial;
 
