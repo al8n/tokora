@@ -402,7 +402,19 @@ where
   /// out. Returning without the commit would leave the reported token unconsumed here and consumed
   /// there, so a recovery that retries would duplicate diagnostics — or spin — on exactly the runs
   /// where the token had not been prefetched.
-  #[cfg_attr(not(tarpaulin), inline)]
+  ///
+  /// # `inline(always)` is load-bearing, because one of the four modes is a hot path
+  ///
+  /// [`SkipWhile`] puts this loop on the trivia path, where it runs per token. Left to the
+  /// inliner's own judgement (a plain `#[inline]`) the loop stays out of line at its `skip_while`
+  /// call site, and the lexer — which lives in an `Option`, built the moment the cache runs dry —
+  /// then cannot be scalar-replaced, so it is re-loaded from the stack on every token. Forcing the
+  /// inline restores it to registers and is worth ~6% of `skip_trivia_next` (`benches/input_scan`).
+  /// The cold modes pay for that in code size at their call sites, which is the right way round:
+  /// the alternative is a second, hand-tuned loop for the trivia path, and a second loop is exactly
+  /// the thing whose disagreement with this one produced the defects this scanner exists to make
+  /// impossible.
+  #[cfg_attr(not(tarpaulin), inline(always))]
   pub(super) fn skip_until<M, F, Exp>(
     &mut self,
     mut pred: F,
