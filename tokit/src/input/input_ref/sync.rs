@@ -31,6 +31,27 @@ where
   Exhausted,
 }
 
+/// The outcome of the cache-drain prologue
+/// ([`sync_matched_in_cache`](InputRef::sync_matched_in_cache)), which every sync method runs
+/// before it may lex.
+///
+/// The prologue tests the cached tokens, so it — and only it — decides whether a cached token is
+/// the sync point. That decision is carried out of the drain in this value rather than re-derived
+/// by the caller: `pred` is an `FnMut`, so a second call about the same token is observable to it
+/// and free to answer differently, and a caller that believed a different second answer would
+/// enter [`sync_with`](InputRef::sync_with) with a live cache — which that scanner may not scan
+/// (it lexes from [`offset`](InputRef::offset), the end of the LAST cached token, so the cached
+/// tokens would be skipped, and the end-of-input rewind cannot reconstruct a drained prefix it
+/// left behind).
+pub(super) enum Drained {
+  /// The drain stopped at a cached token `pred` accepted. It is **still at the front of the
+  /// cache**, tested exactly once: a `to` caller peeks it, a `through` caller pops it.
+  Matched,
+  /// The cache is empty — every cached token was drained (or there were none). Only now may the
+  /// scanner run.
+  Empty,
+}
+
 /// The pre-call snapshot a `through` end-of-input arm rewinds to. Captured *before* the cache
 /// drain so the rewind restores the FULL pre-call state — span, lexer state, emission mark, and
 /// dedup watermark — leaving a no-match run to end of input with no trace (see
@@ -225,10 +246,13 @@ where
   /// The shared sync scanner: skip tokens, diagnosing each as unexpected, until `pred` matches
   /// or the input is exhausted, then settle per the [`SyncMode`] `M`.
   ///
-  /// Entered only with an empty cache (the callers drain the cache first). Once the lex position
-  /// reaches the poison boundary there is no token to sync to, so it returns
-  /// [`Synced::Exhausted`] without settling — the caller's exhausted return with the position
-  /// left as the drain committed it. Otherwise it loops over
+  /// **Entered only with an empty cache** — the callers run the cache-drain prologue first and
+  /// reach this only on [`Drained::Empty`]. This scanner lexes from [`offset`](Self::offset), the
+  /// end of the LAST cached token, so a live cache would make it skip the cached tokens: it would
+  /// settle a match at a position the cache contradicts, and its end-of-input rewind cannot
+  /// reconstruct a drained prefix. Once the lex position reaches the poison boundary there is no
+  /// token to sync to, so it returns [`Synced::Exhausted`] without settling — the caller's
+  /// exhausted return with the position left as the drain committed it. Otherwise it loops over
   /// [`scan_with`](Self::scan_with), which centralizes the poison-latch, dedup, and fatal-emit
   /// discipline: a matched token settles via [`SyncMode::on_match`] ([`Synced::Found`]); a
   /// non-matching token is skipped — and reported once via `emit_unexpected_token` when
@@ -247,6 +271,14 @@ where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
+    // The precondition, since every fact below is derived from a drained cache: `offset()` is the
+    // lex position only while nothing is cached, and the end-of-input rewind restores a cursor
+    // that follows `span.end` only then too.
+    debug_assert!(
+      self.cache.is_empty(),
+      "the sync scanner requires a drained cache"
+    );
+
     // A sticky limit trip latches a poison boundary: once the cursor reaches the durable
     // frontier no token remains to sync to, so yield the exhausted outcome without rebuilding a
     // lexer. Strictly before it, the scan proceeds.

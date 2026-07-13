@@ -53,35 +53,20 @@ where
       self.emitted_error_end.clone(),
     );
 
-    if let Some(tok) = self.sync_matched_in_cache(&mut pred, &mut exp)? {
-      return Ok(Some(tok));
-    }
-
-    // sync_matched_in_cache skips non-matching tokens but leaves a matching
-    // token in the cache (since pop_front_if doesn't pop when pred matches).
-    // Check if the front of cache now matches and consume it.
-    if !self.cache.is_empty() {
-      if let Some(front) = self.cache.front() {
-        let span = front.token().span();
-        if pred(Spanned::new(span, front.token().data())) {
-          if let Some(tok) = self.cache.pop_front() {
-            let (lexed, state) = tok.into_components();
-            let (span, tok) = lexed.into_components();
-            self.set_span_after_consume((&span).into());
-            *self.state = state;
-            return Ok(Some(Spanned::new(span, tok)));
-          }
-        }
-      }
-    }
-
-    // Skip-and-diagnose to the first match through the shared scanner. `SyncThrough` consumes
-    // the match (`Synced::Found`); a poison trip commits the diagnosed prefix at the durable
-    // frontier and a no-match run to end of input rewinds to `snapshot`, both yielding the
-    // exhausted outcome (`Ok(None)`) with the position already settled.
-    match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
-      Synced::Found(tok) => Ok(tok),
-      Synced::Exhausted => Ok(None),
+    match self.sync_matched_in_cache(&mut pred, &mut exp)? {
+      // The drain stopped at a cached token `pred` accepted, and left it at the front. Consume
+      // THAT token: the decision is carried out of the drain, never re-derived. A second `pred`
+      // call about it is observable to any stateful `FnMut` and free to answer differently, and
+      // acting on that answer would drop us into the scanner below with a live cache.
+      Drained::Matched => Ok(self.consume_cached_one()),
+      // The cache is empty, so the scanner may lex: skip-and-diagnose to the first match.
+      // `SyncThrough` consumes the match (`Synced::Found`); a poison trip commits the diagnosed
+      // prefix at the durable frontier and a no-match run to end of input rewinds to `snapshot`,
+      // both yielding the exhausted outcome (`Ok(None)`) with the position already settled.
+      Drained::Empty => match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
+        Synced::Found(tok) => Ok(tok),
+        Synced::Exhausted => Ok(None),
+      },
     }
   }
 
@@ -168,37 +153,17 @@ where
       self.emitted_error_end.clone(),
     );
 
-    if let Some(tok) = self.sync_matched_in_cache(&mut pred, &mut exp)? {
-      let (peeked, emitter) = self.peek_with_emitter::<W>()?;
-      return Ok((Some(tok), peeked, emitter));
-    }
-
-    // sync_matched_in_cache skips non-matching tokens but leaves a matching
-    // token in the cache. Check if the front of cache now matches and consume it.
-    if !self.cache.is_empty() {
-      if let Some(front) = self.cache.front() {
-        let span = front.token().span();
-        if pred(Spanned::new(span, front.token().data())) {
-          if let Some(tok) = self.cache.pop_front() {
-            let (lexed, state) = tok.into_components();
-            let (span, tok) = lexed.into_components();
-            self.set_span_after_consume((&span).into());
-            *self.state = state;
-            let (peeked, emitter) = self.peek_with_emitter::<W>()?;
-            return Ok((Some(Spanned::new(span, tok)), peeked, emitter));
-          }
-        }
-      }
-    }
-
-    match !self.cache().is_empty() {
-      // If the cache is non-empty but no match, peek remaining
-      true => {
+    match self.sync_matched_in_cache(&mut pred, &mut exp)? {
+      // The drain stopped at a cached token `pred` accepted, and left it at the front. Consume
+      // THAT token — the decision leaves the drain with it, never re-derived (see
+      // [`sync_through`](Self::sync_through)) — and peek what follows it.
+      Drained::Matched => {
+        let tok = self.consume_cached_one();
         let (peeked, emitter) = self.peek_with_emitter::<W>()?;
-        Ok((None, peeked, emitter))
+        Ok((tok, peeked, emitter))
       }
-      // Otherwise, skip-and-diagnose to the first match through the shared scanner.
-      false => match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
+      // The cache is empty, so the scanner may lex: skip-and-diagnose to the first match.
+      Drained::Empty => match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
         // The match is consumed; peek the tokens after it.
         Synced::Found(tok) => {
           let (peeked, emitter) = self.peek_with_emitter::<W>()?;

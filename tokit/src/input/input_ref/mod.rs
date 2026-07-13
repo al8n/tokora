@@ -23,6 +23,7 @@ use super::{
 };
 
 pub(crate) use session::Session;
+use sync::Drained;
 
 mod consume_cached;
 mod drop_policy;
@@ -1602,33 +1603,38 @@ where
     }
   }
 
-  /// Internal implementation for syncing tokens in the cache.
+  /// The sync family's cache-drain prologue: consume every cached token `pred` rejects —
+  /// committing span/state and diagnosing it as unexpected — and stop at the first one `pred`
+  /// accepts, leaving it cached.
+  ///
+  /// Each cached token is tested **exactly once**, and the decision leaves through the returned
+  /// [`Drained`]: the accepted token stays at the cache front for the caller to peek (`to`) or pop
+  /// (`through`) without a second `pred` call. Re-deriving it in the caller would ask a stateful
+  /// `FnMut` about the same token twice — observably, and with a licence to answer differently —
+  /// and a caller that acted on that second answer would leave the sync point cached and drop into
+  /// [`sync_with`](Self::sync_with) with a live cache, which lexes from past it.
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn sync_matched_in_cache<P, Exp>(
     &mut self,
     mut pred: P,
     mut exp: Exp,
-  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  ) -> Result<Drained, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     P: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
-    let matched = core::cell::RefCell::new(false);
-    // pop from cache if not matching
-    while let Some(tok) = self.cache.pop_front_if(|t| {
-      let span = t.token().span();
-      *matched.borrow_mut() = pred(Spanned::new(span, t.token().data()));
-      !*matched.borrow()
-    }) {
+    // `pop_front_if` calls the closure on the front token and pops only when it returns true, so
+    // this pops exactly the rejected tokens and halts — with the accepted one still cached — the
+    // moment `pred` accepts. The loop therefore ends in exactly two states, which the cache's
+    // emptiness distinguishes: drained to empty, or stopped at the cached match.
+    while let Some(tok) = self
+      .cache
+      .pop_front_if(|t| !pred(Spanned::new(t.token().span(), t.token().data())))
+    {
       let (lexed, state) = tok.into_components();
       let (span, tok) = lexed.into_components();
       self.set_span_after_consume((&span).into());
       *self.state = state;
-
-      // if matched, we stop here
-      if *matched.borrow() {
-        return Ok(Some(Spanned::new(span, tok)));
-      }
 
       // Note: cursor/state are updated before emission. If emission fails,
       // the error token has still been consumed (no backtracking here).
@@ -1637,7 +1643,11 @@ where
         .emitter()
         .emit_unexpected_token(UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok))?;
     }
-    Ok(None)
+
+    Ok(match self.cache.is_empty() {
+      true => Drained::Empty,
+      false => Drained::Matched,
+    })
   }
 
   /// Runs the shared scanner loop: lex within the poison boundary and handle

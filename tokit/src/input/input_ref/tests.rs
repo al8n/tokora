@@ -1953,6 +1953,215 @@ fn successful_sync_through_after_cache_drain_commits_and_persists() {
 }
 
 #[test]
+fn sync_through_over_a_prefilled_cache_evaluates_the_predicate_once() {
+  // The single-evaluation law: a user predicate is an `FnMut`, so a second call about the same
+  // token is observable — it can count, log, allocate, and it is free to answer differently. The
+  // cache-drain prologue already decides at the cached match, so `sync_through` acts on THAT
+  // decision instead of re-deriving it: every token the sync examines is tested exactly once.
+  //
+  // A re-test that believed a second, different answer skipped the cached match, dropped into
+  // the uncached scanner with a NON-EMPTY cache, and reported the call as a failed sync
+  // (`None`) with the drained prefix already gone from the stream.
+  //   1 2 3 4 5   (prefill `1 2 3`; the predicate matches the SECOND token it examines)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U3;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5",
+    TokenLimiter::with_limitation(usize::MAX),
+    cache,
+  );
+
+  let rest: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+    let _ = inp.peek::<U3>().unwrap();
+
+    // Stateful by construction: it counts its calls, so asking twice about `2` would answer
+    // `false` the second time.
+    let mut calls = 0usize;
+    let matched = inp
+      .sync_through(
+        |_| {
+          calls += 1;
+          calls == 2
+        },
+        || None,
+      )
+      .unwrap();
+
+    assert_eq!(
+      matched.map(|t| *t.span_ref()),
+      Some(SimpleSpan::new(2, 3)),
+      "the cached `2` matched on its only examination and is consumed"
+    );
+    assert_eq!(
+      calls, 2,
+      "exactly the two examined tokens — the drained `1` and the matched `2` — each tested once"
+    );
+    assert_eq!(inp.span(), &SimpleSpan::new(2, 3), "committed at the match");
+    assert_eq!(
+      *inp.cursor().as_inner(),
+      4,
+      "the cursor sits at the token after the match"
+    );
+
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    rest,
+    std::vec![
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7),
+      SimpleSpan::new(8, 9)
+    ],
+    "the stream resumes at the token after the match — nothing cached was skipped"
+  );
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 1,
+    "one diagnostic for the drained `1` — the match committed through it"
+  );
+}
+
+#[test]
+fn sync_through_then_peek_over_a_prefilled_cache_evaluates_the_predicate_once() {
+  // The peek variant carries the same decision out of the drain. The predicate accepts the
+  // cached `2` on its only examination, so the match is consumed and the peek starts AFTER it.
+  //
+  // Re-testing the front and believing a second, different answer returned `None` — the failed
+  // sync signal — while the drained `1` had already been consumed and its diagnostic COMMITTED
+  // (this variant's cached exit rewinds nothing), and the peek then handed back the cached
+  // tokens the caller was told nothing had matched in. A `None` return must leave no skipped
+  // cached token and no committed diagnostic behind it.
+  //   1 2 3 4 5   (prefill `1 2 3`; the predicate matches the SECOND token it examines)
+  use crate::{cache::PeekedTokenExt, span::SimpleSpan};
+  use generic_arraydeque::typenum::{U2, U3};
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5",
+    TokenLimiter::with_limitation(usize::MAX),
+    cache,
+  );
+
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    let _ = inp.peek::<U3>().unwrap();
+
+    let mut calls = 0usize;
+    let (matched, peeked) = inp
+      .sync_through_then_peek::<_, _, U2>(
+        |_| {
+          calls += 1;
+          calls == 2
+        },
+        || None,
+      )
+      .unwrap();
+
+    assert_eq!(
+      matched.map(|t| *t.span_ref()),
+      Some(SimpleSpan::new(2, 3)),
+      "the cached `2` matched on its only examination and is consumed"
+    );
+    assert_eq!(
+      calls, 2,
+      "exactly the two examined tokens — the drained `1` and the matched `2` — each tested once"
+    );
+    assert_eq!(peeked.len(), 2, "the window is filled from after the match");
+    assert_eq!(
+      *peeked[0].span(),
+      SimpleSpan::new(4, 5),
+      "the peek starts at the token AFTER the match, never at the match itself"
+    );
+    assert_eq!(*peeked[1].span(), SimpleSpan::new(6, 7));
+    // `peeked` borrows `inp` for its lifetime; release it before reusing `inp`.
+    drop(peeked);
+
+    assert_eq!(inp.span(), &SimpleSpan::new(2, 3), "committed at the match");
+  }
+
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(
+    total, 1,
+    "one diagnostic for the drained `1` — the match committed through it"
+  );
+}
+
+#[test]
+fn sync_through_never_scans_past_a_cached_match() {
+  // The scanner's precondition, made structural: `sync_with` lexes from `offset()` — the end of
+  // the LAST cached token — so it may only run once the drain has emptied the cache. Believing a
+  // re-test's second answer entered it with `2` and `3` still cached: it lexed straight PAST
+  // them, matched `4`, and committed there while the stream still owed the caller the two cached
+  // tokens — a position and a cache that cannot both be right, with the drained `1` lost. The
+  // predicate accepts the cached `2` on its only examination, so the scanner never runs at all.
+  //   1 2 3 4 5   (prefill `1 2 3`; the predicate accepts the 2nd AND the 4th token it examines)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U3;
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5",
+    TokenLimiter::with_limitation(usize::MAX),
+    cache,
+  );
+
+  let rest: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+    let _ = inp.peek::<U3>().unwrap();
+
+    // Accepts the 2nd examined token (the cached `2`) — and would accept a 4th, which only a
+    // scan past the live cache could ever reach.
+    let mut calls = 0usize;
+    let matched = inp
+      .sync_through(
+        |_| {
+          calls += 1;
+          calls == 2 || calls == 4
+        },
+        || None,
+      )
+      .unwrap();
+
+    assert_eq!(
+      matched.map(|t| *t.span_ref()),
+      Some(SimpleSpan::new(2, 3)),
+      "the cached match is returned — never a token lexed from beyond the live cache"
+    );
+    assert_eq!(calls, 2, "the scan stopped at the cached match");
+    assert_eq!(inp.span(), &SimpleSpan::new(2, 3), "committed at the match");
+
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    rest,
+    std::vec![
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7),
+      SimpleSpan::new(8, 9)
+    ],
+    "the stream resumes in order after the match — the cache and the position agree"
+  );
+  let total: usize = emitter.errors().values().map(|group| group.len()).sum();
+  assert_eq!(total, 1, "one diagnostic for the drained `1`");
+}
+
+#[test]
 fn failed_sync_through_with_prefilled_cache_reemits_crossed_error_once() {
   // The watermark leg with a prefilled cache. Peek stages a token BEFORE a lexer error
   // (`@`), then a never-matching `sync_through` drains that cached token and scans across

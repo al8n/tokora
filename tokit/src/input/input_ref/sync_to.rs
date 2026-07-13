@@ -52,16 +52,15 @@ where
     W: Window,
   {
     trace_event!(self, "sync_to");
-    self.sync_matched_in_cache(&mut pred, &mut exp)?;
-
-    // The matched token is left unconsumed, so peek it: either it is already the cache front
-    // (the drain above stops at it), or the shared scanner committed at the frontier before it
-    // (`SyncTo::on_match`) and the peek re-lexes it from there. The exhausted outcomes — a poison
-    // trip mid-scan or a no-match run to end of input, both of which `sync_with` has already
-    // committed — return the empty peek.
-    match !self.cache().is_empty() {
-      true => self.peek_with_emitter::<W>(),
-      false => match self.sync_with::<SyncTo, _, _>(&mut pred, &mut exp, ())? {
+    // The matched token is left unconsumed, so peek it: either the drain stopped at it and it is
+    // the cache front (tested exactly once — the decision comes back in `Drained`, and re-testing
+    // it here would ask a stateful `pred` about the same token twice), or the cache drained empty,
+    // the shared scanner committed at the frontier before the match (`SyncTo::on_match`), and the
+    // peek re-lexes it from there. The exhausted outcomes — a poison trip mid-scan or a no-match
+    // run to end of input, both of which `sync_with` has already committed — return the empty peek.
+    match self.sync_matched_in_cache(&mut pred, &mut exp)? {
+      Drained::Matched => self.peek_with_emitter::<W>(),
+      Drained::Empty => match self.sync_with::<SyncTo, _, _>(&mut pred, &mut exp, ())? {
         Synced::Found(_) => self.peek_with_emitter::<W>(),
         Synced::Exhausted => Ok((GenericArrayDeque::new(), self.emitter)),
       },
