@@ -259,6 +259,18 @@ where
   /// [`SyncMode::REPORT_SKIPPED`] holds; a limit trip commits the diagnosed prefix at the
   /// durable frontier; end of input settles via [`SyncMode::on_eof`] (both
   /// [`Synced::Exhausted`]).
+  ///
+  /// # The fatal exit commits, so the cache stays invisible
+  ///
+  /// A fatal rejection of a skipped token's diagnostic commits that token at the frontier
+  /// before propagating — the family's fatal-exit discipline, and the same settle the
+  /// cache-drain prologue ([`sync_matched_in_cache`](Self::sync_matched_in_cache)) performs
+  /// when it emits. The two must agree: whether a given token was already peeked into the
+  /// cache is an optimization the caller cannot see, so a caller that catches the emitter's
+  /// error must find the input in the same place either way. Returning without the commit
+  /// would leave the reported token unconsumed here and consumed there, so a recovery that
+  /// retries would duplicate diagnostics — or spin — on exactly the runs where the token had
+  /// not been prefetched.
   #[cfg_attr(not(tarpaulin), inline)]
   pub(super) fn sync_with<M, F, Exp>(
     &mut self,
@@ -300,13 +312,32 @@ where
           if pred(tok.as_ref()) {
             return Ok(Synced::Found(M::on_match(self, frontier, lexer, tok)));
           }
-          if M::REPORT_SKIPPED {
+          let reported = if M::REPORT_SKIPPED {
             let (span, tok) = tok.into_components();
             self.emitter().emit_unexpected_token(
               UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
-            )?;
-          }
+            )
+          } else {
+            Ok(())
+          };
+          // The skipped token settles BEFORE the report's verdict is honoured, so both
+          // outcomes leave it behind the frontier.
           frontier.advance(&lexer);
+          if let Err(e) = reported {
+            // The family's fatal-exit discipline: the token that trips a fatal emitter is
+            // committed, and the error propagates. Commit at the frontier — the skipped
+            // token's end, with the lexer state that produced it — which is precisely what
+            // the cache-drain prologue does per token (it advances span/state, then emits).
+            // Skipping this commit would make a fatal trip observable through the CACHE: a
+            // caller that catches the error and retries would re-read and re-report the
+            // token when it had been lexed here, but resume past it when the same token had
+            // happened to sit in the peek cache. The commit also carries the prefix this
+            // loop already diagnosed, so nothing already reported is left to be reported
+            // again.
+            self.set_span_after_consume(frontier.span.into());
+            *self.state = frontier.state;
+            return Err(e);
+          }
         }
         Scan::Tripped => {
           // Commit the diagnosed prefix at the durable frontier — the end of the last skipped

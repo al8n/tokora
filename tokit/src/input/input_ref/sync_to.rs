@@ -14,6 +14,14 @@ where
   /// before the first token for which `pred` returns `true` and returns it (without
   /// consuming). Non-matching non-error tokens are skipped but also reported via
   /// `emit_unexpected_token`.
+  ///
+  /// # The fatal exit commits
+  ///
+  /// A fatal emitter rejection mid-skip follows the sync family's fatal-exit discipline: the
+  /// token that trips the emitter is committed and the error propagates, so a caller that
+  /// catches it resumes *after* the reported token. This does not depend on whether the token
+  /// was already in the peek cache — the cache is an invisible optimization (see
+  /// [`sync_through`](Self::sync_through)).
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_to<F, Exp>(
@@ -35,7 +43,8 @@ where
 
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
   ///
-  /// Returns peeked tokens and a mutable reference to the emitter.
+  /// Returns peeked tokens and a mutable reference to the emitter. A fatal emitter rejection
+  /// mid-skip commits the token that tripped it, exactly as in [`sync_to`](Self::sync_to).
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_to_then_peek_with_emitter<'p, F, Exp, W>(

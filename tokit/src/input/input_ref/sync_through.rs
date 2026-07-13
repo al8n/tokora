@@ -24,6 +24,24 @@ where
   /// lookahead: a failed sync rewinds the drained cache prefix too, restoring
   /// the pre-call position, at the cost of re-lexing those formerly-cached
   /// tokens on the next read.
+  ///
+  /// # The fatal exit commits, and the cache never changes it
+  ///
+  /// A fatal emitter rejection mid-skip follows the sync family's fatal-exit discipline: the
+  /// token that trips the emitter — a skipped token whose unexpected-token diagnostic the
+  /// emitter rejected, or a lexer error it rejected — is **committed**, and the error
+  /// propagates. A caller that catches it therefore resumes *after* the reported token, and
+  /// never re-reads or re-reports it.
+  ///
+  /// Whether that token had already been peeked into the cache makes no difference: the cache
+  /// is an invisible optimization, so every observable of a sync call — its return, the
+  /// committed position and lexer state, the diagnostics it emits, the poison boundary, and
+  /// the lexer-error dedup watermark — is a function of the token stream alone, never of how
+  /// much of it had been prefetched. (The one thing a caller *can* see is that a peek emits
+  /// the lexer errors it crosses when it crosses them, so prefetching moves such a diagnostic
+  /// earlier in the log; the dedup watermark still reports it exactly once.) The
+  /// `sync_cache_transparency_matrix` tests in `src/input/input_ref/tests.rs` pin this
+  /// across the whole family.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_through<F, Exp>(
@@ -83,7 +101,9 @@ where
   /// reports its errors exactly once. The returned peek is then empty. As in
   /// [`sync_through`](Self::sync_through), the pre-call position is restored even when the
   /// caller had prefilled the cache with peeked lookahead — the drained cache prefix is
-  /// rewound too, at the cost of re-lexing those tokens on the next read.
+  /// rewound too, at the cost of re-lexing those tokens on the next read. A fatal emitter
+  /// rejection mid-skip commits the token that tripped it, and the cache does not change
+  /// that either (see [`sync_through`](Self::sync_through)).
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_through_then_peek<'p, F, Exp, W>(
@@ -115,7 +135,8 @@ where
   /// The returned peek is then empty. As in [`sync_through`](Self::sync_through), the pre-call
   /// position is restored even when the caller had prefilled the cache with peeked lookahead —
   /// the drained cache prefix is rewound too, at the cost of re-lexing those tokens on the
-  /// next read.
+  /// next read — and a fatal emitter rejection mid-skip commits the token that tripped it,
+  /// cached or not.
   #[cfg_attr(not(tarpaulin), inline(always))]
   #[allow(clippy::type_complexity)]
   pub fn sync_through_then_peek_with_emitter<'p, F, Exp, W>(
