@@ -1,25 +1,50 @@
 //! The lineage memos an [`Input`](super::Input) carries so backtracking can rewind an
-//! abandoned continuation exactly, gathered behind one guardian.
+//! abandoned continuation exactly, gathered behind one guardian — and the **cell taxonomy** that
+//! governs every other restorable cell an input owns.
 //!
 //! # Single-writer taxonomy
 //!
-//! Every cell an [`Input`](super::Input) owns belongs to exactly one of three classes, and
-//! each class has a single writer:
+//! Every cell an [`Input`](super::Input) or an [`InputRef`](super::InputRef) owns belongs to
+//! exactly one of five classes. The class *is* the restore semantics: it decides what a
+//! [`restore`](super::InputRef::restore) does to the cell, and it names the cell's single writer.
+//! A cell whose behavior does not match its class is a bug, and this taxonomy exists so that
+//! adding a cell without deciding which class it is in is not a thing that can happen quietly.
 //!
-//! - **Ground truth** — the live scanning position and regime the next token is lexed from:
-//!   the source, the lexer state, the last-consumed span, the token cache, the poison
-//!   boundary, and the lexer-error dedup watermark. These live directly on
-//!   [`Input`](super::Input); the scan/consume paths are their sole writer. They are *not*
-//!   part of this module, and the layout keeps them packed ahead of it.
-//! - **Lineage memos** — the bookkeeping gathered here: the ids [`save`](super::InputRef::save)
-//!   pushes and [`restore`](super::InputRef::restore) pops so an abandoned continuation
-//!   rewinds exactly, the pin set that protects a live guard's begin point, and the monotone
-//!   counters that keep checkpoint ids, cache-push counts, and savepoint sequences unique.
-//!   Backtracking (save/restore/commit and the guards) is their sole writer.
-//! - **Witness** — the debug-only, process-unique cross-input identity a checkpoint is stamped
-//!   with, so a restore can reject a checkpoint from a foreign input. It is a class of its own,
-//!   kept separately cfg'd on [`Input`](super::Input) (see [`Witness`](super::Witness)); its
-//!   atomic id source keeps it behind the debug + `target_has_atomic = "ptr"` gate.
+//! - **Ground truth** — the live scanning position and regime the next token is lexed from: the
+//!   lexer state, the last-consumed span, the token cache, and the emitter's emission log. The
+//!   scan/consume paths are their sole writer. **Restore OVERWRITES them** with the saved values
+//!   (the emission log by truncation to the saved mark). These live directly on
+//!   [`Input`](super::Input); the layout keeps them packed ahead of this module's memos.
+//! - **Lineage memos** — the bookkeeping gathered here, plus the two lineage facts that live on
+//!   [`Input`](super::Input) for layout reasons (the poison boundary and the lexer-error dedup
+//!   watermark): what a checkpoint must know to rewind an abandoned continuation exactly.
+//!   Backtracking (save/restore/commit and the guards) is their sole writer. **Restore PURE-COPIES
+//!   them** back to the saved value — with two structural exceptions that are still memos:
+//!   the live-checkpoint stack (restore *pops through* the restored id rather than copying a
+//!   snapshot) and the pin set (a restore never changes which guards are live).
+//! - **Monotone id sources** — the counters that hand out never-reused ids: the checkpoint-id
+//!   source and the savepoint sequence. They are memos in spirit but **restore must NOT touch
+//!   them**: rewinding a counter would reissue a live id, and an id that can collide is worse than
+//!   no id. Distinguished from a *restored* memo like the cache-push counter — which is a fact
+//!   *about* the lineage, not an identity source — precisely because their restore semantics are
+//!   opposite.
+//! - **World facts** — what the *caller* knows about the outside world, and the parse cannot: the
+//!   [`Partial`](super::Partial) `is_final` bit. Its sole writer is the driver
+//!   ([`Input::seal`](super::Input::seal), which takes `&mut Input`), it is **monotone** (a stream
+//!   cannot un-end), and **restore does NOT touch it** — a rollback rewinds the *parse*, not the
+//!   *world*. This class is not a loophole in the restore discipline; it is the one place the
+//!   discipline must not reach, and it is enforced structurally rather than remembered: an
+//!   [`InputRef`](super::InputRef) borrows the [`Input`](super::Input) for its whole life, so the
+//!   cell is *unreachable* while any parser, guard, or speculative branch runs. It therefore cannot
+//!   change during a handle's life, so no rollback can observe it change, so a
+//!   [`Checkpoint`](super::Checkpoint) has nothing to save. Restoring it instead would be the
+//!   mirror bug: a rollback across a legitimate seal would un-end an ended stream and the parser
+//!   would wait forever for bytes that will never arrive.
+//! - **Witness / instrumentation** — cells that do not affect scanning at all, and are therefore
+//!   never restored: the debug-only, process-unique cross-input identity a checkpoint is stamped
+//!   with (see [`Witness`](super::Witness); its atomic id source keeps it behind the debug +
+//!   `target_has_atomic = "ptr"` gate), and the `trace` nesting depth, whose events travel out of
+//!   band (stderr) and so cannot be un-emitted by a rewind anyway.
 //!
 //! This module is the guardian of the lineage memos: the cells are private to it and reachable
 //! only through the operations below, each of which carries the invariant it maintains. Every
@@ -27,9 +52,138 @@
 //! allocator does, so all of them except [`cache_pushes`](Lineage::cache_pushes) sit behind the
 //! allocator gate; an allocator-less build keeps only the counter and every stack operation
 //! compiles out.
+//!
+//! # CELL_CENSUS — every mutable cell, and its class
+//!
+//! This is the contract, and it is greppable: `grep CELL_CENSUS` finds it from anywhere in the
+//! tree. **A new scan-affecting mutable cell on [`Input`](super::Input),
+//! [`InputRef`](super::InputRef), [`Session`](super::Session), or [`Lineage`] MUST be added to this
+//! table and classified above.** [`census`] is the tripwire that makes that structural rather than
+//! advisory: it destructures both structs exhaustively — no `..` — so a new field is a **compile
+//! error, right here, in the guardian**, at the table that asks what class it is in.
+//!
+//! | Cell | Owner | Class | What restore does |
+//! |---|---|---|---|
+//! | `input` (the source slice) | `Input` | — (immutable borrow, fixed for the input's life) | nothing |
+//! | `state` (the lexer regime) | `Input` | ground truth | overwrite from the checkpoint |
+//! | `span` (last-consumed) | `Input` | ground truth | overwrite from the checkpoint |
+//! | `cache` (the token cache) | `Input` | ground truth | `Cache::rewind`, then drop the post-save tail |
+//! | `emitter` (the emission log) | `InputRef` (borrowed) | ground truth | truncate to the saved mark |
+//! | `emitted_error_end` (dedup watermark) | `Input` | lineage memo | pure-copy the saved value |
+//! | `poison_boundary` (sticky terminal frontier) | `Input` | lineage memo | pure-copy the saved value |
+//! | [`cache_pushes`](Lineage::cache_pushes) | `Lineage` | lineage memo | pure-copy the saved value |
+//! | [`live_ckpts`](Lineage) | `Lineage` | lineage memo | pop through the restored id |
+//! | [`pinned`](Lineage) | `Lineage` | lineage memo | nothing (a restore does not change which guards are live) |
+//! | `points` (open session points) | `Session` | lineage memo | nothing (a rewind *below* an open point is refused by its pin) |
+//! | [`next_ckp_id`](Lineage) | `Lineage` | monotone id source | **nothing** — rewinding would reissue a live id |
+//! | [`savepoint_seq`](Lineage) | `Lineage` | monotone id source | **nothing** — same |
+//! | `finality` (`is_final`) | `Input` (snapshot on `InputRef`) | **world fact** | **nothing** — and it cannot change while a handle lives |
+//! | `witness` (input identity) | `Input` | witness | nothing (identity is fixed for the input's life) |
+//! | `depth` (trace nesting) | `Input` | instrumentation | nothing (trace events are out of band) |
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 use super::LineageStack;
+use super::{Completeness, Input, InputRef};
+use crate::{Lexer, ParseContext};
+
+/// CELL_CENSUS — the structural tripwire behind the cell taxonomy in the [module docs](self).
+///
+/// It destructures [`Input`](super::Input), [`InputRef`](super::InputRef), and [`Lineage`]
+/// **exhaustively** — no `..` — and binds every field to nothing. That is the entire point: adding a
+/// field to any of them fails to compile *here*, in the guardian, at the taxonomy table that asks
+/// which class the new cell is in and what a [`restore`](super::InputRef::restore) must do to it.
+/// The one class of bug this module exists to prevent — a cell added without deciding its restore
+/// semantics — has shipped twice (the cache-push counter, then the finality flag). Both times the
+/// cell was added *next to* the guardian instead of *through* it. This is the wall.
+///
+/// The census also names the two cells the census cannot see from here, because their fields are
+/// private to another module: [`Session`](super::Session)'s (`session::census`, same discipline) and
+/// the guards' own (`ckp` / `base` / `saves` / `nonce`, which are guard-local — they die with the
+/// guard and are never part of an input's restorable state).
+///
+/// **Costs nothing.** It is generic and never instantiated, so it is type-checked in every build and
+/// monomorphized in none: it contributes zero bytes of code.
+#[allow(dead_code)]
+pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
+  input: &Input<'inp, L, Ctx, Lang, Cmpl>,
+  handle: &InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
+) where
+  L: Lexer<'inp>,
+  Lang: ?Sized,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
+{
+  let Input {
+    // — immutable: the source slice is fixed for the input's life.
+    input: _,
+    // — ground truth: restore OVERWRITES from the checkpoint.
+    state: _,
+    span: _,
+    cache: _,
+    // — WORLD FACT: monotone, driver-owned, restore does NOT touch it (and cannot: no handle may
+    //   exist while `Input::seal` runs). See the module docs.
+    finality: _,
+    // — lineage memos: restore PURE-COPIES the saved value.
+    emitted_error_end: _,
+    poison_boundary: _,
+    lineage:
+      Lineage {
+        // — lineage memo: pure-copied (`restore_cache_pushes`).
+        cache_pushes: _,
+        // — monotone id source: restore must NOT touch it (a reissued id could collide).
+        #[cfg(any(feature = "std", feature = "alloc"))]
+          savepoint_seq: _,
+        // — lineage memo: restore pops through the restored id.
+        #[cfg(any(feature = "std", feature = "alloc"))]
+          live_ckpts: _,
+        // — monotone id source: restore must NOT touch it.
+        #[cfg(any(feature = "std", feature = "alloc"))]
+          next_ckp_id: _,
+        // — lineage memo: restore does not change which guards are live.
+        #[cfg(any(feature = "std", feature = "alloc"))]
+          pinned: _,
+      },
+    // — instrumentation: out of band (stderr), never restored.
+    #[cfg(feature = "trace")]
+      depth: _,
+    // — witness: the input's identity, fixed for its life, never restored.
+    #[cfg(all(
+      debug_assertions,
+      any(feature = "std", feature = "alloc"),
+      target_has_atomic = "ptr"
+    ))]
+      witness: _,
+  } = input;
+
+  let InputRef {
+    // — borrows of the `Input` cells above; same classes.
+    input: _,
+    state: _,
+    span: _,
+    cache: _,
+    emitted_error_end: _,
+    poison_boundary: _,
+    // — WORLD FACT, as a read-only `Copy` snapshot: no mutator, and the handle's borrow of the
+    //   input locks out the seal, so it is CONSTANT for this handle's life.
+    finality: _,
+    // — the lineage memos (borrowed) + the open session points (owned): censused in `session.rs`.
+    session: _,
+    // — ground truth: the emission log, rolled back by truncation to the saved mark.
+    emitter: _,
+    // — instrumentation.
+    #[cfg(feature = "trace")]
+      depth: _,
+    // — witness.
+    #[cfg(all(
+      debug_assertions,
+      any(feature = "std", feature = "alloc"),
+      target_has_atomic = "ptr"
+    ))]
+      witness: _,
+    // — ZST.
+    _marker: _,
+  } = handle;
+}
 
 /// The lineage memos of one [`Input`](super::Input) — the class of cell backtracking owns (see
 /// the [module docs](self) for the full taxonomy).

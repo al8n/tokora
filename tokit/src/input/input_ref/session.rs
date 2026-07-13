@@ -84,6 +84,30 @@ where
     }
   }
 
+  /// CELL_CENSUS — this cell's half of the [taxonomy](super::super::lineage) tripwire, kept here
+  /// because these fields are private to this module and the main census cannot see them.
+  ///
+  /// Same discipline, same reason: the exhaustive destructure — no `..` — makes a new field on this
+  /// cell a **compile error**, so it cannot be added without deciding its class and its restore
+  /// semantics. Generic and never instantiated: type-checked in every build, zero bytes of code.
+  #[allow(dead_code)]
+  fn census(&self) {
+    let Self {
+      // — lineage memos (borrowed): the live-checkpoint stack, the pin set, and the counters.
+      lineage: _,
+      // — lineage memo, handle-local: the open session points. A restore does NOT rewind this
+      //   stack; a rewind reaching *below* an open point is refused outright by that point's pin
+      //   (`Lineage::assert_restore_preserves_pins`), so the stack cannot be left describing a
+      //   lineage that no longer exists.
+      #[cfg(any(feature = "std", feature = "alloc"))]
+        points: _,
+      #[cfg(not(any(feature = "std", feature = "alloc")))]
+        _points: _,
+      // — ZST.
+      _m: _,
+    } = self;
+  }
+
   /// Releases every point still open — the whole body of the abandoning [`Drop`], deliberately
   /// **outlined**.
   ///
