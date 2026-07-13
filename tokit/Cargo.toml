@@ -57,6 +57,15 @@ unstable-raw = []
 # compiles the `conformance` module.
 conformance = ["std"]
 
+# The public fuzz harness (`tokit::fuzz`): a deterministic operation-script fuzzer that drives
+# the input/backtracking machinery (consume, peek, the `sync` family, `attempt`, transaction
+# guards, stacked savepoints, session points, partial-mode chunking) against a scriptable
+# synthetic lexer and checks the documented laws after every operation. It asserts, owns
+# `Vec`/`String`, and drives the allocator-gated guards, so it requires `std` (which provides the
+# `alloc` the guards and session stack need). Off by default; enabling it only compiles the
+# `fuzz` module, which runs as ordinary `#[test]`s on stable Rust.
+fuzz = ["std"]
+
 rowan = ["dep:rowan", "std"]
 
 bytes = ["bytes_1"]

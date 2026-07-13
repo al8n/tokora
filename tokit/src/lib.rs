@@ -227,6 +227,22 @@ pub mod input;
 #[cfg_attr(docsrs, doc(cfg(feature = "conformance")))]
 pub mod conformance;
 
+/// Public fuzz harness for the input/backtracking machinery.
+///
+/// Provides an operation-script fuzzer — a deterministic PRNG drives well-formed scripts of
+/// the crate's public input operations (consume, peek, the `sync` family, `attempt`,
+/// transaction guards, stacked savepoints, session points, partial-mode chunking) against a
+/// scriptable synthetic lexer, checking the documented laws (no-trace failure paths, LIFO
+/// rollback discipline, committed-stream faithfulness, chunked equivalence, termination, no
+/// panic) after every operation. The operation alphabet is enumerated in one place
+/// ([`fuzz::Op`](crate::fuzz::Op)) with a compile-time exhaustiveness prod and a corpus coverage
+/// test so it cannot silently lag the real surface. Runs on stable Rust as ordinary tests;
+/// requires the `fuzz` feature (which implies `std`). See [`fuzz`](crate::fuzz) for the seed
+/// workflow.
+#[cfg(feature = "fuzz")]
+#[cfg_attr(docsrs, doc(cfg(feature = "fuzz")))]
+pub mod fuzz;
+
 /// A guided tour of tokit: build a small language end-to-end, chapter by chapter.
 ///
 /// Ten chapters construct **Calc** — a tiny calculator language with variables — walking
