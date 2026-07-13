@@ -23,7 +23,6 @@ use super::{
 };
 
 pub(crate) use session::Session;
-use sync::Drained;
 
 mod consume_cached;
 mod drop_policy;
@@ -426,8 +425,21 @@ where
   where
     L::State: Clone,
   {
-    let mut lexer = L::with_state(self.input, self.state.clone());
-    lexer.bump(self.offset());
+    self.lexer_from(self.state.clone(), self.offset())
+  }
+
+  /// The resume constructor behind [`lexer`](Self::lexer): a fresh lexer under `state`, bumped to
+  /// `at`.
+  ///
+  /// [`lexer`](Self::lexer) is the case that resumes from the *committed* facts — the current state,
+  /// at the end of the last lexed token — which is only the right pair while every lexed token is
+  /// either consumed or cached. A scan that holds tokens behind an uncommitted frontier (the sync
+  /// loop, which settles its skipped tokens there rather than writing each one back) resumes from
+  /// that frontier instead, and says so by passing it.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn lexer_from(&self, state: L::State, at: &L::Offset) -> L {
+    let mut lexer = L::with_state(self.input, state);
+    lexer.bump(at);
     lexer
   }
 
@@ -452,6 +464,19 @@ where
   #[cfg_attr(not(tarpaulin), inline(always))]
   fn set_span_after_consume(&mut self, new: MaybeRef<'_, L::Span>) {
     self.set_span(new);
+  }
+
+  /// Commits a scan at its [`AtFrontier`] frontier — the end of the last token it settled there,
+  /// with the lexer state that produced it.
+  ///
+  /// A scan that consumes tokens as it goes accumulates them behind the frontier and writes the
+  /// input's position back only when it stops; every such stop — a limit trip, a fatal emitter
+  /// exit, the poison short-circuit, and a `to`-shaped match — commits through this one call, so
+  /// the position a sync leaves behind is a function of the tokens it skipped and nothing else.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn commit_at(&mut self, frontier: AtFrontier<L::Span, L::State>) {
+    self.set_span_after_consume(frontier.span.into());
+    *self.state = frontier.state;
   }
 }
 
@@ -1603,53 +1628,6 @@ where
     }
   }
 
-  /// The sync family's cache-drain prologue: consume every cached token `pred` rejects —
-  /// committing span/state and diagnosing it as unexpected — and stop at the first one `pred`
-  /// accepts, leaving it cached.
-  ///
-  /// Each cached token is tested **exactly once**, and the decision leaves through the returned
-  /// [`Drained`]: the accepted token stays at the cache front for the caller to peek (`to`) or pop
-  /// (`through`) without a second `pred` call. Re-deriving it in the caller would ask a stateful
-  /// `FnMut` about the same token twice — observably, and with a licence to answer differently —
-  /// and a caller that acted on that second answer would leave the sync point cached and drop into
-  /// [`sync_with`](Self::sync_with) with a live cache, which lexes from past it.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn sync_matched_in_cache<P, Exp>(
-    &mut self,
-    mut pred: P,
-    mut exp: Exp,
-  ) -> Result<Drained, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    P: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
-    Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
-  {
-    // `pop_front_if` calls the closure on the front token and pops only when it returns true, so
-    // this pops exactly the rejected tokens and halts — with the accepted one still cached — the
-    // moment `pred` accepts. The loop therefore ends in exactly two states, which the cache's
-    // emptiness distinguishes: drained to empty, or stopped at the cached match.
-    while let Some(tok) = self
-      .cache
-      .pop_front_if(|t| !pred(Spanned::new(t.token().span(), t.token().data())))
-    {
-      let (lexed, state) = tok.into_components();
-      let (span, tok) = lexed.into_components();
-      self.set_span_after_consume((&span).into());
-      *self.state = state;
-
-      // Note: cursor/state are updated before emission. If emission fails,
-      // the error token has still been consumed (no backtracking here).
-
-      self
-        .emitter()
-        .emit_unexpected_token(UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok))?;
-    }
-
-    Ok(match self.cache.is_empty() {
-      true => Drained::Empty,
-      false => Drained::Matched,
-    })
-  }
-
   /// Runs the shared scanner loop: lex within the poison boundary and handle
   /// every lexer error in one place — latch the durable frontier on a limit
   /// trip, deduplicate-and-emit the diagnostic, and take the identical fatal
@@ -1800,6 +1778,21 @@ impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtCursor {
 struct AtFrontier<S, St> {
   span: S,
   state: St,
+}
+
+impl<S, St> AtFrontier<S, St> {
+  /// Settles a token the scan skipped behind the frontier: its span, and the state that produced
+  /// it.
+  ///
+  /// The counterpart of [`Frontier::advance`] for a token that arrived from the **cache**, which
+  /// carries both facts with it instead of leaving them to be read off a lexer. The two feeds are
+  /// the whole of the cached-vs-lexed difference in the sync loop; the frontier they both write is
+  /// what the scan commits, so what the input ends up at cannot depend on which fed it.
+  #[cfg_attr(not(tarpaulin), inline(always))]
+  fn adopt(&mut self, span: S, state: St) {
+    self.span = span;
+    self.state = state;
+  }
 }
 
 impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtFrontier<L::Span, L::State>

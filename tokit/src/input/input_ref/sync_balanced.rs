@@ -218,10 +218,10 @@ where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
     trace_event!(self, "sync_balanced");
-    // A no-match run to end of input must leave no trace — even across a prefilled cache. The
-    // drain below advances span/state per skipped cached token, and the later uncached scan may
-    // cross lexer errors (emitting them and lifting the dedup watermark). Snapshot the pre-call
-    // position, the emitter's emission mark, and the watermark HERE — BEFORE the drain — so the
+    // A no-match run to end of input must leave no trace — even across a prefilled cache. The scan
+    // below skips the cached tokens as readily as the ones it lexes itself, and may cross lexer
+    // errors on the way (emitting them and lifting the dedup watermark). Snapshot the pre-call
+    // position, the emitter's emission mark, and the watermark HERE — BEFORE the scan — so the
     // end-of-input exit can restore the FULL pre-call state. A match or a limit trip commits the
     // skipped prefix, so this snapshot goes unused on those paths. This is an internal
     // positional rewind, not a `Checkpoint`: it threads no lineage entry.
@@ -237,9 +237,10 @@ where
     let mut first: Option<L::Offset> = None;
     let mut last: Option<L::Offset> = None;
 
-    // The balanced decision: sync iff `pred` matches at depth zero; otherwise classify the
-    // kind, adjust the depth, and count the token into the hole. Shared by the cache drain and
-    // the uncached scan so the depth carries across the two phases.
+    // The balanced decision, in the seat the plain predicate takes for the rest of the family: sync
+    // iff `pred` matches at depth zero; otherwise classify the kind, adjust the depth, and count
+    // the token into the hole. The scanner calls it exactly once per token, cached or lexed, so the
+    // depth and the count are as blind to the caller's lookahead as the predicate is.
     let mut decide = |tok: Spanned<&L::Token, &L::Span>| -> bool {
       if depth == 0 && pred(tok) {
         return true;
@@ -260,34 +261,20 @@ where
       false
     };
 
-    // Drain the skipped prefix already sitting in the cache — committing span/state per token,
-    // with NO per-token diagnostic (the hole diagnostic below describes them once). The drain
-    // stops at a depth-0 sync point (left cached) or an empty cache.
-    while let Some(tok) = self.cache.pop_front_if(|t| {
-      let span = t.token().span();
-      !decide(Spanned::new(span, t.token().data()))
-    }) {
-      let (lexed, state) = tok.into_components();
-      let (span, _) = lexed.into_components();
-      self.set_span_after_consume((&span).into());
-      *self.state = state;
-    }
-
-    // A non-empty cache after the drain means its front is the sync point: the position is
-    // already committed at the last drained token, and the match stays cached for the caller.
-    // Otherwise scan the input through the shared driver; `SyncBalanced` stops before the match
-    // like `sync_to` and takes `sync_through`'s no-trace exit at end of input.
-    if self.cache().is_empty() {
-      match self.sync_with::<SyncBalanced, _, _>(&mut decide, || None, snapshot)? {
-        Synced::Found(_) => {}
-        Synced::Exhausted => return Ok(None),
-      }
+    // `SyncBalanced` stops before the match like `sync_to` — leaving it unconsumed at the cache
+    // front — and takes `sync_through`'s no-trace exit at end of input. No per-token diagnostic is
+    // made (`REPORT_SKIPPED` is `false`): the one hole note below describes the whole region.
+    match self.sync_with::<SyncBalanced, _, _>(&mut decide, || None, snapshot)? {
+      Synced::Found(_) => {}
+      Synced::Exhausted => return Ok(None),
     }
 
     let hole = match (first, last) {
       (Some(start), Some(end)) => Hole::new(L::Span::new(start, end), skipped),
-      // Nothing was skipped: the sync point was the very next token. Record a zero-width hole
-      // at the resume position; no skipped-region diagnostic is emitted for it.
+      // Nothing was skipped: the sync point was the very next token. Record a zero-width hole at
+      // the resume position — the cursor, which is the matched token's start, because the scan left
+      // that token at the cache front whether it popped it from there or lexed it. No
+      // skipped-region diagnostic is emitted for a zero-skip hole.
       _ => {
         let at = self.cursor().as_inner().clone();
         Hole::new(L::Span::new(at.clone(), at), 0)

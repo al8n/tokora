@@ -54,16 +54,15 @@ where
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
     trace_event!(self, "sync_through");
-    // A no-match run to end of input must leave no trace — even across a prefilled cache.
-    // `sync_matched_in_cache` below drains the non-matching cached prefix, advancing
-    // span/state and emitting an unexpected-token diagnostic per drained token; the later
-    // uncached scan may skip and diagnose more tokens and cross lexer errors (lifting the
-    // dedup watermark). Snapshot the pre-call position (span + lexer state), the emitter's
-    // emission mark, and the watermark HERE — BEFORE the drain — so the end-of-input exit
-    // can restore the FULL pre-call state. A match or a limit trip commits the whole
-    // diagnosed prefix (the drain was real progress en route to it), so this snapshot goes
-    // unused on those paths; only the no-match end-of-input exit rewinds to it. This is an
-    // internal positional rewind, not a `Checkpoint`: it threads no lineage entry.
+    // A no-match run to end of input must leave no trace — even across a prefilled cache. The
+    // scanner below skips and diagnoses the cached tokens as readily as the ones it lexes itself,
+    // and may cross lexer errors on the way (lifting the dedup watermark). Snapshot the pre-call
+    // position (span + lexer state), the emitter's emission mark, and the watermark HERE — BEFORE
+    // the scan — so the end-of-input exit can restore the FULL pre-call state, drained cache prefix
+    // and all. A match or a limit trip commits the whole diagnosed prefix (that skipping was real
+    // progress en route to it), so this snapshot goes unused on those paths; only the no-match
+    // end-of-input exit rewinds to it. This is an internal positional rewind, not a `Checkpoint`:
+    // it threads no lineage entry.
     let snapshot = ThroughEntry::new(
       self.span.clone(),
       self.state.clone(),
@@ -71,20 +70,13 @@ where
       self.emitted_error_end.clone(),
     );
 
-    match self.sync_matched_in_cache(&mut pred, &mut exp)? {
-      // The drain stopped at a cached token `pred` accepted, and left it at the front. Consume
-      // THAT token: the decision is carried out of the drain, never re-derived. A second `pred`
-      // call about it is observable to any stateful `FnMut` and free to answer differently, and
-      // acting on that answer would drop us into the scanner below with a live cache.
-      Drained::Matched => Ok(self.consume_cached_one()),
-      // The cache is empty, so the scanner may lex: skip-and-diagnose to the first match.
-      // `SyncThrough` consumes the match (`Synced::Found`); a poison trip commits the diagnosed
-      // prefix at the durable frontier and a no-match run to end of input rewinds to `snapshot`,
-      // both yielding the exhausted outcome (`Ok(None)`) with the position already settled.
-      Drained::Empty => match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
-        Synced::Found(tok) => Ok(tok),
-        Synced::Exhausted => Ok(None),
-      },
+    // `SyncThrough` consumes the match (`Synced::Found`) — the same two lines whether the scanner
+    // popped it off the cache or lexed it; a poison trip commits the diagnosed prefix at the
+    // durable frontier and a no-match run to end of input rewinds to `snapshot`, both yielding the
+    // exhausted outcome (`Ok(None)`) with the position already settled.
+    match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
+      Synced::Found(tok) => Ok(tok),
+      Synced::Exhausted => Ok(None),
     }
   }
 
@@ -157,16 +149,9 @@ where
     W: Window,
   {
     trace_event!(self, "sync_through_then_peek");
-    // A no-match run to end of input must leave no trace — even across a prefilled cache.
-    // `sync_matched_in_cache` below drains the non-matching cached prefix, advancing
-    // span/state and emitting an unexpected-token diagnostic per drained token; the later
-    // uncached scan may skip and diagnose more tokens and cross lexer errors (lifting the
-    // dedup watermark). Snapshot the pre-call position (span + lexer state), the emitter's
-    // emission mark, and the watermark HERE — BEFORE the drain — so the end-of-input exit
-    // can restore the FULL pre-call state. A match or a limit trip commits the whole
-    // diagnosed prefix (the drain was real progress en route to it), so this snapshot goes
-    // unused on those paths; only the no-match end-of-input exit rewinds to it. This is an
-    // internal positional rewind, not a `Checkpoint`: it threads no lineage entry.
+    // Snapshot the pre-call state BEFORE the scan, so the no-match end-of-input exit can rewind the
+    // FULL pre-call state — the drained cache prefix and the diagnostics alike (see
+    // [`sync_through`](Self::sync_through)).
     let snapshot = ThroughEntry::new(
       self.span.clone(),
       self.state.clone(),
@@ -174,26 +159,15 @@ where
       self.emitted_error_end.clone(),
     );
 
-    match self.sync_matched_in_cache(&mut pred, &mut exp)? {
-      // The drain stopped at a cached token `pred` accepted, and left it at the front. Consume
-      // THAT token — the decision leaves the drain with it, never re-derived (see
-      // [`sync_through`](Self::sync_through)) — and peek what follows it.
-      Drained::Matched => {
-        let tok = self.consume_cached_one();
+    match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
+      // The match is consumed, cached or lexed; peek the tokens after it.
+      Synced::Found(tok) => {
         let (peeked, emitter) = self.peek_with_emitter::<W>()?;
         Ok((tok, peeked, emitter))
       }
-      // The cache is empty, so the scanner may lex: skip-and-diagnose to the first match.
-      Drained::Empty => match self.sync_with::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
-        // The match is consumed; peek the tokens after it.
-        Synced::Found(tok) => {
-          let (peeked, emitter) = self.peek_with_emitter::<W>()?;
-          Ok((tok, peeked, emitter))
-        }
-        // The exhausted outcomes — a poison trip committed at the durable frontier, or a
-        // no-match run to end of input rewound to `snapshot` — yield no match and an empty peek.
-        Synced::Exhausted => Ok((None, GenericArrayDeque::new(), self.emitter)),
-      },
+      // The exhausted outcomes — a poison trip committed at the durable frontier, or a
+      // no-match run to end of input rewound to `snapshot` — yield no match and an empty peek.
+      Synced::Exhausted => Ok((None, GenericArrayDeque::new(), self.emitter)),
     }
   }
 }

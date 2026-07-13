@@ -2162,6 +2162,137 @@ fn sync_through_never_scans_past_a_cached_match() {
 }
 
 #[test]
+fn sync_to_returning_a_cached_match_is_not_a_cache_push() {
+  // A `to`-shaped match leaves the sync token unconsumed AT THE CACHE FRONT. The scanner takes
+  // every token — cached or lexed — out of the cache/lexer to decide it, so settling a CACHED match
+  // puts that token straight back into the slot it left: the cache is then bit-for-bit what it was,
+  // and its push history must not move.
+  //
+  // If the put-back were counted as a push, `restore` would compute one post-save entry too many
+  // and drop the LAST prefetched token off the back — lookahead the caller had already paid to lex,
+  // evicted by a rollback that PREDATES the sync but POSTDATES the peek. (That over-drop is not
+  // cosmetic: `nested_restore_with_shared_limiter_no_spurious_poison` shows the re-lex it forces
+  // can spend a scan the limiter's budget did not have, spuriously poisoning the input.)
+  //   ; 1 2 3   (the sync point is the very first token — a zero-skip match, straight from cache)
+  use crate::span::SimpleSpan;
+  use generic_arraydeque::typenum::U3;
+
+  let mut input = bal_input("; 1 2 3", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+    let _ = inp.peek::<U3>().unwrap(); // prefill `;`, `1`, `2`
+    assert_eq!(inp.cache().len(), 3, "the peek staged three tokens");
+
+    let ckp = inp.save();
+    let matched = inp
+      .sync_to(|t| matches!(t.data(), BalTok::Semi), || None)
+      .unwrap()
+      .map(|t| *t.span());
+    assert_eq!(
+      matched,
+      Some(SimpleSpan::new(0, 1)),
+      "the cached `;` is the sync point"
+    );
+    inp.restore(ckp);
+
+    // The rollback returns to the moment after the peek, so ALL THREE prefetched tokens must still
+    // be there: the sync popped one and put it straight back, which is a no-op on the cache.
+    assert_eq!(
+      inp.cache().len(),
+      3,
+      "a rollback over a sync that only put its cached match back must keep the whole prefetch"
+    );
+    assert_eq!(
+      *inp.offset(),
+      5,
+      "the lex frontier still ends at the last prefetched token"
+    );
+
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(2, 3),
+      SimpleSpan::new(4, 5),
+      SimpleSpan::new(6, 7),
+    ],
+    "the full faithful stream drains"
+  );
+}
+
+#[test]
+fn sync_balanced_staging_a_lexed_match_is_a_cache_push() {
+  // The other half of the same rule. A match the scanner LEXED is left unconsumed at the cache
+  // front too — but that is a NEW cache entry, exactly the one a peek would have made, so its push
+  // IS recorded and a checkpoint saved before the call drops it on restore, like any other
+  // speculative fill. `sync_balanced` is the sharp case: unlike `sync_to` it takes no peek
+  // afterwards, so the entry it stages is the only one in the cache.
+  //
+  // Failing to record it would retain, across a rollback, a token lexed on the abandoned
+  // continuation — the exact stale-cache hazard `restore_unchecked` drops post-save entries to
+  // prevent.
+  //   ; 1 2   (a zero-skip balanced match, lexed from an empty cache)
+  use crate::span::SimpleSpan;
+
+  let mut input = bal_input("; 1 2", usize::MAX);
+  let mut emitter = Verbose::<ByValErr>::new();
+
+  let drained: Vec<SimpleSpan> = {
+    let mut inp = input.as_ref(&mut emitter);
+    assert!(inp.cache().is_empty(), "nothing is prefetched");
+
+    let ckp = inp.save();
+    let hole = inp
+      .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+      .unwrap()
+      .expect("the `;` is the sync point");
+    assert_eq!(hole.skipped(), 0, "the sync point was the very next token");
+    assert_eq!(
+      hole.span(),
+      SimpleSpan::new(0, 0),
+      "the zero-skip hole sits at the resume position — the match's own start"
+    );
+    assert_eq!(
+      inp.cache().len(),
+      1,
+      "the lexed match is left unconsumed at the cache front"
+    );
+
+    inp.restore(ckp);
+    assert!(
+      inp.cache().is_empty(),
+      "a rollback must drop the match the abandoned scan lexed into the cache"
+    );
+    assert_eq!(*inp.offset(), 0, "the lex frontier returns to the save");
+
+    let mut toks = Vec::new();
+    while let Some(t) = inp.next().unwrap() {
+      toks.push(*t.span_ref());
+    }
+    toks
+  };
+
+  assert_eq!(
+    drained,
+    std::vec![
+      SimpleSpan::new(0, 1),
+      SimpleSpan::new(2, 3),
+      SimpleSpan::new(4, 5),
+    ],
+    "the full faithful stream drains after the rollback"
+  );
+}
+
+#[test]
 fn failed_sync_through_with_prefilled_cache_reemits_crossed_error_once() {
   // The watermark leg with a prefilled cache. Peek stages a token BEFORE a lexer error
   // (`@`), then a never-matching `sync_through` drains that cached token and scans across
@@ -4496,7 +4627,11 @@ struct MatrixCell {
   prefills: &'static [usize],
   /// Entry points this cell is KNOWN to diverge on. The main matrix skips exactly these pairs
   /// and [`sync_cache_transparency_known_divergences`] drives them instead, so the divergence is
-  /// parked and named, never silently accepted. Empty for every transparent cell.
+  /// parked and named, never silently accepted.
+  ///
+  /// **Empty for every cell.** The family has one skip-and-report path and one match settle for
+  /// cached and lexed tokens alike, so there is no divergence left to park — and
+  /// [`sync_cache_transparency_known_divergences`] now enforces that the parking lot stays empty.
   diverges: &'static [Entry],
 }
 
@@ -4611,14 +4746,14 @@ const CELLS: &[MatrixCell] = &[
   },
   // A ZERO-SKIP sync from a non-zero committed position — the sync point is the very next token.
   //
-  // KNOWN DIVERGENCE (`sync_balanced` only): the zero-skip `Hole` is placed at `cursor()`, and
-  // `cursor()` reads the cache — it is the front cached token's START when something is cached
-  // and the committed span's END otherwise. The two sync implementations leave DIFFERENT cache
-  // states on a match: the drain stops with the match still at the cache front, while the
-  // `sync_with` loop lexes the match, settles before it and leaves the cache empty. So the hole
-  // lands on the token's start after a peek and on the previous token's end without one — a
-  // RETURNED VALUE that moves with the lookahead depth, which no contract states. The other five
-  // entry points never read `cursor()` and are transparent here.
+  // The cell that caught the settle divergence: `sync_balanced`'s zero-skip `Hole` is anchored at
+  // `cursor()`, and `cursor()` reads the cache — it is the front cached token's START when
+  // something is cached and the committed span's END otherwise. While the family had two match
+  // settles they left DIFFERENT cache states behind — the drain stopped with the match at the cache
+  // front, the loop lexed the match, settled before it and left the cache empty — so the hole
+  // landed on the token's start after a peek and on the previous token's end without one: a
+  // RETURNED VALUE that moved with the lookahead depth. One settle now leaves the match unconsumed
+  // at the cache front on both origins, so the cursor is the match's start either way.
   MatrixCell {
     name: "zero_skip_after_a_consume",
     src: "1 ; 2 3",
@@ -4626,7 +4761,7 @@ const CELLS: &[MatrixCell] = &[
     fatal_at: None,
     consume_first: 1,
     prefills: &[1, 2, 3],
-    diverges: &[Entry::Balanced],
+    diverges: &[],
   },
 ];
 
@@ -4981,10 +5116,12 @@ fn assert_cache_transparent(
   );
 }
 
-/// Every (entry point x scenario x prefill) triple the sync family is transparent on. The
-/// `cell.diverges` pairs are the ONLY exclusions, each named at its cell, and
-/// [`sync_cache_transparency_known_divergences`] drives exactly those instead — so a divergence
-/// is parked in the open, never quietly asserted away.
+/// Every (entry point x scenario x prefill) triple — and the family is transparent on all of them.
+///
+/// There are **no exclusions**: `cell.diverges` is empty for every cell, so the `continue` below
+/// never fires and every triple is asserted here, in the default suite.
+/// [`sync_cache_transparency_known_divergences`] holds the mechanism that would park one, and
+/// enforces that nothing ever is.
 #[test]
 fn sync_cache_transparency_matrix() {
   for cell in CELLS {
@@ -5001,27 +5138,36 @@ fn sync_cache_transparency_matrix() {
   }
 }
 
-/// The cells the sync family is NOT transparent on, driven through the very same assertions.
+/// The parking lot for cells the sync family is NOT transparent on — **and it is empty**.
 ///
-/// This test is expected to FAIL: it is the specification of the behaviour the family owes, held
-/// against the behaviour it has. Ignored so the suite stays green while the divergence is open;
-/// run it with `--ignored` to see the leak.
+/// It was not always. While the family had two implementations of "skip a token and report it" —
+/// a cache-drain prologue and the `sync_with` loop — nothing forced them to settle a match the same
+/// way, and they did not: the drain stopped with the matched token still at the cache front, while
+/// the loop lexed the match, settled before it, and left the cache empty. `sync_balanced` anchors
+/// its zero-skip [`Hole`](crate::input::Hole) at `cursor()`, which reads the cache, so the same
+/// call returned a different hole depending on how deep the caller had peeked — a returned value
+/// moving with the lookahead depth, which no contract states. This test drove that cell, was
+/// expected to fail, and was ignored to keep the suite green while the divergence stood.
 ///
-/// # The open divergence
+/// The family now has ONE loop over cached and lexed tokens alike, one skip-and-report path, and
+/// one match settle that leaves the sync token unconsumed at the cache front whichever origin it
+/// came from — so the divergence has nowhere to live, every cell is transparent, and
+/// [`sync_cache_transparency_matrix`] above drives all of them with no exclusions.
 ///
-/// `sync_balanced` / `zero_skip_after_a_consume`: the zero-skip [`Hole`](crate::input::Hole) is
-/// placed at `cursor()`, which is defined in terms of the cache — the front cached token's start
-/// when one is cached, the committed span's end otherwise. The two sync implementations settle a
-/// match with different cache states: the cache-drain prologue stops with the matched token still
-/// at the cache front, while the `sync_with` loop lexes the match, settles before it, and leaves
-/// the cache empty. The hole therefore lands on the sync token's start after a peek and on the
-/// previous token's end without one. Nothing in the contract lets a returned value move with the
-/// lookahead depth, so this is a bug, not an exception — and its root is structural: one
-/// "skip and settle" written twice.
+/// What is left here is the mechanism, kept honest in both directions: the parking lot must STAY
+/// empty (a future divergence may not be quietly parked out of the main matrix), and anything ever
+/// parked in it must still satisfy the very same assertions.
 #[test]
-#[ignore = "open divergence: sync_balanced's zero-skip hole span moves with the peek depth"]
 fn sync_cache_transparency_known_divergences() {
   for cell in CELLS {
+    assert!(
+      cell.diverges.is_empty(),
+      "[{}] a cache divergence was parked out of the main matrix. The sync family has one \
+       skip-and-report path and one match settle for cached and lexed tokens alike, so a \
+       divergence is a defect in that path — fix it, do not park it: {:?}",
+      cell.name,
+      cell.diverges,
+    );
     for &entry in cell.diverges {
       let uncached = run_cell(cell, entry, 0);
       for &prefill in cell.prefills {
