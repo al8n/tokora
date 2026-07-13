@@ -149,6 +149,36 @@ where
     }
   }
 
+  /// The whole body of an *undecided* guard's [`Drop`], deliberately **outlined** — see the
+  /// `Drop` impl for why that is load bearing rather than tidy.
+  #[cold]
+  #[inline(never)]
+  fn settle_undecided(&mut self) {
+    let Some(ckp) = self.ckp.take() else { return };
+    if P::ROLLBACK_ON_DROP {
+      trace_event!(self.input, "rollback");
+      // Unpin the begin point first — exception-safe, so it happens even though the rewind
+      // below may be skipped (a `Drop` may run mid-unwind, where panicking is forbidden). The
+      // pin check makes the base go-stale case unreachable in allocator builds, so this
+      // normally just rewinds; the skip stays as a backstop. An explicit `rollback` reports a
+      // stale base loudly; here we stay silent and truthful.
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      self.input.unpin_checkpoint(ckp.ckp_id);
+      self.input.restore_unchecked_if_live(ckp);
+    } else {
+      trace_event!(self.input, "commit");
+      // Commit-on-drop: progress kept; unpin the begin point and forget its lineage id so
+      // neither lingers on the live/pin stacks across commit-heavy loops (as `commit` does).
+      #[cfg(any(feature = "std", feature = "alloc"))]
+      {
+        self.input.unpin_checkpoint(ckp.ckp_id);
+        self.input.forget_checkpoint(ckp.ckp_id);
+      }
+      #[cfg(not(any(feature = "std", feature = "alloc")))]
+      let _ = ckp;
+    }
+  }
+
   /// Rolls the transaction back: returns the input to the begin point — position, span,
   /// lexer state, emission log, dedup watermark, and poison boundary all restored.
   /// Available whatever the drop policy (a [`Commit`](super::Commit) guard can still be
@@ -232,31 +262,21 @@ where
   /// panic at that restore, so the base cannot go stale while the guard is live and the rollback
   /// arm normally just rewinds; the stale-base skip it still performs is a backstop (defense in
   /// depth, and the behavior for allocator-less builds, which pin nothing).
+  ///
+  /// **This body is one branch.** Everything it does when the branch is taken lives out of line
+  /// in the crate-private `settle_undecided`, and that is load bearing rather than tidy: the
+  /// lineage's `unpin`/`forget` are `inline(always)` stack scans and the drop-path rewind is an
+  /// `inline(always)` full restore — and a destructor is emitted at *every unwind edge* of its
+  /// owner. Inlined, all of that lands in the cleanup path of every hot loop that speculates
+  /// through a guard, including [`attempt`](InputRef::attempt) /
+  /// [`try_attempt`](InputRef::try_attempt), which hold their begin point in one of these across
+  /// the call into user code. Measured on the `attempt_decline_per_token` benchmark: inlined,
+  /// +30%; outlined, +6% — and the commit-by-default guard got 27% *faster*. It is the same
+  /// shape, and the same reason, the session cell's `Drop` is outlined for.
   #[cfg_attr(not(tarpaulin), inline)]
   fn drop(&mut self) {
-    if let Some(ckp) = self.ckp.take() {
-      if P::ROLLBACK_ON_DROP {
-        trace_event!(self.input, "rollback");
-        // Unpin the begin point first — exception-safe, so it happens even though the rewind
-        // below may be skipped (a `Drop` may run mid-unwind, where panicking is forbidden). The
-        // pin check makes the base go-stale case unreachable in allocator builds, so this
-        // normally just rewinds; the skip stays as a backstop. An explicit `rollback` reports a
-        // stale base loudly; here we stay silent and truthful.
-        #[cfg(any(feature = "std", feature = "alloc"))]
-        self.input.unpin_checkpoint(ckp.ckp_id);
-        self.input.restore_unchecked_if_live(ckp);
-      } else {
-        trace_event!(self.input, "commit");
-        // Commit-on-drop: progress kept; unpin the begin point and forget its lineage id so
-        // neither lingers on the live/pin stacks across commit-heavy loops (as `commit` does).
-        #[cfg(any(feature = "std", feature = "alloc"))]
-        {
-          self.input.unpin_checkpoint(ckp.ckp_id);
-          self.input.forget_checkpoint(ckp.ckp_id);
-        }
-        #[cfg(not(any(feature = "std", feature = "alloc")))]
-        let _ = ckp;
-      }
+    if self.ckp.is_some() {
+      self.settle_undecided();
     }
   }
 }
