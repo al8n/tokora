@@ -822,6 +822,11 @@ where
   /// `src/input/input_ref/session_tests.rs`): `dropping_the_handle_releases_the_open_points`,
   /// `dropping_the_handle_keeps_the_progress_of_the_open_points`, and
   /// `a_second_handle_rewinds_across_an_abandoned_point`.
+  ///
+  /// # Fuzz coverage
+  ///
+  /// The abandon path is in the fuzz alphabet as `Op::SessionAbandon` (`session.abandon(drop)`);
+  /// see `OP_SURFACE_CENSUS` in `src/fuzz/ops.rs`.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
   #[cfg_attr(not(tarpaulin), inline)]

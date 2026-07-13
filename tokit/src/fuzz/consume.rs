@@ -294,7 +294,7 @@ fn run_step(
     Op::Savepoint | Op::RollbackToSavepoint | Op::ReleaseSavepoint => {
       unreachable!("savepoint ops are only emitted inside a stacked body (run_stacked_seq)")
     }
-    Op::SessionCommit | Op::SessionRollback => {
+    Op::SessionCommit | Op::SessionRollback | Op::SessionAbandon => {
       unreachable!("session ops are driven by the session case kind, not the consume tree")
     }
   }

@@ -31,7 +31,9 @@
 //!    only ever extends and matches the reference at every quiescent point.
 //! 2. **No-trace** — a declined `attempt`, a rolled-back guard, and a no-match
 //!    `sync_through`/`sync_balanced` leave the cursor *and* the emission count exactly as they were.
-//! 3. **LIFO/pin** — a guard, savepoint, or session rollback restores the exact begin-point state.
+//! 3. **LIFO/pin** — a guard, savepoint, or session rollback restores the exact begin-point state;
+//!    and a session point **abandoned** with its handle releases its pin on the (longer-lived) input
+//!    while keeping its progress, leaving a later handle free to speculate over the same region.
 //! 4. **Chunked equivalence** — reassembling partial-mode chunk prefixes reproduces the single-shot
 //!    parse (`set_final`, frontier holdback, the `Incomplete` channel).
 //! 5. **Termination** — every generated script is bounded and terminates.

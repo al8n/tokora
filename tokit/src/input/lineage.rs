@@ -314,9 +314,12 @@ impl Lineage {
   ///
   /// Reachable from the owning [`Input`](super::Input), not just from a handle, because that is
   /// exactly where the question is asked: *after* the handle that opened the points is gone.
-  /// Gated to its callers — the `logos` + `std` session tests — so it is never dead code under
-  /// `cargo hack --each-feature --tests`.
-  #[cfg(all(test, feature = "logos", feature = "std"))]
+  /// Gated to its callers — the `logos` + `std` session tests and the `fuzz` harness's abandon
+  /// oracle — so it is never dead code under `cargo hack --each-feature --tests`.
+  #[cfg(any(
+    all(test, feature = "logos", feature = "std"),
+    all(feature = "fuzz", feature = "std")
+  ))]
   pub(crate) fn pinned_len(&self) -> usize {
     self.pinned.len()
   }

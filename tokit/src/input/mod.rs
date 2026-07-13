@@ -554,8 +554,11 @@ where
   /// about the moment *after* a handle dies: an [`InputRef`] dropped with session points still
   /// open releases their pins ([`InputRef`]'s `Drop`), so this reads `0` again — the pin set holds
   /// exactly the live begin points, and with no handle alive there are none. Gated to its callers
-  /// (the session tests).
-  #[cfg(all(test, feature = "logos", feature = "std"))]
+  /// (the session tests and the `fuzz` harness's abandon oracle).
+  #[cfg(any(
+    all(test, feature = "logos", feature = "std"),
+    all(feature = "fuzz", feature = "std")
+  ))]
   pub(crate) fn pinned_checkpoints_len(&self) -> usize {
     self.lineage.pinned_len()
   }

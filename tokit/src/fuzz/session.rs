@@ -15,6 +15,12 @@
 //!   survive.
 //! - **Rollback restores** — after `rollback_point`, the cursor, emission count, and state tag all
 //!   return to the values captured when that point opened.
+//! - **Abandon releases, and keeps** — a third of the cases end by **dropping the handle with points
+//!   still open**, never settling them. The handle's `Drop` must release every remaining point's pin
+//!   (the input's pin set is empty again — the memos live on the `Input`, which outlives the handle,
+//!   so nothing else would), keep all the progress made through them (no implicit rollback), and
+//!   leave a *second* handle over the same input free to speculate: a fresh point opened and rolled
+//!   back over the abandoned region must not trip a pin left behind by a point nobody holds.
 
 use std::vec::Vec;
 
@@ -44,9 +50,12 @@ enum SOp {
   Rollback,
 }
 
-/// Generates a well-formed session sub-op sequence: it never commits/rolls back with no live point,
-/// and settles every open point before the end (a session must end explicitly).
-fn gen_session(rng: &mut Rng) -> Vec<SOp> {
+/// Generates a well-formed session sub-op sequence: it never commits/rolls back with no live point.
+///
+/// `abandon` picks the ending. Normally the tail settles every open point, because a session ends
+/// explicitly. When `abandon` is set the tail is left **open** instead — at least one point live —
+/// so the caller can drop the handle on top of it and check the abandon oracles.
+fn gen_session(rng: &mut Rng, abandon: bool) -> Vec<SOp> {
   let n = rng.below(12) + 4;
   let mut depth = 0usize;
   let mut out = Vec::with_capacity(n + 2);
@@ -79,6 +88,14 @@ fn gen_session(rng: &mut Rng) -> Vec<SOp> {
         }
       }
     }
+  }
+  if abandon {
+    // Leave the tail open — the handle is dropped on top of these. Guarantee at least one live
+    // point, so an abandon case always really abandons something.
+    if depth == 0 {
+      out.push(SOp::Begin);
+    }
+    return out;
   }
   while depth > 0 {
     out.push(if rng.chance(1, 2) {
@@ -129,7 +146,11 @@ pub(crate) fn run(src: &[u8], seq_seed: u64, cov: &mut Coverage) {
     }
   }
 
-  let seq = gen_session(&mut rng);
+  // Whether this case ends by ABANDONING its open points. Drawn from a derived stream rather than
+  // `rng`, so the script generation below stays bit-for-bit what it was before this shape existed
+  // (and the corpus keeps covering the settle verbs exactly as it did).
+  let abandon = Rng::new(seq_seed ^ 0xABA4_D04E_5EED_5EED).chance(1, 3);
+  let seq = gen_session(&mut rng, abandon);
 
   // Each live point remembers the emission count, state tag, and cursor captured when it opened.
   let mut stack: Vec<(u64, u64, usize)> = Vec::new();
@@ -202,9 +223,69 @@ pub(crate) fn run(src: &[u8], seq_seed: u64, cov: &mut Coverage) {
       }
     }
   }
+  if !abandon {
+    assert_eq!(
+      ir.points(),
+      0,
+      "session: points left open at the end of the case"
+    );
+    return;
+  }
+
+  // ── The abandon shape: drop the handle with points still open ──────────────────────────────
+  cov.mark(Op::SessionAbandon);
+  let open = ir.points();
+  assert!(open > 0, "session: an abandon case must leave a point open");
+  // The committed facts at the moment of the drop. Everything the abandoned points speculated over
+  // is part of them: abandoning keeps progress, it does not roll it back.
+  let at_drop = at(&ir);
+  let count_at_drop = count(&mut ir);
+  let tag_at_drop = ir.state().tag;
+
+  drop(ir);
+
+  // Oracle: the handle's `Drop` released every open point. The pin set and the live-checkpoint
+  // stack live on the `Input`, which outlives the handle — nothing else can release them, and a pin
+  // for a point nobody holds would falsify the set's own invariant and grow for the input's life.
+  assert_eq!(
+    input.pinned_checkpoints_len(),
+    0,
+    "session: dropping the handle left {open} abandoned point(s) pinned on the input"
+  );
+
+  // Oracle: no implicit rollback. A second handle over the same input sees exactly the progress the
+  // abandoned session made — cursor, emission log, and lexer state alike.
+  let mut ir = input.as_ref(&mut emitter);
+  assert_eq!(
+    at(&ir),
+    at_drop,
+    "session: abandoning rolled the cursor back instead of keeping the progress"
+  );
+  assert_eq!(
+    count(&mut ir),
+    count_at_drop,
+    "session: abandoning rolled back diagnostics instead of keeping them"
+  );
+  assert_eq!(
+    ir.state().tag,
+    tag_at_drop,
+    "session: abandoning rolled the lexer state back instead of keeping it"
+  );
   assert_eq!(
     ir.points(),
     0,
-    "session: points left open at the end of the case"
+    "session: a fresh handle starts with an empty point stack"
   );
+
+  // Oracle: the second handle speculates freely over the region the abandoned points covered — a
+  // rewind here must not trip a pin left behind by a point nobody holds.
+  ir.begin_point();
+  let _ = ir.next().expect("complete + non-fatal");
+  ir.rollback_point();
+  assert_eq!(
+    at(&ir),
+    at_drop,
+    "session: a fresh point on the second handle did not roll back to its own base"
+  );
+  assert_eq!(ir.points(), 0, "session: the fresh point settled");
 }

@@ -122,6 +122,8 @@ define_ops! {
   SessionCommit => "session.commit_point",
   /// `InputRef::begin_point` + `rollback_point` — a session point rolled back.
   SessionRollback => "session.rollback_point",
+  /// `InputRef::begin_point` + drop the handle — a session point abandoned, settled by neither verb: the handle's `Drop` releases its pin while keeping its progress.
+  SessionAbandon => "session.abandon(drop)",
 }
 
 /// OP_SURFACE_CENSUS — the number of public input-machinery operations the fuzz alphabet covers.
@@ -130,7 +132,7 @@ define_ops! {
 /// in the **same** commit: add the `define_ops!` line, wire the op into a generator so the coverage
 /// test exercises it, add its executor arm, and drop a `# Fuzz coverage` note in the op-adding
 /// module's contract docs pointing here. `grep OP_SURFACE_CENSUS` finds every anchor.
-pub const EXPECTED_OP_COUNT: usize = 29;
+pub const EXPECTED_OP_COUNT: usize = 30;
 
 // Compile-time census tripwire: the alphabet cannot change size without this failing to compile at
 // a named location, forcing the checklist above.
