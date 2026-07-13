@@ -174,7 +174,7 @@ pub(crate) fn run(src: &[u8], seq_seed: u64, cov: &mut Coverage) {
       }
       SOp::Emit => emit(&mut ir),
       SOp::Rekey(t) => {
-        *ir.state_mut() = ScriptState { tag: t };
+        *ir.state_mut() = ScriptState::with_tag(t);
         cur_tag = t;
       }
       SOp::Commit => {

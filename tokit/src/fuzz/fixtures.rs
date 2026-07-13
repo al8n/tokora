@@ -110,23 +110,84 @@ impl Token<'_> for FuzzTok {
 
 // ── Lexer state ──────────────────────────────────────────────────────────────────────────────────
 
-/// [`ScriptLexer`]'s state: a single observable `tag` that plays no part in lexing (the byte-per-
-/// token stream ignores it) but rides every checkpoint, so the session-point driver can re-key it
-/// through [`InputRef::state_mut`](crate::InputRef::state_mut) and watch a rollback restore it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// [`ScriptLexer`]'s state: an observable `tag` that plays no part in lexing (the byte-per-token
+/// stream ignores it) but rides every checkpoint, so the session-point driver can re-key it through
+/// [`InputRef::state_mut`](crate::InputRef::state_mut) and watch a rollback restore it — plus an
+/// optional **token limiter**, the terminal condition.
+///
+/// # The limiter is off by default, so the shadow model stays closed-form
+///
+/// [`limit`](Self::limit) defaults to `usize::MAX`: [`check`](State::check) then never fails, no
+/// poison boundary is ever latched, and the token/error stream stays the pure function of the source
+/// bytes ([`is_err`] / [`kind_of`]) that every other driver's model assumes. Only the partial
+/// driver's limit oracle constructs a tripping state, and it does so over its own inputs.
+///
+/// The tally rides *inside the state* on purpose: that is where a real limiter's tally lives (the
+/// [`Lexer`] contract says so), so it is cloned into every cached token and copied back by every
+/// restore — the fuzzed backtracking exercises the limiter's interaction with checkpoints for free.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScriptState {
   /// An opaque marker the harness sets to observe state save/restore. Lexing never reads it.
   pub tag: u64,
+  /// Tokens lexed so far under this state.
+  scanned: usize,
+  /// The token budget: `check()` fails once `scanned` exceeds it. `usize::MAX` never trips.
+  limit: usize,
+}
+
+impl Default for ScriptState {
+  #[inline]
+  fn default() -> Self {
+    Self {
+      tag: 0,
+      scanned: 0,
+      limit: usize::MAX,
+    }
+  }
+}
+
+impl ScriptState {
+  /// A limit-free state carrying `tag` — what the session driver re-keys with.
+  #[inline]
+  pub const fn with_tag(tag: u64) -> Self {
+    Self {
+      tag,
+      scanned: 0,
+      limit: usize::MAX,
+    }
+  }
+
+  /// A state that trips once more than `limit` tokens have been lexed: the `(limit + 1)`-th token is
+  /// the **tripping token**, and the lexer reports it as an error carrying that token's span —
+  /// exactly what the Logos backend does when `check()` fails after a token.
+  #[inline]
+  pub const fn with_limit(limit: usize) -> Self {
+    Self {
+      tag: 0,
+      scanned: 0,
+      limit,
+    }
+  }
+
+  /// Whether the budget is already spent — the lexer's sticky latch (see [`ScriptLexer::lex`]).
+  #[inline]
+  const fn tripped(&self) -> bool {
+    self.scanned > self.limit
+  }
 }
 
 impl State for ScriptState {
-  type Error = core::convert::Infallible;
+  type Error = FuzzTokError;
 
   #[inline]
   fn check(&self) -> Result<(), Self::Error> {
-    // Non-tripping: the fuzz lexer never latches a poison boundary, keeping the committed-stream
-    // shadow model exact (see the module docs on scope).
-    Ok(())
+    // The terminal predicate. Limit-free by default (see the type docs), so the committed-stream
+    // shadow model stays exact for every driver that does not opt in.
+    if self.tripped() {
+      Err(FuzzTokError)
+    } else {
+      Ok(())
+    }
   }
 }
 
@@ -171,7 +232,7 @@ impl<'a> Lexer<'a> for ScriptLexer<'a> {
 
   #[inline]
   fn check(&self) -> Result<(), FuzzTokError> {
-    Ok(())
+    self.state.check()
   }
 
   #[inline]
@@ -206,17 +267,29 @@ impl<'a> Lexer<'a> for ScriptLexer<'a> {
 
   #[inline]
   fn lex(&mut self) -> Option<Result<FuzzTok, FuzzTokError>> {
+    // Sticky trip: once the budget is spent this instance reports EOF forever, mirroring the Logos
+    // backend's `poisoned` latch. The latch dies with the lexer — the input layer's poison boundary
+    // is what persists it across the fresh lexers it builds per operation.
+    if self.state.tripped() {
+      return None;
+    }
     self.start = self.end;
     if self.start >= self.src.len() {
       return None;
     }
     self.end = self.start + 1;
     let b = self.src[self.start];
-    Some(if is_err(b) {
-      Err(FuzzTokError)
-    } else {
-      Ok(FuzzTok { kind: kind_of(b) })
-    })
+    if is_err(b) {
+      return Some(Err(FuzzTokError));
+    }
+    // A token: bill it, then probe. A trip REPLACES the token with a lexer error carrying that
+    // token's span — the exact shape the Logos backend produces, and the shape whose span can land
+    // on a chunk boundary.
+    self.state.scanned += 1;
+    if self.state.check().is_err() {
+      return Some(Err(FuzzTokError));
+    }
+    Some(Ok(FuzzTok { kind: kind_of(b) }))
   }
 
   #[inline]
@@ -348,6 +421,8 @@ pub(crate) fn cache<'a>() -> DefaultCache<'a, ScriptLexer<'a>> {
 }
 
 /// The lexer's initial state over `src` (position is threaded by the input, not the state).
+/// Limit-free: only the partial driver's limit oracle asks for a tripping state
+/// ([`ScriptState::with_limit`]).
 #[inline]
 pub(crate) fn initial_state(src: &[u8]) -> ScriptState {
   ScriptLexer::new(src).into_state()

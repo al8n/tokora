@@ -15,11 +15,37 @@
 //! This is error-agnostic (it compares committed token streams, which skip lexer errors
 //! identically in both modes), so — unlike the consume driver — the fuzzed streams here **do**
 //! contain lexer-error bytes, exercising the error-skipping and dedup paths under truncation.
+//!
+//! # The third shape: a limit trip AT the cut (terminal beats incomplete)
+//!
+//! The two shapes above fuzz what the frontier rules *withhold*. The third fuzzes what they must
+//! **not** withhold. Under a token limiter ([`ScriptState::with_limit`]) the `(limit + 1)`-th token
+//! is reported as a lexer error carrying that token's span — so choosing the cut `k` at that span's
+//! end puts a **terminal** condition exactly on the non-final frontier, the alignment an attacker
+//! picks. The oracle is the [law](crate::input#terminal-beats-incomplete-and-they-never-substitute):
+//!
+//! - a prefix that **contains** the trip terminates on the trip — tokens up to it, the limit
+//!   diagnostic emitted — and never on the `Incomplete` channel, *including* when the tripping token
+//!   ends exactly at the cut;
+//! - a prefix that does **not** contain the trip still ends `Incomplete`, so the narrowing did not
+//!   turn the holdback off.
+//!
+//! Every trip-bearing case forces `k` to the trip's span end alongside its random cuts, so the
+//! boundary alignment is covered on every such seed rather than waited for.
+//!
+//! # Fuzz coverage (`OP_SURFACE_CENSUS`)
+//!
+//! This adds an **oracle**, not an operation: it drives [`Op::Next`] and [`Op::SetFinal`], both
+//! already in the alphabet and already marked here. The alphabet's size is unchanged, so
+//! `EXPECTED_OP_COUNT` does not move (grep `OP_SURFACE_CENSUS`).
 
 use std::vec::Vec;
 
 use super::{
-  fixtures::{CountEmitter, FuzzCtx, FuzzError, FuzzKind, ScriptLexer, cache, initial_state},
+  fixtures::{
+    CountEmitter, FuzzCtx, FuzzError, FuzzKind, ScriptLexer, ScriptState, cache, initial_state,
+    is_err, kind_of,
+  },
   ops::{Coverage, Op},
   rng::Rng,
 };
@@ -141,8 +167,126 @@ fn two_phase_stream(src: &[u8], budget: usize) -> Vec<Tok> {
   out
 }
 
+// ── The limit oracle: a terminal trip is not an incomplete frontier ──────────────────────────────
+
+/// The shadow model of a limited run over `src`: the index of the **tripping byte** — the
+/// `(limit + 1)`-th token byte — if the source reaches the limit at all.
+///
+/// A pure function of the bytes and the limit, exactly as the rest of the model is: error bytes
+/// ([`is_err`]) are not billed, every other byte is one token.
+fn trip_index(src: &[u8], limit: usize) -> Option<usize> {
+  let mut tokens = 0usize;
+  for (i, &b) in src.iter().enumerate() {
+    if is_err(b) {
+      continue;
+    }
+    tokens += 1;
+    if tokens > limit {
+      return Some(i);
+    }
+  }
+  None
+}
+
+/// What a limited drain observed: the committed tokens, how it terminated (`true` = on the
+/// `Incomplete` channel), and how many diagnostics reached the emitter.
+struct Limited {
+  tokens: Vec<Tok>,
+  incomplete: bool,
+  emitted: u64,
+}
+
+/// Drains a fresh input over `src` behind a `limit`-token limiter, in `Partial` mode at `is_final`.
+fn limited_stream(src: &[u8], limit: usize, is_final: bool, budget: usize) -> Limited {
+  let cache = cache();
+  let mut emitter = CountEmitter::new();
+  let mut input =
+    crate::input::Input::<'_, ScriptLexer<'_>, FuzzCtx<'_>, (), Partial>::with_state_and_cache(
+      src,
+      ScriptState::with_limit(limit),
+      cache,
+    );
+  let (tokens, incomplete) = {
+    let mut ir = input.as_ref(&mut emitter);
+    ir.set_final(is_final);
+    let mut tokens = Vec::new();
+    let incomplete = loop {
+      assert!(
+        tokens.len() <= budget,
+        "limited drain exceeded budget (non-terminating?)"
+      );
+      match ir.next() {
+        Ok(Some(sp)) => {
+          let (span, tok) = sp.into_components();
+          tokens.push((tok.kind(), span));
+        }
+        Ok(None) => break false,
+        Err(e) => {
+          assert_eq!(
+            e,
+            FuzzError::Incomplete,
+            "a limited drain surfaced a non-Incomplete error"
+          );
+          break true;
+        }
+      }
+    };
+    (tokens, incomplete)
+  };
+  Limited {
+    tokens,
+    incomplete,
+    emitted: emitter.count(),
+  }
+}
+
+/// Checks the terminal-dominance law over `src[..k]` under `limit`: a prefix that contains the trip
+/// must stop **on the trip** — never on the `Incomplete` channel — even when the tripping token ends
+/// exactly at the cut; a prefix that does not must still end `Incomplete`.
+fn check_limited_prefix(src: &[u8], limit: usize, k: usize, budget: usize) {
+  let prefix = &src[..k];
+  let run = limited_stream(prefix, limit, /* is_final */ false, budget);
+  let trip = trip_index(prefix, limit);
+
+  match trip {
+    Some(t) => {
+      // Every token before the trip ends at `t` or earlier, hence strictly before the cut: the
+      // holdback cannot touch them, and the trip stops the scan at exactly `t`.
+      let expected: Vec<Tok> = prefix[..t]
+        .iter()
+        .enumerate()
+        .filter(|&(_, &b)| !is_err(b))
+        .map(|(i, &b)| (kind_of(b), SimpleSpan::new(i, i + 1)))
+        .collect();
+      assert_eq!(
+        run.tokens, expected,
+        "limited prefix (k={k}, limit={limit}) diverged before the trip at {t}"
+      );
+      assert!(
+        !run.incomplete,
+        "TERMINAL BEATS INCOMPLETE: the trip at {t} ends the prefix (k={k}, limit={limit}) — a \
+         tripping token ending exactly at the cut ({}) must not be withheld as Incomplete",
+        t + 1 == k
+      );
+      // The limit diagnostic, plus one per lexer-error byte crossed before the trip. If the trip
+      // were withheld, the limit diagnostic would be missing from this count.
+      let errs_before = prefix[..t].iter().filter(|&&b| is_err(b)).count() as u64;
+      assert_eq!(
+        run.emitted,
+        errs_before + 1,
+        "the limit diagnostic IS emitted at the trip (k={k}, limit={limit}, trip={t})"
+      );
+    }
+    None => assert!(
+      run.incomplete,
+      "no trip in the prefix (k={k}, limit={limit}): the holdback still applies, so a non-final \
+       drain must end Incomplete"
+    ),
+  }
+}
+
 /// Runs one partial case: builds a fuzzed (error-bearing) stream and checks both chunked-equivalence
-/// shapes against the complete parse.
+/// shapes against the complete parse, then the limit oracle at the chunk boundary.
 pub(crate) fn run(src: &[u8], seed: u64, cov: &mut Coverage) {
   cov.mark(Op::SetFinal);
   let budget = src.len() + 4;
@@ -187,6 +331,28 @@ pub(crate) fn run(src: &[u8], seed: u64, cov: &mut Coverage) {
       incomplete,
       "a non-final prefix drain (k={k}) must end Incomplete"
     );
+  }
+
+  // 4. The limit oracle: put a TERMINAL condition on the frontier and check it outranks it. The
+  //    limit is drawn to land inside the stream, and the cut is forced to the tripping token's span
+  //    end — the exact chunk-boundary alignment that used to mask the trip as Incomplete — as well
+  //    as sampled randomly.
+  let tokens_total = src.iter().filter(|&&b| !is_err(b)).count();
+  if tokens_total > 0 {
+    let limit = rng.below(tokens_total);
+    if let Some(t) = trip_index(src, limit) {
+      cov.mark(Op::Next);
+      // The alignment the finding turns on: the tripping token ends exactly at the cut.
+      check_limited_prefix(src, limit, t + 1, budget);
+      // Its neighbours: the trip strictly inside the prefix, and the prefix stopping just short of
+      // it (no trip yet — the holdback must still apply).
+      check_limited_prefix(src, limit, len, budget);
+      check_limited_prefix(src, limit, t, budget);
+      // Random cuts, so the boundary case is not the only shape the limiter ever sees.
+      for _ in 0..cuts {
+        check_limited_prefix(src, limit, rng.below(len + 1), budget);
+      }
+    }
   }
 }
 
