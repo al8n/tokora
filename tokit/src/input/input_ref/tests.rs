@@ -4222,3 +4222,812 @@ fn try_attempt_closure_panic_releases_the_pinned_begin_point() {
     "a caught panic inside `try_attempt` leaves no pin either"
   );
 }
+
+// ── The sync cache-transparency matrix ───────────────────────────────────────
+//
+// The sync family has TWO parallel implementations of "skip a token and report it": the
+// cache-drain prologue (`sync_matched_in_cache`, which pops tokens a peek already lexed) and
+// the `sync_with` loop (which lexes them itself). Nothing in the types forces the two to agree,
+// and yet the peek cache is an INVISIBLE OPTIMIZATION — whether a token happened to be
+// prefetched must not change one thing a caller can observe about a sync call.
+//
+// This matrix is the enforcement. Every entry point in the family runs the same logical token
+// stream twice — once from an empty cache, once with the first N tokens peeked into it — and the
+// two runs must agree on everything the caller sees:
+//
+//   * the return value (matched token, peeked window, hole);
+//   * the committed span and lexer state;
+//   * the poison boundary;
+//   * the resume cursor, and the tokens a later drain yields — the "a recovery retries after the
+//     error" law, the one the fatal-trip divergence broke;
+//   * the diagnostics the call itself emits, in order, and every diagnostic of the whole run
+//     exactly once;
+//   * which tokens the predicate was asked about, in order: a stateful `FnMut` must not be able
+//     to tell that it is being driven by a drain rather than by a lex.
+//
+// Two consequences of a prefilled cache ARE visible, and both are stated in the contract docs
+// (`sync_through`, and the dedup rule on `emit_lexer_error_deduped`):
+//
+//   1. the cache holds lookahead the uncached run has not lexed yet, so `offset()` (the lex
+//      frontier) and the cache depth run ahead of it. `cursor()` — the resume position — and the
+//      token stream do not, and those are what is asserted;
+//   2. a peek EMITS the lexer errors it crosses, when it crosses them. Prefetching therefore
+//      moves such a diagnostic earlier in the timeline, and the dedup watermark then keeps the
+//      sync (or a later replay) from repeating it. The invariant that survives — and is asserted
+//      exactly, not loosely — is that the cached run emits precisely what the uncached run
+//      emitted, minus the entries the prefill had already reported, and that no diagnostic is
+//      ever lost or doubled.
+//
+// Adding a cell is one row in `CELLS`.
+
+use generic_arraydeque::typenum::{U1 as W1, U2 as W2, U3 as W3};
+
+use crate::{
+  InputRef, Window,
+  cache::{Peeked, PeekedTokenExt},
+  emitter::Emitter,
+  error::token::UnexpectedTokenOf,
+  input::Cursor,
+  span::{SimpleSpan, Spanned},
+};
+
+/// One recorded emission: which channel it came through, and where.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Emission {
+  /// `emit_unexpected_token` — the per-skipped-token diagnostic BOTH sync paths make, and the
+  /// only emission a cached token can trip a fatal emitter with (a lexer error is never cached).
+  Unexpected(SimpleSpan),
+  /// `emit_lexer_error` with a plain lexeme error.
+  Lex(SimpleSpan),
+  /// `emit_lexer_error` with a sticky limit trip.
+  Limit(SimpleSpan),
+  /// `emit_skipped_region` — `sync_balanced`'s one-per-hole note.
+  Hole(SimpleSpan, usize),
+}
+
+impl Emission {
+  /// Whether a *peek* could have produced this entry. A peek emits the lexer errors it crosses
+  /// and nothing else: it never diagnoses an unexpected token, never reports a hole. The matrix
+  /// asserts this, so a prefill can only ever hoist a lexer-class diagnostic.
+  const fn is_lexer_class(&self) -> bool {
+    matches!(self, Self::Lex(_) | Self::Limit(_))
+  }
+}
+
+/// The matrix emitter: an ordered, rewindable emission log plus a single span it rejects as
+/// fatal.
+///
+/// The span key is what makes the fatal cells differential. An index-keyed trip would fire at a
+/// different *token* in the two runs (the cached run's prefill emits the lexer errors it
+/// crosses, shifting every later index); a span-keyed one rejects the diagnostic of the same
+/// token in both, which is exactly the comparison the matrix needs.
+#[derive(Debug)]
+struct MatrixEmitter {
+  log: std::vec::Vec<Emission>,
+  fatal_at: Option<SimpleSpan>,
+}
+
+impl MatrixEmitter {
+  fn new(fatal_at: Option<SimpleSpan>) -> Self {
+    Self {
+      log: std::vec::Vec::new(),
+      fatal_at,
+    }
+  }
+
+  /// Records the emission, then rejects it if this cell made that span fatal. Recording first is
+  /// deliberate: the diagnostic *was* offered, and the log is what the matrix compares.
+  fn record(&mut self, entry: Emission, span: SimpleSpan, err: ByValErr) -> Result<(), ByValErr> {
+    self.log.push(entry);
+    match self.fatal_at {
+      Some(fatal) if fatal == span => Err(err),
+      _ => Ok(()),
+    }
+  }
+}
+
+impl<'inp, L, Lang: ?Sized> Emitter<'inp, L, Lang> for MatrixEmitter
+where
+  L: crate::Lexer<'inp, Span = SimpleSpan>,
+  <L::Token as Token<'inp>>::Error: Into<ByValErr>,
+{
+  type Error = ByValErr;
+
+  fn emit_lexer_error(
+    &mut self,
+    err: Spanned<<L::Token as Token<'inp>>::Error, L::Span>,
+  ) -> Result<(), ByValErr> {
+    let (span, err) = err.into_components();
+    let err: ByValErr = err.into();
+    let entry = match err {
+      ByValErr::Limit => Emission::Limit(span),
+      ByValErr::Lex => Emission::Lex(span),
+    };
+    self.record(entry, span, err)
+  }
+
+  fn emit_unexpected_token(
+    &mut self,
+    err: UnexpectedTokenOf<'inp, L, Lang>,
+  ) -> Result<(), ByValErr> {
+    let span = *err.span_ref();
+    self.record(Emission::Unexpected(span), span, ByValErr::Lex)
+  }
+
+  fn emit_error(&mut self, err: Spanned<ByValErr, L::Span>) -> Result<(), ByValErr> {
+    let (span, err) = err.into_components();
+    let entry = match err {
+      ByValErr::Limit => Emission::Limit(span),
+      ByValErr::Lex => Emission::Lex(span),
+    };
+    self.record(entry, span, err)
+  }
+
+  fn emit_skipped_region(&mut self, span: L::Span, skipped: usize) -> Result<(), ByValErr> {
+    self.record(Emission::Hole(span, skipped), span, ByValErr::Lex)
+  }
+
+  fn checkpoint(&self) -> u64 {
+    self.log.len() as u64
+  }
+
+  fn rewind(&mut self, _cursor: &Cursor<'inp, '_, L>, checkpoint: u64) {
+    let mark = (checkpoint as usize).min(self.log.len());
+    self.log.truncate(mark);
+  }
+}
+
+type MatrixCtx<'a> = (MatrixEmitter, DefaultCache<'a, BalLexer<'a>>);
+type MatrixRef<'inp, 'closure> = InputRef<'inp, 'closure, BalLexer<'inp>, MatrixCtx<'inp>, ()>;
+
+/// The six public entry points of the sync family. Every one of them runs the cache-drain
+/// prologue and may then run the `sync_with` loop, so every one of them is on the hook for
+/// cache transparency.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Entry {
+  To,
+  ToThenPeekWithEmitter,
+  Through,
+  ThroughThenPeek,
+  ThroughThenPeekWithEmitter,
+  Balanced,
+}
+
+impl Entry {
+  const ALL: &'static [Entry] = &[
+    Entry::To,
+    Entry::ToThenPeekWithEmitter,
+    Entry::Through,
+    Entry::ThroughThenPeek,
+    Entry::ThroughThenPeekWithEmitter,
+    Entry::Balanced,
+  ];
+
+  const fn name(self) -> &'static str {
+    match self {
+      Entry::To => "sync_to",
+      Entry::ToThenPeekWithEmitter => "sync_to_then_peek_with_emitter",
+      Entry::Through => "sync_through",
+      Entry::ThroughThenPeek => "sync_through_then_peek",
+      Entry::ThroughThenPeekWithEmitter => "sync_through_then_peek_with_emitter",
+      Entry::Balanced => "sync_balanced",
+    }
+  }
+}
+
+/// The normalized outcome of a sync call, in one shape across all six entry points: each fills
+/// the fields it has, so the differential comparison is a plain `==`.
+#[derive(Debug, Clone, PartialEq)]
+struct Ret {
+  /// The sync token the call surfaced — peeked by the `to` family, consumed by the `through`
+  /// family.
+  matched: Option<(SimpleSpan, BalTok)>,
+  /// The window the `_then_peek` variants peeked after settling.
+  peeked: std::vec::Vec<SimpleSpan>,
+  /// The region `sync_balanced` describes.
+  hole: Option<(SimpleSpan, usize)>,
+  /// The fatal rejection, if the emitter made one.
+  err: Option<ByValErr>,
+}
+
+impl Ret {
+  fn empty() -> Self {
+    Self {
+      matched: None,
+      peeked: std::vec::Vec::new(),
+      hole: None,
+      err: None,
+    }
+  }
+
+  fn fatal(err: ByValErr) -> Self {
+    Self {
+      err: Some(err),
+      ..Self::empty()
+    }
+  }
+}
+
+/// Everything a caller can observe about a run: the call's outcome, the input state it left, and
+/// the whole emission timeline — plus the token stream a retry would then see.
+#[derive(Debug)]
+struct Obs {
+  ret: Ret,
+  span: SimpleSpan,
+  tokens: usize,
+  poison: Option<usize>,
+  cursor: usize,
+  /// The lexer-error dedup watermark right after the call.
+  watermark: usize,
+  /// The same watermark once the stream has been drained: by then the two runs have read exactly
+  /// the same source, so it must agree exactly.
+  watermark_drained: usize,
+  /// The tokens the predicate was asked about, in order. A stateful `FnMut` sees exactly this.
+  pred_calls: std::vec::Vec<SimpleSpan>,
+  /// What the run emitted BEFORE the sync call: the setup consume, and then — in a cached run
+  /// only — the prefill peek. The two runs share the consume, so the difference between their
+  /// setup logs is exactly what the peek hoisted.
+  setup_log: std::vec::Vec<Emission>,
+  /// What the sync call itself emitted.
+  sync_log: std::vec::Vec<Emission>,
+  /// The tokens a post-call drain yields: the "recovery retries after the error" law.
+  replay: std::vec::Vec<(SimpleSpan, BalTok)>,
+  /// What that drain emitted.
+  replay_log: std::vec::Vec<Emission>,
+  /// DECLARED to be allowed to differ: the lex frontier and the cache depth run ahead when the
+  /// caller prefetched. Recorded so a failure message can show them, never asserted equal.
+  offset: usize,
+  cache_len: usize,
+}
+
+/// One cell of the matrix: a token stream, and the trip (if any) it is built to provoke.
+struct MatrixCell {
+  name: &'static str,
+  src: &'static str,
+  /// The token limit; `usize::MAX` unless the cell trips it mid-skip.
+  limit: usize,
+  /// The span whose diagnostic the emitter rejects, if the cell trips a fatal emitter.
+  fatal_at: Option<SimpleSpan>,
+  /// Tokens consumed with `next` before the sync, so the call starts from a non-zero committed
+  /// position. Both runs consume them identically; only the peek that follows differs.
+  consume_first: usize,
+  /// How many tokens the cached runs peek before syncing. Every one is compared against the
+  /// uncached run of the same cell.
+  prefills: &'static [usize],
+  /// Entry points this cell is KNOWN to diverge on. The main matrix skips exactly these pairs
+  /// and [`sync_cache_transparency_known_divergences`] drives them instead, so the divergence is
+  /// parked and named, never silently accepted. Empty for every transparent cell.
+  diverges: &'static [Entry],
+}
+
+/// The scenario axis. `;` is the sync point throughout, so one predicate drives every cell; the
+/// stream decides what the scan meets on the way there. Single-space separation puts token `i`
+/// at `[2i, 2i+1)`.
+///
+/// A cached run may peek at most 3 tokens (`DefaultCache` is `U3`), and its prefill must not
+/// itself trip the emitter — `fatal_on_lexer_error` therefore stops at 2, one short of the `@`.
+const CELLS: &[MatrixCell] = &[
+  // The predicate matches the very first token: the `to`/balanced modes settle before it and the
+  // `through` mode consumes it, all without a single skip.
+  MatrixCell {
+    name: "match_immediate",
+    src: "; 1 2 3",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // Three skips, then the match — so the cached runs split the SAME skip run across the drain and
+  // the loop at three different points.
+  MatrixCell {
+    name: "match_after_3_skips",
+    src: "1 2 3 ; 4",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // No sync point at all: the scan runs to end of input. `sync_to` keeps the diagnosed progress;
+  // `sync_through`/`sync_balanced` rewind the whole call — INCLUDING the drained cache prefix.
+  MatrixCell {
+    name: "never_matches_runs_to_eof",
+    src: "1 2 3 4",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // THE FATAL TRIP ON A SKIPPED TOKEN'S DIAGNOSTIC. `2` is rejected: at prefill 2 and 3 it trips
+  // inside the cache drain, at prefill 1 and 0 inside the `sync_with` loop. The two paths must
+  // leave the input in the same place — the finding this matrix was built for.
+  MatrixCell {
+    name: "fatal_emitter_on_skipped_token",
+    src: "1 2 3 ; 4",
+    limit: usize::MAX,
+    fatal_at: Some(SimpleSpan { start: 2, end: 3 }),
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // The fatal trip on a LEXER ERROR instead. A lexer error is never cached, so this can only ever
+  // trip in the loop — but the cached runs still reach it with a drained prefix behind them.
+  MatrixCell {
+    name: "fatal_emitter_on_lexer_error",
+    src: "1 2 @ 3 ; 4",
+    limit: usize::MAX,
+    fatal_at: Some(SimpleSpan { start: 4, end: 5 }),
+    consume_first: 0,
+    prefills: &[1, 2],
+    diverges: &[],
+  },
+  // A sticky limit trip mid-skip: the 3rd scanned token trips. At prefill 3 the PEEK trips and
+  // latches the boundary; at prefill 1/2 and uncached the sync's own scan does. Both must commit
+  // the diagnosed prefix at the same durable frontier.
+  MatrixCell {
+    name: "limit_trip_mid_skip",
+    src: "1 2 3 4 5 ;",
+    limit: 2,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // A lexer error crossed mid-skip, non-fatally. At prefill 3 the sync point itself lands in the
+  // cache BEHIND the crossed error, so the drain answers the whole call.
+  MatrixCell {
+    name: "lexer_error_crossed_mid_skip",
+    src: "1 @ 2 ; 3",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // A crossed lexer error AND a no-match run to end of input: the `through`/balanced rewind must
+  // unwind the drained prefix's diagnostics while leaving the peek's own error report — and the
+  // restored watermark must still report that error exactly once overall.
+  MatrixCell {
+    name: "lexer_error_then_eof_rewind",
+    src: "1 @ 2",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 0,
+    prefills: &[1, 2],
+    diverges: &[],
+  },
+  // The skip run starts from a non-zero committed position: `1` is consumed first, so the drain
+  // and the loop meet a stream that is already part-read.
+  MatrixCell {
+    name: "skips_after_a_consume",
+    src: "1 2 3 ; 4",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 1,
+    prefills: &[1, 2, 3],
+    diverges: &[],
+  },
+  // A ZERO-SKIP sync from a non-zero committed position — the sync point is the very next token.
+  //
+  // KNOWN DIVERGENCE (`sync_balanced` only): the zero-skip `Hole` is placed at `cursor()`, and
+  // `cursor()` reads the cache — it is the front cached token's START when something is cached
+  // and the committed span's END otherwise. The two sync implementations leave DIFFERENT cache
+  // states on a match: the drain stops with the match still at the cache front, while the
+  // `sync_with` loop lexes the match, settles before it and leaves the cache empty. So the hole
+  // lands on the token's start after a peek and on the previous token's end without one — a
+  // RETURNED VALUE that moves with the lookahead depth, which no contract states. The other five
+  // entry points never read `cursor()` and are transparent here.
+  MatrixCell {
+    name: "zero_skip_after_a_consume",
+    src: "1 ; 2 3",
+    limit: usize::MAX,
+    fatal_at: None,
+    consume_first: 1,
+    prefills: &[1, 2, 3],
+    diverges: &[Entry::Balanced],
+  },
+];
+
+/// The spans of a peeked window, in order.
+fn peeked_spans<'inp, W>(peeked: &Peeked<'_, 'inp, BalLexer<'inp>, W>) -> std::vec::Vec<SimpleSpan>
+where
+  W: Window,
+{
+  (0..peeked.len()).map(|i| *peeked[i].span()).collect()
+}
+
+/// Runs one entry point over `inp`, normalizing its return into the shared [`Ret`] shape.
+///
+/// The sync predicate is the same for every cell (`;` is the sync point) and is instrumented: it
+/// records the span of every token it is asked about, so the matrix can pin that a stateful
+/// `FnMut` cannot tell the drain from the loop.
+fn run_entry(
+  entry: Entry,
+  inp: &mut MatrixRef<'_, '_>,
+  calls: &mut std::vec::Vec<SimpleSpan>,
+) -> Ret {
+  macro_rules! pred {
+    () => {
+      |t: Spanned<&BalTok, &SimpleSpan>| {
+        calls.push(*t.span());
+        matches!(t.data(), BalTok::Semi)
+      }
+    };
+  }
+
+  match entry {
+    Entry::To => match inp.sync_to(pred!(), || None) {
+      // The `to` family stops BEFORE the match and peeks it back.
+      Ok(matched) => Ret {
+        matched: matched.map(|t| (*t.span(), t.token().clone())),
+        ..Ret::empty()
+      },
+      Err(e) => Ret::fatal(e),
+    },
+    Entry::ToThenPeekWithEmitter => {
+      match inp.sync_to_then_peek_with_emitter::<_, _, W2>(pred!(), || None) {
+        Ok((peeked, _)) => Ret {
+          matched: (!peeked.is_empty()).then(|| (*peeked[0].span(), peeked[0].token().clone())),
+          peeked: peeked_spans::<W2>(&peeked),
+          ..Ret::empty()
+        },
+        Err(e) => Ret::fatal(e),
+      }
+    }
+    Entry::Through => match inp.sync_through(pred!(), || None) {
+      // The `through` family consumes the match and hands it over.
+      Ok(matched) => Ret {
+        matched: matched.map(Spanned::into_components),
+        ..Ret::empty()
+      },
+      Err(e) => Ret::fatal(e),
+    },
+    Entry::ThroughThenPeek => match inp.sync_through_then_peek::<_, _, W2>(pred!(), || None) {
+      Ok((matched, peeked)) => Ret {
+        matched: matched.map(Spanned::into_components),
+        peeked: peeked_spans::<W2>(&peeked),
+        ..Ret::empty()
+      },
+      Err(e) => Ret::fatal(e),
+    },
+    Entry::ThroughThenPeekWithEmitter => {
+      match inp.sync_through_then_peek_with_emitter::<_, _, W2>(pred!(), || None) {
+        Ok((matched, peeked, _)) => Ret {
+          matched: matched.map(Spanned::into_components),
+          peeked: peeked_spans::<W2>(&peeked),
+          ..Ret::empty()
+        },
+        Err(e) => Ret::fatal(e),
+      }
+    }
+    Entry::Balanced => match inp.sync_balanced(parens, pred!()) {
+      Ok(hole) => Ret {
+        hole: hole.map(|h| (h.span(), h.skipped())),
+        ..Ret::empty()
+      },
+      Err(e) => Ret::fatal(e),
+    },
+  }
+}
+
+/// Runs one cell of the matrix once: prefill `prefill` tokens into the cache (0 = uncached), call
+/// the entry point, then observe everything the caller could — including the token stream a retry
+/// would see.
+fn run_cell(cell: &MatrixCell, entry: Entry, prefill: usize) -> Obs {
+  let mut emitter = MatrixEmitter::new(cell.fatal_at);
+  let mut input = Input::<BalLexer<'_>, MatrixCtx<'_>, ()>::with_state_and_cache(
+    cell.src,
+    TokenLimiter::with_limitation(cell.limit),
+    DefaultCache::<'_, BalLexer<'_>>::default(),
+  );
+  let mut inp = input.as_ref(&mut emitter);
+
+  // Both runs read the same prefix, so the sync starts from the same committed position.
+  for _ in 0..cell.consume_first {
+    inp
+      .next()
+      .expect("the setup consume must not trip the emitter")
+      .expect("the cell must have a token to consume first");
+  }
+
+  // The prefill is the ONLY difference between the two runs of a cell. A cell that would make its
+  // own prefill trip the emitter is misconfigured — the two runs would not be comparable.
+  match prefill {
+    0 => {}
+    1 => {
+      inp
+        .peek::<W1>()
+        .expect("the prefill must not trip the emitter");
+    }
+    2 => {
+      inp
+        .peek::<W2>()
+        .expect("the prefill must not trip the emitter");
+    }
+    3 => {
+      inp
+        .peek::<W3>()
+        .expect("the prefill must not trip the emitter");
+    }
+    n => panic!("prefill {n} exceeds the U3 cache window"),
+  }
+  let setup_log = inp.emitter().log.clone();
+  let entry_mark = setup_log.len();
+
+  let mut pred_calls = std::vec::Vec::new();
+  let ret = run_entry(entry, &mut inp, &mut pred_calls);
+
+  let span = *inp.span();
+  let tokens = inp.state().tokens();
+  let poison = *inp.poison_boundary;
+  let cursor = *inp.cursor().as_inner();
+  let watermark = *inp.emitted_error_end;
+  let offset = *inp.offset();
+  let cache_len = inp.cache().len();
+  let sync_log = inp.emitter().log[entry_mark..].to_vec();
+  let sync_mark = inp.emitter().log.len();
+
+  // THE RETRY. A recovering caller that catches a fatal emitter error — or simply carries on
+  // after a failed sync — reads the stream from wherever the call left it. Draining it here folds
+  // the cursor, the cache contents, the poison boundary and the dedup watermark into a single
+  // observable, and it is precisely the observable the fatal-trip divergence broke.
+  // `Ok(None)` (end of input or the poison boundary) and `Err` (a fatal emitter) both end the
+  // drain; either way what was read is what a retry would have seen.
+  let mut replay = std::vec::Vec::new();
+  while let Ok(Some(tok)) = inp.next() {
+    replay.push(tok.into_components());
+  }
+  let replay_log = inp.emitter().log[sync_mark..].to_vec();
+  let watermark_drained = *inp.emitted_error_end;
+
+  Obs {
+    ret,
+    span,
+    tokens,
+    poison,
+    cursor,
+    watermark,
+    watermark_drained,
+    pred_calls,
+    setup_log,
+    sync_log,
+    replay,
+    replay_log,
+    offset,
+    cache_len,
+  }
+}
+
+/// Drops one occurrence of each `hoisted` entry from `base`, preserving order.
+///
+/// This is the exact — and only — carve-out the emission comparison grants a prefilled cache: a
+/// lexer error the peek already reported is not reported a second time, because the dedup
+/// watermark suppresses it. Nothing else may go missing, and nothing may be added.
+fn without_hoisted(base: &[Emission], hoisted: &[Emission]) -> std::vec::Vec<Emission> {
+  let mut pool = hoisted.to_vec();
+  base
+    .iter()
+    .copied()
+    .filter(|e| match pool.iter().position(|h| h == e) {
+      Some(i) => {
+        pool.remove(i);
+        false
+      }
+      None => true,
+    })
+    .collect()
+}
+
+/// The differential assertion: the cached run and the uncached run of the same cell must be
+/// observationally identical.
+fn assert_cache_transparent(
+  entry: Entry,
+  cell: &MatrixCell,
+  prefill: usize,
+  uncached: &Obs,
+  cached: &Obs,
+) {
+  let at = std::format!(
+    "{} / {} / prefill={} (src {:?})",
+    entry.name(),
+    cell.name,
+    prefill,
+    cell.src
+  );
+
+  // Both runs ran the same setup consume, so the cached run's pre-call log EXTENDS the uncached
+  // one; the tail is exactly what the prefill peek hoisted.
+  assert!(
+    cached.setup_log.starts_with(&uncached.setup_log),
+    "[{at}] the two runs share their setup, so the cached pre-call log must extend the uncached \
+     one (cached {:?}, uncached {:?})",
+    cached.setup_log,
+    uncached.setup_log
+  );
+  let hoisted = &cached.setup_log[uncached.setup_log.len()..];
+
+  // ── What the call did ────────────────────────────────────────────────────
+  assert_eq!(
+    cached.ret, uncached.ret,
+    "[{at}] the return value must not depend on the cache"
+  );
+  assert_eq!(
+    cached.span, uncached.span,
+    "[{at}] the committed span must not depend on the cache \
+     (cached offset {} / cache {}, uncached offset {} / cache {})",
+    cached.offset, cached.cache_len, uncached.offset, uncached.cache_len
+  );
+  assert_eq!(
+    cached.tokens, uncached.tokens,
+    "[{at}] the committed lexer state must not depend on the cache"
+  );
+  assert_eq!(
+    cached.poison, uncached.poison,
+    "[{at}] the poison boundary must not depend on the cache"
+  );
+  // `cursor()` is DECLARED cache-dependent: its own contract says it "points to the start of the
+  // first cached token" when one is cached and to the committed position otherwise, and a plain
+  // `next()` already moves it differently depending on whether the next token was peeked (the
+  // cached run has lexed across the intervening trivia; the uncached one has not). So the law
+  // here is the BOUNDED one — the cursor never precedes what the call committed, and never
+  // passes the token the stream yields next — plus monotonicity: a prefetch may only SHARPEN the
+  // resume point, never move it backwards. Both runs then denote the same next token, which the
+  // replay above already pinned.
+  for (label, obs) in [("uncached", uncached), ("cached", cached)] {
+    assert!(
+      obs.span.end <= obs.cursor,
+      "[{at}] ({label}) the cursor must never precede the committed span end ({:?} vs {})",
+      obs.span,
+      obs.cursor
+    );
+    if let Some((next, _)) = obs.replay.first() {
+      assert!(
+        obs.cursor <= next.start,
+        "[{at}] ({label}) the cursor must never pass the next token the stream yields ({} vs {:?})",
+        obs.cursor,
+        next
+      );
+    }
+  }
+  assert!(
+    uncached.cursor <= cached.cursor,
+    "[{at}] a prefetch may only sharpen the resume cursor, never move it back ({} < {})",
+    cached.cursor,
+    uncached.cursor
+  );
+
+  // The two DECLARED artifacts of a prefilled cache, pinned in the only direction they may move:
+  // a peek lexes further ahead and holds more lookahead than the uncached run — never less. A
+  // cached run that ended up SHORTER would mean the sync had thrown away tokens the caller had
+  // already paid to lex.
+  assert!(
+    cached.offset >= uncached.offset,
+    "[{at}] the lex frontier may only run ahead in the cached run ({} < {})",
+    cached.offset,
+    uncached.offset
+  );
+  assert!(
+    cached.cache_len >= uncached.cache_len,
+    "[{at}] the cached run may only hold more lookahead ({} < {})",
+    cached.cache_len,
+    uncached.cache_len
+  );
+
+  // A stateful `FnMut` predicate must not be able to tell the drain from the loop: same tokens,
+  // same order, once each. (The previous round's bug — the prologue evaluating `pred` and
+  // discarding the answer, so the loop asked again — shows up here as a repeated span.)
+  assert_eq!(
+    cached.pred_calls, uncached.pred_calls,
+    "[{at}] the predicate must be asked about the same tokens, in the same order"
+  );
+
+  // ── What a retry then sees ───────────────────────────────────────────────
+  assert_eq!(
+    cached.replay, uncached.replay,
+    "[{at}] a retry after the call must read the same token stream"
+  );
+
+  // ── What was diagnosed ───────────────────────────────────────────────────
+  // A peek emits the lexer errors it crosses, and nothing else: it never diagnoses an unexpected
+  // token and never reports a hole. So a prefill can only ever hoist a lexer-class entry, and the
+  // carve-out below can never hide a missing sync diagnostic.
+  assert!(
+    hoisted.iter().all(Emission::is_lexer_class),
+    "[{at}] a peek may only emit lexer errors, got {hoisted:?}"
+  );
+  assert_eq!(
+    cached.sync_log,
+    without_hoisted(&uncached.sync_log, hoisted),
+    "[{at}] the call's own diagnostics must not depend on the cache \
+     (uncached {:?}, prefill already reported {hoisted:?})",
+    uncached.sync_log
+  );
+  assert_eq!(
+    cached.replay_log,
+    without_hoisted(&uncached.replay_log, hoisted),
+    "[{at}] the retry's diagnostics must not depend on the cache \
+     (uncached {:?}, prefill already reported {hoisted:?})",
+    uncached.replay_log
+  );
+
+  // Exactly once, across the whole run: nothing the prefill hoisted is lost, nothing is doubled.
+  let mut all_uncached = uncached.setup_log.clone();
+  all_uncached.extend_from_slice(&uncached.sync_log);
+  all_uncached.extend_from_slice(&uncached.replay_log);
+  all_uncached.sort();
+  let mut all_cached = cached.setup_log.clone();
+  all_cached.extend_from_slice(&cached.sync_log);
+  all_cached.extend_from_slice(&cached.replay_log);
+  all_cached.sort();
+  assert_eq!(
+    all_cached, all_uncached,
+    "[{at}] every diagnostic of the run must be reported exactly once, cached or not"
+  );
+
+  // The dedup watermark. Immediately after the call it may run AHEAD in the cached run — the peek
+  // genuinely read further — but it may never LAG, which would let a reported error be reported
+  // again. Once the stream is drained the two must agree exactly.
+  assert!(
+    cached.watermark >= uncached.watermark,
+    "[{at}] the dedup watermark must never lag the uncached run ({} < {})",
+    cached.watermark,
+    uncached.watermark
+  );
+  assert_eq!(
+    cached.watermark_drained, uncached.watermark_drained,
+    "[{at}] once the stream is drained the dedup watermark must agree"
+  );
+}
+
+/// Every (entry point x scenario x prefill) triple the sync family is transparent on. The
+/// `cell.diverges` pairs are the ONLY exclusions, each named at its cell, and
+/// [`sync_cache_transparency_known_divergences`] drives exactly those instead — so a divergence
+/// is parked in the open, never quietly asserted away.
+#[test]
+fn sync_cache_transparency_matrix() {
+  for cell in CELLS {
+    for &entry in Entry::ALL {
+      if cell.diverges.contains(&entry) {
+        continue;
+      }
+      let uncached = run_cell(cell, entry, 0);
+      for &prefill in cell.prefills {
+        let cached = run_cell(cell, entry, prefill);
+        assert_cache_transparent(entry, cell, prefill, &uncached, &cached);
+      }
+    }
+  }
+}
+
+/// The cells the sync family is NOT transparent on, driven through the very same assertions.
+///
+/// This test is expected to FAIL: it is the specification of the behaviour the family owes, held
+/// against the behaviour it has. Ignored so the suite stays green while the divergence is open;
+/// run it with `--ignored` to see the leak.
+///
+/// # The open divergence
+///
+/// `sync_balanced` / `zero_skip_after_a_consume`: the zero-skip [`Hole`](crate::input::Hole) is
+/// placed at `cursor()`, which is defined in terms of the cache — the front cached token's start
+/// when one is cached, the committed span's end otherwise. The two sync implementations settle a
+/// match with different cache states: the cache-drain prologue stops with the matched token still
+/// at the cache front, while the `sync_with` loop lexes the match, settles before it, and leaves
+/// the cache empty. The hole therefore lands on the sync token's start after a peek and on the
+/// previous token's end without one. Nothing in the contract lets a returned value move with the
+/// lookahead depth, so this is a bug, not an exception — and its root is structural: one
+/// "skip and settle" written twice.
+#[test]
+#[ignore = "open divergence: sync_balanced's zero-skip hole span moves with the peek depth"]
+fn sync_cache_transparency_known_divergences() {
+  for cell in CELLS {
+    for &entry in cell.diverges {
+      let uncached = run_cell(cell, entry, 0);
+      for &prefill in cell.prefills {
+        let cached = run_cell(cell, entry, prefill);
+        assert_cache_transparent(entry, cell, prefill, &uncached, &cached);
+      }
+    }
+  }
+}
