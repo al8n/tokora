@@ -16,6 +16,10 @@ repository = "https://github.com/al8n/tokora"
 homepage = "https://github.com/al8n/tokora"
 documentation = "https://docs.rs/tokora"
 
+[workspace.lints.rust]
+rust_2018_idioms = "warn"
+single_use_lifetimes = "warn"
+
 [profile.bench]
 opt-level = 3
 debug = false
@@ -25,4 +29,3 @@ incremental = false
 debug-assertions = false
 overflow-checks = false
 rpath = false
-
