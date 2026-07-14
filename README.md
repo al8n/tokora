@@ -263,7 +263,7 @@ cargo install mdbook --version "=0.5.4" --locked  # once
 (cd tokit && mdbook serve)      # live preview on localhost:3000
 ```
 
-The published guide is available at https://al8n.github.io/tokit/. GitHub Actions builds it for
+The published guide is available at <https://al8n.github.io/tokit/>. GitHub Actions builds it for
 relevant pull requests, and builds and deploys it on relevant pushes to `main`; manual runs deploy
 only when started from `main`.
 
