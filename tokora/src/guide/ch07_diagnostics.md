@@ -1,4 +1,4 @@
-Chapter 7: diagnostics — one parser, two personalities.
+# 7. Diagnostics
 
 Everything Calc has done so far stops at the first thing it does not understand. That is
 correct for a config loader and useless for a compiler: a compiler that reports one error per
@@ -22,7 +22,7 @@ Same parser code, same `?`s, opposite behaviour. That is the whole point of the 
 do not write a "collecting parser" and a "fail-fast parser" — you write *a* parser and hand it
 an emitter.
 
-# Two tiers, and only two
+## Two tiers, and only two
 
 [`Severity`](crate::emitter::Severity) has exactly two rungs — `Error` and `Warning` — and the
 tier is a *classification*, not a control-flow decision. A warning is never fatal:
@@ -31,7 +31,7 @@ tier is a *classification*, not a control-flow decision. A warning is never fata
 both tiers carry the *same* payload type — your error enum — so a warning is a value of it
 too.
 
-# Labels: "while parsing X"
+## Labels: "while parsing X"
 
 [`labelled(name, parser)`](crate::labelled) pushes a `&'static str` onto the emitter's open
 -label stack for the duration of a sub-parse. Every diagnostic recorded inside is stamped with
@@ -41,7 +41,7 @@ re-emission on the committed path re-derives them from the then-current stack. A
 non-collecting emitter both the push and the pop inline away to nothing, so `labelled` is
 free when nobody is listening.
 
-# Reading the harvest
+## Reading the harvest
 
 [`Verbose`](crate::emitter::Verbose) exposes span-keyed channels —
 [`errors()`](crate::emitter::Verbose::errors), [`warnings()`](crate::emitter::Verbose::warnings),
@@ -293,7 +293,7 @@ let timeline: Vec<Severity> = emitter.diagnostics().map(|d| d.severity()).collec
 assert_eq!(timeline, [Severity::Warning, Severity::Error]);
 ```
 
-# Expected sets come for free
+## Expected sets come for free
 
 Not every diagnostic is one you write. The combinators build structured errors themselves —
 [`UnexpectedToken`](crate::error::token::UnexpectedToken) with an
@@ -305,7 +305,7 @@ reports the *whole table* as `expected one of …`, which it can only do because
 committed and never rolled back. Your error enum absorbs each of these through a `From` impl —
 that is what the `From` impls on `CalcError` have been for since chapter 2.
 
-# Choosing
+## Choosing
 
 Reach for [`Fatal`](crate::emitter::Fatal) when the first error ends the job anyway (a config
 file, a query, a protocol frame): it stores nothing, allocates nothing, and the diagnostic is

@@ -49,3 +49,29 @@ pub mod ch09_streaming {
 pub mod ch10_testing {
   #![doc = include_str!("ch10_testing.md")]
 }
+
+pub mod ch11_real_parser {
+  #![doc = include_str!("ch11_real_parser.md")]
+}
+
+pub mod ch12_calculator_example {
+  #![doc = include_str!("ch12_calculator_example.md")]
+}
+
+pub mod ch13_s_expression_example {
+  #![doc = include_str!("ch13_s_expression_example.md")]
+}
+
+pub mod ch14_json_example {
+  #![doc = include_str!("ch14_json_example.md")]
+}
+
+pub mod ch15_c_expression_example {
+  #![doc = include_str!("ch15_c_expression_example.md")]
+}
+
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+pub mod ch16_lossless_cst {
+  #![doc = include_str!("ch16_lossless_cst.md")]
+}

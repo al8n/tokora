@@ -1,4 +1,4 @@
-Chapter 6: backtracking — speculate, then keep it or take it back.
+# 6. Backtracking
 
 Every chapter so far has been deterministic: one look at the next token decided everything,
 and no parser ever un-did work. That is tokora's default posture, and it is the right one — a
@@ -10,7 +10,7 @@ Give Calc plain assignment (`x = 1 ;`) alongside expression statements (`x + 1 ;
 with an identifier. Chapter 4's dispatch cannot help: it decides on *one* kind, and here the
 kind is the same. The decision lives on the *second* token.
 
-# The tools, in the order you should reach for them
+## The tools, in the order you should reach for them
 
 | Shape | Reach for it when |
 |-------|-------------------|
@@ -34,7 +34,7 @@ by construction — a nested [`Transaction`](crate::Transaction) mutably borrows
 deciding the parent while a child is undecided is a *borrow error*, not a runtime bug. Guards
 first. Always.
 
-# Closure-shaped speculation
+## Closure-shaped speculation
 
 [`attempt`](crate::InputRef::attempt) runs a closure and rolls back if it returns `None`.
 [`try_attempt`](crate::InputRef::try_attempt) is its `Result` sibling: roll back on `Err`, and
@@ -272,7 +272,7 @@ assert_eq!(
 );
 ```
 
-# Guard-shaped speculation
+## Guard-shaped speculation
 
 A closure is a poor fit for control flow with several exits — a loop with two `break`s, a
 `match` with an early return. [`begin`](crate::InputRef::begin) hands you a
@@ -556,7 +556,7 @@ assert_eq!(
 );
 ```
 
-# Speculation that outlives the call — session points
+## Speculation that outlives the call — session points
 
 Every tool so far is **lexical**. A guard *is* a borrow of the input, so the speculative scope
 it opens can only end where that borrow does: inside one expression, one block, one call. Most

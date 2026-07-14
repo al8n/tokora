@@ -7,7 +7,7 @@ homepage.workspace = true
 documentation.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Blazing fast parser combinators: parse-while-lexing (zero-copy), deterministic LALR-style parsing, no backtracking. Flexible emitters for fail-fast runtime or greedy compiler diagnostics"
+description = "Parser combinators with on-demand lexing, explicit lookahead and backtracking, configurable diagnostics, and optional Logos and Rowan integrations"
 categories = ["parsing", "text-processing", "no-std"]
 keywords = ["parser", "combinator", "token", "logos", "error-recovery"]
 

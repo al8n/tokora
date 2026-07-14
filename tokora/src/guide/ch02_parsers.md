@@ -1,19 +1,20 @@
-Chapter 2: first parsers — `InputRef`, typed errors, and the fluent entries.
+# 2. First parsers
 
 A tokora parser is a **plain function** over an [`InputRef`](crate::InputRef): pull a token,
-decide, pull the next. There is no token buffer between lexer and parser — `InputRef` lexes
-on demand as the parser consumes (the parse-while-lexing architecture), which is why every
-signature in this guide is generic over the input's lifetime `'inp`.
+decide, pull the next. Tokora does not eagerly materialize a whole token stream; `InputRef` pulls
+from the lexer on demand and stages/caches tokens for explicit lookahead and backtracking. That
+parse-while-lexing architecture is why every signature in this guide is generic over the input's
+lifetime `'inp`.
 
 The two primitives this chapter leans on:
 
 - [`next`](crate::InputRef::next) — consume the next token unconditionally
   (`Ok(None)` at end of input);
-- [`try_expect`](crate::InputRef::try_expect) — lex one token and either **commit** it (the
-  predicate matched, you get the token) or **put it back** (`Ok(None)`, the stream is
-  untouched). This one-token peek-or-take is the workhorse of hand-written parsers.
+- [`try_expect`](crate::InputRef::try_expect) — examine the next token from the cache or lexer and
+  either **commit** it (the predicate matched, you get the token) or leave it staged
+  (`Ok(None)`). This one-token peek-or-take is the workhorse of hand-written parsers.
 
-# A typed error and the `Err` channel
+## A typed error and the `Err` channel
 
 Parsers return `Result<O, E>` where `E` is *your* error type. Failures reach it through two
 routes: your own code returns it directly, and the crate's machinery **emits** structured
@@ -26,15 +27,14 @@ right default for a REPL. Chapter 7 swaps in a collecting emitter without touchi
 parser. Your error type just needs the matching `From` impls (that is the
 [`FromEmitterError`](crate::emitter::FromEmitterError) bound the entry points ask for).
 
-# The fluent entry points
+## The fluent entry points
 
 [`Parser::new`](crate::Parser::new) + [`apply`](crate::Parser::apply) wrap a parser
 function with a default fail-fast context; the [`Parse`](crate::Parse) trait then offers
 [`parse`](crate::Parse::parse), [`parse_str`](crate::Parse::parse_str),
-[`parse_slice`](crate::Parse::parse_slice),
-[`parse_with_state`](crate::Parse::parse_with_state), and (behind their source features)
-[`parse_bytes`](crate::Parse::parse_bytes), [`parse_bstr`](crate::Parse::parse_bstr), and
-[`parse_hipstr`](crate::Parse::parse_hipstr).
+[`parse_slice`](crate::Parse::parse_slice), and
+[`parse_with_state`](crate::Parse::parse_with_state). Behind their respective source features,
+the same trait also provides `parse_bytes`, `parse_bstr`, and `parse_hipstr`.
 
 ```rust
 # use tokora::{Token as TokenT, logos::{self, Logos}};
@@ -170,7 +170,7 @@ let missing_eq = Parser::new().apply(parse_let).parse_str("let answer 42 ;");
 assert_eq!(missing_eq, Err(CalcError::Unexpected));
 ```
 
-# `expect`: mismatches with a name
+## `expect`: mismatches with a name
 
 The manual `try_expect`-then-`Err` above works, but the failure says nothing about *what*
 was expected. The [`expect`](crate::parser::expect) combinator consumes one token and, on a

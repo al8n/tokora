@@ -1,4 +1,4 @@
-Chapter 9: partial input — parsing a stream you have not finished receiving.
+# 9. Partial input
 
 Every parse so far started with the whole source in hand. A network socket does not work that
 way: bytes arrive in chunks, and a parser that must wait for the last one is a parser that
@@ -8,7 +8,7 @@ parser that guesses will, sooner or later, guess wrong.
 
 tokora's answer is to make the *question* representable, in the type system.
 
-# The `Completeness` typestate
+## The `Completeness` typestate
 
 An input carries a [`Completeness`](crate::Completeness) parameter:
 
@@ -21,7 +21,7 @@ An input carries a [`Completeness`](crate::Completeness) parameter:
   carries one runtime bit, `is_final`, that the **driver** states when the last chunk lands —
   [`parse_partial`](crate::parse_partial)'s `is_final` argument.
 
-# The three frontier rules
+## The three frontier rules
 
 While a partial input is **non-final**, three conservative rules fire at the scan chokepoint,
 each surfacing an [`Incomplete`](crate::error::Incomplete) rather than committing to an answer
@@ -39,7 +39,7 @@ of a non-final buffer becomes visible only when more input arrives *or* `is_fina
 That is not a limitation to be engineered around — it is the only sound answer. The sole proof
 that `2` is not the start of `23` is another byte, or a promise that there will not be one.
 
-# `is_final` belongs to the driver, and it only goes one way
+## `is_final` belongs to the driver, and it only goes one way
 
 Notice who makes that promise. `is_final` is not a fact about the *parse* — it is a fact about the
 **world**: *the caller has told us no more bytes are coming.* A parser combinator cannot possibly
@@ -66,7 +66,7 @@ The way out is to notice that the two bugs share a premise — that a parser can
 Take that away and both are gone: finality is set by the driver, before any parser exists, and it is
 **monotone** (a stream cannot un-end). Nothing to roll back, and nothing that would want to.
 
-# No growable source: the caller owns the buffer
+## No growable source: the caller owns the buffer
 
 tokora has **no internal growable source**, and that is a deliberate architectural line, not an
 omission. An [`InputRef`](crate::InputRef) borrows one immutable slice for its whole life —
@@ -252,14 +252,14 @@ assert_eq!(answer, Some(33));
 assert_eq!(refills, 2);
 ```
 
-# The bigger example
+## The bigger example
 
 The [`input`](crate::input) module documents [the Sans-I/O resumption
 loop](crate::input#the-sans-io-resumption-loop) end to end, with a hand-written lexer instead
 of a logos one — worth reading once, because it shows the frontier rules interacting with a
 `lex`/`bump` implementation you can see all of.
 
-# Why chapter 8 came first
+## Why chapter 8 came first
 
 Recall the never-recoverable law: an [`Incomplete`](crate::error::Incomplete) is re-raised
 untouched by every recovery combinator, checked *before* any skip. Now you can see what it
@@ -269,6 +269,6 @@ that had not arrived yet, turning a refill request into data loss. The two featu
 only because that law holds: a streaming parser can use recovery, and recovery will never eat
 the frontier.
 
-Calc is complete. It lexes, parses, dispatches, computes expressions, speculates, reports,
-recovers, and streams. One question remains, and it is the one that decides whether any of it
-is true: how do you *test* it? Next: [chapter 10](super::ch10_testing).
+Calc's implementation is complete: it lexes, parses, dispatches, computes expressions,
+speculates, reports, recovers, and streams. Chapter 10, Testing, finishes the fundamentals by
+showing how to verify a lexer and parser.
