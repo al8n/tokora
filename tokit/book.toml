@@ -25,7 +25,7 @@ command = "python3 tools/mdbook_docs_links.py"
 [output.html]
 site-url = "/tokit/"
 git-repository-url = "https://github.com/al8n/tokit"
-default-theme = "rust"
+default-theme = "light"
 
 [output.html.playground]
 # The examples need the `tokit` crate, which the Rust playground does not have.
