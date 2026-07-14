@@ -1,4 +1,4 @@
-Chapter 5: expressions — Pratt parsing, where precedence is data.
+# 5. Expressions: Pratt parsing
 
 Calc's statements are done; its expressions are still bare integers. Expression grammars are
 the one place where plain recursive descent gets ugly: the textbook shape is one function per
@@ -24,7 +24,7 @@ tokora has two Pratt surfaces:
 
 Both run the same engine; only the currency of the folds differs.
 
-# The power ladder
+## The power ladder
 
 | Syntax  | Position         | Associativity | Power |
 |---------|------------------|---------------|-------|
@@ -52,14 +52,14 @@ the input for the surrounding grammar. But the recursive call inside a `(` prefi
 floor of `-1`, and there `)` clears the floor and is consumed — closing exactly its own group.
 No bracket-matching code and no depth counter: the precedence rule already says it.
 
-# Binding powers are plain integers
+## Binding powers are plain integers
 
 `Power` defaults to `i64`, and tokora implements [`PrattPower`](crate::parser::PrattPower) for
 every standard integer type (saturating at the bounds, so `prev` on the minimum cannot
 underflow). Write `1`, `2`, `-1` and move on. A newtype is still welcome when you want *named*
 levels and a type-checked ladder — the trait is public — but nothing forces one on you.
 
-# The folds must be named functions
+## The folds must be named functions
 
 The fold parameters are bound by `for<'lt> FnMut(…, &'lt mut Emitter)` — a higher-ranked
 bound. A closure is monomorphic in its argument lifetimes and does **not** satisfy it; what
@@ -74,7 +74,7 @@ fn fold_infix  (left,     right,    infix_operator, &mut E) -> Result<Spanned<To
 fn fold_postfix(operand,  operator,                 &mut E) -> Result<Spanned<Tok, Span>, Error>
 ```
 
-# Calc's expression engine
+## Calc's expression engine
 
 ```rust
 # use tokora::{Token as TokenT, logos::{self, Logos}};
@@ -331,7 +331,7 @@ let binding = Parser::new()
 assert_eq!(binding, ("x", 13));
 ```
 
-# A floor of your own
+## A floor of your own
 
 [`pratt`](crate::InputRef::pratt) starts at `Power::default()`.
 [`pratt_with_min_precedence`](crate::InputRef::pratt_with_min_precedence) lets you name the

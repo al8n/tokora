@@ -170,8 +170,8 @@ impl From<UnexpectedEoRhs> for CalcError {
 
 // ── Binding powers ────────────────────────────────────────────────────────────
 //
-// A newtype over i32 is needed because `PrattPower` cannot be implemented
-// directly for primitive types (orphan rules).
+// A newtype over i32 gives this expression grammar a named, domain-specific
+// precedence ladder. Tokora already implements `PrattPower` for integer types.
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct Power(i32);

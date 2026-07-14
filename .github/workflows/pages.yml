@@ -6,15 +6,27 @@ on:
       - main
     paths:
       - ".github/workflows/pages.yml"
+      - "README.md"
+      - "tokora/README.md"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "tokora/Cargo.toml"
       - "tokora/book.toml"
-      - "tokora/src/guide/**"
-      - "tokora/tools/mdbook_docs_links.py"
+      - "tokora/examples/**"
+      - "tokora/src/**"
+      - "tokora/tools/**"
   pull_request:
     paths:
       - ".github/workflows/pages.yml"
+      - "README.md"
+      - "tokora/README.md"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "tokora/Cargo.toml"
       - "tokora/book.toml"
-      - "tokora/src/guide/**"
-      - "tokora/tools/mdbook_docs_links.py"
+      - "tokora/examples/**"
+      - "tokora/src/**"
+      - "tokora/tools/**"
   workflow_dispatch:
 
 permissions:
@@ -29,9 +41,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Install Rust
-        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --no-self-update
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --no-self-update
+          rustup component add rustfmt --toolchain "$RUST_TOOLCHAIN"
 
       - name: Install mdBook
         run: >-
@@ -43,18 +59,64 @@ jobs:
           mdbook --version
           test "$(mdbook --version)" = "mdbook v$MDBOOK_VERSION"
 
+      - name: Verify formatting and patch hygiene
+        run: |
+          cargo +"$RUST_TOOLCHAIN" fmt --all --check
+          case "$GITHUB_EVENT_NAME" in
+            push)
+              before="${{ github.event.before }}"
+              if [[ "$before" =~ ^0+$ ]]; then
+                git diff --check "$(git hash-object -t tree /dev/null)" "$GITHUB_SHA"
+              else
+                git diff --check "$before..$GITHUB_SHA"
+              fi
+              ;;
+            pull_request)
+              git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+              ;;
+            workflow_dispatch)
+              if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+                git diff --check HEAD^..HEAD
+              else
+                git diff --check "$(git hash-object -t tree /dev/null)" HEAD
+              fi
+              ;;
+          esac
+
+      - name: Verify documentation source
+        run: python3 tokora/tools/validate_docs.py --source
+
       - name: Run guide doctests
-        run: cargo +"$RUST_TOOLCHAIN" test -p tokora --all-features --doc
+        run: |
+          RUSTDOCFLAGS="-D warnings" cargo +"$RUST_TOOLCHAIN" test -p tokora --all-features --doc
+          RUSTDOCFLAGS="-D warnings" cargo +"$RUST_TOOLCHAIN" test -p tokora --no-default-features --features std --doc
+          RUSTDOCFLAGS="-D warnings" cargo +"$RUST_TOOLCHAIN" test -p tokora --no-default-features --features std,logos --doc
+          RUSTDOCFLAGS="-D warnings" cargo +"$RUST_TOOLCHAIN" test -p tokora --no-default-features --features logos,rowan --doc
+
+      - name: Compile canonical examples
+        run: cargo +"$RUST_TOOLCHAIN" test -p tokora --no-default-features --features std,logos --examples
+
+      - name: Generate rustdoc
+        run: |
+          RUSTDOCFLAGS="-D warnings" cargo +"$RUST_TOOLCHAIN" doc -p tokora --all-features --no-deps
+          RUSTDOCFLAGS="-D warnings" cargo +"$RUST_TOOLCHAIN" doc -p tokora --no-default-features --features std,logos --no-deps
 
       - name: Build guide
         working-directory: tokora
         run: mdbook build
 
-      - name: Validate Pages artifact
+      - name: Validate generated guide
+        run: python3 tokora/tools/validate_docs.py --book target/book
+
+      - name: Validate Pages artifact and README symlink
         run: |
-          test -s target/book/index.html
-          test -s target/book/404.html
-          ! find target/book -type l -print -quit | grep -q .
+          for page in index 404 ch01_tokens ch02_parsers ch03_combinators ch04_dispatch ch05_pratt ch06_backtracking ch07_diagnostics ch08_recovery ch09_streaming ch10_testing ch11_real_parser ch12_calculator_example ch13_s_expression_example ch14_json_example ch15_c_expression_example ch16_lossless_cst; do
+            test -s "target/book/$page.html"
+          done
+          book_symlink="$(find target/book -type l -print -quit)"
+          test -z "$book_symlink"
+          test "$(readlink tokora/README.md)" = "../README.md"
+          test "$(git ls-files -s tokora/README.md | awk '{print $1}')" = "120000"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

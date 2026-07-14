@@ -4,7 +4,7 @@
 
 [book]
 title = "The Tokora Guide"
-description = "A guided tour of tokora: build a small language end-to-end."
+description = "Build Calc, implement Tokora's maintained parser examples, and construct a lossless CST."
 src = "src/guide"
 language = "en"
 

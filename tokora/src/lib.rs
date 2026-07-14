@@ -1,8 +1,12 @@
 #![cfg_attr(
   all(feature = "std", feature = "logos_0_16"),
-  doc = "**New to tokora? Start with the [`guide`] module** — a chaptered tutorial that builds a small language end-to-end.\n\n"
+  doc = "**New to tokora? Start with the [`guide`] module** — a chaptered guide that builds Calc, walks through maintained parser programs, and introduces optional lossless CST tooling.\n\n"
 )]
-#![doc = include_str!("../README.md")]
+#![cfg_attr(
+  not(feature = "logos_0_16"),
+  doc = "Tokora is a parser-combinator library with on-demand lexing, explicit lookahead and backtracking, configurable diagnostics, and optional integrations.\n\n"
+)]
+#![cfg_attr(feature = "logos_0_16", doc = include_str!("../README.md"))]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
@@ -78,14 +82,15 @@ pub mod cst;
 /// Lexical analysis and token extraction.
 ///
 /// Contains the [`Lexer`] trait and [`Lexed`] type for converting source text into tokens.
-/// Tokens flow on-demand to parsers without intermediate buffering.
+/// Tokens flow on demand to parsers and are cached only when explicit lookahead or backtracking
+/// needs them.
 pub mod lexer;
 
-/// Parser combinators with zero-copy streaming and deterministic parsing.
+/// Parser combinators with on-demand lexing, explicit lookahead, and deterministic parsing.
 ///
 /// A unique parser combinator framework combining:
-/// - **Parse-while-lexing architecture**: Zero-copy streaming without token buffering
-/// - **Deterministic LALR-style parsing**: Explicit lookahead, no hidden backtracking
+/// - **Parse-while-lexing architecture**: Tokens are requested from the lexer as parsing needs them
+/// - **Explicit lookahead and backtracking**: Caches and transaction guards make speculation visible
 /// - **Flexible error handling**: Same parser adapts for fail-fast or greedy diagnostics
 ///
 /// See the module documentation for architecture details and quick start guide.
@@ -211,9 +216,8 @@ pub mod token;
 /// Input stream abstraction for parsers.
 ///
 /// Provides the [`InputRef`] type that bridges lexers and parsers,
-/// implementing zero-copy token streaming. Maintains cursor position and checkpoint/
-/// rewind capabilities for backtracking. Pulls tokens on-demand from the lexer without
-/// intermediate buffering.
+/// implementing on-demand token flow. Maintains cursor position, lookahead caches, and
+/// checkpoint/rewind capabilities for explicit backtracking.
 pub mod input;
 
 /// Conformance test kit for custom [`Lexer`] implementations.
@@ -243,14 +247,14 @@ pub mod conformance;
 #[cfg_attr(docsrs, doc(cfg(feature = "fuzz")))]
 pub mod fuzz;
 
-/// A guided tour of tokora: build a small language end-to-end, chapter by chapter.
+/// A guided tour of tokora: from Calc fundamentals to maintained parser programs and lossless CSTs.
 ///
-/// Ten chapters construct **Calc** — a tiny calculator language with variables — walking
-/// the crate's capability set in teaching order: tokens and the lexer contract, first
-/// parsers and typed errors, combinator composition, kind dispatch, Pratt expressions,
-/// backtracking, diagnostics, recovery, partial input, and testing. Every code block is a
-/// runnable doctest, so the guide cannot drift from the API. Start at
-/// [`guide::ch01_tokens`](guide::ch01_tokens).
+/// The fundamentals build **Calc** through tokens and the lexer contract, first parsers and
+/// typed errors, combinator composition, kind dispatch, Pratt expressions, backtracking,
+/// diagnostics, recovery, partial input, and testing. The applied-parser section then explains
+/// the maintained calculator, S-expression, JSON, and C-expression examples. An optional Rowan
+/// chapter covers lossless CSTs. Every non-ignored Rust fence is a doctest, so the guide cannot
+/// drift quietly from the API. Start at [`guide::ch01_tokens`](guide::ch01_tokens).
 ///
 /// Documentation-only: the module defines no items. It requires the `std` and `logos`
 /// features (the same set the repository's `examples/` build with).

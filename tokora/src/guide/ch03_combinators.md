@@ -1,4 +1,4 @@
-Chapter 3: composition — sequencing, repetition, separation, and delimited shapes.
+# 3. Composition
 
 Chapter 2 composed parsers with ordinary function calls. That scales surprisingly far, but
 three shapes recur in every grammar — *A then B*, *zero or more A*, *A separated by commas*
@@ -14,7 +14,7 @@ three shapes recur in every grammar — *A then B*, *zero or more A*, *A separat
   [transactional contract](crate::try_parse_input).) Declining elements are what let the
   repetition drivers stop cleanly without arbitrary lookahead.
 
-# Sequencing
+## Sequencing
 
 [`then`](crate::ParseInput::then) keeps both outputs as a tuple;
 [`ignore_then`](crate::ParseInput::ignore_then) and
@@ -25,7 +25,7 @@ three shapes recur in every grammar — *A then B*, *zero or more A*, *A separat
 just sequencing with the brackets ignored — `open.ignore_then(body).then_ignore(close)` —
 which is how the argument-list example below wraps its comma list in parentheses.
 
-# Repetition
+## Repetition
 
 [`repeated`](crate::TryParseInput::repeated) drives a `TryParseInput` element until it
 declines, and [`collect`](crate::Accumulator::collect) accumulates the values into any
@@ -172,7 +172,7 @@ let none = Parser::new().apply(parse_bindings).parse_str("").unwrap();
 assert!(none.is_empty());
 ```
 
-# Separation — separators are typed punctuators
+## Separation — separators are typed punctuators
 
 Comma-separated lists could be hand-rolled with `try_expect`, but separator handling is
 where edge cases breed: leading separators, trailing separators, doubled separators,

@@ -1,10 +1,10 @@
-Chapter 1: tokens and the lexer.
+# 1. Tokens and the lexer
 
 Calc's source text becomes a stream of **tokens** before any parsing happens. This chapter
 defines that token type, wires it to a lexer, and states the contract the rest of the guide
 (and the crate) relies on.
 
-# The token type — data and kind
+## The token type — data and kind
 
 A tokora token is two types working together, connected by the [`Token`](crate::Token) trait:
 
@@ -18,7 +18,7 @@ whitespace or comments) that carry no syntax; Calc has none because the lexer sk
 whitespace outright — languages that keep trivia tokens instead skip them with
 [`padded`](crate::ParseInput::padded) at the parser level.
 
-# The lexer
+## The lexer
 
 Any type implementing [`Lexer`](crate::Lexer) can drive tokora's parsers. Calc does not
 hand-roll one: the [`LogosLexer`](crate::lexer::LogosLexer) adapter turns any
@@ -178,7 +178,7 @@ assert_eq!(
 );
 ```
 
-# The lexer contract, in brief
+## The lexer contract, in brief
 
 Parsers do more than drain the lexer forward: they peek, checkpoint, rewind, and re-lex.
 That machinery is only sound if the lexer behaves like a **pure function of source,
@@ -186,7 +186,7 @@ position, and state** — the same position always yields the same token, spans 
 backward, exhaustion is sticky, and a composite token (a string literal, say) owns every
 byte it spans. The full, normative statement lives in
 [the `Lexer` contract](crate::Lexer#the-lexer-contract); `LogosLexer` upholds it for you,
-and chapter 10 shows the [`conformance`](crate::conformance) kit that checks a hand-rolled
+and chapter 10 shows the `conformance` kit that checks a hand-rolled
 lexer against it mechanically.
 
 One consequence worth internalizing now: because the lexer is deterministic and the source

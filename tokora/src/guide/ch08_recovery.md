@@ -1,4 +1,4 @@
-Chapter 8: recovery — where to land after a mistake.
+# 8. Recovery
 
 Chapter 7's parser collects many errors, but it resynchronises by scanning to the next `;` and
 that is not good enough. Consider a broken `let` whose garbage *contains* a semicolon:
@@ -12,7 +12,7 @@ not a statement either — and reports a *second* error that exists only because
 recovery landed badly. That is a cascade, and it is why a compiler that reports twenty errors
 for one typo is worse than useless.
 
-# `sync_balanced`: the skip that can count
+## `sync_balanced`: the skip that can count
 
 [`sync_balanced`](crate::InputRef::sync_balanced) skips forward to a sync point **at nesting
 depth zero**. You give it two things:
@@ -33,7 +33,7 @@ already swallowed any brackets inside it, so nothing *within* a token can move t
 it is **pair-blind**: a closer closes the innermost open pair whatever its identity, because
 inside garbage the mismatched pairs are part of what is being thrown away.
 
-# One hole, one diagnostic
+## One hole, one diagnostic
 
 A skip does not report the tokens it dropped one by one — that would be the cascade again, in
 a different costume. A successful sync that skipped at least one token reports the whole
@@ -288,7 +288,7 @@ assert_eq!(emitter.errors().values().flatten().count(), 2);
 assert_eq!(emitter.skipped_regions().values().flatten().count(), 2);
 ```
 
-# `skip_then_retry`: recovery as a combinator
+## `skip_then_retry`: recovery as a combinator
 
 Writing the loop by hand is fine, but the common shape — *try the parser; if it fails, skip to
 a sync point and try again* — is [`skip_then_retry`](crate::ParseInput::skip_then_retry). It
@@ -480,7 +480,7 @@ let holes: Vec<usize> = emitter.skipped_regions().values().flatten().copied().co
 assert_eq!(holes, [7]);
 ```
 
-# The law, once more
+## The law, once more
 
 Recovery skips input. An [`Incomplete`](crate::error::Incomplete) error says *there is more
 input coming*. Skipping past it would throw away bytes that have not arrived yet — so both

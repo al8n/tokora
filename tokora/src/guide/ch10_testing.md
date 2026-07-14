@@ -1,4 +1,4 @@
-Chapter 10: testing — proving the floor before you stand on it.
+# 10. Testing
 
 Calc works. But *how do you know*, and — the harder question — how would you find out if it
 stopped?
@@ -15,7 +15,7 @@ which is the worst bug in this entire crate to find by hand.
 
 So do not find it by hand.
 
-# The conformance kit
+## The conformance kit
 
 The [`conformance`](crate::conformance) module (feature `conformance`) ships a
 [`Harness`](crate::conformance::Harness) that drives your lexer against the contract and panics,
@@ -182,7 +182,7 @@ assert_eq!(
 );
 ```
 
-# Fuzzing the machinery, not just the grammar
+## Fuzzing the machinery, not just the grammar
 
 The conformance kit checks your *lexer* against the contract. The
 [`fuzz`](crate::fuzz) module (feature `fuzz`) checks the layer above it: a deterministic
@@ -195,12 +195,12 @@ are ordinary `#[test]`s on stable Rust — no nightly, no external fuzzer — so
 operation orders your grammar will eventually produce get exercised long before your users
 produce them.
 
-# A testing ladder for your language
+## A testing ladder for your language
 
 1. **Conformance** your lexer, once, over a corpus of real inputs — including the empty one,
    the one-token one, and the one that ends mid-token. If you use a
    [`LogosLexer`](crate::lexer::LogosLexer) this is already true, and the check is cheap
-   insurance against the day you hand-write a lexer for speed.
+   insurance against the day you replace `LogosLexer` with a custom lexer.
 2. **Golden-test the grammar**: source in, AST out. Ordinary table tests.
 3. **Golden-test the *diagnostics*** under [`Verbose`](crate::emitter::Verbose) — chapter 7's
    [`diagnostics()`](crate::emitter::Verbose::diagnostics) view is a stable, orderable thing to
@@ -208,16 +208,17 @@ produce them.
 4. **Reach for [`traced`](crate::traced)** the moment a parse surprises you, and delete
    nothing afterwards — it costs nothing with the feature off.
 
-# Where to go next
+## Where to go next
 
 Calc is finished: it lexes, parses, dispatches, folds expressions by precedence, speculates and
-rolls back, reports many diagnostics at once, recovers without cascading, and streams. Every
-capability in this crate has now appeared at least once.
+rolls back, reports many diagnostics at once, recovers without cascading, and streams. The Calc
+fundamentals are complete.
 
 The four programs in `examples/` — `json`, `calculator`, `s_expression`, and `c_expression` —
-are this guide's bigger siblings: complete, idiomatic parsers in the same style, each leaning
-on a different corner of the crate. Read [`InputRef`](crate::InputRef) for the primitives, the
-[`parser`](crate::parser) module for the combinator catalogue, and the
-[`emitter`](crate::emitter) module when you decide what your diagnostics should *do*. And when
-something behaves in a way the documentation did not predict, that is a bug in one of them —
-the guide's doctests exist so that it is never quietly the guide.
+are canonical complete programs in the same style, each leaning on a different corner of the
+crate. Next: [chapter 11](super::ch11_real_parser) uses them to show how a real parser comes
+together. Read [`InputRef`](crate::InputRef) for the primitives, the [`parser`](crate::parser)
+module for the combinator catalogue, and the [`emitter`](crate::emitter) module when you decide
+what your diagnostics should *do*. When something behaves in a way the documentation did not
+predict, that is a bug in one of them — the guide's doctests exist so that it is never quietly
+the guide.

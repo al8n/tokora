@@ -1,4 +1,4 @@
-Chapter 4: deterministic choice — dispatch on token kind, peeked and fused.
+# 4. Deterministic choice
 
 A Calc statement starts with `let`, `print`, or an integer. Choosing between alternatives
 is where many combinator libraries reach for speculative "try each in order" choice; tokora
@@ -19,7 +19,7 @@ Two surfaces, one decision rule:
   `peek_then_choice` when several kinds route to one branch; the table form is one kind
   per branch.
 
-# Peeked versus fused
+## Peeked versus fused
 
 [`DispatchOnKind`](crate::parser::DispatchOnKind) is the *peek* shape: the decision token
 is peeked (staged in the token cache, including a lexer-state clone), the winning branch —

@@ -1,10 +1,11 @@
+# The Tokora Guide
+
 A guided tour of tokora: build a small language end-to-end.
 
 The crate's reference documentation explains each API in isolation; this guide tells the
-story in order. Across ten chapters it builds **Calc**, a tiny calculator language with
-variables, and uses every major capability of the crate along the way — lexing, hand-written
-and combinator parsers, dispatch, Pratt expressions, backtracking, diagnostics, recovery,
-partial input, and testing.
+story in order. The first ten chapters build **Calc**, a tiny calculator language with
+variables. One anatomy chapter plus four maintained-example walkthroughs make up the applied-parser
+section, and a final optional tooling chapter introduces lossless CSTs with Rowan.
 
 ```text
 program := stmt+
@@ -14,15 +15,14 @@ stmt    := "let" ident "=" expr ";"        bind a variable
 expr    := integers, variables, + - * / ^, unary -, ( ) grouping
 ```
 
-# How to read this guide
+## How to read this guide
 
-Every code block is a **complete, runnable program** — the doctest suite compiles and runs
-each one, so nothing here can drift from the real API. Later chapters hide the setup lines
-established by earlier chapters (expand any example in the HTML docs to see them). The
-chapters build on each other, but each states what it teaches up front, so you can jump in
-anywhere.
+Every non-ignored Rust fence is a **doctest** — the suite compiles and runs it, so the examples
+cannot quietly drift from the API. Later chapters may hide reduced token and error definitions
+to keep the visible code focused (expand an example in the HTML docs to see them). The chapters
+build on each other, but each states what it teaches up front, so you can jump in anywhere.
 
-# Chapters
+## Chapters
 
 1. [`ch01_tokens`](crate::guide::ch01_tokens) — tokens and the lexer: the [`Token`](crate::Token) split into data and
    [`Kind`](crate::Token::Kind), the logos adapter, and the [`Lexer`](crate::Lexer) contract
@@ -53,8 +53,20 @@ anywhere.
 9. [`ch09_streaming`](crate::guide::ch09_streaming) — partial input, Sans-I/O: the
    [`Completeness`](crate::Completeness) typestate and the
    [`parse_partial`](crate::parse_partial) refill loop.
-10. [`ch10_testing`](crate::guide::ch10_testing) — testing your language: the [`conformance`](crate::conformance) kit
+10. Chapter 10, Testing (requires the `conformance` feature), covers the `conformance` kit
     for custom lexers and the [`traced`](crate::traced) combinator for debugging.
+11. [`ch11_real_parser`](crate::guide::ch11_real_parser) — turning a tutorial fragment into a
+    complete parser program.
+12. [`ch12_calculator_example`](crate::guide::ch12_calculator_example) — the token-level Pratt
+    calculator evaluator.
+13. [`ch13_s_expression_example`](crate::guide::ch13_s_expression_example) — a recursive-descent
+    S-expression parser and evaluator.
+14. [`ch14_json_example`](crate::guide::ch14_json_example) — borrowed JSON values, delimiters,
+    and tentative choice.
+15. [`ch15_c_expression_example`](crate::guide::ch15_c_expression_example) — an AST-level Pratt
+    parser with complex postfix forms.
+16. Chapter 16, Lossless CSTs with Rowan, requires the `rowan` feature.
 
-The four `examples/` programs in the repository (`json`, `calculator`, `s_expression`,
-`c_expression`) are the guide's bigger siblings — full programs in the same style.
+The four `examples/` programs in the repository (`json`, `calculator`, `s_expression`, and
+`c_expression`) are canonical complete programs; the applied chapters explain how to reproduce
+their structure without copying their source into the guide.
