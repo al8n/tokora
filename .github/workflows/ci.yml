@@ -88,8 +88,8 @@ jobs:
             ${{ runner.os }}-msrv-
       - name: Install Rust
         run: rustup toolchain install 1.87 --no-self-update --profile minimal
-      - name: cargo +1.87 check -p tokit --all-features
-        run: cargo +1.87 check -p tokit --all-features
+      - name: cargo +1.87 check -p tokora --all-features
+        run: cargo +1.87 check -p tokora --all-features
 
   # ── Gate: full test suite ───────────────────────────────────────────────────
   test:
@@ -130,8 +130,8 @@ jobs:
             ${{ runner.os }}-test-valveoff-
       - name: Install Rust
         run: rustup update stable --no-self-update && rustup default stable
-      - name: cargo test -p tokit --features logos,std
-        run: cargo test -p tokit --features logos,std
+      - name: cargo test -p tokora --features logos,std
+        run: cargo test -p tokora --features logos,std
 
   # ── Gate: release profile (the profile where debug_assertions-gated nets
   #    vanish). Filtered to `--lib` — the crate's own unit-test suites, where the
@@ -156,10 +156,10 @@ jobs:
             ${{ runner.os }}-test-release-
       - name: Install Rust
         run: rustup update stable --no-self-update && rustup default stable
-      - name: cargo test --release -p tokit --all-features --lib
-        run: cargo test --release -p tokit --all-features --lib
+      - name: cargo test --release -p tokora --all-features --lib
+        run: cargo test --release -p tokora --all-features --lib
       - name: cargo test --release (guard/sync/recover integration suites)
-        run: cargo test --release -p tokit --all-features --test input_ref --test sync --test parser_recover --test state_machine --test tracker
+        run: cargo test --release -p tokora --all-features --test input_ref --test sync --test parser_recover --test state_machine --test tracker
 
   # ── Gate: the cargo-hack per-feature clippy matrix (its own job) ────────────
   hack-clippy:
@@ -181,8 +181,8 @@ jobs:
         run: rustup update stable --no-self-update && rustup default stable && rustup component add clippy
       - name: Install cargo-hack
         run: cargo install cargo-hack
-      - name: cargo +stable hack clippy -p tokit --each-feature --no-deps --tests -D warnings
-        run: cargo +stable hack clippy -p tokit --each-feature --no-deps --tests -- -D warnings
+      - name: cargo +stable hack clippy -p tokora --each-feature --no-deps --tests -D warnings
+        run: cargo +stable hack clippy -p tokora --each-feature --no-deps --tests -- -D warnings
 
   # ── Gate: no-std / bare-metal builds ────────────────────────────────────────
   no-std:

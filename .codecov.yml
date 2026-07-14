@@ -2,8 +2,8 @@ codecov:
   require_ci_to_pass: false
 
 ignore:
-  - tokit/examples/
-  - tokit/tests/
+  - tokora/examples/
+  - tokora/tests/
 
 coverage:
   status:

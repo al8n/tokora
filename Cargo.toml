@@ -1,20 +1,20 @@
 [workspace]
 members = [
-  "tokit"
+  "tokora"
 ]
 resolver = "3"
 
 [workspace.package]
 # MSRV policy: `rust-version` tracks the current genuine requirement — the floor is
 # edition 2024 (rustc >= 1.85) plus what the dependency tree resolves under; the declared
-# value is verified by `cargo +1.87 check -p tokit --all-features` (CI `msrv` job). Bumps
+# value is verified by `cargo +1.87 check -p tokora --all-features` (CI `msrv` job). Bumps
 # are permitted whenever the crate needs them and are NOT treated as breaking changes.
 rust-version = "1.87"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/al8n/tokit"
-homepage = "https://github.com/al8n/tokit"
-documentation = "https://docs.rs/tokit"
+repository = "https://github.com/al8n/tokora"
+homepage = "https://github.com/al8n/tokora"
+documentation = "https://docs.rs/tokora"
 
 [profile.bench]
 opt-level = 3
