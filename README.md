@@ -264,10 +264,6 @@ Tokora takes inspiration from:
 - [**logos**](https://github.com/maciejhirsz/logos) - For high-performance lexing
 - [**rowan**](https://github.com/rust-analyzer/rowan) - For lossless syntax tree representation
 
-## Who Uses Tokora?
-
-- [`smear`](https://github.com/al8n/smear): Blazing fast, fully spec-compliant, reusable parser combinators for standard GraphQL and GraphQL-like DSLs
-
 ## Development
 
 Useful repository checks:
