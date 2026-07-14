@@ -1,0 +1,83 @@
+name: Deploy mdBook to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/pages.yml"
+      - "tokit/book.toml"
+      - "tokit/src/guide/**"
+      - "tokit/tools/mdbook_docs_links.py"
+  pull_request:
+    paths:
+      - ".github/workflows/pages.yml"
+      - "tokit/book.toml"
+      - "tokit/src/guide/**"
+      - "tokit/tools/mdbook_docs_links.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MDBOOK_VERSION: 0.5.4
+  RUST_TOOLCHAIN: 1.88.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --no-self-update
+
+      - name: Install mdBook
+        run: >-
+          cargo +"$RUST_TOOLCHAIN" install mdbook --version "=$MDBOOK_VERSION" --locked
+          --no-default-features --features search
+
+      - name: Verify mdBook version
+        run: |
+          mdbook --version
+          test "$(mdbook --version)" = "mdbook v$MDBOOK_VERSION"
+
+      - name: Run guide doctests
+        run: cargo +"$RUST_TOOLCHAIN" test -p tokit --all-features --doc
+
+      - name: Build guide
+        working-directory: tokit
+        run: mdbook build
+
+      - name: Validate Pages artifact
+        run: |
+          test -s target/book/index.html
+          test -s target/book/404.html
+          ! find target/book -type l -print -quit | grep -q .
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: target/book
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

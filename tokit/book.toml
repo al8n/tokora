@@ -23,6 +23,7 @@ edition = "2024"
 command = "python3 tools/mdbook_docs_links.py"
 
 [output.html]
+site-url = "/tokit/"
 git-repository-url = "https://github.com/al8n/tokit"
 default-theme = "rust"
 
