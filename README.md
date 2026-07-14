@@ -137,7 +137,23 @@ fn main() {
 - Recovery, partial-input support, lexer conformance checks, tracing, and a public fuzz harness.
 - Optional adapters for Logos, Rowan CSTs, source types, and container types.
 
-## Error handling
+## How Tokora parses
+
+A Tokora grammar is ordinary Rust: parser functions and combinators read through `InputRef`, which
+pulls tokens from a `Lexer` on demand and stages tokens in its cache when lookahead or backtracking
+needs them. `peek_then_choice` makes a decision from a fixed lookahead window;
+`dispatch_on_kind` and `fused_dispatch_on_kind` route the next token's `Token::Kind` to exactly
+one selected branch.
+
+That token-kind dispatch is local to a hand-written combinator grammar. Tokora does not accept an
+LALR grammar, generate LALR parse tables, or act as an LALR parser generator.
+
+When a grammar needs speculation, it is explicit. `attempt` and `try_attempt` commit successful
+work and roll back a decline or error; `Transaction` exposes commit and rollback directly. A
+rollback restores the input position, span, lexer state, token cache, and diagnostics emitted since
+the checkpoint. Application-owned side effects need their own transaction boundary.
+
+## Diagnostics and recovery
 
 Parsers are generic over their parse context, including the emitter. `Parser::new()` uses the
 fail-fast `Fatal` emitter; `Verbose` records diagnostics and can continue when the grammar
@@ -145,8 +161,13 @@ recovers. The same parser functions can therefore serve a runtime parser, compil
 editor integration without a second grammar implementation.
 
 Structured lexer, token, separator, container, and Pratt errors convert into the application's
-error type through `From` implementations. Explicit transactions roll back input state and
-recorded diagnostics, but application-owned side effects need their own transaction boundary.
+error type through `From` implementations.
+
+Recovery is explicit: `recover` restores the failed parse's starting point before running a
+recovery parser, while `inplace_recover` continues from the failure position. `sync_balanced` and
+`skip_then_retry` provide nesting-aware synchronization; `Verbose` records each successful
+non-empty skipped region once alongside other diagnostics. `Incomplete` errors are re-raised
+instead of recovered so unfinished partial input is not discarded.
 
 ## Guide and examples
 
@@ -202,15 +223,52 @@ integrations may coexist. When several are enabled, the unversioned
 with `logos_0_16` and re-exports that version. `rowan` does not enable `logos`, and `smallvec_1`
 is the versioned feature that adds `alloc`.
 
-## Platform and development
+## Platform support
 
-Tokora's MSRV is Rust 1.87. Core functionality supports `no_std`: disable default features and
-enable `alloc` only when your parser, cache, or selected integration needs allocation.
+Tokora's MSRV is Rust 1.87. Tokora's core supports both allocator-free `no_std`
+(`no_std` without `alloc`) and allocation-enabled `no_std` (`no_std` with `alloc`).
+Disable default features for allocator-free core use. Enable `alloc` when a parser, cache,
+or selected optional facility requires allocation; other optional facilities may require `std`.
+
+Allocator-free `no_std`:
 
 ```toml
 [dependencies]
 tokora = { version = "0.1", default-features = false }
 ```
+
+`no_std` with `alloc`:
+
+```toml
+[dependencies]
+tokora = { version = "0.1", default-features = false, features = ["alloc"] }
+```
+
+## Design philosophy and inspirations
+
+### Core Priorities
+
+1. **Performance** - Pull tokens from the lexer on demand and offer fused dispatch where avoiding a peek/cache round trip matters.
+2. **Predictability** - Prefer deterministic lookahead and token-kind dispatch; make speculation explicit and transactional.
+3. **Composability** - Combine small parser functions and combinators; compose focused emitter traits into custom diagnostic strategies.
+4. **Versatility** - Reuse parser functions with fail-fast, collecting, silent, or custom emitters.
+5. **Flexibility** - Work through generic `Lexer` and `Token` traits, with optional Logos input and Rowan CST integrations.
+6. **Correctness** - Track spans and structured errors, rewind emitted diagnostics with parser rollbacks, and provide conformance and fuzz test kits.
+
+### Inspirations
+
+Tokora takes inspiration from:
+
+- [**winnow**](https://github.com/winnow-rs/winnow) - For ergonomic parser API design
+- [**chumsky**](https://github.com/zesterer/chumsky) - For composable parser combinator patterns
+- [**logos**](https://github.com/maciejhirsz/logos) - For high-performance lexing
+- [**rowan**](https://github.com/rust-analyzer/rowan) - For lossless syntax tree representation
+
+## Who Uses Tokora?
+
+- [`smear`](https://github.com/al8n/smear): Blazing fast, fully spec-compliant, reusable parser combinators for standard GraphQL and GraphQL-like DSLs
+
+## Development
 
 Useful repository checks:
 
@@ -225,34 +283,12 @@ RUSTDOCFLAGS="-D warnings" cargo test -p tokora --all-features --doc
 The guide is validated both as rustdoc and as an mdBook so API links, local links, chapter order,
 and Pages output stay aligned.
 
-### Inspirations
-
-Tokora takes inspiration from:
-
-- [**winnow**](https://github.com/winnow-rs/winnow) - For ergonomic parser API design
-- [**chumsky**](https://github.com/zesterer/chumsky) - For composable parser combinator patterns
-- [**logos**](https://github.com/maciejhirsz/logos) - For high-performance lexing
-- [**rowan**](https://github.com/rust-analyzer/rowan) - For lossless syntax tree representation
-
-### Core Priorities
-
-1. **Performance** - Parse-while-lexing (zero-copy streaming), zero-cost abstractions, no hidden allocations
-2. **Predictability** - No hidden backtracking, explicit control flow, deterministic decisions
-3. **Composability** - Small parsers combine into complex ones; atomic emitter traits compose into custom strategies
-4. **Versatility** - Same parser works for runtime (fail-fast) and compiler diagnostics (comprehensive) via atomic `Emitter` traits
-5. **Flexibility** - Work with any lexer, atomic error handling traits, support both AST and CST
-6. **Correctness** - Rich error types, span tracking, validation
-
-## Who Uses Tokit?
-
-- [`smear`](https://github.com/al8n/smear): Blazing fast, fully spec-compliant, reusable parser combinators for standard GraphQL and GraphQL-like DSLs
-
 ## License
 
 `tokora` is under the terms of both the MIT license and the
 Apache License (Version 2.0).
 
-See [LICENSE-APACHE](LICENSE-APACHE), [LICENSE-MIT](LICENSE-MIT) for details.
+See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for details.
 
 Copyright (c) 2026 Al Liu.
 
