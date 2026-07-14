@@ -72,7 +72,7 @@ where
   /// A fresh session cell over `lineage`: no points open, and — in allocator builds — an unallocated
   /// stack. A handle that never opens a session pays for three zeroed words once, at
   /// [`Input::as_ref`](crate::input::Input), and nothing thereafter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(lineage: &'closure mut Lineage) -> Self {
     Self {
       lineage,
@@ -163,7 +163,7 @@ impl<'inp, L> Drop for Session<'inp, '_, L>
 where
   L: Lexer<'inp>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn drop(&mut self) {
     if !self.points.is_empty() {
       self.release_abandoned_points();

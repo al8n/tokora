@@ -34,7 +34,7 @@ where
   type Emitter = Fatal<(), Lang>;
   type Cache = DefaultCache<'inp, L>;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn provide(self) -> InputContext<Self::Emitter, Self::Cache>
   where
     L: Lexer<'inp>,
@@ -85,13 +85,13 @@ where
   C: Cache<'inp, L>,
 {
   /// Creates a new parser context with the given emitter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(emitter: E) -> Self {
     Self::of(emitter)
   }
 
   /// Creates a new parser context with the given emitter and cache options.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn with_cache_options(emitter: E, options: C::Options) -> Self {
     Self::with_cache_options_of(emitter, options)
   }
@@ -113,13 +113,13 @@ where
   }
 
   /// Creates a new parser context with the given emitter for a specific language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn of(emitter: E) -> Self {
     Self::new_in(emitter, None)
   }
 
   /// Creates a new parser context with the given emitter and cache options for a specific language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn with_cache_options_of(emitter: E, options: C::Options) -> Self {
     Self::new_in(emitter, Some(options))
   }
@@ -134,7 +134,7 @@ where
   type Emitter = E;
   type Cache = C;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn provide(self) -> InputContext<Self::Emitter, Self::Cache>
   where
     L: Lexer<'inp>,

@@ -6,7 +6,7 @@ impl<'inp, L, E, Lang: ?Sized> SeparatedEmitter<'inp, L, Lang> for Fatal<E, Lang
 where
   E: FromSeparatedError<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_missing_separator(
     &mut self,
     name: CowStr,
@@ -18,7 +18,7 @@ where
     Err(E::from_missing_separator(name, err))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_missing_element(&mut self, err: MissingSyntaxOf<'inp, L, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,

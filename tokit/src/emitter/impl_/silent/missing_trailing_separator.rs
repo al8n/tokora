@@ -6,7 +6,7 @@ impl<'inp, L, E, Lang: ?Sized> MissingTrailingSeparatorEmitter<'inp, L, Lang> fo
 where
   L: Lexer<'inp>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_missing_trailing_separator(
     &mut self,
     _: CowStr,

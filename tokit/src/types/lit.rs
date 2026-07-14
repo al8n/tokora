@@ -147,7 +147,7 @@ macro_rules! define_literal {
     }
 
     impl<D, S, Lang> AsSpan<S> for $name<D, S, Lang> {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn as_span(&self) -> &S {
         self.span_ref()
       }
@@ -156,7 +156,7 @@ macro_rules! define_literal {
     impl<D, S, Lang> IntoComponents for $name<D, S, Lang> {
       type Components = (S, D);
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn into_components(self) -> Self::Components {
         (self.span, self.data)
       }
@@ -169,7 +169,7 @@ macro_rules! define_literal {
       ///
       /// - `span`: The source location of this literal
       /// - `data`: The literal's data
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub const fn new(span: S, data: D) -> Self {
         Self {
           span,
@@ -179,25 +179,25 @@ macro_rules! define_literal {
       }
 
       /// Returns the span (source location) of this literal.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub const fn span(&self) -> S where S: ::core::marker::Copy {
         self.span
       }
 
       /// Returns an immutable reference to the span.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub const fn span_ref(&self) -> &S {
         &self.span
       }
 
       /// Returns a mutable reference to the span.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub const fn span_mut(&mut self) -> &mut S {
         &mut self.span
       }
 
       /// Bumps the span to of this literal by the specified offset.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub fn bump(&mut self, by: &S::Offset) -> &mut Self
       where
         S: $crate::__private::span::Span,
@@ -207,7 +207,7 @@ macro_rules! define_literal {
       }
 
       /// Returns a mutable reference to the source string.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub const fn data_mut(&mut self) -> &mut D {
         &mut self.data
       }
@@ -215,7 +215,7 @@ macro_rules! define_literal {
       /// Returns an immutable reference to the source string.
       ///
       /// This is the most common way to access the literal's text.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub const fn data_ref(&self) -> &D {
         &self.data
       }
@@ -223,7 +223,7 @@ macro_rules! define_literal {
       /// Returns a copy of the source string by value.
       ///
       /// Only available when `D` implements [`Copy`].
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub const fn data(&self) -> D
       where
         D: Copy,
@@ -238,13 +238,13 @@ macro_rules! define_literal {
       S: Clone,
     {
       /// Creates a placeholder literal for **malformed content**.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn error(span: S) -> Self {
         Self::new(span.clone(), D::error(span))
       }
 
       /// Creates a placeholder literal for **missing required content**.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn missing(span: S) -> Self {
         Self::new(span.clone(), D::missing(span))
       }

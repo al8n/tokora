@@ -296,7 +296,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
   }
 }
 
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 fn push<C, T>(nums: &mut usize, container: &mut C, item: T) -> Result<(), T>
 where
   C: crate::container::Container<T>,

@@ -38,7 +38,7 @@ pub enum DiagnosticKind<'a, E> {
 // Clone)]` would instead emit a spurious `E: Copy`/`E: Clone` bound (the classic derive-adds-a-
 // bound-it-does-not-need trap), which would in turn force that bound onto [`Diagnostic::kind`].
 impl<E> Clone for DiagnosticKind<'_, E> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     *self
   }
@@ -65,7 +65,7 @@ pub struct Diagnostic<'a, S, E> {
 // for all `S`/`E` (`&S`, `&[..]`, and the `Copy` `DiagnosticKind`), so deriving would attach
 // spurious `S: Copy`/`E: Copy` bounds.
 impl<S, E> Clone for Diagnostic<'_, S, E> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     *self
   }
@@ -75,7 +75,7 @@ impl<S, E> Copy for Diagnostic<'_, S, E> {}
 
 impl<'a, S, E> Diagnostic<'a, S, E> {
   /// Bundles the borrowed facts of one collected diagnostic.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(
     span: &'a S,
     labels: &'a [&'static str],
@@ -85,21 +85,21 @@ impl<'a, S, E> Diagnostic<'a, S, E> {
   }
 
   /// The source span of this diagnostic.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> &'a S {
     self.span
   }
 
   /// The open-label snapshot captured when this diagnostic was emitted, outermost
   /// [`labelled`](crate::labelled) context first. Empty when the emission was unlabelled.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn labels(&self) -> &'a [&'static str] {
     self.labels
   }
 
   /// The record kind and payload — the primary way to tell an error, a warning, and a recovery
   /// hole apart and read each one's data.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn kind(&self) -> DiagnosticKind<'a, E> {
     self.kind
   }
@@ -110,7 +110,7 @@ impl<'a, S, E> Diagnostic<'a, S, E> {
   /// [`SkippedRegion`](DiagnosticKind::SkippedRegion) is a soft, non-fatal recovery event and so
   /// also reports [`Severity::Warning`] — use [`kind`](Self::kind) to distinguish a hole from a
   /// genuine warning payload.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn severity(&self) -> Severity {
     match self.kind {
       DiagnosticKind::Error(_) => Severity::Error,
@@ -121,7 +121,7 @@ impl<'a, S, E> Diagnostic<'a, S, E> {
   /// The collected error/warning payload, or `None` for a
   /// [`SkippedRegion`](DiagnosticKind::SkippedRegion) hole (which carries a skipped-token count,
   /// not an error value — read it via [`kind`](Self::kind)).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn payload(&self) -> Option<&'a E> {
     match self.kind {
       DiagnosticKind::Error(e) | DiagnosticKind::Warning(e) => Some(e),
@@ -157,7 +157,7 @@ pub struct Diagnostics<'a, S, E> {
 
 impl<'a, S, E> Diagnostics<'a, S, E> {
   /// Builds the iterator from the emitter's channels and shared log.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::too_many_arguments)]
   pub(crate) fn new(
     log: &'a [(Channel, S)],
@@ -190,7 +190,7 @@ where
 {
   type Item = Diagnostic<'a, S, E>;
 
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn next(&mut self) -> Option<Self::Item> {
     let (channel, span) = self.log.get(self.index)?;
     self.index += 1;

@@ -149,7 +149,7 @@ pub struct Repeated<F, O, L, Ctx, Lang: ?Sized = ()> {
 
 impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   /// Creates a new `Repeated` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(f: F) -> Self {
     Self {
       f,
@@ -163,7 +163,7 @@ impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
 
 impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
     DelimitedBy::<_, Delim>::new(self)
   }
@@ -171,19 +171,19 @@ impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
 
 impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   /// Sets the minimum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn at_least(self, n: usize) -> AtLeast<Repeated<F, O, L, Ctx, Lang>> {
     self.apply(Minimum::new(n))
   }
 
   /// Sets the maximum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn at_most(self, n: usize) -> AtMost<Repeated<F, O, L, Ctx, Lang>> {
     self.apply(Maximum::new(n))
   }
 
   /// Sets both the minimum and maximum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bounded(self, min: usize, max: usize) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
     self.apply(With::new(Maximum::new(max), Minimum::new(min)))
   }
@@ -192,7 +192,7 @@ impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
 impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>> for Repeated<F, O, L, Ctx, Lang> {
   type Options = Minimum;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn apply(self, options: Self::Options) -> AtLeast<Self> {
     AtLeast::new(self, options.get())
   }
@@ -201,7 +201,7 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>> for Repeated<F, O, L, Ctx,
 impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>> for Repeated<F, O, L, Ctx, Lang> {
   type Options = Maximum;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn apply(self, options: Self::Options) -> AtMost<Self> {
     AtMost::new(self, options.get())
   }
@@ -210,7 +210,7 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>> for Repeated<F, O, L, Ctx, 
 impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>> for Repeated<F, O, L, Ctx, Lang> {
   type Options = With<Maximum, Minimum>;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn apply(self, options: Self::Options) -> Bounded<Self> {
     Bounded::new(self, options.primary.get(), options.secondary.get())
   }
@@ -221,7 +221,7 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Repeated<F, O, L, Ctx, Lang>>>
 {
   type Options = Minimum;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn apply(self, options: Self::Options) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
     Bounded::new(self.parser, self.maximum.get(), options.get())
   }
@@ -232,7 +232,7 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Repeated<F, O, L, Ctx, Lang>>>
 {
   type Options = Maximum;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn apply(self, options: Self::Options) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
     Bounded::new(self.parser, options.get(), self.minimum.get())
   }

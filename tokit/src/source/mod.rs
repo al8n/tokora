@@ -55,17 +55,17 @@ impl Source<usize> for [u8] {
   where
     Self: 'source;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_empty(&self) -> bool {
     <[u8]>::is_empty(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     self.len()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
     R: RangeBounds<usize>,
@@ -76,7 +76,7 @@ impl Source<usize> for [u8] {
     ))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_boundary(&self, index: usize) -> bool {
     index <= self.len()
   }
@@ -88,17 +88,17 @@ impl Source<usize> for str {
   where
     Self: 'source;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_empty(&self) -> bool {
     <str>::is_empty(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     <str>::len(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
     R: RangeBounds<usize>,
@@ -112,7 +112,7 @@ impl Source<usize> for str {
   /// Rounds `index` DOWN to the nearest UTF-8 code point boundary so the result
   /// is always a valid slice position. Indices at or beyond the end are returned
   /// unchanged, matching the byte sources.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn find_boundary(&self, index: usize) -> usize {
     if index >= <str>::len(self) {
       return index;
@@ -124,7 +124,7 @@ impl Source<usize> for str {
     index
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_boundary(&self, index: usize) -> bool {
     self.is_char_boundary(index)
   }

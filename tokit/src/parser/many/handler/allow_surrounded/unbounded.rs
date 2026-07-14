@@ -17,7 +17,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_start_state(
     &self,
     _: usize,
@@ -31,7 +31,7 @@ where
     Ok(inp.span_since(anchor))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_element_state(
     &self,
     _: usize,
@@ -45,7 +45,7 @@ where
     Ok(inp.span_since(anchor))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_leading_state(
     &self,
     _: usize,
@@ -65,7 +65,7 @@ where
       .map(|_| inp.span_since(anchor))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_separator_state(
     &self,
     _: usize,
@@ -89,7 +89,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_start_state(
     &self,
     _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -111,7 +111,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_start_state(
     &self,
     _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,

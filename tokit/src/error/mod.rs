@@ -340,24 +340,24 @@ pub trait ErrorNode<S = SimpleSpan> {
 }
 
 impl ErrorNode for &str {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn error(_span: SimpleSpan) -> Self {
     "<error>"
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn missing(_span: SimpleSpan) -> Self {
     "<missing>"
   }
 }
 
 impl ErrorNode for &[u8] {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn error(_span: SimpleSpan) -> Self {
     b"<error>"
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn missing(_span: SimpleSpan) -> Self {
     b"<missing>"
   }
@@ -366,12 +366,12 @@ impl ErrorNode for &[u8] {
 #[cfg(feature = "bytes_1")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
 impl ErrorNode for bytes_1::Bytes {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn error(_span: SimpleSpan) -> Self {
     bytes_1::Bytes::from_static(b"<error>")
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn missing(_span: SimpleSpan) -> Self {
     bytes_1::Bytes::from_static(b"<missing>")
   }
@@ -383,24 +383,24 @@ const _: () = {
   use hipstr_0_8::{HipByt, HipStr};
 
   impl ErrorNode for HipStr<'_> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn error(_span: SimpleSpan) -> Self {
       HipStr::borrowed("<error>")
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn missing(_span: SimpleSpan) -> Self {
       HipStr::borrowed("<missing>")
     }
   }
 
   impl ErrorNode for HipByt<'_> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn error(_span: SimpleSpan) -> Self {
       HipByt::borrowed(b"<error>")
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn missing(_span: SimpleSpan) -> Self {
       HipByt::borrowed(b"<missing>")
     }
@@ -421,7 +421,7 @@ pub trait ErrorContainer<E> {
   fn new() -> Self;
 
   /// Create a new container with a specified capacity.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn with_capacity(_: usize) -> Self
   where
     Self: Sized,
@@ -433,7 +433,7 @@ pub trait ErrorContainer<E> {
   fn push(&mut self, error: E);
 
   /// Attempts to push an error, returning it back if the container is full.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_push(&mut self, error: E) -> Result<(), E>
   where
     Self: Sized,
@@ -446,7 +446,7 @@ pub trait ErrorContainer<E> {
   fn pop(&mut self) -> Option<E>;
 
   /// Returns `true` if the collection is empty.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_empty(&self) -> bool {
     self.len() == 0
   }
@@ -461,7 +461,7 @@ pub trait ErrorContainer<E> {
   fn into_iter(self) -> Self::IntoIter;
 
   /// Returns the remaining capacity if the container has a fixed upper bound.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn remaining_capacity(&self) -> Option<usize> {
     None
   }
@@ -474,17 +474,17 @@ impl<E> ErrorContainer<E> for Option<E> {
   where
     E: 'a;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn new() -> Self {
     None
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push(&mut self, error: E) {
     self.get_or_insert(error);
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_push(&mut self, error: E) -> Result<(), E> {
     if self.is_some() {
       Err(error)
@@ -494,27 +494,27 @@ impl<E> ErrorContainer<E> for Option<E> {
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn pop(&mut self) -> Option<E> {
     self.take()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     if self.is_some() { 1 } else { 0 }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn iter(&self) -> Self::Iter<'_> {
     Self::iter(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_iter(self) -> Self::IntoIter {
     <Self as IntoIterator>::into_iter(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn remaining_capacity(&self) -> Option<usize> {
     Some(if self.is_some() { 0 } else { 1 })
   }
@@ -529,17 +529,17 @@ impl<E, N: ArrayLength> ErrorContainer<E> for GenericArrayDeque<E, N> {
     Self: 'a,
     E: 'a;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn new() -> Self {
     Self::new()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push(&mut self, error: E) {
     self.push_back(error);
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_push(&mut self, error: E) -> Result<(), E> {
     match self.push_back(error) {
       None => Ok(()),
@@ -547,27 +547,27 @@ impl<E, N: ArrayLength> ErrorContainer<E> for GenericArrayDeque<E, N> {
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn pop(&mut self) -> Option<E> {
     self.pop_front()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     self.len()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn iter(&self) -> Self::Iter<'_> {
     Self::iter(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_iter(self) -> Self::IntoIter {
     IntoIterator::into_iter(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn remaining_capacity(&self) -> Option<usize> {
     Some(self.remaining_capacity())
   }
@@ -587,22 +587,22 @@ const _: () = {
     where
       E: 'a;
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn new() -> Self {
       Self::new()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn with_capacity(capacity: usize) -> Self {
       Self::with_capacity(capacity)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, error: E) {
       self.push(error);
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn pop(&mut self) -> Option<E> {
       if self.is_empty() {
         None
@@ -611,17 +611,17 @@ const _: () = {
       }
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       self.len()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn iter(&self) -> Self::Iter<'_> {
       self.as_slice().iter()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn into_iter(self) -> Self::IntoIter {
       <Self as IntoIterator>::into_iter(self)
     }
@@ -635,37 +635,37 @@ const _: () = {
       E: 'a,
       Self: 'a;
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn new() -> Self {
       Self::new()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn with_capacity(capacity: usize) -> Self {
       Self::with_capacity(capacity)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, error: E) {
       self.push_back(error);
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn pop(&mut self) -> Option<E> {
       self.pop_front()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       self.len()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn iter(&self) -> Self::Iter<'_> {
       self.iter()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn into_iter(self) -> Self::IntoIter {
       <Self as IntoIterator>::into_iter(self)
     }

@@ -6,7 +6,7 @@ where
   E: FromTooManyError<'a, L, Lang> + FromEmitterError<'a, L, Lang>,
   S: Span + Ord + Clone,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_too_many(&mut self, err: TooMany<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,

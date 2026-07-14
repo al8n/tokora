@@ -10,7 +10,7 @@ macro_rules! try_expect_punct {
     paste::paste! {
       $(
         #[doc = "Tries to advance to the next valid token if it is " $punct " (" $punct_char "). Otherwise leaves the input unchanged."]
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         pub fn [< try_expect_ $punct >](
           &mut self,
         ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -21,7 +21,7 @@ macro_rules! try_expect_punct {
         }
 
         #[doc = "Advances to the next valid token and expects it to be " $punct " (" $punct_char ")."]
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         pub fn [< expect_ $punct >](
           &mut self,
         ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -40,7 +40,7 @@ macro_rules! try_expect_punct {
 
         $(
           #[doc = "Tries to advance to the next valid token if it is " $alias " (" $punct_char "). Otherwise leaves the input unchanged."]
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           pub fn [< try_expect_ $alias >](
             &mut self,
           ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -51,7 +51,7 @@ macro_rules! try_expect_punct {
           }
 
           #[doc = "Advances to the next valid token and expects it to be " $alias " (" $punct_char ")."]
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           pub fn [< expect_ $alias >](
             &mut self,
           ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>

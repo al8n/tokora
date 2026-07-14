@@ -130,7 +130,7 @@ pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
 
 impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
   /// Creates a new checkpoint.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::too_many_arguments)]
   pub(super) const fn new(
     cursor: Cursor<'a, 'closure, L>,
@@ -169,13 +169,13 @@ impl<'a, 'closure, L: Lexer<'a>> Checkpoint<'a, 'closure, L> {
   }
 
   /// Returns the cursor of the checkpoint.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn cursor(&self) -> &Cursor<'a, 'closure, L> {
     &self.cursor
   }
 
   /// Returns the state of the checkpoint.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn state(&self) -> &L::State {
     &self.state
   }

@@ -77,7 +77,7 @@ pub struct Validate<P, F, O, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, F, O, L, Ctx, Lang: ?Sized> Validate<P, F, O, L, Ctx, Lang> {
   /// Creates a new `Validate` combinator for the specified language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn of<'inp>(parser: P, validator: F) -> Self
   where
     L: Lexer<'inp>,
@@ -105,7 +105,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -194,7 +194,7 @@ pub struct ValidateWith<P, F, O, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, F, O, L, Ctx, Lang: ?Sized> ValidateWith<P, F, O, L, Ctx, Lang> {
   /// Creates a new `Validate` combinator for the specified language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn of<'inp>(parser: P, validator: F) -> Self
   where
     L: Lexer<'inp>,
@@ -228,7 +228,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

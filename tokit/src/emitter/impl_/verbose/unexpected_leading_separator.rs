@@ -10,7 +10,7 @@ where
   S: Span + Ord + Clone,
   Verbose<E, S, Lang>: SeparatedEmitter<'inp, L, Lang, Error = E>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_leading_separator(
     &mut self,
     name: CowStr,

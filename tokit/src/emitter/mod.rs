@@ -184,7 +184,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// implementation (a shared, channel-tagged log; see its
   /// `fatal_ignores_warnings_but_errors_still_stop` and
   /// `verbose_warnings_collect_with_labels_parallel_to_errors` tests in `tests/emitter.rs`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_warning(&mut self, warning: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -221,7 +221,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// `sync_balanced_hole_emission_unwinds_on_rollback` and
   /// `sync_balanced_trip_commits_prefix_without_hole_diagnostic` in
   /// `src/input/input_ref/tests.rs`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_skipped_region(&mut self, span: L::Span, skipped: usize) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -238,7 +238,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// emissions made after this point. Stateless emitters ([`Fatal`], [`Silent`],
   /// [`Ignored`](crate::utils::marker::Ignored)) keep nothing to rewind and use
   /// the default `0`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn checkpoint(&self) -> u64 {
     0
   }
@@ -307,7 +307,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// the drifted context, so diagnostics are attributed to the wrong *"while parsing X"*
   /// scope. Route labels through [`labelled`](crate::labelled) rather than calling this pair
   /// directly.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn enter_label(&mut self, label: &'static str) {
     let _ = label;
   }
@@ -319,7 +319,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// it to pop its open-label stack. The stack therefore follows the call structure of
   /// the `labelled` wrappers exactly, so a checkpoint restore needs no label handling —
   /// no label state lives outside the wrapper scopes and the recorded log entries.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn exit_label(&mut self) {}
 }
 
@@ -329,7 +329,7 @@ where
 {
   type Error = U::Error;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_lexer_error(
     &mut self,
     err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
@@ -340,7 +340,7 @@ where
     (**self).emit_lexer_error(err)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_token(
     &mut self,
     err: UnexpectedTokenOf<'a, L, Lang>,
@@ -351,7 +351,7 @@ where
     (**self).emit_unexpected_token(err)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -359,7 +359,7 @@ where
     (**self).emit_error(err)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_warning(&mut self, warning: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -367,7 +367,7 @@ where
     (**self).emit_warning(warning)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_skipped_region(&mut self, span: L::Span, skipped: usize) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -375,12 +375,12 @@ where
     (**self).emit_skipped_region(span, skipped)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn checkpoint(&self) -> u64 {
     (**self).checkpoint()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn rewind(&mut self, cursor: &Cursor<'a, '_, L>, checkpoint: u64)
   where
     L: Lexer<'a>,
@@ -388,12 +388,12 @@ where
     (**self).rewind(cursor, checkpoint)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn enter_label(&mut self, label: &'static str) {
     (**self).enter_label(label)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn exit_label(&mut self) {
     (**self).exit_label()
   }
@@ -417,7 +417,7 @@ where
   L: Lexer<'a>,
   T: From<<L::Token as Token<'a>>::Error> + From<UnexpectedTokenOf<'a, L, Lang>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from_lexer_error(err: Spanned<<L::Token as Token<'a>>::Error, L::Span>) -> Self
   where
     L: Lexer<'a>,
@@ -425,7 +425,7 @@ where
     err.into_data().into()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from_unexpected_token(err: UnexpectedTokenOf<'a, L, Lang>) -> Self
   where
     L: Lexer<'a>,

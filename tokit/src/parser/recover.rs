@@ -71,7 +71,7 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn recover_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -167,7 +167,7 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn inplace_recover_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -313,7 +313,7 @@ pub struct Recover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, R, O, L, Ctx, Lang: ?Sized> Recover<P, R, O, L, Ctx, Lang> {
   /// Creates a new `Recover` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: P, recoverer: R) -> Self {
     Self {
       parser,
@@ -336,7 +336,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: MaybeIncomplete,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -484,7 +484,7 @@ pub struct InplaceRecover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, R, O, L, Ctx, Lang: ?Sized> InplaceRecover<P, R, O, L, Ctx, Lang> {
   /// Creates a new `InplaceRecover` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: P, recoverer: R) -> Self {
     Self {
       parser,
@@ -507,7 +507,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: MaybeIncomplete,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,

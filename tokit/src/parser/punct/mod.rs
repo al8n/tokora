@@ -77,12 +77,12 @@ macro_rules! define_parsers {
           L: Lexer<'inp>,
           <L::Token as Token<'inp>>::Kind: From<$name<(), (), ()>>,
         {
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           fn name() -> CowStr {
             CowStr::from_static(stringify!([< $kind:upper >]))
           }
 
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           fn description() -> Option<CowStr> {
             Some(CowStr::from_static(concat!("The `", $punct_char, "` punctuator.")))
           }

@@ -36,7 +36,7 @@ where
   /// boundary, the dedup watermark, the tokens read next — depends on how deep it had peeked. The
   /// `cache_transparency_matrix` tests in `src/input/input_ref/tests.rs` pin that across this
   /// method and `padded`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn skip_while<F>(
     &mut self,
     mut pred: F,

@@ -128,7 +128,7 @@ pub(super) struct ThroughEntry<Span, State, Offset> {
 
 impl<Span, State, Offset> ThroughEntry<Span, State, Offset> {
   /// Bundles the four facts the end-of-input rewind restores.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(super) const fn new(span: Span, state: State, mark: u64, error_end: Offset) -> Self {
     Self {
       span,
@@ -201,7 +201,7 @@ where
 
   const REPORT_SKIPPED: bool = true;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_stop(
     ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     frontier: AtFrontier<L::Span, L::State>,
@@ -218,7 +218,7 @@ where
     None
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, lexer: L, _snapshot: ()) {
     // Nothing stopped the scan: commit the whole skipped run at the lexer's end. `sync_to` reports
     // as it goes and keeps that progress, so end of input is not a rewinding failure here.
@@ -242,7 +242,7 @@ where
 
   const REPORT_SKIPPED: bool = true;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_stop(
     ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     _frontier: AtFrontier<L::Span, L::State>,
@@ -258,7 +258,7 @@ where
     Some(tok)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_eof(
     ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     _lexer: L,
@@ -296,7 +296,7 @@ where
 
   const REPORT_SKIPPED: bool = false;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_stop(
     ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     frontier: AtFrontier<L::Span, L::State>,
@@ -308,7 +308,7 @@ where
     <SyncTo as ScanMode<'inp, L, Ctx, Lang>>::on_stop(ir, frontier, stopper)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, lexer: L, snapshot: Self::Snapshot) {
     // A failed balanced sync leaves no trace, exactly as `sync_through`'s no-match exit.
     <SyncThrough as ScanMode<'inp, L, Ctx, Lang>>::on_eof(ir, lexer, snapshot)
@@ -343,7 +343,7 @@ where
 
   const REPORT_SKIPPED: bool = false;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_stop(
     ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     frontier: AtFrontier<L::Span, L::State>,
@@ -352,7 +352,7 @@ where
     <SyncTo as ScanMode<'inp, L, Ctx, Lang>>::on_stop(ir, frontier, stopper)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, lexer: L, snapshot: ()) {
     // Everything from the cursor to the end of input matched, and was skipped: keep that progress,
     // at the lexer's end.
@@ -414,7 +414,7 @@ where
   /// the alternative is a second, hand-tuned loop for the trivia path, and a second loop is exactly
   /// the thing whose disagreement with this one produced the defects this scanner exists to make
   /// impossible.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(super) fn skip_until<M, F, Exp>(
     &mut self,
     mut pred: F,
@@ -515,7 +515,7 @@ where
   /// trip-commit, on either origin. The quiet modes report nothing (a balanced scan's whole region
   /// is described by one hole diagnostic; a `skip_while`'s skipped tokens are expected trivia), so
   /// under them the diagnostic is never even built and `exp` is never called.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn skip_and_report<M, Exp>(
     &mut self,
     skipped: Fetched<'inp, L>,
@@ -562,7 +562,7 @@ where
   /// zero-capacity `BlackHole`) simply drops the token, which re-lexes on demand: the only
   /// behaviour such a cache can have — and, holding no tokens, the only origin it can ever produce
   /// is the lexer, so it has nothing to diverge from.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn unconsume(&mut self, fetched: Fetched<'inp, L>) {
     let Fetched { tok, origin } = fetched;
     if self.cache.push_front(tok).is_ok() && matches!(origin, Origin::Lexer) {

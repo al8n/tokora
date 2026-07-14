@@ -112,7 +112,7 @@ where
     )
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn pratt_in<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power>(
     &mut self,
     min_precedence: Power,

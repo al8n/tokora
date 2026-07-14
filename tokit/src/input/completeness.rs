@@ -119,16 +119,16 @@ impl Completeness for Complete {
   const PARTIAL: bool = false;
   type Finality = ();
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn initial() -> Self::Finality {}
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_final(_finality: &Self::Finality) -> bool {
     // A complete input is final by definition, so every frontier rule is inert regardless.
     true
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn seal(_finality: &mut Self::Finality) {}
 }
 
@@ -137,18 +137,18 @@ impl Completeness for Partial {
   const PARTIAL: bool = true;
   type Finality = bool;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn initial() -> Self::Finality {
     // A partial input is born OPEN: more bytes may arrive until a driver says otherwise.
     false
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_final(finality: &Self::Finality) -> bool {
     *finality
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn seal(finality: &mut Self::Finality) {
     // Monotone: the only write in the crate that ever touches this bit, and it only ever raises
     // it. Nothing can lower it — a stream cannot un-end.
@@ -188,7 +188,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn surface_incomplete(_offset: L::Offset) -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error {
     // Unreachable by construction: `Complete::PARTIAL` is `false`, so every frontier rule is
     // written `if Cmpl::PARTIAL && …` and this call is eliminated at monomorphization. Providing
@@ -203,7 +203,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<Incomplete<L::Offset>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn surface_incomplete(offset: L::Offset) -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error {
     Incomplete::new(offset).into()
   }

@@ -38,7 +38,7 @@ macro_rules! keyword {
           };
 
           #[doc = "Returns a unit instance of the `" $kw "` keyword."]
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           pub const fn unit() -> Self {
             Self::UNIT
           }
@@ -61,7 +61,7 @@ macro_rules! keyword {
         impl<S> $name<S> {
           /// Creates a new keyword.
           #[doc = "Creates a new `" $kw "` keyword."]
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           pub const fn new(span: S) -> Self {
             Self { span, source: (), _lang: ::core::marker::PhantomData }
           }
@@ -69,7 +69,7 @@ macro_rules! keyword {
 
         impl<S, C> $name<S, C> {
           #[doc = "Creates a new `" $kw "` keyword with the given content."]
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           pub const fn with_content(span: S, content: C) -> Self {
             Self { span, source: content, _lang: ::core::marker::PhantomData }
           }
@@ -150,7 +150,7 @@ macro_rules! keyword {
           T: $crate::__private::token::KeywordToken<'inp> + ?::core::marker::Sized + 'inp,
           Lang: ?::core::marker::Sized,
         {
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           fn check(&self, target: &T) -> ::core::primitive::bool {
             ::core::cmp::PartialEq::eq(
               &$crate::__private::token::KeywordToken::keyword(target),
@@ -291,7 +291,7 @@ macro_rules! keyword {
         }
 
         impl<S, C, Lang: ?::core::marker::Sized> ::core::fmt::Display for $name<S, C, Lang> {
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             ::core::fmt::Write::write_str(f, $kw)
           }

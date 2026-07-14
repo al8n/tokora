@@ -36,7 +36,7 @@ pub struct Then<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
 
 impl<F, T, O, U, L, Ctx, Lang: ?Sized> Then<F, T, O, U, L, Ctx, Lang> {
   /// Creates a new `Then` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: F, then: T) -> Self {
     Self {
       parser,
@@ -59,7 +59,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

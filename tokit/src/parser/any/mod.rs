@@ -114,28 +114,28 @@ pub struct Any<L, Ctx, Lang: ?Sized = ()> {
 impl<L, Ctx> Any<L, Ctx> {
   /// Creates a parser that accepts any token.
   #[must_use]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self::of()
   }
 
   /// Creates a parser that yields any token with its span
   #[must_use]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn spanned() -> With<Self, PhantomSpan> {
     Self::spanned_of()
   }
 
   /// Creates a parser that yields any token with its source
   #[must_use]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn sliced() -> With<Self, PhantomSliced> {
     Self::sliced_of()
   }
 
   /// Creates a parser that yields any token without its source and span.
   #[must_use]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn located() -> With<Self, PhantomLocated> {
     Self::located_of()
   }
@@ -144,7 +144,7 @@ impl<L, Ctx> Any<L, Ctx> {
 impl<L, Ctx, Lang> Any<L, Ctx, Lang> {
   /// Creates a parser that accepts any token.
   #[must_use]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn of() -> Self {
     Any {
       _lxr: PhantomData,
@@ -155,21 +155,21 @@ impl<L, Ctx, Lang> Any<L, Ctx, Lang> {
 
   /// Creates a parser that yields any token with its span.
   #[must_use]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn spanned_of() -> With<Self, PhantomSpan> {
     With::new(Self::of(), PhantomSpan::PHANTOM)
   }
 
   /// Creates a parser that yields any token with its source.
   #[must_use]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn sliced_of() -> With<Self, PhantomSliced> {
     With::new(Self::of(), PhantomSliced::PHANTOM)
   }
 
   /// Creates a parser that yields any token without its source and span.
   #[must_use]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn located_of() -> With<Self, PhantomLocated> {
     With::new(Self::of(), PhantomLocated::PHANTOM)
   }
@@ -182,7 +182,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
     From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -205,7 +205,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
     From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -229,7 +229,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
     From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -261,7 +261,7 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
     From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,

@@ -308,7 +308,7 @@ where
   /// and [`release`](Self::release) until an older savepoint destroys it or it is
   /// released. Its lifetime is branded to this transaction, so it cannot escape the
   /// transaction's scope.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn savepoint(&mut self) -> SavepointId<'txn> {
     // Sequence numbers come from the input, not this transaction, so they never reset:
     // an id can only ever match the one live slot that pushed it (or none, if stale).
@@ -345,7 +345,7 @@ where
   /// transaction ended is a compile error, not a panic; see [`SavepointId`]. State surgery is
   /// transactional and does *not* invalidate a savepoint — one taken before it stays valid,
   /// and rolling back to it undoes the surgery.)
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn rollback_to(&mut self, sp: SavepointId<'txn>) {
     let idx = self.slot(sp);
     // Drop the younger savepoints' checkpoints. Their live-checkpoint ids are still on
@@ -369,7 +369,7 @@ where
   /// # Panics
   ///
   /// Same as [`rollback_to`](Self::rollback_to): a foreign or already-destroyed id panics.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn release(&mut self, sp: SavepointId<'txn>) {
     let idx = self.slot(sp);
     // Forget from the youngest down to `sp` inclusive, so each removed id is the
@@ -383,7 +383,7 @@ where
 
   /// Validates `sp` and returns its index in `saves`, panicking on a foreign, a destroyed,
   /// or a lineage-invalidated id. An address compare plus two short scans, on a cold path.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn slot(&self, sp: SavepointId<'txn>) -> usize {
     assert!(
       sp.nonce == self.nonce,
@@ -422,7 +422,7 @@ where
 {
   /// Commits the whole transaction: keeps every parsed byte and forgets all savepoints
   /// and the begin point without restoring. Available whatever the drop policy.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn commit(mut self) {
     trace_event!(self.input, "commit");
     // Forget youngest-first (each is the live-stack top when popped), then the base last
@@ -441,7 +441,7 @@ where
   /// Rolls the whole transaction back to the begin point, discarding every savepoint and
   /// all parsed progress. Available whatever the drop policy (a [`Commit`](super::Commit)
   /// guard can still be rolled back explicitly).
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn rollback(mut self) {
     trace_event!(self.input, "rollback");
     // Restoring the base pops the live stack down through it, carrying off every
@@ -472,7 +472,7 @@ where
 {
   type Target = InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn deref(&self) -> &Self::Target {
     self.input
   }
@@ -486,7 +486,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Cmpl: Completeness,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn deref_mut(&mut self) -> &mut Self::Target {
     self.input
   }
@@ -518,7 +518,7 @@ where
   /// restore below the base panic at that restore, so the base cannot go stale while the guard
   /// is live and the rollback arm normally just rewinds; the stale-base skip it still performs
   /// is a backstop (defense in depth, and the behavior for allocator-less builds).
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn drop(&mut self) {
     if P::ROLLBACK_ON_DROP {
       if let Some(base) = self.base.take() {

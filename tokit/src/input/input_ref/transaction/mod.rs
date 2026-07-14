@@ -132,7 +132,7 @@ where
 {
   /// Commits the transaction: keeps the progress parsed through the guard and drops the
   /// begin-point checkpoint without restoring. Available whatever the drop policy.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn commit(mut self) {
     trace_event!(self.input, "commit");
     // Take the checkpoint so the `Drop` guard below sees `None` and does not roll back.
@@ -183,7 +183,7 @@ where
   /// lexer state, emission log, dedup watermark, and poison boundary all restored.
   /// Available whatever the drop policy (a [`Commit`](super::Commit) guard can still be
   /// rolled back explicitly).
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn rollback(mut self) {
     trace_event!(self.input, "rollback");
     if let Some(ckp) = self.ckp.take() {
@@ -216,7 +216,7 @@ where
 {
   type Target = InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn deref(&self) -> &Self::Target {
     self.input
   }
@@ -230,7 +230,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Cmpl: Completeness,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn deref_mut(&mut self) -> &mut Self::Target {
     self.input
   }
@@ -273,7 +273,7 @@ where
   /// the call into user code. Measured on the `attempt_decline_per_token` benchmark: inlined,
   /// +30%; outlined, +6% — and the commit-by-default guard got 27% *faster*. It is the same
   /// shape, and the same reason, the session cell's `Drop` is outlined for.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn drop(&mut self) {
     if self.ckp.is_some() {
       self.settle_undecided();

@@ -19,7 +19,7 @@ impl<P, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized>
   RFoldWhile<P, Condition, Init, Acc, L, O, W, Ctx, Lang>
 {
   /// Creates a new `RFoldWhile` parser combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn new(parser: P, condition: Condition, init: Init, acc: Acc) -> Self {
     Self {
       parser,
@@ -47,7 +47,7 @@ where
   Acc: FnMut(O, O) -> O,
   W: Window,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,

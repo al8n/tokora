@@ -32,7 +32,7 @@ pub struct Silent<T: ?Sized, Lang: ?Sized = ()> {
 
 impl<T: ?Sized, Lang: ?Sized> Silent<T, Lang> {
   /// Creates a new `Silent`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self {
       _marker: PhantomData,
@@ -42,7 +42,7 @@ impl<T: ?Sized, Lang: ?Sized> Silent<T, Lang> {
 }
 
 impl<T: ?Sized, Lang: ?Sized> Default for Silent<T, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn default() -> Self {
     Self {
       _marker: PhantomData,
@@ -52,14 +52,14 @@ impl<T: ?Sized, Lang: ?Sized> Default for Silent<T, Lang> {
 }
 
 impl<T: ?Sized, Lang: ?Sized> core::fmt::Debug for Silent<T, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "Silent")
   }
 }
 
 impl<T: ?Sized, Lang: ?Sized> Clone for Silent<T, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     *self
   }
@@ -70,7 +70,7 @@ impl<T: ?Sized, Lang: ?Sized> Copy for Silent<T, Lang> {}
 impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Silent<E, Lang> {
   type Error = E;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_lexer_error(
     &mut self,
     _: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
@@ -81,7 +81,7 @@ impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Silent<E, Lang> {
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_error(&mut self, _: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -89,7 +89,7 @@ impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Silent<E, Lang> {
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'a, L, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -97,7 +97,7 @@ impl<'a, L, E, Lang: ?Sized> Emitter<'a, L, Lang> for Silent<E, Lang> {
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn rewind(&mut self, cursor: &Cursor<'a, '_, L>, checkpoint: u64)
   where
     L: Lexer<'a>,

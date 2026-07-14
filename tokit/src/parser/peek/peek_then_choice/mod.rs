@@ -78,7 +78,7 @@ pub struct PeekThenChoice<P, H, L, Ctx, W, Lang: ?Sized = ()> {
 
 impl<P, H, L, Ctx, W: Window, Lang: ?Sized> PeekThenChoice<P, H, L, Ctx, W, Lang> {
   /// Creates a new `PeekThenChoice` combinator for the specified language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn of<'inp, O>(parser: P, condition: H) -> Self
   where
     L: Lexer<'inp>,
@@ -108,7 +108,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -133,7 +133,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,

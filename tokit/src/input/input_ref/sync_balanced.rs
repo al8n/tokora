@@ -38,7 +38,7 @@ pub enum Balance<P> {
 
 impl<P> Balance<P> {
   /// Returns the pair identity this kind opens or closes, or `None` for a neutral kind.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn pair(&self) -> Option<&P> {
     match self {
       Self::Open(p) | Self::Close(p) => Some(p),
@@ -85,7 +85,7 @@ where
 {
   type Pair = P;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn classify(&mut self, kind: &Kind) -> Balance<P> {
     (self)(kind)
   }
@@ -117,13 +117,13 @@ pub struct Hole<S = SimpleSpan> {
 
 impl<S> Hole<S> {
   /// Bundles the span of a skipped region with its token count.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(span: S, skipped: usize) -> Self {
     Self { span, skipped }
   }
 
   /// Returns the span covering the skipped region.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> S
   where
     S: Copy,
@@ -132,19 +132,19 @@ impl<S> Hole<S> {
   }
 
   /// Returns a reference to the span covering the skipped region.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns the number of tokens the skip dropped.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn skipped(&self) -> usize {
     self.skipped
   }
 
   /// Consumes the hole and returns the span of the skipped region.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_span(self) -> S {
     self.span
   }
@@ -206,7 +206,7 @@ where
   /// for a failed hole**. As in [`sync_through`](Self::sync_through), this holds even when
   /// the caller had prefilled the cache with peeked lookahead: a failed sync rewinds the
   /// drained cache prefix too, at the cost of re-lexing those tokens on the next read.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_balanced<D, F>(
     &mut self,

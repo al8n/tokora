@@ -10,7 +10,7 @@ where
     + From<UnexpectedEoRhs<L::Offset, Lang>>,
   Silent<E, Lang>: Emitter<'a, L, Lang, Error = E>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_end_of_lhs(
     &mut self,
     _: UnexpectedEoLhs<L::Offset, Lang>,
@@ -21,7 +21,7 @@ where
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_end_of_rhs(
     &mut self,
     _: UnexpectedEoRhs<L::Offset, Lang>,

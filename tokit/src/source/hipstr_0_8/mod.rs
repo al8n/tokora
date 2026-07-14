@@ -8,17 +8,17 @@ impl<'h> Source<usize> for HipStr<'h> {
   where
     Self: 'a;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_empty(&self) -> bool {
     <HipStr<'h>>::is_empty(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     <HipStr<'h>>::len(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
     R: core::ops::RangeBounds<usize>,
@@ -34,7 +34,7 @@ impl<'h> Source<usize> for HipStr<'h> {
   /// Rounds `index` DOWN to the nearest UTF-8 code point boundary so the result
   /// is always a valid slice position. Indices at or beyond the end are returned
   /// unchanged, matching the byte sources.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn find_boundary(&self, index: usize) -> usize {
     if index >= <HipStr<'h>>::len(self) {
       return index;
@@ -46,7 +46,7 @@ impl<'h> Source<usize> for HipStr<'h> {
     index
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_boundary(&self, index: usize) -> bool {
     self.is_char_boundary(index)
   }
@@ -58,17 +58,17 @@ impl Source<usize> for HipByt<'_> {
   where
     Self: 'a;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_empty(&self) -> bool {
     <HipByt<'_>>::is_empty(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     <HipByt<'_>>::len(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
     R: core::ops::RangeBounds<usize>,
@@ -81,7 +81,7 @@ impl Source<usize> for HipByt<'_> {
       .ok()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_boundary(&self, index: usize) -> bool {
     <[u8]>::is_boundary(self, index)
   }

@@ -198,7 +198,7 @@ pub struct Verbose<Error, S = SimpleSpan, Lang: ?Sized = ()> {
 }
 
 impl<Error, Span, Lang: ?Sized> Default for Verbose<Error, Span, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn default() -> Self {
     Self {
       errs: BTreeMap::new(),
@@ -219,7 +219,7 @@ where
   Error: Clone,
   Span: Clone,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     Self {
       errs: self.errs.clone(),
@@ -246,7 +246,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   /// let emitter = Verbose::<MyError>::new();
   /// assert_eq!(emitter.errors().len(), 0);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self {
       errs: BTreeMap::new(),
@@ -269,7 +269,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   /// into `label_snapshots` at the same span/index — this is the *capture-at-emit*
   /// point for diagnostic labels. Cloning an empty stack does not allocate, so an
   /// unlabelled emission pays nothing beyond the parallel bookkeeping.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn record(&mut self, span: S, err: Error)
   where
     S: Ord + Clone,
@@ -290,7 +290,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   /// tagged [`Severity::Warning`]. The shared `log` keeps both channels on one emission
   /// timeline, so a [`rewind`](Emitter::rewind) unwinds warnings and errors together in reverse
   /// emission order.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn record_warning(&mut self, span: S, warning: Error)
   where
     S: Ord + Clone,
@@ -311,7 +311,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   /// the log entry is tagged [`Channel::SkippedRegion`]. The shared `log` keeps all record
   /// kinds on one emission timeline, so a [`rewind`](Emitter::rewind) unwinds hole records
   /// together with diagnostics in reverse emission order.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn record_hole(&mut self, span: S, skipped: usize)
   where
     S: Ord + Clone,
@@ -345,7 +345,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   ///     println!("Error at position {}: {}", span.start(), error);
   /// }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn errors(&self) -> &BTreeMap<S, Vec<Error>> {
     &self.errs
   }
@@ -367,7 +367,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   ///     }
   /// }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn labels(&self) -> &BTreeMap<S, Vec<Vec<&'static str>>> {
     &self.label_snapshots
   }
@@ -378,14 +378,14 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   /// [`emit_warning`](Emitter::emit_warning). The map has the same span-keyed,
   /// group-per-span shape as [`errors()`](Self::errors); the two channels are independent, so a
   /// span may carry warnings, errors, or both.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn warnings(&self) -> &BTreeMap<S, Vec<Error>> {
     &self.warns
   }
 
   /// Returns the per-warning label snapshots, parallel to [`warnings()`](Self::warnings)
   /// exactly as [`labels()`](Self::labels) is parallel to [`errors()`](Self::errors).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn warning_labels(&self) -> &BTreeMap<S, Vec<Vec<&'static str>>> {
     &self.warn_label_snapshots
   }
@@ -400,7 +400,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   /// error and warning channels in emission order, walk [`diagnostics()`](Self::diagnostics),
   /// where each hole surfaces as a
   /// [`DiagnosticKind::SkippedRegion`](crate::emitter::DiagnosticKind::SkippedRegion).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn skipped_regions(&self) -> &BTreeMap<S, Vec<usize>> {
     &self.holes
   }
@@ -408,7 +408,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   /// Returns the per-hole label snapshots, parallel to
   /// [`skipped_regions()`](Self::skipped_regions) exactly as [`labels()`](Self::labels) is
   /// parallel to [`errors()`](Self::errors).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn skipped_region_labels(&self) -> &BTreeMap<S, Vec<Vec<&'static str>>> {
     &self.hole_label_snapshots
   }
@@ -448,7 +448,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   ///     report.finish();
   /// }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn diagnostics(&self) -> Diagnostics<'_, S, Error> {
     Diagnostics::new(
       &self.log,
@@ -470,7 +470,7 @@ where
 {
   type Error = Error;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_lexer_error(
     &mut self,
     err: Spanned<<L::Token as Token<'inp>>::Error, L::Span>,
@@ -481,7 +481,7 @@ where
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error> {
     let (span, err) = err.into_components();
     self.record(span, err);
@@ -490,7 +490,7 @@ where
 
   /// Records the warning into the parallel warning channel (never fatal), capturing the same
   /// label snapshot the error paths capture. See [`emit_warning`](Emitter::emit_warning).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_warning(&mut self, warning: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error> {
     let (span, warning) = warning.into_components();
     self.record_warning(span, warning);
@@ -501,13 +501,13 @@ where
   /// emission log so a rewind unwinds it in order. See
   /// [`emit_skipped_region`](Emitter::emit_skipped_region) and
   /// [`skipped_regions`](Self::skipped_regions).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_skipped_region(&mut self, span: L::Span, skipped: usize) -> Result<(), Self::Error> {
     self.record_hole(span, skipped);
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_token(
     &mut self,
     err: UnexpectedTokenOf<'inp, L, Lang>,
@@ -520,7 +520,7 @@ where
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn checkpoint(&self) -> u64 {
     self.log.len() as u64
   }
@@ -536,7 +536,7 @@ where
   /// while an earlier zero-width error at the *same* offset is kept — a
   /// distinction the former span-end offset heuristic could not make. `cursor`
   /// is unused.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn rewind(&mut self, cursor: &Cursor<'inp, '_, L>, checkpoint: u64)
   where
     L: Lexer<'inp>,
@@ -569,13 +569,13 @@ where
 
   /// Pushes a *"while parsing X"* label onto the open-label stack; the next
   /// recorded diagnostic snapshots it into the entry it emits.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn enter_label(&mut self, label: &'static str) {
     self.stack.push(label);
   }
 
   /// Pops the innermost open label as its [`labelled`](crate::labelled) scope closes.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn exit_label(&mut self) {
     self.stack.pop();
   }

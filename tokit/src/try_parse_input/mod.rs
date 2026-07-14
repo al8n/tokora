@@ -45,7 +45,7 @@ pub enum ParseAttempt<O> {
 }
 
 impl<O> From<Option<O>> for ParseAttempt<O> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(opt: Option<O>) -> Self {
     match opt {
       Some(value) => Self::Accept(value),
@@ -55,7 +55,7 @@ impl<O> From<Option<O>> for ParseAttempt<O> {
 }
 
 impl<O> From<ParseAttempt<O>> for Option<O> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(result: ParseAttempt<O>) -> Self {
     match result {
       ParseAttempt::Accept(value) => Some(value),
@@ -66,7 +66,7 @@ impl<O> From<ParseAttempt<O>> for Option<O> {
 
 impl<O> ParseAttempt<O> {
   /// Converts to a `ParseAttempt` with a reference to the inner value.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_ref(&self) -> ParseAttempt<&O> {
     match self {
       Self::Accept(value) => ParseAttempt::Accept(value),
@@ -75,7 +75,7 @@ impl<O> ParseAttempt<O> {
   }
 
   /// Converts to a `ParseAttempt` with a mutable reference to the inner value.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_mut(&mut self) -> ParseAttempt<&mut O> {
     match self {
       Self::Accept(value) => ParseAttempt::Accept(value),
@@ -84,7 +84,7 @@ impl<O> ParseAttempt<O> {
   }
 
   /// Maps the inner value using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map<U, F>(self, f: F) -> ParseAttempt<U>
   where
     F: FnOnce(O) -> U,
@@ -96,7 +96,7 @@ impl<O> ParseAttempt<O> {
   }
 
   /// Maps the inner value using the given fallible function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn and_then<U, F, E>(self, f: F) -> Result<ParseAttempt<U>, E>
   where
     F: FnOnce(O) -> Result<U, E>,
@@ -115,7 +115,7 @@ macro_rules! define_separated_by {
         #[doc = "Creates a `Separated` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
         ///
         /// See [`separated`](crate::TryParseInput::separated) for details.
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn [< separated_by_ $name:snake>](
           self,
         ) -> Separated<Self, $name, O, L, Ctx, Lang>
@@ -162,7 +162,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Ctx: ParseContext<'inp, L, Lang>;
 
   /// Applies combinator on [`ParseAttempt::Accept`].
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn accepted(self) -> Accepted<Self, L, O, Ctx, Lang>
   where
     Self: Sized,
@@ -173,7 +173,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Create a parser over a mutable reference to this parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn by_ref(&mut self) -> &mut ByRef<Self> {
     ByRef::from_ref_mut(self)
   }
@@ -201,7 +201,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// ## See Also
   ///
   /// - [`repeated_while`](crate::ParseInput::repeated_while) - When you want to provide explicit stopping condition
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn repeated(self) -> Repeated<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -214,7 +214,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Creates a `Fold` combinator that accumulates results using the provided initializer and accumulator.
   ///
   /// See also [`try_fold`](TryParseInput::try_fold), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold<Init, Acc>(self, init: Init, acc: Acc) -> Fold<Self, Init, Acc, L, O, Ctx, Lang>
   where
     Self: Sized,
@@ -229,7 +229,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Creates a `TryFold` combinator that accumulates results using the provided initializer and fallible accumulator.
   ///
   /// See also [`try_fold_with`](Self::try_fold_with), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_fold<Init, Acc>(self, init: Init, acc: Acc) -> TryFold<Self, Init, Acc, L, O, Ctx, Lang>
   where
     Self: Sized,
@@ -245,7 +245,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// fallible accumulator, and parsing state.
   ///
   /// See also [`try_fold`](Self::try_fold), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_fold_with<Init, Acc>(
     self,
     init: Init,
@@ -274,7 +274,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// See also [`fold`](Self::fold).
   #[cfg(any(feature = "alloc", feature = "std"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "alloc", feature = "std"))))]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn rfold<Init, Acc>(self, init: Init, acc: Acc) -> RFold<Self, Init, Acc, L, O, Ctx, Lang>
   where
     Self: Sized,
@@ -310,7 +310,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// ## See Also
   ///
   /// - [`separated_while`](crate::ParseInput::separated_while) - When you want to provide the lookahead/stopping logic externally
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn separated<Sep>(self) -> Separated<Self, Sep, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -351,7 +351,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -366,7 +366,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

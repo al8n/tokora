@@ -138,7 +138,7 @@ pub struct Map<F, G, L, Ctx, O, O2, Lang: ?Sized = ()> {
 
 impl<F, G, L, Ctx, O, O2, Lang: ?Sized> Map<F, G, L, Ctx, O, O2, Lang> {
   /// Creates a new `Map` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: F, map_fn: G) -> Self {
     Self {
       parser,
@@ -160,7 +160,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -177,7 +177,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -269,7 +269,7 @@ pub struct MapWith<F, G, L, Ctx, O, O2, Lang: ?Sized = ()> {
 
 impl<F, G, L, Ctx, O, O2, Lang: ?Sized> MapWith<F, G, L, Ctx, O, O2, Lang> {
   /// Creates a new `Map` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: F, map_fn: G) -> Self {
     Self {
       parser,
@@ -291,7 +291,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -312,7 +312,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

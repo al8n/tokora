@@ -32,7 +32,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
 {
   /// Create a new `ParseState`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(super) const fn new(
     inp: &'a mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     start: Cursor<'inp, 'closure, L>,
@@ -41,19 +41,19 @@ where
   }
 
   /// Returns the span covering the output being parsed.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn span(&self) -> L::Span {
     self.inp.span_since(&self.start)
   }
 
   /// Returns a mutable reference to an emitter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn emitter(&mut self) -> &mut Ctx::Emitter {
     self.inp.emitter()
   }
 
   /// Returns the state of the lexer.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn state(&self) -> &L::State {
     self.inp.state()
   }
@@ -73,13 +73,13 @@ where
   /// State surgery with outstanding speculative diagnostics may re-report the re-lexed
   /// region under the new regime, so callers should complete or roll back speculation
   /// before replacing state.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn state_mut(&mut self) -> &mut L::State {
     self.inp.state_mut()
   }
 
   /// Returns the source slice covering the output being parsed.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn slice(&self) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
     self.inp.slice_since(&self.start)
   }

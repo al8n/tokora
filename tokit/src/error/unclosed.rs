@@ -171,7 +171,7 @@ impl<Delimiter, O, Lang: ?Sized> core::fmt::Display for Unclosed<Delimiter, O, L
 where
   Delimiter: core::fmt::Display,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "unclosed delimiter '{}'", self.name)
   }
@@ -200,7 +200,7 @@ impl<S> Unclosed<Paren, S> {
   /// assert_eq!(error.span(), SimpleSpan::new(3, 4));
   /// assert_eq!(error.name_ref(), "()");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn paren(span: S) -> Self {
     Self::paren_of(span)
   }
@@ -221,7 +221,7 @@ impl<S, Lang: ?Sized> Unclosed<Paren, S, Lang> {
   /// assert_eq!(error.span(), SimpleSpan::new(3, 4));
   /// assert_eq!(error.name_ref(), "()");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn paren_of(span: S) -> Self {
     Self::of(span, CowStr::from_static("()"))
   }
@@ -242,7 +242,7 @@ impl<S> Unclosed<Bracket, S> {
   /// assert_eq!(error.span(), SimpleSpan::new(8, 9));
   /// assert_eq!(error.name_ref(), "[]");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn bracket(span: S) -> Self {
     Self::bracket_of(span)
   }
@@ -263,7 +263,7 @@ impl<S, Lang: ?Sized> Unclosed<Bracket, S, Lang> {
   /// assert_eq!(error.span(), SimpleSpan::new(8, 9));
   /// assert_eq!(error.name_ref(), "[]");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn bracket_of(span: S) -> Self {
     Self::of(span, CowStr::from_static("[]"))
   }
@@ -284,7 +284,7 @@ impl<S> Unclosed<Brace, S> {
   /// assert_eq!(error.span(), SimpleSpan::new(12, 13));
   /// assert_eq!(error.name_ref(), "{}");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn brace(span: S) -> Self {
     Self::brace_of(span)
   }
@@ -305,7 +305,7 @@ impl<S, Lang: ?Sized> Unclosed<Brace, S, Lang> {
   /// assert_eq!(error.span(), SimpleSpan::new(12, 13));
   /// assert_eq!(error.name_ref(), "{}");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn brace_of(span: S) -> Self {
     Self::of(span, CowStr::from_static("{}"))
   }
@@ -326,7 +326,7 @@ impl<S> Unclosed<Angle, S> {
   /// assert_eq!(error.span(), SimpleSpan::new(20, 21));
   /// assert_eq!(error.name_ref(), "<>");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn angle(span: S) -> Self {
     Self::angle_of(span)
   }
@@ -347,7 +347,7 @@ impl<S, Lang: ?Sized> Unclosed<Angle, S, Lang> {
   /// assert_eq!(error.span(), SimpleSpan::new(20, 21));
   /// assert_eq!(error.name_ref(), "<>");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn angle_of(span: S) -> Self {
     Self::of(span, CowStr::from_static("<>"))
   }
@@ -368,7 +368,7 @@ impl<Delimiter, S> Unclosed<Delimiter, S> {
   /// assert_eq!(error.span(), SimpleSpan::new(5, 6));
   /// assert_eq!(error.name_ref(), "{");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(span: S, name: CowStr) -> Self {
     Self::of(span, name)
   }
@@ -389,7 +389,7 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// assert_eq!(error.span(), SimpleSpan::new(5, 6));
   /// assert_eq!(error.name_ref(), "{");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn of(span: S, name: CowStr) -> Self {
     Self {
       span,
@@ -411,7 +411,7 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// let error = Unclosed::<char>::new(SimpleSpan::new(10, 11), "(".into());
   /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> S
   where
     S: Copy,
@@ -420,13 +420,13 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   }
 
   /// Returns a reference to the span of the opening delimiter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the opening delimiter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
@@ -441,7 +441,7 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// let error = Unclosed::<char>::new(SimpleSpan::new(5, 6), "{".into());
   /// assert_eq!(error.name_ref(), "{");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn name_ref(&self) -> &str {
     self.name.as_str()
   }
@@ -458,7 +458,7 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// let error = Unclosed::<char>::new(SimpleSpan::new(5, 6), "[".into());
   /// assert_eq!(error.name(), CowStr::from_static("["));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[cfg(not(any(feature = "alloc", feature = "std")))]
   pub const fn name(&self) -> CowStr {
     self.name
@@ -479,7 +479,7 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// error.bump(&100);
   /// assert_eq!(error.span(), SimpleSpan::new(105, 106));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
   where
     S: Span,
@@ -500,13 +500,13 @@ impl<Delimiter, S, Lang: ?Sized> Unclosed<Delimiter, S, Lang> {
   /// assert_eq!(span, SimpleSpan::new(10, 11));
   /// assert_eq!(delimiter, CowStr::from_static("\""));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (S, CowStr) {
     (self.span, self.name)
   }
 }
 
 impl<Delimiter, S, Lang: ?Sized> From<Unclosed<Delimiter, S, Lang>> for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(_: Unclosed<Delimiter, S, Lang>) -> Self {}
 }

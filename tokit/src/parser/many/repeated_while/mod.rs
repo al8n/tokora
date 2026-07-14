@@ -146,13 +146,13 @@ pub struct RepeatedWhile<F, Condition, O, W, L, Ctx, Lang: ?Sized = ()> {
 
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W, L, Ctx, Lang> {
   /// Creates a new `RepeatedWhile` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(f: F, condition: Condition) -> Self {
     Self::new_in(f, condition)
   }
 
   /// Creates a new `RepeatedWhile` parser with the given container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   const fn new_in(f: F, condition: Condition) -> Self {
     Self {
       f,
@@ -168,7 +168,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W,
 
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W, L, Ctx, Lang> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn delimited<'inp, Delim>(self) -> DelimitedBy<Self, Delim>
   where
     Delim: Delimiter<'inp, L, Lang>,
@@ -179,19 +179,19 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W,
 
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W, L, Ctx, Lang> {
   /// Sets the minimum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn at_least(self, n: usize) -> AtLeast<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
     self.apply(Minimum::new(n))
   }
 
   /// Sets the maximum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn at_most(self, n: usize) -> AtMost<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
     self.apply(Maximum::new(n))
   }
 
   /// Sets both the minimum and maximum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bounded(
     self,
     min: usize,
@@ -206,7 +206,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>>
 {
   type Options = Minimum;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn apply(self, options: Self::Options) -> AtLeast<Self> {
     AtLeast::new(self, options.get())
   }
@@ -217,7 +217,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>>
 {
   type Options = Maximum;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn apply(self, options: Self::Options) -> AtMost<Self> {
     AtMost::new(self, options.get())
   }
@@ -228,7 +228,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>>
 {
   type Options = With<Maximum, Minimum>;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn apply(self, options: Self::Options) -> Bounded<Self> {
     Bounded::new(self, options.primary.get(), options.secondary.get())
   }
@@ -240,7 +240,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
 {
   type Options = Minimum;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn apply(
     self,
     options: Self::Options,
@@ -255,7 +255,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
 {
   type Options = Maximum;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn apply(
     self,
     options: Self::Options,

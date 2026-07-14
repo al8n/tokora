@@ -11,7 +11,7 @@ where
   E: FromSeparatedError<'inp, L, Lang>,
   S: Span + Ord + Clone,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_missing_separator(
     &mut self,
     name: CowStr,
@@ -29,7 +29,7 @@ where
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_missing_element(&mut self, err: MissingSyntaxOf<'inp, L, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,

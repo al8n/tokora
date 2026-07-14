@@ -25,7 +25,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Ctx: ParseContext<'inp, L, Lang>;
 
   /// Parses using branch identified by `id`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_choice(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -49,7 +49,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// The handler owns its failure diagnostic — including any `expected one of …` set. To derive
   /// that set automatically from a static table of viable first-token kinds instead, see
   /// [`dispatch_on_kind`](Self::dispatch_on_kind).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn peek_then_choice<H, W: Window>(self, condition: H) -> PeekThenChoice<Self, H, L, Ctx, W, Lang>
   where
     Self: Sized,
@@ -67,7 +67,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
   /// parsing is stopped and return the error from the handler.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn peek_then_try_choice<H, W: Window>(
     self,
     condition: H,
@@ -100,7 +100,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// diagnostic by hand, `dispatch_on_kind` derives the expected set from the table automatically.
   /// For many-to-one dispatch (several kinds routing to one branch) use
   /// [`peek_then_choice`](Self::peek_then_choice) instead.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn dispatch_on_kind(
     self,
     table: &'static [<L::Token as Token<'inp>>::Kind],
@@ -158,7 +158,7 @@ pub trait ParseTokenChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// [`UnexpectedEot`](crate::error::UnexpectedEot) carrying the whole table as the
   /// expected set, with the missed token put back for whatever runs next. See
   /// [`FusedDispatchOnKind`] for the full shape comparison and the equivalence contract.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fused_dispatch_on_kind(
     self,
     table: &'static [<L::Token as Token<'inp>>::Kind],
@@ -270,7 +270,7 @@ where
 {
   type Id = deranged::RangedUsize<0, N>;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_choice(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -288,7 +288,7 @@ where
 {
   type Id = usize;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_choice(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -306,7 +306,7 @@ where
 {
   type Id = usize;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_choice(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -329,7 +329,7 @@ const _: () = {
   {
     type Id = T::Id;
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn parse_choice(
       &mut self,
       inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -346,7 +346,7 @@ pub struct Branch<const N: usize>(usize);
 
 impl<const N: usize> Branch<N> {
   /// Returns the matched branch id.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn id(&self) -> usize {
     self.0
   }
@@ -356,7 +356,7 @@ impl<const N: usize> Branch<N> {
   /// Crate-internal: the caller must guarantee `index <= N` (the in-bounds contract every
   /// `ParseChoice` dispatch relies on). Used by [`DispatchOnKind`](crate::parser::DispatchOnKind)
   /// after a table lookup, where the matched table position is a valid branch index.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn from_index(index: usize) -> Self {
     debug_assert!(index <= N, "Branch index out of range");
     Branch(index)

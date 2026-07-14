@@ -13,7 +13,7 @@ where
   L: Lexer<'a>,
   T: From<TooMany<L::Span, Lang>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from_too_many(err: TooMany<L::Span, Lang>) -> Self
   where
     L: Lexer<'a>,
@@ -34,7 +34,7 @@ impl<'a, L, Lang: ?Sized, U> TooManyEmitter<'a, L, Lang> for &mut U
 where
   U: TooManyEmitter<'a, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_too_many(&mut self, err: TooMany<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,

@@ -299,13 +299,13 @@ pub struct InputContext<E, C> {
 
 impl<E, C> InputContext<E, C> {
   /// Creates a new `InputContext` with the given emitter and cache.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(emitter: E, cache: C) -> Self {
     Self { emitter, cache }
   }
 
   /// Decomposes this context into its emitter and cache components.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (E, C) {
     (self.emitter, self.cache)
   }
@@ -507,7 +507,7 @@ where
   Ctx::Cache: Clone,
   Cmpl: Completeness,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     Self {
       input: self.input,
@@ -547,7 +547,7 @@ where
   Ctx::Cache: core::fmt::Debug,
   Cmpl: Completeness,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     f.debug_struct("Input")
       .field("input", &self.input)
@@ -566,7 +566,7 @@ where
   Cmpl: Completeness,
 {
   /// Creates a new lexer from the given input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(dead_code)]
   pub fn new(input: &'inp L::Source) -> Self {
     Self::with_state(input, L::State::default())
@@ -580,7 +580,7 @@ where
   Cmpl: Completeness,
 {
   /// Creates a new lexer from the given input and state.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(dead_code)]
   pub fn with_state(input: &'inp L::Source, state: L::State) -> Self {
     Self {
@@ -612,7 +612,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Cmpl: Completeness,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn with_state_and_cache(input: &'inp L::Source, state: L::State, cache: Ctx::Cache) -> Self
 // where
   //   C: Cache<'inp, L>,
@@ -665,7 +665,7 @@ where
   /// [`parse_partial`]'s `is_final` argument, which routes here. A driver holding a live input
   /// across chunks (the in-place two-phase shape: drain non-final, learn the socket closed, drain
   /// on) seals between handles.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn seal(&mut self) {
     Cmpl::seal(&mut self.finality);
   }
@@ -696,7 +696,7 @@ where
   }
 
   /// Creates a zero-copy reference adapter for this input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_ref<'closure>(
     &'closure mut self,
     emitter: &'closure mut Ctx::Emitter,
@@ -754,7 +754,7 @@ where
 /// under a rollback-on-drop [`Transaction`] means an incomplete attempt unwinds its emissions and
 /// cursor cleanly before the retry. See the [`input`] module docs for the full
 /// runnable loop and the one-token frontier-latency guarantee.
-#[cfg_attr(not(tarpaulin), inline)]
+#[inline]
 pub fn parse_partial<'inp, L, Ctx, Lang, O, F>(
   ctx: Ctx,
   src: &'inp L::Source,

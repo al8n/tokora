@@ -62,13 +62,13 @@ pub struct Incomplete<O = usize> {
 
 impl<O> Incomplete<O> {
   /// Creates an `Incomplete` sentinel for input that ran out at `offset`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(offset: O) -> Self {
     Self { offset }
   }
 
   /// Returns the offset at which the input ended mid-construct.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn offset(&self) -> O
   where
     O: Copy,
@@ -77,19 +77,19 @@ impl<O> Incomplete<O> {
   }
 
   /// Returns a reference to the offset at which the input ended mid-construct.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn offset_ref(&self) -> &O {
     &self.offset
   }
 
   /// Returns a mutable reference to the offset at which the input ended mid-construct.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn offset_mut(&mut self) -> &mut O {
     &mut self.offset
   }
 
   /// Consumes the sentinel and returns its offset.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_offset(self) -> O {
     self.offset
   }
@@ -109,14 +109,14 @@ impl<O> Incomplete<O> {
 pub trait MaybeIncomplete {
   /// Returns `true` iff this error value is (or currently represents) an [`Incomplete`]
   /// partial-input sentinel. Defaults to `false`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_incomplete(&self) -> bool {
     false
   }
 }
 
 impl<O> MaybeIncomplete for Incomplete<O> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_incomplete(&self) -> bool {
     true
   }

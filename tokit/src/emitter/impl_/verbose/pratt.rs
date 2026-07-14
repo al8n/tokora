@@ -9,7 +9,7 @@ where
   S: Span + Ord + Clone,
   Verbose<E, S, Lang>: Emitter<'a, L, Lang, Error = E>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_end_of_lhs(
     &mut self,
     err: UnexpectedEoLhs<L::Offset, Lang>,
@@ -26,7 +26,7 @@ where
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_end_of_rhs(
     &mut self,
     err: UnexpectedEoRhs<L::Offset, Lang>,

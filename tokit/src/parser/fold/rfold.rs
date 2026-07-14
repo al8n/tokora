@@ -14,7 +14,7 @@ pub struct RFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
 
 impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> RFold<P, Init, Acc, L, O, Ctx, Lang> {
   /// Creates a new `RFold` parser combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn new(parser: P, init: Init, acc: Acc) -> Self {
     Self {
       parser,
@@ -38,7 +38,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,

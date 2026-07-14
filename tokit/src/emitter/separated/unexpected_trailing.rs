@@ -25,7 +25,7 @@ where
   L: Lexer<'inp>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_trailing_separator(
     &mut self,
     name: CowStr,
@@ -51,7 +51,7 @@ where
   L: Lexer<'a>,
   T: From<SeparatedErrorOf<'a, L, Lang>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from_unexpected_trailing_separator(_name: CowStr, err: UnexpectedTokenOf<'a, L, Lang>) -> Self
   where
     L: Lexer<'a>,

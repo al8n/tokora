@@ -6,7 +6,7 @@ impl<'inp, L, E, Lang: ?Sized> MissingLeadingSeparatorEmitter<'inp, L, Lang> for
 where
   L: Lexer<'inp>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_missing_leading_separator(
     &mut self,
     _: CowStr,

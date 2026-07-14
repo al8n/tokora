@@ -31,7 +31,7 @@ impl<'inp, L, T> SeparatorHandler<'inp, L> for &mut T
 where
   T: ?Sized + SeparatorHandler<'inp, L>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_separator(&mut self, sep: Spanned<L::Token, L::Span>)
   where
     L: Lexer<'inp>,
@@ -43,7 +43,7 @@ where
 macro_rules! blackhole_separator_handler {
   ($ty:ty) => {
     impl<'inp, L> SeparatorHandler<'inp, L> for $ty {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
       where
         L: Lexer<'inp>,
@@ -53,7 +53,7 @@ macro_rules! blackhole_separator_handler {
   };
   (@generic $ty:ty) => {
     impl<'inp, L, T> SeparatorHandler<'inp, L> for $ty {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
       where
         L: Lexer<'inp>,
@@ -71,7 +71,7 @@ impl<'inp, L, T, N> SeparatorHandler<'inp, L> for GenericArrayDeque<T, N>
 where
   N: ArrayLength,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
   where
     L: Lexer<'inp>,
@@ -88,7 +88,7 @@ const _: () = {
   where
     LenT: heapless_0_9::LenType,
   {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -97,7 +97,7 @@ const _: () = {
   }
 
   impl<'inp, L, T, const N: usize> SeparatorHandler<'inp, L> for Deque<T, N> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -112,7 +112,7 @@ const _: () = {
   use std::{collections::vec_deque::VecDeque, vec::Vec};
 
   impl<'inp, L, T> SeparatorHandler<'inp, L> for Vec<T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -121,7 +121,7 @@ const _: () = {
   }
 
   impl<'inp, L, T> SeparatorHandler<'inp, L> for VecDeque<T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -135,7 +135,7 @@ const _: () = {
   where
     N: smallvec_1::Array<Item = T>,
   {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -153,7 +153,7 @@ const _: () = {
   where
     N: Array<Item = T>,
   {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -162,7 +162,7 @@ const _: () = {
   }
 
   impl<'inp, L, T> SeparatorHandler<'inp, L> for SliceVec<'_, T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -177,7 +177,7 @@ const _: () = {
     where
       A: Array<Item = T>,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn on_separator(&mut self, _: Spanned<L::Token, L::Span>)
       where
         L: Lexer<'inp>,
@@ -204,7 +204,7 @@ impl<'inp, L, T> DelimiterHandler<'inp, L> for &mut T
 where
   T: ?Sized + DelimiterHandler<'inp, L>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_open_delimiter(&mut self, open: Spanned<L::Token, L::Span>)
   where
     L: Lexer<'inp>,
@@ -212,7 +212,7 @@ where
     (**self).on_open_delimiter(open);
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_close_delimiter(&mut self, close: Spanned<L::Token, L::Span>)
   where
     L: Lexer<'inp>,
@@ -224,14 +224,14 @@ where
 macro_rules! blackhole_delimiter_handler {
   ($ty:ty) => {
     impl<'inp, L> DelimiterHandler<'inp, L> for $ty {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
       where
         L: Lexer<'inp>,
       {
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
       where
         L: Lexer<'inp>,
@@ -241,14 +241,14 @@ macro_rules! blackhole_delimiter_handler {
   };
   (@generic $ty:ty) => {
     impl<'inp, L, T> DelimiterHandler<'inp, L> for $ty {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
       where
         L: Lexer<'inp>,
       {
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
       where
         L: Lexer<'inp>,
@@ -266,14 +266,14 @@ impl<'inp, L, T, N> DelimiterHandler<'inp, L> for GenericArrayDeque<T, N>
 where
   N: ArrayLength,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
   where
     L: Lexer<'inp>,
   {
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
   where
     L: Lexer<'inp>,
@@ -287,14 +287,14 @@ const _: () = {
   use std::{collections::vec_deque::VecDeque, vec::Vec};
 
   impl<'inp, L, T> DelimiterHandler<'inp, L> for Vec<T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
     {
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -303,14 +303,14 @@ const _: () = {
   }
 
   impl<'inp, L, T> DelimiterHandler<'inp, L> for VecDeque<T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
     {
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -324,14 +324,14 @@ const _: () = {
   where
     N: smallvec_1::Array<Item = T>,
   {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
     {
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -349,14 +349,14 @@ const _: () = {
   where
     N: Array<Item = T>,
   {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
     {
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -365,14 +365,14 @@ const _: () = {
   }
 
   impl<'inp, L, T> DelimiterHandler<'inp, L> for SliceVec<'_, T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
     {
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -386,14 +386,14 @@ const _: () = {
     where
       A: Array<Item = T>,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
       where
         L: Lexer<'inp>,
       {
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
       where
         L: Lexer<'inp>,
@@ -412,14 +412,14 @@ const _: () = {
   where
     LenT: heapless_0_9::LenType,
   {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
     {
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -428,14 +428,14 @@ const _: () = {
   }
 
   impl<'inp, L, T, const N: usize> DelimiterHandler<'inp, L> for Deque<T, N> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
     {
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn on_close_delimiter(&mut self, _: Spanned<L::Token, L::Span>)
     where
       L: Lexer<'inp>,
@@ -498,7 +498,7 @@ pub(super) trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Siz
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_too_many_element(
     &self,
     _: usize,

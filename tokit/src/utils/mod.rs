@@ -125,7 +125,7 @@ pub trait IsAsciiChar {
   fn is_ascii_digit(&self) -> bool;
 
   /// Returns `true` if self is one of the given ASCII characters.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn one_of(&self, choices: &[ascii::AsciiChar]) -> bool {
     choices.iter().any(|&ch| self.is_ascii_char(ch))
   }
@@ -135,17 +135,17 @@ impl<T> IsAsciiChar for &T
 where
   T: IsAsciiChar + ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     <T as IsAsciiChar>::is_ascii_char(*self, ch)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     <T as IsAsciiChar>::is_ascii_digit(*self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn one_of(&self, choices: &[ascii::AsciiChar]) -> bool {
     <T as IsAsciiChar>::one_of(*self, choices)
   }
@@ -155,24 +155,24 @@ impl<T> IsAsciiChar for &mut T
 where
   T: IsAsciiChar + ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     <T as IsAsciiChar>::is_ascii_char(*self, ch)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     <T as IsAsciiChar>::is_ascii_digit(*self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn one_of(&self, choices: &[ascii::AsciiChar]) -> bool {
     <T as IsAsciiChar>::one_of(*self, choices)
   }
 }
 
 impl IsAsciiChar for char {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     if self.is_ascii() {
       *self as u8 == ch as u8
@@ -181,43 +181,43 @@ impl IsAsciiChar for char {
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     char::is_ascii_digit(self)
   }
 }
 
 impl IsAsciiChar for u8 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     *self == ch as u8
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     u8::is_ascii_digit(self)
   }
 }
 
 impl IsAsciiChar for str {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     self.len() == 1 && self.as_bytes()[0] == ch as u8
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     self.len() == 1 && self.as_bytes()[0].is_ascii_digit()
   }
 }
 
 impl IsAsciiChar for [u8] {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     self.len() == 1 && self[0] == ch as u8
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     self.len() == 1 && self[0].is_ascii_digit()
   }
@@ -226,12 +226,12 @@ impl IsAsciiChar for [u8] {
 #[cfg(feature = "bstr_1")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
 impl IsAsciiChar for bstr_1::BStr {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     <[u8] as IsAsciiChar>::is_ascii_char(self, ch)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     <[u8] as IsAsciiChar>::is_ascii_digit(self)
   }
@@ -240,12 +240,12 @@ impl IsAsciiChar for bstr_1::BStr {
 #[cfg(feature = "bytes_1")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
 impl IsAsciiChar for bytes_1::Bytes {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     <[u8] as IsAsciiChar>::is_ascii_char(self, ch)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     <[u8] as IsAsciiChar>::is_ascii_digit(self)
   }
@@ -254,12 +254,12 @@ impl IsAsciiChar for bytes_1::Bytes {
 #[cfg(feature = "hipstr_0_8")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
 impl IsAsciiChar for hipstr_0_8::HipByt<'_> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     <[u8] as IsAsciiChar>::is_ascii_char(self, ch)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     <[u8] as IsAsciiChar>::is_ascii_digit(self)
   }
@@ -268,12 +268,12 @@ impl IsAsciiChar for hipstr_0_8::HipByt<'_> {
 #[cfg(feature = "hipstr_0_8")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
 impl IsAsciiChar for hipstr_0_8::HipStr<'_> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
     <str as IsAsciiChar>::is_ascii_char(self, ch)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     <str as IsAsciiChar>::is_ascii_digit(self)
   }
@@ -369,28 +369,28 @@ mod sealed {
   impl<T: Sealed> Sealed for &T {}
 
   impl CharLen for u8 {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn char_len(&self) -> usize {
       1
     }
   }
 
   impl CharLen for char {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn char_len(&self) -> usize {
       self.len_utf8()
     }
   }
 
   impl<T: CharLen> CharLen for PositionedChar<T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn char_len(&self) -> usize {
       self.char_ref().char_len()
     }
   }
 
   impl<T: CharLen> CharLen for &T {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn char_len(&self) -> usize {
       (*self).char_len()
     }

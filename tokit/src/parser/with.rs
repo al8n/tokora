@@ -26,37 +26,37 @@ pub struct With<P, S> {
 
 impl<P, S> With<P, S> {
   /// Create a new `With` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(primary: P, secondary: S) -> Self {
     Self { primary, secondary }
   }
 
   /// Returns a reference to the primary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn primary(&self) -> &P {
     &self.primary
   }
 
   /// Returns a reference to the secondary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn secondary(&self) -> &S {
     &self.secondary
   }
 
   /// Returns a mutable reference to the primary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn primary_mut(&mut self) -> &mut P {
     &mut self.primary
   }
 
   /// Returns a mutable reference to the secondary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn secondary_mut(&mut self) -> &mut S {
     &mut self.secondary
   }
 
   /// Maps the primary value using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map_primary<U, F>(self, f: F) -> With<U, S>
   where
     F: FnOnce(P) -> U,
@@ -68,7 +68,7 @@ impl<P, S> With<P, S> {
   }
 
   /// Maps the secondary value using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map_secondary<U, F>(self, f: F) -> With<P, U>
   where
     F: FnOnce(S) -> U,
@@ -81,7 +81,7 @@ impl<P, S> With<P, S> {
 }
 
 impl With<Minimum, Maximum> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -114,7 +114,7 @@ impl With<Minimum, Maximum> {
 }
 
 impl Minimum {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -138,7 +138,7 @@ impl Minimum {
 }
 
 impl Maximum {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,

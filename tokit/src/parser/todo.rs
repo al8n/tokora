@@ -112,7 +112,7 @@ impl<O: ?Sized> Todo<O> {
   /// Creates a parser that is not yet implemented.
   ///
   /// **Panics** if `parse_input()` is called.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub const fn new() -> Self {
     Self(PhantomData)
@@ -125,7 +125,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     _inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,

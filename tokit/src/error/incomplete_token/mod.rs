@@ -45,25 +45,25 @@ impl<Knowledge> core::error::Error for IncompleteToken<Knowledge> where
 }
 
 impl<Knowledge, S> IncompleteToken<Knowledge, S> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   const fn new_in(span: S, knowledge: Option<Knowledge>) -> Self {
     Self { span, knowledge }
   }
 
   /// Create a new `IncompleteToken` without any knowledge.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(span: S) -> Self {
     Self::new_in(span, None)
   }
 
   /// Create a new `IncompleteToken` with knowledge.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn with_knowledge(span: S, knowledge: Knowledge) -> Self {
     Self::new_in(span, Some(knowledge))
   }
 
   /// Get the span of the incomplete token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> S
   where
     S: Copy,
@@ -72,13 +72,13 @@ impl<Knowledge, S> IncompleteToken<Knowledge, S> {
   }
 
   /// Get the knowledge for the incomplete token, if any.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn knowledge(&self) -> Option<&Knowledge> {
     self.knowledge.as_ref()
   }
 
   /// Decompose the `IncompleteToken` into its components.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (S, Option<Knowledge>) {
     (self.span, self.knowledge)
   }
@@ -87,7 +87,7 @@ impl<Knowledge, S> IncompleteToken<Knowledge, S> {
   ///
   /// This is useful when adjusting error positions after processing or
   /// when combining spans from different contexts.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump(&mut self, offset: &S::Offset)
   where
     S: Span,

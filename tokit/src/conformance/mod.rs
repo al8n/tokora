@@ -289,14 +289,14 @@ enum PartialProbe {
 }
 
 impl<O> From<Incomplete<O>> for PartialProbe {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(_: Incomplete<O>) -> Self {
     PartialProbe::Incomplete
   }
 }
 
 impl MaybeIncomplete for PartialProbe {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_incomplete(&self) -> bool {
     true
   }

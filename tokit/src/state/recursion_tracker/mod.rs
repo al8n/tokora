@@ -43,7 +43,7 @@ impl RecursionLimitExceeded {
   /// limiter.increase();
   /// assert_eq!(limiter.depth(), 1);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn depth(&self) -> usize {
     self.0.depth()
   }
@@ -58,7 +58,7 @@ impl RecursionLimitExceeded {
   /// let mut limiter = RecursionLimiter::with_limitation(3);
   /// assert_eq!(limiter.limitation(), 3);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn limitation(&self) -> usize {
     self.0.limitation()
   }
@@ -196,7 +196,7 @@ pub struct RecursionLimiter {
 }
 
 impl Default for RecursionLimiter {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
@@ -206,7 +206,7 @@ impl RecursionLimiter {
   /// Creates a new recursion tracker.
   ///
   /// Defaults to a maximum depth of 500.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self {
       max: 500,
@@ -215,19 +215,19 @@ impl RecursionLimiter {
   }
 
   /// Creates a new recursion tracker with the given maximum depth.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn with_limitation(max: usize) -> Self {
     Self { max, current: 0 }
   }
 
   /// Returns the current depth of the recursion.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn depth(&self) -> usize {
     self.current
   }
 
   /// Returns the maximum depth of the recursion.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn limitation(&self) -> usize {
     self.max
   }
@@ -235,31 +235,31 @@ impl RecursionLimiter {
   /// Increase the current depth of the recursion.
   ///
   /// Saturates at `usize::MAX`, mirroring the saturating [`decrease`](Self::decrease).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn increase(&mut self) {
     self.current = self.current.saturating_add(1);
   }
 
   /// Decrease the current depth of the recursion.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn decrease(&mut self) {
     self.current = self.current.saturating_sub(1);
   }
 
   /// Increases the recursion depth.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn increase_recursion(&mut self) {
     self.increase();
   }
 
   /// Decrease the current depth of the recursion.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn decrease_recursion(&mut self) {
     self.decrease();
   }
 
   /// Checks if the recursion limit has been exceeded.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn check(&self) -> Result<(), RecursionLimitExceeded> {
     if self.depth() > self.limitation() {
       Err(RecursionLimitExceeded(*self))
@@ -272,7 +272,7 @@ impl RecursionLimiter {
 impl State for RecursionLimiter {
   type Error = RecursionLimitExceeded;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn check(&self) -> Result<(), Self::Error> {
     <Self as RecursionTracker>::check(self)
   }
@@ -293,7 +293,7 @@ pub trait RecursionTracker {
   fn check(&self) -> Result<(), Self::Error>;
 
   /// Increases the recursion depth and checks the limit.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn increase_and_check(&mut self) -> Result<(), Self::Error> {
     self.increase();
     self.check()
@@ -303,17 +303,17 @@ pub trait RecursionTracker {
 impl RecursionTracker for RecursionLimiter {
   type Error = RecursionLimitExceeded;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn increase(&mut self) {
     self.current = self.current.saturating_add(1);
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn decrease(&mut self) {
     self.current = self.current.saturating_sub(1);
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn check(&self) -> Result<(), Self::Error> {
     if self.depth() > self.limitation() {
       Err(RecursionLimitExceeded(*self))
@@ -337,22 +337,22 @@ const _: () = {
       {
         type Error = <T::Extras as RecursionTracker>::Error;
 
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn increase(&mut self) {
           self.extras.increase();
         }
 
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn decrease(&mut self) {
           self.extras.decrease();
         }
 
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn check(&self) -> Result<(), Self::Error> {
           self.extras.check()
         }
 
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn increase_and_check(&mut self) -> Result<(), Self::Error> {
           self.extras.increase_and_check()
         }
@@ -365,22 +365,22 @@ const _: () = {
       {
         type Error = <<T::Logos as Logos<'a>>::Extras as RecursionTracker>::Error;
 
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn increase(&mut self) {
           self.inner_mut().increase();
         }
 
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn decrease(&mut self) {
           self.inner_mut().decrease();
         }
 
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn check(&self) -> Result<(), Self::Error> {
           self.inner().check()
         }
 
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn increase_and_check(&mut self) -> Result<(), Self::Error> {
           self.inner_mut().increase_and_check()
         }

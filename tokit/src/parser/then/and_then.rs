@@ -18,7 +18,7 @@ pub struct AndThen<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
 
 impl<F, O, T, U, L, Ctx, Lang: ?Sized> AndThen<F, T, O, U, L, Ctx, Lang> {
   /// Creates a new `AndThen` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: F, then: T) -> Self {
     Self {
       parser,
@@ -40,7 +40,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -57,7 +57,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

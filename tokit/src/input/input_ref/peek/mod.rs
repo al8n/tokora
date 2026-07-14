@@ -19,7 +19,7 @@ struct Overflow<T, N: ArrayLength> {
 }
 
 impl<T, N: ArrayLength> Overflow<T, N> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn new() -> Self {
     Self {
       slots: GenericArray::uninit(),
@@ -30,14 +30,14 @@ impl<T, N: ArrayLength> Overflow<T, N> {
   // Only read by the debug-assertion accounting below; gate it to the same
   // configuration so release builds do not see it as dead code.
   #[cfg(debug_assertions)]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     self.len
   }
 
   /// Stages one owned entry. Callers must not exceed `N` pushes (the overflow
   /// region can never hold more than the window capacity).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push(&mut self, value: T) {
     self.slots[self.len].write(value);
     self.len += 1;
@@ -45,7 +45,7 @@ impl<T, N: ArrayLength> Overflow<T, N> {
 
   /// Moves every staged entry into `buf`, in staging order, and disarms the
   /// guard so its `Drop` will not touch the moved-out entries.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn drain_into(self, buf: &mut GenericArrayDeque<T, N>) {
     // Wrap in `ManuallyDrop` up front: once entries are read out they must not be
     // dropped again by the guard.
@@ -58,7 +58,7 @@ impl<T, N: ArrayLength> Overflow<T, N> {
 }
 
 impl<T, N: ArrayLength> Drop for Overflow<T, N> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn drop(&mut self) {
     for slot in self.slots.iter_mut().take(self.len) {
       // SAFETY: `slots[0..len]` were initialized by `push` and not moved out

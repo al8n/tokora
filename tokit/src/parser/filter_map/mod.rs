@@ -151,7 +151,7 @@ pub struct FilterMap<P, F, O, U, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, F, O, U, L, Ctx, Lang: ?Sized> FilterMap<P, F, O, U, L, Ctx, Lang> {
   /// Creates a new `Validate` combinator for the specified language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn of<'inp>(parser: P, filter: F) -> Self
   where
     L: Lexer<'inp>,
@@ -180,7 +180,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -273,7 +273,7 @@ pub struct FilterMapWith<P, F, O, U, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, F, O, U, L, Ctx, Lang: ?Sized> FilterMapWith<P, F, O, U, L, Ctx, Lang> {
   /// Creates a new `Validate` combinator for the specified language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn of<'inp>(parser: P, filter: F) -> Self
   where
     L: Lexer<'inp>,
@@ -308,7 +308,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

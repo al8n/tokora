@@ -15,7 +15,7 @@ pub struct Accepted<P, L, O, Ctx, Lang: ?Sized = ()> {
 
 impl<P, O, L, Ctx, Lang: ?Sized> Accepted<P, L, O, Ctx, Lang> {
   /// Creates a new `Accepted` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
     Self {
       parser,
@@ -27,7 +27,7 @@ impl<P, O, L, Ctx, Lang: ?Sized> Accepted<P, L, O, Ctx, Lang> {
   }
 
   /// Transforms the output of this parser using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map<'inp, U, F>(self, f: F) -> Accepted<Map<P, F, L, Ctx, O, U, Lang>, L, U, Ctx, Lang>
   where
     Self: Sized,
@@ -37,7 +37,7 @@ impl<P, O, L, Ctx, Lang: ?Sized> Accepted<P, L, O, Ctx, Lang> {
   }
 
   /// Transforms the output of this parser using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map_with<'inp, U, F>(
     self,
     f: F,
@@ -58,7 +58,7 @@ where
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -78,7 +78,7 @@ where
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -98,7 +98,7 @@ where
   P: TryParseInput<'inp, L, O, Ctx, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

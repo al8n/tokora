@@ -19,14 +19,14 @@ pub struct Cursor<'inp, 'closure, L: Lexer<'inp>> {
 }
 
 impl<'a, L: Lexer<'a>> core::fmt::Debug for Cursor<'a, '_, L> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "Cursor({:?})", self.offset)
   }
 }
 
 impl<'a, L: Lexer<'a>> Clone for Cursor<'a, '_, L> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     Self {
       offset: self.offset.clone(),
@@ -38,20 +38,20 @@ impl<'a, L: Lexer<'a>> Clone for Cursor<'a, '_, L> {
 impl<'a, L: Lexer<'a>> Copy for Cursor<'a, '_, L> where L::Offset: Copy {}
 
 impl<'a, L: Lexer<'a>> Cursor<'a, '_, L> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(super) const fn from_ref(offset: &L::Offset) -> &Self {
     // SAFETY: Cursor is #[repr(transparent)] over `L::Offset`.
     unsafe { &*(offset as *const L::Offset as *const Self) }
   }
 
   /// Returns a reference to the actual cursor.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn as_inner(&self) -> &L::Offset {
     &self.offset
   }
 
   /// Returns the actual cursor.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_inner(self) -> L::Offset {
     self.offset
   }

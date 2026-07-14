@@ -15,7 +15,7 @@ impl<'source> Slice<'source> for HipStr<'source> {
   where
     Self: 'a;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn iter<'a>(&'a self) -> Self::Iter<'a>
   where
     Self: 'a,
@@ -23,7 +23,7 @@ impl<'source> Slice<'source> for HipStr<'source> {
     self.chars()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
   where
     Self: 'a,
@@ -31,7 +31,7 @@ impl<'source> Slice<'source> for HipStr<'source> {
     self.char_indices()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     <HipStr<'source>>::len(self)
   }
@@ -50,7 +50,7 @@ impl<'source> Slice<'source> for HipByt<'source> {
   where
     Self: 'a;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn iter<'a>(&'a self) -> Self::Iter<'a>
   where
     Self: 'a,
@@ -58,7 +58,7 @@ impl<'source> Slice<'source> for HipByt<'source> {
     <[u8]>::iter(self).copied()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
   where
     Self: 'a,
@@ -66,7 +66,7 @@ impl<'source> Slice<'source> for HipByt<'source> {
     self.iter().enumerate()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     <HipByt<'source>>::len(self)
   }

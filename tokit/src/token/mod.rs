@@ -243,12 +243,12 @@ impl<'a, T: Token<'a>> Token<'a> for &'a T {
   type Kind = T::Kind;
   type Error = T::Error;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn kind(&self) -> Self::Kind {
     (*self).kind()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_trivia(&self) -> bool {
     (*self).is_trivia()
   }
@@ -322,7 +322,7 @@ pub trait IdentifierToken<'a>: Token<'a> {
 }
 
 impl<'a, T: IdentifierToken<'a>> IdentifierToken<'a> for &'a T {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_identifier(&self) -> bool {
     T::is_identifier(self)
   }
@@ -394,7 +394,7 @@ impl<'a, T: IdentifierToken<'a>> IdentifierToken<'a> for &'a T {
 /// ```
 pub trait KeywordToken<'a>: Token<'a> {
   /// Returns `true` when the token is any reserved keyword.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_keyword(&self) -> bool {
     self.keyword().is_some()
   }
@@ -404,12 +404,12 @@ pub trait KeywordToken<'a>: Token<'a> {
 }
 
 impl<'a, T: KeywordToken<'a>> KeywordToken<'a> for &'a T {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_keyword(&self) -> bool {
     T::is_keyword(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn keyword(&self) -> Option<&'static str> {
     T::keyword(self)
   }

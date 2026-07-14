@@ -13,7 +13,7 @@ pub struct TooMany<S = SimpleSpan, Lang: ?Sized = ()> {
 
 impl<S> TooMany<S> {
   /// Creates a new `TooMany` error.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(span: S, nums: usize, maximum: usize) -> Self {
     Self::of(span, nums, maximum)
   }
@@ -21,7 +21,7 @@ impl<S> TooMany<S> {
 
 impl<S, Lang: ?Sized> TooMany<S, Lang> {
   /// Creates a new `TooMany` error for the given language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn of(span: S, nums: usize, maximum: usize) -> Self {
     Self::new_in(span, nums, maximum)
   }
@@ -38,13 +38,13 @@ impl<S, Lang: ?Sized> TooMany<S, Lang> {
   }
 
   /// Returns the span associated with this error.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns the span associated with this error.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> S
   where
     S: Copy,
@@ -53,13 +53,13 @@ impl<S, Lang: ?Sized> TooMany<S, Lang> {
   }
 
   /// Returns the mutable reference to the span associated with this error.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
 
   /// Bumps the span by n offsets.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump(&mut self, by: &S::Offset) -> &mut Self
   where
     S: Span,
@@ -69,20 +69,20 @@ impl<S, Lang: ?Sized> TooMany<S, Lang> {
   }
 
   /// Returns the number of elements found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn nums(&self) -> usize {
     self.nums
   }
 
   /// Returns the limit that was violated.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn limit(&self) -> usize {
     self.limit
   }
 }
 
 impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(_: TooMany<S, Lang>) -> Self {}
 }
 
@@ -90,7 +90,7 @@ impl<S, Lang: ?Sized> core::fmt::Display for TooMany<S, Lang>
 where
   S: core::fmt::Display,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(
       f,

@@ -11,7 +11,7 @@ pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
   fn name() -> CowStr;
 
   /// Checks if the given token kind is the opening delimiter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_open(knd: &<L::Token as Token<'inp>>::Kind) -> bool
   where
     L: Lexer<'inp>,
@@ -20,7 +20,7 @@ pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
   }
 
   /// Checks if the given token kind is the closing delimiter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_close(knd: &<L::Token as Token<'inp>>::Kind) -> bool
   where
     L: Lexer<'inp>,
@@ -29,7 +29,7 @@ pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
   }
 
   /// Creates an `UnexpectedToken` error for an unexpected opening token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn unexpected_open_token(
     tok: Spanned<L::Token, L::Span>,
   ) -> UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>
@@ -40,7 +40,7 @@ pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
   }
 
   /// Creates an `UnexpectedToken` error for an unexpected closing token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn unexpected_close_token(
     tok: Spanned<L::Token, L::Span>,
   ) -> UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>
@@ -64,7 +64,7 @@ macro_rules! impl_builtin_delimiter {
 
         type Close = $close<S, C, Lang>;
 
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn name() -> CowStr {
           CowStr::from_static($description)
         }
@@ -85,12 +85,12 @@ macro_rules! impl_deref {
     type Open = <$ty>::Open;
     type Close = <$ty>::Close;
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn name() -> CowStr {
       <$ty>::name()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn is_open(knd: &<<L>::Token as Token<'inp>>::Kind) -> bool
     where
       L: Lexer<'inp>,
@@ -98,7 +98,7 @@ macro_rules! impl_deref {
       <$ty>::is_open(knd)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn is_close(knd: &<<L>::Token as Token<'inp>>::Kind) -> bool
     where
       L: Lexer<'inp>,
@@ -106,7 +106,7 @@ macro_rules! impl_deref {
       <$ty>::is_close(knd)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn unexpected_open_token(
       tok: Spanned<L::Token, L::Span>,
     ) -> UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>
@@ -116,7 +116,7 @@ macro_rules! impl_deref {
       <$ty>::unexpected_open_token(tok)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn unexpected_close_token(
       tok: Spanned<L::Token, L::Span>,
     ) -> UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>

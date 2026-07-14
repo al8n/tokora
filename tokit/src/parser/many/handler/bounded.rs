@@ -24,7 +24,7 @@ where
     + TooManyEmitter<'inp, L, Lang>,
   Sep: Punctuator<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_start_state(
     &self,
     num_elems: usize,
@@ -38,7 +38,7 @@ where
     self.check(inp, anchor, num_elems)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_element_state(
     &self,
     num_elems: usize,
@@ -52,7 +52,7 @@ where
     self.check(inp, anchor, num_elems)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_leading_state(
     &self,
     num_elems: usize,
@@ -67,7 +67,7 @@ where
     self.check(inp, anchor, num_elems)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_separator_state(
     &self,
     num_elems: usize,
@@ -100,7 +100,7 @@ where
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
   Sep: Punctuator<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_start_state(
     &self,
     _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -113,7 +113,7 @@ where
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_too_many_element(
     &self,
     num_elems: usize,
@@ -141,7 +141,7 @@ where
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
   Sep: Punctuator<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_start_state(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -166,7 +166,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: TooManyEmitter<'inp, L, Lang> + TooFewEmitter<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_element(
     &self,
     nums: usize,
@@ -185,7 +185,7 @@ where
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn on_stop(
     &self,
     nums: usize,

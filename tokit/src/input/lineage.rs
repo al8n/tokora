@@ -252,7 +252,7 @@ pub(crate) struct Lineage {
 impl Lineage {
   /// A fresh set of memos for a new input: an unadvanced cache-push counter and — in allocator
   /// builds — an empty live-checkpoint stack, an empty pin set, and zeroed counters.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn new() -> Self {
     Self {
       cache_pushes: 0,
@@ -279,7 +279,7 @@ impl Lineage {
   ///   lineage and a fresh id source, so a checkpoint from the original is never mistaken for one
   ///   of the clone's (restoring it is caught as a foreign input in debug + ptr builds);
   /// - the **pin set** resets — a clone has no live guards.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn forked(&self) -> Self {
     Self {
       cache_pushes: self.cache_pushes,
@@ -296,7 +296,7 @@ impl Lineage {
 
   /// The current cache-push count, snapshotted into a [`Checkpoint`](super::Checkpoint) at save
   /// time so a later restore can drop exactly the entries pushed since.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn cache_pushes(&self) -> u64 {
     self.cache_pushes
   }
@@ -305,7 +305,7 @@ impl Lineage {
   /// fill and the `try_expect` put-backs — so the count tracks exactly the tokens the cache
   /// accepted: a full cache that hands the token back leaves the count unchanged, and a blackhole
   /// cache — which accepts no push — keeps it at 0.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn record_cache_push(&mut self) {
     self.cache_pushes += 1;
   }
@@ -319,7 +319,7 @@ impl Lineage {
   /// `cache_pushes − saved` deltas stay exact. State surgery deliberately leaves the counter
   /// untouched — a re-key clears the cache but not the count, so a checkpoint saved before the
   /// surgery still restores an exact delta.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn restore_cache_pushes(&mut self, saved: u64) {
     self.cache_pushes = saved;
   }
@@ -333,7 +333,7 @@ impl Lineage {
   /// down through this id, and a [`StackedTransaction`](super::StackedTransaction) checks the id
   /// is still present before honoring a savepoint — the check that makes stale savepoints panic on
   /// release and no-ptr targets. Opening never invalidates another checkpoint; only restoring does.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn open(&mut self) -> u64 {
     let id = self.next_ckp_id;
     self.next_ckp_id += 1;
@@ -344,7 +344,7 @@ impl Lineage {
   /// Returns whether `id` is still live on the lineage stack. Backs both the
   /// [`StackedTransaction`](super::StackedTransaction) savepoint-staleness check (every allocator
   /// build) and, in debug + ptr builds, [`restore`](super::InputRef::restore)'s non-LIFO panic.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn contains(&self, id: u64) -> bool {
     self.live_ckpts.contains(&id)
   }
@@ -353,7 +353,7 @@ impl Lineage {
   /// saved after it. A no-op if `id` is already gone — a raw restore to a checkpoint an earlier
   /// restore already invalidated (release's unspecified-but-bounded posture; debug + ptr asserts
   /// presence in [`restore`](super::InputRef::restore) first).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn pop_through(&mut self, id: u64) {
     if let Some(pos) = self.live_ckpts.iter().position(|&x| x == id) {
       self.live_ckpts.truncate(pos);
@@ -370,7 +370,7 @@ impl Lineage {
   /// otherwise (e.g. a raw checkpoint saved above it was dropped without restoring). Removing a
   /// non-top id keeps the rest of the stack in order, so an older restore still pops cleanly
   /// through it. Committing an already-invalidated id is a harmless no-op: it is simply absent.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn forget(&mut self, id: u64) {
     if self.live_ckpts.last() == Some(&id) {
       self.live_ckpts.pop();
@@ -389,7 +389,7 @@ impl Lineage {
   /// whole life, so the inner settles (and unpins) before the outer is usable again. An outer
   /// rollback therefore never finds a live inner pin sitting above its base — only its own
   /// (just-unpinned) begin point and any LIFO-clean raw checkpoints, none pinned.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn pin(&mut self, id: u64) {
     self.pinned.push(id);
   }
@@ -401,7 +401,7 @@ impl Lineage {
   /// arms of the attempts, both session-point verbs, and the [`InputRef`](super::InputRef) `Drop`
   /// that releases session points abandoned with the handle), so the pin set stays bounded and holds
   /// exactly the begin points of the currently-live guards, attempts, and session points.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn unpin(&mut self, id: u64) {
     if self.pinned.last() == Some(&id) {
       self.pinned.pop();
@@ -421,7 +421,7 @@ impl Lineage {
   /// begin point finds that begin point still pinned above the target. A stacked-transaction
   /// savepoint `rollback_to` restores a checkpoint *above* the base, so it can never reach the
   /// pinned base. A target that is not live pops nothing, so it cannot invalidate anything pinned.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn assert_restore_preserves_pins(&self, target_id: u64) {
     let Some(pos) = self.live_ckpts.iter().position(|&x| x == target_id) else {
       // The target is already gone: the restore will pop nothing, so nothing pinned can be
@@ -446,7 +446,7 @@ impl Lineage {
   /// that crosses transactions can never collide with a live savepoint's `seq` in another
   /// transaction's stack, so the membership scan in `rollback_to`/`release` panics deterministically
   /// wherever the lifetime brand does not already reject the id.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn next_savepoint_seq(&mut self) -> u64 {
     let seq = self.savepoint_seq;
     self.savepoint_seq += 1;

@@ -37,7 +37,7 @@ impl Severity {
   /// assert_eq!(Severity::Warning.as_str(), "warning");
   /// assert_eq!(Severity::Warning.to_string(), "warning");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_str(&self) -> &'static str {
     match self {
       Self::Error => "error",

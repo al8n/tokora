@@ -113,7 +113,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   /// Returns `true` if the cache contains no tokens.
   ///
   /// This is a convenience method that checks if `len() == 0`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_empty(&self) -> bool {
     self.len() == 0
   }
@@ -291,7 +291,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   /// cache is empty.
   ///
   /// This is a convenience wrapper around `peek` for looking at just one token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn peek_one<'c>(&self) -> Option<MaybeRefCachedTokenOf<'_, 'a, L>>
   where
     'a: 'c,
@@ -346,7 +346,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   ///     // Handle tokens that didn't fit in cache
   /// }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push_many<'p>(
     &'p mut self,
     toks: impl Iterator<Item = CachedTokenOf<'a, L>> + 'p,
@@ -377,7 +377,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   /// to the end of the last token. Returns `None` if the cache is empty.
   ///
   /// This is useful for error reporting or understanding the range of lookahead.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn span(&self) -> Option<L::Span>
   where
     L: Lexer<'a>,
@@ -395,7 +395,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   ///
   /// Returns `None` if the cache is empty. This is often used to determine
   /// where the next consumed token will come from.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn front_span<'s>(&'s self) -> Option<&'s L::Span>
   where
     'a: 's,
@@ -408,7 +408,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   ///
   /// Returns `None` if the cache is empty. This can be used to determine
   /// where the cache's lookahead ends.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn back_span<'s>(&'s self) -> Option<&'s L::Span>
   where
     'a: 's,
@@ -451,7 +451,7 @@ pub trait PeekedTokenExt<T, Span> {
 impl<T, State, Span> PeekedTokenExt<T, Span>
   for Maybe<CachedToken<&T, &State, &Span>, CachedToken<T, State, Span>>
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn token(&self) -> &T {
     match self {
       Maybe::Ref(cached) => cached.token.data,
@@ -459,7 +459,7 @@ impl<T, State, Span> PeekedTokenExt<T, Span>
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn span(&self) -> &Span {
     match self {
       Maybe::Ref(cached) => cached.token.span,
@@ -480,7 +480,7 @@ where
   Span: Clone,
   T: Clone,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     Self {
       token: self.token.clone(),
@@ -490,7 +490,7 @@ where
 }
 
 // impl<'a, L: Lexer<'a>> TryFrom<> for CachedToken<T, State, Span> {
-//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   #[inline(always)]
 //   pub(super) fn try_into_token(
 //     self,
 //   ) -> Result<CachedToken<T, State, Span>, <T as Token<>>::Error> {
@@ -503,25 +503,25 @@ where
 
 impl<T, State, Span> CachedToken<T, State, Span> {
   /// Creates a new cached token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(token: Spanned<T, Span>, state: State) -> Self {
     Self { token, state }
   }
 
   /// Returns a reference to the token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn token(&self) -> Spanned<&T, &Span> {
     self.token.as_ref()
   }
 
   /// Consumes the cached token and returns the lexed token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_token(self) -> Spanned<T, Span> {
     self.token
   }
 
   /// Returns a reference to the cached token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_ref(&self) -> CachedToken<&T, &State, &Span> {
     CachedToken {
       token: self.token.as_ref(),
@@ -530,7 +530,7 @@ impl<T, State, Span> CachedToken<T, State, Span> {
   }
 
   /// Maps the token to a new type using the provided function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map_token<U, F>(self, f: F) -> CachedToken<U, State, Span>
   where
     F: FnOnce(T) -> U,
@@ -542,13 +542,13 @@ impl<T, State, Span> CachedToken<T, State, Span> {
   }
 
   /// Returns a reference to the state.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn state(&self) -> &State {
     &self.state
   }
 
   /// Consumes the cached token and returns the extras.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn into_components(self) -> (Spanned<T, Span>, State) {
     (self.token, self.state)

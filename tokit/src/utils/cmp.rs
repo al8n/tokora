@@ -95,7 +95,7 @@ where
   T: Equivalent<O> + ?Sized,
   O: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn equivalent(&self, other: &O) -> bool {
     T::equivalent(*self, other)
   }
@@ -106,7 +106,7 @@ where
   T: Equivalent<O> + ?Sized,
   O: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn equivalent(&self, other: &O) -> bool {
     T::equivalent(*self, other)
   }
@@ -116,7 +116,7 @@ impl<T> Equivalent<T> for str
 where
   T: AsRef<[u8]> + ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn equivalent(&self, other: &T) -> bool {
     self.as_bytes().eq(other.as_ref())
   }
@@ -126,7 +126,7 @@ impl<T> Equivalent<T> for [u8]
 where
   T: AsRef<[u8]> + ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn equivalent(&self, other: &T) -> bool {
     self.eq(other.as_ref())
   }

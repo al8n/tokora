@@ -44,12 +44,12 @@ macro_rules! impl_pratt_power_for_int {
       /// clamped at the type's representable bounds, honoring the trait's no-underflow
       /// requirement on [`prev`](PrattPower::prev).
       impl PrattPower for $int {
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn next(&self) -> Self {
           self.saturating_add(1)
         }
 
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn prev(&self) -> Self {
           self.saturating_sub(1)
         }
@@ -71,49 +71,49 @@ pub struct Precedenced<T, Power = i64> {
 
 impl<T, Power> Precedenced<T, Power> {
   /// Creates a new `Precedenced` with the given token and precedence.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(token: T, precedence: Power) -> Self {
     Self { token, precedence }
   }
 
   /// Returns a new `Precedenced` with the given token but a different precedence level.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn with_precedence(token: T, precedence: Power) -> Self {
     Self { token, precedence }
   }
 
   /// Returns the reference to the token contained in this `Precedenced`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn token_ref(&self) -> &T {
     &self.token
   }
 
   /// Returns the mutable reference to the token contained in this `Precedenced`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn token_mut(&mut self) -> &mut T {
     &mut self.token
   }
 
   /// Returns the precedence level of this `Precedenced`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn precedence(&self) -> &Power {
     &self.precedence
   }
 
   /// Decomposes this `Precedenced` into its precedence.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_precedence(self) -> Power {
     self.precedence
   }
 
   /// Decomposes this `Precedenced` into its data.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_data(self) -> T {
     self.token
   }
 
   /// Decomposes this `Precedenced` into its token and precedence components.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (T, Power) {
     (self.token, self.precedence)
   }
@@ -168,7 +168,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   P: ParseInput<'inp, L, PrattLHS<Op, Pre, Power>, Ctx, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_pratt_lhs(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -215,7 +215,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   P: ParseInput<'inp, L, PrattRHS<LeftAssoc, RightAssoc, NeitherAssoc, Post, Power>, Ctx, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_pratt_rhs(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -256,7 +256,7 @@ where
     Precedenced<Operator, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_postfix(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -309,7 +309,7 @@ where
     Precedenced<PrattInfix<LO, RO, NO>, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_infix(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -350,7 +350,7 @@ where
     Precedenced<Operator, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_prefix(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -390,7 +390,7 @@ where
   )
     -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_postfix(
     &mut self,
     operand: Spanned<L::Token, L::Span>,
@@ -432,7 +432,7 @@ where
   )
     -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_infix(
     &mut self,
     left: Spanned<L::Token, L::Span>,
@@ -473,7 +473,7 @@ where
   )
     -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_prefix(
     &mut self,
     operator: Spanned<L::Token, L::Span>,

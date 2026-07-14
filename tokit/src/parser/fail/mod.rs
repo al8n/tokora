@@ -14,7 +14,7 @@ pub struct Fail<F, L, O, Ctx, Lang: ?Sized = ()> {
 
 impl<F, O, L, Ctx, Lang: ?Sized> Fail<F, L, O, Ctx, Lang> {
   /// Creates a new `Fail` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(err: F) -> Self {
     Self {
       err,
@@ -32,7 +32,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     _input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -47,7 +47,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     _input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -68,7 +68,7 @@ pub struct FailWith<F, L, O, Ctx, Lang: ?Sized = ()> {
 
 impl<F, O, L, Ctx, Lang: ?Sized> FailWith<F, L, O, Ctx, Lang> {
   /// Creates a new `FailWith` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(err: F) -> Self {
     Self {
       err,
@@ -88,7 +88,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -106,7 +106,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -118,7 +118,7 @@ where
 
 /// Creates a new `Fail` parser.
 #[must_use]
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 pub const fn fail<'inp, F, L, O, Ctx>(err: F) -> Fail<F, L, O, Ctx>
 where
   F: FnMut() -> <Ctx::Emitter as Emitter<'inp, L>>::Error,
@@ -130,7 +130,7 @@ where
 
 /// Creates a new `Fail` parser for the specified language.
 #[must_use]
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 pub const fn fail_of<'inp, F, L, O, Ctx, Lang: ?Sized>(err: F) -> Fail<F, L, O, Ctx, Lang>
 where
   F: FnMut() -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -142,7 +142,7 @@ where
 
 /// Creates a new `FailWith` parser.
 #[must_use]
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 pub const fn fail_with<'inp, F, L, O, Ctx>(err: F) -> FailWith<F, L, O, Ctx>
 where
   F: FnMut(ParseState<'_, 'inp, '_, L, Ctx>) -> <Ctx::Emitter as Emitter<'inp, L>>::Error,
@@ -154,7 +154,7 @@ where
 
 /// Creates a new `FailWith` parser for the specified language.
 #[must_use]
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 pub const fn fail_with_of<'inp, F, L, O, Ctx, Lang: ?Sized>(err: F) -> FailWith<F, L, O, Ctx, Lang>
 where
   F: FnMut(

@@ -31,7 +31,7 @@ pub enum SeparatorPosition {
 impl SeparatorPosition {
   /// Returns the static, lowercase string name of this position
   /// (`"element"`, `"leading"`, or `"trailing"`).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_str(&self) -> &'static str {
     match self {
       Self::Element => "element",
@@ -65,7 +65,7 @@ pub struct SeparatedError<'a, T, Kind: Clone, S = SimpleSpan, Lang: ?Sized = ()>
 
 impl<'a, T, Kind: Clone, S, Lang: ?Sized> SeparatedError<'a, T, Kind, S, Lang> {
   /// Creates a new `SeparatedError` at `position` wrapping `inner`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(
     position: SeparatorPosition,
     inner: UnexpectedToken<'a, T, Kind, S, Lang>,
@@ -74,49 +74,49 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> SeparatedError<'a, T, Kind, S, Lang> {
   }
 
   /// Creates a `SeparatedError` at the [`Leading`](SeparatorPosition::Leading) position.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn leading(inner: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
     Self::new(SeparatorPosition::Leading, inner)
   }
 
   /// Creates a `SeparatedError` at the [`Trailing`](SeparatorPosition::Trailing) position.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn trailing(inner: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
     Self::new(SeparatorPosition::Trailing, inner)
   }
 
   /// Creates a `SeparatedError` at the [`Element`](SeparatorPosition::Element) position.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn element(inner: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
     Self::new(SeparatorPosition::Element, inner)
   }
 
   /// Returns the position at which this separator error occurred.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn position(&self) -> SeparatorPosition {
     self.position
   }
 
   /// Returns a reference to the wrapped [`UnexpectedToken`].
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn inner_ref(&self) -> &UnexpectedToken<'a, T, Kind, S, Lang> {
     &self.inner
   }
 
   /// Returns a mutable reference to the wrapped [`UnexpectedToken`].
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn inner_mut(&mut self) -> &mut UnexpectedToken<'a, T, Kind, S, Lang> {
     &mut self.inner
   }
 
   /// Consumes the error, returning the wrapped [`UnexpectedToken`].
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_inner(self) -> UnexpectedToken<'a, T, Kind, S, Lang> {
     self.inner
   }
 
   /// Consumes the error, returning its position and wrapped [`UnexpectedToken`].
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (SeparatorPosition, UnexpectedToken<'a, T, Kind, S, Lang>) {
     (self.position, self.inner)
   }
@@ -124,7 +124,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> SeparatedError<'a, T, Kind, S, Lang> {
 
 // Allow unit to be used as an error sink for tests and no-op emitters.
 impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>> for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(_: SeparatedError<'a, T, Kind, S, Lang>) -> Self {}
 }
 

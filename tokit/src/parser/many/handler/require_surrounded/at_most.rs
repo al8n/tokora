@@ -25,7 +25,7 @@ where
     + TooManyEmitter<'inp, L, Lang>,
   Sep: Punctuator<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_start_state(
     &self,
     num_elems: usize,
@@ -39,7 +39,7 @@ where
     self.parser.parser.check(inp, anchor, num_elems)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_element_state(
     &self,
     num_elems: usize,
@@ -57,7 +57,7 @@ where
       .and_then(|_| self.parser.parser.check(inp, anchor, num_elems))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_leading_state(
     &self,
     num_elems: usize,
@@ -75,7 +75,7 @@ where
       .and_then(|_| self.parser.parser.check(inp, anchor, num_elems))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_separator_state(
     &self,
     num_elems: usize,
@@ -102,7 +102,7 @@ where
     + MissingLeadingSeparatorEmitter<'inp, L, Lang>,
   Sep: Punctuator<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_start_state(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
@@ -117,7 +117,7 @@ where
       .emit_missing_leading_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(off))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_too_many_element(
     &self,
     num_elems: usize,
@@ -147,7 +147,7 @@ where
     + MissingLeadingSeparatorEmitter<'inp, L, Lang>
     + MissingTrailingSeparatorEmitter<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn handle_start_state(
     &self,
     _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,

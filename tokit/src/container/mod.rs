@@ -15,7 +15,7 @@ pub trait Container<T> {
   fn len(&self) -> usize;
 
   /// Returns `true` if the container is empty.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_empty(&self) -> bool {
     self.len() == 0
   }
@@ -31,27 +31,27 @@ impl<T, U> Container<T> for &mut U
 where
   U: Container<T>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn max_capacity(&self) -> usize {
     U::max_capacity(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push(&mut self, item: T) -> Result<(), T> {
     U::push(self, item)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn first(&self) -> Option<&T> {
     U::first(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn last(&self) -> Option<&T> {
     U::last(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     U::len(self)
   }
@@ -60,27 +60,27 @@ where
 macro_rules! blackhole {
   ($ty:ty) => {
     impl<T> Container<T> for $ty {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn max_capacity(&self) -> usize {
         usize::MAX
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn push(&mut self, _: T) -> Result<(), T> {
         Ok(())
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn first(&self) -> Option<&T> {
         None
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn last(&self) -> Option<&T> {
         None
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn len(&self) -> usize {
         0
       }
@@ -93,12 +93,12 @@ blackhole!(core::marker::PhantomData<T>);
 blackhole!(crate::utils::marker::Ignored<T>);
 
 impl<T> Container<T> for Option<T> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn max_capacity(&self) -> usize {
     1
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push(&mut self, item: T) -> Result<(), T> {
     if self.is_none() {
       *self = Some(item);
@@ -108,17 +108,17 @@ impl<T> Container<T> for Option<T> {
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn first(&self) -> Option<&T> {
     self.as_ref()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn last(&self) -> Option<&T> {
     self.as_ref()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     if self.is_some() { 1 } else { 0 }
   }
@@ -128,12 +128,12 @@ impl<T, N> Container<T> for GenericArrayDeque<T, N>
 where
   N: ArrayLength,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn max_capacity(&self) -> usize {
     N::to_usize()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push(&mut self, item: T) -> Result<(), T> {
     match GenericArrayDeque::push_back(self, item) {
       None => Ok(()),
@@ -141,17 +141,17 @@ where
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn first(&self) -> Option<&T> {
     GenericArrayDeque::front(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn last(&self) -> Option<&T> {
     GenericArrayDeque::back(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     GenericArrayDeque::len(self)
   }
@@ -163,56 +163,56 @@ const _: () = {
   use std::{collections::VecDeque, vec::Vec};
 
   impl<T> Container<T> for Vec<T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn max_capacity(&self) -> usize {
       usize::MAX
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
       Vec::push(self, item);
       Ok(())
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn first(&self) -> Option<&T> {
       self.as_slice().first()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn last(&self) -> Option<&T> {
       self.as_slice().last()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       Vec::len(self)
     }
   }
 
   impl<T> Container<T> for VecDeque<T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn max_capacity(&self) -> usize {
       usize::MAX
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
       VecDeque::push_back(self, item);
       Ok(())
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn first(&self) -> Option<&T> {
       self.front()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn last(&self) -> Option<&T> {
       self.back()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       VecDeque::len(self)
     }
@@ -228,28 +228,28 @@ const _: () = {
   where
     A: smallvec_1::Array<Item = T>,
   {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn max_capacity(&self) -> usize {
       usize::MAX
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
       SmallVec::push(self, item);
       Ok(())
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn first(&self) -> Option<&T> {
       self.as_slice().first()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn last(&self) -> Option<&T> {
       self.as_slice().last()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       SmallVec::len(self)
     }
@@ -262,28 +262,28 @@ const _: () = {
   use tinyvec_1::{Array, ArrayVec, SliceVec};
 
   impl<T> Container<T> for SliceVec<'_, T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn max_capacity(&self) -> usize {
       self.capacity()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
       SliceVec::push(self, item);
       Ok(())
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn first(&self) -> Option<&T> {
       self.as_slice().first()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn last(&self) -> Option<&T> {
       self.as_slice().last()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       SliceVec::len(self)
     }
@@ -293,12 +293,12 @@ const _: () = {
   where
     A: Array<Item = T>,
   {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn max_capacity(&self) -> usize {
       A::CAPACITY
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
       match self.try_push(item) {
         Some(t) => Err(t),
@@ -306,17 +306,17 @@ const _: () = {
       }
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn first(&self) -> Option<&T> {
       self.as_slice().first()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn last(&self) -> Option<&T> {
       self.as_slice().last()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       ArrayVec::len(self)
     }
@@ -331,28 +331,28 @@ const _: () = {
     where
       A: Array<Item = T>,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn max_capacity(&self) -> usize {
         usize::MAX
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn push(&mut self, item: T) -> Result<(), T> {
         TinyVec::push(self, item);
         Ok(())
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn first(&self) -> Option<&T> {
         self.as_slice().first()
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn last(&self) -> Option<&T> {
         self.as_slice().last()
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn len(&self) -> usize {
         TinyVec::len(self)
       }
@@ -369,64 +369,64 @@ const _: () = {
   where
     LenT: LenType,
   {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn max_capacity(&self) -> usize {
       N
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
       Vec::push(self, item)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn first(&self) -> Option<&T> {
       self.as_slice().first()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn last(&self) -> Option<&T> {
       self.as_slice().last()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       self.as_slice().len()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn is_empty(&self) -> bool {
       Vec::is_empty(self)
     }
   }
 
   impl<T, const N: usize> Container<T> for Deque<T, N> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn max_capacity(&self) -> usize {
       N
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
       Deque::push_back(self, item)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn first(&self) -> Option<&T> {
       self.front()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn last(&self) -> Option<&T> {
       self.back()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       Deque::len(self)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn is_empty(&self) -> bool {
       Deque::is_empty(self)
     }

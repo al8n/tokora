@@ -23,7 +23,7 @@ macro_rules! bail {
     {
       type Logos = T;
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn from_logos(t: Self::Logos) -> Self {
         t
       }
@@ -64,7 +64,7 @@ macro_rules! bail {
     {
       type Lexer = LogosLexer<'inp, T>;
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn into_lexer(self) -> Self::Lexer {
         LogosLexer {
           inner: self,
@@ -79,19 +79,19 @@ macro_rules! bail {
       T: FromLogos<'inp>,
     {
       /// Consumes the lexer and returns the inner `$lib::Lexer`.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub fn into_inner(self) -> $lib::Lexer<'inp, T::Logos> {
         self.inner
       }
 
       /// Returns a reference to the inner `$lib::Lexer`.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub const fn inner(&self) -> &$lib::Lexer<'inp, T::Logos> {
         &self.inner
       }
 
       /// Returns a reference to the inner `$lib::Lexer`.
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       pub const fn inner_mut(&mut self) -> &mut $lib::Lexer<'inp, T::Logos> {
         &mut self.inner
       }
@@ -114,17 +114,17 @@ macro_rules! bail {
       type Span = SimpleSpan;
       type Offset = usize;
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn new(src: &'inp Self::Source) -> Self {
         $lib::Lexer::new(src).into_lexer()
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn with_state(src: &'inp Self::Source, state: Self::State) -> Self {
         $lib::Lexer::with_extras(src, state).into_lexer()
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn check(&self) -> Result<(), T::Error>
       where
         T: Token<'inp>,
@@ -132,22 +132,22 @@ macro_rules! bail {
         self.inner.extras.check().map_err(Into::into)
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn state(&self) -> &Self::State {
         &self.inner.extras
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn state_mut(&mut self) -> &mut Self::State {
         &mut self.inner.extras
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn into_state(self) -> Self::State {
         self.inner.extras
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn source(&self) -> &'inp Self::Source
       where
         T: Token<'inp>,
@@ -155,7 +155,7 @@ macro_rules! bail {
         self.inner.source()
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn span(&self) -> Self::Span {
         // logos guarantees `start <= end` for every token span, so construct the
         // span directly and skip the checked `From<Range>` -> `new` bounds assert.
@@ -166,7 +166,7 @@ macro_rules! bail {
         }
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'inp>
       where
         T: Token<'inp>,
@@ -174,7 +174,7 @@ macro_rules! bail {
         self.inner.slice()
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn lex(&mut self) -> Option<Result<T, T::Error>>
       where
         T: Token<'inp>,
@@ -197,7 +197,7 @@ macro_rules! bail {
         }
       }
 
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn bump(&mut self, n: &usize) {
         self.inner.bump(*n);
       }

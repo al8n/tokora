@@ -45,7 +45,7 @@ impl<'a, T: Clone> OneOf<'a, T> {
   /// let values = OneOf::from_slice(&["greeting", "salutation"]);
   /// assert_eq!(values.as_slice(), &["greeting", "salutation"]);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn new(inner: impl Into<Inner<'a, T>>) -> Self {
     Self {
       inner: inner.into(),
@@ -62,7 +62,7 @@ impl<'a, T: Clone> OneOf<'a, T> {
   /// const MSG: OneOf<'static, &str> = OneOf::from_slice(&["hello"]);
   /// assert_eq!(MSG.as_slice(), &["hello"]);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn from_slice(value: &'a [T]) -> Self {
     Self {
       inner: Self::borrow_const(value),
@@ -79,7 +79,7 @@ impl<'a, T: Clone> OneOf<'a, T> {
   /// let msg = OneOf::from_slice(&["world"]);
   /// assert_eq!(msg.as_slice(), &["world"]);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_slice(&self) -> &[T] {
     Self::as_inner_helper(&self.inner)
   }
@@ -98,7 +98,7 @@ impl<'a, T: Clone> OneOf<'a, T> {
   /// assert!(matches!(msg.as_inner(), &Cow::Borrowed(&["inner"])));
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_inner(&self) -> &Inner<'a, T> {
     &self.inner
   }
@@ -118,14 +118,14 @@ impl<'a, T: Clone> OneOf<'a, T> {
   /// assert_eq!(inner, Cow::Borrowed(&["consume"]));
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_inner(self) -> Inner<'a, T> {
     self.inner
   }
 }
 
 impl<'a, T: Clone> From<&'a [T]> for OneOf<'a, T> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(value: &'a [T]) -> Self {
     Self {
       inner: Self::borrow_const(value),
@@ -134,14 +134,14 @@ impl<'a, T: Clone> From<&'a [T]> for OneOf<'a, T> {
 }
 
 impl<T: Clone> AsRef<[T]> for OneOf<'_, T> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn as_ref(&self) -> &[T] {
     self.as_inner()
   }
 }
 
 impl<T: Clone> core::borrow::Borrow<[T]> for OneOf<'_, T> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn borrow(&self) -> &[T] {
     self.as_inner()
   }
@@ -150,26 +150,26 @@ impl<T: Clone> core::borrow::Borrow<[T]> for OneOf<'_, T> {
 #[cfg(not(any(feature = "std", feature = "alloc")))]
 const _: () = {
   impl<'a, T: Clone> OneOf<'a, T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     const fn borrow_const(value: &'a [T]) -> Inner<'a, T> {
       value
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     const fn as_inner_helper(inner: &Inner<'a, T>) -> &'a [T] {
       inner
     }
   }
 
   impl<'a, T: Clone> From<OneOf<'a, T>> for &'a [T] {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn from(value: OneOf<'a, T>) -> Self {
       value.inner
     }
   }
 
   impl<'a, T: Clone> From<&OneOf<'a, T>> for &'a [T] {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn from(value: &OneOf<'a, T>) -> Self {
       value.inner
     }
@@ -179,12 +179,12 @@ const _: () = {
 #[cfg(any(feature = "std", feature = "alloc"))]
 const _: () = {
   impl<'a, T: Clone> OneOf<'a, T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     const fn borrow_const(value: &'a [T]) -> Inner<'a, T> {
       Cow::Borrowed(value)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     const fn as_inner_helper<'b>(inner: &'b Inner<'a, T>) -> &'b [T] {
       match inner {
         Cow::Borrowed(value) => value,
@@ -202,7 +202,7 @@ const _: () = {
     /// let values = OneOf::from_vec(vec!["owned", "slice"]);
     /// assert_eq!(values.as_slice(), &["owned", "slice"]);
     /// ```
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     pub fn from_vec(value: Vec<T>) -> Self {
       Self {
         inner: Cow::Owned(value),
@@ -220,35 +220,35 @@ const _: () = {
     /// values.to_mut()[1] = 42;
     /// assert_eq!(values.as_slice(), &[1, 42, 3]);
     /// ```
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     pub fn to_mut(&mut self) -> &mut [T] {
       self.inner.to_mut()
     }
   }
 
   impl<T: Clone> From<Vec<T>> for OneOf<'_, T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn from(value: Vec<T>) -> Self {
       OneOf::from_vec(value)
     }
   }
 
   impl<'a, T: Clone> From<Cow<'a, [T]>> for OneOf<'a, T> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn from(value: Cow<'a, [T]>) -> Self {
       Self { inner: value }
     }
   }
 
   impl<'a, T: Clone> From<OneOf<'a, T>> for Cow<'a, [T]> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn from(value: OneOf<'a, T>) -> Self {
       value.inner
     }
   }
 
   impl<'a, T: Clone> From<&OneOf<'a, T>> for Cow<'a, [T]> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn from(value: &OneOf<'a, T>) -> Self {
       value.inner.clone()
     }

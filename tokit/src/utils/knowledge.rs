@@ -8,7 +8,7 @@ use super::human_display::DisplayHuman;
 pub struct HexFloatLiteral(pub(crate) ());
 
 impl DisplayHuman for HexFloatLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -20,7 +20,7 @@ impl DisplayHuman for HexFloatLiteral {
 pub struct FloatLiteral(pub(crate) ());
 
 impl DisplayHuman for FloatLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -32,7 +32,7 @@ impl DisplayHuman for FloatLiteral {
 pub struct IntLiteral(pub(crate) ());
 
 impl DisplayHuman for IntLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -44,7 +44,7 @@ impl DisplayHuman for IntLiteral {
 pub struct DecimalLiteral(pub(crate) ());
 
 impl DisplayHuman for DecimalLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -56,7 +56,7 @@ impl DisplayHuman for DecimalLiteral {
 pub struct HexLiteral(pub(crate) ());
 
 impl DisplayHuman for HexLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -68,7 +68,7 @@ impl DisplayHuman for HexLiteral {
 pub struct BinaryLiteral(pub(crate) ());
 
 impl DisplayHuman for BinaryLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -80,7 +80,7 @@ impl DisplayHuman for BinaryLiteral {
 pub struct OctalLiteral(pub(crate) ());
 
 impl DisplayHuman for OctalLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -92,7 +92,7 @@ impl DisplayHuman for OctalLiteral {
 pub struct StringLiteral(pub(crate) ());
 
 impl DisplayHuman for StringLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -104,7 +104,7 @@ impl DisplayHuman for StringLiteral {
 pub struct BooleanLiteral(pub(crate) ());
 
 impl DisplayHuman for BooleanLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -116,7 +116,7 @@ impl DisplayHuman for BooleanLiteral {
 pub struct NullLiteral(pub(crate) ());
 
 impl DisplayHuman for NullLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -128,7 +128,7 @@ impl DisplayHuman for NullLiteral {
 pub struct EnumLiteral(pub(crate) ());
 
 impl DisplayHuman for EnumLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -140,7 +140,7 @@ impl DisplayHuman for EnumLiteral {
 pub struct EnumValueLiteral(pub(crate) ());
 
 impl DisplayHuman for EnumValueLiteral {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }
@@ -152,7 +152,7 @@ impl DisplayHuman for EnumValueLiteral {
 pub struct Characters(pub(crate) ());
 
 impl DisplayHuman for Characters {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     ::core::fmt::Display::fmt(self, f)
   }

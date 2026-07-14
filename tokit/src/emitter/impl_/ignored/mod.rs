@@ -20,7 +20,7 @@ pub type Ignored = crate::utils::marker::Ignored<()>;
 impl<'a, L, Lang: ?Sized> Emitter<'a, L, Lang> for Ignored {
   type Error = ();
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_lexer_error(
     &mut self,
     _: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
@@ -31,7 +31,7 @@ impl<'a, L, Lang: ?Sized> Emitter<'a, L, Lang> for Ignored {
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_error(&mut self, _: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -39,7 +39,7 @@ impl<'a, L, Lang: ?Sized> Emitter<'a, L, Lang> for Ignored {
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'a, L, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -47,7 +47,7 @@ impl<'a, L, Lang: ?Sized> Emitter<'a, L, Lang> for Ignored {
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn rewind(&mut self, _: &Cursor<'a, '_, L>, _: u64)
   where
     L: Lexer<'a>,

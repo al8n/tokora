@@ -42,7 +42,7 @@ where
   /// earlier in the log; the dedup watermark still reports it exactly once.) The
   /// `cache_transparency_matrix` tests in `src/input/input_ref/tests.rs` pin this
   /// across the whole family.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_through<F, Exp>(
     &mut self,
@@ -96,7 +96,7 @@ where
   /// rewound too, at the cost of re-lexing those tokens on the next read. A fatal emitter
   /// rejection mid-skip commits the token that tripped it, and the cache does not change
   /// that either (see [`sync_through`](Self::sync_through)).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_through_then_peek<'p, F, Exp, W>(
     &'p mut self,
@@ -129,7 +129,7 @@ where
   /// the drained cache prefix is rewound too, at the cost of re-lexing those tokens on the
   /// next read — and a fatal emitter rejection mid-skip commits the token that tripped it,
   /// cached or not.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_through_then_peek_with_emitter<'p, F, Exp, W>(
     &'p mut self,

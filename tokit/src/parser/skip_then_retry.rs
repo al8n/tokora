@@ -71,7 +71,7 @@ pub struct SkipThenRetry<P, D, F, O, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, D, F, O, L, Ctx, Lang: ?Sized> SkipThenRetry<P, D, F, O, L, Ctx, Lang> {
   /// Creates a new `SkipThenRetry` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: P, classifier: D, pred: F) -> Self {
     Self {
       parser,

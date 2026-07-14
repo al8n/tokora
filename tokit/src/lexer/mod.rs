@@ -117,7 +117,7 @@ impl<'a, T> Clone for Lexed<'a, T>
 where
   T: Token<'a>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     match self {
       Self::Token(tok) => Self::Token(tok.clone()),
@@ -135,7 +135,7 @@ where
 
 impl<'a, T: Token<'a>> Lexed<'a, T> {
   /// Lexes the next token from the given lexer, returning `None` if the input is exhausted.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn lex<L>(lexer: &mut L) -> Option<Self>
   where
     L: super::Lexer<'a, Token = T>,
@@ -144,7 +144,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   }
 
   /// Lexes the next token from the given lexer, returning `None` if the input is exhausted.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn lex_spanned<L>(lexer: &mut L) -> Option<Spanned<Self, L::Span>>
   where
     L: super::Lexer<'a, Token = T>,
@@ -160,7 +160,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Error`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_token(self, msg: &str) -> T {
     match self {
@@ -175,7 +175,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Token`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_error(self, msg: &str) -> T::Error {
     match self {
@@ -190,7 +190,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Error`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_token_ref(&self, msg: &str) -> &T {
     match self {
@@ -205,7 +205,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Token`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_error_ref(&self, msg: &str) -> &T::Error {
     match self {
@@ -220,7 +220,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Error`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_token_mut(&mut self, msg: &str) -> &mut T {
     match self {
@@ -235,7 +235,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Token`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_error_mut(&mut self, msg: &str) -> &mut T::Error {
     match self {
@@ -250,7 +250,7 @@ where
   T: Token<'a> + core::fmt::Display,
   T::Error: core::fmt::Display,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
       Self::Token(tok) => ::core::fmt::Display::fmt(tok, f),
@@ -260,7 +260,7 @@ where
 }
 
 impl<'a, T: Token<'a>> From<Result<T, T::Error>> for Lexed<'a, T> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(value: Result<T, T::Error>) -> Self {
     match value {
       Ok(tok) => Self::Token(tok),
@@ -270,7 +270,7 @@ impl<'a, T: Token<'a>> From<Result<T, T::Error>> for Lexed<'a, T> {
 }
 
 impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, T::Error> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(value: Lexed<'a, T>) -> Self {
     match value {
       Lexed::Token(tok) => Ok(tok),
@@ -298,7 +298,7 @@ where
 {
   type Lexer = L;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_lexer(self) -> Self::Lexer {
     self
   }
@@ -573,12 +573,12 @@ const _: () = {
     type Kind = Self;
     type Error = ();
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn kind(&self) -> Self::Kind {
       *self
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn is_trivia(&self) -> bool {
       true
     }

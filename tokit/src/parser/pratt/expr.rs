@@ -5,7 +5,7 @@ use crate::Commit;
 use super::*;
 
 /// Creates a pratt parser for a specific language
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 pub fn pratt<
   'inp,
   Power,
@@ -55,7 +55,7 @@ where
 }
 
 /// Creates a pratt parser for a specific language
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 pub fn pratt_of<
   'inp,
   Power,
@@ -462,7 +462,7 @@ where
   FoldPostfix: PrattFoldPostfix<'inp, Power, PostOp, L, O, Ctx, Lang>,
   Power: PrattPower,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

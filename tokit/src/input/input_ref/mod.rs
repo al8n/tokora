@@ -120,13 +120,13 @@ where
   /// The cache stores peeked tokens that have been lexed but not yet consumed.
   /// This can be useful for inspecting the cache state or implementing custom
   /// lookahead logic.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn cache(&self) -> &Ctx::Cache {
     self.cache
   }
 
   /// Returns a mutable reference to the tokenizer's cache.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   const fn cache_mut(&mut self) -> &mut Ctx::Cache {
     self.cache
   }
@@ -135,7 +135,7 @@ where
   /// memos ([`Lineage::record_cache_push`](super::Lineage::record_cache_push)) so
   /// [`save`](Self::save) can snapshot the count and [`restore`](Self::restore) drop exactly the
   /// entries pushed since. A full cache hands the token back and records nothing.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn cache_push_back(&mut self, tok: CachedTokenOf<'inp, L>) -> Result<(), CachedTokenOf<'inp, L>> {
     match self.cache.push_back(tok) {
       Ok(_) => {
@@ -150,13 +150,13 @@ where
   ///
   /// This allows access to the raw source being tokenized, which is typically
   /// a `&str` or `&[u8]` depending on your Logos token definition.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn source(&self) -> &'inp L::Source {
     self.input
   }
 
   /// Returns a reference to the current lexer state (extras).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn state(&self) -> &L::State {
     self.state
   }
@@ -207,7 +207,7 @@ where
   ///
   /// Enforcing tests (in `src/input/input_ref/partial_tests.rs`):
   /// `speculation_cannot_end_the_stream` and `rollback_cannot_un_end_a_sealed_stream`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn is_final(&self) -> bool {
     Cmpl::is_final(&self.finality)
   }
@@ -240,7 +240,7 @@ where
   /// across state surgery — a raw [`restore`](Self::restore), an [`attempt`](Self::attempt)
   /// rollback, and a [`StackedTransaction`] savepoint taken before the surgery all roll back
   /// across it cleanly.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn state_mut(&mut self) -> &mut L::State {
     self.rekey_offset_facts();
     self.state
@@ -274,7 +274,7 @@ where
   /// across state surgery — a raw [`restore`](Self::restore), an [`attempt`](Self::attempt)
   /// rollback, and a [`StackedTransaction`] savepoint taken before the surgery all roll back
   /// across it cleanly.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn set_state(&mut self, state: L::State) {
     self.rekey_offset_facts();
     *self.state = state;
@@ -324,7 +324,7 @@ where
   /// [`restore`](Self::restore)'s copy-back, the scan/consume paths writing
   /// `*self.state = lexer.into_state()`, and the cached-consume state adoption — is
   /// lineage-consistent by construction and never routes through here.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn rekey_offset_facts(&mut self) {
     self.cache_mut().clear();
     *self.poison_boundary = None;
@@ -333,7 +333,7 @@ where
   }
 
   /// Returns a mutable reference to the emitter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn emitter(&mut self) -> &mut Ctx::Emitter {
     self.emitter
   }
@@ -345,7 +345,7 @@ where
   /// them. Consuming that region later re-lexes it; this dedup — keyed on the error
   /// span's end against a high-water mark — guarantees every lexer error is reported
   /// exactly once, whether it is peeked, consumed, or both.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_lexer_error_deduped(
     &mut self,
     err: Spanned<<L::Token as Token<'inp>>::Error, L::Span>,
@@ -377,7 +377,7 @@ where
   /// reached the poison boundary (a smaller boundary is more poisoned). At or past
   /// it a scanner yields its poisoned outcome without rebuilding a lexer; strictly
   /// before it, lexing proceeds normally.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn reached_boundary(&self, pos: &L::Offset) -> bool {
     matches!(self.poison_boundary.as_ref(), Some(b) if pos >= b)
   }
@@ -389,7 +389,7 @@ where
   /// so the caller's end-of-input handling produces the poisoned outcome — the
   /// tripping token and everything after it is never re-scanned. With no boundary
   /// (or strictly before it) this is exactly [`Lexed::lex_spanned`].
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn lex_within_boundary(
     &self,
     lexer: &mut L,
@@ -430,7 +430,7 @@ where
   /// the law: a tripped limit is terminal, so it may never be withheld as an
   /// [`Incomplete`](crate::error::Incomplete) merely because the tripping token landed on a chunk
   /// boundary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn latch_if_limit_tripped(&mut self, lexer: &L, boundary: L::Offset) -> bool {
     if lexer.check().is_err() {
       // A trip can only maintain or increase poison: clamp to the more-poisoned
@@ -448,7 +448,7 @@ where
   }
 
   /// Returns `true` if reached the end of input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[doc(alias = "is_eof")]
   #[doc(alias = "end_of_input")]
   pub fn is_eoi(&self) -> bool {
@@ -460,7 +460,7 @@ where
   /// This internal method constructs a fresh Logos lexer with the current state and
   /// positions it to continue lexing from where the cache ends (or from the cursor
   /// if the cache is empty).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn lexer(&self) -> L
   where
     L::State: Clone,
@@ -476,7 +476,7 @@ where
   /// either consumed or cached. A scan that holds tokens behind an uncommitted frontier (the sync
   /// loop, which settles its skipped tokens there rather than writing each one back) resumes from
   /// that frontier instead, and says so by passing it.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn lexer_from(&self, state: L::State, at: &L::Offset) -> L {
     let mut lexer = L::with_state(self.input, state);
     lexer.bump(at);
@@ -486,7 +486,7 @@ where
   /// Sets the cursor to the specified position, clamped to the input length.
   ///
   /// This ensures the cursor never exceeds the bounds of the input source.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn set_span(&mut self, new: MaybeRef<'_, L::Span>) {
     let end = self.input.len();
     *self.span = if new.end_ref().le(&end) {
@@ -501,7 +501,7 @@ where
   /// `span()`/`slice()` therefore report the most recently consumed token even
   /// when the cache still holds later peeked tokens. The span is clamped to the
   /// input length.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn set_span_after_consume(&mut self, new: MaybeRef<'_, L::Span>) {
     self.set_span(new);
   }
@@ -513,7 +513,7 @@ where
   /// input's position back only when it stops; every such stop — a limit trip, a fatal emitter
   /// exit, the poison short-circuit, and a `to`-shaped stop — commits through this one call, so
   /// the position a scan leaves behind is a function of the tokens it skipped and nothing else.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn commit_at(&mut self, frontier: AtFrontier<L::Span, L::State>) {
     self.set_span_after_consume(frontier.span.into());
     *self.state = frontier.state;
@@ -673,7 +673,7 @@ where
   /// Prefer this for imperative flows with several exits (loops, `match` arms);
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) for single-closure
   /// speculation; raw `save`/`restore` (feature `unstable-raw`) only where no guard shape fits.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn begin(&mut self) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, Rollback, Cmpl> {
     self.begin_with::<Rollback>()
   }
@@ -691,7 +691,7 @@ where
   ///
   /// [`commit`](Transaction::commit) and [`rollback`](Transaction::rollback) are available
   /// on either flavour; only the *drop* behaviour differs.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn begin_with<D: DropPolicy>(
     &mut self,
   ) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, D, Cmpl> {
@@ -705,7 +705,7 @@ where
   /// Split out so [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) can hold *their*
   /// begin point in the very same guard — the crate's one drop-safe answer to a pinned checkpoint
   /// that must outlive a call into user code — while still tracing under their own name.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn guard_with<D: DropPolicy>(
     &mut self,
   ) -> Transaction<'_, 'inp, 'closure, L, Ctx, Lang, D, Cmpl> {
@@ -765,7 +765,7 @@ where
   /// [`begin_stacked_with::<Commit>`](Self::begin_stacked_with).
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn begin_stacked(
     &mut self,
   ) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, Rollback, Cmpl> {
@@ -782,7 +782,7 @@ where
   /// `commit`/`rollback` are identical for either flavour.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn begin_stacked_with<D: DropPolicy>(
     &mut self,
   ) -> StackedTransaction<'_, 'inp, 'closure, L, Ctx, Lang, D, Cmpl> {
@@ -901,7 +901,7 @@ where
   /// see `OP_SURFACE_CENSUS` in `src/fuzz/ops.rs`.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn begin_point(&mut self) {
     trace_event!(self, "begin_point");
     let ckp = self.save();
@@ -922,7 +922,7 @@ where
   /// commit.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn commit_point(&mut self) {
     trace_event!(self, "commit_point");
     let ckp = self
@@ -948,7 +948,7 @@ where
   /// back.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub fn rollback_point(&mut self) {
     trace_event!(self, "rollback_point");
     let ckp = self
@@ -968,7 +968,7 @@ where
   /// nested speculation.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn points(&self) -> usize {
     self.session.points.len()
   }
@@ -977,7 +977,7 @@ where
   /// [`Lineage::next_savepoint_seq`](super::Lineage::next_savepoint_seq) for the uniqueness
   /// invariant it maintains.
   #[cfg(any(feature = "std", feature = "alloc"))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub(super) fn next_savepoint_seq(&mut self) -> u64 {
     self.session.lineage.next_savepoint_seq()
   }
@@ -987,7 +987,7 @@ where
   /// [`try_attempt`](Self::try_attempt), and the [`StackedTransaction`] release/commit paths.
   /// See [`Lineage::forget`](super::Lineage::forget) for the bounding invariant and its cost.
   #[cfg(any(feature = "std", feature = "alloc"))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub(crate) fn forget_checkpoint(&mut self, id: u64) {
     self.session.lineage.forget(id);
   }
@@ -995,7 +995,7 @@ where
   /// Returns whether `id` is still live on the lineage stack; see
   /// [`Lineage::contains`](super::Lineage::contains).
   #[cfg(any(feature = "std", feature = "alloc"))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub(super) fn live_contains(&self, id: u64) -> bool {
     self.session.lineage.contains(id)
   }
@@ -1003,7 +1003,7 @@ where
   /// Pops the lineage stack down through `id` inclusive on restore; see
   /// [`Lineage::pop_through`](super::Lineage::pop_through).
   #[cfg(any(feature = "std", feature = "alloc"))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn live_pop_through(&mut self, id: u64) {
     self.session.lineage.pop_through(id);
   }
@@ -1018,7 +1018,7 @@ where
   /// [`Lineage::pin`](super::Lineage::pin) for the borrowck-serialization argument (session points
   /// are serialized instead by their own last-in, first-out stack).
   #[cfg(any(feature = "std", feature = "alloc"))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub(crate) fn pin_checkpoint(&mut self, id: u64) {
     self.session.lineage.pin(id);
   }
@@ -1030,7 +1030,7 @@ where
   /// [`Lineage::unpin`](super::Lineage::unpin) directly — a `Drop` impl may not add the
   /// `L::State: Clone` bound this method's impl block carries.
   #[cfg(any(feature = "std", feature = "alloc"))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   pub(crate) fn unpin_checkpoint(&mut self, id: u64) {
     self.session.lineage.unpin(id);
   }
@@ -1041,7 +1041,7 @@ where
   /// [`Lineage::assert_restore_preserves_pins`](super::Lineage::assert_restore_preserves_pins)
   /// for why a guard's own settle, a savepoint `rollback_to`, and a dead target never trip it.
   #[cfg(any(feature = "std", feature = "alloc"))]
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn assert_restore_preserves_pins(&self, target_id: u64) {
     self
       .session
@@ -1066,7 +1066,7 @@ where
   }
 
   /// Returns a slice of the current token from the input source.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn slice(&self) -> <L::Source as Source<L::Offset>>::Slice<'inp> {
     self
       .input
@@ -1075,7 +1075,7 @@ where
   }
 
   /// Returns a slice of the input source from the given cursor to the current position.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn slice_since(
     &self,
     cursor: &Cursor<'inp, 'closure, L>,
@@ -1087,7 +1087,7 @@ where
   }
 
   /// Returns a slice of the input source from the given cursor to the end of the input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn slice_from(
     &self,
     cursor: &Cursor<'inp, 'closure, L>,
@@ -1097,7 +1097,7 @@ where
   }
 
   /// Returns a slice of the input source for the given cursor range.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn slice_range<'r, R>(
     &self,
     range: R,
@@ -1113,25 +1113,25 @@ where
   }
 
   /// Returns the span of the current position.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> &L::Span {
     self.span
   }
 
   /// Returns a span from the given cursor to the current position.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn span_since(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
     Span::new(cursor.as_inner().clone(), self.cursor().as_inner().clone())
   }
 
   /// Returns a span from the given cursor to the end of the input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn span_from(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
     Span::new(cursor.as_inner().clone(), self.input.len())
   }
 
   /// Returns a span for the given cursor range.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn span_range(&self, range: Range<&Cursor<'inp, 'closure, L>>) -> L::Span {
     Span::new(range.start.as_inner().clone(), range.end.as_inner().clone())
   }
@@ -1172,7 +1172,7 @@ where
   /// restore discipline by construction.
   #[cfg(feature = "unstable-raw")]
   #[cfg_attr(docsrs, doc(cfg(feature = "unstable-raw")))]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn save(&mut self) -> Checkpoint<'inp, 'closure, L> {
     self.save_checkpoint()
   }
@@ -1182,13 +1182,13 @@ where
   /// [session points](Self::begin_point) build on. Same body as the public flavor;
   /// only its visibility differs.
   #[cfg(not(feature = "unstable-raw"))]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn save(&mut self) -> Checkpoint<'inp, 'closure, L> {
     self.save_checkpoint()
   }
 
   /// Shared body of the [`save`](Self::save) twins.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn save_checkpoint(&mut self) -> Checkpoint<'inp, 'closure, L> {
     // Open a lineage entry (every allocator build): take a fresh id, record it on the
     // live-checkpoint stack, and stamp it into the checkpoint. `restore` pops the stack down
@@ -1219,7 +1219,7 @@ where
   ///
   /// If there are cached tokens, the cursor points to the start
   /// of the first cached token; otherwise, it points to the current position.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn cursor(&self) -> &Cursor<'inp, 'closure, L> {
     Cursor::from_ref(
       self
@@ -1233,7 +1233,7 @@ where
   /// Returns the current offset of the tokenizer.
   ///
   /// This is the end of the last lexed token (cached or otherwise).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn offset(&self) -> &L::Offset {
     self
       .cache()
@@ -1379,7 +1379,7 @@ where
   #[cfg(feature = "unstable-raw")]
   #[cfg_attr(docsrs, doc(cfg(feature = "unstable-raw")))]
   #[doc(alias = "rewinds")]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn restore(&mut self, checkpoint: Checkpoint<'inp, 'closure, L>) {
     self.restore_checked(checkpoint)
   }
@@ -1389,7 +1389,7 @@ where
   /// [session points](Self::begin_point), and
   /// [`attempt`](Self::attempt)/[`try_attempt`](Self::try_attempt) rewind through it.
   #[cfg(not(feature = "unstable-raw"))]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn restore(&mut self, checkpoint: Checkpoint<'inp, 'closure, L>) {
     self.restore_checked(checkpoint)
   }
@@ -1397,7 +1397,7 @@ where
   /// Shared body of the [`restore`](Self::restore) twins: verifies the last-in, first-out and
   /// foreign-input discipline (debug + ptr builds) and refuses a restore that would tear out a
   /// pinned guard/attempt begin point (every allocator build), then rewinds.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn restore_checked(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     // Verify the discipline exactly, before any mutation. Two debug + ptr checks: (1) the
     // checkpoint belongs to this input. The invariant `'closure` brand on this method's signature
@@ -1487,7 +1487,7 @@ where
   /// the growth it prevents cannot arise without a stack to grow.
   #[cfg(feature = "unstable-raw")]
   #[cfg_attr(docsrs, doc(cfg(feature = "unstable-raw")))]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn commit(&mut self, checkpoint: Checkpoint<'inp, 'closure, L>) {
     self.commit_checkpoint(checkpoint)
   }
@@ -1499,7 +1499,7 @@ where
   /// deliberately uncalled — kept defined so the raw triple stays whole in every configuration.
   #[cfg(not(feature = "unstable-raw"))]
   #[cfg_attr(not(any(feature = "std", feature = "alloc")), allow(dead_code))]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn commit(&mut self, checkpoint: Checkpoint<'inp, 'closure, L>) {
     self.commit_checkpoint(checkpoint)
   }
@@ -1514,7 +1514,7 @@ where
     ),
     allow(dead_code)
   )]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn commit_checkpoint(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     // Cheap sanity in debug + ptr builds, mirroring `restore`'s foreign-input guard: a
     // checkpoint may only be committed into the input that created it. The invariant `'closure`
@@ -1560,7 +1560,7 @@ where
   /// before calling in (skipping a dead base), and an explicit
   /// [`rollback`](Transaction::rollback) restores through the checked [`restore`](Self::restore),
   /// panicking on that stale case since it never runs during an unwind.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn restore_unchecked(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     // Maintain the lineage stack in every allocator build: pop it down through the restored
     // id (invalidating it and every younger checkpoint). An absent id is a no-op — a raw
@@ -1642,7 +1642,7 @@ where
   /// proceeds regardless, unspecified-but-bounded on misuse as documented on the guards. Reads
   /// the lineage stack without popping — the pop-through happens only inside the rewind it
   /// forwards to.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn restore_unchecked_if_live(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     #[cfg(any(feature = "std", feature = "alloc"))]
     {
@@ -1736,7 +1736,7 @@ where
   ///
   /// Const-gated: on a [`Complete`](crate::input::Complete) input `Cmpl::PARTIAL` is a `false`
   /// constant, so this is dead-code-eliminated and `is_final()` is never even evaluated.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn withhold_at_frontier(&self, span: &L::Span) -> bool {
     Cmpl::PARTIAL && !self.is_final() && span.end_ref() >= &self.input.len()
   }
@@ -1748,7 +1748,7 @@ where
   /// A trip's poison boundary is already latched by the time this can run
   /// ([`classify`](Self::classify) latches before the verdict is even returned), so a fatal exit
   /// records the trip for every later operation instead of losing it with the unwind.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn settle_fatal(
     &mut self,
     lexer: &L,
@@ -1808,7 +1808,7 @@ where
   /// `false` constant for [`Complete`](crate::input::Complete), so the holdback — and the whole
   /// incomplete arm of the ranking — is eliminated at monomorphization, leaving the terminal probe
   /// exactly where it has always been.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn classify<Fr>(
     &mut self,
     lexer: &L,
@@ -1883,7 +1883,7 @@ where
   /// All of it is written `if Cmpl::PARTIAL && …`; on a [`Complete`](crate::input::Complete)
   /// input `Cmpl::PARTIAL` is a `false` constant, so the whole block is eliminated at
   /// monomorphization and this compiles to the pre-typestate scanner byte for byte.
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn scan_with<Fr>(
     &mut self,
     lexer: &mut L,
@@ -1937,7 +1937,7 @@ where
   }
 }
 
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 fn to_owned<T>(maybe: MaybeRef<'_, T>) -> T
 where
   T: Clone,
@@ -2011,7 +2011,7 @@ trait Frontier<'inp, L: Lexer<'inp>> {
 struct AtCursor;
 
 impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtCursor {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn boundary(&self, cursor: &L::Offset) -> L::Offset {
     cursor.clone()
   }
@@ -2050,7 +2050,7 @@ impl<S, St> AtFrontier<S, St> {
   /// cache, or freshly lexed and paired with the lexer's state — so the two feeds write the same
   /// thing and the position a scan commits cannot depend on which fed it. See the type's docs for
   /// why a crossed lexer error is not among them.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn adopt(&mut self, span: S, state: St) {
     self.span = span;
     self.state = state;
@@ -2058,7 +2058,7 @@ impl<S, St> AtFrontier<S, St> {
 }
 
 impl<'inp, L: Lexer<'inp>> Frontier<'inp, L> for AtFrontier<L::Span, L::State> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn boundary(&self, _cursor: &L::Offset) -> L::Offset {
     self.span.end_ref().clone()
   }

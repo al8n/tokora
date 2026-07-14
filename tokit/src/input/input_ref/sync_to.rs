@@ -22,7 +22,7 @@ where
   /// catches it resumes *after* the reported token. This does not depend on whether the token
   /// was already in the peek cache — the cache is an invisible optimization (see
   /// [`sync_through`](Self::sync_through)).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_to<F, Exp>(
     &mut self,
@@ -45,7 +45,7 @@ where
   ///
   /// Returns peeked tokens and a mutable reference to the emitter. A fatal emitter rejection
   /// mid-skip commits the token that tripped it, exactly as in [`sync_to`](Self::sync_to).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_to_then_peek_with_emitter<'p, F, Exp, W>(
     &'p mut self,

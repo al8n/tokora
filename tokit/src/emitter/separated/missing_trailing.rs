@@ -22,7 +22,7 @@ where
   L: Lexer<'inp>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_missing_trailing_separator(
     &mut self,
     name: CowStr,
@@ -48,7 +48,7 @@ where
   L: Lexer<'a>,
   T: From<MissingTokenOf<'a, L, Lang>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from_missing_trailing_separator(_name: CowStr, err: MissingTokenOf<'a, L, Lang>) -> Self
   where
     L: Lexer<'a>,

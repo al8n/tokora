@@ -10,17 +10,17 @@ impl Source<usize> for Bytes {
   where
     Self: 'a;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_empty(&self) -> bool {
     <Bytes>::is_empty(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     self.len()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
     R: RangeBounds<usize>,
@@ -48,7 +48,7 @@ impl Source<usize> for Bytes {
     Some(Bytes::slice(self, begin..end))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_boundary(&self, index: usize) -> bool {
     <[u8]>::is_boundary(self, index)
   }

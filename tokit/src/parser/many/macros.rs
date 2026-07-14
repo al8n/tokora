@@ -5,7 +5,7 @@
 /// and blocks 3+4 use dispatch by `(cardinality, [policy_types])` (`@block3`/`@block4`).
 macro_rules! impl_separated_parse {
   // ── @inline helper ───────────────────────────────────────────────────
-  (@inline true $($item:tt)*) => { #[cfg_attr(not(tarpaulin), inline(always))] $($item)* };
+  (@inline true $($item:tt)*) => { #[inline(always)] $($item)* };
   (@inline false $($item:tt)*) => { $($item)* };
 
   // ── @map_self: map_parser chain for block 1 ─────────────────────────
@@ -209,7 +209,7 @@ macro_rules! impl_separated_parse {
       Ctx: ParseContext<'inp, L, Lang>,
       Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn parse_input(
         &mut self,
         inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -234,7 +234,7 @@ macro_rules! impl_separated_parse {
       Ctx: ParseContext<'inp, L, Lang>,
       Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn parse_input(
         &mut self,
         inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -311,7 +311,7 @@ macro_rules! impl_separated_parse {
 /// - Block 4 reconstructs `DelimitedBy::<_, Delim>::new(...)` and calls `.parse_separated()`
 macro_rules! impl_separated_delim {
   // ── @inline helper ───────────────────────────────────────────────────
-  (@inline true $($item:tt)*) => { #[cfg_attr(not(tarpaulin), inline(always))] $($item)* };
+  (@inline true $($item:tt)*) => { #[inline(always)] $($item)* };
   (@inline false $($item:tt)*) => { $($item)* };
 
   // ── @map_self: map_parser chain for block 1 ─────────────────────────
@@ -542,7 +542,7 @@ macro_rules! impl_separated_delim {
       Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
       Delim: Delimiter<'inp, L, Lang>,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn parse_input(
         &mut self,
         inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -569,7 +569,7 @@ macro_rules! impl_separated_delim {
       Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
       Delim: Delimiter<'inp, L, Lang>,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn parse_input(
         &mut self,
         inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -643,7 +643,7 @@ macro_rules! impl_separated_delim {
 /// Generates 4 `ParseInput` impl blocks for `sep_while/parse/` leaf files.
 macro_rules! impl_separated_while_parse {
   // ── @inline helper ───────────────────────────────────────────────────
-  (@inline true $($item:tt)*) => { #[cfg_attr(not(tarpaulin), inline(always))] $($item)* };
+  (@inline true $($item:tt)*) => { #[inline(always)] $($item)* };
   (@inline false $($item:tt)*) => { $($item)* };
 
   // ── @map_self: map_parser chain for block 1 ─────────────────────────
@@ -883,7 +883,7 @@ macro_rules! impl_separated_while_parse {
       Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
       W: Window,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn parse_input(
         &mut self,
         inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -910,7 +910,7 @@ macro_rules! impl_separated_while_parse {
       Container: Default + ContainerT<O> + SeparatorHandler<'inp, L>,
       W: Window,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn parse_input(
         &mut self,
         inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -984,7 +984,7 @@ macro_rules! impl_separated_while_parse {
 /// Generates 4 `ParseInput` impl blocks for `sep_while/delim/` leaf files.
 macro_rules! impl_separated_while_delim {
   // ── @inline helper ───────────────────────────────────────────────────
-  (@inline true $($item:tt)*) => { #[cfg_attr(not(tarpaulin), inline(always))] $($item)* };
+  (@inline true $($item:tt)*) => { #[inline(always)] $($item)* };
   (@inline false $($item:tt)*) => { $($item)* };
 
   // ── @map_self: map_parser chain for block 1 ─────────────────────────
@@ -1247,7 +1247,7 @@ macro_rules! impl_separated_while_delim {
       Delim: Delimiter<'inp, L, Lang>,
       W: Window,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn parse_input(
         &mut self,
         inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -1276,7 +1276,7 @@ macro_rules! impl_separated_while_delim {
       Delim: Delimiter<'inp, L, Lang>,
       W: Window,
     {
-      #[cfg_attr(not(tarpaulin), inline(always))]
+      #[inline(always)]
       fn parse_input(
         &mut self,
         inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,

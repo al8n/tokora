@@ -7,7 +7,7 @@ where
   S: Span + Ord + Clone,
   Verbose<E, S, Lang>: Emitter<'a, L, Lang, Error = E>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_full_container(&mut self, err: FullContainer<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,

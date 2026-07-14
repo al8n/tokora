@@ -181,7 +181,6 @@ required-features = ["std", "logos"]
 [lints.rust]
 rust_2018_idioms = "warn"
 single_use_lifetimes = "warn"
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin)'] }
 
 [package.metadata.docs.rs]
 all-features = true

@@ -41,7 +41,7 @@ use crate::{
 /// When the `trace` feature is on, entering a `labelled` scope also fires a single trace leaf event
 /// naming the label at the current depth, so the label context shows up in the parse transcript
 /// alongside [`traced`](crate::traced) — keeping the two DX systems coherent.
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 pub fn labelled<P>(name: &'static str, parser: P) -> Labelled<P> {
   Labelled { name, parser }
 }
@@ -65,7 +65,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -85,7 +85,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline)]
+  #[inline]
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

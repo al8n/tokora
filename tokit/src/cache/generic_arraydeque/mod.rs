@@ -16,27 +16,27 @@ where
 {
   type Options = ();
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn new() -> Self {
     Self::new()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn with_options(_options: ()) -> Self {
     Self::new()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     self.len()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn remaining(&self) -> usize {
     self.remaining_capacity()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn rewind(&mut self, ckp: &Checkpoint<'a, '_, L>)
   where
     Self: Sized,
@@ -78,7 +78,7 @@ where
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push_front(
     &mut self,
     tok: CachedTokenOf<'a, L>,
@@ -89,7 +89,7 @@ where
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push_back(
     &mut self,
     tok: CachedTokenOf<'a, L>,
@@ -100,17 +100,17 @@ where
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn pop_front(&mut self) -> Option<CachedTokenOf<'a, L>> {
     self.pop_front()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn pop_back(&mut self) -> Option<CachedTokenOf<'a, L>> {
     self.pop_back()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn pop_front_if<F>(&mut self, predicate: F) -> Option<CachedTokenOf<'a, L>>
   where
     F: FnOnce(CachedTokenRefOf<'_, 'a, L>) -> bool,
@@ -119,12 +119,12 @@ where
     self.pop_front_if(|tok| predicate(tok.as_ref()))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clear(&mut self) {
     self.clear();
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn peek<'p, W>(
     &'p self,
     buf: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
@@ -137,12 +137,12 @@ where
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn front(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
     self.front().map(|tok| tok.as_ref())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn back(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
     self.back().map(|tok| tok.as_ref())
   }

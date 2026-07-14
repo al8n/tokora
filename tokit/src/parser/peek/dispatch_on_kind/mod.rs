@@ -97,7 +97,7 @@ pub struct DispatchOnKind<P, Kind: 'static, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, Kind: 'static, L, Ctx, Lang: ?Sized> DispatchOnKind<P, Kind, L, Ctx, Lang> {
   /// Creates a new `DispatchOnKind` combinator over a static kind table.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn of(parser: P, table: &'static [Kind]) -> Self {
     Self {
       parser,

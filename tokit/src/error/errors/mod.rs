@@ -194,13 +194,13 @@ where
   Container: super::ErrorContainer<E>,
 {
   /// Pushes an error into the collection, marking `overflowed` if it doesn't fit.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn push(&mut self, error: E) {
     let _ = self.try_push(error);
   }
 
   /// Attempts to push an error, returning it back if capacity is exhausted.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn try_push(&mut self, error: E) -> Result<(), E> {
     match super::ErrorContainer::try_push(&mut self.container, error) {
       Ok(()) => Ok(()),
@@ -212,19 +212,19 @@ where
   }
 
   /// Returns `true` if any error has been dropped because of limited capacity.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn overflowed(&self) -> bool {
     self.overflowed_flag
   }
 
   /// Reports the remaining capacity when the backing container is bounded.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn remaining_capacity(&self) -> Option<usize> {
     super::ErrorContainer::remaining_capacity(&self.container)
   }
 
   /// Returns `true` when a bounded container cannot accept more errors.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn is_full(&self) -> bool {
     matches!(self.remaining_capacity(), Some(0))
   }
@@ -239,7 +239,7 @@ where
   /// let errors: Errors<String> = Errors::with_capacity(5);
   /// assert_eq!(errors.len(), 0);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn with_capacity(capacity: usize) -> Self {
     Self::new_in(Container::with_capacity(capacity))
   }
@@ -375,7 +375,7 @@ impl<E, C> Errors<E, C> {
   /// assert_eq!(errors.len(), 2);
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn from_container(container: C) -> Self {
     Self::new_in(container)
   }

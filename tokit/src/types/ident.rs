@@ -165,7 +165,7 @@ pub struct Ident<S, Span = SimpleSpan, Lang: ?Sized = ()> {
 }
 
 impl<S, Span, Lang: ?Sized> AsSpan<Span> for Ident<S, Span, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn as_span(&self) -> &Span {
     self.span_ref()
   }
@@ -174,7 +174,7 @@ impl<S, Span, Lang: ?Sized> AsSpan<Span> for Ident<S, Span, Lang> {
 impl<S, Span, Lang: ?Sized> IntoComponents for Ident<S, Span, Lang> {
   type Components = (Span, S);
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_components(self) -> Self::Components {
     (self.span, self.ident)
   }
@@ -201,12 +201,12 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   /// assert_eq!(ident.span(), span);
   /// assert_eq!(ident.source_ref(), &"count");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(span: Span, source: S) -> Self {
     Self::with_status(span, source, Status::Valid)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   const fn with_status(span: Span, source: S, status: Status) -> Self {
     Self {
       span,
@@ -228,7 +228,7 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   ///
   /// assert_eq!(ident.span(), SimpleSpan::new(5, 10));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> Span
   where
     Span: Copy,
@@ -251,7 +251,7 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   /// let span_ref = ident.span_ref();
   /// assert_eq!(*span_ref, SimpleSpan::new(0, 3));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &Span {
     &self.span
   }
@@ -272,13 +272,13 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   /// *ident.span_mut() = SimpleSpan::new(10, 13);
   /// assert_eq!(ident.span(), SimpleSpan::new(10, 13));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_mut(&mut self) -> &mut Span {
     &mut self.span
   }
 
   /// Bumps the span of the identifier by the given offset.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump(&mut self, by: &Span::Offset) -> &mut Self
   where
     Span: crate::span::Span,
@@ -303,7 +303,7 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   /// *ident.source_mut() = "bar".to_string();
   /// assert_eq!(ident.source_ref(), "bar");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn source_mut(&mut self) -> &mut S {
     &mut self.ident
   }
@@ -324,7 +324,7 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   /// assert_eq!(ident.source_ref(), &"variable");
   /// assert_eq!(ident.source_ref().len(), 8);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn source_ref(&self) -> &S {
     &self.ident
   }
@@ -351,7 +351,7 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   /// // ident is still usable
   /// assert_eq!(ident.source_ref(), &"id");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn source(&self) -> S
   where
     S: Copy,
@@ -360,25 +360,25 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   }
 
   /// Returns `true` is this identifier represents an error identifier.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn is_error(&self) -> bool {
     matches!(self.status, Status::Error)
   }
 
   /// Returns `true` is this identifier represents a missing identifier.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn is_missing(&self) -> bool {
     matches!(self.status, Status::Missing)
   }
 
   /// Returns `true` is this identifier is valid (not error or missing).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn is_valid(&self) -> bool {
     matches!(self.status, Status::Valid)
   }
 
   /// Maps the source string to a new type, preserving the span and language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map<U>(self, f: impl FnOnce(S) -> U) -> Ident<U, Span, Lang> {
     Ident::new(self.span, f(self.ident))
   }
@@ -403,7 +403,7 @@ where
   /// // Parser found "123abc" where an identifier was expected
   /// let bad_ident = Ident::<String, SimpleSpan, YulLang>::error(span);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn error(span: Span) -> Self {
     Self::with_status(span.clone(), S::error(span), Status::Error)
   }
@@ -425,7 +425,7 @@ where
   /// // Found:   let = 5;
   /// let missing_ident = Ident::<String, SimpleSpan, YulLang>::missing(span);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn missing(span: Span) -> Self {
     Self::with_status(span.clone(), S::missing(span), Status::Missing)
   }

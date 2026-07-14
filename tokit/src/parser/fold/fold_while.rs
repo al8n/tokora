@@ -18,7 +18,7 @@ impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized>
   FoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang>
 {
   /// Creates a new `FoldWhile` parser with the given container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(f: F, condition: Condition, init: Init, acc: Acc) -> Self {
     Self {
       f,
@@ -87,7 +87,7 @@ impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized>
   TryFoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang>
 {
   /// Creates a new `FoldWhile` parser with the given container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(f: F, condition: Condition, init: Init, acc: Acc) -> Self {
     Self {
       f,
@@ -158,7 +158,7 @@ impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized>
   TryFoldWhileWith<F, Condition, Init, Acc, O, W, L, Ctx, Lang>
 {
   /// Creates a new `FoldWhile` parser with the given container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(f: F, condition: Condition, init: Init, acc: Acc) -> Self {
     Self {
       f,

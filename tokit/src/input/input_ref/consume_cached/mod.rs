@@ -7,7 +7,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
 {
   /// Consumes one token from the peeked tokens and returns the consumed token if any, the cursor is advanced.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn consume_cached_one(&mut self) -> Option<Spanned<L::Token, L::Span>> {
     let tok = self.cache_mut().pop_front()?;
     let (tok, extras): (Spanned<L::Token, L::Span>, _) = tok.into_components();
@@ -20,7 +20,7 @@ where
   ///
   /// Advances the cursor to the end of the last consumed token.
   /// Returns the last consumed token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn consume_cached_to<F>(&mut self, mut f: F) -> Option<Spanned<L::Token, L::Span>>
   where
     F: FnMut(CachedTokenRefOf<'_, 'inp, L>) -> bool,
@@ -41,7 +41,7 @@ where
   ///
   /// Advances the cursor to the end of the last consumed token.
   /// Returns the last consumed token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn consume_cached_while<F>(&mut self, mut f: F) -> Option<Spanned<L::Token, L::Span>>
   where
     F: FnMut(CachedTokenRefOf<'_, 'inp, L>) -> bool,
@@ -53,7 +53,7 @@ where
   ///
   /// Advances the cursor to the end of the last cached token.
   /// Returns the last consumed token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn consume_all_cached(&mut self) -> Option<Spanned<L::Token, L::Span>> {
     let last = self.cache_mut().pop_back()?;
     self.cache_mut().clear();
