@@ -1,0 +1,32 @@
+# The narrative guide, rendered as a book. The chapter markdown under `src/guide/` is the same
+# source rustdoc includes with `#[doc = include_str!]`, so every code block here is a doctest that
+# `cargo test --doc` compiles and runs. Build with `cd tokora && mdbook build` (see the README).
+
+[book]
+title = "The Tokora Guide"
+description = "A guided tour of tokora: build a small language end-to-end."
+src = "src/guide"
+language = "en"
+
+[build]
+# Out of the crate directory: the book is generated, and `target/` is already gitignored.
+build-dir = "../target/book"
+# A SUMMARY.md entry with no file is a mistake, not an invitation to create one inside the package.
+create-missing = false
+
+[rust]
+edition = "2024"
+
+# The chapters carry rustdoc intra-doc links (`crate::InputRef`), which mdbook cannot resolve.
+# This rewrites them to docs.rs and fails the build on any target it does not know about.
+[preprocessor.docs-links]
+command = "python3 tools/mdbook_docs_links.py"
+
+[output.html]
+site-url = "/tokora/"
+git-repository-url = "https://github.com/al8n/tokora"
+default-theme = "light"
+
+[output.html.playground]
+# The examples need the `tokora` crate, which the Rust playground does not have.
+runnable = false

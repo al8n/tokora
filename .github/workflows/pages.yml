@@ -6,15 +6,15 @@ on:
       - main
     paths:
       - ".github/workflows/pages.yml"
-      - "tokit/book.toml"
-      - "tokit/src/guide/**"
-      - "tokit/tools/mdbook_docs_links.py"
+      - "tokora/book.toml"
+      - "tokora/src/guide/**"
+      - "tokora/tools/mdbook_docs_links.py"
   pull_request:
     paths:
       - ".github/workflows/pages.yml"
-      - "tokit/book.toml"
-      - "tokit/src/guide/**"
-      - "tokit/tools/mdbook_docs_links.py"
+      - "tokora/book.toml"
+      - "tokora/src/guide/**"
+      - "tokora/tools/mdbook_docs_links.py"
   workflow_dispatch:
 
 permissions:
@@ -44,10 +44,10 @@ jobs:
           test "$(mdbook --version)" = "mdbook v$MDBOOK_VERSION"
 
       - name: Run guide doctests
-        run: cargo +"$RUST_TOOLCHAIN" test -p tokit --all-features --doc
+        run: cargo +"$RUST_TOOLCHAIN" test -p tokora --all-features --doc
 
       - name: Build guide
-        working-directory: tokit
+        working-directory: tokora
         run: mdbook build
 
       - name: Validate Pages artifact
