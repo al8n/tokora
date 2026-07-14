@@ -52,8 +52,9 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
+    trace_event!(inp, "separated");
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
-    let ckp = inp.save();
+    let anchor = inp.cursor().clone();
     let mut first_kind = None;
     let left_delimiter = inp.try_expect(|tok| {
       let (span, tok) = tok.into_components();
@@ -108,7 +109,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
         None => match ps {
           None => {
             break (
-              parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
+              parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?,
               None,
             );
           }
@@ -132,7 +133,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
         }
         Ok(Decline) => {
           break (
-            parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
+            parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?,
             None,
           );
         }
@@ -141,7 +142,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
           state = parser.handle_continue(
             state,
             inp,
-            &ckp,
+            &anchor,
             peek_span,
             elem,
             &mut num_elems,
@@ -154,7 +155,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
       let new_cursor = inp.cursor().clone();
       if new_cursor.as_inner() == cursor.as_inner() {
         break (
-          parser.handle_end(state, inp, &ckp, num_elems, end_state_handler)?,
+          parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?,
           None,
         );
       }

@@ -11,7 +11,7 @@ where
   E: FromSeparatedError<'inp, L, Lang>,
   S: Span + Ord + Clone,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_missing_separator(
     &mut self,
     name: CowStr,
@@ -21,14 +21,15 @@ where
     L: Lexer<'inp>,
   {
     let off = err.offset_ref().clone();
-    self.errs.insert(
-      S::new(off.clone(), off),
-      E::from_missing_separator(name, err),
-    );
+    self
+      .errs
+      .entry(S::new(off.clone(), off))
+      .or_default()
+      .push(E::from_missing_separator(name, err));
     Ok(())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_missing_element(&mut self, err: MissingSyntaxOf<'inp, L, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'inp>,
@@ -36,7 +37,9 @@ where
     let off = err.offset_ref().clone();
     self
       .errs
-      .insert(S::new(off.clone(), off), E::from_missing_element(err));
+      .entry(S::new(off.clone(), off))
+      .or_default()
+      .push(E::from_missing_element(err));
     Ok(())
   }
 }

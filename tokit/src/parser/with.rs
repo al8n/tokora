@@ -1,7 +1,7 @@
 use crate::{
   emitter::{SeparatedEmitter, TooFewEmitter, TooManyEmitter},
   error::syntax::{TooFew, TooMany},
-  input::Checkpoint,
+  input::Cursor,
 };
 
 use super::*;
@@ -26,37 +26,37 @@ pub struct With<P, S> {
 
 impl<P, S> With<P, S> {
   /// Create a new `With` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(primary: P, secondary: S) -> Self {
     Self { primary, secondary }
   }
 
   /// Returns a reference to the primary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn primary(&self) -> &P {
     &self.primary
   }
 
   /// Returns a reference to the secondary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn secondary(&self) -> &S {
     &self.secondary
   }
 
   /// Returns a mutable reference to the primary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn primary_mut(&mut self) -> &mut P {
     &mut self.primary
   }
 
   /// Returns a mutable reference to the secondary.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn secondary_mut(&mut self) -> &mut S {
     &mut self.secondary
   }
 
   /// Maps the primary value using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map_primary<U, F>(self, f: F) -> With<U, S>
   where
     F: FnOnce(P) -> U,
@@ -68,7 +68,7 @@ impl<P, S> With<P, S> {
   }
 
   /// Maps the secondary value using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map_secondary<U, F>(self, f: F) -> With<P, U>
   where
     F: FnOnce(S) -> U,
@@ -81,11 +81,11 @@ impl<P, S> With<P, S> {
 }
 
 impl With<Minimum, Maximum> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -95,7 +95,7 @@ impl With<Minimum, Maximum> {
       + TooFewEmitter<'inp, L, Lang>
       + TooManyEmitter<'inp, L, Lang>,
   {
-    let full_span = inp.span_since(ckp.cursor());
+    let full_span = inp.span_since(anchor);
     let minimum = self.primary().get();
     let maximum = self.secondary().get();
     if num_elems < minimum {
@@ -114,11 +114,11 @@ impl With<Minimum, Maximum> {
 }
 
 impl Minimum {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -126,7 +126,7 @@ impl Minimum {
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + TooFewEmitter<'inp, L, Lang>,
   {
-    let full_span = inp.span_since(ckp.cursor());
+    let full_span = inp.span_since(anchor);
     let minimum = self.get();
     if num_elems < minimum {
       inp
@@ -138,11 +138,11 @@ impl Minimum {
 }
 
 impl Maximum {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
     &self,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -150,7 +150,7 @@ impl Maximum {
     Ctx: ParseContext<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + TooManyEmitter<'inp, L, Lang>,
   {
-    let full_span = inp.span_since(ckp.cursor());
+    let full_span = inp.span_since(anchor);
     let maximum = self.get();
     if num_elems > maximum {
       inp

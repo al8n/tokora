@@ -157,27 +157,15 @@ use crate::span::{SimpleSpan, Span};
 ///     eprintln!("Unterminated {} at {}", error.knowledge(), error.span());
 /// }
 /// ```
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
+#[error("unterminated {knowledge}")]
 pub struct Unterminated<Knowledge, S = SimpleSpan> {
+  /// The span of the incomplete sequence — where the truncated form was actually found, not
+  /// where its completion was expected.
   span: S,
+  /// What the complete sequence would have been (e.g. `"string literal"`, `"logical AND
+  /// operator"`) — the human-facing name rendered by [`Display`](core::fmt::Display).
   knowledge: Knowledge,
-}
-
-impl<Knowledge, S> core::fmt::Display for Unterminated<Knowledge, S>
-where
-  Knowledge: core::fmt::Display,
-{
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    write!(f, "unterminated {}", self.knowledge)
-  }
-}
-
-impl<Knowledge, S> core::error::Error for Unterminated<Knowledge, S>
-where
-  Knowledge: core::fmt::Display + core::fmt::Debug,
-  S: core::fmt::Debug,
-{
 }
 
 impl<Knowledge, S> Unterminated<Knowledge, S> {
@@ -195,7 +183,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// assert_eq!(error.span(), SimpleSpan::new(5, 7));
   /// assert_eq!(error.knowledge(), "spread operator");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(span: S, knowledge: Knowledge) -> Self {
     Self { span, knowledge }
   }
@@ -212,7 +200,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// let error = Unterminated::new(SimpleSpan::new(10, 11), "logical AND");
   /// assert_eq!(error.span(), SimpleSpan::new(10, 11));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> S
   where
     S: Copy,
@@ -221,13 +209,13 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   }
 
   /// Returns a reference to the span of the incomplete sequence.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &S {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the incomplete sequence.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
@@ -242,7 +230,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// assert_eq!(error.knowledge_ref(), &"spread operator");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn knowledge_ref(&self) -> &Knowledge {
     &self.knowledge
   }
@@ -259,7 +247,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// let error = Unterminated::new(SimpleSpan::new(5, 7), "spread operator");
   /// assert_eq!(error.knowledge(), "spread operator");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn knowledge(&self) -> Knowledge
   where
     Knowledge: Copy,
@@ -282,7 +270,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// error.bump(&100);
   /// assert_eq!(error.span(), SimpleSpan::new(105, 107));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump(&mut self, offset: &S::Offset) -> &mut Self
   where
     S: Span,
@@ -303,7 +291,7 @@ impl<Knowledge, S> Unterminated<Knowledge, S> {
   /// assert_eq!(span, SimpleSpan::new(10, 12));
   /// assert_eq!(knowledge, "escape sequence");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (S, Knowledge) {
     (self.span, self.knowledge)
   }

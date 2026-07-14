@@ -10,7 +10,7 @@ macro_rules! try_expect_punct {
     paste::paste! {
       $(
         #[doc = "Tries to advance to the next valid token if it is " $punct " (" $punct_char "). Otherwise leaves the input unchanged."]
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         pub fn [< try_expect_ $punct >](
           &mut self,
         ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -21,7 +21,7 @@ macro_rules! try_expect_punct {
         }
 
         #[doc = "Advances to the next valid token and expects it to be " $punct " (" $punct_char ")."]
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         pub fn [< expect_ $punct >](
           &mut self,
         ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -40,7 +40,7 @@ macro_rules! try_expect_punct {
 
         $(
           #[doc = "Tries to advance to the next valid token if it is " $alias " (" $punct_char "). Otherwise leaves the input unchanged."]
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           pub fn [< try_expect_ $alias >](
             &mut self,
           ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -51,7 +51,7 @@ macro_rules! try_expect_punct {
           }
 
           #[doc = "Advances to the next valid token and expects it to be " $alias " (" $punct_char ")."]
-          #[cfg_attr(not(tarpaulin), inline(always))]
+          #[inline(always)]
           pub fn [< expect_ $alias >](
             &mut self,
           ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -180,6 +180,7 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
+    trace_event!(self, "try_expect");
     // if cache is empty, directly try expect on input
     if self.cache.is_empty() {
       return self.try_expect_on_input(pred);
@@ -255,6 +256,7 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> Option<O>,
   {
+    trace_event!(self, "try_expect_map");
     // if cache is empty, directly try expect on input
     if self.cache.is_empty() {
       return self.try_expect_map_on_input(pred);
@@ -299,6 +301,7 @@ where
       Spanned<&L::Token, &L::Span>,
     ) -> Option<Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>>,
   {
+    trace_event!(self, "try_expect_and_then");
     // if cache is empty, directly try expect on input
     if self.cache.is_empty() {
       return self.try_expect_and_then_on_input(pred);
@@ -326,7 +329,7 @@ where
     Ok(None)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline]
   fn try_expect_and_then_on_input<O, F>(
     &mut self,
     mut pred: F,
@@ -339,43 +342,37 @@ where
       Spanned<&L::Token, &L::Span>,
     ) -> Option<Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>>,
   {
-    let mut lexer = self.lexer();
-
-    while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
-      match tok {
-        Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
-          Ok(_) => {}
-          Err(e) => {
-            self.set_span_after_consume(lexer.span().into());
-            *self.state = lexer.into_state();
-            return Err(e);
-          }
-        },
-        Lexed::Token(tok) => {
-          let tok = Spanned::new(span, tok);
-          // if the token matches, we return it
-          match pred(tok.as_ref()) {
-            Some(output) => {
-              self.set_span_after_consume(tok.span_ref().into());
-              *self.state = lexer.into_state();
-              return output.map(|o| Some((o, tok)));
-            }
-            None => {
-              let (span, tok) = tok.into_components();
-              // put back the token into cache as it was peeked
-              let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
-              let _ = self.cache_mut().push_back(ct);
-              return Ok(None);
-            }
-          }
-        }
-      }
+    // A sticky limit trip latches a poison boundary: at or past the durable
+    // frontier, stop without rebuilding a lexer, mirroring the short-circuit in
+    // `next()`; strictly before it, lexing proceeds (replaying a drained prefix). A
+    // scan that finds no matching token yields `Ok(None)`, the poisoned outcome too.
+    if self.reached_boundary(self.offset()) {
+      return Ok(None);
     }
 
-    Ok(None)
+    let mut lex_at = self.offset().clone();
+    let mut lexer = self.lexer();
+
+    match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
+      Scan::Token(tok) => match pred(tok.as_ref()) {
+        Some(output) => {
+          self.set_span_after_consume(tok.span_ref().into());
+          *self.state = lexer.into_state();
+          output.map(|o| Some((o, tok)))
+        }
+        None => {
+          let (span, tok) = tok.into_components();
+          // put back the token into cache as it was peeked
+          let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
+          let _ = self.cache_push_back(ct);
+          Ok(None)
+        }
+      },
+      Scan::Tripped | Scan::Eof => Ok(None),
+    }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline]
   fn try_expect_on_input<F>(
     &mut self,
     mut pred: F,
@@ -383,40 +380,37 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
-    let mut lexer = self.lexer();
-
-    while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
-      match tok {
-        Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
-          Ok(_) => {}
-          Err(e) => {
-            self.set_span_after_consume(lexer.span().into());
-            *self.state = lexer.into_state();
-            return Err(e);
-          }
-        },
-        Lexed::Token(tok) => {
-          let tok = Spanned::new(span, tok);
-          // if the token matches, we return it
-          if pred(tok.as_ref()) {
-            self.set_span_after_consume(tok.span_ref().into());
-            *self.state = lexer.into_state();
-            return Ok(Some(tok));
-          } else {
-            let (span, tok) = tok.into_components();
-            // put back the token into cache as it was peeked
-            let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
-            let _ = self.cache_mut().push_back(ct);
-            return Ok(None);
-          }
-        }
-      }
+    // A sticky limit trip latches a poison boundary: at or past the durable
+    // frontier, stop without rebuilding a lexer, mirroring the short-circuit in
+    // `next()`; strictly before it, lexing proceeds (replaying a drained prefix). A
+    // scan that finds no matching token yields `Ok(None)`, the poisoned outcome too.
+    if self.reached_boundary(self.offset()) {
+      return Ok(None);
     }
 
-    Ok(None)
+    let mut lex_at = self.offset().clone();
+    let mut lexer = self.lexer();
+
+    match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
+      Scan::Token(tok) => {
+        // if the token matches, we return it
+        if pred(tok.as_ref()) {
+          self.set_span_after_consume(tok.span_ref().into());
+          *self.state = lexer.into_state();
+          Ok(Some(tok))
+        } else {
+          let (span, tok) = tok.into_components();
+          // put back the token into cache as it was peeked
+          let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
+          let _ = self.cache_push_back(ct);
+          Ok(None)
+        }
+      }
+      Scan::Tripped | Scan::Eof => Ok(None),
+    }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline]
   fn try_expect_map_on_input<O, F>(
     &mut self,
     mut pred: F,
@@ -427,36 +421,33 @@ where
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> Option<O>,
   {
-    let mut lexer = self.lexer();
-
-    while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
-      match tok {
-        Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
-          Ok(_) => {}
-          Err(e) => {
-            self.set_span_after_consume(lexer.span().into());
-            *self.state = lexer.into_state();
-            return Err(e);
-          }
-        },
-        Lexed::Token(tok) => {
-          let tok = Spanned::new(span, tok);
-          // if the token matches, we return it
-          if let Some(out) = pred(tok.as_ref()) {
-            self.set_span_after_consume(tok.span_ref().into());
-            *self.state = lexer.into_state();
-            return Ok(Some((out, tok)));
-          } else {
-            let (span, tok) = tok.into_components();
-            // put back the token into cache as it was peeked
-            let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
-            let _ = self.cache_mut().push_back(ct);
-            return Ok(None);
-          }
-        }
-      }
+    // A sticky limit trip latches a poison boundary: at or past the durable
+    // frontier, stop without rebuilding a lexer, mirroring the short-circuit in
+    // `next()`; strictly before it, lexing proceeds (replaying a drained prefix). A
+    // scan that finds no matching token yields `Ok(None)`, the poisoned outcome too.
+    if self.reached_boundary(self.offset()) {
+      return Ok(None);
     }
 
-    Ok(None)
+    let mut lex_at = self.offset().clone();
+    let mut lexer = self.lexer();
+
+    match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
+      Scan::Token(tok) => {
+        // if the token matches, we return it
+        if let Some(out) = pred(tok.as_ref()) {
+          self.set_span_after_consume(tok.span_ref().into());
+          *self.state = lexer.into_state();
+          Ok(Some((out, tok)))
+        } else {
+          let (span, tok) = tok.into_components();
+          // put back the token into cache as it was peeked
+          let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
+          let _ = self.cache_push_back(ct);
+          Ok(None)
+        }
+      }
+      Scan::Tripped | Scan::Eof => Ok(None),
+    }
   }
 }

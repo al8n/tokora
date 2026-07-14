@@ -18,7 +18,7 @@ pub struct IgnoreThen<F, G, O, U, L, Ctx, Lang: ?Sized> {
 
 impl<F, G, O, U, L, Ctx, Lang: ?Sized> IgnoreThen<F, G, O, U, L, Ctx, Lang> {
   /// Creates a new `IgnoreThen` combinator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(first: F, second: G) -> Self {
     Self {
       first,
@@ -40,7 +40,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,

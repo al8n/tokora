@@ -13,7 +13,7 @@ where
   L: Lexer<'a>,
   T: From<FullContainer<L::Span, Lang>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from_full_container(err: FullContainer<L::Span, Lang>) -> Self
   where
     L: Lexer<'a>,
@@ -34,7 +34,7 @@ impl<'a, L, U, Lang: ?Sized> FullContainerEmitter<'a, L, Lang> for &mut U
 where
   U: FullContainerEmitter<'a, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_full_container(&mut self, err: FullContainer<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,

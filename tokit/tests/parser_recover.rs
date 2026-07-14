@@ -5,7 +5,7 @@
 mod common;
 
 use common::{TestLexer, Token, TokenKind};
-use tokit::input::Checkpoint;
+use tokit::input::Cursor;
 use tokit::parser::expect;
 use tokit::utils::Expected;
 use tokit::{Emitter, InputRef, Parse, ParseContext, ParseInput, Parser};
@@ -122,7 +122,7 @@ where
 
 fn inplace_recovery_neg99<'inp, 'cx, Ctx>(
   _inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  _ckp: Checkpoint<'inp, '_, TestLexer<'inp>>,
+  _cursor: Cursor<'inp, '_, TestLexer<'inp>>,
   _err: (),
 ) -> Result<i64, ()>
 where
@@ -134,7 +134,7 @@ where
 
 fn inplace_recovery_zero<'inp, Ctx>(
   _inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  _ckp: Checkpoint<'inp, '_, TestLexer<'inp>>,
+  _cursor: Cursor<'inp, '_, TestLexer<'inp>>,
   _err: (),
 ) -> Result<i64, ()>
 where
@@ -146,7 +146,7 @@ where
 
 fn inplace_recovery_fail<'inp, Ctx>(
   _inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  _ckp: Checkpoint<'inp, '_, TestLexer<'inp>>,
+  _cursor: Cursor<'inp, '_, TestLexer<'inp>>,
   _err: (),
 ) -> Result<i64, ()>
 where
@@ -158,7 +158,7 @@ where
 
 fn inplace_recovery_42<'inp, Ctx>(
   _inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  _ckp: Checkpoint<'inp, '_, TestLexer<'inp>>,
+  _cursor: Cursor<'inp, '_, TestLexer<'inp>>,
   _err: (),
 ) -> Result<i64, ()>
 where
@@ -170,7 +170,7 @@ where
 
 fn inplace_recovery_hundred<'inp, Ctx>(
   _inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  _ckp: Checkpoint<'inp, '_, TestLexer<'inp>>,
+  _cursor: Cursor<'inp, '_, TestLexer<'inp>>,
   _err: (),
 ) -> Result<i64, ()>
 where
@@ -178,6 +178,42 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
 {
   Ok(100)
+}
+
+/// A primary parser that consumes two numbers, so a failure on the second leaves the
+/// input advanced past its start position.
+fn parse_two_nums<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
+{
+  let a = parse_num(inp)?;
+  let b = parse_num(inp)?;
+  Ok(a + b)
+}
+
+/// Asserts the handed cursor is the primary parser's start position — the position the
+/// checkpoint used to convey — while the input itself is left at the advanced error
+/// position (in-place recovery never backtracks).
+fn inplace_recovery_check_start<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+  cursor: Cursor<'inp, '_, TestLexer<'inp>>,
+  _err: (),
+) -> Result<i64, ()>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
+{
+  assert_eq!(
+    *cursor.as_inner(),
+    0,
+    "the handed cursor is the start position"
+  );
+  assert!(
+    *inp.cursor().as_inner() > 0,
+    "the input stayed at the advanced error position (no backtracking)"
+  );
+  Ok(7)
 }
 
 // ── recover: primary succeeds ─────────────────────────────────────────────────
@@ -334,6 +370,26 @@ fn inplace_recover_receives_checkpoint() {
       .parse_input(inp)
   }
   assert_eq!(Parser::new().apply(p).parse_str("+").unwrap(), 42);
+}
+
+// ── inplace_recover: handler receives the start-position cursor ───────────────
+
+#[test]
+fn recoverer_receives_cursor_position_matches() {
+  // The in-place recoverer is handed a `Cursor` (not a `Checkpoint`) marking where the
+  // primary parser began. For input "1 +" the two-number primary consumes `1`, then
+  // fails on `+`; the handed cursor must equal the pre-parse start (offset 0), distinct
+  // from the advanced error position the (non-backtracking) input is left at.
+  fn p<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
+  where
+    Ctx: ParseContext<'inp, TestLexer<'inp>>,
+    Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
+  {
+    parse_two_nums
+      .inplace_recover(inplace_recovery_check_start)
+      .parse_input(inp)
+  }
+  assert_eq!(Parser::new().apply(p).parse_str("1 +").unwrap(), 7);
 }
 
 #[test]

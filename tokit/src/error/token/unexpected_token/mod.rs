@@ -52,7 +52,6 @@ use core::marker::PhantomData;
 
 use crate::{
   Lexer, Token,
-  error::token::{Leading, RepeatedWhile, Trailing},
   span::{SimpleSpan, Span},
   utils::Expected,
 };
@@ -120,58 +119,8 @@ pub struct UnexpectedToken<'a, T, Kind: Clone, S = SimpleSpan, Lang: ?Sized = ()
 
 // Allow unit to be used as an error sink for tests and no-op emitters.
 impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {}
-}
-
-impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, Trailing<Data>> {
-  /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing(span: S, found: T) -> Self {
-    Self::trailing_of(span, found)
-  }
-}
-
-impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, Leading<Data>> {
-  /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading(span: S, found: T) -> Self {
-    Self::leading_of(span, found)
-  }
-}
-
-impl<T, Kind: Clone, S, Data> UnexpectedToken<'_, T, Kind, S, RepeatedWhile<Data>> {
-  /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn repeated(span: S, found: T) -> Self {
-    Self::repeated_of(span, found)
-  }
-}
-
-impl<T, Kind: Clone, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Trailing<Data, Lang>> {
-  /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing_of(span: S, found: T) -> Self {
-    Self::new_in(span, Some(found), None)
-  }
-}
-
-impl<T, Kind: Clone, S, Data, Lang: ?Sized> UnexpectedToken<'_, T, Kind, S, Leading<Data, Lang>> {
-  /// Creates a new `UnexpectedToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading_of(span: S, found: T) -> Self {
-    Self::new_in(span, Some(found), None)
-  }
-}
-
-impl<T, Kind: Clone, S, Data, Lang: ?Sized>
-  UnexpectedToken<'_, T, Kind, S, RepeatedWhile<Data, Lang>>
-{
-  /// Creates a new `UnexpectedToken` error indicating a repeated token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn repeated_of(span: S, found: T) -> Self {
-    Self::new_in(span, Some(found), None)
-  }
 }
 
 impl<'a, T, Kind: Clone, S> UnexpectedToken<'a, T, Kind, S> {
@@ -179,7 +128,7 @@ impl<'a, T, Kind: Clone, S> UnexpectedToken<'a, T, Kind, S> {
   ///
   /// This error indicates that an unexpected token was encountered,
   /// without specifying what token was found or expected.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(span: S) -> Self {
     Self::of(span)
   }
@@ -202,7 +151,7 @@ impl<'a, T, Kind: Clone, S> UnexpectedToken<'a, T, Kind, S> {
   /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "}"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn with_expected(span: S, expected: Expected<'a, Kind>) -> Self {
     Self::with_expected_of(span, expected)
   }
@@ -225,14 +174,14 @@ impl<'a, T, Kind: Clone, S> UnexpectedToken<'a, T, Kind, S> {
   /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "}"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn maybe_expected(span: S, expected: Option<Expected<'a, Kind>>) -> Self {
     Self::maybe_expected_of(span, expected)
   }
 }
 
 impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(super) const fn new_in(
     span: S,
     found: Option<T>,
@@ -250,7 +199,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   ///
   /// This error indicates that an unexpected token was encountered,
   /// without specifying what token was found or expected.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn of(span: S) -> Self {
     Self::new_in(span, None, None)
   }
@@ -273,7 +222,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "}"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn with_expected_of(span: S, expected: Expected<'a, Kind>) -> Self {
     Self::new_in(span, None, Some(expected))
   }
@@ -296,7 +245,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// assert_eq!(error.span(), SimpleSpan::new(100, 101));
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "}"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn maybe_expected_of(span: S, expected: Option<Expected<'a, Kind>>) -> Self {
     Self::new_in(span, None, expected)
   }
@@ -318,7 +267,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// assert!(error.found().is_none());
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == ";"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn expected_one(span: S, expected: Kind) -> Self {
     Self::with_expected_of(span, Expected::one(expected))
   }
@@ -342,7 +291,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// assert_eq!(error.found(), Some(&":"));
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == ";"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn expected_one_with_found(span: S, found: T, expected: Kind) -> Self {
     Self::new_in(span, Some(found), Some(Expected::one(expected)))
   }
@@ -366,7 +315,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   ///     assert_eq!(values.as_slice(), &["+", "-", "*", "/"]);
   /// }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn expected_one_of(span: S, expected: &'static [Kind]) -> Self {
     Self::with_expected_of(span, Expected::one_of(expected))
   }
@@ -392,7 +341,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   ///     assert_eq!(values.as_slice(), &["+", "-", "*", "/"]);
   /// }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn expected_one_of_with_found(span: S, found: T, expected: &'static [Kind]) -> Self {
     Self::new_in(span, Some(found), Some(Expected::one_of(expected)))
   }
@@ -424,7 +373,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// assert_eq!(error.found(), None);
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "if"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn maybe_found(mut self, found: Option<T>) -> Self {
     self.found = found;
     self
@@ -457,7 +406,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// assert_eq!(error.found(), None);
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "if"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn maybe_found_const(mut self, found: Option<T>) -> Self
   where
     T: Copy,
@@ -483,7 +432,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// assert_eq!(error.found(), Some(&"class"));
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "fn"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn with_found(mut self, found: T) -> Self {
     self.found = Some(found);
     self
@@ -506,7 +455,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// assert_eq!(error.found(), Some(&"class"));
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "fn"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn with_found_const(mut self, found: T) -> Self
   where
     T: Copy,
@@ -529,7 +478,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// );
   /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> S
   where
     S: Copy,
@@ -551,7 +500,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// );
   /// assert_eq!(error.span_ref(), &SimpleSpan::new(10, 15));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &S {
     &self.span
   }
@@ -571,7 +520,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// *error.span_mut() = SimpleSpan::new(15, 20);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
@@ -598,7 +547,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// );
   /// assert_eq!(eof_error.found(), None);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn found(&self) -> Option<&T> {
     self.found.as_ref()
   }
@@ -617,7 +566,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// );
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "{"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn expected(&self) -> Option<&Expected<'a, Kind>> {
     self.expected.as_ref()
   }
@@ -640,7 +589,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// error.bump(&5);
   /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump(&mut self, offset: &S::Offset)
   where
     S: Span,
@@ -703,7 +652,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// assert_eq!(found, Some("}"));
   /// assert_eq!(expected, Some(Expected::one("{")));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (S, Option<T>, Option<Expected<'a, Kind>>) {
     (self.span, self.found, self.expected)
   }

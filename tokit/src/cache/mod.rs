@@ -113,7 +113,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   /// Returns `true` if the cache contains no tokens.
   ///
   /// This is a convenience method that checks if `len() == 0`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_empty(&self) -> bool {
     self.len() == 0
   }
@@ -291,7 +291,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   /// cache is empty.
   ///
   /// This is a convenience wrapper around `peek` for looking at just one token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn peek_one<'c>(&self) -> Option<MaybeRefCachedTokenOf<'_, 'a, L>>
   where
     'a: 'c,
@@ -346,7 +346,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   ///     // Handle tokens that didn't fit in cache
   /// }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push_many<'p>(
     &'p mut self,
     toks: impl Iterator<Item = CachedTokenOf<'a, L>> + 'p,
@@ -377,7 +377,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   /// to the end of the last token. Returns `None` if the cache is empty.
   ///
   /// This is useful for error reporting or understanding the range of lookahead.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn span(&self) -> Option<L::Span>
   where
     L: Lexer<'a>,
@@ -395,7 +395,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   ///
   /// Returns `None` if the cache is empty. This is often used to determine
   /// where the next consumed token will come from.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn front_span<'s>(&'s self) -> Option<&'s L::Span>
   where
     'a: 's,
@@ -408,7 +408,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   ///
   /// Returns `None` if the cache is empty. This can be used to determine
   /// where the cache's lookahead ends.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn back_span<'s>(&'s self) -> Option<&'s L::Span>
   where
     'a: 's,
@@ -433,6 +433,41 @@ pub type MaybeRefCachedTokenOf<
   Span = <L as Lexer<'a>>::Span,
 > = Maybe<CachedTokenRefOf<'r, 'a, L, T, Span>, CachedTokenOf<'a, L, T, Span>>;
 
+/// Uniform access to a peeked token, hiding the borrowed/owned split of
+/// [`MaybeRefCachedTokenOf`].
+///
+/// A peeked token is a [`Maybe`] whose `Ref` arm borrows a token from the cache
+/// and whose `Owned` arm carries a token lexed past the cache window (the
+/// overflow case). Both arms wrap a [`CachedToken`]; these accessors reach the
+/// token and its span without the caller matching on the arm.
+pub trait PeekedTokenExt<T, Span> {
+  /// Returns a reference to the peeked token, regardless of arm.
+  fn token(&self) -> &T;
+
+  /// Returns a reference to the peeked token's span, regardless of arm.
+  fn span(&self) -> &Span;
+}
+
+impl<T, State, Span> PeekedTokenExt<T, Span>
+  for Maybe<CachedToken<&T, &State, &Span>, CachedToken<T, State, Span>>
+{
+  #[inline(always)]
+  fn token(&self) -> &T {
+    match self {
+      Maybe::Ref(cached) => cached.token.data,
+      Maybe::Owned(cached) => &cached.token.data,
+    }
+  }
+
+  #[inline(always)]
+  fn span(&self) -> &Span {
+    match self {
+      Maybe::Ref(cached) => cached.token.span,
+      Maybe::Owned(cached) => &cached.token.span,
+    }
+  }
+}
+
 /// A cached token with its associated state.
 pub struct CachedToken<T, State, Span> {
   pub(crate) token: Spanned<T, Span>,
@@ -445,7 +480,7 @@ where
   Span: Clone,
   T: Clone,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     Self {
       token: self.token.clone(),
@@ -455,7 +490,7 @@ where
 }
 
 // impl<'a, L: Lexer<'a>> TryFrom<> for CachedToken<T, State, Span> {
-//   #[cfg_attr(not(tarpaulin), inline(always))]
+//   #[inline(always)]
 //   pub(super) fn try_into_token(
 //     self,
 //   ) -> Result<CachedToken<T, State, Span>, <T as Token<>>::Error> {
@@ -468,25 +503,25 @@ where
 
 impl<T, State, Span> CachedToken<T, State, Span> {
   /// Creates a new cached token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(token: Spanned<T, Span>, state: State) -> Self {
     Self { token, state }
   }
 
   /// Returns a reference to the token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn token(&self) -> Spanned<&T, &Span> {
     self.token.as_ref()
   }
 
   /// Consumes the cached token and returns the lexed token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_token(self) -> Spanned<T, Span> {
     self.token
   }
 
   /// Returns a reference to the cached token.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_ref(&self) -> CachedToken<&T, &State, &Span> {
     CachedToken {
       token: self.token.as_ref(),
@@ -495,7 +530,7 @@ impl<T, State, Span> CachedToken<T, State, Span> {
   }
 
   /// Maps the token to a new type using the provided function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map_token<U, F>(self, f: F) -> CachedToken<U, State, Span>
   where
     F: FnOnce(T) -> U,
@@ -507,13 +542,13 @@ impl<T, State, Span> CachedToken<T, State, Span> {
   }
 
   /// Returns a reference to the state.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn state(&self) -> &State {
     &self.state
   }
 
   /// Consumes the cached token and returns the extras.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn into_components(self) -> (Spanned<T, Span>, State) {
     (self.token, self.state)
@@ -523,304 +558,9 @@ impl<T, State, Span> CachedToken<T, State, Span> {
 #[cfg(test)]
 #[allow(warnings)]
 #[cfg(feature = "std")]
-mod tests {
-  use super::*;
-  use crate::span::Spanned;
-
-  #[test]
-  fn cached_token_new_and_accessors() {
-    let spanned = Spanned::new(10..20, "hello");
-    let ct = CachedToken::new(spanned, 42u32);
-    assert_eq!(ct.state(), &42);
-    let tok = ct.token();
-    assert_eq!(*tok.data(), &"hello");
-  }
-
-  #[test]
-  fn cached_token_into_token() {
-    let spanned = Spanned::new(10..20, "hello");
-    let ct = CachedToken::new(spanned, 42u32);
-    let tok = ct.into_token();
-    assert_eq!(*tok.data(), "hello");
-  }
-
-  #[test]
-  fn cached_token_as_ref() {
-    let spanned = Spanned::new(10..20, 99u32);
-    let ct = CachedToken::new(spanned, 42u32);
-    let ct_ref = ct.as_ref();
-    // as_ref returns CachedToken<&T, &State, &Span>, so state is &&u32
-    assert_eq!(**ct_ref.state(), 42);
-  }
-
-  #[test]
-  fn cached_token_map_token() {
-    let spanned = Spanned::new(10..20, 5u32);
-    let ct = CachedToken::new(spanned, "state");
-    let ct2 = ct.map_token(|x| x * 2);
-    assert_eq!(*ct2.token().data(), &10);
-    assert_eq!(ct2.state(), &"state");
-  }
-
-  #[test]
-  fn cached_token_into_components() {
-    let spanned = Spanned::new(10..20, "hello");
-    let ct = CachedToken::new(spanned, 42u32);
-    let (tok, state) = ct.into_components();
-    assert_eq!(*tok.data(), "hello");
-    assert_eq!(state, 42);
-  }
-
-  #[test]
-  fn cached_token_clone() {
-    let spanned = Spanned::new(10..20, "hello");
-    let ct = CachedToken::new(spanned, 42u32);
-    let ct2 = ct.clone();
-    assert_eq!(ct2.state(), &42);
-  }
-
-  #[test]
-  fn cached_token_new_various_types() {
-    let ct = CachedToken::new(Spanned::new(0..1, 100u64), "state_str");
-    assert_eq!(ct.state(), &"state_str");
-    assert_eq!(*ct.token().data(), &100u64);
-  }
-
-  #[test]
-  fn cached_token_map_preserves_span() {
-    let spanned = Spanned::new(5..15, 10i32);
-    let ct = CachedToken::new(spanned, ());
-    let ct2 = ct.map_token(|x| x.to_string());
-    assert_eq!(*ct2.token().data(), &"10".to_string());
-  }
-}
+mod tests;
 
 #[cfg(test)]
 #[allow(warnings)]
 #[cfg(feature = "std")]
-mod cache_trait_tests {
-  use super::*;
-  use crate::lexer::{DummyLexer, DummyToken};
-  use crate::span::{SimpleSpan, Span, Spanned};
-  use ::generic_arraydeque::typenum::U3;
-
-  type DequeCache = GenericArrayDeque<CachedToken<DummyToken, (), SimpleSpan>, U3>;
-  type OptionCache = Option<CachedToken<DummyToken, (), SimpleSpan>>;
-
-  fn make_token(start: usize, end: usize) -> CachedToken<DummyToken, (), SimpleSpan> {
-    CachedToken::new(Spanned::new(SimpleSpan::new(start, end), DummyToken), ())
-  }
-
-  // ── Cache::span ─────────────────────────────────────────────────────────
-
-  #[test]
-  fn deque_cache_span_empty() {
-    let cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    assert!(<DequeCache as Cache<'_, DummyLexer>>::span(&cache).is_none());
-  }
-
-  #[test]
-  fn deque_cache_span_single() {
-    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(5, 10));
-    let span = <DequeCache as Cache<'_, DummyLexer>>::span(&cache).unwrap();
-    assert_eq!(span.start(), 5);
-    assert_eq!(span.end(), 10);
-  }
-
-  #[test]
-  fn deque_cache_span_multiple() {
-    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(5, 10));
-    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(10, 20));
-    let span = <DequeCache as Cache<'_, DummyLexer>>::span(&cache).unwrap();
-    assert_eq!(span.start(), 5);
-    assert_eq!(span.end(), 20);
-  }
-
-  #[test]
-  fn option_cache_span_empty() {
-    let cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    assert!(<OptionCache as Cache<'_, DummyLexer>>::span(&cache).is_none());
-  }
-
-  #[test]
-  fn option_cache_span_with_token() {
-    let mut cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    let _ = <OptionCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(3, 7));
-    let span = <OptionCache as Cache<'_, DummyLexer>>::span(&cache).unwrap();
-    assert_eq!(span.start(), 3);
-    assert_eq!(span.end(), 7);
-  }
-
-  // ── Cache::front_span / back_span ────────────────────────────────────────
-
-  #[test]
-  fn deque_cache_front_span_and_back_span() {
-    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    assert!(<DequeCache as Cache<'_, DummyLexer>>::front_span(&cache).is_none());
-    assert!(<DequeCache as Cache<'_, DummyLexer>>::back_span(&cache).is_none());
-    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
-    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(5, 15));
-    let front = <DequeCache as Cache<'_, DummyLexer>>::front_span(&cache).unwrap();
-    let back = <DequeCache as Cache<'_, DummyLexer>>::back_span(&cache).unwrap();
-    assert_eq!(front.start(), 0);
-    assert_eq!(front.end(), 5);
-    assert_eq!(back.start(), 5);
-    assert_eq!(back.end(), 15);
-  }
-
-  #[test]
-  fn option_cache_front_span_and_back_span() {
-    let mut cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    assert!(<OptionCache as Cache<'_, DummyLexer>>::front_span(&cache).is_none());
-    assert!(<OptionCache as Cache<'_, DummyLexer>>::back_span(&cache).is_none());
-    let _ = <OptionCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(2, 8));
-    let front = <OptionCache as Cache<'_, DummyLexer>>::front_span(&cache).unwrap();
-    let back = <OptionCache as Cache<'_, DummyLexer>>::back_span(&cache).unwrap();
-    assert_eq!(front.start(), 2);
-    assert_eq!(back.start(), 2);
-  }
-
-  // ── Cache::peek_one ──────────────────────────────────────────────────────
-
-  #[test]
-  fn deque_cache_peek_one_empty() {
-    let cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    assert!(<DequeCache as Cache<'_, DummyLexer>>::peek_one(&cache).is_none());
-  }
-
-  #[test]
-  fn deque_cache_peek_one_with_token() {
-    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
-    assert!(<DequeCache as Cache<'_, DummyLexer>>::peek_one(&cache).is_some());
-    // peek_one does not consume
-    assert_eq!(<DequeCache as Cache<'_, DummyLexer>>::len(&cache), 1);
-  }
-
-  #[test]
-  fn option_cache_peek_one_empty() {
-    let cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    assert!(<OptionCache as Cache<'_, DummyLexer>>::peek_one(&cache).is_none());
-  }
-
-  #[test]
-  fn option_cache_peek_one_with_token() {
-    let mut cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    let _ = <OptionCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
-    assert!(<OptionCache as Cache<'_, DummyLexer>>::peek_one(&cache).is_some());
-  }
-
-  // ── Cache::try_pop_front_if ──────────────────────────────────────────────
-
-  #[test]
-  fn deque_cache_try_pop_front_if_ok() {
-    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
-    let result =
-      <DequeCache as Cache<'_, DummyLexer>>::try_pop_front_if::<(), _>(&mut cache, |_| Ok(()));
-    assert!(matches!(result, Some(Ok(_))));
-    assert!(<DequeCache as Cache<'_, DummyLexer>>::is_empty(&cache));
-  }
-
-  #[test]
-  fn deque_cache_try_pop_front_if_err() {
-    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    let _ = <DequeCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
-    let result =
-      <DequeCache as Cache<'_, DummyLexer>>::try_pop_front_if(&mut cache, |_| Err("fail"));
-    assert!(matches!(result, Some(Err("fail"))));
-    // Token is NOT consumed on error
-    assert_eq!(<DequeCache as Cache<'_, DummyLexer>>::len(&cache), 1);
-  }
-
-  #[test]
-  fn deque_cache_try_pop_front_if_empty() {
-    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    let result =
-      <DequeCache as Cache<'_, DummyLexer>>::try_pop_front_if::<(), _>(&mut cache, |_| Ok(()));
-    assert!(result.is_none());
-  }
-
-  #[test]
-  fn option_cache_try_pop_front_if_ok() {
-    let mut cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    let _ = <OptionCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
-    let result =
-      <OptionCache as Cache<'_, DummyLexer>>::try_pop_front_if::<(), _>(&mut cache, |_| Ok(()));
-    assert!(matches!(result, Some(Ok(_))));
-  }
-
-  #[test]
-  fn option_cache_try_pop_front_if_err() {
-    let mut cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    let _ = <OptionCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
-    let result = <OptionCache as Cache<'_, DummyLexer>>::try_pop_front_if(&mut cache, |_| Err(42));
-    assert!(matches!(result, Some(Err(42))));
-  }
-
-  // ── Cache::push_many ──────────────────────────────────────────────────────
-
-  #[test]
-  fn deque_cache_push_many_all_fit() {
-    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    let tokens = vec![make_token(0, 5), make_token(5, 10)];
-    let overflow: Vec<_> =
-      <DequeCache as Cache<'_, DummyLexer>>::push_many(&mut cache, tokens.into_iter()).collect();
-    assert!(overflow.is_empty());
-    assert_eq!(<DequeCache as Cache<'_, DummyLexer>>::len(&cache), 2);
-  }
-
-  #[test]
-  fn deque_cache_push_many_overflow() {
-    let mut cache = <DequeCache as Cache<'_, DummyLexer>>::new();
-    let tokens = vec![
-      make_token(0, 5),
-      make_token(5, 10),
-      make_token(10, 15),
-      make_token(15, 20),
-    ];
-    let overflow: Vec<_> =
-      <DequeCache as Cache<'_, DummyLexer>>::push_many(&mut cache, tokens.into_iter()).collect();
-    assert_eq!(overflow.len(), 1);
-    assert_eq!(<DequeCache as Cache<'_, DummyLexer>>::len(&cache), 3);
-  }
-
-  #[test]
-  fn option_cache_push_many_overflow() {
-    let mut cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    let tokens = vec![make_token(0, 5), make_token(5, 10)];
-    let overflow: Vec<_> =
-      <OptionCache as Cache<'_, DummyLexer>>::push_many(&mut cache, tokens.into_iter()).collect();
-    assert_eq!(overflow.len(), 1);
-    assert_eq!(<OptionCache as Cache<'_, DummyLexer>>::len(&cache), 1);
-  }
-
-  // ── Cache::pop_front_if (default impl) for Option cache ──────────────────
-
-  #[test]
-  fn option_cache_pop_front_if_match() {
-    let mut cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    let _ = <OptionCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
-    let popped = <OptionCache as Cache<'_, DummyLexer>>::pop_front_if(&mut cache, |_| true);
-    assert!(popped.is_some());
-    assert!(<OptionCache as Cache<'_, DummyLexer>>::is_empty(&cache));
-  }
-
-  #[test]
-  fn option_cache_pop_front_if_no_match() {
-    let mut cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    let _ = <OptionCache as Cache<'_, DummyLexer>>::push_back(&mut cache, make_token(0, 5));
-    let popped = <OptionCache as Cache<'_, DummyLexer>>::pop_front_if(&mut cache, |_| false);
-    assert!(popped.is_none());
-    assert_eq!(<OptionCache as Cache<'_, DummyLexer>>::len(&cache), 1);
-  }
-
-  #[test]
-  fn option_cache_pop_front_if_empty() {
-    let mut cache = <OptionCache as Cache<'_, DummyLexer>>::new();
-    let popped = <OptionCache as Cache<'_, DummyLexer>>::pop_front_if(&mut cache, |_| true);
-    assert!(popped.is_none());
-  }
-}
+mod cache_trait_tests;

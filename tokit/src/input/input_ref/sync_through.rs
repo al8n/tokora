@@ -1,5 +1,7 @@
 use super::*;
 
+use super::scan::{Scanned, SyncThrough, ThroughEntry};
+
 impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
@@ -9,7 +11,38 @@ where
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
   ///
   /// If the predicate matches, the matching token is consumed and returned.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  ///
+  /// Diagnostics travel with progress: a match (or a resource-limit trip)
+  /// commits the skipped prefix, so the diagnostics describing it persist. A
+  /// no-match run to end of input commits nothing — the cursor stays at the
+  /// pre-call position — and leaves no trace: the emissions made during the
+  /// failed scan are unwound and the lexer-error deduplication watermark is
+  /// restored, so a later genuine consume of the same region reports its
+  /// errors exactly once.
+  ///
+  /// This holds even when the caller had prefilled the cache with peeked
+  /// lookahead: a failed sync rewinds the drained cache prefix too, restoring
+  /// the pre-call position, at the cost of re-lexing those formerly-cached
+  /// tokens on the next read.
+  ///
+  /// # The fatal exit commits, and the cache never changes it
+  ///
+  /// A fatal emitter rejection mid-skip follows the sync family's fatal-exit discipline: the
+  /// token that trips the emitter — a skipped token whose unexpected-token diagnostic the
+  /// emitter rejected, or a lexer error it rejected — is **committed**, and the error
+  /// propagates. A caller that catches it therefore resumes *after* the reported token, and
+  /// never re-reads or re-reports it.
+  ///
+  /// Whether that token had already been peeked into the cache makes no difference: the cache
+  /// is an invisible optimization, so every observable of a sync call — its return, the
+  /// committed position and lexer state, the diagnostics it emits, the poison boundary, and
+  /// the lexer-error dedup watermark — is a function of the token stream alone, never of how
+  /// much of it had been prefetched. (The one thing a caller *can* see is that a peek emits
+  /// the lexer errors it crosses when it crosses them, so prefetching moves such a diagnostic
+  /// earlier in the log; the dedup watermark still reports it exactly once.) The
+  /// `cache_transparency_matrix` tests in `src/input/input_ref/tests.rs` pin this
+  /// across the whole family.
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_through<F, Exp>(
     &mut self,
@@ -20,65 +53,50 @@ where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
-    if let Some(tok) = self.sync_matched_in_cache(&mut pred, &mut exp)? {
-      return Ok(Some(tok));
+    trace_event!(self, "sync_through");
+    // A no-match run to end of input must leave no trace — even across a prefilled cache. The
+    // scanner below skips and diagnoses the cached tokens as readily as the ones it lexes itself,
+    // and may cross lexer errors on the way (lifting the dedup watermark). Snapshot the pre-call
+    // position (span + lexer state), the emitter's emission mark, and the watermark HERE — BEFORE
+    // the scan — so the end-of-input exit can restore the FULL pre-call state, drained cache prefix
+    // and all. A match or a limit trip commits the whole diagnosed prefix (that skipping was real
+    // progress en route to it), so this snapshot goes unused on those paths; only the no-match
+    // end-of-input exit rewinds to it. This is an internal positional rewind, not a `Checkpoint`:
+    // it threads no lineage entry.
+    let snapshot = ThroughEntry::new(
+      self.span.clone(),
+      self.state.clone(),
+      self.emitter.checkpoint(),
+      self.emitted_error_end.clone(),
+    );
+
+    // `SyncThrough` consumes the match (`Scanned::Found`) — the same two lines whether the scanner
+    // popped it off the cache or lexed it; a poison trip commits the diagnosed prefix at the
+    // durable frontier and a no-match run to end of input rewinds to `snapshot`, both yielding the
+    // exhausted outcome (`Ok(None)`) with the position already settled.
+    match self.skip_until::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
+      Scanned::Found(tok) => Ok(tok),
+      Scanned::Exhausted => Ok(None),
     }
-
-    // sync_matched_in_cache skips non-matching tokens but leaves a matching
-    // token in the cache (since pop_front_if doesn't pop when pred matches).
-    // Check if the front of cache now matches and consume it.
-    if !self.cache.is_empty() {
-      if let Some(front) = self.cache.front() {
-        let span = front.token().span();
-        if pred(Spanned::new(span, front.token().data())) {
-          if let Some(tok) = self.cache.pop_front() {
-            let (lexed, state) = tok.into_components();
-            let (span, tok) = lexed.into_components();
-            self.set_span_after_consume((&span).into());
-            *self.state = state;
-            return Ok(Some(Spanned::new(span, tok)));
-          }
-        }
-      }
-    }
-
-    let mut lexer = self.lexer();
-
-    while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
-      match tok {
-        Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
-          Ok(_) => {}
-          Err(e) => {
-            self.set_span_after_consume(lexer.span().into());
-            *self.state = lexer.into_state();
-            return Err(e);
-          }
-        },
-        Lexed::Token(tok) => {
-          let tok = Spanned::new(span, tok);
-          // if the token matches, we return it
-          if pred(tok.as_ref()) {
-            self.set_span_after_consume(tok.span_ref().into());
-            *self.state = lexer.into_state();
-            return Ok(Some(tok));
-          } else {
-            let (span, tok) = tok.into_components();
-            self.emitter().emit_unexpected_token(
-              UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
-            )?;
-          }
-        }
-      }
-    }
-
-    Ok(None)
   }
 
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
   ///
-  /// If the predicate matches, the matching token is consumed.
-  /// Returns the matched token and peeked tokens after it.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  /// If the predicate matches, the matching token is consumed and returned with the tokens
+  /// peeked after it.
+  ///
+  /// Diagnostics travel with progress, exactly as in [`sync_through`](Self::sync_through): a
+  /// match commits the skipped prefix, so the diagnostics describing it persist. A no-match
+  /// run to end of input commits nothing — the cursor stays at the pre-call position — and
+  /// leaves no trace: the failed scan's emissions are unwound and the lexer-error
+  /// deduplication watermark is restored, so a later genuine consume of the same region
+  /// reports its errors exactly once. The returned peek is then empty. As in
+  /// [`sync_through`](Self::sync_through), the pre-call position is restored even when the
+  /// caller had prefilled the cache with peeked lookahead — the drained cache prefix is
+  /// rewound too, at the cost of re-lexing those tokens on the next read. A fatal emitter
+  /// rejection mid-skip commits the token that tripped it, and the cache does not change
+  /// that either (see [`sync_through`](Self::sync_through)).
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_through_then_peek<'p, F, Exp, W>(
     &'p mut self,
@@ -100,7 +118,18 @@ where
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
   ///
   /// Returns the matched token, peeked tokens, and a mutable reference to the emitter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  ///
+  /// Diagnostics travel with progress, exactly as in [`sync_through`](Self::sync_through): a
+  /// match commits the skipped prefix, so its diagnostics persist. A no-match run to end of
+  /// input commits nothing — the cursor stays at the pre-call position — and leaves no trace:
+  /// the failed scan's emissions are unwound and the lexer-error deduplication watermark is
+  /// restored, so a later genuine consume of the same region reports its errors exactly once.
+  /// The returned peek is then empty. As in [`sync_through`](Self::sync_through), the pre-call
+  /// position is restored even when the caller had prefilled the cache with peeked lookahead —
+  /// the drained cache prefix is rewound too, at the cost of re-lexing those tokens on the
+  /// next read — and a fatal emitter rejection mid-skip commits the token that tripped it,
+  /// cached or not.
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_through_then_peek_with_emitter<'p, F, Exp, W>(
     &'p mut self,
@@ -119,73 +148,26 @@ where
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
     W: Window,
   {
-    if let Some(tok) = self.sync_matched_in_cache(&mut pred, &mut exp)? {
-      let (peeked, emitter) = self.peek_with_emitter::<W>()?;
-      return Ok((Some(tok), peeked, emitter));
-    }
+    trace_event!(self, "sync_through_then_peek");
+    // Snapshot the pre-call state BEFORE the scan, so the no-match end-of-input exit can rewind the
+    // FULL pre-call state — the drained cache prefix and the diagnostics alike (see
+    // [`sync_through`](Self::sync_through)).
+    let snapshot = ThroughEntry::new(
+      self.span.clone(),
+      self.state.clone(),
+      self.emitter.checkpoint(),
+      self.emitted_error_end.clone(),
+    );
 
-    // sync_matched_in_cache skips non-matching tokens but leaves a matching
-    // token in the cache. Check if the front of cache now matches and consume it.
-    if !self.cache.is_empty() {
-      if let Some(front) = self.cache.front() {
-        let span = front.token().span();
-        if pred(Spanned::new(span, front.token().data())) {
-          if let Some(tok) = self.cache.pop_front() {
-            let (lexed, state) = tok.into_components();
-            let (span, tok) = lexed.into_components();
-            self.set_span_after_consume((&span).into());
-            *self.state = state;
-            let (peeked, emitter) = self.peek_with_emitter::<W>()?;
-            return Ok((Some(Spanned::new(span, tok)), peeked, emitter));
-          }
-        }
-      }
-    }
-
-    match !self.cache().is_empty() {
-      // If the cache is non-empty but no match, peek remaining
-      true => {
+    match self.skip_until::<SyncThrough, _, _>(&mut pred, &mut exp, snapshot)? {
+      // The match is consumed, cached or lexed; peek the tokens after it.
+      Scanned::Found(tok) => {
         let (peeked, emitter) = self.peek_with_emitter::<W>()?;
-        Ok((None, peeked, emitter))
+        Ok((tok, peeked, emitter))
       }
-      // Otherwise, let's skip the input
-      false => {
-        let mut lexer = self.lexer();
-
-        while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
-          match tok {
-            Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
-              Ok(_) => {}
-              Err(e) => {
-                self.set_span_after_consume(lexer.span().into());
-                *self.state = lexer.into_state();
-                return Err(e);
-              }
-            },
-            Lexed::Token(tok) => {
-              let tok = Spanned::new(span, tok);
-              // if the token matches, we cache it and return it
-              if pred(tok.as_ref()) {
-                self.set_span_after_consume(tok.span_ref().into());
-                *self.state = lexer.into_state();
-                let (peeked, emitter) = self.peek_with_emitter::<W>()?;
-                return Ok((Some(tok), peeked, emitter));
-              } else {
-                let (span, tok) = tok.into_components();
-                self.emitter().emit_unexpected_token(
-                  UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
-                )?;
-              }
-            }
-          }
-        }
-
-        // No matched token found, we just update the cursor and state
-        self.set_span_after_consume(lexer.span().into());
-        *self.state = lexer.into_state();
-
-        Ok((None, GenericArrayDeque::new(), self.emitter))
-      }
+      // The exhausted outcomes — a poison trip committed at the durable frontier, or a
+      // no-match run to end of input rewound to `snapshot` — yield no match and an empty peek.
+      Scanned::Exhausted => Ok((None, GenericArrayDeque::new(), self.emitter)),
     }
   }
 }

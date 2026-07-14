@@ -1,11 +1,16 @@
 use crate::{error::syntax::MissingSyntaxOf, span::Spanned};
 
 use super::super::{
-  separated::{UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter},
+  separated::{
+    MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
+  },
   *,
 };
 
 mod full_container;
+mod missing_leading_separator;
+mod missing_trailing_separator;
 mod pratt;
 mod separator;
 mod too_few;
@@ -30,7 +35,7 @@ pub struct Fatal<T: ?Sized, Lang: ?Sized = ()> {
 }
 
 impl<T: ?Sized, Lang: ?Sized> Clone for Fatal<T, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     *self
   }
@@ -39,14 +44,14 @@ impl<T: ?Sized, Lang: ?Sized> Clone for Fatal<T, Lang> {
 impl<T: ?Sized, Lang: ?Sized> Copy for Fatal<T, Lang> {}
 
 impl<T: ?Sized> Default for Fatal<T> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn default() -> Self {
     Self::new()
   }
 }
 
 impl<T: ?Sized> core::fmt::Debug for Fatal<T> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "Fatal")
   }
@@ -54,7 +59,7 @@ impl<T: ?Sized> core::fmt::Debug for Fatal<T> {
 
 impl<T: ?Sized> Fatal<T> {
   /// Creates a new `Fatal`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self::of()
   }
@@ -62,7 +67,7 @@ impl<T: ?Sized> Fatal<T> {
 
 impl<T: ?Sized, Lang: ?Sized> Fatal<T, Lang> {
   /// Creates a new `Fatal` for the given language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn of() -> Self {
     Self {
       _e: core::marker::PhantomData,
@@ -77,7 +82,7 @@ where
 {
   type Error = E;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_lexer_error(
     &mut self,
     err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
@@ -88,7 +93,7 @@ where
     Err(E::from_lexer_error(err))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -96,7 +101,7 @@ where
     Err(err.into_data())
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_token(
     &mut self,
     err: UnexpectedTokenOf<'a, L, Lang>,
@@ -107,8 +112,8 @@ where
     Err(E::from_unexpected_token(err))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn rewind(&mut self, _: &Cursor<'a, '_, L>)
+  #[inline(always)]
+  fn rewind(&mut self, _: &Cursor<'a, '_, L>, _: u64)
   where
     L: Lexer<'a>,
   {

@@ -4,7 +4,7 @@ impl<'a, L, Lang: ?Sized> FullContainerEmitter<'a, L, Lang> for Ignored
 where
   L: Lexer<'a>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_full_container(&mut self, _: FullContainer<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,

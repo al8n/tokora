@@ -1,7 +1,7 @@
 use super::*;
 
 impl<'a, L, E, Lang: ?Sized> TooFewEmitter<'a, L, Lang> for Silent<E, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_too_few(&mut self, _: TooFew<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,

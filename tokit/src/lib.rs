@@ -1,9 +1,19 @@
+#![cfg_attr(
+  all(feature = "std", feature = "logos_0_16"),
+  doc = "**New to tokit? Start with the [`guide`] module** — a chaptered tutorial that builds a small language end-to-end.\n\n"
+)]
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
 #![allow(clippy::double_parens, clippy::type_complexity)]
 #![deny(missing_docs, warnings)]
+// With `unstable-raw` off, `InputRef::{save, restore, commit}` are `pub(crate)`, so the many
+// public items documenting the raw checkpoint contract (the `Checkpoint` type, the transaction
+// guards, `ParseState`, `attempt`) link to crate-private methods. Those links are intentionally
+// inert in that build and fully live under the feature (and on docs.rs, which builds all
+// features); relax the lint only when the feature is off so the on-feature docs stay strict.
+#![cfg_attr(not(feature = "unstable-raw"), allow(rustdoc::private_intra_doc_links))]
 
 #[cfg(all(not(feature = "std"), feature = "alloc"))]
 extern crate alloc as std;
@@ -11,21 +21,33 @@ extern crate alloc as std;
 #[cfg(feature = "std")]
 extern crate std;
 
-#[cfg(feature = "logos")]
-#[cfg_attr(docsrs, doc(cfg(feature = "logos")))]
+// Declared before the combinator modules so the internal `trace_event!` hook macro is in
+// scope for them. With the `trace` feature off the macro expands to nothing, so every hook
+// site compiles away entirely.
+#[macro_use]
+mod trace;
+
+#[cfg(feature = "logos_0_16")]
+#[cfg_attr(docsrs, doc(cfg(feature = "logos_0_16")))]
 pub use logos_0_16 as logos;
 
 pub use cache::{Cache, DefaultCache};
 pub use check::Check;
 pub use emitter::Emitter;
-pub use input::InputRef;
+pub use input::{
+  Balance, Commit, Complete, Completeness, DelimClass, DropPolicy, Hole, InputRef, Partial,
+  Rollback, SurfaceIncomplete, Transaction, parse_partial,
+};
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+pub use input::{SavepointId, StackedTransaction};
 pub use lexer::{Lexed, Lexer};
 pub use located::*;
 pub use parse_choice::*;
 pub use parse_context::{FatalContext, ParseContext, ParserContext};
 pub use parse_input::*;
 pub use parse_state::ParseState;
-pub use parser::{Parse, Parser};
+pub use parser::{Labelled, Parse, Parser, labelled};
 pub use require::Require;
 pub use slice::Slice;
 pub use source::Source;
@@ -33,6 +55,16 @@ pub use span::{SimpleSpan, Span};
 pub use state::State;
 pub use token::Token;
 pub use try_parse_input::TryParseInput;
+
+#[cfg(feature = "trace")]
+#[cfg_attr(docsrs, doc(cfg(feature = "trace")))]
+pub use trace::Traced;
+/// Parser tracing DX: wrap any parser in [`traced`] to print an indented event tree of its
+/// run — enter, exit-ok with the consumed span, exit-err — interleaved with the crate's own
+/// instrumented combinators (`try_expect`, `peek`, the `sync` family, the transaction guards,
+/// `attempt`/`try_attempt`, and the separated/repeated drivers) as they fire. Gated on the
+/// `trace` feature; with it off, [`traced`] is the identity and every hook compiles away.
+pub use trace::traced;
 
 /// Concrete Syntax Tree (CST) representations and utilities.
 ///
@@ -184,6 +216,48 @@ pub mod token;
 /// intermediate buffering.
 pub mod input;
 
+/// Conformance test kit for custom [`Lexer`] implementations.
+///
+/// Provides [`Harness`](conformance::Harness), a builder that drives a lexer against
+/// the [`Lexer`] contract — replay identity, state-resume faithfulness, monotone
+/// progress, sticky exhaustion, span/slice coherence, optional gap-free tiling — and,
+/// through the input machinery, a set of deterministic save/peek/drain/restore
+/// schedules. Requires the `conformance` feature (which implies `std`).
+#[cfg(feature = "conformance")]
+#[cfg_attr(docsrs, doc(cfg(feature = "conformance")))]
+pub mod conformance;
+
+/// Public fuzz harness for the input/backtracking machinery.
+///
+/// Provides an operation-script fuzzer — a deterministic PRNG drives well-formed scripts of
+/// the crate's public input operations (consume, peek, the `sync` family, `attempt`,
+/// transaction guards, stacked savepoints, session points, partial-mode chunking) against a
+/// scriptable synthetic lexer, checking the documented laws (no-trace failure paths, LIFO
+/// rollback discipline, committed-stream faithfulness, chunked equivalence, termination, no
+/// panic) after every operation. The operation alphabet is enumerated in one place
+/// ([`fuzz::Op`](crate::fuzz::Op)) with a compile-time exhaustiveness prod and a corpus coverage
+/// test so it cannot silently lag the real surface. Runs on stable Rust as ordinary tests;
+/// requires the `fuzz` feature (which implies `std`). See [`fuzz`](crate::fuzz) for the seed
+/// workflow.
+#[cfg(feature = "fuzz")]
+#[cfg_attr(docsrs, doc(cfg(feature = "fuzz")))]
+pub mod fuzz;
+
+/// A guided tour of tokit: build a small language end-to-end, chapter by chapter.
+///
+/// Ten chapters construct **Calc** — a tiny calculator language with variables — walking
+/// the crate's capability set in teaching order: tokens and the lexer contract, first
+/// parsers and typed errors, combinator composition, kind dispatch, Pratt expressions,
+/// backtracking, diagnostics, recovery, partial input, and testing. Every code block is a
+/// runnable doctest, so the guide cannot drift from the API. Start at
+/// [`guide::ch01_tokens`](guide::ch01_tokens).
+///
+/// Documentation-only: the module defines no items. It requires the `std` and `logos`
+/// features (the same set the repository's `examples/` build with).
+#[cfg(all(feature = "std", feature = "logos_0_16"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "std", feature = "logos_0_16"))))]
+pub mod guide;
+
 /// Convenience re-exports for common usage.
 pub mod prelude;
 
@@ -203,7 +277,7 @@ mod require;
 pub mod __private {
   pub use super::{check::Check, error, lexer::*, require::Require, span, syntax, token, utils};
 
-  #[cfg(feature = "logos")]
+  #[cfg(feature = "logos_0_16")]
   pub use ::logos_0_16 as logos;
   pub use paste;
 

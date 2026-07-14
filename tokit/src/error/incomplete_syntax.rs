@@ -260,7 +260,7 @@ where
   S: Syntax,
   Sp: PartialEq,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn eq(&self, other: &Self) -> bool {
     self.span == other.span && self.components == other.components
   }
@@ -278,7 +278,7 @@ where
   S: Syntax,
   Sp: Hash,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
     self.span.hash(state);
     self.components.hash(state);
@@ -289,7 +289,7 @@ impl<S, Sp> AsRef<[S::Component]> for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn as_ref(&self) -> &[S::Component] {
     self.as_slice()
   }
@@ -299,7 +299,7 @@ impl<S, Sp> AsMut<[S::Component]> for IncompleteSyntax<S, Sp>
 where
   S: Syntax,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn as_mut(&mut self) -> &mut [S::Component] {
     self.as_mut_slice()
   }
@@ -356,7 +356,7 @@ where
   /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn new(span: Sp, component: S::Component) -> Self {
     if S::COMPONENTS::USIZE == 0 {
       panic!("IncompleteSyntax requires S::COMPONENTS to be non-zero");
@@ -417,7 +417,7 @@ where
   /// assert!(error.is_none());
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::should_implement_trait)]
   pub fn from_iter(span: Sp, iter: impl IntoIterator<Item = S::Component>) -> Option<Self> {
     let mut components = GenericArrayDeque::new();
@@ -507,7 +507,7 @@ where
   /// assert_eq!(error.len(), 2);
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[allow(clippy::len_without_is_empty)]
   pub fn len(&self) -> usize {
     self.components.len()
@@ -555,7 +555,7 @@ where
   /// assert_eq!(error.capacity(), 3);
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn capacity(&self) -> usize {
     self.components.capacity()
   }
@@ -606,7 +606,7 @@ where
   /// assert!(error.is_full());
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn is_full(&self) -> bool {
     self.components.is_full()
   }
@@ -665,7 +665,7 @@ where
   /// assert_eq!(error.len(), 2);
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn push(&mut self, component: S::Component) {
     if self.try_push(component).is_some() {
       panic!("IncompleteSyntax buffer overflow: cannot push more components")
@@ -726,7 +726,7 @@ where
   /// assert_eq!(error.len(), 2);
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn push_front(&mut self, component: S::Component) {
     if self.try_push_front(component).is_some() {
       panic!("IncompleteSyntax buffer overflow: cannot push more components")
@@ -780,7 +780,7 @@ where
   /// assert_eq!(error.try_push(Component::C), Some(Component::C)); // Full!
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn try_push(&mut self, component: S::Component) -> Option<S::Component> {
     Self::try_push_impl(&mut self.components, component)
   }
@@ -832,7 +832,7 @@ where
   /// assert_eq!(error.try_push_front(Component::C), Some(Component::C)); // Full!
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn try_push_front(&mut self, component: S::Component) -> Option<S::Component> {
     Self::try_push_front_impl(&mut self.components, component)
   }
@@ -882,7 +882,7 @@ where
   /// assert_eq!(error.as_slice(), &[Component::A, Component::B]);
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn as_slice(&self) -> &[S::Component] {
     self.components.as_slices().0
   }
@@ -932,7 +932,7 @@ where
   /// assert_eq!(error.as_slice()[0], Component::B);
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn as_mut_slice(&mut self) -> &mut [S::Component] {
     self.components.as_mut_slices().0
   }
@@ -980,7 +980,7 @@ where
   /// assert_eq!(collected, vec![&Component::A, &Component::B]);
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn iter(&self) -> generic_arraydeque::Iter<'_, S::Component> {
     self.components.iter()
   }
@@ -1024,7 +1024,7 @@ where
   /// assert_eq!(error.span(), SimpleSpan::new(10, 15));
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> Sp
   where
     Sp: Copy,
@@ -1033,13 +1033,13 @@ where
   }
 
   /// Returns a reference to the span of the incomplete syntax.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &Sp {
     &self.span
   }
 
   /// Returns a mutable reference to the span of the incomplete syntax.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_mut(&mut self) -> &mut Sp {
     &mut self.span
   }
@@ -1087,7 +1087,7 @@ where
   /// assert_eq!(error.span(), SimpleSpan::new(15, 20));
   /// # }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump(&mut self, offset: &Sp::Offset) -> &mut Self
   where
     Sp: Span,

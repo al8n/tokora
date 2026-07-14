@@ -72,7 +72,7 @@ pub struct Expect<Classifier, Ctx, Lang: ?Sized = ()> {
 
 impl<Classifier, Ctx, Lang: ?Sized> Expect<Classifier, Ctx, Lang> {
   /// Creates a parser that accepts a specific token of a specific language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   const fn of(classifier: Classifier) -> Self {
     Self {
       is: classifier,
@@ -81,7 +81,7 @@ impl<Classifier, Ctx, Lang: ?Sized> Expect<Classifier, Ctx, Lang> {
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   const fn from_ref(classifier: &Classifier) -> &Self {
     // SAFETY: Self is #[repr(transparent)]
     unsafe { &*(classifier as *const Classifier as *const Self) }
@@ -97,7 +97,7 @@ where
     + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -117,7 +117,7 @@ where
     + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -149,7 +149,7 @@ where
     + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -168,7 +168,7 @@ where
     + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -198,7 +198,7 @@ where
     + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -222,7 +222,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -240,7 +240,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -262,7 +262,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -282,7 +282,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -312,7 +312,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -330,7 +330,8 @@ where
 }
 
 /// Creates a parser that expects a token matching a specific criterion.
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[must_use]
+#[inline(always)]
 pub fn try_expect<'inp, Classifier, L, Ctx>(classifier: Classifier) -> Expect<Classifier, Ctx>
 where
   L: Lexer<'inp>,
@@ -341,7 +342,8 @@ where
 }
 
 /// Creates a parser that expects a token matching a specific criterion for a specific language.
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[must_use]
+#[inline(always)]
 pub fn try_expect_of<'inp, Classifier, L, Ctx, Lang>(
   classifier: Classifier,
 ) -> Expect<Classifier, Ctx, Lang>
@@ -355,7 +357,8 @@ where
 }
 
 /// Creates a parser that expects a token matching a specific criterion.
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[must_use]
+#[inline(always)]
 pub fn expect<'inp, Classifier, L, Ctx>(classifier: Classifier) -> Expect<Classifier, Ctx>
 where
   L: Lexer<'inp>,
@@ -368,7 +371,8 @@ where
 }
 
 /// Creates a parser that expects a token matching a specific criterion for a specific language.
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[must_use]
+#[inline(always)]
 pub fn expect_of<'inp, Classifier, L, Ctx, Lang>(
   classifier: Classifier,
 ) -> Expect<Classifier, Ctx, Lang>

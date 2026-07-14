@@ -1,4 +1,7 @@
-use crate::{error::token::UnexpectedTokenOf, utils::CowStr};
+use crate::{
+  error::token::{SeparatedError, SeparatedErrorOf, UnexpectedTokenOf},
+  utils::CowStr,
+};
 
 use super::*;
 
@@ -22,7 +25,7 @@ where
   L: Lexer<'inp>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_leading_separator(
     &mut self,
     name: CowStr,
@@ -43,16 +46,16 @@ pub trait FromUnexpectedLeadingSeparatorError<'a, L, Lang: ?Sized = ()> {
     L: Lexer<'a>;
 }
 
-// impl<'a, T, L, Lang: ?Sized> FromUnexpectedLeadingSeparatorError<'a, L, Lang> for T
-// where
-//   L: Lexer<'a>,
-//   T: From<UnexpectedTokenOf<'a, L, Lang>>,
-// {
-//   #[cfg_attr(not(tarpaulin), inline(always))]
-//   fn from_unexpected_leading_separator(err: UnexpectedTokenOf<'a, L, Lang>) -> Self
-//   where
-//     L: Lexer<'a>,
-//   {
-//     err.into()
-//   }
-// }
+impl<'a, T, L, Lang: ?Sized> FromUnexpectedLeadingSeparatorError<'a, L, Lang> for T
+where
+  L: Lexer<'a>,
+  T: From<SeparatedErrorOf<'a, L, Lang>>,
+{
+  #[inline(always)]
+  fn from_unexpected_leading_separator(_name: CowStr, err: UnexpectedTokenOf<'a, L, Lang>) -> Self
+  where
+    L: Lexer<'a>,
+  {
+    SeparatedError::leading(err).into()
+  }
+}

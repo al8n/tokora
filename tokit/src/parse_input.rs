@@ -4,7 +4,7 @@ use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray, ty
 
 use crate::{
   cache::Peeked,
-  input::InputRef,
+  input::{DelimClass, InputRef},
   located::Located,
   parser::*,
   punct::*,
@@ -21,18 +21,21 @@ mod sealed {
 }
 
 /// A trait for parsers that specify the capacity of their peek buffer.
+///
+/// Peek windows are capped at `U32` (32 tokens): `Window` is implemented for
+/// `typenum::U1` through `typenum::U32` only.
 pub trait Window: sealed::Sealed {
   /// The capacity of the peek buffer.
   type CAPACITY: ArrayLength;
 
   /// Create an uninitialized array of the specified capacity.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn array<T>() -> GenericArray<MaybeUninit<T>, Self::CAPACITY> {
     GenericArray::uninit()
   }
 
   /// Create a deque of the specified capacity.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn deque<T>() -> GenericArrayDeque<MaybeUninit<T>, Self::CAPACITY> {
     GenericArrayDeque::new()
   }
@@ -52,6 +55,7 @@ macro_rules! peek_buf_capacity_impl_for_typenum {
   };
 }
 
+// Peek windows are capped at `U32`: only `typenum::U1..=U32` receive a `Window` impl.
 seq_macro::seq!(N in 1..=32 {
   peek_buf_capacity_impl_for_typenum! {
     #(N,)*
@@ -75,7 +79,7 @@ where
   E: Emitter<'inp, L, Lang>,
   W: Window,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn decide(&mut self, toks: Peeked<'_, 'inp, L, W>, emitter: &mut E) -> Result<Action, E::Error>
   where
     W: Window,
@@ -87,7 +91,7 @@ where
 /// A trait for parsers that accumulate their results into a container.
 pub trait Accumulator<'inp, L, Container, Ctx, Lang: ?Sized = ()> {
   /// Collects the parsed elements into the specified container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn collect(self) -> Collect<Self, Container, Ctx, Lang>
   where
     Self: Sized,
@@ -98,7 +102,7 @@ pub trait Accumulator<'inp, L, Container, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Collects the parsed elements with the given container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn collect_with(self, container: Container) -> Collect<Self, Container, Ctx, Lang>
   where
     Self: Sized,
@@ -120,7 +124,7 @@ macro_rules! define_separated_by {
         #[doc = "Creates a `SeparatedWhile` combinator which separates elements by the `" $name:snake "` separator and applies this parser repeatedly."]
         ///
         /// See [`separated_while`](crate::ParseInput::separated_while) for details.
-        #[cfg_attr(not(tarpaulin), inline(always))]
+        #[inline(always)]
         fn [< separated_by_ $name:snake _while>]<Condition, W>(
           self,
           condition: Condition,
@@ -156,7 +160,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Ctx: ParseContext<'inp, L, Lang>;
 
   /// Wraps the output of this parser in a `Spanned` with the span of the parsed input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn spanned(self) -> With<PhantomSpan, Self>
   where
     Self: Sized,
@@ -166,7 +170,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Wraps the output of this parser in a `Sliced` with the source slice of the parsed input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn sliced(self) -> With<PhantomSliced, Self>
   where
     Self: Sized,
@@ -176,7 +180,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Wraps the output of this parser in a `Located` with the span and source slice of the parsed input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn located(self) -> With<PhantomLocated, Self>
   where
     Self: Sized,
@@ -186,7 +190,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Ignores the output of this parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn ignored(self) -> Ignore<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -197,13 +201,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Creates a parser over a mutable reference to this parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn by_ref(&mut self) -> &mut ByRef<Self> {
     ByRef::from_ref_mut(self)
   }
 
   /// Creates a `FoldWhile` combinator that accumulates results while a condition is met.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_while<Condition, Init, Acc, W>(
     self,
     pred: Condition,
@@ -224,7 +228,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// Creates a `TryFoldWhile` combinator that accumulates results while a condition is met.
   ///
   /// See also [`try_fold_while_with`](Self::try_fold_while_with).
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_fold_while<Condition, Init, Acc, W>(
     self,
     pred: Condition,
@@ -246,7 +250,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Creates a `TryFoldWhileWith` combinator that accumulates results while a condition is met,
   /// with access to parsing state.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_fold_while_with<Condition, Init, Acc, W>(
     self,
     pred: Condition,
@@ -279,7 +283,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// See also [`fold_while`](Self::fold_while).
   #[cfg(any(feature = "alloc", feature = "std"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "alloc", feature = "std"))))]
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn rfold_while<Condition, Init, Acc, W>(
     self,
     condition: Condition,
@@ -321,7 +325,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// - [`repeated`](TryParseInput::repeated) - Parser has lookahead, no separator
   /// - [`Action`] - The decision type (`Continue` or `Stop`)
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn repeated_while<Condition, W>(
     self,
     condition: Condition,
@@ -360,7 +364,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// - [`separated`](TryParseInput::separated) - Parser has lookahead, with separator
   /// - [`Action`] - The decision type (`Continue` or `Stop`)
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn separated_while<Sep, Condition, W>(
     self,
     condition: Condition,
@@ -434,7 +438,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Map the output of this parser using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn map<U, F>(self, f: F) -> Map<Self, F, L, Ctx, O, U, Lang>
   where
     Self: Sized,
@@ -446,7 +450,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Map the output of this parser using the given function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn map_with<U, F>(self, f: F) -> MapWith<Self, F, L, Ctx, O, U, Lang>
   where
     Self: Sized,
@@ -458,7 +462,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Filter the output of this parser using a validation function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn filter<F>(self, validator: F) -> Filter<Self, F, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -471,7 +475,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Filter the output of this parser using a validation function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn filter_with<F>(self, validator: F) -> FilterWith<Self, F, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -490,7 +494,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// The parser must produce a `Spanned<O>` value. The mapper receives
   /// the data and span, and returns `Ok(new_value)` or an error.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn filter_map<U, F>(self, mapper: F) -> FilterMap<Self, F, O, U, L, Ctx, Lang>
   where
     Self: Sized,
@@ -506,7 +510,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// The parser must produce a `Spanned<O>` value. The mapper receives
   /// the data and span, and returns `Ok(new_value)` or an error.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn filter_map_with<U, F>(self, mapper: F) -> FilterMapWith<Self, F, O, U, L, Ctx, Lang>
   where
     Self: Sized,
@@ -522,7 +526,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Validate the output of this parser with full location context.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn validate<F>(self, validator: F) -> Validate<Self, F, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -534,7 +538,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Validate the output of this parser with full location context.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn validate_with<F>(self, validator: F) -> ValidateWith<Self, F, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -549,7 +553,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Sequence this parser with another, ignoring the output of the second.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn then_ignore<G, U>(self, second: G) -> ThenIgnore<Self, G, O, U, L, Ctx, Lang>
   where
     Self: Sized,
@@ -562,7 +566,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Sequence this parser with a fixed value, ignoring the output of the first.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn then_value<F, U>(self, value: F) -> ThenValue<Self, F, O, U, L, Ctx, Lang>
   where
     Self: Sized,
@@ -574,7 +578,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Sequence this parser with another, using the first result to determine the second parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn and_then<T, U>(self, then: T) -> AndThen<Self, T, O, U, L, Ctx, Lang>
   where
     Self: Sized,
@@ -587,7 +591,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Sequence this parser with another, using the first result to determine the second parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn and_then_with<T, U>(self, then: T) -> AndThenWith<Self, T, O, U, L, Ctx, Lang>
   where
     Self: Sized,
@@ -603,7 +607,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Sequence this parser with another, keeping both outputs.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn then<T, U>(self, then: T) -> Then<Self, T, O, U, L, Ctx, Lang>
   where
     Self: Sized,
@@ -616,7 +620,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Sequence this parser with another, ignoring the output of the first.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn ignore_then<G, U>(self, second: G) -> IgnoreThen<Self, G, O, U, L, Ctx, Lang>
   where
     Self: Sized,
@@ -656,7 +660,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// - `inplace_recover()`: Continues from error position, typically skips ahead
   ///
   /// See [`Recover`] for detailed documentation and more examples.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn recover<R>(self, recovery: R) -> Recover<Self, R, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -703,7 +707,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// - `inplace_recover()`: Continues from error position, typically skips ahead
   ///
   /// See [`InplaceRecover`] for detailed documentation and more examples.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn inplace_recover<R>(self, recovery: R) -> InplaceRecover<Self, R, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -715,8 +719,56 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     InplaceRecover::new(self, recovery)
   }
 
+  /// Recover from errors by skipping — nesting-aware — to a synchronization point and
+  /// retrying this parser.
+  ///
+  /// If this parser fails, the input rolls back to where the attempt began, then
+  /// [`sync_balanced`](InputRef::sync_balanced) skips forward using `classifier` (which token
+  /// kinds open/close delimiter pairs — see [`Balance`](crate::input::Balance)) and the
+  /// depth-0 sync predicate `pred`, and the parser is retried from the sync point. Each
+  /// committed skip is reported once through
+  /// [`emit_skipped_region`](crate::Emitter::emit_skipped_region).
+  ///
+  /// A retry cycle that consumes nothing bails out with the original error (the
+  /// zero-consumption progress guard), and an [`Incomplete`](crate::error::Incomplete) error
+  /// is re-raised untouched without any skipping — the never-recoverable law.
+  ///
+  /// # Example
+  ///
+  /// ```ignore
+  /// use tokit::input::Balance;
+  ///
+  /// // Parse a statement; on failure skip to the next `;` (never one inside braces) and retry.
+  /// let parser = parse_statement().skip_then_retry(
+  ///     |kind| match kind {
+  ///         TokenKind::LBrace => Balance::Open('{'),
+  ///         TokenKind::RBrace => Balance::Close('{'),
+  ///         _ => Balance::Neutral,
+  ///     },
+  ///     |tok| matches!(tok.data(), Token::Semi),
+  /// );
+  /// ```
+  ///
+  /// See [`SkipThenRetry`] for the full loop and progress-guard contract.
+  #[inline(always)]
+  fn skip_then_retry<D, F>(
+    self,
+    classifier: D,
+    pred: F,
+  ) -> SkipThenRetry<Self, D, F, O, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    D: DelimClass<<L::Token as Token<'inp>>::Kind>,
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
+    Ctx: ParseContext<'inp, L, Lang>,
+    SkipThenRetry<Self, D, F, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+  {
+    SkipThenRetry::new(self, classifier, pred)
+  }
+
   /// Creates a parser that accepts any token with optional padding.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn padded(self) -> Padded<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -727,7 +779,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Creates a parser that accepts any token with optional padding.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn padded_left(self) -> PaddedLeft<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -738,7 +790,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   }
 
   /// Creates a parser that accepts any token with optional padding.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn padded_right(self) -> PaddedRight<Self, O, L, Ctx, Lang>
   where
     Self: Sized,
@@ -757,7 +809,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -772,7 +824,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -788,7 +840,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -809,7 +861,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -837,7 +889,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -861,7 +913,7 @@ where
 /// Extension trait for unwrapping `Option` outputs.
 pub trait ParseInputUnwrapExt<'inp, L, O, Ctx, Lang: ?Sized> {
   /// Creates an `Unwrapped` parser that unwraps the `Option` result of this parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   fn unwrap(self) -> Unwrapped<Self, O, Ctx, Lang>
   where

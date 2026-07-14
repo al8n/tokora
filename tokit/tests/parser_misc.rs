@@ -9,13 +9,13 @@
 
 mod common;
 
-use common::{TestLexer, Token, TokenKind};
+use common::{Power, TestLexer, Token, TokenKind};
 use tokit::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, TryParseInput,
   cache::{DefaultCache, Peeked},
   emitter::Ignored,
   error::{UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot, token::UnexpectedToken},
-  parser::{Action, PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, expect, pratt_of},
+  parser::{Action, PrattInfix, PrattLHS, PrattRHS, Precedenced, expect, pratt_of},
   punct::{CloseParen, Comma, OpenParen, Semicolon},
   span::Spanned,
   try_parse_input::ParseAttempt,
@@ -70,20 +70,6 @@ macro_rules! ignored_parser {
   () => {
     Parser::with_context(IgnoredContext::new(Ignored::default()))
   };
-}
-
-// ── Pratt power type ────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
-struct Power(i32);
-
-impl PrattPower for Power {
-  fn next(&self) -> Self {
-    Power(self.0 + 1)
-  }
-  fn prev(&self) -> Self {
-    Power(self.0 - 1)
-  }
 }
 
 const PREC_SENTINEL: Power = Power(-1);

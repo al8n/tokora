@@ -6,14 +6,16 @@ where
   E: FromTooManyError<'a, L, Lang> + FromEmitterError<'a, L, Lang>,
   S: Span + Ord + Clone,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_too_many(&mut self, err: TooMany<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
     self
       .errs
-      .insert(err.span_ref().clone(), E::from_too_many(err));
+      .entry(err.span_ref().clone())
+      .or_default()
+      .push(E::from_too_many(err));
     Ok(())
   }
 }
@@ -29,5 +31,5 @@ const _: () = {
   {
   }
 
-  assert_noop_too_many_emitter::<'_, DummyLexer, (), Fatal<()>>();
+  assert_noop_too_many_emitter::<'_, DummyLexer, (), Verbose<()>>();
 };

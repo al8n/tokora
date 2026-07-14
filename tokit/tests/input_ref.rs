@@ -5,18 +5,15 @@
 
 mod common;
 
+// `E` and `ctx` are exercised only by the `unstable-raw`-gated cache-rewind
+// tests below; gate the import to match, keeping the valve-off build clean.
+#[cfg(feature = "unstable-raw")]
+use common::{E, ctx};
+
 use common::{TestLexer, Token, TokenKind};
 use tokit::{
-  Emitter, InputRef, Lexer, Parse, ParseContext, Parser, ParserContext, Token as TokenTrait,
-  cache::DefaultCache,
-  emitter::Ignored,
-  error::{
-    UnexpectedEot,
-    token::{UnexpectedToken, UnexpectedTokenOf},
-  },
-  input::Cursor,
-  span::Spanned,
-  utils::Expected,
+  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, cache::DefaultCache,
+  emitter::Ignored, span::Spanned, utils::Expected,
 };
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -734,62 +731,7 @@ fn sync_through_no_match() {
 
 // ── cache rewind (from cache_rewind_coverage) ────────────────────────────────
 
-#[derive(Debug)]
-struct E;
-impl From<()> for E {
-  fn from(_: ()) -> Self {
-    E
-  }
-}
-impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
-  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
-    E
-  }
-}
-impl From<UnexpectedEot> for E {
-  fn from(_: UnexpectedEot) -> Self {
-    E
-  }
-}
-
-struct TestEm;
-impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEm {
-  type Error = E;
-  fn emit_lexer_error(
-    &mut self,
-    _: Spanned<
-      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenTrait<'inp>>::Error,
-      <TestLexer<'inp> as Lexer<'inp>>::Span,
-    >,
-  ) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(E)
-  }
-  fn emit_error(&mut self, err: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    Err(err.into_data())
-  }
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-  }
-}
-
-fn ctx() -> ParserContext<'static, TestLexer<'static>, TestEm> {
-  ParserContext::new(TestEm)
-}
-
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn rewind_to_start_after_consuming() {
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<(i64, i64), E>
@@ -821,6 +763,7 @@ fn rewind_to_start_after_consuming() {
   assert_eq!(a, 42);
 }
 
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn rewind_after_peek_populates_cache() {
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, E>
@@ -845,6 +788,7 @@ fn rewind_after_peek_populates_cache() {
   assert_eq!(r.unwrap(), 42);
 }
 
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn rewind_mid_stream() {
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, E>
@@ -870,6 +814,7 @@ fn rewind_mid_stream() {
   assert_eq!(nums, vec![2, 3]);
 }
 
+#[cfg(feature = "unstable-raw")]
 #[test]
 fn rewind_with_empty_remaining_input() {
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, E>

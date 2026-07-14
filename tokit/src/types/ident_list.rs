@@ -28,7 +28,7 @@ pub struct IdentList<S, Span, Container, Lang: ?Sized = ()> {
 }
 
 impl<S, Span, Container, Lang> AsSpan<Span> for IdentList<S, Span, Container, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn as_span(&self) -> &Span {
     self.span_ref()
   }
@@ -36,7 +36,7 @@ impl<S, Span, Container, Lang> AsSpan<Span> for IdentList<S, Span, Container, La
 
 impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
   /// Returns `true` if all identifiers in the path are valid.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn is_valid(&self) -> bool
   where
     Container: AsRef<[Ident<S, Span, Lang>]>,
@@ -45,7 +45,7 @@ impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
   }
 
   /// Returns `true` if any segment in the path is an error node.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn is_error(&self) -> bool
   where
     Container: AsRef<[Ident<S, Span, Lang>]>,
@@ -54,7 +54,7 @@ impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
   }
 
   /// Returns `true` if any segment in the path is a missing node.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn is_missing(&self) -> bool
   where
     Container: AsRef<[Ident<S, Span, Lang>]>,
@@ -65,7 +65,7 @@ impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
 
 impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
   /// Create a new path.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(span: Span, identifiers: Container) -> Self {
     Self {
       span,
@@ -76,7 +76,7 @@ impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
   }
 
   /// Get the span of the path.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> Span
   where
     Span: Copy,
@@ -85,19 +85,19 @@ impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
   }
 
   /// Get the reference to the span of the path.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &Span {
     &self.span
   }
 
   /// Get the mutable reference to the span of the path.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_mut(&mut self) -> &mut Span {
     &mut self.span
   }
 
   /// Bump the span of the path by the given offset.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump(&mut self, by: &Span::Offset) -> &mut Self
   where
     Span: crate::span::Span,
@@ -111,13 +111,13 @@ impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
   }
 
   /// Get the identifiers of the path.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn identifiers(&self) -> &Container {
     &self.identifiers
   }
 
   /// Returns the slice of the path identifiers.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn identifiers_slice(&self) -> &[Ident<S, Span, Lang>]
   where
     Container: AsRef<[Ident<S, Span, Lang>]>,
@@ -126,7 +126,7 @@ impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
   }
 
   /// Returns `true` if the path has no identifiers.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn is_empty(&self) -> bool
   where
     Container: AsRef<[Ident<S, Span, Lang>]>,

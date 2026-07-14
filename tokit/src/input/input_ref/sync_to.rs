@@ -1,5 +1,7 @@
 use super::*;
 
+use super::scan::{Scanned, SyncTo};
+
 impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
 where
   L: Lexer<'inp>,
@@ -12,7 +14,15 @@ where
   /// before the first token for which `pred` returns `true` and returns it (without
   /// consuming). Non-matching non-error tokens are skipped but also reported via
   /// `emit_unexpected_token`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  ///
+  /// # The fatal exit commits
+  ///
+  /// A fatal emitter rejection mid-skip follows the sync family's fatal-exit discipline: the
+  /// token that trips the emitter is committed and the error propagates, so a caller that
+  /// catches it resumes *after* the reported token. This does not depend on whether the token
+  /// was already in the peek cache — the cache is an invisible optimization (see
+  /// [`sync_through`](Self::sync_through)).
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_to<F, Exp>(
     &mut self,
@@ -33,8 +43,9 @@ where
 
   /// Skip tokens until the predicate matches, emitting lexer errors along the way.
   ///
-  /// Returns peeked tokens and a mutable reference to the emitter.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  /// Returns peeked tokens and a mutable reference to the emitter. A fatal emitter rejection
+  /// mid-skip commits the token that tripped it, exactly as in [`sync_to`](Self::sync_to).
+  #[inline(always)]
   #[allow(clippy::type_complexity)]
   pub fn sync_to_then_peek_with_emitter<'p, F, Exp, W>(
     &'p mut self,
@@ -49,58 +60,15 @@ where
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
     W: Window,
   {
-    self.sync_matched_in_cache(&mut pred, &mut exp)?;
-
-    // as the matched token will not be consumed, we just peek it
-    match !self.cache().is_empty() {
-      // If the matched token is in cache, return it
-      true => self.peek_with_emitter::<W>(),
-      // Otherwise, let's skip the input
-      false => {
-        let mut lexer = self.lexer();
-
-        let mut end = self.span.clone();
-        let mut state = self.state.clone();
-
-        while let Some(Spanned { span, data: tok }) = Lexed::<L::Token>::lex_spanned(&mut lexer) {
-          match tok {
-            Lexed::Error(err) => match self.emitter().emit_lexer_error(Spanned::new(span, err)) {
-              Ok(_) => {
-                end = lexer.span();
-                state = lexer.state().clone();
-              }
-              Err(e) => {
-                self.set_span_after_consume(lexer.span().into());
-                *self.state = lexer.into_state();
-                return Err(e);
-              }
-            },
-            Lexed::Token(tok) => {
-              let tok = Spanned::new(span, tok);
-              // if the token matches, we cache it and return it
-              if pred(tok.as_ref()) {
-                self.set_span_after_consume(end.into());
-                *self.state = state;
-                return self.peek_with_emitter::<W>();
-              } else {
-                let (span, tok) = tok.into_components();
-                self.emitter().emit_unexpected_token(
-                  UnexpectedToken::maybe_expected_of(span, exp()).with_found(tok),
-                )?;
-              }
-
-              end = lexer.span();
-              state = lexer.state().clone();
-            }
-          }
-        }
-
-        // No matched token found, we just update the cursor and state
-        self.set_span_after_consume(lexer.span().into());
-        *self.state = lexer.into_state();
-
-        Ok((GenericArrayDeque::new(), self.emitter))
-      }
+    trace_event!(self, "sync_to");
+    // `SyncTo` leaves the match unconsumed at the cache FRONT — whether the scanner popped it out
+    // of the cache or lexed it — so the peek that follows always serves it straight back out of the
+    // cache and fills the rest of the window behind it. The exhausted outcomes — a poison trip
+    // mid-scan or a no-match run to end of input, both of which `skip_until` has already settled —
+    // return the empty peek.
+    match self.skip_until::<SyncTo, _, _>(&mut pred, &mut exp, ())? {
+      Scanned::Found(_) => self.peek_with_emitter::<W>(),
+      Scanned::Exhausted => Ok((GenericArrayDeque::new(), self.emitter)),
     }
   }
 }

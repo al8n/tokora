@@ -8,7 +8,7 @@ where
   E: FromPrattError<'a, L, Lang>,
   Fatal<E, Lang>: Emitter<'a, L, Lang, Error = E>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_end_of_lhs(
     &mut self,
     err: UnexpectedEoLhs<L::Offset, Lang>,
@@ -19,7 +19,7 @@ where
     Err(E::from_unexpected_end_of_lhs(err))
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_end_of_rhs(
     &mut self,
     err: UnexpectedEoRhs<L::Offset, Lang>,

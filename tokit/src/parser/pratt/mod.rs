@@ -4,6 +4,24 @@ pub use expr::*;
 mod expr;
 
 /// The power level of an operator, used to determine the order of operations in Pratt parsing.
+///
+/// Implemented by tokit for every standard integer type (saturating at the type's bounds), so a
+/// plain `i64` — the default `Power` of [`Precedenced`] — works out of the box:
+///
+/// ```
+/// use tokit::parser::PrattPower;
+///
+/// assert_eq!(3i64.next(), 4);
+/// assert_eq!(3i64.prev(), 2);
+/// // Saturating at the representable bounds — never wraps, never panics.
+/// assert_eq!(u8::MAX.next(), u8::MAX);
+/// assert_eq!(i8::MIN.prev(), i8::MIN);
+/// ```
+///
+/// Custom implementations (a domain-specific precedence ladder, a newtype with named levels)
+/// remain first-class; the integer impls only cover the common numeric case that previously
+/// forced every consumer into a newtype (the orphan rule bars downstream
+/// `impl PrattPower for i64`).
 pub trait PrattPower: Default + Clone + Ord {
   /// Returns the next higher power level.
   fn next(&self) -> Self;
@@ -19,6 +37,31 @@ pub trait PrattPower: Default + Clone + Ord {
   fn prev(&self) -> Self;
 }
 
+macro_rules! impl_pratt_power_for_int {
+  ($($int:ty),+ $(,)?) => {
+    $(
+      /// Saturating integer binding power: `next` adds one and `prev` subtracts one, both
+      /// clamped at the type's representable bounds, honoring the trait's no-underflow
+      /// requirement on [`prev`](PrattPower::prev).
+      impl PrattPower for $int {
+        #[inline(always)]
+        fn next(&self) -> Self {
+          self.saturating_add(1)
+        }
+
+        #[inline(always)]
+        fn prev(&self) -> Self {
+          self.saturating_sub(1)
+        }
+      }
+    )+
+  };
+}
+
+impl_pratt_power_for_int!(
+  i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize
+);
+
 /// A type with an associated precedence level, used in Pratt parsing.
 #[derive(Debug, Clone, Copy)]
 pub struct Precedenced<T, Power = i64> {
@@ -28,49 +71,49 @@ pub struct Precedenced<T, Power = i64> {
 
 impl<T, Power> Precedenced<T, Power> {
   /// Creates a new `Precedenced` with the given token and precedence.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(token: T, precedence: Power) -> Self {
     Self { token, precedence }
   }
 
   /// Returns a new `Precedenced` with the given token but a different precedence level.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn with_precedence(token: T, precedence: Power) -> Self {
     Self { token, precedence }
   }
 
   /// Returns the reference to the token contained in this `Precedenced`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn token_ref(&self) -> &T {
     &self.token
   }
 
   /// Returns the mutable reference to the token contained in this `Precedenced`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn token_mut(&mut self) -> &mut T {
     &mut self.token
   }
 
   /// Returns the precedence level of this `Precedenced`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn precedence(&self) -> &Power {
     &self.precedence
   }
 
   /// Decomposes this `Precedenced` into its precedence.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_precedence(self) -> Power {
     self.precedence
   }
 
   /// Decomposes this `Precedenced` into its data.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_data(self) -> T {
     self.token
   }
 
   /// Decomposes this `Precedenced` into its token and precedence components.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (T, Power) {
     (self.token, self.precedence)
   }
@@ -125,7 +168,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   P: ParseInput<'inp, L, PrattLHS<Op, Pre, Power>, Ctx, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_pratt_lhs(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -172,7 +215,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   P: ParseInput<'inp, L, PrattRHS<LeftAssoc, RightAssoc, NeitherAssoc, Post, Power>, Ctx, Lang>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_pratt_rhs(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -213,7 +256,7 @@ where
     Precedenced<Operator, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_postfix(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -266,7 +309,7 @@ where
     Precedenced<PrattInfix<LO, RO, NO>, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_infix(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -307,7 +350,7 @@ where
     Precedenced<Operator, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_prefix(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -347,7 +390,7 @@ where
   )
     -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_postfix(
     &mut self,
     operand: Spanned<L::Token, L::Span>,
@@ -389,7 +432,7 @@ where
   )
     -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_infix(
     &mut self,
     left: Spanned<L::Token, L::Span>,
@@ -430,7 +473,7 @@ where
   )
     -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fold_prefix(
     &mut self,
     operator: Spanned<L::Token, L::Span>,

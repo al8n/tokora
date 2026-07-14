@@ -264,3 +264,149 @@ impl From<CloseParen<(), (), ()>> for TokenKind {
 // ── TestLexer ─────────────────────────────────────────────────────────────────
 
 pub type TestLexer<'a> = tokit::lexer::LogosLexer<'a, Token>;
+
+// ── Shared fixture error type `E` ────────────────────────────────────────────
+//
+// The unit "any failure" error the separated/handler/state-machine suites share:
+// one `From` impl per error family their drivers can surface. Moved here from 14
+// integration files that declared byte-identical copies (W7 harness consolidation);
+// not every integration binary constructs it, hence the `allow(dead_code)`.
+
+use tokit::error::{
+  UnexpectedEot,
+  syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
+  token::{MissingToken, SeparatedError, UnexpectedToken},
+};
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct E;
+
+impl From<()> for E {
+  fn from(_: ()) -> Self {
+    E
+  }
+}
+
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
+  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
+    E
+  }
+}
+
+impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for E {
+  fn from(_: FullContainer<S, Lang>) -> Self {
+    E
+  }
+}
+
+impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for E {
+  fn from(_: TooFew<S, Lang>) -> Self {
+    E
+  }
+}
+
+impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for E {
+  fn from(_: TooMany<S, Lang>) -> Self {
+    E
+  }
+}
+
+impl From<UnexpectedEot> for E {
+  fn from(_: UnexpectedEot) -> Self {
+    E
+  }
+}
+
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for E {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
+    E
+  }
+}
+
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>> for E {
+  fn from(_: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
+    E
+  }
+}
+
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for E {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
+    E
+  }
+}
+
+// ── Shared emitter `TestEm` + its context constructor ─────────────────────────
+//
+// A "fail on everything" emitter (`Error = E`) with the Fatal-free context built
+// from it. Byte-identical copies previously lived in the punct and input_ref
+// suites (W7 harness consolidation); not every binary that imports common
+// exercises them, hence the `allow(dead_code)`.
+
+use tokit::{
+  Emitter, Lexer, ParserContext, error::token::UnexpectedTokenOf, input::Cursor, span::Spanned,
+};
+
+#[allow(dead_code)]
+pub struct TestEm;
+
+impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEm {
+  type Error = E;
+  fn emit_lexer_error(
+    &mut self,
+    _: Spanned<
+      <<TestLexer<'inp> as Lexer<'inp>>::Token as TokenT<'inp>>::Error,
+      <TestLexer<'inp> as Lexer<'inp>>::Span,
+    >,
+  ) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Err(E)
+  }
+  fn emit_unexpected_token(&mut self, _: UnexpectedTokenOf<'inp, TestLexer<'inp>>) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Err(E)
+  }
+  fn emit_error(&mut self, err: Spanned<E, <TestLexer<'inp> as Lexer<'inp>>::Span>) -> Result<(), E>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+    Err(err.into_data())
+  }
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64)
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+  {
+  }
+}
+
+#[allow(dead_code)]
+pub fn ctx() -> ParserContext<'static, TestLexer<'static>, TestEm> {
+  ParserContext::new(TestEm)
+}
+
+// ── Pratt binding-power newtype `Power` ──────────────────────────────────────
+//
+// A user newtype implementing `PrattPower` (the orphan rule forbids
+// `impl PrattPower for i32`), shared by the pratt and misc suites to pin the
+// user-newtype path distinct from the built-in integer impls. The field is
+// public so each suite's local `PREC_*` constants can construct it; not every
+// binary that imports common uses it, hence `allow(dead_code)`.
+
+use tokit::parser::PrattPower;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(dead_code)]
+pub struct Power(pub i32);
+
+impl PrattPower for Power {
+  fn next(&self) -> Self {
+    Power(self.0 + 1)
+  }
+  fn prev(&self) -> Self {
+    Power(self.0 - 1)
+  }
+}

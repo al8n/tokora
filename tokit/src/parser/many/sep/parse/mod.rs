@@ -6,7 +6,7 @@ use crate::{
     syntax::{FullContainer, MissingSyntaxOf},
     token::MissingTokenOf,
   },
-  input::Checkpoint,
+  input::Cursor,
   punct::Punctuator,
   span::Span,
   try_parse_input::{Accept, Decline},
@@ -49,9 +49,10 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
+    trace_event!(inp, "separated");
     let mut state = State::Start;
-    let ckp = inp.save();
-    let mut cursor = ckp.cursor().clone();
+    let anchor = inp.cursor().clone();
+    let mut cursor = anchor.clone();
     let mut num_elems = 0;
 
     loop {
@@ -65,7 +66,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
         }
       })? {
         None => match ps {
-          None => return self.handle_end(state, inp, &ckp, num_elems, end_state_handler),
+          None => return self.handle_end(state, inp, &anchor, num_elems, end_state_handler),
           Some(span) => span,
         },
         Some(tok) => {
@@ -80,13 +81,13 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
           let span = inp.span_since(&cursor);
           inp.emitter().emit_error(Spanned::new(span, e))?;
         }
-        Ok(Decline) => return self.handle_end(state, inp, &ckp, num_elems, end_state_handler),
+        Ok(Decline) => return self.handle_end(state, inp, &anchor, num_elems, end_state_handler),
         Ok(Accept(elem)) => {
           // if the peeked token belongs to an element, check the current state
           state = self.handle_continue(
             state,
             inp,
-            &ckp,
+            &anchor,
             peek_span,
             elem,
             &mut num_elems,
@@ -98,7 +99,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
 
       let new_cursor = inp.cursor().clone();
       if new_cursor.as_inner() == cursor.as_inner() {
-        return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
+        return self.handle_end(state, inp, &anchor, num_elems, end_state_handler);
       }
       cursor = new_cursor;
     }
@@ -179,7 +180,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
     &mut self,
     mut state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     peek_span: L::Span,
     element: O,
     num_elems: &mut usize,
@@ -200,7 +201,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
       // happy path, we found a separator before an element
       State::Separator(_) => {
         if push(num_elems, container, element).is_err() {
-          let span = inp.span_since(ckp.cursor());
+          let span = inp.span_since(anchor);
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
@@ -212,7 +213,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
       // we are in leading state,
       State::Leading(_) => {
         if push(num_elems, container, element).is_err() {
-          let span = inp.span_since(ckp.cursor());
+          let span = inp.span_since(anchor);
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
@@ -227,7 +228,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
         handler.handle_start_state(inp, peek_span.start())?;
 
         if push(num_elems, container, element).is_err() {
-          let span = inp.span_since(ckp.cursor());
+          let span = inp.span_since(anchor);
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
@@ -246,11 +247,11 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
           .emitter()
           .emit_missing_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(off))?;
 
-        handler.handle_too_many_element(*num_elems, inp, ckp)?;
+        handler.handle_too_many_element(*num_elems, inp, anchor)?;
 
         // parse the next element
         if push(num_elems, container, element).is_err() {
-          let span = inp.span_since(ckp.cursor());
+          let span = inp.span_since(anchor);
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
@@ -268,7 +269,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
     &mut self,
     state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
     handler: &Handler,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -283,17 +284,19 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
   {
     Ok(match state {
       // we are in the start state, so no elements were found
-      State::Start => handler.handle_start_state(num_elems, inp, ckp)?,
+      State::Start => handler.handle_start_state(num_elems, inp, anchor)?,
       // we are in element state, so all good, check for trailing separator, and the minimum, maximum constraints
-      State::Element => handler.handle_element_state(num_elems, inp, ckp)?,
-      State::Leading(spanned) => handler.handle_leading_state(num_elems, inp, ckp, spanned)?,
+      State::Element => handler.handle_element_state(num_elems, inp, anchor)?,
+      State::Leading(spanned) => handler.handle_leading_state(num_elems, inp, anchor, spanned)?,
       // we have a trailing separator
-      State::Separator(spanned) => handler.handle_separator_state(num_elems, inp, ckp, spanned)?,
+      State::Separator(spanned) => {
+        handler.handle_separator_state(num_elems, inp, anchor, spanned)?
+      }
     })
   }
 }
 
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 fn push<C, T>(nums: &mut usize, container: &mut C, item: T) -> Result<(), T>
 where
   C: crate::container::Container<T>,

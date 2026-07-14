@@ -26,7 +26,7 @@ where
   U: PrattEmitter<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_end_of_lhs(
     &mut self,
     err: UnexpectedEoLhs<L::Offset, Lang>,
@@ -37,7 +37,7 @@ where
     (**self).emit_unexpected_end_of_lhs(err)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_end_of_rhs(
     &mut self,
     err: UnexpectedEoRhs<L::Offset, Lang>,
@@ -69,7 +69,7 @@ where
     + From<UnexpectedEoLhs<L::Offset, Lang>>
     + From<UnexpectedEoRhs<L::Offset, Lang>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from_unexpected_end_of_lhs(err: UnexpectedEoLhs<L::Offset, Lang>) -> Self
   where
     L: Lexer<'inp>,
@@ -77,7 +77,7 @@ where
     err.into()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from_unexpected_end_of_rhs(err: UnexpectedEoRhs<L::Offset, Lang>) -> Self
   where
     L: Lexer<'inp>,

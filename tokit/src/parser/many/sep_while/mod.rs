@@ -167,7 +167,7 @@ where
   Sep: Clone,
   Condition: Clone,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     Self {
       f: self.f.clone(),
@@ -186,7 +186,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
   SeparatedWhile<F, (), Condition, O, W, L, Ctx, Lang>
 {
   /// Creates a new `SeparatedWhile` parser with the given container.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new<Sep>(
     f: F,
     condition: Condition,
@@ -208,7 +208,7 @@ impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized>
   SeparatedWhile<F, Sep, Condition, O, Window, L, Ctx, Lang>
 {
   /// Creates a mutable reference version of this `SeparatedWhile` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_mut(
     &mut self,
   ) -> SeparatedWhile<&mut F, Sep, &mut Condition, O, Window, L, Ctx, Lang> {
@@ -225,61 +225,61 @@ impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized>
   }
 
   /// Returns a mutable reference to the inner parser function.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn fn_mut(&mut self) -> &mut F {
     &mut self.f
   }
 
   /// Returns mutable references to the inner parser function and condition.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn parts_mut(&mut self) -> (&mut F, &mut Condition) {
     (&mut self.f, &mut self.condition)
   }
 
   /// Sets the minimum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn at_least(self, minimum: usize) -> AtLeast<Self> {
     AtLeast::new(self, minimum)
   }
 
   /// Sets the maximum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn at_most(self, maximum: usize) -> AtMost<Self> {
     AtMost::new(self, maximum)
   }
 
   /// Sets both the minimum and maximum number of elements to parse.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn bounded(self, minimum: usize, maximum: usize) -> Bounded<Self> {
     Bounded::new(self, maximum, minimum)
   }
 
   /// Sets allows trailing separator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn allow_trailing(self) -> AllowTrailing<Self> {
     AllowTrailing::new(self)
   }
 
   /// Sets requires trailing separator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn require_trailing(self) -> RequireTrailing<Self> {
     RequireTrailing::new(self)
   }
 
   /// Sets allows leading separator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn allow_leading(self) -> AllowLeading<Self> {
     AllowLeading::new(self)
   }
 
   /// Sets requires leading separator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn require_leading(self) -> RequireLeading<Self> {
     RequireLeading::new(self)
   }
 
   /// Creates a new `Delimited` parser with the given delimiters and separator.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn delimited<'inp, Delim>(self) -> DelimitedBy<Self, Delim>
   where
     Delim: Delimiter<'inp, L, Lang>,

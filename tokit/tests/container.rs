@@ -13,14 +13,13 @@ use tokit::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
   Token as TokenTrait, TryParseInput,
   emitter::{
-    FromSeparatedError, FromUnexpectedLeadingSeparatorError, FromUnexpectedTrailingSeparatorError,
     FullContainerEmitter, SeparatedEmitter, Silent, TooFewEmitter, TooManyEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
     UnexpectedEot,
-    syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
+    token::{MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
   },
   input::Cursor,
   span::Spanned,
@@ -73,42 +72,16 @@ impl From<UnexpectedEot> for ContainerTestError {
   }
 }
 
-impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for ContainerTestError {
-  fn from_missing_separator(_: CowStr, _: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    ContainerTestError
-  }
-
-  fn from_missing_element(_: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>>
+  for ContainerTestError
+{
+  fn from(_: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
     ContainerTestError
   }
 }
 
-impl<'inp> FromUnexpectedLeadingSeparatorError<'inp, TestLexer<'inp>> for ContainerTestError {
-  fn from_unexpected_leading_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    ContainerTestError
-  }
-}
-
-impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for ContainerTestError {
-  fn from_unexpected_trailing_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for ContainerTestError {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
     ContainerTestError
   }
 }
@@ -153,7 +126,7 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for ContainerEmitter {
     Err(err.into_data())
   }
 
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64)
   where
     TestLexer<'inp>: Lexer<'inp>,
   {

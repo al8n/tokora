@@ -10,7 +10,7 @@ where
   Verbose<E, S, Lang>: SeparatedEmitter<'inp, L, Lang, Error = E>,
   S: Span + Ord + Clone,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_trailing_separator(
     &mut self,
     name: CowStr,
@@ -22,7 +22,9 @@ where
     let span = err.span_ref().clone();
     self
       .errs
-      .insert(span, E::from_unexpected_trailing_separator(name, err));
+      .entry(span)
+      .or_default()
+      .push(E::from_unexpected_trailing_separator(name, err));
     Ok(())
   }
 }

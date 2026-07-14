@@ -19,7 +19,7 @@ pub trait Span {
     Self: Sized;
 
   /// Returns the start offset of the span.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn start(&self) -> Self::Offset {
     self.start_ref().clone()
   }
@@ -36,7 +36,7 @@ pub trait Span {
     Self: Sized;
 
   /// Returns the end offset of the span.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn end(&self) -> Self::Offset {
     self.end_ref().clone()
   }
@@ -52,55 +52,61 @@ pub trait Span {
   where
     Self: Sized;
 
-  /// Bumps the span by `n` offsets.
+  /// Relocates the span by `n` offsets, shifting **both** the start and the end
+  /// so the length is preserved.
+  ///
+  /// This is a whole-span move, not an end extension. To grow the span by moving
+  /// only its end, use an end-specific operation such as
+  /// [`SimpleSpan::bump_end`].
   fn bump(&mut self, n: &Self::Offset);
 }
 
 impl Span for core::ops::Range<usize> {
   type Offset = usize;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn new(start: Self::Offset, end: Self::Offset) -> Self {
     start..end
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_range(self) -> core::ops::Range<Self::Offset> {
     self.start..self.end
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn start_ref(&self) -> &Self::Offset {
     &self.start
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn start_mut(&mut self) -> &mut Self::Offset {
     &mut self.start
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_start(self) -> Self::Offset {
     self.start
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn end_ref(&self) -> &Self::Offset {
     &self.end
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn end_mut(&mut self) -> &mut Self::Offset {
     &mut self.end
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_end(self) -> Self::Offset {
     self.end
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn bump(&mut self, n: &Self::Offset) {
+    self.start += *n;
     self.end += *n;
   }
 }
@@ -111,47 +117,47 @@ where
 {
   type Offset = O;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn new(start: Self::Offset, end: Self::Offset) -> Self {
     SimpleSpan::new(start, end)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_range(self) -> core::ops::Range<Self::Offset> {
     self.start..self.end
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn start_ref(&self) -> &Self::Offset {
     self.start_ref()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn start_mut(&mut self) -> &mut Self::Offset {
     self.start_mut()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_start(self) -> Self::Offset {
     self.start
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn end_ref(&self) -> &Self::Offset {
     self.end_ref()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn end_mut(&mut self) -> &mut Self::Offset {
     self.end_mut()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_end(self) -> Self::Offset {
     self.end
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn bump(&mut self, n: &Self::Offset) {
     self.bump(n);
   }
@@ -338,7 +344,7 @@ impl<O> core::fmt::Display for SimpleSpan<O>
 where
   O: core::fmt::Display,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     write!(f, "{}..{}", self.start, self.end)
   }
@@ -349,7 +355,7 @@ where
   O: Clone,
 {
   /// Clone the span into owned offsets.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn cloned(self) -> SimpleSpan<O> {
     SimpleSpan {
       start: self.start.clone(),
@@ -364,8 +370,8 @@ impl SimpleSpan {
   /// ## Panics
   ///
   /// Panics if `end < start`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn const_new(start: usize, end: usize) -> Self {
+  #[inline(always)]
+  pub const fn const_new(start: usize, end: usize) -> Self {
     assert!(end >= start, "end must be greater than or equal to start");
     Self { start, end }
   }
@@ -373,8 +379,8 @@ impl SimpleSpan {
   /// Try to create a new span.
   ///
   /// Returns `None` if `end < start`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn try_const_new(start: usize, end: usize) -> Option<Self> {
+  #[inline(always)]
+  pub const fn try_const_new(start: usize, end: usize) -> Option<Self> {
     if end >= start {
       Some(Self { start, end })
     } else {
@@ -397,7 +403,7 @@ impl SimpleSpan {
   /// span.bump_start(3);
   /// assert_eq!(span, SimpleSpan::new(8, 15));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn bump_start_const(&mut self, n: usize) -> &mut Self {
     self.start += n;
     assert!(
@@ -418,7 +424,7 @@ impl SimpleSpan {
   /// span.bump_end(5);
   /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn bump_end_const(&mut self, n: usize) -> &mut Self {
     self.end += n;
     self
@@ -435,7 +441,7 @@ impl SimpleSpan {
   /// span.bump(&10);
   /// assert_eq!(span, SimpleSpan::new(15, 25));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn bump_const(&mut self, n: usize) -> &mut Self {
     self.start += n;
     self.end += n;
@@ -453,7 +459,7 @@ impl SimpleSpan {
   /// span.set_start(10);
   /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn set_start_const(&mut self, start: usize) -> &mut Self {
     self.start = start;
     self
@@ -470,7 +476,7 @@ impl SimpleSpan {
   /// span.set_end(20);
   /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn set_end_const(&mut self, end: usize) -> &mut Self {
     self.end = end;
     self
@@ -486,7 +492,7 @@ impl SimpleSpan {
   /// let span = SimpleSpan::new(5, 15).with_start(10);
   /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn with_start_const(mut self, start: usize) -> Self {
     self.start = start;
     self
@@ -502,7 +508,7 @@ impl SimpleSpan {
   /// let span = SimpleSpan::new(5, 15).with_end(20);
   /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn with_end_const(mut self, end: usize) -> Self {
     self.end = end;
     self
@@ -522,7 +528,7 @@ impl<O> SimpleSpan<O> {
   /// assert_eq!(**span_ref.start_ref(), 5);
   /// assert_eq!(**span_ref.end_ref(), 15);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_ref(&self) -> SimpleSpan<&O> {
     SimpleSpan {
       start: &self.start,
@@ -543,7 +549,7 @@ impl<O> SimpleSpan<O> {
   /// **span_mut.end_mut() = 20;
   /// assert_eq!(span, SimpleSpan::new(10, 20));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_mut(&mut self) -> SimpleSpan<&mut O> {
     SimpleSpan {
       start: &mut self.start,
@@ -556,7 +562,7 @@ impl<O> SimpleSpan<O> {
   /// ## Panics
   ///
   /// Panics if `end < start`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn new(start: O, end: O) -> Self
   where
     O: Ord,
@@ -568,7 +574,7 @@ impl<O> SimpleSpan<O> {
   /// Try to create a new span.
   ///
   /// Returns `None` if `end < start`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn try_new(start: O, end: O) -> Option<Self>
   where
     O: Ord,
@@ -595,7 +601,7 @@ impl<O> SimpleSpan<O> {
   /// span.bump_start(3);
   /// assert_eq!(span, SimpleSpan::new(8, 15));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump_start(&mut self, n: O) -> &mut Self
   where
     O: AddAssign<O> + Ord,
@@ -610,6 +616,10 @@ impl<O> SimpleSpan<O> {
 
   /// Bump the end of the span by `n`.
   ///
+  /// ## Panics
+  ///
+  /// Panics if the resulting `end` would be less than `start`.
+  ///
   /// ## Example
   ///
   /// ```rust
@@ -619,12 +629,16 @@ impl<O> SimpleSpan<O> {
   /// span.bump_end(5);
   /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump_end(&mut self, n: O) -> &mut Self
   where
-    O: AddAssign<O>,
+    O: AddAssign<O> + Ord,
   {
     self.end += n;
+    assert!(
+      self.end >= self.start,
+      "end must be greater than or equal to start"
+    );
     self
   }
 
@@ -639,7 +653,7 @@ impl<O> SimpleSpan<O> {
   /// span.bump(&10);
   /// assert_eq!(span, SimpleSpan::new(15, 25));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump(&mut self, n: &O) -> &mut Self
   where
     O: for<'a> AddAssign<&'a O> + Clone,
@@ -651,6 +665,10 @@ impl<O> SimpleSpan<O> {
 
   /// Set the start of the span, returning a mutable reference to self.
   ///
+  /// ## Panics
+  ///
+  /// Panics if `start > end`.
+  ///
   /// ## Example
   ///
   /// ```rust
@@ -660,13 +678,24 @@ impl<O> SimpleSpan<O> {
   /// span.set_start(10);
   /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn set_start(&mut self, start: O) -> &mut Self {
+  #[inline(always)]
+  pub fn set_start(&mut self, start: O) -> &mut Self
+  where
+    O: Ord,
+  {
     self.start = start;
+    assert!(
+      self.end >= self.start,
+      "end must be greater than or equal to start"
+    );
     self
   }
 
   /// Set the end of the span, returning a mutable reference to self.
+  ///
+  /// ## Panics
+  ///
+  /// Panics if `end < start`.
   ///
   /// ## Example
   ///
@@ -677,13 +706,24 @@ impl<O> SimpleSpan<O> {
   /// span.set_end(20);
   /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn set_end(&mut self, end: O) -> &mut Self {
+  #[inline(always)]
+  pub fn set_end(&mut self, end: O) -> &mut Self
+  where
+    O: Ord,
+  {
     self.end = end;
+    assert!(
+      self.end >= self.start,
+      "end must be greater than or equal to start"
+    );
     self
   }
 
   /// Set the start of the span, returning self.
+  ///
+  /// ## Panics
+  ///
+  /// Panics if `start > end`.
   ///
   /// ## Example
   ///
@@ -693,13 +733,24 @@ impl<O> SimpleSpan<O> {
   /// let span = SimpleSpan::new(5, 15).with_start(10);
   /// assert_eq!(span, SimpleSpan::new(10, 15));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_start(mut self, start: O) -> Self {
+  #[inline(always)]
+  pub fn with_start(mut self, start: O) -> Self
+  where
+    O: Ord,
+  {
     self.start = start;
+    assert!(
+      self.end >= self.start,
+      "end must be greater than or equal to start"
+    );
     self
   }
 
   /// Set the end of the span, returning self.
+  ///
+  /// ## Panics
+  ///
+  /// Panics if `end < start`.
   ///
   /// ## Example
   ///
@@ -709,9 +760,16 @@ impl<O> SimpleSpan<O> {
   /// let span = SimpleSpan::new(5, 15).with_end(20);
   /// assert_eq!(span, SimpleSpan::new(5, 20));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub fn with_end(mut self, end: O) -> Self {
+  #[inline(always)]
+  pub fn with_end(mut self, end: O) -> Self
+  where
+    O: Ord,
+  {
     self.end = end;
+    assert!(
+      self.end >= self.start,
+      "end must be greater than or equal to start"
+    );
     self
   }
 
@@ -725,7 +783,7 @@ impl<O> SimpleSpan<O> {
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.start(), 5);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn start(&self) -> O
   where
     O: Copy,
@@ -744,12 +802,16 @@ impl<O> SimpleSpan<O> {
   ///
   /// assert_eq!(*span.start_ref(), 5);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn start_ref(&self) -> &O {
     &self.start
   }
 
   /// Get the mutable reference to the start of the span.
+  ///
+  /// Unlike [`set_start`](Self::set_start), this raw accessor cannot enforce the
+  /// `end >= start` invariant: it is the unchecked escape hatch, and the caller
+  /// is responsible for keeping the span well-formed.
   ///
   /// ## Example
   ///
@@ -760,7 +822,7 @@ impl<O> SimpleSpan<O> {
   /// *span.start_mut() = 10;
   /// assert_eq!(span.start(), 10);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn start_mut(&mut self) -> &mut O {
     &mut self.start
   }
@@ -775,7 +837,7 @@ impl<O> SimpleSpan<O> {
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.end(), 15);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn end(&self) -> O
   where
     O: Copy,
@@ -794,12 +856,16 @@ impl<O> SimpleSpan<O> {
   ///
   /// assert_eq!(*span.end_ref(), 15);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn end_ref(&self) -> &O {
     &self.end
   }
 
   /// Get the mutable reference to the end of the span.
+  ///
+  /// Unlike [`set_end`](Self::set_end), this raw accessor cannot enforce the
+  /// `end >= start` invariant: it is the unchecked escape hatch, and the caller
+  /// is responsible for keeping the span well-formed.
   ///
   /// ## Example
   ///
@@ -810,7 +876,7 @@ impl<O> SimpleSpan<O> {
   /// *span.end_mut() = 20;
   /// assert_eq!(span.end(), 20);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn end_mut(&mut self) -> &mut O {
     &mut self.end
   }
@@ -825,7 +891,7 @@ impl<O> SimpleSpan<O> {
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.len(), 10);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn len(&self) -> O
   where
     O: for<'a> core::ops::Sub<&'a O, Output = O> + Clone,
@@ -846,7 +912,7 @@ impl<O> SimpleSpan<O> {
   /// let not_empty = SimpleSpan::new(5, 15);
   /// assert!(!not_empty.is_empty());
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn is_empty(&self) -> bool
   where
     O: PartialEq,
@@ -864,7 +930,7 @@ impl<O> SimpleSpan<O> {
   /// let span = SimpleSpan::new(5, 15);
   /// assert_eq!(span.range(), (&5..&15));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn range(&self) -> Range<&O> {
     &self.start..&self.end
   }
@@ -874,14 +940,14 @@ impl<O> From<Range<O>> for SimpleSpan<O>
 where
   O: Ord,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(range: Range<O>) -> Self {
     Self::new(range.start, range.end)
   }
 }
 
 impl<O> From<SimpleSpan<O>> for Range<O> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(span: SimpleSpan<O>) -> Self {
     span.start..span.end
   }
@@ -891,14 +957,14 @@ impl<O> From<(O, O)> for SimpleSpan<O>
 where
   O: Ord,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from((start, end): (O, O)) -> Self {
     Self::new(start, end)
   }
 }
 
 impl<O> From<SimpleSpan<O>> for (O, O) {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(span: SimpleSpan<O>) -> Self {
     (span.start, span.end)
   }
@@ -1059,21 +1125,21 @@ pub struct Spanned<D, S = SimpleSpan> {
 }
 
 impl<D, S> AsRef<S> for Spanned<D, S> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn as_ref(&self) -> &S {
     self.span_ref()
   }
 }
 
 impl<D, S> AsSpan<S> for Spanned<D, S> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn as_span(&self) -> &S {
     AsRef::as_ref(self)
   }
 }
 
 impl<D, S> IntoSpan<S> for Spanned<D, S> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_span(self) -> S {
     self.span
   }
@@ -1082,14 +1148,14 @@ impl<D, S> IntoSpan<S> for Spanned<D, S> {
 impl<D, S> core::ops::Deref for Spanned<D, S> {
   type Target = D;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn deref(&self) -> &Self::Target {
     &self.data
   }
 }
 
 impl<D, S> core::ops::DerefMut for Spanned<D, S> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.data
   }
@@ -1099,7 +1165,7 @@ impl<D, S> core::fmt::Display for Spanned<D, S>
 where
   D: core::fmt::Display,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     self.data.fmt(f)
   }
@@ -1115,7 +1181,7 @@ where
 impl<D, S> IntoComponents for Spanned<D, S> {
   type Components = (S, D);
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_components(self) -> Self::Components {
     (self.span, self.data)
   }
@@ -1123,7 +1189,7 @@ impl<D, S> IntoComponents for Spanned<D, S> {
 
 impl<D, S> Spanned<&D, &S> {
   /// Returns a copied version of the spanned value.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn copied(&self) -> Spanned<D, S>
   where
     D: Copy,
@@ -1136,7 +1202,7 @@ impl<D, S> Spanned<&D, &S> {
   }
 
   /// Returns a cloned version of the spanned value.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn cloned(&self) -> Spanned<D, S>
   where
     D: Clone,
@@ -1148,7 +1214,7 @@ impl<D, S> Spanned<&D, &S> {
 
 impl<D, S> Spanned<D, S> {
   /// Create a new spanned value.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(span: S, data: D) -> Self {
     Self { span, data }
   }
@@ -1164,7 +1230,7 @@ impl<D, S> Spanned<D, S> {
   /// let spanned = Spanned::new(SimpleSpan::new(5, 10), "data");
   /// assert_eq!(spanned.span(), SimpleSpan::new(5, 10));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> S
   where
     S: Copy,
@@ -1183,7 +1249,7 @@ impl<D, S> Spanned<D, S> {
   /// let spanned = Spanned::new(SimpleSpan::new(5, 10), "data");
   /// assert_eq!(spanned.span_ref(), &SimpleSpan::new(5, 10));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &S {
     &self.span
   }
@@ -1200,7 +1266,7 @@ impl<D, S> Spanned<D, S> {
   /// spanned.span_mut().set_end(15);
   /// assert_eq!(spanned.span().end(), 15);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_mut(&mut self) -> &mut S {
     &mut self.span
   }
@@ -1216,7 +1282,7 @@ impl<D, S> Spanned<D, S> {
   /// let spanned = Spanned::new(SimpleSpan::new(5, 10), 42);
   /// assert_eq!(*spanned.data(), 42);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn data(&self) -> &D {
     &self.data
   }
@@ -1233,7 +1299,7 @@ impl<D, S> Spanned<D, S> {
   /// *spanned.data_mut() = 100;
   /// assert_eq!(*spanned.data(), 100);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn data_mut(&mut self) -> &mut D {
     &mut self.data
   }
@@ -1250,7 +1316,7 @@ impl<D, S> Spanned<D, S> {
   /// let borrowed: Spanned<&String, &SimpleSpan> = spanned.as_ref();
   /// assert_eq!(borrowed.data(), &"hello");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_ref(&self) -> Spanned<&D, &S> {
     Spanned {
       span: &self.span,
@@ -1271,7 +1337,7 @@ impl<D, S> Spanned<D, S> {
   /// borrowed.data.push_str(" world");
   /// assert_eq!(spanned.data(), &"hello world");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn as_mut(&mut self) -> Spanned<&mut D, &mut S> {
     Spanned {
       span: &mut self.span,
@@ -1280,19 +1346,19 @@ impl<D, S> Spanned<D, S> {
   }
 
   /// Consume the spanned value and return the span.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_span(self) -> S {
     self.span
   }
 
   /// Consume the spanned value and return the data.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_data(self) -> D {
     self.data
   }
 
   /// Decompose the spanned value into its span and data.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (S, D) {
     (self.span, self.data)
   }
@@ -1336,12 +1402,12 @@ impl<D, S> Spanned<D, S> {
 }
 
 impl<D, S> From<Spanned<D, S>> for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(_: Spanned<D, S>) -> Self {}
 }
 
 impl<D, S> From<Spanned<D, S>> for Ignored<()> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(_: Spanned<D, S>) -> Self {
     Ignored::default()
   }

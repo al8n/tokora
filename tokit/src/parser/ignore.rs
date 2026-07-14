@@ -114,7 +114,7 @@ pub struct Ignore<P, O, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, O, L, Ctx, Lang: ?Sized> Ignore<P, O, L, Ctx, Lang> {
   /// Creates a parser that ignores any output.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
     Self {
       parser,
@@ -133,7 +133,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,

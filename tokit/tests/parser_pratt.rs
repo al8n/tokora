@@ -11,12 +11,12 @@ use tokit::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, SimpleSpan,
   emitter::PrattEmitter,
   error::{UnexpectedEoLhs, UnexpectedEoRhs, token::UnexpectedTokenOf},
-  parser::{PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, pratt_of},
+  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt_of},
   span::Spanned,
   token::PrattToken,
 };
 
-use common::{TestLexer, Token};
+use common::{Power, TestLexer, Token};
 
 // ── Shared: error type and binding-power newtype ──────────────────────────────
 
@@ -44,19 +44,6 @@ impl From<UnexpectedEoLhs> for PrattError {
 impl From<UnexpectedEoRhs> for PrattError {
   fn from(_: UnexpectedEoRhs) -> Self {
     PrattError
-  }
-}
-
-/// Binding-power newtype (orphan rule prevents `impl PrattPower for i32`).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
-struct Power(i32);
-
-impl PrattPower for Power {
-  fn next(&self) -> Self {
-    Power(self.0 + 1)
-  }
-  fn prev(&self) -> Self {
-    Power(self.0 - 1)
   }
 }
 

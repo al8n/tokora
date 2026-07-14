@@ -26,7 +26,7 @@ where
   /// `Power::default()` as the minimum binding power.
   ///
   /// For a more ergonomic higher-level API that works with any AST node type, prefer
-  /// [`expression`](crate::parser::expression) instead.
+  /// the [`pratt`](fn@crate::parser::pratt) free function instead.
   ///
   /// # Parameters
   ///
@@ -112,7 +112,7 @@ where
     )
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn pratt_in<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power>(
     &mut self,
     min_precedence: Power,

@@ -1,5 +1,6 @@
 pub use errors::{DefaultContainer, Errors};
 pub use hex_escape::*;
+pub use incomplete::*;
 pub use incomplete_syntax::*;
 pub use incomplete_token::*;
 pub use invalid::*;
@@ -29,13 +30,11 @@ mod errors;
 /// Token-level error types.
 pub mod token;
 
-/// Lexer-level error types.
-pub mod lexer;
-
 /// Syntax-level error types.
 pub mod syntax;
 
 mod hex_escape;
+mod incomplete;
 mod incomplete_syntax;
 mod incomplete_token;
 mod invalid;
@@ -341,24 +340,24 @@ pub trait ErrorNode<S = SimpleSpan> {
 }
 
 impl ErrorNode for &str {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn error(_span: SimpleSpan) -> Self {
     "<error>"
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn missing(_span: SimpleSpan) -> Self {
     "<missing>"
   }
 }
 
 impl ErrorNode for &[u8] {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn error(_span: SimpleSpan) -> Self {
     b"<error>"
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn missing(_span: SimpleSpan) -> Self {
     b"<missing>"
   }
@@ -367,12 +366,12 @@ impl ErrorNode for &[u8] {
 #[cfg(feature = "bytes_1")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
 impl ErrorNode for bytes_1::Bytes {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn error(_span: SimpleSpan) -> Self {
     bytes_1::Bytes::from_static(b"<error>")
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn missing(_span: SimpleSpan) -> Self {
     bytes_1::Bytes::from_static(b"<missing>")
   }
@@ -384,24 +383,24 @@ const _: () = {
   use hipstr_0_8::{HipByt, HipStr};
 
   impl ErrorNode for HipStr<'_> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn error(_span: SimpleSpan) -> Self {
       HipStr::borrowed("<error>")
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn missing(_span: SimpleSpan) -> Self {
       HipStr::borrowed("<missing>")
     }
   }
 
   impl ErrorNode for HipByt<'_> {
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn error(_span: SimpleSpan) -> Self {
       HipByt::borrowed(b"<error>")
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn missing(_span: SimpleSpan) -> Self {
       HipByt::borrowed(b"<missing>")
     }
@@ -422,7 +421,7 @@ pub trait ErrorContainer<E> {
   fn new() -> Self;
 
   /// Create a new container with a specified capacity.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn with_capacity(_: usize) -> Self
   where
     Self: Sized,
@@ -434,7 +433,7 @@ pub trait ErrorContainer<E> {
   fn push(&mut self, error: E);
 
   /// Attempts to push an error, returning it back if the container is full.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_push(&mut self, error: E) -> Result<(), E>
   where
     Self: Sized,
@@ -447,7 +446,7 @@ pub trait ErrorContainer<E> {
   fn pop(&mut self) -> Option<E>;
 
   /// Returns `true` if the collection is empty.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn is_empty(&self) -> bool {
     self.len() == 0
   }
@@ -462,7 +461,7 @@ pub trait ErrorContainer<E> {
   fn into_iter(self) -> Self::IntoIter;
 
   /// Returns the remaining capacity if the container has a fixed upper bound.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn remaining_capacity(&self) -> Option<usize> {
     None
   }
@@ -475,17 +474,17 @@ impl<E> ErrorContainer<E> for Option<E> {
   where
     E: 'a;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn new() -> Self {
     None
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push(&mut self, error: E) {
     self.get_or_insert(error);
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_push(&mut self, error: E) -> Result<(), E> {
     if self.is_some() {
       Err(error)
@@ -495,27 +494,27 @@ impl<E> ErrorContainer<E> for Option<E> {
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn pop(&mut self) -> Option<E> {
     self.take()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     if self.is_some() { 1 } else { 0 }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn iter(&self) -> Self::Iter<'_> {
     Self::iter(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_iter(self) -> Self::IntoIter {
     <Self as IntoIterator>::into_iter(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn remaining_capacity(&self) -> Option<usize> {
     Some(if self.is_some() { 0 } else { 1 })
   }
@@ -530,17 +529,17 @@ impl<E, N: ArrayLength> ErrorContainer<E> for GenericArrayDeque<E, N> {
     Self: 'a,
     E: 'a;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn new() -> Self {
     Self::new()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn push(&mut self, error: E) {
     self.push_back(error);
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_push(&mut self, error: E) -> Result<(), E> {
     match self.push_back(error) {
       None => Ok(()),
@@ -548,27 +547,27 @@ impl<E, N: ArrayLength> ErrorContainer<E> for GenericArrayDeque<E, N> {
     }
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn pop(&mut self) -> Option<E> {
     self.pop_front()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn len(&self) -> usize {
     self.len()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn iter(&self) -> Self::Iter<'_> {
     Self::iter(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_iter(self) -> Self::IntoIter {
     IntoIterator::into_iter(self)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn remaining_capacity(&self) -> Option<usize> {
     Some(self.remaining_capacity())
   }
@@ -588,22 +587,22 @@ const _: () = {
     where
       E: 'a;
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn new() -> Self {
       Self::new()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn with_capacity(capacity: usize) -> Self {
       Self::with_capacity(capacity)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, error: E) {
       self.push(error);
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn pop(&mut self) -> Option<E> {
       if self.is_empty() {
         None
@@ -612,17 +611,17 @@ const _: () = {
       }
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       self.len()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn iter(&self) -> Self::Iter<'_> {
       self.as_slice().iter()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn into_iter(self) -> Self::IntoIter {
       <Self as IntoIterator>::into_iter(self)
     }
@@ -636,37 +635,37 @@ const _: () = {
       E: 'a,
       Self: 'a;
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn new() -> Self {
       Self::new()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn with_capacity(capacity: usize) -> Self {
       Self::with_capacity(capacity)
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn push(&mut self, error: E) {
       self.push_back(error);
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn pop(&mut self) -> Option<E> {
       self.pop_front()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn len(&self) -> usize {
       self.len()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn iter(&self) -> Self::Iter<'_> {
       self.iter()
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn into_iter(self) -> Self::IntoIter {
       <Self as IntoIterator>::into_iter(self)
     }
@@ -676,273 +675,4 @@ const _: () = {
 #[cfg(test)]
 #[allow(warnings)]
 #[cfg(any(feature = "std", feature = "alloc"))]
-mod tests {
-  use super::*;
-  use std::{vec, vec::Vec};
-
-  // --- ErrorNode for &str ---
-
-  #[test]
-  fn error_node_str_error() {
-    let node = <&str as ErrorNode>::error(SimpleSpan::new(0, 5));
-    assert_eq!(node, "<error>");
-  }
-
-  #[test]
-  fn error_node_str_missing() {
-    let node = <&str as ErrorNode>::missing(SimpleSpan::new(0, 5));
-    assert_eq!(node, "<missing>");
-  }
-
-  // --- ErrorNode for &[u8] ---
-
-  #[test]
-  fn error_node_bytes_error() {
-    let node = <&[u8] as ErrorNode>::error(SimpleSpan::new(0, 5));
-    assert_eq!(node, b"<error>");
-  }
-
-  #[test]
-  fn error_node_bytes_missing() {
-    let node = <&[u8] as ErrorNode>::missing(SimpleSpan::new(0, 5));
-    assert_eq!(node, b"<missing>");
-  }
-
-  // --- ErrorContainer for Option<E> ---
-
-  #[test]
-  fn option_error_container_new() {
-    let c: Option<i32> = ErrorContainer::new();
-    assert!(c.is_none());
-  }
-
-  #[test]
-  fn option_error_container_push_and_len() {
-    let mut c: Option<i32> = ErrorContainer::new();
-    assert_eq!(ErrorContainer::len(&c), 0);
-    assert!(ErrorContainer::is_empty(&c));
-    ErrorContainer::push(&mut c, 42);
-    assert_eq!(ErrorContainer::len(&c), 1);
-    assert!(!ErrorContainer::is_empty(&c));
-  }
-
-  #[test]
-  fn option_error_container_push_keeps_first() {
-    let mut c: Option<i32> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 1);
-    ErrorContainer::push(&mut c, 2);
-    assert_eq!(c, Some(1)); // get_or_insert keeps the first
-  }
-
-  #[test]
-  fn option_error_container_try_push() {
-    let mut c: Option<i32> = ErrorContainer::new();
-    assert!(ErrorContainer::try_push(&mut c, 1).is_ok());
-    assert!(ErrorContainer::try_push(&mut c, 2).is_err());
-  }
-
-  #[test]
-  fn option_error_container_pop() {
-    let mut c: Option<i32> = ErrorContainer::new();
-    assert_eq!(ErrorContainer::pop(&mut c), None);
-    ErrorContainer::push(&mut c, 10);
-    assert_eq!(ErrorContainer::pop(&mut c), Some(10));
-    assert_eq!(ErrorContainer::pop(&mut c), None);
-  }
-
-  #[test]
-  fn option_error_container_iter() {
-    let mut c: Option<i32> = ErrorContainer::new();
-    assert_eq!(ErrorContainer::iter(&c).count(), 0);
-    ErrorContainer::push(&mut c, 5);
-    let items: Vec<_> = ErrorContainer::iter(&c).collect();
-    assert_eq!(items, vec![&5]);
-  }
-
-  #[test]
-  fn option_error_container_into_iter() {
-    let mut c: Option<i32> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 99);
-    let items: Vec<_> = ErrorContainer::into_iter(c).collect();
-    assert_eq!(items, vec![99]);
-  }
-
-  #[test]
-  fn option_error_container_remaining_capacity() {
-    let mut c: Option<i32> = ErrorContainer::new();
-    assert_eq!(ErrorContainer::remaining_capacity(&c), Some(1));
-    ErrorContainer::push(&mut c, 1);
-    assert_eq!(ErrorContainer::remaining_capacity(&c), Some(0));
-  }
-
-  // --- ErrorContainer for Vec<E> ---
-
-  #[test]
-  fn vec_error_container_new() {
-    let c: Vec<i32> = ErrorContainer::new();
-    assert!(c.is_empty());
-  }
-
-  #[test]
-  fn vec_error_container_push_and_len() {
-    let mut c: Vec<i32> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 1);
-    ErrorContainer::push(&mut c, 2);
-    assert_eq!(ErrorContainer::len(&c), 2);
-  }
-
-  #[test]
-  fn vec_error_container_pop() {
-    let mut c: Vec<i32> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 10);
-    ErrorContainer::push(&mut c, 20);
-    assert_eq!(ErrorContainer::pop(&mut c), Some(10));
-    assert_eq!(ErrorContainer::pop(&mut c), Some(20));
-    assert_eq!(ErrorContainer::pop(&mut c), None);
-  }
-
-  #[test]
-  fn vec_error_container_with_capacity() {
-    let c: Vec<i32> = ErrorContainer::with_capacity(10);
-    assert!(c.is_empty());
-  }
-
-  #[test]
-  fn vec_error_container_remaining_capacity_is_none() {
-    let c: Vec<i32> = ErrorContainer::new();
-    assert_eq!(ErrorContainer::remaining_capacity(&c), None);
-  }
-
-  #[test]
-  fn vec_error_container_iter() {
-    let mut c: Vec<i32> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 1);
-    ErrorContainer::push(&mut c, 2);
-    let items: Vec<_> = ErrorContainer::iter(&c).collect();
-    assert_eq!(items, vec![&1, &2]);
-  }
-
-  #[test]
-  fn vec_error_container_into_iter() {
-    let mut c: Vec<i32> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 10);
-    ErrorContainer::push(&mut c, 20);
-    let items: Vec<_> = ErrorContainer::into_iter(c).collect();
-    assert_eq!(items, vec![10, 20]);
-  }
-
-  #[test]
-  fn vec_error_container_is_empty() {
-    let c: Vec<i32> = ErrorContainer::new();
-    assert!(ErrorContainer::is_empty(&c));
-  }
-
-  #[test]
-  fn vec_error_container_pop_empty() {
-    let mut c: Vec<i32> = ErrorContainer::new();
-    assert_eq!(ErrorContainer::pop(&mut c), None);
-  }
-
-  // --- ErrorContainer for VecDeque<E> ---
-
-  #[test]
-  fn vecdeque_error_container_new() {
-    use std::collections::VecDeque;
-    let c: VecDeque<i32> = ErrorContainer::new();
-    assert!(c.is_empty());
-  }
-
-  #[test]
-  fn vecdeque_error_container_with_capacity() {
-    use std::collections::VecDeque;
-    let c: VecDeque<i32> = ErrorContainer::with_capacity(10);
-    assert!(c.is_empty());
-  }
-
-  #[test]
-  fn vecdeque_error_container_push_pop_len() {
-    use std::collections::VecDeque;
-    let mut c: VecDeque<i32> = ErrorContainer::new();
-    assert_eq!(ErrorContainer::len(&c), 0);
-    ErrorContainer::push(&mut c, 1);
-    ErrorContainer::push(&mut c, 2);
-    assert_eq!(ErrorContainer::len(&c), 2);
-    assert_eq!(ErrorContainer::pop(&mut c), Some(1));
-    assert_eq!(ErrorContainer::pop(&mut c), Some(2));
-    assert_eq!(ErrorContainer::pop(&mut c), None);
-  }
-
-  #[test]
-  fn vecdeque_error_container_iter() {
-    use std::collections::VecDeque;
-    let mut c: VecDeque<i32> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 5);
-    ErrorContainer::push(&mut c, 6);
-    let items: Vec<_> = ErrorContainer::iter(&c).collect();
-    assert_eq!(items, vec![&5, &6]);
-  }
-
-  #[test]
-  fn vecdeque_error_container_into_iter() {
-    use std::collections::VecDeque;
-    let mut c: VecDeque<i32> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 99);
-    let items: Vec<_> = ErrorContainer::into_iter(c).collect();
-    assert_eq!(items, vec![99]);
-  }
-
-  // --- ErrorContainer for GenericArrayDeque ---
-
-  #[test]
-  fn arraydeque_error_container_new() {
-    use generic_arraydeque::typenum::U4;
-    let c: GenericArrayDeque<i32, U4> = ErrorContainer::new();
-    assert!(ErrorContainer::is_empty(&c));
-  }
-
-  #[test]
-  fn arraydeque_error_container_push_pop_len() {
-    use generic_arraydeque::typenum::U4;
-    let mut c: GenericArrayDeque<i32, U4> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 10);
-    ErrorContainer::push(&mut c, 20);
-    assert_eq!(ErrorContainer::len(&c), 2);
-    assert_eq!(ErrorContainer::pop(&mut c), Some(10));
-  }
-
-  #[test]
-  fn arraydeque_error_container_try_push() {
-    use generic_arraydeque::typenum::U2;
-    let mut c: GenericArrayDeque<i32, U2> = ErrorContainer::new();
-    assert!(ErrorContainer::try_push(&mut c, 1).is_ok());
-    assert!(ErrorContainer::try_push(&mut c, 2).is_ok());
-    assert!(ErrorContainer::try_push(&mut c, 3).is_err());
-  }
-
-  #[test]
-  fn arraydeque_error_container_iter() {
-    use generic_arraydeque::typenum::U4;
-    let mut c: GenericArrayDeque<i32, U4> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 1);
-    let items: Vec<_> = ErrorContainer::iter(&c).collect();
-    assert_eq!(items, vec![&1]);
-  }
-
-  #[test]
-  fn arraydeque_error_container_into_iter() {
-    use generic_arraydeque::typenum::U4;
-    let mut c: GenericArrayDeque<i32, U4> = ErrorContainer::new();
-    ErrorContainer::push(&mut c, 42);
-    let items: Vec<_> = ErrorContainer::into_iter(c).collect();
-    assert_eq!(items, vec![42]);
-  }
-
-  #[test]
-  fn arraydeque_error_container_remaining_capacity() {
-    use generic_arraydeque::typenum::U3;
-    let mut c: GenericArrayDeque<i32, U3> = ErrorContainer::new();
-    assert_eq!(ErrorContainer::remaining_capacity(&c), Some(3));
-    ErrorContainer::push(&mut c, 1);
-    assert_eq!(ErrorContainer::remaining_capacity(&c), Some(2));
-  }
-}
+mod tests;

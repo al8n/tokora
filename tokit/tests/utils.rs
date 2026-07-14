@@ -525,3 +525,48 @@ mod std_utils {
     let _ = format!("{o:?}");
   }
 }
+
+// ── hipstr `Equivalent` (both directions) ───────────────────────────────────
+
+#[cfg(feature = "hipstr_0_8")]
+#[test]
+fn hipstr_equivalent_both_directions() {
+  use hipstr_0_8::{HipByt, HipStr};
+  use tokit::utils::cmp::Equivalent;
+
+  // A generic helper whose bound `A: Equivalent<B>` forces the *impl* to
+  // exist for the concrete `A`. Plain `hipstr.equivalent(..)` would deref-coerce
+  // `HipStr`->`str` and pass even without a `HipStr: Equivalent<_>` impl, so it
+  // cannot detect the one-directional-impl bug: method-call syntax would deref-coerce
+  // and silently test the blanket impl.
+  fn equiv<A, B>(a: &A, b: &B) -> bool
+  where
+    A: Equivalent<B> + ?Sized,
+    B: ?Sized,
+  {
+    a.equivalent(b)
+  }
+
+  let hs = HipStr::from("hello");
+  // HipStr on the left (the previously-missing direction).
+  assert!(equiv::<HipStr<'_>, str>(&hs, "hello"));
+  assert!(!equiv::<HipStr<'_>, str>(&hs, "world"));
+  assert!(equiv::<HipStr<'_>, [u8]>(&hs, b"hello"));
+  assert!(equiv::<HipStr<'_>, HipStr<'_>>(&hs, &HipStr::from("hello")));
+  // str/[u8] on the left (existing blanket direction).
+  assert!(equiv::<str, HipStr<'_>>("hello", &hs));
+  assert!(equiv::<[u8], HipStr<'_>>(b"hello", &hs));
+
+  let hb = HipByt::from(b"hello".as_slice());
+  // HipByt on the left (the previously-missing direction).
+  assert!(equiv::<HipByt<'_>, [u8]>(&hb, b"hello"));
+  assert!(!equiv::<HipByt<'_>, [u8]>(&hb, b"world"));
+  assert!(equiv::<HipByt<'_>, str>(&hb, "hello"));
+  assert!(equiv::<HipByt<'_>, HipByt<'_>>(
+    &hb,
+    &HipByt::from(b"hello".as_slice())
+  ));
+  // [u8]/str on the left (existing blanket direction).
+  assert!(equiv::<[u8], HipByt<'_>>(b"hello", &hb));
+  assert!(equiv::<str, HipByt<'_>>("hello", &hb));
+}

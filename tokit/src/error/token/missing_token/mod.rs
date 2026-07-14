@@ -47,7 +47,6 @@ use core::{marker::PhantomData, ops::AddAssign};
 
 use crate::{
   Lexer, Token,
-  error::token::{Leading, Trailing},
   utils::{CowStr, Expected},
 };
 
@@ -99,75 +98,19 @@ pub struct MissingToken<'a, Kind: Clone, O = usize, Lang: ?Sized = ()> {
   _lang: PhantomData<Lang>,
 }
 
-impl<Kind: Clone, O, Data> MissingToken<'_, Kind, O, Trailing<Data>> {
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing(offset: O) -> Self {
-    Self::trailing_of(offset)
-  }
-
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing_with_message(offset: O, message: CowStr) -> Self {
-    Self::trailing_with_message_of(offset, message)
-  }
-}
-
-impl<Kind: Clone, O, Data, Lang> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading(offset: O) -> Self {
-    Self::leading_of(offset)
-  }
-
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading_with_message(offset: O, message: CowStr) -> Self {
-    Self::leading_with_message_of(offset, message)
-  }
-}
-
-impl<Kind: Clone, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Trailing<Data, Lang>> {
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing_of(offset: O) -> Self {
-    Self::of(offset)
-  }
-
-  /// Creates a new `MissingToken` error indicating a trailing token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn trailing_with_message_of(offset: O, message: CowStr) -> Self {
-    Self::new_in(offset, None, Some(message))
-  }
-}
-
-impl<Kind: Clone, O, Data, Lang: ?Sized> MissingToken<'_, Kind, O, Leading<Data, Lang>> {
-  /// Creates a new `MissingToken` error indicating a leading token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading_of(offset: O) -> Self {
-    Self::of(offset)
-  }
-
-  /// Creates a new `MissingToken` error indicating a leading token was found.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub const fn leading_with_message_of(offset: O, message: CowStr) -> Self {
-    Self::new_in(offset, None, Some(message))
-  }
-}
-
 impl<Kind: Clone, O> MissingToken<'_, Kind, O> {
   /// Creates a new missing token error.
   ///
   /// This error indicates that a missing token was encountered,
   /// without specifying what token was found or expected.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(offset: O) -> Self {
     Self::of(offset)
   }
 }
 
 impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(super) const fn new_in(
     offset: O,
     expected: Option<Expected<'a, Kind>>,
@@ -185,7 +128,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   ///
   /// This error indicates that a missing token was encountered,
   /// without specifying what token was found or expected.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn of(offset: O) -> Self {
     Self::new_in(offset, None, None)
   }
@@ -194,7 +137,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   ///
   /// This method allows attaching additional context or information
   /// to the error, which can be useful for debugging or reporting.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn with_message(self, message: CowStr) -> Self {
     Self::new_in(self.offset, self.expected, Some(message))
   }
@@ -217,7 +160,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   ///     assert_eq!(*value, "}");
   /// }
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn with_expected(self, expected: Expected<'a, Kind>) -> Self {
     Self::new_in(self.offset, Some(expected), None)
   }
@@ -238,7 +181,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// );
   /// assert_eq!(error.offset(), SimpleSpan::new(50, 51));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn expected_one(offset: O, expected: Kind) -> Self {
     Self::new_in(offset, Some(Expected::one(expected)), None)
   }
@@ -259,7 +202,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// );
   /// assert_eq!(error.offset(), SimpleSpan::new(50, 51));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn expected_one_with_found(offset: O, expected: Kind) -> Self {
     Self::new_in(offset, Some(Expected::one(expected)), None)
   }
@@ -280,7 +223,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// );
   /// assert_eq!(error.offset(), SimpleSpan::new(25, 26));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn expected_one_of(offset: O, expected: &'static [Kind]) -> Self {
     Self::new_in(offset, Some(Expected::one_of(expected)), None)
   }
@@ -301,7 +244,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// );
   /// assert_eq!(error.offset(), SimpleSpan::new(25, 26));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn expected_one_of_with_found(offset: O, expected: &'static [Kind]) -> Self {
     Self::new_in(offset, Some(Expected::one_of(expected)), None)
   }
@@ -319,7 +262,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// );
   /// assert_eq!(error.offset(), SimpleSpan::new(10, 15));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn offset(&self) -> O
   where
     O: Copy,
@@ -337,7 +280,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// let error: MissingToken<'_, &str> = MissingToken::expected_one(10, "identifier");
   /// assert_eq!(error.offset_ref(), &10);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn offset_ref(&self) -> &O {
     &self.offset
   }
@@ -353,19 +296,19 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// *error.offset_mut() = 12;
   /// assert_eq!(error.offset(), 12);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn offset_mut(&mut self) -> &mut O {
     &mut self.offset
   }
 
   /// Returns a reference to the custom message, if any.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn message(&self) -> Option<&CowStr> {
     self.message.as_ref()
   }
 
   /// Returns a mutable reference to the custom message, if any.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn message_mut(&mut self) -> Option<&mut CowStr> {
     self.message.as_mut()
   }
@@ -380,7 +323,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::expected_one(SimpleSpan::new(5, 6), "}");
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "}"));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn expected(&self) -> Option<&Expected<'a, Kind>> {
     self.expected.as_ref()
   }
@@ -399,7 +342,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// error.bump(&5);
   /// assert_eq!(error.offset(), 15);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn bump(&mut self, offset: &O)
   where
     O: for<'b> AddAssign<&'b O>,
@@ -454,20 +397,20 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// assert_eq!(expected, Some(Expected::one("}")));
   /// assert_eq!(message, None);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (O, Option<Expected<'a, Kind>>, Option<CowStr>) {
     (self.offset, self.expected, self.message)
   }
 }
 
 impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for () {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {}
 }
 
 impl<Kind: Clone, O, Lang: ?Sized> MissingToken<'_, Kind, O, Lang> {
   /// Formats the error using the provided formatter in debug style.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn debug_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
   where
     O: core::fmt::Debug,
@@ -481,7 +424,7 @@ impl<Kind: Clone, O, Lang: ?Sized> MissingToken<'_, Kind, O, Lang> {
   }
 
   /// Formats the error using the provided formatter in display style.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn display_fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
   where
     O: core::fmt::Display,

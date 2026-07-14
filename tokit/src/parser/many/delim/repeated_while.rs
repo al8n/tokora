@@ -39,7 +39,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
-    let ckp = inp.save();
+    let anchor = inp.cursor().clone();
     let mut first_kind = None;
     let left_delimiter = inp.try_expect(|tok| {
       let (span, tok) = tok.into_components();
@@ -69,6 +69,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     }
 
     let mut nums = 0;
+    let mut elem_cur = inp.cursor().clone();
 
     loop {
       let mut err = None;
@@ -81,37 +82,69 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       })? {
         Some(closed) => {
           container.on_close_delimiter(closed);
-          let span = inp.span_since(ckp.cursor());
+          let span = inp.span_since(&anchor);
           return on_stop(nums, inp, &span).map(|_| mem::take(container));
         }
         None => {
           let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
-          match self.parser.condition.decide(peeked, emitter) {
-            Err(err) => return Err(err),
-            Ok(action) => match action {
-              // missing ending delimiter
-              Action::Stop => {
-                if let Some(err) = err {
-                  inp.emitter().emit_unexpected_token(err)?;
-                }
-                return Ok(mem::take(container));
+          match self.parser.condition.decide(peeked, emitter)? {
+            // missing ending delimiter
+            Action::Stop => {
+              if let Some(err) = err {
+                inp.emitter().emit_unexpected_token(err)?;
               }
-              Action::Continue => {
-                // TODO(al8n): tracing dropped element
-                if let Err(_e) = container.push(self.parser.f.parse_input(inp)?) {
-                  let span = inp.span_since(ckp.cursor());
-                  inp.emitter().emit_full_container(FullContainer::of(
-                    span,
-                    nums,
-                    container.max_capacity(),
-                  ))?;
-                }
-                nums += 1;
+              return Ok(mem::take(container));
+            }
+            Action::Continue => {
+              // TODO(al8n): tracing dropped element
+              if let Err(_e) = container.push(self.parser.f.parse_input(inp)?) {
+                let span = inp.span_since(&anchor);
+                inp.emitter().emit_full_container(FullContainer::of(
+                  span,
+                  nums,
+                  container.max_capacity(),
+                ))?;
               }
-            },
+              nums += 1;
+            }
           }
         }
       }
+
+      // The progress guard (parity with `DelimitedBy<Repeated>`): a `Continue` cycle whose
+      // element parser consumed nothing would fail the same close-delimiter check and see the
+      // same lookahead forever. No progress means no more elements — break to the close-
+      // delimiter epilogue below, exactly as the plain `Repeated` driver does.
+      let new_cursor = inp.cursor().clone();
+      if new_cursor.as_inner() == elem_cur.as_inner() {
+        break;
+      }
+      elem_cur = new_cursor;
     }
+
+    // No progress was made — treat as end of elements (the same epilogue as
+    // `DelimitedBy<Repeated>`): accept a close delimiter if it is at hand, report it
+    // otherwise, then run the stop handler on the delimited span.
+    let mut close_err = None;
+    match inp.try_expect(|t| match Delim::is_close(&t.data.kind()) {
+      true => true,
+      false => {
+        close_err = Some(Delim::unexpected_close_token(t.cloned()));
+        false
+      }
+    })? {
+      None if close_err.is_some() => {
+        inp.emitter().emit_unexpected_token(close_err.unwrap())?;
+      }
+      None => {
+        // EOI — no tokens left, no close delimiter
+      }
+      Some(close) => {
+        container.on_close_delimiter(close);
+      }
+    }
+
+    let span = inp.span_since(&anchor);
+    on_stop(nums, inp, &span).map(|_| mem::take(container))
   }
 }

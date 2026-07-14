@@ -2,6 +2,8 @@
 #![allow(warnings)]
 mod common;
 
+use common::E;
+
 use common::{TestLexer, Token, TokenKind};
 use generic_arraydeque::typenum::U1;
 use tokit::{
@@ -16,35 +18,6 @@ use tokit::{
   try_parse_input::ParseAttempt,
   utils::Expected,
 };
-
-// ── Error type (needed for full emitter) ────────────────────────────────────
-
-#[derive(Debug)]
-struct E;
-
-impl From<()> for E {
-  fn from(_: ()) -> Self {
-    E
-  }
-}
-
-impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for E {
-  fn from(_: FullContainer<S, Lang>) -> Self {
-    E
-  }
-}
-
-impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for E {
-  fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
-    E
-  }
-}
-
-impl From<UnexpectedEot> for E {
-  fn from(_: UnexpectedEot) -> Self {
-    E
-  }
-}
 
 // ── Full emitter (needed for repeated .collect()) ───────────────────────────
 
@@ -83,7 +56,7 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for FullEmitter {
     Err(err.into_data())
   }
 
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64)
   where
     TestLexer<'inp>: Lexer<'inp>,
   {

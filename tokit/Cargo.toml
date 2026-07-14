@@ -34,6 +34,38 @@ logos_0_14 = ["dep:logos_0_14"]
 logos_0_15 = ["dep:logos_0_15"]
 logos_0_16 = ["dep:logos_0_16"]
 
+# Parser tracing. Turns on `traced(name, parser)` — a wrapper that prints an indented
+# enter / exit-ok / exit-err / rollback event tree to stderr with an input preview — and
+# instruments the crate's own combinators (`try_expect`, `peek`, the `sync` family, the
+# transaction guards' begin/commit/rollback, `attempt`/`try_attempt`, and the
+# separated/repeated drivers) to emit their name at the current depth. Std-implied (uses
+# stderr and thread-locals) and zero extra dependencies. Zero-cost when off: `traced` is the
+# identity and every internal hook site is `#[cfg]`'d out of existence, not runtime-guarded.
+trace = ["std"]
+
+# Exposes the raw, unstable checkpoint backtracking API — `InputRef::{save, restore, commit}`
+# and, with them, the `Checkpoint` type's construction and consumption. Off by default: the
+# supported backtracking surface is the transaction guards (`begin`/`begin_stacked`), the
+# `InputRef` session points, and `attempt`/`try_attempt`. No dependencies; opting in only
+# flips those three methods from crate-internal to public.
+unstable-raw = []
+
+# The lexer conformance test kit (`tokit::conformance`): a `Harness` that drives a custom
+# `Lexer` against the trait-level lexer contract and, through the input machinery, a set of
+# deterministic save/peek/drain/restore schedules. It is a test-time tool — it asserts, formats
+# panic context, and owns `Vec`/`String`, so it requires `std`. Off by default; enabling it only
+# compiles the `conformance` module.
+conformance = ["std"]
+
+# The public fuzz harness (`tokit::fuzz`): a deterministic operation-script fuzzer that drives
+# the input/backtracking machinery (consume, peek, the `sync` family, `attempt`, transaction
+# guards, stacked savepoints, session points, partial-mode chunking) against a scriptable
+# synthetic lexer and checks the documented laws after every operation. It asserts, owns
+# `Vec`/`String`, and drives the allocator-gated guards, so it requires `std` (which provides the
+# `alloc` the guards and session stack need). Off by default; enabling it only compiles the
+# `fuzz` module, which runs as ordinary `#[test]`s on stable Rust.
+fuzz = ["std"]
+
 rowan = ["dep:rowan", "std"]
 
 bytes = ["bytes_1"]
@@ -102,6 +134,30 @@ rowan = { version = "0.16", optional = true }
 criterion = "0.8"
 tempfile = "3"
 
+# Disable the default libtest bench harness; all benches go through criterion.
+[lib]
+bench = false
+
+[[bench]]
+name = "input_scan"
+path = "benches/input_scan.rs"
+harness = false
+required-features = ["logos", "std"]
+
+[[bench]]
+name = "parser_combinators"
+path = "benches/parser_combinators.rs"
+harness = false
+required-features = ["logos", "std"]
+
+[[bench]]
+name = "backtrack"
+path = "benches/backtrack.rs"
+harness = false
+# Exercises the raw checkpoint triple (`save`/`restore`/`commit`), which is public only under
+# `unstable-raw`; require it so the bench is skipped rather than failing to compile when off.
+required-features = ["logos", "std", "unstable-raw"]
+
 [[example]]
 name = "json"
 path = "examples/json.rs"
@@ -125,7 +181,6 @@ required-features = ["std", "logos"]
 [lints.rust]
 rust_2018_idioms = "warn"
 single_use_lifetimes = "warn"
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin)'] }
 
 [package.metadata.docs.rs]
 all-features = true

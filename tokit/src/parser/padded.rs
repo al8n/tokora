@@ -119,7 +119,7 @@ pub struct Padded<P, O, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, O, L, Ctx, Lang: ?Sized> Padded<P, O, L, Ctx, Lang> {
   /// Creates a parser that accepts any token with optional padding.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
     Self {
       parser,
@@ -138,7 +138,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -211,7 +211,7 @@ pub struct PaddedLeft<P, O, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, O, L, Ctx, Lang: ?Sized> PaddedLeft<P, O, L, Ctx, Lang> {
   /// Creates a parser that accepts any token with optional padding.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
     Self {
       parser,
@@ -230,7 +230,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -302,7 +302,7 @@ pub struct PaddedRight<P, O, L, Ctx, Lang: ?Sized = ()> {
 
 impl<P, O, L, Ctx, Lang: ?Sized> PaddedRight<P, O, L, Ctx, Lang> {
   /// Creates a parser that accepts any token with optional padding.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
     Self {
       parser,
@@ -321,7 +321,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -341,12 +341,12 @@ enum Flavor {
 }
 
 impl Flavor {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   const fn clear_leading(&self) -> bool {
     matches!(self, Flavor::Leading | Flavor::Both)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   const fn is_trailing(&self) -> bool {
     matches!(self, Flavor::Trailing | Flavor::Both)
   }
@@ -362,7 +362,7 @@ struct Inner<P, O, L, Ctx, Lang: ?Sized = ()> {
 }
 
 impl<P, O, L, Ctx, Lang: ?Sized> Inner<P, O, L, Ctx, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   const fn new(parser: P, flavor: Flavor) -> Self {
     Self {
       parser,
@@ -382,7 +382,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -392,11 +392,11 @@ where
     Ctx: ParseContext<'inp, L, Lang>,
   {
     if self.flavor.clear_leading() {
-      inp.sync_to(|t| !t.is_trivia(), || None)?;
+      inp.skip_while(|t| t.is_trivia())?;
     }
     let output = self.parser.parse_input(inp)?;
     if self.flavor.is_trailing() {
-      inp.sync_to(|t| !t.is_trivia(), || None)?;
+      inp.skip_while(|t| t.is_trivia())?;
     }
     Ok(output)
   }

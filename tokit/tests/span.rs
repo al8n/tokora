@@ -140,6 +140,41 @@ fn simple_span_with_end_const() {
   assert_eq!(s, SimpleSpan::new(5, 20));
 }
 
+// ── SimpleSpan invariant enforcement (end >= start) ───────────────────────
+
+#[test]
+#[should_panic(expected = "end must be greater than or equal to start")]
+fn simple_span_set_start_violates_invariant() {
+  let mut s = SimpleSpan::new(0, 10);
+  s.set_start(20); // start > end must panic instead of silently corrupting
+}
+
+#[test]
+#[should_panic(expected = "end must be greater than or equal to start")]
+fn simple_span_set_end_violates_invariant() {
+  let mut s = SimpleSpan::new(10, 20);
+  s.set_end(5); // end < start must panic
+}
+
+#[test]
+#[should_panic(expected = "end must be greater than or equal to start")]
+fn simple_span_with_start_violates_invariant() {
+  let _ = SimpleSpan::new(0, 10).with_start(20);
+}
+
+#[test]
+#[should_panic(expected = "end must be greater than or equal to start")]
+fn simple_span_with_end_violates_invariant() {
+  let _ = SimpleSpan::new(10, 20).with_end(5);
+}
+
+#[test]
+#[should_panic(expected = "end must be greater than or equal to start")]
+fn simple_span_bump_end_violates_invariant() {
+  let mut s = SimpleSpan::<i32>::new(0, 2);
+  s.bump_end(-5); // Negative bump_end causes end < start
+}
+
 // ── SimpleSpan refs ──────────────────────────────────────────────────────
 
 #[test]
@@ -285,7 +320,19 @@ fn range_span_into_end() {
 fn range_span_bump() {
   let mut r = 3usize..8;
   r.bump(&5);
-  assert_eq!(r.end, 13);
+  // bump shifts BOTH endpoints (relocation), matching SimpleSpan.
+  assert_eq!(r, 8..13);
+}
+
+#[test]
+fn range_span_bump_shifts_both_endpoints() {
+  // Regression: `<Range<usize> as Span>::bump` must relocate the span
+  // (shift start and end), not grow it by only advancing the end.
+  let mut r = 3usize..8;
+  <core::ops::Range<usize> as Span>::bump(&mut r, &5);
+  assert_eq!(r.start, 8, "start must shift by n");
+  assert_eq!(r.end, 13, "end must shift by n");
+  assert_eq!(r.end - r.start, 5, "length is preserved");
 }
 
 #[test]

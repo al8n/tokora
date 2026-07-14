@@ -5,7 +5,7 @@ use crate::{
     syntax::{FullContainer, MissingSyntaxOf},
     token::MissingTokenOf,
   },
-  input::Checkpoint,
+  input::Cursor,
   span::Span,
 };
 
@@ -50,8 +50,9 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
   {
+    trace_event!(inp, "separated_while");
     let mut state = State::Start;
-    let ckp = inp.save();
+    let anchor = inp.cursor().clone();
     let mut num_elems = 0;
 
     loop {
@@ -67,7 +68,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
           let front_span = match peeked.front() {
             None => {
               drop(peeked);
-              return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
+              return self.handle_end(state, inp, &anchor, num_elems, end_state_handler);
             }
             Some(front) => front
               .as_maybe_ref()
@@ -79,14 +80,14 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
 
           match self.condition.decide(peeked, emitter)? {
             Action::Stop => {
-              return self.handle_end(state, inp, &ckp, num_elems, end_state_handler);
+              return self.handle_end(state, inp, &anchor, num_elems, end_state_handler);
             }
             Action::Continue => {
               // if the peeked token belongs to an element, check the current state
               state = self.handle_continue(
                 state,
                 inp,
-                &ckp,
+                &anchor,
                 &front_span,
                 &mut num_elems,
                 container,
@@ -170,7 +171,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
     &mut self,
     mut state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     peek_span: &L::Span,
     num_elems: &mut usize,
     container: &mut Container,
@@ -194,7 +195,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
         // parse the next element
         let element = self.f.parse_input(inp)?;
         if push(num_elems, container, element).is_err() {
-          let span = inp.span_since(ckp.cursor());
+          let span = inp.span_since(anchor);
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
@@ -208,7 +209,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
         // parse the first element
         let element = self.f.parse_input(inp)?;
         if push(num_elems, container, element).is_err() {
-          let span = inp.span_since(ckp.cursor());
+          let span = inp.span_since(anchor);
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
@@ -225,7 +226,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
         // parse the first element
         let element = self.f.parse_input(inp)?;
         if push(num_elems, container, element).is_err() {
-          let span = inp.span_since(ckp.cursor());
+          let span = inp.span_since(anchor);
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
@@ -243,12 +244,12 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
           .emitter()
           .emit_missing_separator(Sep::name(), MissingTokenOf::<'_, L, Lang>::of(off))?;
 
-        handler.handle_too_many_element(*num_elems, inp, ckp)?;
+        handler.handle_too_many_element(*num_elems, inp, anchor)?;
 
         // parse the next element
         let element = self.f.parse_input(inp)?;
         if push(num_elems, container, element).is_err() {
-          let span = inp.span_since(ckp.cursor());
+          let span = inp.span_since(anchor);
           inp.emitter().emit_full_container(FullContainer::of(
             span,
             *num_elems,
@@ -266,7 +267,7 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
     &mut self,
     state: State<L::Token, L::Span>,
     inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
-    ckp: &Checkpoint<'inp, 'closure, L>,
+    anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
     handler: &Handler,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -283,17 +284,19 @@ impl<'c, 'inp, F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized>
   {
     Ok(match state {
       // we are in the start state, so no elements were found
-      State::Start => handler.handle_start_state(num_elems, inp, ckp)?,
+      State::Start => handler.handle_start_state(num_elems, inp, anchor)?,
       // we are in element state, so all good, check for trailing separator, and the minimum, maximum constraints
-      State::Element => handler.handle_element_state(num_elems, inp, ckp)?,
-      State::Leading(spanned) => handler.handle_leading_state(num_elems, inp, ckp, spanned)?,
+      State::Element => handler.handle_element_state(num_elems, inp, anchor)?,
+      State::Leading(spanned) => handler.handle_leading_state(num_elems, inp, anchor, spanned)?,
       // we have a trailing separator
-      State::Separator(spanned) => handler.handle_separator_state(num_elems, inp, ckp, spanned)?,
+      State::Separator(spanned) => {
+        handler.handle_separator_state(num_elems, inp, anchor, spanned)?
+      }
     })
   }
 }
 
-#[cfg_attr(not(tarpaulin), inline(always))]
+#[inline(always)]
 fn push<C, T>(nums: &mut usize, container: &mut C, item: T) -> Result<(), T>
 where
   C: crate::container::Container<T>,

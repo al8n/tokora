@@ -14,11 +14,13 @@ pub use impl_::*;
 pub use pratt::*;
 pub use repeated::*;
 pub use separated::*;
+pub use severity::*;
 
 mod impl_;
 mod pratt;
 mod repeated;
 mod separated;
+mod severity;
 
 /// A trait for handling and emitting errors during tokenization and parsing.
 ///
@@ -154,10 +156,171 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   where
     L: Lexer<'a>;
 
-  /// Rewinds the emitter state to the specified cursor.
-  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>)
+  /// Emits a warning — a diagnostic that, by contract, does not stop parsing.
+  ///
+  /// A warning carries the *same* payload as [`emit_error`](Self::emit_error) (a
+  /// [`Spanned<Self::Error, _>`](Spanned)): a warning **is** a diagnostic, just one classified
+  /// at the [`Severity::Warning`] tier rather than [`Severity::Error`]. This is an additive,
+  /// second channel for future callers (e.g. a lossless collecting parse) — nothing in the
+  /// existing emit paths reclassifies through it.
+  ///
+  /// Like the diagnostic-label capabilities, this is a method with a **blanket no-op default**:
+  /// stateless emitters ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::marker::Ignored))
+  /// inherit the empty body — a fail-fast parse has no warning sink, so the warning is dropped
+  /// and parsing continues (`Ok(())`). A collecting emitter like [`Verbose`] overrides this to
+  /// record the warning into a channel parallel to its errors. The `Result` return is what lets
+  /// a bespoke emitter escalate a warning to fatal if it wishes; the built-in emitters never do.
+  ///
+  /// # Contract: recorded warnings rewind with the log
+  ///
+  /// An implementation that *records* warnings must account for them in
+  /// [`checkpoint`](Self::checkpoint) and drop them in [`rewind`](Self::rewind), exactly as it
+  /// does for errors — one emission timeline across every channel. The rewind story is the
+  /// reason: a speculative branch ([`attempt`](crate::InputRef::attempt), a
+  /// [`Transaction`](crate::Transaction) rollback) unwinds *everything* it emitted, and a
+  /// warning recorded outside the checkpointed state would survive the rollback as a phantom —
+  /// attributed to a branch the parse abandoned. Nothing in the crate can detect that
+  /// violation; it surfaces as wrong diagnostics, not as a panic. [`Verbose`] is the reference
+  /// implementation (a shared, channel-tagged log; see its
+  /// `fatal_ignores_warnings_but_errors_still_stop` and
+  /// `verbose_warnings_collect_with_labels_parallel_to_errors` tests in `tests/emitter.rs`).
+  #[inline(always)]
+  fn emit_warning(&mut self, warning: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    let _ = warning;
+    Ok(())
+  }
+
+  /// Emits the one-per-hole diagnostic for a region that balanced synchronization skipped:
+  /// `span` covers the skipped region and `skipped` counts the tokens it dropped (see
+  /// [`Hole`](crate::input::Hole) and [`sync_balanced`](crate::InputRef::sync_balanced)).
+  ///
+  /// Like [`emit_warning`](Self::emit_warning) and the diagnostic-label capabilities, this is
+  /// an additive capability with a **blanket no-op default**: stateless emitters ([`Fatal`],
+  /// [`Silent`], [`Ignored`](crate::utils::marker::Ignored)) inherit the empty body — a
+  /// fail-fast parse keeps no record of recovery skips, so the note is dropped and parsing
+  /// continues (`Ok(())`). A collecting emitter like [`Verbose`] overrides this to record the
+  /// hole on its shared emission log, so a checkpoint rewind unwinds it together with the
+  /// other diagnostics of the abandoned branch. The `Result` return lets a bespoke emitter
+  /// reject a skip as fatal (e.g. a hole budget); the built-in emitters never do.
+  ///
+  /// # Contract: one call per hole, and recorded holes rewind with the log
+  ///
+  /// The *caller* side of the law lives on [`sync_balanced`](crate::InputRef::sync_balanced):
+  /// the input layer calls this **exactly once per successful skip that dropped at least one
+  /// token** — never per skipped token, never for a zero-skip sync, never for a failed sync
+  /// (a limit trip or a no-match run emits no hole). An implementation may therefore count
+  /// calls as holes. The *implementor* side mirrors
+  /// [`emit_warning`](Self::emit_warning): a recorded hole must be covered by
+  /// [`checkpoint`](Self::checkpoint)/[`rewind`](Self::rewind), because an enclosing rollback
+  /// unwinds the skip it describes — a hole that survives its skip's rollback describes a
+  /// recovery that never happened. The violation is undetectable by the crate (wrong
+  /// diagnostics, no panic); the enforcing tests are
+  /// `sync_balanced_hole_emission_unwinds_on_rollback` and
+  /// `sync_balanced_trip_commits_prefix_without_hole_diagnostic` in
+  /// `src/input/input_ref/tests.rs`.
+  #[inline(always)]
+  fn emit_skipped_region(&mut self, span: L::Span, skipped: usize) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    let _ = (span, skipped);
+    Ok(())
+  }
+
+  /// Captures the emitter's current emission checkpoint for a later [`rewind`](Self::rewind).
+  ///
+  /// A checkpoint is a monotonically increasing emission mark: emitters that
+  /// retain per-emission state (e.g. [`Verbose`]) return a value that grows with
+  /// every recorded error, so a subsequent `rewind` can drop *exactly* the
+  /// emissions made after this point. Stateless emitters ([`Fatal`], [`Silent`],
+  /// [`Ignored`](crate::utils::marker::Ignored)) keep nothing to rewind and use
+  /// the default `0`.
+  #[inline(always)]
+  fn checkpoint(&self) -> u64 {
+    0
+  }
+
+  /// Rewinds the emitter state to a previously captured [`checkpoint`](Self::checkpoint).
+  ///
+  /// `checkpoint` is the mark returned by [`checkpoint`](Self::checkpoint) at the
+  /// save point; `cursor` is the restore offset. Emission-aware emitters
+  /// ([`Verbose`]) drop every diagnostic recorded after `checkpoint` — precisely
+  /// the emissions of the abandoned branch, regardless of their span — and ignore
+  /// `cursor`. `cursor` is retained for emitters that key their own rollback on
+  /// the source offset. Stateless emitters ignore both.
+  ///
+  /// # Contract: rewind restores the emission state at the mark, across every channel
+  ///
+  /// The input layer pairs this with [`checkpoint`](Self::checkpoint) around every
+  /// speculative region: a mark is captured at [`save`](crate::InputRef::save) time and handed
+  /// back here when the branch is abandoned. Implementations must uphold, for any mark `m`
+  /// previously returned by [`checkpoint`](Self::checkpoint):
+  ///
+  /// - **every channel rewinds** — after `rewind(_, m)`, the observable emission state (errors,
+  ///   warnings, skipped-region records, and their label snapshots alike) is exactly what it
+  ///   was when `m` was captured; recording a channel outside the mark leaks phantom
+  ///   diagnostics into abandoned branches (see the channel contracts on
+  ///   [`emit_warning`](Self::emit_warning) and
+  ///   [`emit_skipped_region`](Self::emit_skipped_region));
+  /// - **monotone marks** — [`checkpoint`](Self::checkpoint) never decreases as emissions are
+  ///   recorded, so an older mark always names a prefix of a younger one and nested rewinds
+  ///   unwind cleanly (`rewind` to the current mark is a no-op);
+  /// - **rewind-only-backwards** — the input layer never hands in a mark from the future; a
+  ///   defensive implementation may clamp (as [`Verbose`] does) rather than panic.
+  ///
+  /// Violations are not detectable by the crate — they surface as missing or phantom
+  /// diagnostics after backtracking, not as panics. The enforcing tests for the reference
+  /// implementation are the `restore_rewinds_verbose_errors_*` family in `tests/emitter.rs`
+  /// and `sync_balanced_hole_emission_unwinds_on_rollback` in `src/input/input_ref/tests.rs`.
+  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>, checkpoint: u64)
   where
     L: Lexer<'a>;
+
+  /// Pushes a diagnostic label onto the emitter's open-label stack, opening a
+  /// *"while parsing X"* context for the duration of a [`labelled`](crate::labelled)
+  /// sub-parse.
+  ///
+  /// This is an additive capability with a **blanket no-op default**: stateless
+  /// emitters ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::marker::Ignored))
+  /// inherit the empty body, so a label pair around them costs nothing — the two
+  /// calls inline away. A collecting emitter like [`Verbose`] overrides this to
+  /// maintain the stack and snapshot it into every diagnostic it records.
+  ///
+  /// Labels are `&'static str` (parser names are static), so a push never allocates.
+  ///
+  /// # Contract: enter/exit arrive strictly nested
+  ///
+  /// Every `enter_label` is paired with exactly one [`exit_label`](Self::exit_label), and the
+  /// pairs nest — the sequence an implementation observes is a well-bracketed push/pop
+  /// stream. [`labelled`](crate::labelled) guarantees this by construction: it brackets the
+  /// sub-parse and pops on **both** the success and error paths, so the law holds even when
+  /// the inner parser's failure propagates out through `?`. No label state needs to ride a
+  /// checkpoint, because the live stack follows the call structure of the wrapper scopes and
+  /// a rewound emission takes its captured snapshot with it (the rewind story; see
+  /// `labelled_guard_rollback_drops_labels_then_reemission_rederives` in `tests/emitter.rs`
+  /// and `verbose_nested_labels_snapshot_outer_then_outer_and_inner_then_outer` in the
+  /// [`Verbose`] tests). A hand-rolled, unbalanced call — an exit without its enter, or an
+  /// enter never exited — is not detected: nothing panics, but every later snapshot carries
+  /// the drifted context, so diagnostics are attributed to the wrong *"while parsing X"*
+  /// scope. Route labels through [`labelled`](crate::labelled) rather than calling this pair
+  /// directly.
+  #[inline(always)]
+  fn enter_label(&mut self, label: &'static str) {
+    let _ = label;
+  }
+
+  /// Pops the most recently [`enter_label`](Self::enter_label)ed label as its
+  /// [`labelled`](crate::labelled) scope closes.
+  ///
+  /// No-op by default (see [`enter_label`](Self::enter_label)); [`Verbose`] overrides
+  /// it to pop its open-label stack. The stack therefore follows the call structure of
+  /// the `labelled` wrappers exactly, so a checkpoint restore needs no label handling —
+  /// no label state lives outside the wrapper scopes and the recorded log entries.
+  #[inline(always)]
+  fn exit_label(&mut self) {}
 }
 
 impl<'a, L, U, Lang: ?Sized> Emitter<'a, L, Lang> for &mut U
@@ -166,7 +329,7 @@ where
 {
   type Error = U::Error;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_lexer_error(
     &mut self,
     err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
@@ -177,7 +340,7 @@ where
     (**self).emit_lexer_error(err)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_unexpected_token(
     &mut self,
     err: UnexpectedTokenOf<'a, L, Lang>,
@@ -188,7 +351,7 @@ where
     (**self).emit_unexpected_token(err)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
@@ -196,12 +359,43 @@ where
     (**self).emit_error(err)
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>)
+  #[inline(always)]
+  fn emit_warning(&mut self, warning: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
-    (**self).rewind(cursor)
+    (**self).emit_warning(warning)
+  }
+
+  #[inline(always)]
+  fn emit_skipped_region(&mut self, span: L::Span, skipped: usize) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    (**self).emit_skipped_region(span, skipped)
+  }
+
+  #[inline(always)]
+  fn checkpoint(&self) -> u64 {
+    (**self).checkpoint()
+  }
+
+  #[inline(always)]
+  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>, checkpoint: u64)
+  where
+    L: Lexer<'a>,
+  {
+    (**self).rewind(cursor, checkpoint)
+  }
+
+  #[inline(always)]
+  fn enter_label(&mut self, label: &'static str) {
+    (**self).enter_label(label)
+  }
+
+  #[inline(always)]
+  fn exit_label(&mut self) {
+    (**self).exit_label()
   }
 }
 
@@ -223,7 +417,7 @@ where
   L: Lexer<'a>,
   T: From<<L::Token as Token<'a>>::Error> + From<UnexpectedTokenOf<'a, L, Lang>>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from_lexer_error(err: Spanned<<L::Token as Token<'a>>::Error, L::Span>) -> Self
   where
     L: Lexer<'a>,
@@ -231,7 +425,7 @@ where
     err.into_data().into()
   }
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from_unexpected_token(err: UnexpectedTokenOf<'a, L, Lang>) -> Self
   where
     L: Lexer<'a>,

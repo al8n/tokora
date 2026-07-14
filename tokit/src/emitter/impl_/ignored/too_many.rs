@@ -1,7 +1,7 @@
 use super::*;
 
 impl<'a, L, Lang: ?Sized> TooManyEmitter<'a, L, Lang> for Ignored {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_too_many(&mut self, _: TooMany<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,

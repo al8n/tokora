@@ -58,7 +58,7 @@ pub struct Unwrapped<P, O, Ctx, Lang: ?Sized = ()> {
 
 impl<P, O, Ctx, Lang: ?Sized> Unwrapped<P, O, Ctx, Lang> {
   /// Creates a new `Unwrapped` parser.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub(crate) const fn new(parser: P) -> Self {
     Self {
@@ -77,7 +77,7 @@ where
   P: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,

@@ -1,14 +1,14 @@
-//! Keywordifier types for language syntax trees.
+//! Keyword types for language syntax trees.
 //!
 //! This module provides generic identifier types that can be used across different
-//! programming languages and string representations. Keywordifiers are fundamental
+//! programming languages and string representations. Keywords are fundamental
 //! building blocks in most languages, representing names for variables, functions,
 //! types, and other named entities.
 //!
 //! # Design Philosophy
 //!
-//! The [`Keyword`] type is generic over both the source string type (`S`) and the
-//! language marker (`Lang`). This design provides maximum flexibility:
+//! The [`Keyword`] type is generic over the source string type (`S`), the span type
+//! (`Span`), and the language marker (`Lang`). This design provides maximum flexibility:
 //!
 //! - **String type flexibility**: Use `&str` for zero-copy parsing, `String` for
 //!   owned data, or custom interned string types for memory efficiency
@@ -31,7 +31,7 @@
 //! assert_eq!(ident.source_ref(), &"foo");
 //! ```
 //!
-//! ## Owned Keywordifiers
+//! ## Owned Keywords
 //!
 //! ```rust,ignore
 //! // Store keywords in AST nodes that outlive the source
@@ -44,7 +44,7 @@
 //!
 //! ```rust,ignore
 //! // Use interned strings for memory efficiency
-//! type InternedKeyword = Keyword<Symbol, MyLang>;
+//! type InternedKeyword = Keyword<Symbol, SimpleSpan, MyLang>;
 //!
 //! let ident = InternedKeyword::new(span, interner.intern("identifier"));
 //! ```
@@ -74,13 +74,14 @@ use crate::{
 
 /// A language identifier with span tracking.
 ///
-/// Keywordifiers are names used in source code to refer to variables, functions,
+/// Keywords are names used in source code to refer to variables, functions,
 /// types, and other named entities. This type wraps a source string representation
 /// with position information and a language marker.
 ///
 /// # Type Parameters
 ///
 /// - `S`: The source string type (`&str`, `String`, interned string, etc.)
+/// - `Span`: The span type tracking the keyword's source location (defaults to [`SimpleSpan`])
 /// - `Lang`: Language marker type for type safety (e.g., `YulLang`, `SolidityLang`)
 ///
 /// # Design Notes
@@ -105,7 +106,7 @@ use crate::{
 ///
 /// # Examples
 ///
-/// ## Creating Keywordifiers
+/// ## Creating Keywords
 ///
 /// ```rust
 /// use tokit::types::Keyword;
@@ -160,14 +161,14 @@ pub struct Keyword<S, Span = SimpleSpan, Lang: ?Sized = ()> {
 }
 
 impl<S, Span, Lang: ?Sized> From<Keyword<S, Span, Lang>> for super::Ident<S, Span, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(keyword: Keyword<S, Span, Lang>) -> Self {
     Self::new(keyword.span, keyword.ident)
   }
 }
 
 impl<S, Span, Lang: ?Sized> AsSpan<Span> for Keyword<S, Span, Lang> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn as_span(&self) -> &Span {
     self.span_ref()
   }
@@ -176,7 +177,7 @@ impl<S, Span, Lang: ?Sized> AsSpan<Span> for Keyword<S, Span, Lang> {
 impl<S, Span, Lang: ?Sized> IntoComponents for Keyword<S, Span, Lang> {
   type Components = (Span, S);
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_components(self) -> Self::Components {
     (self.span, self.ident)
   }
@@ -203,7 +204,7 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   /// assert_eq!(ident.span(), span);
   /// assert_eq!(ident.source_ref(), &"count");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new(span: Span, source: S) -> Self {
     Self {
       span,
@@ -224,7 +225,7 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   ///
   /// assert_eq!(ident.span(), SimpleSpan::new(5, 10));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span(&self) -> Span
   where
     Span: Copy,
@@ -247,7 +248,7 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   /// let span_ref = ident.span_ref();
   /// assert_eq!(*span_ref, SimpleSpan::new(0, 3));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_ref(&self) -> &Span {
     &self.span
   }
@@ -268,7 +269,7 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   /// *ident.span_mut() = SimpleSpan::new(10, 13);
   /// assert_eq!(ident.span(), SimpleSpan::new(10, 13));
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn span_mut(&mut self) -> &mut Span {
     &mut self.span
   }
@@ -289,7 +290,7 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   /// *ident.source_mut() = "bar".to_string();
   /// assert_eq!(ident.source_ref(), "bar");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn source_mut(&mut self) -> &mut S {
     &mut self.ident
   }
@@ -310,7 +311,7 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   /// assert_eq!(ident.source_ref(), &"variable");
   /// assert_eq!(ident.source_ref().len(), 8);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn source_ref(&self) -> &S {
     &self.ident
   }
@@ -337,7 +338,7 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   /// // ident is still usable
   /// assert_eq!(ident.source_ref(), &"id");
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn source(&self) -> S
   where
     S: Copy,
@@ -346,13 +347,13 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   }
 
   /// Consumes the identifier and returns the span and source string.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_components(self) -> (Span, S) {
     (self.span, self.ident)
   }
 
   /// Maps the source string to a new type, preserving the span and language.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn map<U>(self, f: impl FnOnce(S) -> U) -> Keyword<U, Span, Lang> {
     Keyword::new(self.span, f(self.ident))
   }
@@ -377,7 +378,7 @@ where
   /// // Parser found "123abc" where an identifier was expected
   /// let bad_ident = Keyword::<String, SimpleSpan, YulLang>::error(span);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn error(span: Span) -> Self {
     Self::new(span.clone(), S::error(span))
   }
@@ -399,7 +400,7 @@ where
   /// // Found:   let = 5;
   /// let missing_ident = Keyword::<String, SimpleSpan, YulLang>::missing(span);
   /// ```
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn missing(span: Span) -> Self {
     Self::new(span.clone(), S::missing(span))
   }

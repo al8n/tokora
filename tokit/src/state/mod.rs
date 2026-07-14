@@ -13,13 +13,17 @@ pub trait State: core::fmt::Debug + Clone {
   type Error: Clone;
 
   /// Checks the state for errors.
+  ///
+  /// Not to be confused with [`Check::check`](crate::Check::check) (the parser-side value
+  /// predicate) or [`Lexer::check`](crate::Lexer::check) (the lexer-level probe that
+  /// typically wraps this one into the token's error type).
   fn check(&self) -> Result<(), Self::Error>;
 }
 
 impl State for () {
   type Error = ();
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn check(&self) -> Result<(), Self::Error> {
     Ok(())
   }
@@ -28,7 +32,7 @@ impl State for () {
 impl State for Infallible {
   type Error = Infallible;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn check(&self) -> Result<(), Self::Error> {
     Ok(())
   }
@@ -37,19 +41,4 @@ impl State for Infallible {
 #[cfg(test)]
 #[allow(warnings)]
 #[cfg(feature = "std")]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn unit_state_check_ok() {
-    let state = ();
-    assert!(state.check().is_ok());
-  }
-
-  #[test]
-  fn unit_state_clone_and_debug() {
-    let state = ();
-    let cloned = state.clone();
-    let _ = format!("{:?}", cloned);
-  }
-}
+mod tests;

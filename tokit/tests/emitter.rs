@@ -15,13 +15,16 @@ use tokit::{
   emitter::{
     Fatal, FromSeparatedError, FromUnexpectedLeadingSeparatorError,
     FromUnexpectedTrailingSeparatorError, FullContainerEmitter, Ignored, PrattEmitter,
-    SeparatedEmitter, Silent, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
-    UnexpectedTrailingSeparatorEmitter, Verbose,
+    SeparatedEmitter, Severity, Silent, TooFewEmitter, TooManyEmitter,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter, Verbose,
   },
   error::{
     UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
     syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingToken, MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    token::{
+      MissingToken, MissingTokenOf, SeparatedError, SeparatorPosition, UnexpectedToken,
+      UnexpectedTokenOf,
+    },
   },
   input::Cursor,
   span::{SimpleSpan, Spanned},
@@ -85,43 +88,27 @@ impl From<UnexpectedEot> for EmitterTestError {
   }
 }
 
-impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for EmitterTestError {
-  fn from_missing_separator(_: CowStr, _: MissingTokenOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for EmitterTestError {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
     EmitterTestError::MissingSeparator
   }
+}
 
-  fn from_missing_element(_: MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for EmitterTestError {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
     EmitterTestError::MissingElement
   }
 }
 
-impl<'inp> FromUnexpectedLeadingSeparatorError<'inp, TestLexer<'inp>> for EmitterTestError {
-  fn from_unexpected_leading_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    EmitterTestError::UnexpectedLeadingSep
-  }
-}
-
-impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for EmitterTestError {
-  fn from_unexpected_trailing_separator(
-    _: CowStr,
-    _: UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    EmitterTestError::UnexpectedTrailingSep
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>>
+  for EmitterTestError
+{
+  fn from(err: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
+    match err.position() {
+      SeparatorPosition::Leading => EmitterTestError::UnexpectedLeadingSep,
+      SeparatorPosition::Trailing => EmitterTestError::UnexpectedTrailingSep,
+      SeparatorPosition::Element => EmitterTestError::UnexpectedToken,
+    }
   }
 }
 
@@ -165,7 +152,7 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for FatalEmitter {
     Err(err.into_data())
   }
 
-  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>)
+  fn rewind(&mut self, _: &Cursor<'inp, '_, TestLexer<'inp>>, _: u64)
   where
     TestLexer<'inp>: Lexer<'inp>,
   {
@@ -804,46 +791,25 @@ impl<O, Lang: ?Sized> From<UnexpectedEoRhs<O, Lang>> for TestError {
   }
 }
 
-impl<'inp> FromSeparatedError<'inp, TestLexer<'inp>> for TestError {
-  fn from_missing_separator(
-    _: CowStr,
-    _: tokit::error::token::MissingTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for TestError {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
     TestError::MissingSeparator
   }
+}
 
-  fn from_missing_element(_: tokit::error::syntax::MissingSyntaxOf<'inp, TestLexer<'inp>>) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for TestError {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
     TestError::MissingElement
   }
 }
 
-impl<'inp> FromUnexpectedLeadingSeparatorError<'inp, TestLexer<'inp>> for TestError {
-  fn from_unexpected_leading_separator(
-    _: CowStr,
-    _: tokit::error::token::UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    TestError::UnexpectedLeadingSep
-  }
-}
-
-impl<'inp> FromUnexpectedTrailingSeparatorError<'inp, TestLexer<'inp>> for TestError {
-  fn from_unexpected_trailing_separator(
-    _: CowStr,
-    _: tokit::error::token::UnexpectedTokenOf<'inp, TestLexer<'inp>>,
-  ) -> Self
-  where
-    TestLexer<'inp>: Lexer<'inp>,
-  {
-    TestError::UnexpectedTrailingSep
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>> for TestError {
+  fn from(err: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
+    match err.position() {
+      SeparatorPosition::Leading => TestError::UnexpectedLeadingSep,
+      SeparatorPosition::Trailing => TestError::UnexpectedTrailingSep,
+      SeparatorPosition::Element => TestError::UnexpectedToken,
+    }
   }
 }
 
@@ -1141,8 +1107,9 @@ fn verbose_full_container_emitter() {
   let result = <Verbose<TestError> as FullContainerEmitter<'_, TestLexer<'_>>>::emit_full_container(
     &mut v, err,
   );
-  // Verbose full_container returns Err (fatal) just like Fatal
-  assert!(result.is_err());
+  // Verbose collects the full-container error and keeps going (record-and-Ok).
+  assert!(result.is_ok());
+  assert!(v.errors().contains_key(&SimpleSpan::new(0usize, 5usize)));
 }
 
 #[test]
@@ -1213,8 +1180,9 @@ fn verbose_pratt_emitter_lhs() {
   let result = <Verbose<TestError> as PrattEmitter<'_, TestLexer<'_>>>::emit_unexpected_end_of_lhs(
     &mut v, err,
   );
-  // Verbose pratt returns Err (fatal) just like Fatal
-  assert!(result.is_err());
+  // Verbose collects the pratt error at its zero-width offset and keeps going.
+  assert!(result.is_ok());
+  assert!(v.errors().contains_key(&SimpleSpan::new(0usize, 0usize)));
 }
 
 #[test]
@@ -1224,8 +1192,9 @@ fn verbose_pratt_emitter_rhs() {
   let result = <Verbose<TestError> as PrattEmitter<'_, TestLexer<'_>>>::emit_unexpected_end_of_rhs(
     &mut v, err,
   );
-  // Verbose pratt returns Err (fatal) just like Fatal
-  assert!(result.is_err());
+  // Verbose collects the pratt error at its zero-width offset and keeps going.
+  assert!(result.is_ok());
+  assert!(v.errors().contains_key(&SimpleSpan::new(0usize, 0usize)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1280,4 +1249,594 @@ fn verbose_emit_unexpected_token() {
     <Verbose<TestError> as Emitter<'_, TestLexer<'_>>>::emit_unexpected_token(&mut v, ut);
   assert!(result.is_ok());
   assert_eq!(v.errors().len(), 1);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Verbose emitter: restore rewinds using the front cached token's start offset
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[cfg(feature = "unstable-raw")]
+#[test]
+fn restore_rewinds_verbose_errors_using_front_cache_start() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Consume the first token ("12" at 0..2) so there is a "before" region.
+    let _ = inp.next()?;
+    // Record an error strictly before the checkpoint (end < the cached start).
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(0, 2), EmitterTestError::Custom),
+    )?;
+    // Cache the next token ("34" at 3..5) so the checkpoint offset is its START.
+    {
+      let peeked = inp.peek_one()?;
+      assert!(peeked.is_some());
+    }
+    let ckp = inp.save();
+    // Record an error AFTER the checkpoint position (start = 3).
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(3, 4), EmitterTestError::Custom),
+    )?;
+    inp.restore(ckp);
+
+    let errs = inp.emitter().errors();
+    assert!(
+      errs.contains_key(&SimpleSpan::new(0, 2)),
+      "error before the checkpoint must survive restore"
+    );
+    assert!(
+      !errs.contains_key(&SimpleSpan::new(3, 4)),
+      "error after the checkpoint must be rewound"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(parse)
+    .parse_str("12 34");
+  r.unwrap();
+}
+
+#[cfg(feature = "unstable-raw")]
+#[test]
+fn restore_rewinds_verbose_errors_adjacent_to_checkpoint() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Consume the first token ("12" at 0..2). Unlike the gapped scenario above,
+    // this token is immediately adjacent to the next one (no whitespace), so its
+    // end offset (2) equals the upcoming checkpoint's start offset.
+    let _ = inp.next()?;
+    // Record an error on the just-consumed token whose end == the checkpoint offset.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(0, 2), EmitterTestError::Custom),
+    )?;
+    // Cache the next token ("a" at 2..3) so the checkpoint offset is its START,
+    // which is exactly the end offset of the already-consumed, already-errored token.
+    {
+      let peeked = inp.peek_one()?;
+      assert!(peeked.is_some());
+    }
+    let ckp = inp.save();
+    // Record a speculative error starting exactly at the checkpoint (start = 2).
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(2, 3), EmitterTestError::Custom),
+    )?;
+    inp.restore(ckp);
+
+    let errs = inp.emitter().errors();
+    assert!(
+      errs.contains_key(&SimpleSpan::new(0, 2)),
+      "error ending exactly at the checkpoint (adjacent, already-consumed token) must survive restore"
+    );
+    assert!(
+      !errs.contains_key(&SimpleSpan::new(2, 3)),
+      "speculative error starting at the checkpoint must be rewound"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(parse)
+    .parse_str("12a");
+  r.unwrap();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Verbose emitter: rewind of same-span error groups is by emission order
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Retention on restore is by emission order: every error recorded at or before the
+// saved checkpoint mark survives; every error recorded after it is dropped. Here the
+// two pre-checkpoint errors were emitted before `save()` (so they survive) and the
+// two speculative errors after it (so they drop) — even though every error shares the
+// same span as another, the emission-order mark splits them cleanly.
+#[cfg(feature = "unstable-raw")]
+#[test]
+fn restore_rewinds_verbose_same_span_vec_by_span_end() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Consume "12" (0..2). Record TWO errors at the SAME span [0,2] whose end (2)
+    // equals the upcoming checkpoint offset: both must survive restore.
+    let _ = inp.next()?;
+    for _ in 0..2 {
+      <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+        inp.emitter(),
+        Spanned::new(SimpleSpan::new(0, 2), EmitterTestError::Custom),
+      )?;
+    }
+    // Cache "a" (2..3) so the checkpoint offset is its start (2).
+    {
+      let peeked = inp.peek_one()?;
+      assert!(peeked.is_some());
+    }
+    let ckp = inp.save();
+    // Two speculative errors at the SAME span [2,3] (end 3 > offset 2): both drop.
+    for _ in 0..2 {
+      <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+        inp.emitter(),
+        Spanned::new(SimpleSpan::new(2, 3), EmitterTestError::Custom),
+      )?;
+    }
+    inp.restore(ckp);
+
+    let errs = inp.emitter().errors();
+    // The pre-checkpoint same-span group survives intact (both errors kept).
+    assert_eq!(
+      errs.get(&SimpleSpan::new(0, 2)).map(Vec::len),
+      Some(2),
+      "both same-span errors ending exactly at the checkpoint survive restore"
+    );
+    // The post-checkpoint same-span group is rewound atomically.
+    assert!(
+      !errs.contains_key(&SimpleSpan::new(2, 3)),
+      "same-span speculative errors past the checkpoint are all rewound"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(parse)
+    .parse_str("12a");
+  r.unwrap();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Verbose emitter: emission-aware rewind vs. zero-width diagnostics at the checkpoint
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// The former offset-only rewind retained any error whose span ended at or before the
+// restore offset, so a *zero-width* error emitted AT the checkpoint offset during an
+// abandoned branch (its end == the offset) survived as a ghost. Emission-aware rewind
+// drops it because it was recorded after the checkpoint mark, regardless of span.
+#[cfg(feature = "unstable-raw")]
+#[test]
+fn restore_drops_speculative_zero_width_ghost_at_checkpoint() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Consume "12" (0..2); the cursor — and thus the checkpoint offset — is now 2.
+    let _ = inp.next()?;
+    let ckp = inp.save();
+    // Speculative branch emits a ZERO-WIDTH error at exactly the checkpoint offset.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(2, 2), EmitterTestError::MissingElement),
+    )?;
+    inp.restore(ckp);
+
+    // The ghost must be gone: the offset heuristic would have kept it (end 2 <= 2).
+    assert!(
+      !inp.emitter().errors().contains_key(&SimpleSpan::new(2, 2)),
+      "speculative zero-width error at the checkpoint offset must be rewound"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(parse)
+    .parse_str("12");
+  r.unwrap();
+}
+
+// The inverse the offset heuristic could not express: a zero-width error emitted
+// BEFORE the checkpoint at the SAME offset must SURVIVE, while a later speculative one
+// at that offset drops. Emission order separates them; span end alone cannot.
+#[cfg(feature = "unstable-raw")]
+#[test]
+fn restore_keeps_pre_checkpoint_zero_width_at_same_offset() {
+  fn parse<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Consume "12" (0..2); checkpoint offset is 2.
+    let _ = inp.next()?;
+    // A real zero-width diagnostic recorded BEFORE the checkpoint at offset 2.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(2, 2), EmitterTestError::MissingElement),
+    )?;
+    let ckp = inp.save();
+    // Speculative branch adds another zero-width error at the same offset.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(2, 2), EmitterTestError::MissingElement),
+    )?;
+    inp.restore(ckp);
+
+    // Exactly the pre-checkpoint error survives; the speculative one drops.
+    assert_eq!(
+      inp
+        .emitter()
+        .errors()
+        .get(&SimpleSpan::new(2, 2))
+        .map(Vec::len),
+      Some(1),
+      "the pre-checkpoint zero-width error survives; only the speculative one is rewound"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(parse)
+    .parse_str("12");
+  r.unwrap();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Diagnostic labels: `labelled` context captured into the emission log
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// A sub-parser that records one custom diagnostic at 0..1 without consuming input, so a
+// `labelled` wrapper around it exercises the enter/emit/exit path for any emitter.
+fn emit_marker<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<(), EmitterTestError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = EmitterTestError>,
+{
+  inp.emitter().emit_error(Spanned::new(
+    SimpleSpan::new(0usize, 1usize),
+    EmitterTestError::Custom,
+  ))
+}
+
+fn builtin_fatal_ctx() -> ParserContext<'static, TestLexer<'static>, Fatal<EmitterTestError>> {
+  ParserContext::new(Fatal::new())
+}
+
+// A diagnostic recorded inside a `labelled` scope is stamped with the label, readable
+// per-diagnostic through the public `Verbose::labels` accessor (parallel to `errors`).
+#[test]
+fn labelled_stamps_context_visible_through_labels_accessor() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    let mut p = tokit::labelled("while parsing item", emit_marker);
+    p.parse_input(inp)?;
+
+    let labels = inp.emitter().labels();
+    assert_eq!(
+      labels[&SimpleSpan::new(0usize, 1usize)],
+      vec![vec!["while parsing item"]],
+      "diagnostic recorded inside the labelled scope carries the label"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(run)
+    .parse_str("12");
+  r.unwrap();
+}
+
+// Under a non-collecting (Fatal) emitter, `labelled` is behaviorally transparent: the wrapped
+// sub-parser's Err propagates unchanged and the label push/pop are inlined-away no-ops. The
+// labelled result must equal the bare result, value for value.
+#[test]
+fn labelled_zero_behavior_on_fatal_path() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Fatal<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    // Bare: the sub-parser emits fatally → Err(Custom).
+    let bare = emit_marker(inp);
+    assert!(
+      matches!(bare, Err(EmitterTestError::Custom)),
+      "bare Fatal emission is fatal"
+    );
+    // Labelled: identical Err(Custom); the label scope changes nothing on the Fatal path.
+    let mut p = tokit::labelled("while parsing item", emit_marker);
+    let via_label = p.parse_input(inp);
+    assert!(
+      matches!(via_label, Err(EmitterTestError::Custom)),
+      "labelled leaves the Fatal path unchanged"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(builtin_fatal_ctx())
+    .apply(run)
+    .parse_str("12");
+  r.unwrap();
+}
+
+// The pinned rewind rule: a guard rollback across a labelled emission drops the entry together
+// with its captured labels; a later re-emission under a DIFFERENT label re-derives its labels
+// from the then-current stack — labels are captured at emit time, not bound to the span.
+#[test]
+fn labelled_guard_rollback_drops_labels_then_reemission_rederives() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    let survivor = SimpleSpan::new(0usize, 1usize);
+    let speculative = SimpleSpan::new(1usize, 2usize);
+
+    // Baseline emission under "outer", BEFORE any guard — must survive the rollback.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::enter_label(
+      inp.emitter(),
+      "outer",
+    );
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(survivor, EmitterTestError::Custom),
+    )?;
+
+    // Speculative labelled emission inside a transaction guard, then rolled back.
+    {
+      let mut tx = inp.begin();
+      <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::enter_label(
+        tx.emitter(),
+        "spec",
+      );
+      <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+        tx.emitter(),
+        Spanned::new(speculative, EmitterTestError::Custom),
+      )?;
+      <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::exit_label(tx.emitter());
+      tx.rollback();
+    }
+
+    // Re-emit at the same span under a DIFFERENT label; labels re-derive from the current stack.
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::enter_label(
+      inp.emitter(),
+      "final",
+    );
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(speculative, EmitterTestError::Custom),
+    )?;
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::exit_label(inp.emitter());
+    <Verbose<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::exit_label(inp.emitter());
+
+    let labels = inp.emitter().labels();
+    assert_eq!(
+      labels[&survivor],
+      vec![vec!["outer"]],
+      "the pre-guard diagnostic survives with its label"
+    );
+    assert_eq!(
+      labels[&speculative],
+      vec![vec!["outer", "final"]],
+      "the speculative [outer, spec] snapshot was rewound; re-emission re-derived [outer, final]"
+    );
+    assert_eq!(
+      inp.emitter().errors()[&speculative].len(),
+      1,
+      "only the re-emitted diagnostic remains at the speculative span"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(run)
+    .parse_str("12 34");
+  r.unwrap();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Severity tiers: the warning channel and the diagnostic rendering bridge
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// A sub-parser that records one custom *warning* at 0..1 without consuming input, mirroring
+// `emit_marker` but on the warning channel — so a `labelled` wrapper exercises the
+// enter/emit_warning/exit path for any emitter.
+fn warn_marker<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<(), EmitterTestError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = EmitterTestError>,
+{
+  inp.emitter().emit_warning(Spanned::new(
+    SimpleSpan::new(0usize, 1usize),
+    EmitterTestError::Custom,
+  ))
+}
+
+// A warning recorded inside a `labelled` scope collects into the parallel `warnings()` channel
+// (leaving `errors()` empty) and carries its open-label snapshot in lockstep, readable through
+// the `warning_labels()` accessor.
+#[test]
+fn verbose_warnings_collect_with_labels_parallel_to_errors() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    let mut p = tokit::labelled("while linting item", warn_marker);
+    p.parse_input(inp)?;
+
+    let emitter = inp.emitter();
+    assert_eq!(emitter.warnings().len(), 1, "one warning collected");
+    assert_eq!(
+      emitter.warnings()[&SimpleSpan::new(0usize, 1usize)].len(),
+      1,
+      "the warning landed at its span"
+    );
+    assert_eq!(
+      emitter.errors().len(),
+      0,
+      "warnings are a separate channel — errors() stays empty"
+    );
+    assert_eq!(
+      emitter.warning_labels()[&SimpleSpan::new(0usize, 1usize)],
+      vec![vec!["while linting item"]],
+      "the warning carries its open-label snapshot, in lockstep with warnings()"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(run)
+    .parse_str("12");
+  r.unwrap();
+}
+
+// Under a fail-fast Fatal emitter a warning has no sink: `emit_warning` is the inherited no-op
+// that returns `Ok(())`, so parsing continues and produces its value — while an error on the
+// same emitter is still fatal (the contrast that pins "warnings never stop it").
+#[test]
+fn fatal_ignores_warnings_but_errors_still_stop() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Fatal<EmitterTestError>>,
+    >,
+  ) -> Result<i64, EmitterTestError> {
+    // Two warnings in a row: each is ignored (Ok), parsing keeps going.
+    assert!(
+      matches!(warn_marker(inp), Ok(())),
+      "Fatal ignores the first warning"
+    );
+    assert!(
+      matches!(warn_marker(inp), Ok(())),
+      "Fatal ignores the second warning — no warning sink"
+    );
+    // Contrast: an *error* on the same emitter is fatal.
+    assert!(
+      matches!(
+        <Fatal<EmitterTestError> as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+          inp.emitter(),
+          Spanned::new(SimpleSpan::new(0usize, 1usize), EmitterTestError::Custom),
+        ),
+        Err(EmitterTestError::Custom)
+      ),
+      "an error under Fatal is still fatal"
+    );
+    // Value-asserted continuation: the warnings did not stop the parse.
+    Ok(7)
+  }
+
+  let r: Result<i64, _> = Parser::with_context(builtin_fatal_ctx())
+    .apply(run)
+    .parse_str("12");
+  assert!(matches!(r, Ok(7)), "the parse completed past the warnings");
+}
+
+// The rendering bridge: `diagnostics()` yields BOTH channels interleaved in true emission order,
+// each entry carrying the right severity tier and the label snapshot open when it was emitted.
+#[test]
+fn diagnostics_bridge_interleaves_both_channels_in_emission_order() {
+  fn run<'inp>(
+    inp: &mut InputRef<
+      'inp,
+      '_,
+      TestLexer<'inp>,
+      ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
+    >,
+  ) -> Result<(), EmitterTestError> {
+    type V = Verbose<EmitterTestError>;
+    // seq 0: Error @ 0..1 under [a]
+    <V as Emitter<'inp, TestLexer<'inp>>>::enter_label(inp.emitter(), "a");
+    <V as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(0usize, 1usize), EmitterTestError::Custom),
+    )?;
+    // seq 1: Warning @ 1..2 under [a, b]
+    <V as Emitter<'inp, TestLexer<'inp>>>::enter_label(inp.emitter(), "b");
+    <V as Emitter<'inp, TestLexer<'inp>>>::emit_warning(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(1usize, 2usize), EmitterTestError::Custom),
+    )?;
+    <V as Emitter<'inp, TestLexer<'inp>>>::exit_label(inp.emitter());
+    <V as Emitter<'inp, TestLexer<'inp>>>::exit_label(inp.emitter());
+    // seq 2: Error @ 2..3, unlabelled
+    <V as Emitter<'inp, TestLexer<'inp>>>::emit_error(
+      inp.emitter(),
+      Spanned::new(SimpleSpan::new(2usize, 3usize), EmitterTestError::Custom),
+    )?;
+
+    let replay: Vec<(Severity, usize, Vec<&'static str>)> = inp
+      .emitter()
+      .diagnostics()
+      .map(|d| (d.severity(), d.span().start(), d.labels().to_vec()))
+      .collect();
+
+    assert_eq!(
+      replay,
+      vec![
+        (Severity::Error, 0usize, vec!["a"]),
+        (Severity::Warning, 1usize, vec!["a", "b"]),
+        (Severity::Error, 2usize, Vec::new()),
+      ],
+      "the bridge replays errors and warnings interleaved in emission order, each with its \
+       severity tier and captured labels"
+    );
+    Ok(())
+  }
+
+  let r: Result<(), _> = Parser::with_context(verbose_ctx())
+    .apply(run)
+    .parse_str("12 34 56");
+  r.unwrap();
 }

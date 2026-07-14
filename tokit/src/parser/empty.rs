@@ -64,7 +64,7 @@ pub struct Empty(());
 
 impl Empty {
   /// Creates a parser that always succeeds without consuming any input.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn new() -> Self {
     Self(())
   }
@@ -76,7 +76,7 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_input(
     &mut self,
     _inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,

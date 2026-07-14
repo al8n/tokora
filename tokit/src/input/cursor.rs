@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use super::{Lexer, Span};
+use super::Lexer;
 
 /// A cursor representing a position in the input source.
 ///
@@ -14,59 +14,45 @@ use super::{Lexer, Span};
 /// - Otherwise, it points to the position where the next token will be lexed from
 #[repr(transparent)]
 pub struct Cursor<'inp, 'closure, L: Lexer<'inp>> {
-  pub(crate) span: L::Span,
+  pub(crate) offset: L::Offset,
   _phantom: PhantomData<fn(&'closure ()) -> &'closure ()>,
 }
 
 impl<'a, L: Lexer<'a>> core::fmt::Debug for Cursor<'a, '_, L> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    write!(f, "Cursor({:?})", self.span.end_ref())
+    write!(f, "Cursor({:?})", self.offset)
   }
 }
 
 impl<'a, L: Lexer<'a>> Clone for Cursor<'a, '_, L> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     Self {
-      span: self.span.clone(),
+      offset: self.offset.clone(),
       _phantom: PhantomData,
     }
   }
 }
 
-impl<'a, L: Lexer<'a>> Copy for Cursor<'a, '_, L> where L::Span: Copy {}
+impl<'a, L: Lexer<'a>> Copy for Cursor<'a, '_, L> where L::Offset: Copy {}
 
 impl<'a, L: Lexer<'a>> Cursor<'a, '_, L> {
-  /// Creates a new cursor.
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn new(span: L::Span) -> Self {
-    Self {
-      span,
-      _phantom: PhantomData,
-    }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn from_ref(cursor: &L::Span) -> &Self {
-    // SAFETY: Cursor is #[repr(transparent)]
-    unsafe { &*(cursor as *const L::Span as *const Self) }
-  }
-
-  #[cfg_attr(not(tarpaulin), inline(always))]
-  pub(super) const fn span(&self) -> &L::Span {
-    &self.span
+  #[inline(always)]
+  pub(super) const fn from_ref(offset: &L::Offset) -> &Self {
+    // SAFETY: Cursor is #[repr(transparent)] over `L::Offset`.
+    unsafe { &*(offset as *const L::Offset as *const Self) }
   }
 
   /// Returns a reference to the actual cursor.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn as_inner(&self) -> &L::Offset {
-    self.span.end_ref()
+    &self.offset
   }
 
   /// Returns the actual cursor.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn into_inner(self) -> L::Offset {
-    self.span.into_range().end
+    self.offset
   }
 }

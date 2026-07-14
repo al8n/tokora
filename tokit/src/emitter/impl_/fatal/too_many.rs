@@ -5,7 +5,7 @@ where
   E: FromTooManyError<'a, L, Lang> + FromEmitterError<'a, L, Lang>,
   Fatal<E, Lang>: Emitter<'a, L, Lang, Error = E>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_too_many(&mut self, err: TooMany<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,

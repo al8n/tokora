@@ -1,5 +1,10 @@
 use crate::{
-  Window, cache::Peeked, input::InputRef, parser::PeekThenChoice, try_parse_input::ParseAttempt,
+  Token, Window,
+  cache::Peeked,
+  input::InputRef,
+  parser::{DispatchOnKind, FusedDispatchOnKind, PeekThenChoice},
+  span::Spanned,
+  try_parse_input::ParseAttempt,
 };
 
 use super::*;
@@ -20,7 +25,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Ctx: ParseContext<'inp, L, Lang>;
 
   /// Parses using branch identified by `id`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn try_parse_choice(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -40,7 +45,11 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
   /// parsing is stopped and return the error from the handler.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  ///
+  /// The handler owns its failure diagnostic — including any `expected one of …` set. To derive
+  /// that set automatically from a static table of viable first-token kinds instead, see
+  /// [`dispatch_on_kind`](Self::dispatch_on_kind).
+  #[inline(always)]
   fn peek_then_choice<H, W: Window>(self, condition: H) -> PeekThenChoice<Self, H, L, Ctx, W, Lang>
   where
     Self: Sized,
@@ -58,7 +67,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `H` returns `Ok(id)`, the inner choice parser is applied with the given id, otherwise,
   /// parsing is stopped and return the error from the handler.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn peek_then_try_choice<H, W: Window>(
     self,
     condition: H,
@@ -73,6 +82,94 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     ) -> Result<Option<Self::Id>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     PeekThenChoice::of(self, condition)
+  }
+
+  /// Creates a [`DispatchOnKind`] combinator that dispatches on the kind of the next token
+  /// using a **static table** of viable first-token kinds.
+  ///
+  /// `table[i]` is the viable first-token [`Kind`](Token::Kind) for branch `i`, in branch
+  /// order. The combinator peeks a single token, looks its kind up in the table, and runs the
+  /// matching branch. On a **committed dispatch failure** — the next token's kind is absent from
+  /// the table — the returned [`UnexpectedToken`](crate::error::token::UnexpectedToken) carries
+  /// the *whole* table as its expected set (`expected one of …`, an
+  /// [`Expected::OneOf`](crate::utils::Expected::OneOf)); at end-of-input it returns an
+  /// [`UnexpectedEot`](crate::error::UnexpectedEot). The expected set is exact and never
+  /// speculative because the viable set is precisely the table.
+  ///
+  /// Unlike [`peek_then_choice`](Self::peek_then_choice), whose handler must build any failure
+  /// diagnostic by hand, `dispatch_on_kind` derives the expected set from the table automatically.
+  /// For many-to-one dispatch (several kinds routing to one branch) use
+  /// [`peek_then_choice`](Self::peek_then_choice) instead.
+  #[inline(always)]
+  fn dispatch_on_kind(
+    self,
+    table: &'static [<L::Token as Token<'inp>>::Kind],
+  ) -> DispatchOnKind<Self, <L::Token as Token<'inp>>::Kind, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    <L::Token as Token<'inp>>::Kind: 'static,
+  {
+    DispatchOnKind::of(self, table)
+  }
+}
+
+/// A choice of parsers whose selected branch receives the **already-lexed** head token.
+///
+/// `ParseTokenChoice` is the arm surface of the *fused* dispatch shape
+/// ([`FusedDispatchOnKind`]). Its peek-shaped sibling [`ParseChoice`] leaves the head
+/// token on the input — the dispatcher peeks (staging the token in the cache) and the
+/// winning branch consumes it back out. The fused shape instead lexes **once**: the
+/// dispatcher consumes the head token as part of classifying it and hands it to the
+/// winning branch, which parses only the *rest* of its production from the input. The
+/// cache round trip — staging a [`CachedToken`](crate::cache::CachedToken) (including a
+/// lexer-state clone) only to unstage it on the very next consume — is skipped entirely.
+///
+/// Implemented for tuples of up to 32 arms, each an
+/// `FnMut(Spanned<Token, Span>, &mut InputRef<…>) -> Result<O, Error>` (a closure or a
+/// plain `fn`); branch `i` is tuple position `i`, identified by [`Branch`].
+pub trait ParseTokenChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+  /// The id of the parser branch.
+  type Id;
+
+  /// Parses using the branch identified by `id`, handing it the already-lexed `head`
+  /// token (the token the dispatcher consumed to make its decision).
+  fn parse_token_choice(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    id: &Self::Id,
+    head: Spanned<L::Token, L::Span>,
+  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>;
+
+  /// Creates a [`FusedDispatchOnKind`] combinator: the **fused** twin of
+  /// [`dispatch_on_kind`](ParseChoice::dispatch_on_kind), driven by the same kind of
+  /// **static table** of viable first-token kinds.
+  ///
+  /// `table[i]` is the viable first-token [`Kind`](Token::Kind) for branch `i`, in branch
+  /// order. The combinator lexes a single token **once**, looks its kind up in the table,
+  /// and on a hit hands the already-lexed token to the matching branch — no peek round
+  /// trip through the cache. On a miss or at end of input it fails exactly like
+  /// [`dispatch_on_kind`](ParseChoice::dispatch_on_kind): the same
+  /// [`UnexpectedToken`](crate::error::token::UnexpectedToken) /
+  /// [`UnexpectedEot`](crate::error::UnexpectedEot) carrying the whole table as the
+  /// expected set, with the missed token put back for whatever runs next. See
+  /// [`FusedDispatchOnKind`] for the full shape comparison and the equivalence contract.
+  #[inline(always)]
+  fn fused_dispatch_on_kind(
+    self,
+    table: &'static [<L::Token as Token<'inp>>::Kind],
+  ) -> FusedDispatchOnKind<Self, <L::Token as Token<'inp>>::Kind, L, Ctx, Lang>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+    Ctx: ParseContext<'inp, L, Lang>,
+    <L::Token as Token<'inp>>::Kind: 'static,
+  {
+    FusedDispatchOnKind::of(self, table)
   }
 }
 
@@ -114,7 +211,56 @@ macro_rules! tuple_choice {
   };
 }
 
+// `ParseChoice`/`TryParseChoice` are implemented for choice tuples from `(P0,)` up to
+// `(P0, .., P32)` (the largest being `Branch<32>`). Tuples larger than this are
+// unsupported; nest an inner `choice(..)` to exceed the cap.
 tuple_choice!(32);
+
+macro_rules! fused_tuple_choice {
+  (@output $end:literal; $($param:literal),+ $(,)?) => {
+    ::paste::paste! {
+      impl<'inp, L, O, Ctx, Lang: ?Sized, $([< F $param >]),+>
+        ParseTokenChoice<'inp, L, O, Ctx, Lang>
+        for ($([< F $param >],)+)
+      where
+        L: Lexer<'inp>,
+        Ctx: ParseContext<'inp, L, Lang>,
+        $([< F $param >]: FnMut(
+          Spanned<L::Token, L::Span>,
+          &mut InputRef<'inp, '_, L, Ctx, Lang>,
+        ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>),+
+      {
+        type Id = Branch<$end>;
+
+        fn parse_token_choice(
+          &mut self,
+          inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+          id: &Self::Id,
+          head: Spanned<L::Token, L::Span>,
+        ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+          match id.id() {
+            $($param => (self.$param)(head, inp),)+
+            _ => unreachable!(concat!("Branch<", stringify!($end), "> guarantees in-bounds")),
+          }
+        }
+      }
+    }
+  };
+  (@mid $end:literal) => {
+    seq_macro::seq!(N in 0..=$end {
+      fused_tuple_choice!(@output $end; #(N,)*);
+    });
+  };
+  ($end:literal) => {
+    seq_macro::seq!(E in 0..=$end {
+      fused_tuple_choice!(@mid E);
+    });
+  };
+}
+
+// `ParseTokenChoice` mirrors the same arities: fused-arm tuples from `(F0,)` up to
+// `(F0, .., F32)`, each arm an `FnMut(head, inp) -> Result<O, E>`.
+fused_tuple_choice!(32);
 
 impl<'inp, L, O, Ctx, Lang: ?Sized, P, const N: usize> ParseChoice<'inp, L, O, Ctx, Lang> for [P; N]
 where
@@ -124,7 +270,7 @@ where
 {
   type Id = deranged::RangedUsize<0, N>;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_choice(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -142,7 +288,7 @@ where
 {
   type Id = usize;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_choice(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -160,7 +306,7 @@ where
 {
   type Id = usize;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn parse_choice(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -183,7 +329,7 @@ const _: () = {
   {
     type Id = T::Id;
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn parse_choice(
       &mut self,
       inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
@@ -200,9 +346,20 @@ pub struct Branch<const N: usize>(usize);
 
 impl<const N: usize> Branch<N> {
   /// Returns the matched branch id.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub const fn id(&self) -> usize {
     self.0
+  }
+
+  /// Constructs a branch from a raw index.
+  ///
+  /// Crate-internal: the caller must guarantee `index <= N` (the in-bounds contract every
+  /// `ParseChoice` dispatch relies on). Used by [`DispatchOnKind`](crate::parser::DispatchOnKind)
+  /// after a table lookup, where the matched table position is a valid branch index.
+  #[inline(always)]
+  pub(crate) const fn from_index(index: usize) -> Self {
+    debug_assert!(index <= N, "Branch index out of range");
+    Branch(index)
   }
 }
 

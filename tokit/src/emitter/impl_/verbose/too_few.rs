@@ -6,14 +6,16 @@ where
   E: FromTooFewError<'a, L, Lang> + FromEmitterError<'a, L, Lang>,
   S: Span + Ord + Clone,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn emit_too_few(&mut self, err: TooFew<L::Span, Lang>) -> Result<(), Self::Error>
   where
     L: Lexer<'a>,
   {
     self
       .errs
-      .insert(err.span_ref().clone(), E::from_too_few(err));
+      .entry(err.span_ref().clone())
+      .or_default()
+      .push(E::from_too_few(err));
     Ok(())
   }
 }

@@ -117,7 +117,7 @@ impl<'a, T> Clone for Lexed<'a, T>
 where
   T: Token<'a>,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn clone(&self) -> Self {
     match self {
       Self::Token(tok) => Self::Token(tok.clone()),
@@ -135,7 +135,7 @@ where
 
 impl<'a, T: Token<'a>> Lexed<'a, T> {
   /// Lexes the next token from the given lexer, returning `None` if the input is exhausted.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn lex<L>(lexer: &mut L) -> Option<Self>
   where
     L: super::Lexer<'a, Token = T>,
@@ -144,7 +144,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   }
 
   /// Lexes the next token from the given lexer, returning `None` if the input is exhausted.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   pub fn lex_spanned<L>(lexer: &mut L) -> Option<Spanned<Self, L::Span>>
   where
     L: super::Lexer<'a, Token = T>,
@@ -160,7 +160,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Error`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_token(self, msg: &str) -> T {
     match self {
@@ -175,7 +175,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Token`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_error(self, msg: &str) -> T::Error {
     match self {
@@ -190,7 +190,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Error`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_token_ref(&self, msg: &str) -> &T {
     match self {
@@ -205,7 +205,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Token`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_error_ref(&self, msg: &str) -> &T::Error {
     match self {
@@ -220,7 +220,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Error`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_token_mut(&mut self, msg: &str) -> &mut T {
     match self {
@@ -235,7 +235,7 @@ impl<'a, T: Token<'a>> Lexed<'a, T> {
   ///
   /// Panics if the value is a [`Lexed::Token`] with a custom panic message provided by
   /// `msg`.
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   #[track_caller]
   pub fn expect_error_mut(&mut self, msg: &str) -> &mut T::Error {
     match self {
@@ -250,7 +250,7 @@ where
   T: Token<'a> + core::fmt::Display,
   T::Error: core::fmt::Display,
 {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     match self {
       Self::Token(tok) => ::core::fmt::Display::fmt(tok, f),
@@ -260,7 +260,7 @@ where
 }
 
 impl<'a, T: Token<'a>> From<Result<T, T::Error>> for Lexed<'a, T> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(value: Result<T, T::Error>) -> Self {
     match value {
       Ok(tok) => Self::Token(tok),
@@ -270,7 +270,7 @@ impl<'a, T: Token<'a>> From<Result<T, T::Error>> for Lexed<'a, T> {
 }
 
 impl<'a, T: Token<'a>> From<Lexed<'a, T>> for Result<T, T::Error> {
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn from(value: Lexed<'a, T>) -> Self {
     match value {
       Lexed::Token(tok) => Ok(tok),
@@ -298,13 +298,150 @@ where
 {
   type Lexer = L;
 
-  #[cfg_attr(not(tarpaulin), inline(always))]
+  #[inline(always)]
   fn into_lexer(self) -> Self::Lexer {
     self
   }
 }
 
-/// A trait for lexers
+/// A trait for lexers.
+///
+/// # The lexer contract
+///
+/// tokit's input layer ([`InputRef`](crate::InputRef)) pulls tokens from a lexer on
+/// demand and, to support lookahead and backtracking, **rebuilds a fresh lexer per
+/// operation and re-lexes on demand any region it needs again** — the prefix a
+/// checkpoint restore rewinds, and any cached token an abandoned branch dropped or a
+/// cache truncation discarded. That reconstruction is always the same two steps
+/// ([`InputRef::lexer`](crate::InputRef::lexer)): `L::with_state(src, saved_state)`
+/// followed by [`bump`](Lexer::bump) to the committed offset. The clauses below are
+/// the properties that make that machinery correct.
+///
+/// They are a *contract*, not a set of `unsafe` invariants: breaking one is neither
+/// undefined behavior nor memory-unsafe, but it makes the input layer's observable
+/// behavior unspecified (see [*Violation posture*](#violation-posture)). The bundled
+/// Logos backend upholds every clause; a hand-written lexer must uphold them itself,
+/// and the `conformance` kit checks a lexer against them.
+///
+/// ## Determinism: scanning is a pure function of source, position, and state
+///
+/// Every scan-visible result — which token [`lex`](Lexer::lex) decides, its span,
+/// whether the item is a token or an [`Error`](Lexed::Error), and any limit
+/// accounting [`check`](Lexer::check) reports — must derive **entirely** from the
+/// source, the offset being lexed at, and the lexer [`State`](Lexer::State). Nothing
+/// may route through state a checkpoint's `State` snapshot cannot capture and a
+/// restore therefore cannot rewind: a shared counter, an ambient global, an
+/// allocator address. Determinism is what makes replay observationally identical to
+/// the run it rewound, and two concrete mechanisms depend on it:
+///
+/// - **prefix replay after a checkpoint restore** —
+///   [`restore`](crate::InputRef::restore) copies the saved [`State`](Lexer::State),
+///   span, poison boundary, and lexer-error dedup watermark back, and drops the cache
+///   entries pushed since the save; the region they covered is re-lexed on demand and
+///   must reproduce the identical items;
+/// - **cache truncation** — a peek lexes ahead and caches tokens; when a branch is
+///   abandoned or the cache is drained, those tokens are dropped and re-lexed on the
+///   next read.
+///
+/// Re-lexing the same source from the same offset and state must reproduce the
+/// identical item and the identical accounting. (Scan *counting* held **outside**
+/// `State` — e.g. a test probe — legitimately observes the extra re-lex scans; that
+/// is instrumentation, not a scan-visible result.)
+///
+/// ## State faithfulness and cheapness
+///
+/// A resume point is the pair (**[`State`](Lexer::State)**, **offset**):
+/// [`with_state`](Lexer::with_state) carries the *mode* — every scanning regime the
+/// lexer can be in (nesting depth, string-vs-normal mode, a resource limiter's tally)
+/// — and [`bump`](Lexer::bump) carries the *position*. Position is deliberately **not**
+/// encoded in `State`; the input layer threads it separately through `bump`. Together
+/// the pair must be sufficient: rebuilding with `L::with_state(src, saved_state)` and
+/// bumping to the saved offset must reproduce **exactly** the suffix the original
+/// lexer would have produced from the moment that state was captured. The state that
+/// pairs with a given item is the one observed *right after* [`lex`](Lexer::lex)
+/// returned it, and the offset it pairs with is that item's span end.
+///
+/// `State` is cloned on **every** checkpoint ([`save`](crate::InputRef::save) clones
+/// it, and every cached token stores a clone), so cloning must be cheap. Keep it
+/// `Copy` or small; if it must own heavy data, store a handle (e.g. `Arc`) inside it
+/// so clones stay inexpensive.
+///
+/// ## Monotone progress: spans never move backward, every scan advances
+///
+/// Over a run, span starts are **non-decreasing**, and every produced item — a token
+/// or an [`Error`](Lexed::Error) — has a **nonempty** span: its [`span`](Lexer::span)
+/// end is strictly greater than its start. A zero-width span (end equal to start) is a
+/// contract violation. The input layer reasons about the stream *positionally* —
+/// cached spans, the lexer-error dedup watermark, and the poison boundary past which
+/// lexing stops are all offsets that assume every lexed item advances the position —
+/// so a zero-width item is at once excluded (it starts at the boundary) and
+/// non-advancing (it consumes nothing), which silently degrades replay and, worse,
+/// *termination*: a lexer that never advances yields an unbounded zero-width run.
+/// Debug builds assert the nonempty span at the input layer's single lexing chokepoint
+/// (`lex_within_boundary`); release builds omit it. [`lex`](Lexer::lex) restates this
+/// clause on the method itself.
+///
+/// ## Exhaustion is sticky
+///
+/// Once [`lex`](Lexer::lex) returns `None`, every subsequent [`lex`](Lexer::lex) on
+/// that same instance must keep returning `None` — exhaustion never "un-exhausts".
+/// The input layer never re-polls a single instance past its first `None` (both
+/// scanning loops stop there), but it relies on the *positional* face of the same
+/// property: on end of input a scan commits no progress, so the committed offset stays
+/// put and the **next** operation rebuilds a fresh lexer at that same offset and
+/// re-lexes it — which, by determinism, must return `None` again. Sticky `None` is
+/// what lets a parse terminate at end of input instead of looping. (The bundled Logos
+/// backend additionally latches a *limit* trip to sticky `None`; that is a stronger
+/// backend guarantee documented on its `LogosLexer`, not a requirement on every
+/// lexer.)
+///
+/// ## Truncation faithfulness (partial-input mode only)
+///
+/// When the input layer is driven in [`Partial`](crate::input::Partial) (Sans-I/O) mode, one
+/// further property is assumed — it is inert for a [`Complete`](crate::input::Complete) parse. A
+/// produced item (token or [`Error`](Lexed::Error)) whose span ends **strictly before the buffer
+/// end** must be **stable under appended input**: its decision — token-vs-error, kind, and span —
+/// must derive only from source bytes up to its own span end, never from bytes further ahead. The
+/// frontier holdback withholds exactly the one item whose span *reaches* the buffer end (the
+/// maximal-munch one-boundary-byte lookahead is safe, because that boundary byte is present
+/// precisely when the item is yielded), so a lexer that decides an item from bytes *beyond* its
+/// span breaks the chunked-equivalence guarantee — a prefix parse would produce a different item
+/// than the whole. A maximal-munch lexer (the Logos backend, and every hand-written lexer that
+/// commits each item from its own bytes) satisfies this; the `conformance` kit's `run_partial`
+/// check exercises it over every split point.
+///
+/// ## Span / slice coherence
+///
+/// [`slice`](Lexer::slice) must equal the source content at [`span`](Lexer::span):
+/// slicing the source over `span().start..span().end` yields exactly `slice()`, and
+/// every span lies within source bounds (`0 <= start <= end <= source.len()`). The
+/// input layer builds its own slices from spans over the source
+/// ([`InputRef::slice`](crate::InputRef::slice)), so a span that disagrees with the
+/// slice, or points outside the source, yields wrong text or a panic.
+///
+/// ## Composite tokens own their contents (token-level nesting)
+///
+/// A composite token — a block string, a raw/heredoc literal, a comment — is **one**
+/// token whose span covers the whole construct; the lexer must **swallow every
+/// delimiter character inside it** and emit no nested delimiter tokens for them. The
+/// recovery scanner [`sync_balanced`](crate::InputRef::sync_balanced) counts delimiter
+/// nesting **token by token**, so a `{` or `}` buried inside a block string must never
+/// reach it as a separate token — otherwise a brace inside a string literal would
+/// perturb the depth counter and mis-place a recovery sync point. See
+/// [`sync_balanced`](crate::InputRef::sync_balanced) for the counter this leans on.
+///
+/// ## Violation posture
+///
+/// A lexer that breaks a clause above is **not** undefined behavior and **not**
+/// memory-unsafe. The input layer's behavior under a violating lexer is
+/// **unspecified but bounded**, exactly the posture a misused checkpoint gets (see
+/// [`restore`](crate::InputRef::restore)'s release-build section): no undefined
+/// behavior, no leak, no panic originating in this crate, and — because a resource
+/// limiter's tally travels inside the checkpointed `State` — every scan still
+/// terminates. What is *not* guaranteed is that a replay matches the original run:
+/// diagnostics may be missing or misattributed, and the replayed token stream may
+/// differ. Debug builds turn the one locally-checkable clause (nonempty spans) into an
+/// assertion at the single lexing chokepoint.
 pub trait Lexer<'inp>: 'inp {
   /// The state of the lexer.
   type State: State;
@@ -322,11 +459,20 @@ pub trait Lexer<'inp>: 'inp {
   fn new(src: &'inp Self::Source) -> Self;
 
   /// Lexes the input source with the given initial state and returns a tokenizer.
+  ///
+  /// This is the **resume** constructor: the input layer rebuilds a lexer with a saved
+  /// [`State`](Self::State) here and then [`bump`](Self::bump)s to the resume offset.
+  /// See *State faithfulness* in the [trait contract](Self#the-lexer-contract) for what
+  /// the (state, offset) pair must reproduce.
   fn with_state(src: &'inp Self::Source, state: Self::State) -> Self;
 
   /// Checks the current state of the lexer for errors.
   ///
   /// If the state is valid, returns `Ok(())`, otherwise returns an error.
+  ///
+  /// Not to be confused with [`Check::check`](crate::Check::check) (the parser-side value
+  /// predicate) or [`State::check`] (the state's own validity probe, which this method
+  /// typically wraps into the token's error type).
   fn check(&self) -> Result<(), <Self::Token as Token<'inp>>::Error>;
 
   /// Returns a reference to the current state of the lexer.
@@ -348,6 +494,10 @@ pub trait Lexer<'inp>: 'inp {
   fn slice(&self) -> <Self::Source as Source<Self::Offset>>::Slice<'inp>;
 
   /// Lexes the next token from the input source.
+  ///
+  /// Returns `None` at end of input; once it returns `None` it must keep returning
+  /// `None` (exhaustion is sticky). Every produced token and error must have a nonempty
+  /// span. See the [trait contract](Self#the-lexer-contract) for both clauses.
   fn lex(&mut self) -> Option<Result<Self::Token, <Self::Token as Token<'inp>>::Error>>;
 
   /// Bumps the end of currently lexed token by `n` offsets.
@@ -405,149 +555,7 @@ pub trait Lexable<I, Error> {
 
 #[cfg(test)]
 #[allow(warnings)]
-mod tests {
-  use super::*;
-
-  // Use DummyToken defined below
-
-  #[test]
-  fn lexed_from_ok_result() {
-    let result: Result<DummyToken, ()> = Ok(DummyToken);
-    let lexed: Lexed<'_, DummyToken> = result.into();
-    assert!(lexed.is_token());
-    assert!(!lexed.is_error());
-  }
-
-  #[test]
-  fn lexed_from_err_result() {
-    let result: Result<DummyToken, ()> = Err(());
-    let lexed: Lexed<'_, DummyToken> = result.into();
-    assert!(!lexed.is_token());
-    assert!(lexed.is_error());
-  }
-
-  #[test]
-  fn lexed_into_result_ok() {
-    let lexed = Lexed::<'_, DummyToken>::Token(DummyToken);
-    let result: Result<DummyToken, ()> = lexed.into();
-    assert!(result.is_ok());
-  }
-
-  #[test]
-  fn lexed_into_result_err() {
-    let lexed = Lexed::<'_, DummyToken>::Error(());
-    let result: Result<DummyToken, ()> = lexed.into();
-    assert!(result.is_err());
-  }
-
-  #[test]
-  fn lexed_expect_token() {
-    let lexed = Lexed::<'_, DummyToken>::Token(DummyToken);
-    let tok = lexed.expect_token("should be a token");
-    assert_eq!(tok, DummyToken);
-  }
-
-  #[test]
-  #[should_panic(expected = "not a token")]
-  fn lexed_expect_token_panics_on_error() {
-    let lexed = Lexed::<'_, DummyToken>::Error(());
-    lexed.expect_token("not a token");
-  }
-
-  #[test]
-  fn lexed_expect_error() {
-    let lexed = Lexed::<'_, DummyToken>::Error(());
-    lexed.expect_error("should be an error");
-  }
-
-  #[test]
-  #[should_panic(expected = "not an error")]
-  fn lexed_expect_error_panics_on_token() {
-    let lexed = Lexed::<'_, DummyToken>::Token(DummyToken);
-    lexed.expect_error("not an error");
-  }
-
-  #[test]
-  fn lexed_expect_token_ref() {
-    let lexed = Lexed::<'_, DummyToken>::Token(DummyToken);
-    let tok = lexed.expect_token_ref("should be a token");
-    assert_eq!(tok, &DummyToken);
-  }
-
-  #[test]
-  #[should_panic(expected = "not a token")]
-  fn lexed_expect_token_ref_panics_on_error() {
-    let lexed = Lexed::<'_, DummyToken>::Error(());
-    lexed.expect_token_ref("not a token");
-  }
-
-  #[test]
-  fn lexed_expect_error_ref() {
-    let lexed = Lexed::<'_, DummyToken>::Error(());
-    let _err = lexed.expect_error_ref("should be an error");
-  }
-
-  #[test]
-  #[should_panic(expected = "not an error")]
-  fn lexed_expect_error_ref_panics_on_token() {
-    let lexed = Lexed::<'_, DummyToken>::Token(DummyToken);
-    lexed.expect_error_ref("not an error");
-  }
-
-  #[test]
-  fn lexed_expect_token_mut() {
-    let mut lexed = Lexed::<'_, DummyToken>::Token(DummyToken);
-    let tok = lexed.expect_token_mut("should be a token");
-    assert_eq!(tok, &mut DummyToken);
-  }
-
-  #[test]
-  #[should_panic(expected = "not a token")]
-  fn lexed_expect_token_mut_panics_on_error() {
-    let mut lexed = Lexed::<'_, DummyToken>::Error(());
-    lexed.expect_token_mut("not a token");
-  }
-
-  #[test]
-  fn lexed_expect_error_mut() {
-    let mut lexed = Lexed::<'_, DummyToken>::Error(());
-    let _err = lexed.expect_error_mut("should be an error");
-  }
-
-  #[test]
-  #[should_panic(expected = "not an error")]
-  fn lexed_expect_error_mut_panics_on_token() {
-    let mut lexed = Lexed::<'_, DummyToken>::Token(DummyToken);
-    lexed.expect_error_mut("not an error");
-  }
-
-  // Display test removed: DummyToken::Error = () which doesn't impl Display
-
-  #[test]
-  fn lexed_clone() {
-    let lexed = Lexed::<'_, DummyToken>::Token(DummyToken);
-    let cloned = lexed.clone();
-    assert_eq!(lexed, cloned);
-  }
-
-  #[test]
-  fn lexed_try_unwrap() {
-    let lexed = Lexed::<'_, DummyToken>::Token(DummyToken);
-    assert!(lexed.try_unwrap_token().is_ok());
-
-    let lexed = Lexed::<'_, DummyToken>::Error(());
-    assert!(lexed.try_unwrap_error().is_ok());
-  }
-
-  #[test]
-  fn lexed_unwrap_ref() {
-    let lexed = Lexed::<'_, DummyToken>::Token(DummyToken);
-    assert_eq!(lexed.unwrap_token_ref(), &DummyToken);
-
-    let lexed = Lexed::<'_, DummyToken>::Error(());
-    assert_eq!(lexed.unwrap_error_ref(), &());
-  }
-}
+mod tests;
 
 #[cfg(test)]
 pub(crate) struct DummyLexer;
@@ -565,12 +573,12 @@ const _: () = {
     type Kind = Self;
     type Error = ();
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn kind(&self) -> Self::Kind {
       *self
     }
 
-    #[cfg_attr(not(tarpaulin), inline(always))]
+    #[inline(always)]
     fn is_trivia(&self) -> bool {
       true
     }
@@ -591,10 +599,7 @@ const _: () = {
 
     type Offset = usize;
 
-    fn new(_: &'inp Self::Source) -> Self
-    where
-      Self::State: Default,
-    {
+    fn new(_: &'inp Self::Source) -> Self {
       todo!()
     }
 
