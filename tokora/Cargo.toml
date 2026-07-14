@@ -7,8 +7,8 @@ homepage.workspace = true
 documentation.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Parser combinators with on-demand lexing, explicit lookahead and backtracking, configurable diagnostics, and optional Logos and Rowan integrations"
-categories = ["parsing", "text-processing", "no-std"]
+description = "Deterministic parser combinators, with on-demand lexing, LALR-style dispatch, explicit backtracking, and configurable diagnostics."
+categories = ["parsing", "text-processing", "no-std", "no-std::no-alloc"]
 keywords = ["parser", "combinator", "token", "logos", "error-recovery"]
 
 [features]
@@ -134,6 +134,9 @@ rowan = { version = "0.16", optional = true }
 criterion = "0.8"
 tempfile = "3"
 
+[lints]
+workspace = true
+
 # Disable the default libtest bench harness; all benches go through criterion.
 [lib]
 bench = false
@@ -177,10 +180,6 @@ required-features = ["std", "logos"]
 name = "c_expression"
 path = "examples/c_expression.rs"
 required-features = ["std", "logos"]
-
-[lints.rust]
-rust_2018_idioms = "warn"
-single_use_lifetimes = "warn"
 
 [package.metadata.docs.rs]
 all-features = true
