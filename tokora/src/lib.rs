@@ -1,12 +1,4 @@
-#![cfg_attr(
-  all(feature = "std", feature = "logos_0_16"),
-  doc = "**New to tokora? Start with the [`guide`] module** — a chaptered guide that builds Calc, walks through maintained parser programs, and introduces optional lossless CST tooling.\n\n"
-)]
-#![cfg_attr(
-  not(feature = "logos_0_16"),
-  doc = "Tokora is a parser-combinator library with on-demand lexing, explicit lookahead and backtracking, configurable diagnostics, and optional integrations.\n\n"
-)]
-#![cfg_attr(feature = "logos_0_16", doc = include_str!("../README.md"))]
+#![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]

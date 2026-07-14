@@ -3,7 +3,7 @@
 </div>
 <div align="center">
 
-Determistic parser combinator
+Deterministic parser combinators, with on-demand lexing, LALR-style dispatch, explicit backtracking, and configurable diagnostics.
 
 [<img alt="github" src="https://img.shields.io/badge/github-al8n/tokora-8da0cb?style=for-the-badge&logo=Github" height="22">][Github-url]
 <img alt="LoC" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fal8n%2F327b2a8aef9003246e45c6e47fe63937%2Fraw%2Ftokora" height="22">
@@ -224,6 +224,28 @@ RUSTDOCFLAGS="-D warnings" cargo test -p tokora --all-features --doc
 
 The guide is validated both as rustdoc and as an mdBook so API links, local links, chapter order,
 and Pages output stay aligned.
+
+### Inspirations
+
+Tokora takes inspiration from:
+
+- [**winnow**](https://github.com/winnow-rs/winnow) - For ergonomic parser API design
+- [**chumsky**](https://github.com/zesterer/chumsky) - For composable parser combinator patterns
+- [**logos**](https://github.com/maciejhirsz/logos) - For high-performance lexing
+- [**rowan**](https://github.com/rust-analyzer/rowan) - For lossless syntax tree representation
+
+### Core Priorities
+
+1. **Performance** - Parse-while-lexing (zero-copy streaming), zero-cost abstractions, no hidden allocations
+2. **Predictability** - No hidden backtracking, explicit control flow, deterministic decisions
+3. **Composability** - Small parsers combine into complex ones; atomic emitter traits compose into custom strategies
+4. **Versatility** - Same parser works for runtime (fail-fast) and compiler diagnostics (comprehensive) via atomic `Emitter` traits
+5. **Flexibility** - Work with any lexer, atomic error handling traits, support both AST and CST
+6. **Correctness** - Rich error types, span tracking, validation
+
+## Who Uses Tokit?
+
+- [`smear`](https://github.com/al8n/smear): Blazing fast, fully spec-compliant, reusable parser combinators for standard GraphQL and GraphQL-like DSLs
 
 ## License
 

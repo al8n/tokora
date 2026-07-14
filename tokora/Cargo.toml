@@ -7,8 +7,8 @@ homepage.workspace = true
 documentation.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Parser combinators with on-demand lexing, explicit lookahead and backtracking, configurable diagnostics, and optional Logos and Rowan integrations"
-categories = ["parsing", "text-processing", "no-std"]
+description = "Deterministic parser combinators, with on-demand lexing, LALR-style dispatch, explicit backtracking, and configurable diagnostics."
+categories = ["parsing", "text-processing", "no-std", "no-std::no-alloc"]
 keywords = ["parser", "combinator", "token", "logos", "error-recovery"]
 
 [features]
