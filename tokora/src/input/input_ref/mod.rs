@@ -50,6 +50,11 @@ pub use transaction::Transaction;
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub use stacked::{SavepointId, StackedTransaction};
 
+/// SETTLE_CENSUS / RELEASE_CENSUS — pure source-census tests (`include_str!` only), so
+/// they run in every feature configuration.
+#[cfg(test)]
+mod census_tests;
+
 #[cfg(all(test, feature = "logos", feature = "std"))]
 mod tests;
 
@@ -501,9 +506,45 @@ where
   /// `span()`/`slice()` therefore report the most recently consumed token even
   /// when the cache still holds later peeked tokens. The span is clamped to the
   /// input length.
+  ///
+  /// This is a **position write**, not a token settle: [`commit_token`](Self::commit_token) is
+  /// the settle, and the only consume path allowed to write here. The remaining callers write
+  /// positions that are *not* committed tokens — `settle_fatal` (a rejected lexer error's
+  /// span), `SyncTo::on_eof` (the lexer's span at exhaustion), and `commit_at` (a scan's batch
+  /// frontier write) — and the census (`grep SETTLE_CENSUS`) locks that list.
   #[inline(always)]
   fn set_span_after_consume(&mut self, new: MaybeRef<'_, L::Span>) {
     self.set_span(new);
+  }
+
+  /// SETTLE_CENSUS — **the** primitive that settles a committed token: one call per token, at
+  /// the moment it commits, on every consume path.
+  ///
+  /// A token is *committed* the instant no continuation of the current lineage can yield it
+  /// again — popped off the cache front by a consume, or accepted straight off the lexer. All
+  /// eleven 1:1 consume settles route through here (the census in `census_tests.rs` holds the
+  /// list and fails on drift), so a side channel that must observe committed tokens exactly
+  /// once has exactly one home on the consume surface — plus the scanner's skip settle
+  /// ([`AtFrontier::adopt`], its own censused site) — instead of a dozen.
+  ///
+  /// The body is the settle the sites always performed: the span write that makes
+  /// [`span`](Self::span)/[`slice`](Self::slice) report the consumed token. The state write
+  /// stays at each site — its value is a site-specific move (cached extras, or the live
+  /// lexer's state), and no side channel needs it. Both references are borrowed straight from
+  /// the site's own token, so a build with no observer computes nothing extra and the call
+  /// inlines to exactly the pre-primitive code.
+  ///
+  /// **Non-settles must never route here**: peeks and declines (nothing committed),
+  /// [`unconsume`](Self::unconsume) (the stopper is examined, not consumed), `settle_fatal`
+  /// (the span written is a rejected *error's*, with no token to observe), `SyncTo::on_eof`
+  /// (exhaustion, not a token), `commit_at` (its tokens already settled behind the frontier
+  /// via `adopt`), and the position surgeries (`set_state`, the restore paths).
+  #[inline(always)]
+  fn commit_token(&mut self, tok: &L::Token, span: &L::Span) {
+    // The committed token itself is not needed by the settle — it is threaded so the one
+    // primitive carries everything a per-token side channel may observe.
+    let _ = tok;
+    self.set_span_after_consume(span.into());
   }
 
   /// Commits a scan at its [`AtFrontier`] frontier — the end of the last token it settled there,
@@ -1697,7 +1738,7 @@ where
     if let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();
       let (span, lexed) = spanned_lexed.into_components();
-      self.set_span_after_consume((&span).into());
+      self.commit_token(&lexed, &span);
       *self.state = extras;
       return Ok(Some(Spanned::new(span, lexed)));
     }
@@ -1716,7 +1757,7 @@ where
     let mut lexer = self.lexer();
     match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
       Scan::Token(tok) => {
-        self.set_span_after_consume(tok.span_ref().into());
+        self.commit_token(tok.data(), tok.span_ref());
         *self.state = lexer.into_state();
         Ok(Some(tok))
       }

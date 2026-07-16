@@ -253,7 +253,7 @@ where
     // token was popped off the cache or lexed a moment ago, because a `CachedToken` carries the
     // post-token state either way.
     let (tok, state) = stopper.tok.into_components();
-    ir.set_span_after_consume(tok.span_ref().into());
+    ir.commit_token(tok.data(), tok.span_ref());
     *ir.state = state;
     Some(tok)
   }

@@ -190,7 +190,7 @@ where
     Ok(self.cache.pop_front_if(|t| pred(t.token)).map(|tok| {
       let (lexed, state) = tok.into_components();
       let (span, tok) = lexed.into_components();
-      self.set_span_after_consume((&span).into());
+      self.commit_token(&tok, &span);
       *self.state = state;
 
       Spanned::new(span, tok)
@@ -276,7 +276,7 @@ where
         .map(|tok| {
           let (lexed, state) = tok.into_components();
           let (span, tok) = lexed.into_components();
-          self.set_span_after_consume((&span).into());
+          self.commit_token(&tok, &span);
           *self.state = state;
           (output.unwrap(), Spanned::new(span, tok))
         }),
@@ -317,7 +317,7 @@ where
     }) {
       let (lexed, state) = tok.into_components();
       let (span, tok) = lexed.into_components();
-      self.set_span_after_consume((&span).into());
+      self.commit_token(&tok, &span);
       *self.state = state;
 
       return match output {
@@ -356,7 +356,7 @@ where
     match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
       Scan::Token(tok) => match pred(tok.as_ref()) {
         Some(output) => {
-          self.set_span_after_consume(tok.span_ref().into());
+          self.commit_token(tok.data(), tok.span_ref());
           *self.state = lexer.into_state();
           output.map(|o| Some((o, tok)))
         }
@@ -395,7 +395,7 @@ where
       Scan::Token(tok) => {
         // if the token matches, we return it
         if pred(tok.as_ref()) {
-          self.set_span_after_consume(tok.span_ref().into());
+          self.commit_token(tok.data(), tok.span_ref());
           *self.state = lexer.into_state();
           Ok(Some(tok))
         } else {
@@ -436,7 +436,7 @@ where
       Scan::Token(tok) => {
         // if the token matches, we return it
         if let Some(out) = pred(tok.as_ref()) {
-          self.set_span_after_consume(tok.span_ref().into());
+          self.commit_token(tok.data(), tok.span_ref());
           *self.state = lexer.into_state();
           Ok(Some((out, tok)))
         } else {
