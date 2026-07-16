@@ -29,7 +29,7 @@ pub use logos_0_16 as logos;
 
 pub use cache::{Cache, DefaultCache};
 pub use check::Check;
-pub use emitter::{CstEmitter, Emitter};
+pub use emitter::{ComposableEmitter, CstEmitter, Emitter};
 pub use input::{
   Balance, Commit, Complete, Completeness, DelimClass, DropPolicy, Hole, InputRef, Partial,
   Rollback, SurfaceIncomplete, Transaction, parse_partial,
@@ -37,10 +37,10 @@ pub use input::{
 #[cfg(any(feature = "std", feature = "alloc"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub use input::{SavepointId, StackedTransaction};
-pub use lexer::{Lexed, Lexer};
+pub use lexer::{Lexed, Lexer, SliceOf};
 pub use located::*;
 pub use parse_choice::*;
-pub use parse_context::{FatalContext, ParseContext, ParserContext};
+pub use parse_context::{ErrorOf, FatalContext, ParseContext, ParseCtx, ParserContext};
 pub use parse_input::*;
 pub use parse_state::ParseState;
 pub use parser::{Labelled, Parse, Parser, labelled};

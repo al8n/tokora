@@ -509,6 +509,30 @@ pub trait Lexer<'inp>: 'inp {
   fn bump(&mut self, n: &Self::Offset);
 }
 
+/// The slice type lexer `L` yields from its source.
+///
+/// Generic parser code reaches for this projection constantly — the payload of an
+/// identifier, the raw text of a literal — and spelling it out means chaining two
+/// associated types through [`Source`]. `SliceOf` names that path once, so a bound
+/// like `SliceOf<'inp, L>: Clone` or a return type carrying the slice stays legible.
+///
+/// # Examples
+///
+/// The alias is definitionally the nested projection — this identity function
+/// compiles precisely because the two spellings are the same type:
+///
+/// ```rust
+/// use tokora::{Lexer, SliceOf, Source};
+///
+/// fn same_type<'inp, L: Lexer<'inp>>(
+///   slice: <L::Source as Source<L::Offset>>::Slice<'inp>,
+/// ) -> SliceOf<'inp, L> {
+///   slice
+/// }
+/// ```
+pub type SliceOf<'inp, L> =
+  <<L as Lexer<'inp>>::Source as Source<<L as Lexer<'inp>>::Offset>>::Slice<'inp>;
+
 /// A trait for types that can be lexed from the input.
 ///
 /// This trait provides a standardized way to lex (tokenize) an entire input

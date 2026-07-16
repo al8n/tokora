@@ -476,3 +476,76 @@ where
     err.into()
   }
 }
+
+/// Everything the collecting combinators require from an emitter, as one bound.
+///
+/// The atomic emitter design splits diagnostics across a family of focused traits, and a
+/// parser that drives the separated/repeated machinery ends up needing most of them at
+/// once — a six-line where-clause ladder repeated at every generic parser an author
+/// writes. `ComposableEmitter` is that ladder as a single name: it is
+/// blanket-implemented for every emitter satisfying the whole family, so a bound of
+/// `E: ComposableEmitter<'inp, L, Lang>` is interchangeable with spelling out all six
+/// sub-traits. The pre-built [`Fatal`], [`Verbose`], and [`Silent`] emitters all qualify
+/// whenever their error type absorbs the corresponding error families.
+///
+/// The context-side twin is [`ParseCtx`](crate::ParseCtx), which rides this bound on a
+/// [`ParseContext`](crate::ParseContext)'s emitter so a whole parsing context collapses
+/// to one bound as well.
+///
+/// # Examples
+///
+/// The bundle elaborates back to the entire family — the one-bound function can call
+/// into the six-bound ladder:
+///
+/// ```rust
+/// use tokora::{ComposableEmitter, Emitter, Lexer};
+/// use tokora::emitter::{
+///   FullContainerEmitter, SeparatedEmitter, TooFewEmitter, UnexpectedLeadingSeparatorEmitter,
+///   UnexpectedTrailingSeparatorEmitter,
+/// };
+///
+/// // The where-clause ladder an atom would otherwise carry…
+/// fn ladder<'inp, L, E>()
+/// where
+///   L: Lexer<'inp>,
+///   E: Emitter<'inp, L>
+///     + FullContainerEmitter<'inp, L>
+///     + SeparatedEmitter<'inp, L>
+///     + UnexpectedLeadingSeparatorEmitter<'inp, L>
+///     + UnexpectedTrailingSeparatorEmitter<'inp, L>
+///     + TooFewEmitter<'inp, L>,
+/// {
+/// }
+///
+/// // …collapses to a single bound that still unlocks every rung.
+/// fn bundled<'inp, L, E>()
+/// where
+///   L: Lexer<'inp>,
+///   E: ComposableEmitter<'inp, L>,
+/// {
+///   ladder::<L, E>()
+/// }
+/// ```
+pub trait ComposableEmitter<'inp, L, Lang: ?Sized = ()>:
+  Emitter<'inp, L, Lang>
+  + FullContainerEmitter<'inp, L, Lang>
+  + SeparatedEmitter<'inp, L, Lang>
+  + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
+  + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
+  + TooFewEmitter<'inp, L, Lang>
+where
+  L: Lexer<'inp>,
+{
+}
+
+impl<'inp, L, Lang: ?Sized, T> ComposableEmitter<'inp, L, Lang> for T
+where
+  L: Lexer<'inp>,
+  T: Emitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
+    + SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
+    + TooFewEmitter<'inp, L, Lang>,
+{
+}
