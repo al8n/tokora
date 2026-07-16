@@ -1,0 +1,191 @@
+use crate::cst::event::EventMark;
+
+use super::*;
+
+/// The CST event channel: an [`Emitter`] subtrait whose methods record the flat event stream
+/// a lossless syntax tree is derived from (see [`cst::event`](crate::cst::event) for the
+/// vocabulary and its laws).
+///
+/// # Why a subtrait, and not more defaulted methods on [`Emitter`]
+///
+/// Every other capability here is a diagnostic: a wrapper emitter that forgets to forward
+/// `emit_warning` loses a warning — annoying, visible, recoverable. Tree events are load
+/// bearing: a wrapper that forwards the diagnostic methods but not these would produce a
+/// parse whose diagnostics flow perfectly and whose **tree is silently empty**. So the event
+/// methods live on this separate trait, and CST-producing parse paths bound
+/// `Ctx::Emitter: CstEmitter` — a non-forwarding wrapper is then a **compile error**, never a
+/// silent empty tree. CST is the first capability that *binds* rather than defaults.
+///
+/// # Defaulted no-ops: diagnostics-only emitters opt in trivially
+///
+/// Every method has an empty (or inert-value) default, so an emitter with no event channel
+/// opts in with an empty `impl` — the crate does exactly that for [`Fatal`], [`Verbose`],
+/// [`Silent`], and [`Ignored`](crate::utils::marker::Ignored). That is what makes *one*
+/// parser assembly serve both configurations: over a plain diagnostics emitter the event
+/// calls compile to nothing (reference-taking signatures, empty inlined bodies — the
+/// zero-cost bar is byte-identical machine code, held by the `__text`-hash standard); over a
+/// recording sink the same calls buffer the tree.
+///
+/// The recording implementation is the `rowan`-gated `CstSink`, which buffers events under
+/// the one emitter checkpoint/rewind mark so backtracking rewinds the tree exactly as it
+/// rewinds diagnostics.
+///
+/// # Contract: the raw surface is sharp
+///
+/// These are transport methods with the `enter_label`-class contract: route through the
+/// blessed combinators (`node(kind, p)`-shaped bracketing,
+/// [`Marker`](crate::cst::event::Marker) for retro-wraps) rather than calling the pair by
+/// hand. A hand-rolled unbalanced [`cst_start`](Self::cst_start) /
+/// [`cst_finish`](Self::cst_finish) is not detected at emit time — it is detected at the
+/// sink's materialization, which refuses to build a wrong tree (typed error, never a panic).
+/// Two shapes are worth naming:
+///
+/// - a **decline or error-unwind** between a start and its finish is safe *when the pair is
+///   emitted by a both-exits bracket* (the `labelled` precedent); raw callers own that duty;
+/// - a **session point rolled back across a finished node** truncates the finish but not the
+///   start — legal, and reported by materialization as a leftover open, per the
+///   `begin_point` settle-your-points clause.
+pub trait CstEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
+  /// Opens a node of `kind`; the matching [`cst_finish`](Self::cst_finish) closes it.
+  ///
+  /// `kind` is a dialect u16 from the unified kind space; the [`TOMBSTONE`](crate::cst::event::TOMBSTONE)
+  /// value is reserved and rejected by recording sinks.
+  #[inline(always)]
+  fn cst_start(&mut self, kind: u16)
+  where
+    L: Lexer<'a>,
+  {
+    let _ = kind;
+  }
+
+  /// Records one **committed** token: the token itself (the recording sink maps it to a
+  /// u16 through its dialect-supplied mapper — no kind bound leaks into core) and its
+  /// span.
+  ///
+  /// Exactly-once law: this fires when a token settles — consumed, or skipped behind a
+  /// scan frontier — and nowhere else. Peeks, declines, `unconsume`, position writes, and
+  /// rejected error items record nothing. Reference-taking on purpose: a no-op emitter's
+  /// call sites compute nothing.
+  #[inline(always)]
+  fn cst_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    let _ = (tok, span);
+  }
+
+  /// Closes the innermost open node (stack discipline; see the module docs of
+  /// [`cst::event`](crate::cst::event) for the derived depth model).
+  #[inline(always)]
+  fn cst_finish(&mut self)
+  where
+    L: Lexer<'a>,
+  {
+  }
+
+  /// Appends an inert tombstone and returns the [`EventMark`] naming it — the anchor for a
+  /// later retro-wrap ([`cst_start_at`](Self::cst_start_at)). An unspent mark costs
+  /// nothing: an unwrapped tombstone materializes into nothing.
+  ///
+  /// The default returns an **inert** mark (no event channel to anchor into); spending an
+  /// inert mark on a recording sink panics as stale, deterministically. Prefer wrapping
+  /// the result in a [`Marker`](crate::cst::event::Marker) for the single-use
+  /// open/completed/abandoned discipline.
+  #[inline(always)]
+  fn cst_mark(&mut self) -> EventMark
+  where
+    L: Lexer<'a>,
+  {
+    EventMark::inert()
+  }
+
+  /// Retro-opens a node of `kind` at `mark`'s tombstone, wrapping everything recorded
+  /// since the mark once the matching [`cst_finish`](Self::cst_finish) lands. Append-only
+  /// by law: the wrap is a new event naming the tombstone, never an in-place completion
+  /// of it. Same-target wraps nest outward: the latest wrap is the outermost node.
+  ///
+  /// # Panics
+  ///
+  /// A recording sink validates the mark — in bounds, still a tombstone, era not
+  /// invalidated by any later truncation, issued by this sink — and **panics in every
+  /// build** on staleness: a stale mark is a parser bug (the branch that conceived the
+  /// wrap was rolled back), and silently wrapping whatever regrew at that index is the
+  /// wrong-tree class nothing downstream can detect.
+  #[inline(always)]
+  fn cst_start_at(&mut self, mark: EventMark, kind: u16)
+  where
+    L: Lexer<'a>,
+  {
+    let _ = (mark, kind);
+  }
+}
+
+impl<'a, L, U, Lang: ?Sized> CstEmitter<'a, L, Lang> for &mut U
+where
+  U: CstEmitter<'a, L, Lang>,
+{
+  #[inline(always)]
+  fn cst_start(&mut self, kind: u16)
+  where
+    L: Lexer<'a>,
+  {
+    (**self).cst_start(kind)
+  }
+
+  #[inline(always)]
+  fn cst_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    (**self).cst_token(tok, span)
+  }
+
+  #[inline(always)]
+  fn cst_finish(&mut self)
+  where
+    L: Lexer<'a>,
+  {
+    (**self).cst_finish()
+  }
+
+  #[inline(always)]
+  fn cst_mark(&mut self) -> EventMark
+  where
+    L: Lexer<'a>,
+  {
+    (**self).cst_mark()
+  }
+
+  #[inline(always)]
+  fn cst_start_at(&mut self, mark: EventMark, kind: u16)
+  where
+    L: Lexer<'a>,
+  {
+    (**self).cst_start_at(mark, kind)
+  }
+}
+
+// The shipped diagnostics-only emitters opt into the event channel with the defaulted
+// no-ops: one parser assembly can then bound `Ctx::Emitter: CstEmitter` and run tree-less
+// (today's behavior, zero cost) or tree-building (a `CstSink`) by configuration alone. The
+// wrapper-emitter trap this trait exists to close is untouched: a *wrapper* type gets no
+// blanket opt-in and must implement (and forward) the trait deliberately.
+
+impl<'a, L, E, Lang: ?Sized> CstEmitter<'a, L, Lang> for Fatal<E, Lang> where
+  Self: Emitter<'a, L, Lang>
+{
+}
+
+impl<'a, L, E, Lang: ?Sized> CstEmitter<'a, L, Lang> for Silent<E, Lang> where
+  Self: Emitter<'a, L, Lang>
+{
+}
+
+impl<'a, L, Lang: ?Sized> CstEmitter<'a, L, Lang> for Ignored where Self: Emitter<'a, L, Lang> {}
+
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+impl<'a, L, Error, S, Lang: ?Sized> CstEmitter<'a, L, Lang> for Verbose<Error, S, Lang> where
+  Self: Emitter<'a, L, Lang>
+{
+}

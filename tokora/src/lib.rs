@@ -29,7 +29,7 @@ pub use logos_0_16 as logos;
 
 pub use cache::{Cache, DefaultCache};
 pub use check::Check;
-pub use emitter::Emitter;
+pub use emitter::{CstEmitter, Emitter};
 pub use input::{
   Balance, Commit, Complete, Completeness, DelimClass, DropPolicy, Hole, InputRef, Partial,
   Rollback, SurfaceIncomplete, Transaction, parse_partial,
@@ -64,11 +64,12 @@ pub use trace::traced;
 
 /// Concrete Syntax Tree (CST) representations and utilities.
 ///
-/// Provides integration with the `rowan` library for building lossless CSTs that preserve
-/// all source information including whitespace and comments. Useful for building tools
-/// like formatters, refactoring engines, and language servers.
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+/// The rowan-free front half — the [`cst::event`] vocabulary, the era-branded marks, and the
+/// [`emitter::CstEmitter`](crate::emitter::CstEmitter) capability they ride — is available in
+/// every build, so one parser assembly can bound its context on the event channel and run
+/// tree-less at zero cost. The `rowan` feature adds the back half: the recording sink and the
+/// typed lossless-tree layer (preserving all source information including whitespace and
+/// comments) for building tools like formatters, refactoring engines, and language servers.
 pub mod cst;
 
 /// Lexical analysis and token extraction.

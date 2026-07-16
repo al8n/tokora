@@ -1,4 +1,6 @@
-//! Concrete Syntax Tree (CST) utilities built on top of [rowan](https://docs.rs/rowan).
+//! Concrete Syntax Tree (CST) utilities: a rowan-free event vocabulary, and — under the
+//! `rowan` feature — the typed-tree infrastructure built on top of
+//! [rowan](https://docs.rs/rowan).
 //!
 //! This module provides infrastructure for building and working with typed concrete syntax trees.
 //! Unlike Abstract Syntax Trees (ASTs), CSTs preserve all source information including whitespace,
@@ -12,14 +14,26 @@
 //!
 //! # Architecture
 //!
-//! The CST infrastructure has several key components:
+//! Tree support is a **flat event stream that rides the emitter**: the parser records events
+//! (through the [`CstEmitter`](crate::emitter::CstEmitter) capability subtrait), and the tree
+//! is *derived* from the surviving events exactly once — never mutated mid-parse. Because the
+//! events live in the emitter's rewindable channel, backtracking rewinds the tree for free:
+//! the same mark that unwinds diagnostics unwinds tree events.
 //!
-//! 1. **[`SyntaxTreeBuilder`](crate::cst::SyntaxTreeBuilder)**: Constructs CSTs from tokens using rowan's green tree builder
-//! 2. **[`CstElement`](crate::cst::CstElement)**: Base trait for all typed CST elements (nodes and tokens)
-//! 3. **[`CstNode`](crate::cst::CstNode)**: Trait for typed CST nodes with zero-cost conversions
-//! 4. **[`CstToken`](crate::cst::CstToken)**: Trait for typed CST tokens (terminal elements)
-//! 5. **[`cast`](crate::cst::cast)**: Utility functions for working with CST nodes and tokens
-//! 6. **[`error`](crate::cst::error)**: Error types for CST operations
+//! The components, front half (rowan-free, available in every build) first:
+//!
+//! 1. **[`event`](crate::cst::event)**: The event vocabulary, the era-branded
+//!    [`EventMark`](crate::cst::event::EventMark), and the
+//!    [`Marker`](crate::cst::event::Marker) retro-wrap typestate
+//! 2. **`CstSink`** (`rowan`): The recording emitter — buffers events under the one
+//!    checkpoint/rewind mark and materializes once into a green tree
+//! 3. **[`SyntaxTreeBuilder`](crate::cst::SyntaxTreeBuilder)** (`rowan`): The low-level
+//!    append-only builder over rowan's green tree builder (no rollback of its own — that is
+//!    what the event buffer is for)
+//! 4. **[`CstElement`](crate::cst::CstElement)** / **[`CstNode`](crate::cst::CstNode)** /
+//!    **[`CstToken`](crate::cst::CstToken)** (`rowan`): Typed views over the finished tree
+//! 5. **[`cast`](crate::cst::cast)** (`rowan`): Utility functions for the typed layer
+//! 6. **[`error`](crate::cst::error)** (`rowan`): Error types for CST operations
 //!
 //! # Design Philosophy
 //!
@@ -32,12 +46,18 @@
 //!
 //! - [rowan documentation](https://docs.rs/rowan) - The underlying CST library
 
+#[cfg(feature = "rowan")]
 use core::{cell::RefCell, marker::PhantomData};
 
+#[cfg(feature = "rowan")]
 use derive_more::{From, Into};
+#[cfg(feature = "rowan")]
 use rowan::{GreenNodeBuilder, Language, SyntaxNode, SyntaxToken};
 
+#[cfg(feature = "rowan")]
 use crate::syntax::Syntax;
+
+pub mod event;
 
 /// A builder for constructing concrete syntax trees.
 ///
@@ -97,12 +117,15 @@ use crate::syntax::Syntax;
 /// - It can be shared immutably across parser combinators
 /// - Mutations are checked at runtime (will panic if you violate borrow rules)
 /// - Typically safe in single-threaded parsing contexts
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
 #[derive(Debug)]
 pub struct SyntaxTreeBuilder<Lang> {
   builder: RefCell<GreenNodeBuilder<'static>>,
   _marker: PhantomData<Lang>,
 }
 
+#[cfg(feature = "rowan")]
 impl<Lang> Default for SyntaxTreeBuilder<Lang>
 where
   Lang: Language,
@@ -113,6 +136,7 @@ where
   }
 }
 
+#[cfg(feature = "rowan")]
 impl<Lang> SyntaxTreeBuilder<Lang>
 where
   Lang: Language,
@@ -321,6 +345,8 @@ where
 /// # Type Parameters
 ///
 /// - `Lang`: The rowan [`Language`] type defining syntax kinds
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
 pub trait CstElement<Lang: Language>: core::fmt::Debug {
   /// The syntax kind of this CST element.
   ///
@@ -406,6 +432,8 @@ pub trait CstElement<Lang: Language>: core::fmt::Debug {
 /// # Type Parameters
 ///
 /// - `Lang`: The rowan [`Language`] type defining syntax kinds
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
 pub trait CstToken<Lang: Language>: CstElement<Lang> {
   /// Attempts to cast the given syntax token to this typed token.
   ///
@@ -456,6 +484,8 @@ pub trait CstToken<Lang: Language>: CstElement<Lang> {
 /// # Type Parameters
 ///
 /// - `Lang`: The rowan [`Language`] type defining syntax kinds
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
 pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
   /// Attempts to cast the given syntax node to this CST node.
   ///
@@ -503,6 +533,8 @@ pub trait CstNode<Lang: Language>: CstElement<Lang> + Syntax {
 ///
 /// `CstNodeChildren` filters and casts child nodes to a specific typed node type,
 /// skipping any children that cannot be cast to the target type.
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
 #[derive(Debug, From, Into)]
 #[repr(transparent)]
 pub struct CstNodeChildren<N, Lang: Language> {
@@ -510,6 +542,7 @@ pub struct CstNodeChildren<N, Lang: Language> {
   _m: PhantomData<N>,
 }
 
+#[cfg(feature = "rowan")]
 impl<N, Lang: Language> Clone for CstNodeChildren<N, Lang> {
   #[inline]
   fn clone(&self) -> Self {
@@ -520,6 +553,7 @@ impl<N, Lang: Language> Clone for CstNodeChildren<N, Lang> {
   }
 }
 
+#[cfg(feature = "rowan")]
 impl<N, Lang: Language> CstNodeChildren<N, Lang> {
   #[inline]
   fn new(parent: &SyntaxNode<Lang>) -> Self {
@@ -541,6 +575,7 @@ impl<N, Lang: Language> CstNodeChildren<N, Lang> {
   }
 }
 
+#[cfg(feature = "rowan")]
 impl<N, Lang> Iterator for CstNodeChildren<N, Lang>
 where
   N: CstNode<Lang>,
@@ -558,10 +593,14 @@ where
 ///
 /// This module provides convenient functions for working with typed CST nodes,
 /// including finding children, accessing tokens, and casting between types.
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
 pub mod cast;
 
 /// Error types for CST operations.
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
 pub mod error;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "rowan"))]
 mod tests;
