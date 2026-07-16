@@ -197,6 +197,50 @@ fn settle_census_span_funnel_callers_are_locked() {
   }
 }
 
+/// SETTLE_CENSUS — the committed-token side channel (`Emitter::commit_token`, the CST
+/// auto-emission hook) rides exactly the two settle surfaces and nothing else: once
+/// inside `InputRef::commit_token`'s body (the eleven consume settles arrive through it)
+/// and once inside `skip_and_report` beside the `adopt` skip settle. Peeks, declines,
+/// `unconsume`, `settle_fatal`, `SyncTo::on_eof`, and `commit_at` never reach the
+/// emitter's token channel — a hook appearing anywhere else double-emits or
+/// phantom-emits, the silent wrong-tree class.
+#[test]
+fn settle_census_emitter_hook_rides_only_the_settles() {
+  // The consume-settle home: the field-receiver form inside `InputRef::commit_token`.
+  assert!(
+    count(source("mod.rs"), "emitter.commit_token(") == 1
+      && count(source("mod.rs"), "emitter().commit_token(") == 0,
+    "SETTLE_CENSUS drift: `Emitter::commit_token` must be called exactly once in mod.rs — \
+     inside `InputRef::commit_token`'s body (grep SETTLE_CENSUS)."
+  );
+  // The skip-settle home: `skip_and_report`, before the report's verdict.
+  assert!(
+    count(source("scan.rs"), "emitter().commit_token(") == 1
+      && count(source("scan.rs"), "emitter.commit_token(") == 0,
+    "SETTLE_CENSUS drift: `Emitter::commit_token` must be called exactly once in scan.rs — \
+     inside `skip_and_report`, beside the `adopt` settle (grep SETTLE_CENSUS)."
+  );
+  // Nowhere else: any new caller is a settle surface the census must adjudicate first.
+  for (name, src) in SOURCES {
+    if *name == "mod.rs" || *name == "scan.rs" {
+      continue;
+    }
+    assert!(
+      count(src, "emitter.commit_token(") == 0 && count(src, "emitter().commit_token(") == 0,
+      "SETTLE_CENSUS drift: `{name}` feeds the emitter's committed-token channel outside \
+       the two censused settle surfaces (grep SETTLE_CENSUS)."
+    );
+  }
+  // The trait surface: declared once (defaulted no-op) and blanket-forwarded once —
+  // the same shape the release census locks.
+  assert!(
+    count(EMITTER_MOD, "fn commit_token(") == 2,
+    "SETTLE_CENSUS drift: `Emitter::commit_token` must appear exactly twice in \
+     `emitter/mod.rs` — the defaulted declaration and the `&mut U` blanket forward \
+     (grep SETTLE_CENSUS)."
+  );
+}
+
 /// SETTLE_CENSUS — `AtFrontier::adopt` is the one skip settle, with exactly one caller
 /// (`skip_and_report`). Every token a scan skips — trivia and recovery garbage alike,
 /// cached or freshly lexed — settles behind the frontier through this single call, so a

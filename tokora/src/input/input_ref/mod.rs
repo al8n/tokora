@@ -529,12 +529,16 @@ where
   /// once has exactly one home on the consume surface — plus the scanner's skip settle
   /// ([`AtFrontier::adopt`], its own censused site) — instead of a dozen.
   ///
-  /// The body is the settle the sites always performed: the span write that makes
-  /// [`span`](Self::span)/[`slice`](Self::slice) report the consumed token. The state write
-  /// stays at each site — its value is a site-specific move (cached extras, or the live
-  /// lexer's state), and no side channel needs it. Both references are borrowed straight from
-  /// the site's own token, so a build with no observer computes nothing extra and the call
-  /// inlines to exactly the pre-primitive code.
+  /// The body is the settle the sites always performed — the span write that makes
+  /// [`span`](Self::span)/[`slice`](Self::slice) report the consumed token — plus **the**
+  /// side-channel hook: one [`Emitter::commit_token`] call, the auto-emission chokepoint
+  /// that makes a recording CST sink see every consumed token exactly once (the scanner's
+  /// skip settle beside [`AtFrontier::adopt`] is the surface's censused second member).
+  /// The state write stays at each site — its value is a site-specific move (cached
+  /// extras, or the live lexer's state), and no side channel needs it. Both references are
+  /// borrowed straight from the site's own token, and the defaulted emitter hook is an
+  /// empty inlined body, so a build with no observer computes nothing extra and the call
+  /// inlines to exactly the pre-hook code (the `__text`-hash standard holds it).
   ///
   /// **Non-settles must never route here**: peeks and declines (nothing committed),
   /// [`unconsume`](Self::unconsume) (the stopper is examined, not consumed), `settle_fatal`
@@ -543,9 +547,9 @@ where
   /// via `adopt`), and the position surgeries (`set_state`, the restore paths).
   #[inline(always)]
   fn commit_token(&mut self, tok: &L::Token, span: &L::Span) {
-    // The committed token itself is not needed by the settle — it is threaded so the one
-    // primitive carries everything a per-token side channel may observe.
-    let _ = tok;
+    // The settle observed: the one home of the committed-token side channel on the
+    // consume surface (SETTLE_CENSUS locks the emitter-hook sites too).
+    self.emitter.commit_token(tok, span);
     self.set_span_after_consume(span.into());
   }
 

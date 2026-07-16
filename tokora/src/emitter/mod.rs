@@ -317,6 +317,39 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
     let _ = checkpoint;
   }
 
+  /// Observes one **committed token** — the settle-timeline twin of
+  /// [`release`](Self::release): the input layer calls this exactly once per token, at the
+  /// moment the token settles (consumed, or skipped behind a scan frontier), from its two
+  /// censused settle surfaces and nowhere else.
+  ///
+  /// This is the auto-emission chokepoint of the CST channel: the recording `CstSink`
+  /// overrides it to record a `Token` event (mapping the token through its dialect-supplied
+  /// mapper), which is what makes **every** consuming atom and combinator tree-producing
+  /// with zero per-atom code — including the tokens a recovery sync or a trivia skip
+  /// consumes. Peeks, declines, [`unconsume`](crate::InputRef)-style stoppers, position
+  /// writes, rejected lexer-error items, and end-of-input commits are **not** token
+  /// settles and never arrive here.
+  ///
+  /// # Contract: bookkeeping on the emission timeline
+  ///
+  /// Like [`release`](Self::release), this is a defaulted no-op capability — diagnostics
+  /// emitters have nothing to observe, and the reference-taking signature makes the
+  /// defaulted call compile to nothing. An implementation that *records* settles must
+  /// cover them with [`checkpoint`](Self::checkpoint)/[`rewind`](Self::rewind) exactly as
+  /// it covers diagnostics — a speculative branch's tokens rewind with the branch, and a
+  /// re-consume after a rollback re-settles them exactly once per surviving timeline. A
+  /// **wrapper** emitter that records or forwards events must forward this too; the
+  /// tree-structuring surface lives on the [`CstEmitter`] subtrait, whose bound on the
+  /// `node()` combinators is what stops a non-forwarding wrapper from silently producing
+  /// an empty tree.
+  #[inline(always)]
+  fn commit_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    let _ = (tok, span);
+  }
+
   /// Pushes a diagnostic label onto the emitter's open-label stack, opening a
   /// *"while parsing X"* context for the duration of a [`labelled`](crate::labelled)
   /// sub-parse.
@@ -429,6 +462,14 @@ where
   #[inline(always)]
   fn release(&mut self, checkpoint: u64) {
     (**self).release(checkpoint)
+  }
+
+  #[inline(always)]
+  fn commit_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    (**self).commit_token(tok, span)
   }
 
   #[inline(always)]

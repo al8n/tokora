@@ -405,6 +405,25 @@ where
     );
   }
 
+  /// Records one committed token: the one body behind both doors of the token channel —
+  /// the auto-emission hook ([`Emitter::commit_token`], fed by the input layer's settle
+  /// primitive) and the raw transport ([`CstEmitter::cst_token`]).
+  fn record_token(&mut self, tok: &L::Token, span: &L::Span) {
+    let kind = (self.mapper)(tok);
+    // Emission-time mapper validity (detect-at-cause): rowan would defer a bad kind to a
+    // query-time panic arbitrarily far from the parse; materialization keeps the release
+    // backstop.
+    debug_assert!(
+      kind != TOMBSTONE,
+      "the dialect mapper produced the reserved tombstone kind (u16::MAX) for a committed \
+       token"
+    );
+    self.events.push(Event::Token {
+      kind,
+      span: span.clone(),
+    });
+  }
+
   /// The hole wrap: brackets the already-buffered token events of a recovery hole in a
   /// `Start(error_kind) … Finish` pair at the recovery site.
   ///
@@ -646,6 +665,19 @@ where
     self.inner.rewind(cursor, inner_mark);
   }
 
+  /// The auto-emission hook: the input layer settles every committed token through this
+  /// one call — the consume settles via its `commit_token` primitive, the scan skips via
+  /// `skip_and_report` — so the whole consume surface is tree-producing with zero per-atom
+  /// code. Records a `Token` event through the same body as the raw
+  /// [`cst_token`](CstEmitter::cst_token) transport.
+  #[inline]
+  fn commit_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'inp>,
+  {
+    self.record_token(tok, span);
+  }
+
   /// Pops the kept capture's row off the mark stack — the eviction dual of
   /// [`checkpoint`](Self::checkpoint) that keeps the stack at exactly the live captures
   /// (commit-heavy loops would otherwise strand one dead row per committed guard, and a
@@ -708,19 +740,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    let kind = (self.mapper)(tok);
-    // Emission-time mapper validity (detect-at-cause): rowan would defer a bad kind to a
-    // query-time panic arbitrarily far from the parse; materialization keeps the release
-    // backstop.
-    debug_assert!(
-      kind != TOMBSTONE,
-      "the dialect mapper produced the reserved tombstone kind (u16::MAX) for a committed \
-       token"
-    );
-    self.events.push(Event::Token {
-      kind,
-      span: span.clone(),
-    });
+    self.record_token(tok, span);
   }
 
   fn cst_finish(&mut self)

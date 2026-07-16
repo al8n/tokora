@@ -592,6 +592,12 @@ where
     let (spanned, state) = skipped.tok.into_components();
     let (span, tok) = spanned.into_components();
 
+    // The skip settle observed: a skipped token is consumed (it settles behind the
+    // frontier, never to be yielded again), so it flows to the committed-token side
+    // channel exactly like a consume settle — and BEFORE the report's verdict, so a fatal
+    // rejection propagates with the token's event and its commit paired (trip-commit).
+    self.emitter().commit_token(&tok, &span);
+
     let report = M::REPORT_SKIPPED
       .then(|| UnexpectedToken::maybe_expected_of(span.clone(), exp()).with_found(tok));
     frontier.adopt(span, state);

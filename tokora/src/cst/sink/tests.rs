@@ -1248,3 +1248,167 @@ fn hole_wrap_materializes_as_an_error_node_with_real_tokens() {
     "the REAL skipped tokens are the error node's children"
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Auto-emission: the input layer's settle hook drives the tree
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// These drive a REAL input (MiniLexer under the sink in the emitter seat) through the
+// public consume surface and pin the settle law at the event buffer: a token event
+// appears exactly when a token settles — consumed, or skipped behind a scan frontier —
+// and never for a peek, a decline, an unconsumed stopper, a rejected lexer error, or
+// end of input.
+
+/// The committed spans of the buffered `Token` events, in order.
+fn token_spans(sink: &VerboseSink<'_>) -> std::vec::Vec<SimpleSpan> {
+  sink
+    .events()
+    .iter()
+    .filter_map(|ev| match ev {
+      Event::Token { span, .. } => Some(*span),
+      _ => None,
+    })
+    .collect()
+}
+
+type SinkCtx<'inp> = (VerboseSink<'inp>, DefaultCache<'inp, MiniLexer<'inp>>);
+
+/// Consume settles flow to the tree as they commit; peeks and declines emit nothing.
+#[test]
+fn auto_emission_settles_flow_peeks_and_declines_do_not() {
+  use generic_arraydeque::typenum::U2;
+
+  let mut sink = verbose_sink();
+  let mut input = Input::<MiniLexer<'_>, SinkCtx<'_>>::with_state_and_cache(
+    "abc",
+    (),
+    DefaultCache::<MiniLexer<'_>>::default(),
+  );
+  let mut inp = input.as_ref(&mut sink);
+
+  // A peek lexes ahead but settles nothing.
+  inp.peek::<U2>().expect("verbose collects");
+  assert_eq!(
+    token_spans(inp.emitter()),
+    &[],
+    "a peek emits no token event"
+  );
+
+  // A consume settles the cached token: exactly one event, at the settle.
+  inp.next().expect("collects").expect("a token");
+  assert_eq!(token_spans(inp.emitter()), &[span(0, 1)]);
+
+  // An accepting try_expect settles; a declining one does not.
+  inp
+    .try_expect(|t| t.data().0 == b'b')
+    .expect("collects")
+    .expect("b matches");
+  assert_eq!(token_spans(inp.emitter()), &[span(0, 1), span(1, 2)]);
+  assert!(
+    inp
+      .try_expect(|t| t.data().0 == b'z')
+      .expect("collects")
+      .is_none(),
+    "z does not match"
+  );
+  assert_eq!(
+    token_spans(inp.emitter()),
+    &[span(0, 1), span(1, 2)],
+    "a decline emits nothing"
+  );
+
+  drop(inp);
+  drop(input);
+  let (green, _emitter) = sink.finish(K_ROOT, "abc");
+  let green = green.expect("token-only timeline");
+  assert_eq!(text(green), "abc", "committed tokens + the gap-tiled tail");
+}
+
+/// Scan-skipped tokens settle behind the frontier and flow to the tree; the stopper the
+/// scan examined but did not consume waits for its real consume.
+#[test]
+fn auto_emission_scan_skips_flow_and_the_stopper_waits() {
+  let mut sink = verbose_sink();
+  let mut input = Input::<MiniLexer<'_>, SinkCtx<'_>>::with_state_and_cache(
+    "xy;z",
+    (),
+    DefaultCache::<MiniLexer<'_>>::default(),
+  );
+  let mut inp = input.as_ref(&mut sink);
+
+  // sync_to skips `x` and `y` (reported + settled behind the frontier) and stops BEFORE
+  // `;`, leaving it unconsumed at the cache front.
+  let found = inp
+    .sync_to(|t| t.data().0 == b';', || None)
+    .expect("verbose collects")
+    .is_some();
+  assert!(found, "the sync point exists");
+  assert_eq!(
+    token_spans(inp.emitter()),
+    &[span(0, 1), span(1, 2)],
+    "both skipped tokens flowed at their skip settle; the unconsumed stopper did not"
+  );
+
+  // Consuming the stopper is its settle.
+  inp.next().expect("collects").expect("the stopper");
+  assert_eq!(
+    token_spans(inp.emitter()),
+    &[span(0, 1), span(1, 2), span(2, 3)],
+    "the stopper's event fires at its real consume, exactly once"
+  );
+}
+
+/// A rejected lexer error (`settle_fatal`) writes a position, not a token: no event.
+#[test]
+fn auto_emission_settle_fatal_emits_no_token_event() {
+  let mut sink: FatalSink<'_> = CstSink::new(Fatal::new(), map_tok, K_ERR, K_GAP);
+  let mut input =
+    Input::<MiniLexer<'_>, (FatalSink<'_>, DefaultCache<'_, MiniLexer<'_>>)>::with_state_and_cache(
+      "!a",
+      (),
+      DefaultCache::<MiniLexer<'_>>::default(),
+    );
+  let mut inp = input.as_ref(&mut sink);
+
+  let res = inp.next();
+  assert!(res.is_err(), "the fatal emitter rejects the lexer error");
+
+  drop(inp);
+  drop(input);
+  let events = sink.events();
+  assert!(
+    events.iter().all(|ev| !matches!(ev, Event::Token { .. })),
+    "a rejected error item settles a position, never a token event: {events:?}"
+  );
+}
+
+/// A non-fatal lexer error is a diagnostic (a `Diag` slot), never a token event; end of
+/// input commits nothing.
+#[test]
+fn auto_emission_lexer_error_and_eof_emit_no_token_event() {
+  let mut sink = verbose_sink();
+  let mut input = Input::<MiniLexer<'_>, SinkCtx<'_>>::with_state_and_cache(
+    "!a",
+    (),
+    DefaultCache::<MiniLexer<'_>>::default(),
+  );
+  let mut inp = input.as_ref(&mut sink);
+
+  // next() crosses the error (reported through the Diag channel) and yields `a`.
+  let tok = inp.next().expect("verbose collects").expect("a token");
+  assert_eq!(*tok.span_ref(), span(1, 2));
+  assert_eq!(token_spans(inp.emitter()), &[span(1, 2)]);
+
+  // End of input: a position commit, not a settle.
+  assert!(inp.next().expect("collects").is_none());
+  assert_eq!(token_spans(inp.emitter()), &[span(1, 2)]);
+
+  drop(inp);
+  drop(input);
+  let (green, _emitter) = sink.finish(K_ROOT, "!a");
+  assert_eq!(
+    text(green.expect("gap tiling covers the error byte")),
+    "!a",
+    "round trip holds on the error-bearing input"
+  );
+}
