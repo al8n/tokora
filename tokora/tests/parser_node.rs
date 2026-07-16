@@ -284,15 +284,31 @@ fn node_decline_leaves_no_node() {
   );
 }
 
-/// An error-path unwind leaves no dangling start: materialization is still balanced
-/// (a dangling start would be `UnclosedNodes`), no node is recorded, and the committed
-/// prefix plus gap tiling keep the round trip.
+/// An error-path unwind leaves no dangling start: the buffer stays balanced. `finish`'s
+/// balance check precedes its gap-coverage check, so a dangling start would surface as
+/// `UnclosedNodes`; instead the only complaint is the unconsumed `b` — `UncoveredGap`. That
+/// ordering *is* the no-dangling-start proof. The committed prefix plus the tiled tail then
+/// round-trip through the tooling door (`finish_partial`), with no node recorded.
 #[test]
 fn node_error_unwind_leaves_no_dangling_start() {
   let (res, green) = run("ab", |inp| node(K_NODE, boom_after_one).parse_input(inp));
   assert_eq!(res, Err(TestErr::Boom));
-  let green = green.expect("no dangling start: the buffer stays balanced");
-  let root = tree(green);
+  assert_eq!(
+    green.expect_err("balanced buffer: not UnclosedNodes, only the unconsumed `b`"),
+    CstFinishError::UncoveredGap { start: 1, end: 2 }
+  );
+
+  // The aborted parse's tree: `finish_partial` tiles the unconsumed `b`, closing nothing
+  // (the buffer was already balanced), so the round trip holds with no node.
+  let mut s = sink();
+  let res = Parser::with_parser_and_context(
+    |inp: &mut Ir<'_, '_, '_>| node(K_NODE, boom_after_one).parse_input(inp),
+    (&mut s, DefaultCache::<ByteLexer<'_>>::default()),
+  )
+  .parse_str("ab");
+  assert_eq!(res, Err(TestErr::Boom));
+  let (green, _emitter) = s.finish_partial(K_ROOT, "ab");
+  let root = tree(green.expect("finish_partial tiles the tail"));
   assert_eq!(
     root.text().to_string(),
     "ab",
@@ -734,5 +750,171 @@ fn half_forwarding_wrapper_is_refused_at_finish() {
   assert!(
     matches!(err, CstFinishError::StructureWithoutTokens),
     "expected StructureWithoutTokens, got {err:?}"
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// The PARTIAL-forwarding hole: structure + SOME tokens forwarded, others severed
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// The partial-forwarding sibling of [`HalfForward`]: it forwards the structuring surface
+/// and the **first** committed token, then severs the channel. Because a token *does*
+/// survive, the zero-token wall ([`CstFinishError::StructureWithoutTokens`]) cannot fire —
+/// the dropped tokens vanish as uncovered source bytes instead, the signature only the
+/// gap-coverage law ([`CstFinishError::UncoveredGap`]) catches.
+struct HalfForwardPartial<E> {
+  inner: E,
+  forwarded: usize,
+}
+
+impl<'a, L, E> Emitter<'a, L> for HalfForwardPartial<E>
+where
+  L: Lexer<'a>,
+  E: Emitter<'a, L>,
+{
+  type Error = E::Error;
+
+  fn emit_lexer_error(
+    &mut self,
+    err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
+  ) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.emit_lexer_error(err)
+  }
+
+  fn emit_unexpected_token(&mut self, err: UnexpectedTokenOf<'a, L>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.emit_unexpected_token(err)
+  }
+
+  fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.emit_error(err)
+  }
+
+  fn checkpoint(&self) -> u64 {
+    self.inner.checkpoint()
+  }
+
+  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>, checkpoint: u64)
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.rewind(cursor, checkpoint)
+  }
+
+  fn release(&mut self, checkpoint: u64) {
+    self.inner.release(checkpoint)
+  }
+
+  // The partial sever: the first committed token flows, every later one is dropped — so a
+  // token survives (the zero-token wall stays silent) but its peers become uncovered bytes.
+  fn commit_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    if self.forwarded < 1 {
+      self.forwarded += 1;
+      self.inner.commit_token(tok, span);
+    }
+  }
+}
+
+impl<'a, L, E> CstEmitter<'a, L> for HalfForwardPartial<E>
+where
+  L: Lexer<'a>,
+  E: CstEmitter<'a, L>,
+{
+  fn cst_start(&mut self, kind: u16)
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.cst_start(kind)
+  }
+
+  fn cst_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.cst_token(tok, span)
+  }
+
+  fn cst_finish(&mut self)
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.cst_finish()
+  }
+
+  fn cst_mark(&mut self) -> tokora::cst::event::EventMark
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.cst_mark()
+  }
+
+  fn cst_start_at(&mut self, mark: tokora::cst::event::EventMark, kind: u16)
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.cst_start_at(mark, kind)
+  }
+}
+
+type HfpCtx<'s, 'inp> = (
+  HalfForwardPartial<&'s mut Sink<'inp>>,
+  DefaultCache<'inp, ByteLexer<'inp>>,
+);
+type HfpIr<'inp, 's, 'c> = InputRef<'inp, 'c, ByteLexer<'inp>, HfpCtx<'s, 'inp>, ()>;
+
+/// Consumes exactly two tokens through the partial-forwarding context.
+fn hfp_take_two(inp: &mut HfpIr<'_, '_, '_>) -> Result<(), TestErr> {
+  for _ in 0..2 {
+    match inp.next()? {
+      Some(_) => {}
+      None => return Err(TestErr::Boom),
+    }
+  }
+  Ok(())
+}
+
+/// The finding's failing-first regression (RED→GREEN): a wrapper that forwards structure and
+/// only *some* committed tokens leaves the survivors in the tree and the dropped ones as
+/// uncovered source bytes. The zero-token wall can no longer speak (a token survived), so
+/// `finish` — the success door — must catch the loss through the gap-coverage law:
+/// `UncoveredGap` over exactly the dropped token's bytes, not a plausible gap-tiled tree.
+#[test]
+fn partial_forwarding_wrapper_is_refused_at_finish() {
+  let mut s = sink();
+  let res = Parser::with_parser_and_context(
+    |inp: &mut HfpIr<'_, '_, '_>| node(K_NODE, hfp_take_two).parse_input(inp),
+    (
+      HalfForwardPartial {
+        inner: &mut s,
+        forwarded: 0,
+      },
+      DefaultCache::<ByteLexer<'_>>::default(),
+    ),
+  )
+  .parse_str("ab");
+  assert_eq!(res, Ok(()), "the parse itself succeeds — that is the trap");
+
+  let (green, _emitter) = s.finish(K_ROOT, "ab");
+  let err = match green {
+    Err(err) => err,
+    Ok(tree_ok) => panic!(
+      "finish must refuse the dropped token, got a plausible tree: {:?}",
+      tree(tree_ok).text()
+    ),
+  };
+  assert!(
+    matches!(err, CstFinishError::UncoveredGap { start: 1, end: 2 }),
+    "expected UncoveredGap {{ start: 1, end: 2 }} over the dropped 'b', got {err:?}"
   );
 }

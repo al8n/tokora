@@ -679,7 +679,8 @@ fn hole_wrap_brackets_the_buffered_suffix() {
         span: span(1, 2)
       },
       Event::Diag {
-        inner_mark_after: 1
+        inner_mark_after: 1,
+        error_span: Some(span(2, 3))
       },
       Event::Token {
         kind: K_TOK,
@@ -687,7 +688,8 @@ fn hole_wrap_brackets_the_buffered_suffix() {
       },
       Event::FinishNode,
       Event::Diag {
-        inner_mark_after: 2
+        inner_mark_after: 2,
+        error_span: None
       },
     ]
   );
@@ -917,24 +919,72 @@ fn round_trip_with_a_lexer_error_is_structural() {
   assert_eq!(emitter.errors().len(), 1);
 }
 
-/// Leading and trailing uncovered bytes tile too (an undrained tail, a poisoned
-/// truncation, a skipped prefix).
+/// The gap-coverage law at the mechanism level (the partial-drop signature the zero-token
+/// wall cannot see): tokens `a` and `c` survive over `"abc"` but the `b` at `[1, 2)` was
+/// dropped and no lexer error covers it. `finish` refuses the unexplained gap with the exact
+/// dropped span; `finish_partial` — the tooling door — tiles it instead. A gap a lexer error
+/// *does* cover stays legal under `finish` (the round-trip oracle above is that green case).
+#[test]
+fn uncovered_gap_refused_by_finish_tiled_by_partial() {
+  let dropped_b = |sink: &mut VerboseSink<'_>| {
+    sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+    sink.cst_token(&MiniTok(b'c'), &span(2, 3)); // the `b` at [1,2) never settled
+  };
+
+  // The success door refuses the unexplained gap, naming exactly the dropped byte range.
+  let mut sink = verbose_sink();
+  dropped_b(&mut sink);
+  let (green, _emitter) = sink.finish(K_ROOT, "abc");
+  assert_eq!(
+    green.expect_err("a dropped committed token is an unexplained gap"),
+    CstFinishError::UncoveredGap { start: 1, end: 2 }
+  );
+
+  // The tooling door tolerates the incompleteness and tiles it — the round trip still holds.
+  let mut sink = verbose_sink();
+  dropped_b(&mut sink);
+  let (green, _emitter) = sink.finish_partial(K_ROOT, "abc");
+  assert_eq!(
+    text(green.expect("finish_partial tiles the uncovered gap")),
+    "abc"
+  );
+}
+
+/// Leading and trailing uncovered bytes tile too — **when a recorded lexer error explains
+/// them**. Here the lexer refused the leading and trailing bytes (diagnostics, no tokens),
+/// so both tile as gaps around the one committed token and the round trip holds. An
+/// *un*explained leading/trailing gap is the `UncoveredGap` refusal, covered separately.
 #[test]
 fn leading_and_trailing_gaps_tile() {
   let mut sink = verbose_sink();
+  Emitter::<MiniLexer<'_>>::emit_lexer_error(&mut sink, Spanned::new(span(0, 1), MiniErr))
+    .expect("verbose collects");
   sink.cst_token(&MiniTok(b'b'), &span(1, 2));
+  Emitter::<MiniLexer<'_>>::emit_lexer_error(&mut sink, Spanned::new(span(2, 3), MiniErr))
+    .expect("verbose collects");
   let (green, _emitter) = sink.finish(K_ROOT, "abc");
-  assert_eq!(text(green.expect("tiles")), "abc");
+  assert_eq!(
+    text(green.expect("error-covered leading and trailing gaps tile")),
+    "abc"
+  );
 }
 
-/// An empty buffer over a nonempty source is one big gap; over an empty source it is a
-/// bare root.
+/// An empty buffer over an empty source is a bare root; over a nonempty source the whole
+/// span is one *unexplained* gap — `finish` refuses it (nothing covers those bytes),
+/// `finish_partial` tiles it (the tooling door).
 #[test]
 fn empty_buffer_finishes() {
-  let (green, _emitter) = verbose_sink().finish(K_ROOT, "xy");
-  assert_eq!(text(green.expect("one gap tile")), "xy");
   let (green, _emitter) = verbose_sink().finish(K_ROOT, "");
   assert_eq!(text(green.expect("bare root")), "");
+
+  let (green, _emitter) = verbose_sink().finish(K_ROOT, "xy");
+  assert_eq!(
+    green.expect_err("nothing covers the source"),
+    CstFinishError::UncoveredGap { start: 0, end: 2 }
+  );
+
+  let (green, _emitter) = verbose_sink().finish_partial(K_ROOT, "xy");
+  assert_eq!(text(green.expect("the tooling door tiles it")), "xy");
 }
 
 /// The token-channel wall, at the mechanism level: a *balanced* stream that builds
@@ -968,8 +1018,9 @@ fn balanced_structure_without_tokens_is_refused() {
 
 /// The wall's exact boundary, so it can never overfire: an **empty source** makes a
 /// token-less node legal (there was nothing to consume), a token-less stream with **no
-/// structure** still tiles (the decline-everything shape), and an **aborted** stream with
-/// open nodes keeps its `finish_partial` door (the open nodes are the abort witness).
+/// structure** is an unexplained gap `finish` refuses but `finish_partial` tiles, and an
+/// **aborted** stream with open nodes keeps its `finish_partial` door (the open nodes are
+/// the abort witness).
 #[test]
 fn token_channel_wall_boundaries() {
   // Empty source: a token-less node is a legitimate empty match.
@@ -980,10 +1031,16 @@ fn token_channel_wall_boundaries() {
   let root = tree(green.expect("nothing to consume, nothing severed"));
   assert_eq!(root.first_child().expect("Root[Node]").kind(), K_NODE);
 
-  // No structure: tokens-absent is indistinguishable from a parse that declined
-  // everything, and the tiled gap IS the honest tree.
+  // No structure and no tokens over a nonempty source: the wall stays silent (nothing was
+  // built), but every byte is unexplained — the gap-coverage law refuses it, while the
+  // tooling door tiles it.
   let (green, _emitter) = verbose_sink().finish(K_ROOT, "ab");
-  assert_eq!(text(green.expect("one gap tile, no nodes")), "ab");
+  assert_eq!(
+    green.expect_err("an unexplained gap, not the honest tree"),
+    CstFinishError::UncoveredGap { start: 0, end: 2 }
+  );
+  let (green, _emitter) = verbose_sink().finish_partial(K_ROOT, "ab");
+  assert_eq!(text(green.expect("the partial door tiles it")), "ab");
 
   // Aborted before the first settle, open node standing: the partial door still opens —
   // the imbalance is the abort witness the wall exempts.
@@ -1416,8 +1473,11 @@ fn auto_emission_settles_flow_peeks_and_declines_do_not() {
 
   drop(inp);
   drop(input);
-  let (green, _emitter) = sink.finish(K_ROOT, "abc");
-  let green = green.expect("token-only timeline");
+  // The parse consumed a prefix and stopped: `c` is unconsumed. That incompleteness is the
+  // tooling door's remit (`finish_partial` tiles the tail); strict `finish` would refuse the
+  // unexplained trailing gap.
+  let (green, _emitter) = sink.finish_partial(K_ROOT, "abc");
+  let green = green.expect("token-only timeline, partial parse");
   assert_eq!(text(green), "abc", "committed tokens + the gap-tiled tail");
 }
 

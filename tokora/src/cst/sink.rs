@@ -503,9 +503,18 @@ where
   /// of the verdict** (record-then-propagate: transaction guards rewind during fatal
   /// unwinds, so a slot skipped on the `Err` edge would skew every later recovery).
   ///
+  /// `error_span` is `Some` only for a **lexer error** (the one forwarded diagnostic that
+  /// names untokenized source bytes); it is recorded into the slot so `finish`'s
+  /// gap-coverage law can tell a legitimately-refused byte from a dropped committed token.
+  /// Every other `emit_*` passes `None`.
+  ///
   /// Every `emit_*` of every implemented emitter trait calls this; none touches
   /// `self.inner` directly. The source census test locks the discipline.
-  fn forward_diag<Lang, R>(&mut self, forward: impl FnOnce(&mut E) -> R) -> R
+  fn forward_diag<Lang, R>(
+    &mut self,
+    error_span: Option<L::Span>,
+    forward: impl FnOnce(&mut E) -> R,
+  ) -> R
   where
     Lang: ?Sized,
     E: Emitter<'inp, L, Lang>,
@@ -515,7 +524,10 @@ where
     let out = forward(&mut self.inner);
     let inner_mark_after = <E as Emitter<'inp, L, Lang>>::checkpoint(&self.inner);
     let pos = self.events.len() as u64;
-    self.events.push(Event::Diag { inner_mark_after });
+    self.events.push(Event::Diag {
+      inner_mark_after,
+      error_span,
+    });
     self.diag_index.push(DiagSlot {
       pos,
       inner_mark_after,
@@ -540,7 +552,11 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_lexer_error(err))
+    // The one diagnostic that names untokenized bytes: record its span so `finish` can tell
+    // this legitimately-refused gap from a dropped committed token.
+    self.forward_diag::<Lang, _>(Some(err.span_ref().clone()), |inner| {
+      inner.emit_lexer_error(err)
+    })
   }
 
   #[inline]
@@ -551,7 +567,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_unexpected_token(err))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_unexpected_token(err))
   }
 
   #[inline]
@@ -559,7 +575,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_error(err))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_error(err))
   }
 
   #[inline]
@@ -567,7 +583,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_warning(warning))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_warning(warning))
   }
 
   /// Wraps the hole's already-buffered token events in an `error_kind` node at the
@@ -580,7 +596,7 @@ where
     if skipped > 0 {
       self.wrap_hole(&span);
     }
-    self.forward_diag::<Lang, _>(|inner| inner.emit_skipped_region(span, skipped))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_skipped_region(span, skipped))
   }
 
   /// One positional mark over one unified log: the event-buffer length. The capture also
@@ -809,7 +825,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_too_few(err))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_too_few(err))
   }
 }
 
@@ -824,7 +840,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_too_many(err))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_too_many(err))
   }
 }
 
@@ -839,7 +855,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_full_container(err))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_full_container(err))
   }
 }
 
@@ -858,7 +874,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_missing_separator(name, err))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_missing_separator(name, err))
   }
 
   #[inline]
@@ -866,7 +882,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_missing_element(err))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_missing_element(err))
   }
 }
 
@@ -885,7 +901,9 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_missing_leading_separator(name, err))
+    self.forward_diag::<Lang, _>(None, |inner| {
+      inner.emit_missing_leading_separator(name, err)
+    })
   }
 }
 
@@ -904,7 +922,9 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_missing_trailing_separator(name, err))
+    self.forward_diag::<Lang, _>(None, |inner| {
+      inner.emit_missing_trailing_separator(name, err)
+    })
   }
 }
 
@@ -923,7 +943,9 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_unexpected_leading_separator(name, err))
+    self.forward_diag::<Lang, _>(None, |inner| {
+      inner.emit_unexpected_leading_separator(name, err)
+    })
   }
 }
 
@@ -942,7 +964,9 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_unexpected_trailing_separator(name, err))
+    self.forward_diag::<Lang, _>(None, |inner| {
+      inner.emit_unexpected_trailing_separator(name, err)
+    })
   }
 }
 
@@ -960,7 +984,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_unexpected_end_of_lhs(err))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_unexpected_end_of_lhs(err))
   }
 
   #[inline]
@@ -971,7 +995,7 @@ where
   where
     L: Lexer<'inp>,
   {
-    self.forward_diag::<Lang, _>(|inner| inner.emit_unexpected_end_of_rhs(err))
+    self.forward_diag::<Lang, _>(None, |inner| inner.emit_unexpected_end_of_rhs(err))
   }
 }
 

@@ -1047,9 +1047,10 @@ assert!(tokens.contains(&(SyntaxKind::Comma, ",".to_string())));
 assert!(tokens.iter().all(|(kind, _)| *kind != SyntaxKind::Gap));
 
 // And when bytes are NOT covered — here `%` is no token of the language, the lexer
-// reports it and fail-fast `Fatal` aborts the parse — materialization tiles the
-// uncovered bytes with the configured gap kind. The round-trip law is structural for
-// every input, not a property of lucky parses.
+// reports it and fail-fast `Fatal` aborts the parse before the tail is even lexed — that
+// tail is un-diagnosed. Strict `finish` refuses it (an unexplained gap is, to `finish`,
+// indistinguishable from a dropped token); the tooling door `finish_partial` tiles it, so
+// an aborted parse still round-trips its text.
 let src = "{ a % b }";
 let mut sink: CstSink<'_, QueryLexer<'_>, _> =
   CstSink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
@@ -1058,7 +1059,7 @@ let res = Parser::with_context((&mut sink, DefaultCache::<QueryLexer<'_>>::defau
   .parse_str(src);
 assert_eq!(res, Err(QueryError::Lex));
 
-let (green, _emitter) = sink.finish(K::Root.raw(), src);
+let (green, _emitter) = sink.finish_partial(K::Root.raw(), src);
 let tree = rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
 assert_eq!(tree.text().to_string(), src, "aborted parse, intact text");
 assert!(
@@ -2029,10 +2030,13 @@ assert_eq!(tree.text().to_string(), src);
 assert_eq!(tree.first_child().unwrap().kind(), SyntaxKind::SelectionSet);
 ```
 
-Note what neither call does: a **fatal abort through the blessed combinators** needs no
-`finish_partial` — the brackets leave no dangling starts, so plain `finish` succeeds with
-the committed prefix plus gap tiling (the aborted-parse example in the trivia section did
-exactly that). And an [`Incomplete`](crate::Completeness) verdict from a
+Note the two incompletenesses `finish_partial` forgives. A **fatal abort through the blessed
+combinators** leaves no dangling start — the brackets never desync — so it never earns
+`UnclosedNodes`; but the tail it never reached is un-diagnosed, and strict `finish` refuses
+that as an [`UncoveredGap`](crate::cst::CstFinishError::UncoveredGap) (a dropped committed
+token and an abandoned tail are indistinguishable to it). `finish_partial` closes any open
+node *and* tiles the un-diagnosed tail — the aborted-parse example in the trivia section used
+exactly that door. And an [`Incomplete`](crate::Completeness) verdict from a
 [partial-input parse](super::ch09_streaming) should not be materialized at all: keep the
 sink — the buffered events *are* the resumable state — and `finish` once the parse
 completes.

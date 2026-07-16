@@ -120,10 +120,19 @@ pub(crate) enum Event<S> {
   /// **after** one diagnostic was forwarded to it (on `Ok` and `Err` alike). These slots
   /// are what make one positional mark govern both logs: a rewind truncates the event
   /// buffer and rewinds the inner emitter to the reading of the last surviving slot.
-  /// Skipped at materialization.
+  /// Skipped at materialization — except that a **lexer-error** slot carries the offending
+  /// source span in `error_span`, so `finish` can tell a byte a lexer legitimately refused
+  /// (a covered gap, tile-able) from a byte a dropped `commit_token` lost (an unexplained
+  /// gap, refused). Living in the event log means the span rewinds with the branch that saw
+  /// it — an abandoned lexer error stops covering anything, for free.
   Diag {
     /// The inner emitter's mark immediately after the forwarded emission.
     inner_mark_after: u64,
+    /// The source span of a **lexer error** that committed no token, or `None` for any
+    /// other forwarded diagnostic. Only a lexer error names untokenized bytes; parser
+    /// diagnostics (unexpected token, missing element, …) point at tokens that *did*
+    /// settle or at zero-width absences, so they cover no gap and set `None`.
+    error_span: Option<S>,
   },
 }
 
@@ -541,6 +550,7 @@ mod tests {
     let tok: Event<()> = Event::Token { kind: 7, span: () };
     let diag: Event<()> = Event::Diag {
       inner_mark_after: 0,
+      error_span: None,
     };
 
     assert_eq!(start.depth_delta(), 1);

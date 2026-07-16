@@ -8,10 +8,11 @@
 //! - **The append-only depth/count model** — the pruned run has no rollbacks, so every
 //!   consume it makes is a committed settle; the tree's non-gap token count must equal
 //!   that straight count exactly (a lost or doubled auto-emission cannot hide behind gap
-//!   tiling), `finish` is the balance oracle (depth ends at zero — the only refusal a
-//!   combinator-driven buffer may earn is the token-channel wall, on the
-//!   tokenless-structure signature, and the twins must agree on it), and the sink's
-//!   mark-stack must end empty (the release no-growth law).
+//!   tiling), `finish` is the balance oracle (depth ends at zero — the only refusals a
+//!   combinator-driven buffer may earn are the two coverage laws: the token-channel wall on
+//!   the tokenless-structure signature, or an uncovered gap when the script left source bytes
+//!   unconsumed; the twins must agree on either), and the sink's mark-stack must end empty
+//!   (the release no-growth law).
 //!
 //! The sinkless halves of these ops run in every build through the consume tree (over
 //! `CountEmitter`'s defaulted no-op event channel); this driver is the `rowan`-gated
@@ -268,10 +269,11 @@ impl rowan::Language for RawLang {
 }
 
 /// Drives one script over a fresh recording sink; returns the materialization verdict and
-/// the committed-settle count. The verdict stays a `Result` on purpose: a script whose
-/// surviving timeline builds structure without one committed token over a nonempty source
-/// is *refused* by `finish` (the token-channel wall, `StructureWithoutTokens`), and the
-/// twins must agree on that refusal exactly as they agree on trees.
+/// the committed-settle count. The verdict stays a `Result` on purpose: a surviving timeline
+/// that builds structure without one committed token (`StructureWithoutTokens`), or that
+/// leaves source bytes no token and no lexer error covers (`UncoveredGap`, the unconsumed
+/// tail), is *refused* by `finish` — and the twins must agree on that refusal exactly as they
+/// agree on trees.
 fn drive(
   src: &str,
   script: &[CStep],
@@ -342,25 +344,29 @@ pub(crate) fn run(src: &[u8], seed: u64, cov: &mut Coverage) {
       );
     }
     (Err(full_err), Err(pruned_err)) => {
-      // The token-channel wall: legal exactly on the tokenless-structure signature over
-      // a nonempty source — any other refusal of a combinator-driven buffer is a bug
-      // (balance is structural), and a refusal WITH settled tokens doubly so.
+      // The twins share one committed timeline, so they refuse identically (same variant,
+      // same span). Balance is structural, so the only refusals a combinator-driven buffer
+      // may earn are the two coverage laws: the token-channel wall (zero committed tokens
+      // under structure) or an uncovered gap (the script left source bytes unconsumed, and
+      // the error-free palette records no lexer error to explain them).
       assert_eq!(
-        (full_err, pruned_err),
-        (
-          CstFinishError::StructureWithoutTokens,
-          CstFinishError::StructureWithoutTokens
+        full_err, pruned_err,
+        "the twins share one committed timeline and must refuse identically"
+      );
+      match full_err {
+        CstFinishError::StructureWithoutTokens => assert_eq!(
+          full_consumed, 0,
+          "the wall fires only when no committed settle survived"
         ),
-        "the combinator-driven buffer must materialize (balance is structural); only the \
-         token-channel wall may refuse it"
-      );
-      assert_eq!(
-        full_consumed, 0,
-        "the wall fires only when no committed settle survived"
-      );
+        CstFinishError::UncoveredGap { .. } => {}
+        other => panic!(
+          "only the token-channel wall or an uncovered gap may refuse a combinator-driven \
+           buffer (balance is structural): {other:?}"
+        ),
+      }
       assert!(
         !src.is_empty(),
-        "the wall never fires over an empty source (nothing to consume)"
+        "no refusal ever fires over an empty source (nothing to consume or leave uncovered)"
       );
     }
     (full, pruned) => panic!(
