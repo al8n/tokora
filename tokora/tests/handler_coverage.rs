@@ -2125,11 +2125,17 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, La
 /// delegation actually reaches the inner emitter.
 struct TrackingEmitter {
   calls: usize,
+  /// Counted separately from `calls`: `release` fires on every commit/forget path of the
+  /// input layer, so folding it into the shared counter would shift every existing tally.
+  releases: usize,
 }
 
 impl TrackingEmitter {
   fn new() -> Self {
-    Self { calls: 0 }
+    Self {
+      calls: 0,
+      releases: 0,
+    }
   }
 }
 
@@ -2177,6 +2183,10 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for TrackingEmitter {
     TestLexer<'inp>: Lexer<'inp>,
   {
     self.calls += 1;
+  }
+
+  fn release(&mut self, _: u64) {
+    self.releases += 1;
   }
 }
 
@@ -2376,6 +2386,22 @@ fn emitter_mut_ref_emit_error() {
   let spanned = Spanned::new(SimpleSpan::new(0usize, 1usize), Err::Any);
   <&mut TrackingEmitter as Emitter<'_, TestLexer<'_>>>::emit_error(&mut r, spanned).unwrap();
   assert_eq!(emitter.calls, 1);
+}
+
+#[test]
+fn emitter_mut_ref_release() {
+  // The W3 forwarding-gap class: a defaulted trait method the `&mut U` blanket impl fails to
+  // forward resolves to the *default no-op* on `&mut E`, silently dropping the capability while
+  // everything else flows. Drive `release` through the blanket impl and assert it reaches the
+  // inner emitter's override.
+  let mut emitter = TrackingEmitter::new();
+  let mut r: &mut TrackingEmitter = &mut emitter;
+  <&mut TrackingEmitter as Emitter<'_, TestLexer<'_>>>::release(&mut r, 0);
+  assert_eq!(emitter.releases, 1);
+  assert_eq!(
+    emitter.calls, 0,
+    "release must not masquerade as an emission"
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

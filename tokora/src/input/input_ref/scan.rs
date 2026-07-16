@@ -184,6 +184,18 @@ where
   /// the lexer's end; the rewinding ones restore span, lexer state, dedup watermark, and emissions
   /// from `snapshot`.
   fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, lexer: L, snapshot: Self::Snapshot);
+
+  /// RELEASE_CENSUS — settle the pre-call snapshot on an exit that **keeps** the scan's
+  /// progress (a stop, a trip, a boundary drain, either fatal propagation): the snapshot will
+  /// never be restored, so a rewinding mode [`release`](Emitter::release)s the emitter mark it
+  /// holds — the keep-dual of the rewind its [`on_eof`] performs — while the committing modes
+  /// hold no snapshot and do nothing. Called after the exit's own settle, so a mark is released
+  /// only once the kept progress (position commit, stop settle, fatal report) is fully in
+  /// place; [`skip_until`](InputRef::skip_until) pairs every exit with exactly one of this and
+  /// [`on_eof`], and the census locks the count.
+  ///
+  /// [`on_eof`]: ScanMode::on_eof
+  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, snapshot: Self::Snapshot);
 }
 
 /// Stop *before* the sync token: commit at the frontier on a match, commit at the lexer's end at
@@ -224,6 +236,11 @@ where
     // as it goes and keeps that progress, so end of input is not a rewinding failure here.
     ir.set_span_after_consume(lexer.span().into());
     *ir.state = lexer.into_state();
+  }
+
+  #[inline(always)]
+  fn on_commit(_ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, _snapshot: ()) {
+    // A committing mode snapshots nothing, so a kept exit has nothing to release.
   }
 }
 
@@ -277,6 +294,15 @@ where
     let cursor = ir.cursor().clone();
     ir.emitter().rewind(&cursor, snapshot.mark);
   }
+
+  #[inline(always)]
+  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, snapshot: Self::Snapshot) {
+    // The scan kept its progress, so the entry snapshot will never be restored: release the
+    // emitter mark it captured — the keep-dual of `on_eof`'s rewind. Advisory (a no-op for
+    // every built-in emitter); a mark-keyed emitter reclaims its row here instead of
+    // stranding one per successful sync.
+    ir.emitter().release(snapshot.mark);
+  }
 }
 
 /// Stop *before* the sync token like [`SyncTo`], but rewind the full pre-call state at end of
@@ -312,6 +338,12 @@ where
   fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, lexer: L, snapshot: Self::Snapshot) {
     // A failed balanced sync leaves no trace, exactly as `sync_through`'s no-match exit.
     <SyncThrough as ScanMode<'inp, L, Ctx, Lang>>::on_eof(ir, lexer, snapshot)
+  }
+
+  #[inline(always)]
+  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, snapshot: Self::Snapshot) {
+    // A kept balanced sync releases its entry mark, exactly as `sync_through`'s keep exits.
+    <SyncThrough as ScanMode<'inp, L, Ctx, Lang>>::on_commit(ir, snapshot)
   }
 }
 
@@ -358,6 +390,13 @@ where
     // at the lexer's end.
     <SyncTo as ScanMode<'inp, L, Ctx, Lang>>::on_eof(ir, lexer, snapshot)
   }
+
+  #[inline(always)]
+  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, snapshot: ()) {
+    // Nothing snapshotted, nothing to release — and this empty body is what keeps the trivia
+    // hot path's kept exits free of any per-call work.
+    <SyncTo as ScanMode<'inp, L, Ctx, Lang>>::on_commit(ir, snapshot)
+  }
 }
 
 impl<'inp, L, Ctx, Lang> InputRef<'inp, '_, L, Ctx, Lang>
@@ -402,6 +441,16 @@ where
   /// out. Returning without the commit would leave the reported token unconsumed here and consumed
   /// there, so a recovery that retries would duplicate diagnostics — or spin — on exactly the runs
   /// where the token had not been prefetched.
+  ///
+  /// # Every exit settles the pre-call snapshot exactly once
+  ///
+  /// The loop has six exits. Five keep the scan's progress — the boundary drain, a fatal
+  /// lexer-error rejection propagating out of [`scan_with`](Self::scan_with), a limit trip, a
+  /// stop, and a fatal skipped-token report — and each settles the mode's snapshot through
+  /// [`ScanMode::on_commit`] after its own position settle (a rewinding mode releases the
+  /// emitter mark it captured at entry; the committing modes hold none). The sixth is end of
+  /// input, where [`ScanMode::on_eof`] spends the snapshot instead — for the rewinding modes,
+  /// by rewinding to its mark. One snapshot, one settle, per call (RELEASE_CENSUS).
   ///
   /// # `inline(always)` is load-bearing, because one of the four modes is a hot path
   ///
@@ -455,6 +504,7 @@ where
             // skipped — real progress — and yield the exhausted outcome without rebuilding a lexer.
             if self.reached_boundary(&at) {
               self.commit_at(frontier);
+              M::on_commit(self, snapshot);
               return Ok(Scanned::Exhausted);
             }
             lexing = Some((self.lexer_from(frontier.state.clone(), &at), at));
@@ -463,23 +513,33 @@ where
           // `scan_with` centralizes the poison latch, the dedup watermark, the partial-input
           // frontier rules, and the fatal-emit discipline, handing back only the events this loop
           // must decide.
-          match self.scan_with(lexer, lex_at, &frontier)? {
-            Scan::Token(tok) => Fetched {
+          match self.scan_with(lexer, lex_at, &frontier) {
+            Ok(Scan::Token(tok)) => Fetched {
               tok: CachedToken::new(tok, lexer.state().clone()),
               origin: Origin::Lexer,
             },
-            Scan::Tripped => {
+            Ok(Scan::Tripped) => {
               // Commit the skipped prefix at the durable frontier — the end of the last skipped
               // token — so a later scan yields the poisoned outcome there instead of stranding
               // those tokens at the cursor. That commit is real progress, so any diagnostics made
               // over it persist.
               self.commit_at(frontier);
+              M::on_commit(self, snapshot);
               return Ok(Scanned::Exhausted);
             }
-            Scan::Eof => {
+            Ok(Scan::Eof) => {
               let (lexer, _) = lexing.take().expect("the lexer is built just above");
               M::on_eof(self, lexer, snapshot);
               return Ok(Scanned::Exhausted);
+            }
+            Err(e) => {
+              // A fatal rejection of a crossed lexer error's diagnostic: `settle_fatal` already
+              // committed the position inside `scan_with`, so this exit KEEPS the scan's progress
+              // and the entry snapshot will never be restored — settle it as kept. The frontier
+              // is deliberately not committed here, exactly as before: the rejected item is an
+              // error, not a skipped token.
+              M::on_commit(self, snapshot);
+              return Err(e);
             }
           }
         }
@@ -488,7 +548,9 @@ where
       // ── One decision, one report, one settle — all of it blind to the origin ──
       // `pred` sees each token EXACTLY once, at this single site.
       if pred(fetched.tok.token()) {
-        return Ok(Scanned::Found(M::on_stop(self, frontier, fetched)));
+        let carried = M::on_stop(self, frontier, fetched);
+        M::on_commit(self, snapshot);
+        return Ok(Scanned::Found(carried));
       }
 
       if let Err(e) = self.skip_and_report::<M, _>(fetched, &mut frontier, &mut exp) {
@@ -498,6 +560,7 @@ where
         // honouring the verdict. It also carries the prefix this loop already diagnosed, so nothing
         // already reported is left to be reported again.
         self.commit_at(frontier);
+        M::on_commit(self, snapshot);
         return Err(e);
       }
     }

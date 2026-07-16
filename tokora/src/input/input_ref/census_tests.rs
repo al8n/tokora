@@ -1,4 +1,5 @@
-//! SETTLE_CENSUS — the source census of every place a committed token settles.
+//! SETTLE_CENSUS / RELEASE_CENSUS — the source censuses of every place a committed token
+//! settles, and of every place an emitter checkpoint is spent or forgotten.
 //!
 //! # Why a census, and why here
 //!
@@ -221,5 +222,217 @@ fn settle_census_adopt_is_the_single_skip_settle() {
   assert!(
     count(source("mod.rs"), "fn adopt(") == 1,
     "SETTLE_CENSUS drift: `AtFrontier::adopt` must be defined exactly once, in `mod.rs`"
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// RELEASE_CENSUS — every emitter checkpoint ends in exactly one of `rewind` (the branch
+// was abandoned) or `release` (the branch was kept), on every exit path.
+//
+// `Emitter::checkpoint()` has exactly four captures: `save_checkpoint` (every guard,
+// attempt, session point, and raw save) and the three sync-entry `ThroughEntry`
+// snapshots. The spends are two `rewind` sites (`restore_unchecked`; the sync family's
+// no-match EOF arm). Everything else that lets go of a mark *keeps* the branch, and must
+// say so through `release` — otherwise a mark-keyed emitter (a checkpoint stack, an
+// event sink) strands one row per committed guard, forever. The keep paths funnel:
+//
+// - every kept `Checkpoint` goes through `InputRef::forget_kept_checkpoint` — the raw
+//   commit, both transaction guards' commit and commit-on-drop arms, the stacked guard's
+//   savepoint release/commit/drop — which pairs the lineage forget with the emitter
+//   release in one body;
+// - every kept `ThroughEntry` goes through `ScanMode::on_commit` — called on each of the
+//   five committing exits of `skip_until` (boundary drain, fatal lex propagation, trip,
+//   stop, fatal report propagation); the sixth exit is `on_eof`, which spends the mark
+//   by rewinding to it.
+//
+// The one deliberate non-release: a session point abandoned by dropping the handle.
+// `Session`'s `Drop` releases the pin and the lineage id but cannot reach the emitter
+// (the cell exists precisely so `InputRef` needs no `Drop` — see `session.rs`), so the
+// abandoned point's mark is left to the enclosing scope's own settle. `release` is
+// advisory (see the trait contract), so correctness never depended on it; the census
+// locks the abandon path to its one `lineage.forget` so a second direct-forget path
+// cannot appear silently.
+// ─────────────────────────────────────────────────────────────────────────────────────
+
+/// The emitter trait source, censused for the `release` surface itself.
+const EMITTER_MOD: &str = include_str!("../../emitter/mod.rs");
+
+/// RELEASE_CENSUS — the checkpoint captures and both settle verbs are locked, file by
+/// file. A new `Emitter::checkpoint()` caller must pair every exit path with a `rewind`
+/// or a `release` and register itself here in the same commit.
+#[test]
+fn release_census_every_checkpoint_capture_is_paired() {
+  // The four captures of an emitter mark.
+  let captures: &[(&str, usize)] = &[
+    // `save_checkpoint`, the single funnel behind save/guards/attempts/session points.
+    ("mod.rs", 1),
+    // `sync_through` + `sync_through_then_peek_with_emitter` entry snapshots.
+    ("sync_through.rs", 2),
+    // `sync_balanced`'s entry snapshot.
+    ("sync_balanced.rs", 1),
+  ];
+  for (name, want) in captures {
+    let got =
+      count(source(name), ".emitter.checkpoint()") + count(source(name), "emitter().checkpoint()");
+    assert!(
+      got == *want,
+      "RELEASE_CENSUS drift: `{name}` captures {got} emitter checkpoint(s), expected \
+       {want}. Every capture must end in `rewind` or `release` on every exit path — \
+       wire the new capture and update this census in the same commit \
+       (grep RELEASE_CENSUS)."
+    );
+  }
+  for (name, src) in SOURCES {
+    if captures.iter().any(|(n, _)| n == name) {
+      continue;
+    }
+    let got = count(src, ".emitter.checkpoint()") + count(src, "emitter().checkpoint()");
+    assert!(
+      got == 0,
+      "RELEASE_CENSUS drift: `{name}` gained {got} emitter-checkpoint capture(s) outside \
+       the census (grep RELEASE_CENSUS)."
+    );
+  }
+
+  // The two rewind spends.
+  assert!(
+    count(source("mod.rs"), "emitter().rewind(") == 1
+      && count(source("scan.rs"), "emitter().rewind(") == 1,
+    "RELEASE_CENSUS drift: `Emitter::rewind` must have exactly two callers — \
+     `restore_unchecked` (mod.rs) and the sync family's no-match EOF arm (scan.rs). \
+     A third rewind site is a new abandon path; census it (grep RELEASE_CENSUS)."
+  );
+
+  // The two release homes: the kept-checkpoint funnel and the scanner's kept-snapshot
+  // hook. `release` is never called raw anywhere else in the input layer.
+  assert!(
+    count(source("mod.rs"), "emitter().release(") == 1
+      && count(source("scan.rs"), "emitter().release(") == 1,
+    "RELEASE_CENSUS drift: `Emitter::release` must have exactly two input-layer homes — \
+     `forget_kept_checkpoint` (mod.rs) and `ScanMode::on_commit` (scan.rs). Route a new \
+     keep path through one of them (grep RELEASE_CENSUS)."
+  );
+  for (name, src) in SOURCES {
+    if *name == "mod.rs" || *name == "scan.rs" {
+      continue;
+    }
+    assert!(
+      count(src, "emitter().release(") == 0,
+      "RELEASE_CENSUS drift: `{name}` releases an emitter mark directly; kept \
+       checkpoints go through `forget_kept_checkpoint`, kept scan snapshots through \
+       `ScanMode::on_commit` (grep RELEASE_CENSUS)."
+    );
+  }
+}
+
+/// RELEASE_CENSUS — every kept `Checkpoint` funnels through `forget_kept_checkpoint`,
+/// so its lineage forget and its emitter release cannot come apart. `forget_checkpoint`
+/// (lineage only) keeps exactly one caller: the funnel's own body.
+#[test]
+fn release_census_kept_checkpoints_funnel_through_one_body() {
+  // (file, expected `forget_kept_checkpoint` mentions, who they are)
+  let expected: &[(&str, usize, &str)] = &[
+    ("mod.rs", 2, "the definition + `commit_checkpoint`"),
+    (
+      "transaction/mod.rs",
+      2,
+      "`Transaction::commit` + the commit-on-drop arm",
+    ),
+    (
+      "stacked/mod.rs",
+      5,
+      "savepoint `release` + `commit` (savepoints, base) + the commit-on-drop arm \
+       (savepoints, base)",
+    ),
+  ];
+  for (name, want, who) in expected {
+    let got = count(source(name), "forget_kept_checkpoint(");
+    assert!(
+      got == *want,
+      "RELEASE_CENSUS drift: `{name}` has {got} `forget_kept_checkpoint` mentions, \
+       expected {want} ({who}). A kept checkpoint must release its emitter mark through \
+       the one funnel (grep RELEASE_CENSUS)."
+    );
+  }
+  for (name, src) in SOURCES {
+    if expected.iter().any(|(n, _, _)| n == name) {
+      continue;
+    }
+    assert!(
+      count(src, "forget_kept_checkpoint(") == 0,
+      "RELEASE_CENSUS drift: `{name}` keeps a checkpoint outside the censused funnel \
+       callers (grep RELEASE_CENSUS)."
+    );
+  }
+
+  // The lineage-only forget keeps exactly one caller — the funnel body — plus its
+  // definition; the session cell's abandon path uses the `Lineage` primitive directly
+  // (documented above: no emitter reach inside `Session::drop`, by design).
+  assert!(
+    count(source("mod.rs"), "forget_checkpoint(") == 2,
+    "RELEASE_CENSUS drift: `forget_checkpoint` (lineage-only) must be its definition \
+     plus exactly one caller — `forget_kept_checkpoint`'s body. Keeping a checkpoint \
+     without releasing its emitter mark strands mark-keyed emitter state \
+     (grep RELEASE_CENSUS)."
+  );
+  for (name, src) in SOURCES {
+    if *name == "mod.rs" {
+      continue;
+    }
+    assert!(
+      count(src, "forget_checkpoint(") == 0,
+      "RELEASE_CENSUS drift: `{name}` forgets a checkpoint's lineage entry without \
+       releasing its emitter mark — route through `forget_kept_checkpoint` \
+       (grep RELEASE_CENSUS)."
+    );
+  }
+  assert!(
+    count(source("session.rs"), "lineage.forget(") == 1,
+    "RELEASE_CENSUS drift: the session cell's abandon path is the one documented \
+     lineage-direct forget (no emitter reach inside `Session::drop`); a second direct \
+     forget must not appear (grep RELEASE_CENSUS)."
+  );
+}
+
+/// RELEASE_CENSUS — the scanner's kept snapshots: `skip_until` has six exits; five keep
+/// the scan's progress and settle the snapshot through `ScanMode::on_commit`, the sixth
+/// (`on_eof`) spends the mark by rewinding. A new exit must pick one, in the same
+/// commit.
+#[test]
+fn release_census_scanner_snapshot_settles_on_every_exit() {
+  let scan = source("scan.rs");
+  assert!(
+    count(scan, "M::on_commit(") == 5,
+    "RELEASE_CENSUS drift: `skip_until` must settle the pre-call snapshot on each of \
+     its five committing exits (boundary drain, fatal lex propagation, trip, stop, \
+     fatal report propagation); a sixth committing exit needs its own `M::on_commit` \
+     call, and a rewinding exit belongs to `on_eof` (grep RELEASE_CENSUS)."
+  );
+  assert!(
+    count(scan, "M::on_eof(") == 1,
+    "RELEASE_CENSUS drift: `skip_until` must have exactly one rewinding exit \
+     (grep RELEASE_CENSUS)."
+  );
+  // The trait method and its four mode impls (the balanced mode delegates to
+  // `SyncThrough`'s, which is the one body that releases).
+  assert!(
+    count(scan, "fn on_commit(") == 5,
+    "RELEASE_CENSUS drift: every `ScanMode` must define `on_commit` — a rewinding \
+     mode releases its snapshot's mark, a committing mode holds none \
+     (grep RELEASE_CENSUS)."
+  );
+}
+
+/// RELEASE_CENSUS — the trait surface: `release` is declared once (defaulted no-op) and
+/// forwarded once (the `&mut U` blanket impl — the W3 forwarding-gap class; the
+/// conformance test in `tests/handler_coverage.rs` drives it).
+#[test]
+fn release_census_trait_declares_and_blanket_forwards() {
+  assert!(
+    count(EMITTER_MOD, "fn release(") == 2,
+    "RELEASE_CENSUS drift: `Emitter::release` must appear exactly twice in \
+     `emitter/mod.rs` — the defaulted declaration and the `&mut U` blanket forward. \
+     A defaulted-not-forwarded method silently no-ops through `&mut` emitters \
+     (grep RELEASE_CENSUS)."
   );
 }

@@ -567,6 +567,23 @@ where
     }
   }
 
+  /// Releasing a kept checkpoint is a **deliberate no-op** for `Verbose`, and that is the
+  /// reference posture for value-keyed emitters.
+  ///
+  /// `Verbose` keeps no per-checkpoint table to evict: its mark is nothing but the emission
+  /// log's length ([`checkpoint`](Emitter::checkpoint) above), and its rollback state lives
+  /// *in the emission values themselves* — [`rewind`](Emitter::rewind) pops log entries and
+  /// their parallel-map groups by value, never consulting a mark-keyed row. A kept branch
+  /// therefore leaves nothing behind that a release could reclaim; the default empty body is
+  /// the whole implementation, spelled out here so the choice is legible rather than
+  /// incidental. Emitters that *do* key bookkeeping on marks (a checkpoint stack in an
+  /// event-buffering sink) override this to pop the kept row — see the advisory contract on
+  /// [`release`](Emitter::release).
+  #[inline(always)]
+  fn release(&mut self, checkpoint: u64) {
+    let _ = checkpoint;
+  }
+
   /// Pushes a *"while parsing X"* label onto the open-label stack; the next
   /// recorded diagnostic snapshots it into the entry it emits.
   #[inline(always)]

@@ -279,6 +279,42 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   where
     L: Lexer<'a>;
 
+  /// Releases a previously captured [`checkpoint`](Self::checkpoint) whose branch was
+  /// **kept** — the dual of [`rewind`](Self::rewind), which spends one whose branch was
+  /// abandoned.
+  ///
+  /// The input layer captures a mark around every speculative region and settles it in
+  /// exactly one of two ways: a rollback hands it to [`rewind`](Self::rewind); a commit —
+  /// a transaction guard's commit (explicit or on drop), an
+  /// [`attempt`](crate::InputRef::attempt)/[`try_attempt`](crate::InputRef::try_attempt)
+  /// success, a stacked guard's savepoint release, a session
+  /// [`commit_point`](crate::InputRef::commit_point), a sync scan that found its target or
+  /// otherwise kept its progress — hands it here. `release(m)` tells the emitter that `m`
+  /// will **never** be rewound to by that settle, so any bookkeeping keyed on the mark (a
+  /// checkpoint stack in an event-buffering sink, for instance) can be reclaimed instead of
+  /// stranding one dead row per committed guard — commit-heavy loops (a pratt operator loop
+  /// saves per iteration) would otherwise grow such state without bound.
+  ///
+  /// # Contract: advisory, and strictly bookkeeping
+  ///
+  /// `release` is **advisory**: an emitter MAY reclaim per-checkpoint bookkeeping on it, and
+  /// releasing must never change the observable emission state — no diagnostic appears,
+  /// disappears, or reorders because a mark was released. Correctness must not depend on it
+  /// being called: emitters that key their rollback state on emission *values* rather than
+  /// on a per-mark table — [`Verbose`], whose mark is just its log length and whose rewind
+  /// pops entries by value — legitimately inherit the no-op default, and stateless emitters
+  /// ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::marker::Ignored)) have nothing to
+  /// reclaim in the first place. One mark is released at most once, and marks arrive
+  /// last-in, first-out on the crate's own paths (guards and scans settle newest-first);
+  /// a mark abandoned outside those paths (an `unstable-raw` checkpoint merely dropped, a
+  /// session point abandoned with its handle) is simply never released — bounded-but-unswept
+  /// bookkeeping, reclaimed by the next enclosing `rewind`/`release` at or below it, per the
+  /// crate's unspecified-but-bounded posture on undisciplined use.
+  #[inline(always)]
+  fn release(&mut self, checkpoint: u64) {
+    let _ = checkpoint;
+  }
+
   /// Pushes a diagnostic label onto the emitter's open-label stack, opening a
   /// *"while parsing X"* context for the duration of a [`labelled`](crate::labelled)
   /// sub-parse.
@@ -386,6 +422,11 @@ where
     L: Lexer<'a>,
   {
     (**self).rewind(cursor, checkpoint)
+  }
+
+  #[inline(always)]
+  fn release(&mut self, checkpoint: u64) {
+    (**self).release(checkpoint)
   }
 
   #[inline(always)]

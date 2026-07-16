@@ -1024,13 +1024,39 @@ where
   }
 
   /// Drops `id` from the live-checkpoint lineage stack because its checkpoint was kept
-  /// (committed) rather than restored — see [`Transaction::commit`], [`attempt`](Self::attempt),
-  /// [`try_attempt`](Self::try_attempt), and the [`StackedTransaction`] release/commit paths.
-  /// See [`Lineage::forget`](super::Lineage::forget) for the bounding invariant and its cost.
+  /// (committed) rather than restored. Lineage-only, and deliberately private to this module:
+  /// the sole caller is [`forget_kept_checkpoint`](Self::forget_kept_checkpoint), which pairs
+  /// this with the emitter-mark [`release`](Emitter::release) so the two cannot come apart
+  /// (RELEASE_CENSUS). See [`Lineage::forget`](super::Lineage::forget) for the bounding
+  /// invariant and its cost.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[inline]
-  pub(crate) fn forget_checkpoint(&mut self, id: u64) {
+  fn forget_checkpoint(&mut self, id: u64) {
     self.session.lineage.forget(id);
+  }
+
+  /// RELEASE_CENSUS — **the** settle for a checkpoint whose branch was kept: drops its
+  /// live-checkpoint lineage entry and [`release`](Emitter::release)s its emitter mark in one
+  /// body, so lineage hygiene and emitter-bookkeeping hygiene cannot come apart.
+  ///
+  /// Every commit-shaped path routes through here — `commit_checkpoint` (the raw
+  /// [`commit`](Self::commit) and the session [`commit_point`](Self::commit_point)), both
+  /// [`Transaction`] commit arms (explicit and on-drop), and the [`StackedTransaction`]
+  /// savepoint-release/commit/drop paths — because each holds the full [`Checkpoint`] at the
+  /// exact moment its mark becomes unrewindable. The abandoning settle is the restore family,
+  /// which *spends* the mark through [`Emitter::rewind`] instead; every checkpoint the crate
+  /// takes ends in exactly one of the two (the census in `census_tests.rs` locks the sites).
+  ///
+  /// Assert-free and silent on purpose: the guards' commit-on-drop arms run inside `Drop`,
+  /// possibly mid-unwind. The one keeper that does **not** reach here is a session point
+  /// abandoned with its handle: `Session::drop` has no emitter to release into (the cell
+  /// exists precisely so `InputRef` needs no `Drop` of its own), and `release` is advisory,
+  /// so that mark is left to the enclosing scope's settle — see the census docs.
+  #[inline(always)]
+  fn forget_kept_checkpoint(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    self.forget_checkpoint(checkpoint.ckp_id);
+    self.emitter().release(checkpoint.emitter_checkpoint);
   }
 
   /// Returns whether `id` is still live on the lineage stack; see
@@ -1573,8 +1599,9 @@ where
       "checkpoint committed into a foreign input: this checkpoint was created by a different input"
     );
 
-    // Keep all progress; release ONLY the lineage entry, never the pin set. `forget_checkpoint`
-    // is `O(1)` at the stack top and pops nothing for an already-invalidated id (the no-op case).
+    // Keep all progress; release ONLY the lineage entry (via the kept-checkpoint funnel, which
+    // pairs it with the emitter-mark release), never the pin set. `forget_checkpoint` is `O(1)`
+    // at the stack top and pops nothing for an already-invalidated id (the no-op case).
     //
     // No pin check is needed, and none could ever trip: a pinned id is the begin point of a live
     // transaction guard or `attempt`, which holds that begin-point `Checkpoint` internally and
@@ -1582,11 +1609,7 @@ where
     // and this method consumes one it was given — so the committed id is a raw, unpinned
     // checkpoint by construction. There is no reachable way to commit a guard's pinned base and
     // unpin-bypass it, and `forget_checkpoint` leaves `pinned` untouched regardless.
-    #[cfg(any(feature = "std", feature = "alloc"))]
-    self.forget_checkpoint(checkpoint.ckp_id);
-
-    #[cfg(not(any(feature = "std", feature = "alloc")))]
-    let _ = checkpoint;
+    self.forget_kept_checkpoint(checkpoint);
   }
 
   /// Rewinds to `checkpoint` without the debug raw-misuse panics, the shared primitive behind

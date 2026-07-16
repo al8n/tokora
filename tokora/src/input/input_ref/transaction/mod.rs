@@ -137,15 +137,12 @@ where
     trace_event!(self.input, "commit");
     // Take the checkpoint so the `Drop` guard below sees `None` and does not roll back.
     if let Some(ckp) = self.ckp.take() {
-      // Kept, not restored: unpin the begin point and drop its lineage id so neither lingers on
-      // the live/pin stacks across commit-heavy loops.
+      // Kept, not restored: unpin the begin point, then the kept-checkpoint funnel drops its
+      // lineage id and releases its emitter mark, so none of the three linger across
+      // commit-heavy loops.
       #[cfg(any(feature = "std", feature = "alloc"))]
-      {
-        self.input.unpin_checkpoint(ckp.ckp_id);
-        self.input.forget_checkpoint(ckp.ckp_id);
-      }
-      #[cfg(not(any(feature = "std", feature = "alloc")))]
-      let _ = ckp;
+      self.input.unpin_checkpoint(ckp.ckp_id);
+      self.input.forget_kept_checkpoint(ckp);
     }
   }
 
@@ -167,15 +164,12 @@ where
       self.input.restore_unchecked_if_live(ckp);
     } else {
       trace_event!(self.input, "commit");
-      // Commit-on-drop: progress kept; unpin the begin point and forget its lineage id so
-      // neither lingers on the live/pin stacks across commit-heavy loops (as `commit` does).
+      // Commit-on-drop: progress kept; unpin the begin point, then the kept-checkpoint funnel
+      // forgets its lineage id and releases its emitter mark (as `commit` does). The funnel is
+      // assert-free, so this arm stays silent even mid-unwind.
       #[cfg(any(feature = "std", feature = "alloc"))]
-      {
-        self.input.unpin_checkpoint(ckp.ckp_id);
-        self.input.forget_checkpoint(ckp.ckp_id);
-      }
-      #[cfg(not(any(feature = "std", feature = "alloc")))]
-      let _ = ckp;
+      self.input.unpin_checkpoint(ckp.ckp_id);
+      self.input.forget_kept_checkpoint(ckp);
     }
   }
 
