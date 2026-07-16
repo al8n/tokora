@@ -28,6 +28,15 @@ where
   /// For a more ergonomic higher-level API that works with any AST node type, prefer
   /// the [`pratt`](fn@crate::parser::pratt) free function instead.
   ///
+  /// # CST-unsupported
+  ///
+  /// This token-level API folds expressions into **synthetic tokens** — spans covering
+  /// already-folded regions with no node-kind seam to classify — so it carries no CST hook
+  /// in this version. A parse that should build a syntax tree uses the typed driver and
+  /// its [`with_cst_kinds`](crate::parser::Pratt::with_cst_kinds) classifier instead; the
+  /// committed tokens this API consumes still auto-flow to a recording sink, but no
+  /// expression *nodes* are recorded around them.
+  ///
   /// # Parameters
   ///
   /// - `fold_prefix` – called with `(operator_tok, operand_tok, emitter)` when a prefix

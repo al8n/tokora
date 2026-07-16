@@ -1,6 +1,8 @@
 use crate::{Emitter, InputRef, Lexer, ParseContext, ParseInput, span::Spanned};
 
+pub use cst::*;
 pub use expr::*;
+mod cst;
 mod expr;
 
 /// The power level of an operator, used to determine the order of operations in Pratt parsing.
