@@ -13,13 +13,13 @@
 
 mod common;
 
-use common::{E, TestLexer, Token};
+use common::{E, TestLexer, Token, TokenKind};
 
 use tokora::{
   Emitter, FatalContext, InputRef, Lexer, Parse, ParseCtx, Parser, ParserContext, SimpleSpan,
   emitter::{Fatal, FullContainerEmitter, SeparatedEmitter, TooFewEmitter, Verbose},
-  parser::{list_of, separated1},
-  punct::{CloseBrace, Comma},
+  parser::{list_of, opt, peek_kind, separated1},
+  punct::{CloseBrace, Comma, Semicolon},
   token::IdentifierToken,
   types::Ident,
 };
@@ -276,4 +276,75 @@ fn list_of_empty_leaves_stop_token() {
     "}",
   );
   assert!(out.is_ok());
+}
+
+// ── `peek_kind` (smear: shape/tests.rs) ──────────────────────────────────────
+//
+// Reports the next kind without consuming, so the same peek repeats and a committed
+// atom still parses the leftover; end of input peeks as `None`. Smear peeked an `@`;
+// the fixture's stand-in punctuator is the comma.
+
+#[test]
+fn peek_kind_reports_comma_twice_then_comma_parses() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let first = peek_kind(inp)?;
+      let second = peek_kind(inp)?;
+      assert_eq!(first, Some(TokenKind::Comma));
+      assert_eq!(first, second);
+      // Peeking consumed nothing, so the committed `Comma` atom pulls the `,` straight
+      // off the input; its span proves the leftover and that peeking left it in place.
+      let comma = Comma::parse(inp)?;
+      assert_eq!(comma.span(), &SimpleSpan::new(0, 1));
+      Ok::<_, E>(())
+    },
+    ",x",
+  );
+  assert!(out.is_ok());
+}
+
+#[test]
+fn peek_kind_none_on_empty_input() {
+  let out = drive(Fatal::<E>::new(), peek_kind, "");
+  assert!(matches!(out, Ok(None)));
+}
+
+// ── `opt` (smear: shape/tests.rs) ────────────────────────────────────────────
+//
+// An accepted `try_`-attempt becomes `Some`, a decline becomes `None` with the
+// leftover left in place for the next atom. Smear lifted `try_at` over `@`/`:`; the
+// fixture's stand-ins are the comma and the semicolon.
+
+#[test]
+fn opt_try_comma_accepts_comma() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let opt_comma = opt(Comma::try_parse)(inp)?;
+      assert!(opt_comma.is_some());
+      let comma = opt_comma.unwrap();
+      assert_eq!(comma.span(), &SimpleSpan::new(0, 1));
+      Ok::<_, E>(())
+    },
+    ",",
+  );
+  assert!(out.is_ok());
+}
+
+#[test]
+fn opt_try_comma_declines_on_semicolon_and_leaves_it() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let declined = opt(Comma::try_parse)(inp)?.is_none();
+      // The `;` is untouched, so the committed `Semicolon` atom parses it; its span
+      // proves the leftover's type and that the decline consumed nothing.
+      let semi = Semicolon::parse(inp)?;
+      assert_eq!(semi.span(), &SimpleSpan::new(0, 1));
+      Ok::<_, E>(declined)
+    },
+    ";",
+  );
+  assert!(matches!(out, Ok(true)));
 }
