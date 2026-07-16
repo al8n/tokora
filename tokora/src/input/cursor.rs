@@ -38,8 +38,11 @@ impl<'a, L: Lexer<'a>> Clone for Cursor<'a, '_, L> {
 impl<'a, L: Lexer<'a>> Copy for Cursor<'a, '_, L> where L::Offset: Copy {}
 
 impl<'a, L: Lexer<'a>> Cursor<'a, '_, L> {
+  // `pub(crate)` (not `pub(super)`): the CST sink's unit tests drive the
+  // `Emitter::rewind` contract directly (clamp shapes and journal replays that the
+  // disciplined public surface cannot reach), and a rewind takes `&Cursor`.
   #[inline(always)]
-  pub(super) const fn from_ref(offset: &L::Offset) -> &Self {
+  pub(crate) const fn from_ref(offset: &L::Offset) -> &Self {
     // SAFETY: Cursor is #[repr(transparent)] over `L::Offset`.
     unsafe { &*(offset as *const L::Offset as *const Self) }
   }

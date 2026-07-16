@@ -59,6 +59,13 @@ use crate::syntax::Syntax;
 
 pub mod event;
 
+#[cfg(feature = "rowan")]
+mod sink;
+
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+pub use sink::{CstSink, TriviaPolicy};
+
 /// A builder for constructing concrete syntax trees.
 ///
 /// `SyntaxTreeBuilder` wraps rowan's [`GreenNodeBuilder`] and provides a convenient

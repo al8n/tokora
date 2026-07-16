@@ -67,9 +67,6 @@ pub const TOMBSTONE: u16 = u16::MAX;
 ///
 /// The `S` parameter is the lexer's span type; only `Token` carries one.
 #[cfg(feature = "rowan")]
-// Constructed by the recording sink (Task 4 of this wave); until it lands, only the unit
-// tests below exercise the variants. The allow dies with the sink commit.
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Event<S> {
   /// Opens a node of `kind`, closed by the matching [`FinishNode`](Event::FinishNode) —
@@ -129,9 +126,6 @@ pub(crate) enum Event<S> {
 }
 
 #[cfg(feature = "rowan")]
-// Consumed by the recording sink (Task 4 of this wave); until it lands, only the unit tests
-// below exercise these. The allow dies with the sink commit.
-#[allow(dead_code)]
 impl<S> Event<S> {
   /// This event's contribution to the derived open-node depth (the module-level depth
   /// model): `+1` for a real [`StartNode`](Self::StartNode) or a [`StartAt`](Self::StartAt),
@@ -215,8 +209,6 @@ impl EventMark {
   /// Creates a mark naming the tombstone at `index`, issued under `era` by the sink
   /// witnessed as `sink`. Crate-private: only a recording sink mints live marks.
   #[cfg(feature = "rowan")]
-  // Consumed by the recording sink (Task 4 of this wave); the allow dies with it.
-  #[allow(dead_code)]
   #[inline(always)]
   pub(crate) const fn new(
     index: u64,
@@ -277,8 +269,6 @@ impl EventMark {
     any(feature = "std", feature = "alloc"),
     target_has_atomic = "ptr"
   ))]
-  // Consumed by the recording sink (Task 4 of this wave); the allow dies with it.
-  #[allow(dead_code)]
   #[inline(always)]
   pub(crate) const fn sink(&self) -> usize {
     self.sink
@@ -316,9 +306,6 @@ pub(crate) struct TruncationLedger {
 }
 
 #[cfg(feature = "rowan")]
-// Consumed by the recording sink (Task 4 of this wave); until it lands, only the unit tests
-// below exercise these. The allow dies with the sink commit.
-#[allow(dead_code)]
 impl TruncationLedger {
   /// A fresh history: era 0, no truncations.
   #[inline(always)]
