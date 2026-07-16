@@ -14,6 +14,10 @@ mod bstr_1;
 #[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
 mod hipstr_0_8;
 
+#[cfg(feature = "smol_bytes_0_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "smol_bytes_0_1")))]
+mod smol_bytes_0_1;
+
 /// The source trait for lexers
 pub trait Source<Cursor>: core::fmt::Debug {
   /// A type this `Source` can be sliced into.
