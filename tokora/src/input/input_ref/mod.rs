@@ -90,16 +90,18 @@ where
   pub(super) emitted_error_end: &'closure mut L::Offset,
   pub(super) poison_boundary: &'closure mut Option<L::Offset>,
   /// The **session cell**: the input's lineage memos (the live-checkpoint stack, the pin set, and
-  /// the cache-push/checkpoint-id/savepoint counters) together with the live
+  /// the cache-push/checkpoint-id/savepoint counters), the handle's **emitter borrow** (the
+  /// ground-truth emission log, reached through [`emitter`](Self::emitter)), and the live
   /// [session points](Self::begin_point) opened on this handle.
   ///
   /// They are one cell because an abandoned session point has to release bookkeeping it does not
-  /// own — the pin lives on the [`Input`](super::Input), which outlives this handle, while the
-  /// point's [`Checkpoint`] lives here and dies with it. [`Session`]'s `Drop` reconciles them (see
-  /// its [module docs](session) for that, and for why the destructor lives on this cell rather than
-  /// on the handle: a `Drop` on `InputRef` would escape *every* field to the destructor and cost the
-  /// scanner its registers).
-  pub(super) session: Session<'inp, 'closure, L>,
+  /// own — the pin lives on the [`Input`](super::Input), which outlives this handle; the emitter
+  /// mark lives in the borrowed emitter, which outlives it too; the point's [`Checkpoint`] lives
+  /// here and dies with it. [`Session`]'s `Drop` reconciles all three (see its
+  /// [module docs](session) for that, and for why the destructor lives on this cell rather than
+  /// on the handle: a `Drop` on `InputRef` would escape *every* field to the destructor and cost
+  /// the scanner its registers).
+  pub(super) session: Session<'inp, 'closure, L, Ctx::Emitter, Lang>,
   /// Trace nesting depth, borrowed from the owning [`Input`] (the `trace` feature). Its sole
   /// mutators are [`traced`](crate::traced)'s enter/exit hooks; internal leaf events only read
   /// it for indentation.
@@ -112,7 +114,6 @@ where
     target_has_atomic = "ptr"
   ))]
   pub(super) witness: &'closure super::Witness,
-  pub(super) emitter: &'closure mut Ctx::Emitter,
   pub(super) _marker: PhantomData<Lang>,
 }
 
@@ -339,10 +340,11 @@ where
     *self.emitted_error_end = committed;
   }
 
-  /// Returns a mutable reference to the emitter.
+  /// Returns a mutable reference to the emitter (borrowed through the session cell — see
+  /// `input_ref::session` for why the borrow lives there).
   #[inline(always)]
   pub const fn emitter(&mut self) -> &mut Ctx::Emitter {
-    self.emitter
+    self.session.emitter
   }
 
   /// Emits a lexer error unless the same region has already been reported.
@@ -549,7 +551,7 @@ where
   fn commit_token(&mut self, tok: &L::Token, span: &L::Span) {
     // The settle observed: the one home of the committed-token side channel on the
     // consume surface (SETTLE_CENSUS locks the emitter-hook sites too).
-    self.emitter.commit_token(tok, span);
+    self.session.emitter.commit_token(tok, span);
     self.set_span_after_consume(span.into());
   }
 
@@ -933,14 +935,20 @@ where
   /// to surface that bug instead.
   ///
   /// What the drop *does* do is **release the bookkeeping**: each remaining point's pin and its
-  /// live-checkpoint lineage entry are dropped from the input's lineage memos (see [`InputRef`]'s
-  /// `Drop`). It has to, precisely because the point is split across two lifetimes — the
-  /// [`Checkpoint`] dies with the handle, but the pin lives on the *input*, which does not. A pin
-  /// left behind would stand for a point nobody can ever settle, so the pin set would no longer hold
-  /// exactly the live begin points and would grow for the life of the input. Enforcing tests (in
-  /// `src/input/input_ref/session_tests.rs`): `dropping_the_handle_releases_the_open_points`,
+  /// live-checkpoint lineage entry are dropped from the input's lineage memos, and its emitter
+  /// mark is [`release`](crate::emitter::Emitter::release)d (see the session cell's `Drop` in
+  /// `input_ref::session`).
+  /// It has to, precisely because the point is split across lifetimes — the [`Checkpoint`] dies
+  /// with the handle, but the pin lives on the *input* and the mark-keyed bookkeeping in the
+  /// *emitter*, and both outlive it. A pin left behind would stand for a point nobody can ever
+  /// settle, so the pin set would no longer hold exactly the live begin points and would grow for
+  /// the life of the input — and a mark never released would strand one row of an event sink's
+  /// checkpoint stack per abandoned point, the same leak one layer up. Enforcing tests:
+  /// `dropping_the_handle_releases_the_open_points`,
   /// `dropping_the_handle_keeps_the_progress_of_the_open_points`, and
-  /// `a_second_handle_rewinds_across_an_abandoned_point`.
+  /// `a_second_handle_rewinds_across_an_abandoned_point` (in
+  /// `src/input/input_ref/session_tests.rs`), and
+  /// `abandoned_session_points_release_their_emitter_marks` (in `src/cst/sink/tests.rs`).
   ///
   /// # Fuzz coverage
   ///
@@ -1054,10 +1062,11 @@ where
   /// takes ends in exactly one of the two (the census in `census_tests.rs` locks the sites).
   ///
   /// Assert-free and silent on purpose: the guards' commit-on-drop arms run inside `Drop`,
-  /// possibly mid-unwind. The one keeper that does **not** reach here is a session point
-  /// abandoned with its handle: `Session::drop` has no emitter to release into (the cell
-  /// exists precisely so `InputRef` needs no `Drop` of its own), and `release` is advisory,
-  /// so that mark is left to the enclosing scope's settle — see the census docs.
+  /// possibly mid-unwind. The one keeper that does **not** route through this funnel is a
+  /// session point abandoned with its handle: `Session::drop` performs the same
+  /// unpin/forget/release settle itself, through the assert-free `Lineage` primitives (a
+  /// mid-unwind drop must not assert) — the cell holds the emitter borrow precisely so it
+  /// can. The census locks both homes.
   #[inline(always)]
   fn forget_kept_checkpoint(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
     #[cfg(any(feature = "std", feature = "alloc"))]
@@ -1273,7 +1282,7 @@ where
       self.cursor().clone(),
       self.span.clone(),
       self.state.clone(),
-      self.emitter.checkpoint(),
+      self.session.emitter.checkpoint(),
       self.emitted_error_end.clone(),
       self.poison_boundary.clone(),
       self.session.lineage.cache_pushes(),

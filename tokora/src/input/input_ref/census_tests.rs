@@ -289,13 +289,14 @@ fn settle_census_adopt_is_the_single_skip_settle() {
 //   stop, fatal report propagation); the sixth exit is `on_eof`, which spends the mark
 //   by rewinding to it.
 //
-// The one deliberate non-release: a session point abandoned by dropping the handle.
-// `Session`'s `Drop` releases the pin and the lineage id but cannot reach the emitter
-// (the cell exists precisely so `InputRef` needs no `Drop` — see `session.rs`), so the
-// abandoned point's mark is left to the enclosing scope's own settle. `release` is
-// advisory (see the trait contract), so correctness never depended on it; the census
-// locks the abandon path to its one `lineage.forget` so a second direct-forget path
-// cannot appear silently.
+// The third keep path is a session point abandoned by dropping the handle: `Session`'s
+// `Drop` settles it exactly as `commit_point` would — unpin, forget the lineage id, and
+// release the emitter mark — through the assert-free primitives rather than the
+// `forget_kept_checkpoint` funnel (a drop may run mid-unwind, where the funnel's debug
+// asserts must not fire). The cell holds the emitter borrow precisely so its drop can
+// reach it; the census locks the abandon path to its one `lineage.forget` and its one
+// `emitter.release`, so neither a second direct-forget nor an unpaired forget can appear
+// silently.
 // ─────────────────────────────────────────────────────────────────────────────────────
 
 /// The emitter trait source, censused for the `release` surface itself.
@@ -347,24 +348,28 @@ fn release_census_every_checkpoint_capture_is_paired() {
      A third rewind site is a new abandon path; census it (grep RELEASE_CENSUS)."
   );
 
-  // The two release homes: the kept-checkpoint funnel and the scanner's kept-snapshot
-  // hook. `release` is never called raw anywhere else in the input layer.
+  // The three release homes: the kept-checkpoint funnel, the scanner's kept-snapshot
+  // hook, and the session cell's abandoning drop (assert-free by necessity — it may run
+  // mid-unwind). `release` is never called raw anywhere else in the input layer.
   assert!(
     count(source("mod.rs"), "emitter().release(") == 1
-      && count(source("scan.rs"), "emitter().release(") == 1,
-    "RELEASE_CENSUS drift: `Emitter::release` must have exactly two input-layer homes — \
-     `forget_kept_checkpoint` (mod.rs) and `ScanMode::on_commit` (scan.rs). Route a new \
-     keep path through one of them (grep RELEASE_CENSUS)."
+      && count(source("scan.rs"), "emitter().release(") == 1
+      && count(source("session.rs"), ".emitter.release(") == 1,
+    "RELEASE_CENSUS drift: `Emitter::release` must have exactly three input-layer homes — \
+     `forget_kept_checkpoint` (mod.rs), `ScanMode::on_commit` (scan.rs), and the \
+     session-abandon settle in `Session::release_abandoned_points` (session.rs). Route a \
+     new keep path through one of them (grep RELEASE_CENSUS)."
   );
   for (name, src) in SOURCES {
-    if *name == "mod.rs" || *name == "scan.rs" {
+    if *name == "mod.rs" || *name == "scan.rs" || *name == "session.rs" {
       continue;
     }
     assert!(
-      count(src, "emitter().release(") == 0,
+      count(src, "emitter().release(") == 0 && count(src, ".emitter.release(") == 0,
       "RELEASE_CENSUS drift: `{name}` releases an emitter mark directly; kept \
        checkpoints go through `forget_kept_checkpoint`, kept scan snapshots through \
-       `ScanMode::on_commit` (grep RELEASE_CENSUS)."
+       `ScanMode::on_commit`, abandoned session points through `Session`'s drop \
+       (grep RELEASE_CENSUS)."
     );
   }
 }
@@ -410,8 +415,9 @@ fn release_census_kept_checkpoints_funnel_through_one_body() {
   }
 
   // The lineage-only forget keeps exactly one caller — the funnel body — plus its
-  // definition; the session cell's abandon path uses the `Lineage` primitive directly
-  // (documented above: no emitter reach inside `Session::drop`, by design).
+  // definition; the session cell's abandon path uses the `Lineage` primitives directly
+  // (documented above: the funnel's asserts must not run mid-unwind) and pairs them with
+  // its own emitter release, which the home census above counts.
   assert!(
     count(source("mod.rs"), "forget_checkpoint(") == 2,
     "RELEASE_CENSUS drift: `forget_checkpoint` (lineage-only) must be its definition \
@@ -433,8 +439,8 @@ fn release_census_kept_checkpoints_funnel_through_one_body() {
   assert!(
     count(source("session.rs"), "lineage.forget(") == 1,
     "RELEASE_CENSUS drift: the session cell's abandon path is the one documented \
-     lineage-direct forget (no emitter reach inside `Session::drop`); a second direct \
-     forget must not appear (grep RELEASE_CENSUS)."
+     lineage-direct forget, paired in the same loop body with its emitter release; a \
+     second direct forget must not appear (grep RELEASE_CENSUS)."
   );
 }
 

@@ -147,6 +147,7 @@ where
         let power = precedenced.into_precedence();
         let Some(operand) = self.pratt_in(power, fold_prefix, fold_infix, fold_postfix)? else {
           self
+            .session
             .emitter
             .emit_unexpected_end_of_lhs(UnexpectedEoLhs::eolhs_of(self.offset().clone()))?;
           return Ok(Some(tok));
@@ -201,6 +202,7 @@ where
           };
           let Some(rhs) = self.pratt_in(power, fold_prefix, fold_infix, fold_postfix)? else {
             self
+              .session
               .emitter
               .emit_unexpected_end_of_rhs(UnexpectedEoRhs::eorhs_of(self.offset().clone()))?;
             return Ok(Some(lhs));

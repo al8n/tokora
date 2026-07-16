@@ -714,11 +714,13 @@ where
       finality: self.finality,
       emitted_error_end: &mut self.emitted_error_end,
       poison_boundary: &mut self.poison_boundary,
-      // The lineage memos and the session-point stack, in one cell (see `input_ref::session`): the
-      // stack starts empty and stays unallocated until the first `InputRef::begin_point`, so a
-      // reference that never opens a session pays three zeroed words once, here, and nothing
-      // thereafter. The cell's `Drop` is what releases a point abandoned with the handle.
-      session: Session::new(&mut self.lineage),
+      // The lineage memos, the emitter borrow, and the session-point stack, in one cell (see
+      // `input_ref::session`): the stack starts empty and stays unallocated until the first
+      // `InputRef::begin_point`, so a reference that never opens a session pays a few zeroed
+      // words once, here, and nothing thereafter. The cell's `Drop` is what releases a point
+      // abandoned with the handle — its pin, its lineage entry, and its emitter mark alike
+      // (the emitter borrow lives in the cell precisely so that drop can reach it).
+      session: Session::new(&mut self.lineage, emitter),
       #[cfg(feature = "trace")]
       depth: &mut self.depth,
       #[cfg(all(
@@ -727,7 +729,6 @@ where
         target_has_atomic = "ptr"
       ))]
       witness: &self.witness,
-      emitter,
       _marker: PhantomData,
     }
   }

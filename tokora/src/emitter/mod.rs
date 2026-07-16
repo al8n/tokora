@@ -307,11 +307,13 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// pops entries by value — legitimately inherit the no-op default, and stateless emitters
   /// ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::marker::Ignored)) have nothing to
   /// reclaim in the first place. One mark is released at most once, and marks arrive
-  /// last-in, first-out on the crate's own paths (guards and scans settle newest-first);
-  /// a mark abandoned outside those paths (an `unstable-raw` checkpoint merely dropped, a
-  /// session point abandoned with its handle) is simply never released — bounded-but-unswept
-  /// bookkeeping, reclaimed by the next enclosing `rewind`/`release` at or below it, per the
-  /// crate's unspecified-but-bounded posture on undisciplined use.
+  /// last-in, first-out on the crate's own paths (guards and scans settle newest-first;
+  /// a session point abandoned with its handle releases at the handle's drop, newest-first,
+  /// possibly mid-unwind — which is why releasing must stay observably pure and panic-free).
+  /// A mark abandoned outside those paths (an `unstable-raw` checkpoint merely dropped) is
+  /// simply never released — bounded-but-unswept bookkeeping, reclaimed by the next
+  /// enclosing `rewind`/`release` at or below it, per the crate's unspecified-but-bounded
+  /// posture on undisciplined use.
   #[inline(always)]
   fn release(&mut self, checkpoint: u64) {
     let _ = checkpoint;

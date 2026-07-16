@@ -459,6 +459,46 @@ fn release_keeps_the_mark_stack_at_live_captures() {
   );
 }
 
+/// The release no-growth oracle applied to the **session-abandon** path — the W11
+/// pin-leak class one layer up. A handle dropped with open session points releases their
+/// pins and lineage entries (`Session`'s drop); it must release their **emitter marks**
+/// too, or a long-lived sink strands one `MarkRow` per abandoned begin_point/drop cycle.
+/// And per the no-rollback-on-drop law, the release reclaims bookkeeping only: the
+/// progress committed through the open point — its token events — stays.
+#[test]
+fn abandoned_session_points_release_their_emitter_marks() {
+  type Ctx<'inp> = (VerboseSink<'inp>, DefaultCache<'inp, MiniLexer<'inp>>);
+  let mut sink = verbose_sink();
+  let mut input = Input::<'_, MiniLexer<'_>, Ctx<'_>, ()>::new("abcdef");
+
+  for cycle in 0..3 {
+    {
+      let mut inp = input.as_ref(&mut sink);
+      inp.begin_point();
+      let _ = inp.next().expect("verbose collects").expect("a token");
+      // …and the handle dies here with the point still open.
+    }
+    assert_eq!(
+      sink.rows_len(),
+      0,
+      "cycle {cycle}: an abandoned session point must release its emitter mark row, \
+       exactly as it releases its pin and lineage entry"
+    );
+  }
+
+  // No rollback rode along with the release: every token consumed through the abandoned
+  // points is still on the event buffer.
+  assert_eq!(
+    sink
+      .events()
+      .iter()
+      .filter(|ev| matches!(ev, Event::Token { .. }))
+      .count(),
+    3,
+    "drop released bookkeeping, not progress: the settled tokens survive"
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // F-A1 — the orphan finish is detected at cause (debug) and never absorbed
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -166,10 +166,11 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     // — WORLD FACT, as a read-only `Copy` snapshot: no mutator, and the handle's borrow of the
     //   input locks out the seal, so it is CONSTANT for this handle's life.
     finality: _,
-    // — the lineage memos (borrowed) + the open session points (owned): censused in `session.rs`.
+    // — the lineage memos (borrowed) + the emitter borrow (ground truth: the emission log,
+    //   rolled back by truncation to the saved mark) + the open session points (owned):
+    //   censused in `session.rs`, which holds all three so its drop can settle an abandoned
+    //   point's pin, lineage entry, and emitter mark together.
     session: _,
-    // — ground truth: the emission log, rolled back by truncation to the saved mark.
-    emitter: _,
     // — instrumentation.
     #[cfg(feature = "trace")]
       depth: _,

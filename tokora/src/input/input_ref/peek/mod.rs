@@ -153,7 +153,7 @@ where
     // If we already have enough tokens cached, just peek from cache
     if want == 0 {
       self.cache.peek::<W>(buf);
-      return Ok(self.emitter);
+      return Ok(self.session.emitter);
     }
 
     // A sticky limit trip latches a poison boundary at the durable frontier: once
@@ -161,7 +161,7 @@ where
     // whatever is already cached and stop.
     if self.reached_boundary(self.offset()) {
       self.cache.peek::<W>(buf);
-      return Ok(self.emitter);
+      return Ok(self.session.emitter);
     }
 
     // Drop-safe staging for tokens lexed past the cache window (see `Overflow`).
@@ -249,7 +249,7 @@ where
       // double-drop. This covers a trip on the first overflow token (nothing
       // staged) and a trip after several are staged alike.
       drop(overflowed);
-      return Ok(self.emitter);
+      return Ok(self.session.emitter);
     }
 
     #[cfg(debug_assertions)]
@@ -272,7 +272,7 @@ where
       }
     }
 
-    Ok(self.emitter)
+    Ok(self.session.emitter)
   }
 }
 
