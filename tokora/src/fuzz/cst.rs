@@ -8,8 +8,10 @@
 //! - **The append-only depth/count model** — the pruned run has no rollbacks, so every
 //!   consume it makes is a committed settle; the tree's non-gap token count must equal
 //!   that straight count exactly (a lost or doubled auto-emission cannot hide behind gap
-//!   tiling), `finish` returning `Ok` is the balance oracle (depth ends at zero), and the
-//!   sink's mark-stack must end empty (the release no-growth law).
+//!   tiling), `finish` is the balance oracle (depth ends at zero — the only refusal a
+//!   combinator-driven buffer may earn is the token-channel wall, on the
+//!   tokenless-structure signature, and the twins must agree on it), and the sink's
+//!   mark-stack must end empty (the release no-growth law).
 //!
 //! The sinkless halves of these ops run in every build through the consume tree (over
 //! `CountEmitter`'s defaulted no-op event channel); this driver is the `rowan`-gated
@@ -20,7 +22,7 @@ use std::{string::String, vec::Vec};
 use crate::{
   InputRef, ParseInput, Token,
   cache::DefaultCache,
-  cst::{CstSink, event::EventMark},
+  cst::{CstFinishError, CstSink, event::EventMark},
   emitter::CstEmitter,
   input::Input,
   parser::node,
@@ -265,9 +267,16 @@ impl rowan::Language for RawLang {
   }
 }
 
-/// Drives one script over a fresh recording sink; returns the materialized tree and the
-/// committed-settle count.
-fn drive(src: &str, script: &[CStep], cov: &mut Coverage) -> (rowan::GreenNode, usize) {
+/// Drives one script over a fresh recording sink; returns the materialization verdict and
+/// the committed-settle count. The verdict stays a `Result` on purpose: a script whose
+/// surviving timeline builds structure without one committed token over a nonempty source
+/// is *refused* by `finish` (the token-channel wall, `StructureWithoutTokens`), and the
+/// twins must agree on that refusal exactly as they agree on trees.
+fn drive(
+  src: &str,
+  script: &[CStep],
+  cov: &mut Coverage,
+) -> (Result<rowan::GreenNode, CstFinishError>, usize) {
   let mut sink: Sink<'_> = CstSink::new(CountEmitter::new(), map_tok, K_ERR, K_GAP);
   let cache = DefaultCache::<'_, ScriptLexer<'_>>::default();
   let state = initial_state(src.as_bytes());
@@ -287,9 +296,6 @@ fn drive(src: &str, script: &[CStep], cov: &mut Coverage) -> (rowan::GreenNode, 
     "release no-growth: every capture must be settled once the script ends"
   );
   let (green, _emitter) = sink.finish(K_ROOT, src);
-  let green = green.unwrap_or_else(|e| {
-    panic!("the combinator-driven buffer must materialize (balance is structural): {e:?}")
-  });
   (green, consumed)
 }
 
@@ -321,15 +327,45 @@ pub(crate) fn run(src: &[u8], seed: u64, cov: &mut Coverage) {
     full_consumed, pruned_consumed,
     "committed consumption must match the pruned twin (declines leave no trace)"
   );
-  assert_eq!(
-    full_tree, pruned_tree,
-    "backtrack equivalence: the full and pruned scripts share one committed timeline, \
-     so their green trees must be byte-identical"
-  );
-  assert_eq!(
-    non_gap_tokens(&pruned_tree),
-    pruned_consumed,
-    "every committed settle appears in the tree exactly once (the auto-emission \
-     exactly-once law; gap tiles cover only unconsumed bytes)"
-  );
+  match (full_tree, pruned_tree) {
+    (Ok(full_tree), Ok(pruned_tree)) => {
+      assert_eq!(
+        full_tree, pruned_tree,
+        "backtrack equivalence: the full and pruned scripts share one committed timeline, \
+         so their green trees must be byte-identical"
+      );
+      assert_eq!(
+        non_gap_tokens(&pruned_tree),
+        pruned_consumed,
+        "every committed settle appears in the tree exactly once (the auto-emission \
+         exactly-once law; gap tiles cover only unconsumed bytes)"
+      );
+    }
+    (Err(full_err), Err(pruned_err)) => {
+      // The token-channel wall: legal exactly on the tokenless-structure signature over
+      // a nonempty source — any other refusal of a combinator-driven buffer is a bug
+      // (balance is structural), and a refusal WITH settled tokens doubly so.
+      assert_eq!(
+        (full_err, pruned_err),
+        (
+          CstFinishError::StructureWithoutTokens,
+          CstFinishError::StructureWithoutTokens
+        ),
+        "the combinator-driven buffer must materialize (balance is structural); only the \
+         token-channel wall may refuse it"
+      );
+      assert_eq!(
+        full_consumed, 0,
+        "the wall fires only when no committed settle survived"
+      );
+      assert!(
+        !src.is_empty(),
+        "the wall never fires over an empty source (nothing to consume)"
+      );
+    }
+    (full, pruned) => panic!(
+      "the twins share one committed timeline and must agree on the materialization \
+       verdict: full {full:?} vs pruned {pruned:?}"
+    ),
+  }
 }

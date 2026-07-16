@@ -14,14 +14,16 @@
 use core::fmt;
 
 use tokora::{
-  InputRef, Lexer, Parse, ParseInput, Parser, SimpleSpan, Token, TryParseInput,
+  Emitter, InputRef, Lexer, Parse, ParseInput, Parser, SimpleSpan, Token, TryParseInput,
   cache::DefaultCache,
-  cst::CstSink,
+  cst::{CstFinishError, CstSink},
   emitter::{CstEmitter, Verbose},
-  error::token::UnexpectedToken,
+  error::token::{UnexpectedToken, UnexpectedTokenOf},
+  input::Cursor,
   parser::{
     PrattFoldOp, PrattInfix, PrattLHS, PrattRHS, Precedenced, node, node_at, node_opt, pratt_of,
   },
+  span::Spanned,
   try_parse_input::ParseAttempt,
 };
 
@@ -579,5 +581,158 @@ fn node_over_a_diagnostics_only_emitter_is_inert() {
     res,
     Ok(()),
     "the inert event channel costs nothing and changes nothing"
+  );
+}
+// ═══════════════════════════════════════════════════════════════════════════════
+// The partial-forwarding hole: structuring forwarded, token channel severed
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// The half-forwarding wrapper of the partial-forwarding hole: the generic emitter
+/// wrapper a downstream author writes by forwarding every **required** [`Emitter`]
+/// method plus the backtracking trio (the compiler and the parse demand those) and the
+/// whole [`CstEmitter`] structuring surface (the `node()` bound demands that) — while
+/// inheriting the defaulted no-op [`Emitter::commit_token`], which severs the
+/// auto-emission token channel even though every structuring event still flows.
+struct HalfForward<E> {
+  inner: E,
+}
+
+impl<'a, L, E> Emitter<'a, L> for HalfForward<E>
+where
+  L: Lexer<'a>,
+  E: Emitter<'a, L>,
+{
+  type Error = E::Error;
+
+  fn emit_lexer_error(
+    &mut self,
+    err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
+  ) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.emit_lexer_error(err)
+  }
+
+  fn emit_unexpected_token(&mut self, err: UnexpectedTokenOf<'a, L>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.emit_unexpected_token(err)
+  }
+
+  fn emit_error(&mut self, err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.emit_error(err)
+  }
+
+  fn checkpoint(&self) -> u64 {
+    self.inner.checkpoint()
+  }
+
+  fn rewind(&mut self, cursor: &Cursor<'a, '_, L>, checkpoint: u64)
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.rewind(cursor, checkpoint)
+  }
+
+  fn release(&mut self, checkpoint: u64) {
+    self.inner.release(checkpoint)
+  }
+
+  // `commit_token` is NOT forwarded: the wrapper inherits the core no-op default, and
+  // every committed token silently vanishes between the input layer and the sink.
+}
+
+impl<'a, L, E> CstEmitter<'a, L> for HalfForward<E>
+where
+  L: Lexer<'a>,
+  E: CstEmitter<'a, L>,
+{
+  fn cst_start(&mut self, kind: u16)
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.cst_start(kind)
+  }
+
+  fn cst_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.cst_token(tok, span)
+  }
+
+  fn cst_finish(&mut self)
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.cst_finish()
+  }
+
+  fn cst_mark(&mut self) -> tokora::cst::event::EventMark
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.cst_mark()
+  }
+
+  fn cst_start_at(&mut self, mark: tokora::cst::event::EventMark, kind: u16)
+  where
+    L: Lexer<'a>,
+  {
+    self.inner.cst_start_at(mark, kind)
+  }
+}
+
+type HfCtx<'s, 'inp> = (
+  HalfForward<&'s mut Sink<'inp>>,
+  DefaultCache<'inp, ByteLexer<'inp>>,
+);
+type HfIr<'inp, 's, 'c> = InputRef<'inp, 'c, ByteLexer<'inp>, HfCtx<'s, 'inp>, ()>;
+
+/// Consumes exactly two tokens through the half-forwarding context.
+fn hf_take_two(inp: &mut HfIr<'_, '_, '_>) -> Result<(), TestErr> {
+  for _ in 0..2 {
+    match inp.next()? {
+      Some(_) => {}
+      None => return Err(TestErr::Boom),
+    }
+  }
+  Ok(())
+}
+
+/// The finding's failing-first regression: a wrapper that forwards the structuring
+/// surface but not the committed-token hook must not produce a *silently plausible*
+/// materialization. The parse succeeds and records structure, every committed token is
+/// dropped between the input layer and the sink, and `finish` — the success door —
+/// refuses with a typed error instead of returning a gap-tiled tree with empty nodes.
+#[test]
+fn half_forwarding_wrapper_is_refused_at_finish() {
+  let mut s = sink();
+  let res = Parser::with_parser_and_context(
+    |inp: &mut HfIr<'_, '_, '_>| node(K_NODE, hf_take_two).parse_input(inp),
+    (
+      HalfForward { inner: &mut s },
+      DefaultCache::<ByteLexer<'_>>::default(),
+    ),
+  )
+  .parse_str("ab");
+  assert_eq!(res, Ok(()), "the parse itself succeeds — that is the trap");
+
+  let (green, _emitter) = s.finish(K_ROOT, "ab");
+  let err = match green {
+    Err(err) => err,
+    Ok(tree_ok) => panic!(
+      "finish must refuse the severed token channel, got a plausible tree: {:?}",
+      tree(tree_ok).text()
+    ),
+  };
+  assert!(
+    matches!(err, CstFinishError::StructureWithoutTokens),
+    "expected StructureWithoutTokens, got {err:?}"
   );
 }

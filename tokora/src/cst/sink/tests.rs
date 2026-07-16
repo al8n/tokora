@@ -897,6 +897,65 @@ fn empty_buffer_finishes() {
   assert_eq!(text(green.expect("bare root")), "");
 }
 
+/// The token-channel wall, at the mechanism level: a *balanced* stream that builds
+/// structure without one committed token over a nonempty source is the
+/// half-forwarding-wrapper signature (structuring forwarded, `Emitter::commit_token`
+/// inherited as the core no-op) — refused by `finish` AND `finish_partial` alike, never
+/// dressed up by gap tiling as a plausible tree. The driven regression is
+/// `half_forwarding_wrapper_is_refused_at_finish` in `tests/parser_node.rs`.
+#[test]
+fn balanced_structure_without_tokens_is_refused() {
+  let mut sink = verbose_sink();
+  sink.cst_start(K_NODE);
+  sink.cst_finish();
+  let (green, _emitter) = sink.finish(K_ROOT, "ab");
+  assert_eq!(
+    green.expect_err("structure without tokens over a nonempty source"),
+    CstFinishError::StructureWithoutTokens
+  );
+
+  // The retro-wrap flavour of the same shape (a spent mark, still no token).
+  let mut sink = verbose_sink();
+  let mark = sink.cst_mark();
+  sink.cst_start_at(mark, K_WRAP);
+  sink.cst_finish();
+  let (green, _emitter) = sink.finish_partial(K_ROOT, "ab");
+  assert_eq!(
+    green.expect_err("the wall holds through the partial door too — the stream is balanced"),
+    CstFinishError::StructureWithoutTokens
+  );
+}
+
+/// The wall's exact boundary, so it can never overfire: an **empty source** makes a
+/// token-less node legal (there was nothing to consume), a token-less stream with **no
+/// structure** still tiles (the decline-everything shape), and an **aborted** stream with
+/// open nodes keeps its `finish_partial` door (the open nodes are the abort witness).
+#[test]
+fn token_channel_wall_boundaries() {
+  // Empty source: a token-less node is a legitimate empty match.
+  let mut sink = verbose_sink();
+  sink.cst_start(K_NODE);
+  sink.cst_finish();
+  let (green, _emitter) = sink.finish(K_ROOT, "");
+  let root = tree(green.expect("nothing to consume, nothing severed"));
+  assert_eq!(root.first_child().expect("Root[Node]").kind(), K_NODE);
+
+  // No structure: tokens-absent is indistinguishable from a parse that declined
+  // everything, and the tiled gap IS the honest tree.
+  let (green, _emitter) = verbose_sink().finish(K_ROOT, "ab");
+  assert_eq!(text(green.expect("one gap tile, no nodes")), "ab");
+
+  // Aborted before the first settle, open node standing: the partial door still opens —
+  // the imbalance is the abort witness the wall exempts.
+  let mut sink = verbose_sink();
+  sink.cst_start(K_NODE);
+  let (green, _emitter) = sink.finish_partial(K_ROOT, "ab");
+  assert_eq!(
+    text(green.expect("the abort shape keeps its tooling door")),
+    "ab"
+  );
+}
+
 /// F-A6/F-A1 at the wall: an orphan finish is a typed error — rowan's silent absorption
 /// of one level of imbalance under the root wrapper is unreachable, because the sink's
 /// own stack refuses before the builder sees the pop.

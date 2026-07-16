@@ -16,6 +16,17 @@ use super::*;
 /// `Ctx::Emitter: CstEmitter` — a non-forwarding wrapper is then a **compile error**, never a
 /// silent empty tree. CST is the first capability that *binds* rather than defaults.
 ///
+/// One token-shaped residue is out of the bound's reach: the auto-emission hook is the
+/// defaulted [`Emitter::commit_token`] on the **core** trait (the consume surface must stay
+/// callable without a CST bound), so a wrapper can forward this whole structuring surface
+/// and still inherit the core no-op — structure flows, tokens vanish. The type system
+/// cannot see a provided-method override, so that shape is caught at the other end: a
+/// recording sink's `finish` **refuses** a balanced stream that builds structure without a
+/// single committed token over a nonempty source
+/// ([`StructureWithoutTokens`](crate::cst::CstFinishError::StructureWithoutTokens)) — a
+/// typed error, never a plausible gap-tiled tree. A wrapper must forward
+/// [`Emitter::commit_token`] alongside these methods.
+///
 /// # Defaulted no-ops: diagnostics-only emitters opt in trivially
 ///
 /// Every method has an empty (or inert-value) default, so an emitter with no event channel

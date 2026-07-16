@@ -341,7 +341,11 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// **wrapper** emitter that records or forwards events must forward this too; the
   /// tree-structuring surface lives on the [`CstEmitter`] subtrait, whose bound on the
   /// `node()` combinators is what stops a non-forwarding wrapper from silently producing
-  /// an empty tree.
+  /// an empty tree. Forwarding the subtrait while inheriting this no-op severs the token
+  /// channel invisibly at parse time; the recording sink's `finish` refuses that shape
+  /// with a typed error
+  /// ([`StructureWithoutTokens`](crate::cst::CstFinishError::StructureWithoutTokens))
+  /// rather than materializing a plausible gap-tiled tree.
   #[inline(always)]
   fn commit_token(&mut self, tok: &L::Token, span: &L::Span)
   where

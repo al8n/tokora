@@ -6,7 +6,10 @@
 //! unreachable, because the sink's own stack refuses first), retro-wrap integrity (stale
 //! `StartAt` targets, dangling `forward_parent` pointers — the journal's finish-time
 //! canary), kind hygiene (the reserved tombstone band), span discipline (monotone,
-//! non-overlapping, in-bounds, u32-fitting), and **gap tiling**: every source byte no
+//! non-overlapping, in-bounds, u32-fitting), the **token-channel wall** (a balanced
+//! stream that builds structure without one committed token over a nonempty source is
+//! the half-forwarding-wrapper signature, refused instead of dressed up by tiling — see
+//! [`CstFinishError::StructureWithoutTokens`]), and **gap tiling**: every source byte no
 //! committed token covers becomes a `gap_kind` token, which is what makes
 //! `tree.text() == source` structural for every input — poisoned, error-bearing, and
 //! truncated parses included.
@@ -100,6 +103,26 @@ pub enum CstFinishError {
   #[error("the root kind is the reserved tombstone kind (u16::MAX)")]
   ReservedRootKind,
 
+  /// The stream builds structure but carries **no committed token** over a nonempty
+  /// source — the half-forwarding-wrapper signature. A wrapper emitter that forwards the
+  /// [`CstEmitter`](crate::emitter::CstEmitter) structuring surface (satisfying the
+  /// `node()` bound) but inherits the defaulted no-op
+  /// [`Emitter::commit_token`](crate::emitter::Emitter::commit_token) produces exactly
+  /// this shape: the parse succeeds, every structuring event flows, and every committed
+  /// token silently vanishes between the input layer and the sink. Gap tiling would
+  /// happily return a *plausible* tree (full text, empty nodes), so `finish` refuses
+  /// instead — the loud failure the wrapper contract promises. A parse that legitimately
+  /// consumed nothing builds either no structure (nothing to refuse) or a tree over an
+  /// empty source (also not refused); a fatally-aborted parse inspected through
+  /// [`finish_partial`](CstSink::finish_partial) still has its open nodes as the abort
+  /// witness and is likewise not refused.
+  #[error(
+    "the event stream builds structure but carries no committed token over a nonempty \
+     source (a wrapper emitter forwarding the CstEmitter structuring surface without \
+     Emitter::commit_token produces exactly this shape)"
+  )]
+  StructureWithoutTokens,
+
   /// A token span starts before the end of the previous token — a double emission or a
   /// non-monotone stream. Rejecting it here is what makes the no-duplication half of the
   /// round-trip law structural.
@@ -147,11 +170,13 @@ where
   /// diagnostics survive the tree.
   ///
   /// The replay validates and builds in one walk: balance,
-  /// retro-wrap integrity, kind hygiene, span discipline — and **tiles every uncovered
-  /// source byte as a `gap_kind` token**, so on success `tree.text() == source` holds for
-  /// every input, lexer errors and truncated tails included. On the first violation the
-  /// half-built green state is dropped and a typed [`CstFinishError`] comes back instead;
-  /// this method **never panics**.
+  /// retro-wrap integrity, kind hygiene, span discipline, the token-channel wall
+  /// ([`CstFinishError::StructureWithoutTokens`] — structure with zero committed tokens
+  /// over a nonempty source is a severed `commit_token` channel, not a tree) — and
+  /// **tiles every uncovered source byte as a `gap_kind` token**, so on success
+  /// `tree.text() == source` holds for every input, lexer errors and truncated tails
+  /// included. On the first violation the half-built green state is dropped and a typed
+  /// [`CstFinishError`] comes back instead; this method **never panics**.
   ///
   /// # Abort semantics
   ///
@@ -170,8 +195,9 @@ where
   /// [`finish`](Self::finish), but open nodes at the end of the stream are **closed**
   /// instead of refused — the apollo-style partial tree for tooling that wants to inspect
   /// a fatally-aborted parse. Every other law (balance underflow, wrap integrity, span
-  /// discipline, gap tiling) is enforced identically; the round-trip law holds on the
-  /// partial tree too.
+  /// discipline, gap tiling — and the token-channel wall for *balanced* streams, from
+  /// which the open-node abort shape is exactly the exemption) is enforced identically;
+  /// the round-trip law holds on the partial tree too.
   pub fn finish_partial(
     self,
     root_kind: u16,
@@ -289,6 +315,13 @@ where
   let source_len =
     u32::try_from(source.len()).map_err(|_| CstFinishError::OffsetOverflow { index: 0 })?;
 
+  // The token-channel witnesses (see `StructureWithoutTokens`): whether any committed
+  // token survived to materialization, and whether any real node did. Structure without a
+  // single token over a nonempty source is the half-forwarding-wrapper signature — the
+  // gap tiling below would otherwise dress it up as a plausible tree.
+  let mut saw_token = false;
+  let mut saw_structure = false;
+
   for (index, event) in events.iter().enumerate() {
     let index = index as u64;
     match event {
@@ -305,10 +338,12 @@ where
         }
       }
       Event::StartNode { kind, .. } => {
+        saw_structure = true;
         builder.start_node(SyntaxKind(*kind));
         stack.push(Frame::Start);
       }
       Event::Token { kind, span } => {
+        saw_token = true;
         let start = offset_to_u32(span.start(), index)?;
         let end = offset_to_u32(span.end(), index)?;
         if start < covered || end < start {
@@ -358,6 +393,7 @@ where
       Event::StartAt { .. } => {
         // Its node was opened at the target's position (the hoist above); the
         // declaration slot itself is structural silence.
+        saw_structure = true;
       }
       Event::Diag { .. } => {
         // A diagnostic order-slot: invisible to the tree.
@@ -388,6 +424,14 @@ where
     for _ in 0..open {
       builder.finish_node();
     }
+  } else if saw_structure && !saw_token && source_len > 0 {
+    // The token-channel wall: a *balanced* stream that builds structure without one
+    // committed token over a nonempty source is the half-forwarding-wrapper signature
+    // (structuring forwarded, `Emitter::commit_token` inherited as the core no-op), and
+    // gap tiling would return a plausible tree instead of a witness. Balanced-only on
+    // purpose: a fatally-aborted parse inspected through `finish_partial` still has its
+    // open nodes (the `open > 0` arm above), so the abort shape is never refused here.
+    return Err(CstFinishError::StructureWithoutTokens);
   }
 
   builder.finish_node();
