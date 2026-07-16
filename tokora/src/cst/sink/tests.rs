@@ -9,8 +9,8 @@ use crate::{
   cache::DefaultCache,
   cst::event::{Event, TOMBSTONE},
   emitter::{CstEmitter, Emitter, Fatal, Verbose},
-  error::token::UnexpectedToken,
-  input::{Cursor, Input},
+  error::token::{UnexpectedToken, UnexpectedTokenOf},
+  input::{Balance, Cursor, Input},
   span::Spanned,
   token::Token,
 };
@@ -1580,5 +1580,134 @@ fn auto_emission_lexer_error_and_eof_emit_no_token_event() {
     text(green.expect("gap tiling covers the error byte")),
     "!a",
     "round trip holds on the error-bearing input"
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Composition: the wrapped emitter must observe every committed token (R3)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// A test-only inner emitter that counts every token [`Emitter::commit_token`] observes
+/// — the composition witness for the sink's forwarding contract: a wrapped emitter that
+/// tracks token-indexed state must see every token the sink's own CST event stream
+/// records, recovery-skipped tokens included, or its count silently reads zero behind a
+/// live diagnostic stream.
+#[derive(Debug, Default)]
+struct CountingEmitter {
+  committed: usize,
+}
+
+impl<'a, L, Lang: ?Sized> Emitter<'a, L, Lang> for CountingEmitter {
+  type Error = TestErr;
+
+  fn emit_lexer_error(
+    &mut self,
+    _err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
+  ) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    Ok(())
+  }
+
+  fn emit_error(&mut self, _err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    Ok(())
+  }
+
+  fn emit_unexpected_token(
+    &mut self,
+    _err: UnexpectedTokenOf<'a, L, Lang>,
+  ) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    Ok(())
+  }
+
+  fn rewind(&mut self, _cursor: &Cursor<'a, '_, L>, _checkpoint: u64)
+  where
+    L: Lexer<'a>,
+  {
+  }
+
+  fn commit_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    let _ = (tok, span);
+    self.committed += 1;
+  }
+}
+
+type CountingSink<'inp> = CstSink<'inp, MiniLexer<'inp>, CountingEmitter>;
+type CountingCtx<'inp> = (CountingSink<'inp>, DefaultCache<'inp, MiniLexer<'inp>>);
+
+/// The parenthesis pair table for the recovery-skip scenario below: `(` opens, `)`
+/// closes, everything else (including the `;` sync point) is neutral.
+fn counting_parens(kind: &u8) -> Balance<u8> {
+  match *kind {
+    b'(' => Balance::Open(b'('),
+    b')' => Balance::Close(b'('),
+    _ => Balance::Neutral,
+  }
+}
+
+/// THE R3 REGRESSION: `CstSink::commit_token` must forward to the wrapped emitter, not
+/// just record its own CST event. Drives a real parse — a plain consume, a
+/// `sync_balanced` recovery skip (whose skipped tokens settle through `commit_token`
+/// exactly like a consume, per the auto-emission contract), and the resumed consumes
+/// after the sync point — through a `CountingEmitter` inner wrapped in `CstSink`. Before
+/// the forwarding fix this reads 0 (`commit_token` never reached `self.inner`); after,
+/// it tracks the sink's own token-event count exactly, recovery-skipped tokens included.
+#[test]
+fn commit_token_forwards_to_the_inner_emitter_recovery_skips_included() {
+  let mut sink: CountingSink<'_> = CstSink::new(CountingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut input = Input::<MiniLexer<'_>, CountingCtx<'_>>::with_state_and_cache(
+    "a(b)c;d",
+    (),
+    DefaultCache::<MiniLexer<'_>>::default(),
+  );
+  let mut inp = input.as_ref(&mut sink);
+
+  // A plain consume: `a`.
+  inp.next().expect("collects").expect("a token");
+
+  // `sync_balanced` skips `(`, `b`, `)`, `c` (4 tokens, nesting-balanced through the
+  // parens) and stops before the depth-0 `;` — the recovery path whose skipped tokens
+  // settle behind the frontier via the same `commit_token` hook a consume uses.
+  let hole = inp
+    .sync_balanced(counting_parens, |t| t.data().0 == b';')
+    .expect("collects")
+    .expect("the depth-0 `;` is a sync point");
+  assert_eq!(
+    hole.skipped(),
+    4,
+    "`(`, `b`, `)`, `c` all fall inside the hole"
+  );
+
+  // The sync point and the trailing token both settle as ordinary consumes.
+  inp.next().expect("collects").expect("the `;` sync point");
+  inp.next().expect("collects").expect("the trailing `d`");
+
+  drop(inp);
+  drop(input);
+
+  let recorded = sink
+    .events()
+    .iter()
+    .filter(|ev| matches!(ev, Event::Token { .. }))
+    .count();
+  assert_eq!(
+    recorded, 7,
+    "a, (, b, ), c, ;, d: seven committed tokens on the sink's own event stream"
+  );
+  assert_eq!(
+    sink.inner_ref().committed,
+    recorded,
+    "CstSink::commit_token must forward to the wrapped emitter: the inner's count must \
+     match the sink's own token-event count exactly, recovery-skipped tokens included"
   );
 }

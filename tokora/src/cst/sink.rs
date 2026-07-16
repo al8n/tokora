@@ -695,6 +695,7 @@ where
     L: Lexer<'inp>,
   {
     self.record_token(tok, span);
+    self.inner.commit_token(tok, span);
   }
 
   /// Pops the kept capture's row off the mark stack — the eviction dual of
