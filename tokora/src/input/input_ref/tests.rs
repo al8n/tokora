@@ -5409,3 +5409,382 @@ fn cache_transparency_known_divergences() {
     }
   }
 }
+
+// ── The CST event channel joins the oracles (`rowan`) ─────────────────────────
+//
+// The auto-emission hook rides the settle surfaces, so the event channel inherits every
+// law those surfaces already answer for — and must prove it against the SAME oracles:
+// the cache-transparency matrix gains an event column (exact equality of materialized
+// trees, cached vs uncached, every entry × cell × prefill — found/eof/trip/fatal shapes
+// included), and the no-trace suite gains an event count (failed syncs leave ZERO
+// events; trip/fatal arms keep their settled prefix — that is trip-commit, not a leak).
+// Trees, not raw buffers, are the compared observable: mark nonces, truncation eras, and
+// Diag-slot interleavings are route-dependent by design.
+
+#[cfg(feature = "rowan")]
+mod cst_event_oracles {
+  use super::*;
+  use crate::cst::{CstSink, event::Event};
+
+  const K_ROOT: u16 = 1;
+  const K_ERR: u16 = 90;
+  const K_GAP: u16 = 91;
+
+  fn map_bal(t: &BalTok) -> u16 {
+    match t {
+      BalTok::Num => 10,
+      BalTok::LParen => 11,
+      BalTok::RParen => 12,
+      BalTok::Semi => 13,
+      BalTok::Trivia => 14,
+    }
+  }
+
+  type EvtSink<'a> = CstSink<'a, BalLexer<'a>, MatrixEmitter>;
+  type EvtCtx<'a> = (EvtSink<'a>, DefaultCache<'a, BalLexer<'a>>);
+  type EvtRef<'inp, 'c> = InputRef<'inp, 'c, BalLexer<'inp>, EvtCtx<'inp>, ()>;
+
+  fn evt_sink<'a>(fatal_at: Option<SimpleSpan>) -> EvtSink<'a> {
+    CstSink::new(MatrixEmitter::new(fatal_at), map_bal, K_ERR, K_GAP)
+  }
+
+  /// The committed spans of the buffered `Token` events, in order.
+  fn token_event_spans(sink: &EvtSink<'_>) -> std::vec::Vec<SimpleSpan> {
+    sink
+      .events()
+      .iter()
+      .filter_map(|ev| match ev {
+        Event::Token { span, .. } => Some(*span),
+        _ => None,
+      })
+      .collect()
+  }
+
+  /// The emitter error the sink context surfaces, spelled through the associated-type
+  /// chain the [`ParseInput`] signature demands (it is `ByValErr`, but the trait will
+  /// not take the shortcut).
+  type EvtErr<'inp> =
+    <<EvtCtx<'inp> as crate::ParseContext<'inp, BalLexer<'inp>, ()>>::Emitter as Emitter<
+      'inp,
+      BalLexer<'inp>,
+      (),
+    >>::Error;
+
+  /// `padded`'s inner parser over the sink context (the event twin of the matrix's
+  /// `TakeOne`).
+  struct TakeOneCst;
+
+  impl<'inp> ParseInput<'inp, BalLexer<'inp>, Option<(SimpleSpan, BalTok)>, EvtCtx<'inp>, ()>
+    for TakeOneCst
+  {
+    fn parse_input(
+      &mut self,
+      inp: &mut EvtRef<'inp, '_>,
+    ) -> Result<Option<(SimpleSpan, BalTok)>, EvtErr<'inp>> {
+      Ok(inp.next()?.map(Spanned::into_components))
+    }
+  }
+
+  /// Runs one entry point over the sink context, discarding the return — the matrix
+  /// proper already pins returns and diagnostics; this column pins the event channel.
+  fn run_entry_cst(entry: Entry, inp: &mut EvtRef<'_, '_>) {
+    let pred = |t: Spanned<&BalTok, &SimpleSpan>| matches!(t.data(), BalTok::Semi);
+    match entry {
+      Entry::To => {
+        let _ = inp.sync_to(pred, || None);
+      }
+      Entry::ToThenPeekWithEmitter => {
+        let _ = inp.sync_to_then_peek_with_emitter::<_, _, W2>(pred, || None);
+      }
+      Entry::Through => {
+        let _ = inp.sync_through(pred, || None);
+      }
+      Entry::ThroughThenPeek => {
+        let _ = inp.sync_through_then_peek::<_, _, W2>(pred, || None);
+      }
+      Entry::ThroughThenPeekWithEmitter => {
+        let _ = inp.sync_through_then_peek_with_emitter::<_, _, W2>(pred, || None);
+      }
+      Entry::Balanced => {
+        let _ = inp.sync_balanced(parens, pred);
+      }
+      Entry::SkipWhile => {
+        let _ = inp.skip_while(|t| !pred(t));
+      }
+      Entry::Padded => {
+        let _ = TakeOneCst.padded().parse_input(inp);
+      }
+    }
+  }
+
+  /// One cell run under the recording sink: setup consume, prefill, the entry, the
+  /// retry drain, then materialization.
+  fn run_cell_cst(cell: &MatrixCell, entry: Entry, prefill: usize) -> rowan::GreenNode {
+    let mut sink = evt_sink(cell.fatal_at);
+    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+      cell.src,
+      TokenLimiter::with_limitation(cell.limit),
+      DefaultCache::<BalLexer<'_>>::default(),
+    );
+    let mut inp = input.as_ref(&mut sink);
+
+    for _ in 0..cell.consume_first {
+      inp
+        .next()
+        .expect("the setup consume must not trip the emitter")
+        .expect("the cell must have a token to consume first");
+    }
+    match prefill {
+      0 => {}
+      1 => {
+        inp
+          .peek::<W1>()
+          .expect("the prefill must not trip the emitter");
+      }
+      2 => {
+        inp
+          .peek::<W2>()
+          .expect("the prefill must not trip the emitter");
+      }
+      3 => {
+        inp
+          .peek::<W3>()
+          .expect("the prefill must not trip the emitter");
+      }
+      n => panic!("prefill {n} exceeds the U3 cache window"),
+    }
+
+    run_entry_cst(entry, &mut inp);
+
+    // The retry drain: fold everything a recovering caller would then read into the
+    // final timeline, so the compared trees cover the whole stream.
+    while let Ok(Some(_)) = inp.next() {}
+
+    drop(inp);
+    drop(input);
+    let (green, _emitter) = sink.finish(K_ROOT, cell.src);
+    green.unwrap_or_else(|e| {
+      panic!(
+        "[{} / {}] the settle-driven buffer must materialize: {e:?}",
+        entry.name(),
+        cell.name
+      )
+    })
+  }
+
+  /// The matrix event column: cached and uncached runs of every (entry × cell ×
+  /// prefill) triple materialize **identical** green trees — the token-event stream is
+  /// exactly invariant under prefill (stronger than diagnostics, which may hoist).
+  #[test]
+  fn cache_transparency_matrix_event_column() {
+    for cell in CELLS {
+      for &entry in Entry::ALL {
+        let uncached = run_cell_cst(cell, entry, 0);
+        for &prefill in cell.prefills {
+          let cached = run_cell_cst(cell, entry, prefill);
+          assert_eq!(
+            cached,
+            uncached,
+            "[{} / {} / prefill={}] the event channel must be exactly cache-transparent \
+             (materialized trees diverged)",
+            entry.name(),
+            cell.name,
+            prefill
+          );
+        }
+      }
+    }
+  }
+
+  /// T1 — the drained-cache failed sync: a no-match `sync_through` that drained a
+  /// prefilled cache rewinds to exactly its entry mark, so **zero** events survive the
+  /// failure — the no-trace law's event column.
+  #[test]
+  fn t1_failed_sync_over_drained_cache_leaves_zero_events() {
+    let mut sink = evt_sink(None);
+    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+      "1 2 3",
+      TokenLimiter::with_limitation(usize::MAX),
+      DefaultCache::<BalLexer<'_>>::default(),
+    );
+    let mut inp = input.as_ref(&mut sink);
+
+    inp.peek::<W2>().expect("prefill is clean");
+    let matched = inp
+      .sync_through(|t| matches!(t.data(), BalTok::Semi), || None)
+      .expect("verbose-shaped emitter collects");
+    assert!(matched.is_none(), "no sync point exists");
+    assert_eq!(
+      inp.emitter().events().len(),
+      0,
+      "the failed sync rewound to its entry mark: no event of any kind survives (T1)"
+    );
+
+    // The exactly-once pairing: the re-lex after the rewind settles each token once.
+    while let Ok(Some(_)) = inp.next() {}
+    assert_eq!(
+      token_event_spans(inp.emitter()),
+      &[
+        SimpleSpan { start: 0, end: 1 },
+        SimpleSpan { start: 2, end: 3 },
+        SimpleSpan { start: 4, end: 5 }
+      ],
+      "the re-lex re-emits exactly once per token (T1/T2 pairing)"
+    );
+  }
+
+  /// T2 — exactly-once per final timeline: an attempt that consumed across a lexer
+  /// error and declined leaves zero events; the committed re-parse settles every token
+  /// exactly once, and the tree equals the straight drive's byte for byte. No watermark
+  /// analog exists on the event channel — token events are never emitted early.
+  #[test]
+  fn t2_reconsume_after_decline_emits_exactly_once() {
+    let src = "1 @ 2";
+    let drain = |inp: &mut EvtRef<'_, '_>| while let Ok(Some(_)) = inp.next() {};
+
+    // The straight drive.
+    let mut straight = evt_sink(None);
+    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+      src,
+      TokenLimiter::with_limitation(usize::MAX),
+      DefaultCache::<BalLexer<'_>>::default(),
+    );
+    let mut inp = input.as_ref(&mut straight);
+    drain(&mut inp);
+    drop(inp);
+    drop(input);
+    let (straight_green, straight_emitter) = straight.finish(K_ROOT, src);
+
+    // The decline-then-reparse drive of the same final timeline.
+    let mut sink = evt_sink(None);
+    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+      src,
+      TokenLimiter::with_limitation(usize::MAX),
+      DefaultCache::<BalLexer<'_>>::default(),
+    );
+    let mut inp = input.as_ref(&mut sink);
+    let declined: Option<()> = inp.attempt(|inp2| {
+      // Consume across the lexer error: two settles plus the error's diagnostic.
+      inp2.next().expect("collects").expect("1");
+      inp2.next().expect("collects").expect("2");
+      None
+    });
+    assert!(declined.is_none());
+    assert_eq!(
+      inp.emitter().events().len(),
+      0,
+      "the decline rewound every event with the branch (T2)"
+    );
+    drain(&mut inp);
+    assert_eq!(
+      token_event_spans(inp.emitter()),
+      &[
+        SimpleSpan { start: 0, end: 1 },
+        SimpleSpan { start: 4, end: 5 }
+      ],
+      "each committed token settles exactly once on the final timeline (T2)"
+    );
+    drop(inp);
+    drop(input);
+    let (green, emitter) = sink.finish(K_ROOT, src);
+
+    assert_eq!(
+      green.expect("balanced"),
+      straight_green.expect("balanced"),
+      "the re-parsed timeline materializes the straight drive's tree, byte for byte"
+    );
+    assert_eq!(
+      emitter.log, straight_emitter.log,
+      "and the diagnostic timeline agrees too: the crossed error is reported exactly once"
+    );
+  }
+
+  /// T4 — the zero-skip sync is event-silent: nothing settles, so nothing may emit —
+  /// the whole event buffer (token events AND diagnostic slots) is untouched.
+  #[test]
+  fn t4_zero_skip_sync_emits_nothing() {
+    let mut sink = evt_sink(None);
+    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+      "1 ; 2",
+      TokenLimiter::with_limitation(usize::MAX),
+      DefaultCache::<BalLexer<'_>>::default(),
+    );
+    let mut inp = input.as_ref(&mut sink);
+
+    inp.next().expect("collects").expect("1");
+    let before = inp.emitter().events().len();
+    assert_eq!(token_event_spans(inp.emitter()).len(), 1);
+
+    // The sync point is the very next token: a zero-skip sync settles nothing (the
+    // returned hole describes an empty region; its one-per-hole diagnostic is never
+    // emitted for zero skips, so the emitter sees no traffic at all).
+    let hole = inp
+      .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+      .expect("collects");
+    assert_eq!(
+      hole.map(|h| h.skipped()),
+      Some(0),
+      "the zero-skip sync describes an empty hole"
+    );
+    assert_eq!(
+      inp.emitter().events().len(),
+      before,
+      "the zero-skip sync left the event buffer untouched (T4)"
+    );
+
+    // The stopper's settle is its real consume.
+    inp.next().expect("collects").expect(";");
+    assert_eq!(token_event_spans(inp.emitter()).len(), 2);
+  }
+
+  /// The trip/fatal arms of the no-trace suite, event column: committed progress keeps
+  /// its settled tokens' events — that is trip-commit, not a leak.
+  #[test]
+  fn trip_and_fatal_sync_arms_keep_settled_events() {
+    // A sticky limit trip mid-skip: the two durable skipped tokens' events persist.
+    let mut sink = evt_sink(None);
+    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+      "1 2 3 4 5 ;",
+      TokenLimiter::with_limitation(2),
+      DefaultCache::<BalLexer<'_>>::default(),
+    );
+    let mut inp = input.as_ref(&mut sink);
+    let matched = inp
+      .sync_through(|t| matches!(t.data(), BalTok::Semi), || None)
+      .expect("a trip is not a fatal exit");
+    assert!(
+      matched.is_none(),
+      "the trip ends the scan before the sync point"
+    );
+    assert_eq!(
+      token_event_spans(inp.emitter()),
+      &[
+        SimpleSpan { start: 0, end: 1 },
+        SimpleSpan { start: 2, end: 3 }
+      ],
+      "the diagnosed prefix's settles persist across the trip (trip-commit)"
+    );
+    drop(inp);
+    drop(input);
+
+    // A fatal rejection of a skipped token's diagnostic: the token settled BEFORE the
+    // verdict, so its event rides out with the committed position.
+    let mut sink = evt_sink(Some(SimpleSpan { start: 2, end: 3 }));
+    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+      "1 2 3 ; 4",
+      TokenLimiter::with_limitation(usize::MAX),
+      DefaultCache::<BalLexer<'_>>::default(),
+    );
+    let mut inp = input.as_ref(&mut sink);
+    let res = inp.sync_to(|t| matches!(t.data(), BalTok::Semi), || None);
+    assert!(res.is_err(), "the emitter rejects token 2's diagnostic");
+    assert_eq!(
+      token_event_spans(inp.emitter()),
+      &[
+        SimpleSpan { start: 0, end: 1 },
+        SimpleSpan { start: 2, end: 3 }
+      ],
+      "event and commit stay paired on the fatal exit: the reported token settled first"
+    );
+  }
+}

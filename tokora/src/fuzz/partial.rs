@@ -484,3 +484,31 @@ pub(crate) fn run(src: &[u8], seed: u64, cov: &mut Coverage) {
 fn span_end(span: &SimpleSpan) -> usize {
   *span.end_ref()
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// The Partial event gate (deferred)
+// ─────────────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod event_gate {
+  /// GATED OFF — the chunked-event-equivalence property (the event-channel twin of this
+  /// driver's token-stream oracle): a chunked partial parse and the single-shot parse
+  /// must emit identical event streams.
+  ///
+  /// It gates on two prerequisites that are deliberately **not** in this wave: the
+  /// scanner family (`sync_*`/`skip_while`/`consume_cached`) becoming `Cmpl`-generic
+  /// (today they are Complete-only, so partial × scanner × events is unrepresentable),
+  /// and the cache-transparency matrix growing a Partial column first. Until then no
+  /// events ride `Partial` at all — a rowan-feature partial driver owns a per-round sink
+  /// and returns the tree only on the final `Ok` (round-atomicity), which cannot be
+  /// built before the scanners generalize. This named placeholder keeps the gate
+  /// visible in the suite.
+  #[test]
+  #[ignore = "gated: events on Partial await the Cmpl-generic scanner family + the matrix Partial column (deferred Task 8)"]
+  fn chunked_event_equivalence_awaits_the_partial_gate() {
+    unimplemented!(
+      "un-gate with the Cmpl-generic scanner family: drive chunked vs single-shot \
+       parses under per-round CstSinks and assert identical materialized trees"
+    );
+  }
+}

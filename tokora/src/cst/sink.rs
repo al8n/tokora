@@ -1002,6 +1002,20 @@ where
 
 // ── Test observability ──────────────────────────────────────────────────────────
 
+/// The release no-growth observable, shared with the public fuzz harness
+/// (`feature = "fuzz"`): its recording-twin driver asserts through this that every
+/// checkpoint capture was settled once a script ends.
+#[cfg(any(test, feature = "fuzz"))]
+impl<'inp, L, E> CstSink<'inp, L, E>
+where
+  L: Lexer<'inp>,
+{
+  /// The number of live mark-stack rows (the release no-growth oracle).
+  pub(crate) fn rows_len(&self) -> usize {
+    self.rows.borrow().len()
+  }
+}
+
 #[cfg(test)]
 impl<'inp, L, E> CstSink<'inp, L, E>
 where
@@ -1010,11 +1024,6 @@ where
   /// The event-buffer view, for shape assertions.
   pub(crate) fn events(&self) -> &[Event<L::Span>] {
     &self.events
-  }
-
-  /// The number of live mark-stack rows (the release no-growth oracle).
-  pub(crate) fn rows_len(&self) -> usize {
-    self.rows.borrow().len()
   }
 
   /// The number of live undo-journal entries.

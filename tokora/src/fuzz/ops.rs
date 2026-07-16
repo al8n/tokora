@@ -124,6 +124,14 @@ define_ops! {
   SessionRollback => "session.rollback_point",
   /// `InputRef::begin_point` + drop the handle — a session point abandoned, settled by neither verb: the handle's `Drop` releases its pin while keeping its progress.
   SessionAbandon => "session.abandon(drop)",
+  /// `parser::node(kind, p)` — the CST bracket: tombstone mark at entry, retro-wrap on the success exit only.
+  Node => "node",
+  /// `CstEmitter::cst_mark` — mint a retro-wrap anchor (inert over a no-event emitter).
+  Mark => "mark",
+  /// `CstEmitter::cst_start_at` + `cst_finish` — spend the newest frame-local live mark as a retro-wrap.
+  StartAt => "start_at",
+  /// A declined `attempt` that minted a mark inside — the truncated-tombstone shape: the mark dies with the branch and is never spendable again.
+  RollbackAcrossMark => "rollback_across_mark",
 }
 
 /// OP_SURFACE_CENSUS — the number of public input-machinery operations the fuzz alphabet covers.
@@ -132,7 +140,7 @@ define_ops! {
 /// in the **same** commit: add the `define_ops!` line, wire the op into a generator so the coverage
 /// test exercises it, add its executor arm, and drop a `# Fuzz coverage` note in the op-adding
 /// module's contract docs pointing here. `grep OP_SURFACE_CENSUS` finds every anchor.
-pub const EXPECTED_OP_COUNT: usize = 30;
+pub const EXPECTED_OP_COUNT: usize = 34;
 
 // Compile-time census tripwire: the alphabet cannot change size without this failing to compile at
 // a named location, forcing the checklist above.

@@ -34,13 +34,21 @@ use super::{
   rng::Rng,
 };
 use crate::{
-  Commit, InputRef, SimpleSpan, Token,
+  Commit, InputRef, ParseInput, SimpleSpan, Token,
+  cst::event::EventMark,
+  emitter::CstEmitter,
   input::{Rollback, StackedTransaction},
+  parser::node,
   span::Spanned,
 };
 
 /// The maximum nesting depth of generated speculation scopes.
 const MAX_DEPTH: usize = 4;
+
+/// The node kind the `Node` op brackets with, and the wrap kind `StartAt` spends — fixed
+/// values well inside the u16 space (the recording twin's mapper owns the token kinds).
+const K_NODE_KIND: u16 = 70;
+const K_WRAP_KIND: u16 = 71;
 
 /// The `InputRef` shape every consume operation drives.
 type Ir<'inp, 'cl> = InputRef<'inp, 'cl, ScriptLexer<'inp>, FuzzCtx<'inp>, ()>;
@@ -108,10 +116,14 @@ const LEAVES: &[Op] = &[
   Op::SyncBalanced,
   Op::IsEoi,
   Op::Seal,
+  Op::Mark,
+  Op::StartAt,
+  Op::RollbackAcrossMark,
 ];
 
 /// The speculation-scope operations (each carries a nested body).
 const SCOPES: &[Op] = &[
+  Op::Node,
   Op::AttemptCommit,
   Op::AttemptDecline,
   Op::TryAttemptOk,
@@ -180,20 +192,38 @@ pub(crate) fn run(src: &[u8], script: &[Step], cov: &mut Coverage, exec_seed: u6
   );
   let mut ir = input.as_ref(&mut emitter);
   let mut model = Model::new(src);
-  run_seq(&mut ir, script, &mut model, cov, &mut Rng::new(exec_seed));
+  let mut marks = Vec::new();
+  run_seq(
+    &mut ir,
+    script,
+    &mut model,
+    cov,
+    &mut Rng::new(exec_seed),
+    &mut marks,
+    0,
+  );
 }
 
 /// Runs a sequence of steps in order. `rng` is threaded only because a few executor decisions
 /// (which live savepoint to target) are randomized; it does not regenerate the script.
+///
+/// `marks` is the live retro-wrap anchor stack and `floor` its frame boundary: `StartAt`
+/// spends only marks minted in the current frame (above `floor`), because a wrap that
+/// crossed a `node()` bracket's boundary would be the ImproperWrap shape materialization
+/// refuses; every rollback truncates the stack to its entry length, mirroring the sink's
+/// era staleness exactly (a rollback's truncation invalidates precisely the marks minted
+/// after its capture).
 fn run_seq(
   ir: &mut Ir<'_, '_>,
   steps: &[Step],
   model: &mut Model<'_>,
   cov: &mut Coverage,
   rng: &mut Rng,
+  marks: &mut Vec<EventMark>,
+  floor: usize,
 ) {
   for step in steps {
-    run_step(ir, step, model, cov, rng);
+    run_step(ir, step, model, cov, rng, marks, floor);
   }
 }
 
@@ -205,6 +235,8 @@ fn run_step(
   model: &mut Model<'_>,
   cov: &mut Coverage,
   rng: &mut Rng,
+  marks: &mut Vec<EventMark>,
+  floor: usize,
 ) {
   let op = step.op;
   match op {
@@ -221,46 +253,78 @@ fn run_step(
     | Op::SyncThrough
     | Op::SyncBalanced
     | Op::IsEoi
-    | Op::Seal => run_leaf(ir, op, model, cov),
+    | Op::Seal
+    | Op::Mark
+    | Op::StartAt
+    | Op::RollbackAcrossMark => run_leaf(ir, op, model, cov, marks, floor),
 
     // ── closure attempts ──
     Op::AttemptCommit => run_attempt(
-      ir, &step.body, model, cov, rng, /*keep*/ true, /*fallible*/ false,
+      ir, &step.body, model, cov, rng, marks, /*keep*/ true, /*fallible*/ false,
     ),
-    Op::AttemptDecline => run_attempt(ir, &step.body, model, cov, rng, false, false),
-    Op::TryAttemptOk => run_attempt(ir, &step.body, model, cov, rng, true, true),
-    Op::TryAttemptErr => run_attempt(ir, &step.body, model, cov, rng, false, true),
+    Op::AttemptDecline => run_attempt(ir, &step.body, model, cov, rng, marks, false, false),
+    Op::TryAttemptOk => run_attempt(ir, &step.body, model, cov, rng, marks, true, true),
+    Op::TryAttemptErr => run_attempt(ir, &step.body, model, cov, rng, marks, false, true),
+
+    // ── the CST bracket ──
+    Op::Node => {
+      cov.mark(op);
+      let entry_marks = marks.len();
+      let (o0, _c0, _saved) = snapshot(ir, model);
+      let m = &mut *model;
+      let cv = &mut *cov;
+      let rg = &mut *rng;
+      let mk = &mut *marks;
+      let mut body = |ir2: &mut Ir<'_, '_>| -> Result<(), FuzzError> {
+        // The body's frame floor is the node bracket: marks minted inside must not be
+        // spendable outside (their wraps would cross the node's boundary).
+        run_seq(ir2, &step.body, m, cv, rg, mk, entry_marks);
+        Ok(())
+      };
+      node(K_NODE_KIND, &mut body)
+        .parse_input(ir)
+        .expect("the node body is infallible");
+      marks.truncate(entry_marks);
+      assert!(
+        *ir.cursor().as_inner() >= o0,
+        "node: the bracket itself must never move the cursor backwards"
+      );
+    }
 
     // ── transaction guards ──
     Op::TxnCommit => {
       cov.mark(op);
       let mut txn = ir.begin();
-      run_seq(&mut txn, &step.body, model, cov, rng);
+      run_seq(&mut txn, &step.body, model, cov, rng, marks, floor);
       txn.commit();
     }
     Op::TxnRollback => {
       cov.mark(op);
       let (o0, c0, saved) = snapshot(ir, model);
+      let entry_marks = marks.len();
       {
         let mut txn = ir.begin();
-        run_seq(&mut txn, &step.body, model, cov, rng);
+        run_seq(&mut txn, &step.body, model, cov, rng, marks, floor);
         txn.rollback();
       }
+      marks.truncate(entry_marks);
       restore_and_assert(ir, model, o0, c0, saved, "transaction.rollback");
     }
     Op::TxnDropRollback => {
       cov.mark(op);
       let (o0, c0, saved) = snapshot(ir, model);
+      let entry_marks = marks.len();
       {
         let mut txn = ir.begin(); // Rollback policy: drop rolls back
-        run_seq(&mut txn, &step.body, model, cov, rng);
+        run_seq(&mut txn, &step.body, model, cov, rng, marks, floor);
       }
+      marks.truncate(entry_marks);
       restore_and_assert(ir, model, o0, c0, saved, "transaction.drop(rollback)");
     }
     Op::TxnDropCommit => {
       cov.mark(op);
       let mut txn = ir.begin_with::<Commit>(); // drop keeps progress
-      run_seq(&mut txn, &step.body, model, cov, rng);
+      run_seq(&mut txn, &step.body, model, cov, rng, marks, floor);
       drop(txn);
     }
 
@@ -269,24 +333,30 @@ fn run_step(
       cov.mark(op);
       let mut txn = ir.begin_stacked();
       let mut sps = Vec::new();
-      run_stacked_seq(&mut txn, &step.body, model, cov, rng, &mut sps);
+      run_stacked_seq(
+        &mut txn, &step.body, model, cov, rng, &mut sps, marks, floor,
+      );
       txn.commit();
     }
     Op::StackedRollback => {
       cov.mark(op);
       let (o0, c0, saved) = snapshot(ir, model);
+      let entry_marks = marks.len();
       {
         let mut txn = ir.begin_stacked();
         let mut sps = Vec::new();
-        run_stacked_seq(&mut txn, &step.body, model, cov, rng, &mut sps);
+        run_stacked_seq(
+          &mut txn, &step.body, model, cov, rng, &mut sps, marks, floor,
+        );
         txn.rollback();
       }
+      marks.truncate(entry_marks);
       restore_and_assert(ir, model, o0, c0, saved, "stacked.rollback");
     }
     Op::StackedDropCommit => {
       cov.mark(op);
       let mut txn = ir.begin_stacked_with::<Commit>();
-      run_seq(&mut txn, &step.body, model, cov, rng);
+      run_seq(&mut txn, &step.body, model, cov, rng, marks, floor);
       drop(txn);
     }
 
@@ -330,12 +400,14 @@ fn restore_and_assert<'a>(
 
 /// Runs an `attempt` / `try_attempt` scope. `keep` chooses the succeed/decline path; `fallible`
 /// chooses `attempt` vs `try_attempt`.
+#[allow(clippy::too_many_arguments)]
 fn run_attempt(
   ir: &mut Ir<'_, '_>,
   body: &[Step],
   model: &mut Model<'_>,
   cov: &mut Coverage,
   rng: &mut Rng,
+  marks: &mut Vec<EventMark>,
   keep: bool,
   fallible: bool,
 ) {
@@ -352,21 +424,23 @@ fn run_attempt(
   });
 
   let (o0, c0, saved) = snapshot(ir, model);
+  let entry_marks = marks.len();
   // Reborrow the through-state into the closure so the originals stay usable afterwards.
   let m = &mut *model;
   let cv = &mut *cov;
   let rg = &mut *rng;
+  let mk = &mut *marks;
   let declined;
   if fallible {
     let r: Result<(), ()> = ir.try_attempt(move |ir2| {
-      run_seq(ir2, body, m, cv, rg);
+      run_seq(ir2, body, m, cv, rg, mk, entry_marks);
       if keep { Ok(()) } else { Err(()) }
     });
     declined = r.is_err();
     assert_eq!(r.is_ok(), keep, "try_attempt returned the wrong branch");
   } else {
     let r: Option<()> = ir.attempt(move |ir2| {
-      run_seq(ir2, body, m, cv, rg);
+      run_seq(ir2, body, m, cv, rg, mk, entry_marks);
       if keep { Some(()) } else { None }
     });
     declined = r.is_none();
@@ -374,6 +448,9 @@ fn run_attempt(
   }
 
   if declined {
+    // The rollback's truncation invalidates exactly the marks minted inside — the
+    // append-only mark stack mirrors the sink's era staleness by suffix-truncation.
+    marks.truncate(entry_marks);
     let o = *ir.cursor().as_inner();
     let c = ir.emitter().count();
     assert_eq!(
@@ -389,15 +466,17 @@ fn run_attempt(
   // On the kept path the body's committed progress stays in `model`.
 }
 
-/// A live savepoint: its id plus the cursor/emission it must restore to.
+/// A live savepoint: its id plus the cursor/emission/mark-stack facts it must restore to.
 struct Sp<'txn> {
   id: crate::SavepointId<'txn>,
   o: usize,
   count: u64,
+  marks: usize,
 }
 
 /// Runs a stacked-transaction body, handling the savepoint ops on the guard and every other op
 /// through the guard's deref (`&mut **txn`).
+#[allow(clippy::too_many_arguments)]
 fn run_stacked_seq<'txn, 'inp>(
   txn: &mut StackedTransaction<'txn, 'inp, '_, ScriptLexer<'inp>, FuzzCtx<'inp>, (), Rollback>,
   steps: &[Step],
@@ -405,6 +484,8 @@ fn run_stacked_seq<'txn, 'inp>(
   cov: &mut Coverage,
   rng: &mut Rng,
   sps: &mut Vec<Sp<'txn>>,
+  marks: &mut Vec<EventMark>,
+  floor: usize,
 ) {
   for step in steps {
     match step.op {
@@ -415,6 +496,7 @@ fn run_stacked_seq<'txn, 'inp>(
           id,
           o: *txn.cursor().as_inner(),
           count: txn.emitter().count(),
+          marks: marks.len(),
         });
       }
       Op::RollbackToSavepoint => {
@@ -425,9 +507,12 @@ fn run_stacked_seq<'txn, 'inp>(
         let i = rng.below(sps.len());
         let target_o = sps[i].o;
         let target_c = sps[i].count;
+        let target_marks = sps[i].marks;
         txn.rollback_to(sps[i].id);
-        // rollback_to destroys the younger savepoints and keeps the target valid.
+        // rollback_to destroys the younger savepoints and keeps the target valid; the
+        // marks minted after the savepoint die with its truncation.
         sps.truncate(i + 1);
+        marks.truncate(target_marks);
         let o = *txn.cursor().as_inner();
         let c = txn.emitter().count();
         assert_eq!(
@@ -455,7 +540,7 @@ fn run_stacked_seq<'txn, 'inp>(
           "release: kept progress but moved the cursor (release keeps position)"
         );
       }
-      _ => run_step(txn, step, model, cov, rng),
+      _ => run_step(txn, step, model, cov, rng, marks, floor),
     }
   }
 }
@@ -479,7 +564,14 @@ fn other_kind(k: FuzzKind) -> FuzzKind {
 }
 
 /// Executes one leaf operation and checks its oracle against the shadow model.
-fn run_leaf(ir: &mut Ir<'_, '_>, op: Op, model: &mut Model<'_>, cov: &mut Coverage) {
+fn run_leaf(
+  ir: &mut Ir<'_, '_>,
+  op: Op,
+  model: &mut Model<'_>,
+  cov: &mut Coverage,
+  marks: &mut Vec<EventMark>,
+  floor: usize,
+) {
   cov.mark(op);
   match op {
     Op::Next => {
@@ -699,6 +791,53 @@ fn run_leaf(ir: &mut Ir<'_, '_>, op: Op, model: &mut Model<'_>, cov: &mut Covera
         "a Complete input must report is_final == true"
       );
       assert_cursor(ir, model.o, "is_final moved the cursor");
+    }
+    Op::Mark => {
+      // Mint a retro-wrap anchor. Bounded so a mark-heavy script cannot grow the live
+      // stack without spends; the anchor observes nothing about the input.
+      if marks.len() < 8 {
+        marks.push(CstEmitter::<ScriptLexer<'_>>::cst_mark(ir.emitter()));
+      }
+      assert_cursor(ir, model.o, "cst_mark moved the committed cursor");
+    }
+    Op::StartAt => {
+      // Spend the newest frame-local live mark as a retro-wrap. Marks below the frame
+      // floor stay unspent: a wrap crossing a `node()` bracket's boundary is the
+      // ImproperWrap shape materialization refuses by design.
+      if marks.len() > floor {
+        let mark = marks.pop().expect("guarded by the length check");
+        let emitter = ir.emitter();
+        CstEmitter::<ScriptLexer<'_>>::cst_start_at(emitter, mark, K_WRAP_KIND);
+        CstEmitter::<ScriptLexer<'_>>::cst_finish(emitter);
+      }
+      assert_cursor(ir, model.o, "a retro-wrap moved the committed cursor");
+    }
+    Op::RollbackAcrossMark => {
+      // The truncated-tombstone shape: a declined attempt minted a mark inside, so the
+      // rollback truncates the tombstone out of the live timeline. The mark is dropped
+      // with the branch (never pushed to the live stack), exactly as the era ledger
+      // makes it unspendable on a recording sink.
+      let o0 = *ir.cursor().as_inner();
+      let c0 = ir.emitter().count();
+      let declined: Option<()> = ir.attempt(|ir2| {
+        let _stale_to_be = CstEmitter::<ScriptLexer<'_>>::cst_mark(ir2.emitter());
+        let _ = ir2.next();
+        None
+      });
+      assert!(
+        declined.is_none(),
+        "the rollback-across-mark attempt declines"
+      );
+      assert_cursor(
+        ir,
+        o0,
+        "rollback across a mark left a cursor trace (no-trace oracle)",
+      );
+      assert_eq!(
+        ir.emitter().count(),
+        c0,
+        "rollback across a mark left an emission trace (no-trace oracle)"
+      );
     }
     other => unreachable!("run_leaf received a non-leaf op: {}", other.label()),
   }
