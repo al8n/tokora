@@ -48,6 +48,10 @@ use crate::{
 
 use super::event::{Event, EventMark, TOMBSTONE, TruncationLedger};
 
+pub use finish::CstFinishError;
+
+mod finish;
+
 /// How the sink places trivia tokens at materialization.
 ///
 /// The default — and, in this version, only — policy is the provable one:
@@ -158,7 +162,7 @@ fn next_sink_witness() -> usize {
 /// emitter by shared reference only ([`inner_ref`](Self::inner_ref)); there is **no** `&mut`
 /// accessor, because a caller who could rewind the inner emitter directly would shear the
 /// event log from the diagnostic log with no witness. Materialization
-/// (`finish` / `finish_partial`, landing with materialization) consumes the sink
+/// ([`finish`](Self::finish) / [`finish_partial`](Self::finish_partial)) consumes the sink
 /// and returns the inner emitter with the tree.
 ///
 /// # Construction
@@ -322,7 +326,7 @@ where
   /// Deliberately no `&mut` counterpart: a caller who could drive the inner emitter's
   /// `rewind` directly would shear the event log from the diagnostic log with no witness.
   /// The mutable path to the inner emitter is the sink's own trait surface; ownership
-  /// comes back from `finish` / `finish_partial` (the materialization half).
+  /// comes back from [`finish`](Self::finish) / [`finish_partial`](Self::finish_partial).
   #[inline(always)]
   pub const fn inner_ref(&self) -> &E {
     &self.inner
@@ -1004,6 +1008,14 @@ where
       Some(Event::StartNode { forward_parent, .. }) => *forward_parent,
       _ => None,
     }
+  }
+
+  /// Test-only raw event injection: the corruption shapes the emission-time debug asserts
+  /// refuse (an orphan finish, a reserved kind, a stale wrap target) must still be
+  /// constructible in debug builds, because the materialization walls they test are the
+  /// **release** line of defense.
+  pub(crate) fn push_raw_event_for_tests(&mut self, event: Event<L::Span>) {
+    self.events.push(event);
   }
 }
 

@@ -804,3 +804,447 @@ fn sink_satisfies_the_full_emitter_family() {
   composable(&sink);
   composable(&&mut sink);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Materialization — finish() as the typed-error wall, gap tiling as the law
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// A raw-u16 language: kinds pass through untouched, so tests assert on the dialect
+/// constants directly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum RawLang {}
+
+impl rowan::Language for RawLang {
+  type Kind = u16;
+
+  fn kind_from_raw(raw: rowan::SyntaxKind) -> u16 {
+    raw.0
+  }
+
+  fn kind_to_raw(kind: u16) -> rowan::SyntaxKind {
+    rowan::SyntaxKind(kind)
+  }
+}
+
+const K_ROOT: u16 = 1;
+
+fn tree(green: rowan::GreenNode) -> rowan::SyntaxNode<RawLang> {
+  rowan::SyntaxNode::<RawLang>::new_root(green)
+}
+
+fn text(green: rowan::GreenNode) -> std::string::String {
+  tree(green).text().to_string()
+}
+
+use crate::cst::CstFinishError;
+
+#[test]
+fn finish_builds_the_straight_tree() {
+  let mut sink = verbose_sink();
+  sink.cst_start(K_NODE);
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  sink.cst_finish();
+  let (green, _emitter) = sink.finish(K_ROOT, "a");
+  let green = green.expect("a balanced stream materializes");
+  let root = tree(green.clone());
+  assert_eq!(root.kind(), K_ROOT);
+  let node = root.first_child().expect("Root[Node]");
+  assert_eq!(node.kind(), K_NODE);
+  assert_eq!(text(green), "a");
+}
+
+/// THE round-trip law, structural: an input with a lexer error (its bytes covered by no
+/// committed token, since a skipped error settles nothing) still satisfies
+/// `tree.text() == source` — the uncovered bytes tile as `gap_kind` tokens.
+#[test]
+fn round_trip_with_a_lexer_error_is_structural() {
+  let mut sink = verbose_sink();
+  // Source "a!c": the `!` is a lexer error — a diagnostic, never a token event.
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  Emitter::<MiniLexer<'_>>::emit_lexer_error(&mut sink, Spanned::new(span(1, 2), MiniErr))
+    .expect("verbose collects");
+  sink.cst_token(&MiniTok(b'c'), &span(2, 3));
+  let (green, emitter) = sink.finish(K_ROOT, "a!c");
+  let green = green.expect("gap tiling makes the error-bearing input materialize");
+  assert_eq!(
+    text(green.clone()),
+    "a!c",
+    "losslessness is structural, not lexer luck"
+  );
+
+  // The gap is a real token of the configured kind, and the diagnostic survived.
+  let root = tree(green);
+  let kinds: std::vec::Vec<u16> = root.children_with_tokens().map(|el| el.kind()).collect();
+  assert_eq!(kinds, std::vec![K_TOK, K_GAP, K_TOK]);
+  assert_eq!(emitter.errors().len(), 1);
+}
+
+/// Leading and trailing uncovered bytes tile too (an undrained tail, a poisoned
+/// truncation, a skipped prefix).
+#[test]
+fn leading_and_trailing_gaps_tile() {
+  let mut sink = verbose_sink();
+  sink.cst_token(&MiniTok(b'b'), &span(1, 2));
+  let (green, _emitter) = sink.finish(K_ROOT, "abc");
+  assert_eq!(text(green.expect("tiles")), "abc");
+}
+
+/// An empty buffer over a nonempty source is one big gap; over an empty source it is a
+/// bare root.
+#[test]
+fn empty_buffer_finishes() {
+  let (green, _emitter) = verbose_sink().finish(K_ROOT, "xy");
+  assert_eq!(text(green.expect("one gap tile")), "xy");
+  let (green, _emitter) = verbose_sink().finish(K_ROOT, "");
+  assert_eq!(text(green.expect("bare root")), "");
+}
+
+/// F-A6/F-A1 at the wall: an orphan finish is a typed error — rowan's silent absorption
+/// of one level of imbalance under the root wrapper is unreachable, because the sink's
+/// own stack refuses before the builder sees the pop.
+#[test]
+fn orphan_finish_is_a_typed_error_not_an_absorbed_close() {
+  let mut sink = verbose_sink();
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  // The release-build shape (debug builds refuse this at emission): a finish whose start
+  // was rolled back away.
+  sink.push_raw_event_for_tests(Event::FinishNode);
+  let (green, _emitter) = sink.finish(K_ROOT, "a");
+  assert_eq!(
+    green.expect_err("the imbalance must be refused, never absorbed"),
+    CstFinishError::OrphanFinish { index: 1 }
+  );
+}
+
+/// A fatal abort leaves open nodes: `finish` refuses with the open count;
+/// `finish_partial` closes them (the explicit apollo-style opt-in) and the round-trip
+/// law still holds on the partial tree.
+#[test]
+fn unclosed_nodes_refuse_finish_but_finish_partial_closes() {
+  let mut sink = verbose_sink();
+  sink.cst_start(K_NODE);
+  sink.cst_start(K_LIST);
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  let (green, _emitter) = sink.finish(K_ROOT, "a");
+  assert_eq!(
+    green.expect_err("open nodes refuse the total finish"),
+    CstFinishError::UnclosedNodes { open: 2 }
+  );
+
+  let mut sink = verbose_sink();
+  sink.cst_start(K_NODE);
+  sink.cst_start(K_LIST);
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  let (green, _emitter) = sink.finish_partial(K_ROOT, "a");
+  let green = green.expect("the partial opt-in closes the open nodes");
+  assert_eq!(text(green.clone()), "a");
+  let root = tree(green);
+  let node = root.first_child().expect("Root[Node[..]]");
+  assert_eq!(node.kind(), K_NODE);
+  assert_eq!(node.first_child().expect("Node[List[..]]").kind(), K_LIST);
+}
+
+/// F-A7's release backstop: a reserved (tombstone-band) kind on a token event is refused
+/// at materialization — rowan would otherwise defer it to a query-time panic arbitrarily
+/// far from the parse.
+#[test]
+fn reserved_kind_is_refused_at_finish() {
+  let mut sink = verbose_sink();
+  sink.push_raw_event_for_tests(Event::Token {
+    kind: TOMBSTONE,
+    span: span(0, 1),
+  });
+  let (green, _emitter) = sink.finish(K_ROOT, "a");
+  assert_eq!(
+    green.expect_err("the reserved band never reaches rowan"),
+    CstFinishError::ReservedKind { index: 0 }
+  );
+
+  let (green, _emitter) = verbose_sink().finish(TOMBSTONE, "");
+  assert_eq!(
+    green.expect_err("the root kind is validated too"),
+    CstFinishError::ReservedRootKind
+  );
+}
+
+/// F-A7 at cause: the emission-time debug assert catches a mapper that leaks the
+/// reserved band, at the commit that used it.
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(expected = "reserved tombstone kind")]
+fn tombstone_mapper_debug_asserts_at_emission() {
+  fn bad_map(_: &MiniTok) -> u16 {
+    TOMBSTONE
+  }
+  let mut sink: VerboseSink<'_> = CstSink::new(Verbose::new(), bad_map, K_ERR, K_GAP);
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+}
+
+/// Overlapping and non-monotone token spans are refused — the no-duplication half of the
+/// round-trip law (a double emission cannot silently duplicate text).
+#[test]
+fn overlapping_spans_are_refused() {
+  let mut sink = verbose_sink();
+  sink.cst_token(&MiniTok(b'a'), &span(0, 2));
+  sink.cst_token(&MiniTok(b'b'), &span(1, 3));
+  let (green, _emitter) = sink.finish(K_ROOT, "abc");
+  assert_eq!(
+    green.expect_err("overlap is a hard error"),
+    CstFinishError::OverlappingSpans { index: 1 }
+  );
+}
+
+/// Offsets beyond u32 are refused whole — rowan text sizes are u32 and nothing truncates
+/// silently.
+#[test]
+fn offset_overflow_is_refused() {
+  let mut sink = verbose_sink();
+  sink.cst_token(&MiniTok(b'a'), &span(0, u32::MAX as usize + 10));
+  let (green, _emitter) = sink.finish(K_ROOT, "a");
+  assert_eq!(
+    green.expect_err("no silent truncation"),
+    CstFinishError::OffsetOverflow { index: 0 }
+  );
+}
+
+/// A span the source cannot slice (beyond its end) is refused: the events and the source
+/// disagree and no tree should pretend otherwise.
+#[test]
+fn span_out_of_bounds_is_refused() {
+  let mut sink = verbose_sink();
+  sink.cst_token(&MiniTok(b'a'), &span(0, 5));
+  let (green, _emitter) = sink.finish(K_ROOT, "ab");
+  assert_eq!(
+    green.expect_err("events and source must agree"),
+    CstFinishError::SpanOutOfBounds { index: 0 }
+  );
+}
+
+/// A StartAt whose target is not a live tombstone is refused (the release backstop
+/// behind the panic-at-spend validation).
+#[test]
+fn stale_start_at_target_is_refused_at_finish() {
+  let mut sink = verbose_sink();
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  sink.push_raw_event_for_tests(Event::StartAt {
+    kind: K_WRAP,
+    target: 0,
+  });
+  sink.push_raw_event_for_tests(Event::FinishNode);
+  let (green, _emitter) = sink.finish(K_ROOT, "a");
+  assert_eq!(
+    green.expect_err("a wrap must target a tombstone"),
+    CstFinishError::StaleStartAt {
+      index: 1,
+      target: 0
+    }
+  );
+}
+
+/// The journal-integrity canary: a forward_parent pointer with no matching StartAt is
+/// the un-journaled abandoned wrap (the F-A2/F-A3 corruption shape) — surfaced as a
+/// typed error, never a stolen start.
+#[test]
+fn dangling_forward_parent_is_refused_at_finish() {
+  let mut sink = verbose_sink();
+  sink.push_raw_event_for_tests(Event::StartNode {
+    kind: TOMBSTONE,
+    forward_parent: NonZeroU32::new(2),
+  });
+  sink.push_raw_event_for_tests(Event::Token {
+    kind: K_TOK,
+    span: span(0, 1),
+  });
+  let (green, _emitter) = sink.finish(K_ROOT, "a");
+  assert_eq!(
+    green.expect_err("a dangling wrap pointer is corruption, not a tree"),
+    CstFinishError::DanglingForwardParent { index: 0 }
+  );
+}
+
+/// A wrap that crosses a node boundary (mark taken inside a node, completed after the
+/// node closed) is refused — the hoisted open would otherwise steal the enclosing
+/// node's finish.
+#[test]
+fn improper_wrap_across_a_node_boundary_is_refused() {
+  let mut sink = verbose_sink();
+  sink.cst_start(K_NODE);
+  let mark = sink.cst_mark();
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  sink.cst_finish(); // closes K_NODE — the mark is now interior to a closed node
+  sink.cst_start_at(mark, K_WRAP);
+  sink.cst_finish();
+  let (green, _emitter) = sink.finish(K_ROOT, "a");
+  assert_eq!(
+    green.expect_err("a wrap cannot cross a node boundary"),
+    CstFinishError::ImproperWrap {
+      start_at: 4,
+      finish: 3
+    }
+  );
+}
+
+/// L1c pinned: the pratt double-wrap — same-target StartAts open in reverse buffer
+/// order, so `1+2+3` replays as Bin(Bin(1,+,2),+,3).
+#[test]
+fn pratt_double_wrap_replays_inside_out() {
+  let mut sink = verbose_sink();
+  let mark = sink.cst_mark();
+  sink.cst_token(&MiniTok(b'1'), &span(0, 1));
+  sink.cst_token(&MiniTok(b'+'), &span(1, 2));
+  sink.cst_token(&MiniTok(b'2'), &span(2, 3));
+  sink.cst_start_at(mark, K_WRAP); // fold 1: Bin[1,+,2]
+  sink.cst_finish();
+  sink.cst_token(&MiniTok(b'+'), &span(3, 4));
+  sink.cst_token(&MiniTok(b'3'), &span(4, 5));
+  sink.cst_start_at(mark, K_WRAP); // fold 2: the OUTER Bin
+  sink.cst_finish();
+
+  let (green, _emitter) = sink.finish(K_ROOT, "1+2+3");
+  let green = green.expect("the double wrap is balanced");
+  assert_eq!(text(green.clone()), "1+2+3");
+  let root = tree(green);
+  let outer = root.first_child().expect("Root[Bin]");
+  assert_eq!(outer.kind(), K_WRAP);
+  assert_eq!(outer.text().to_string(), "1+2+3");
+  let inner = outer.first_child().expect("Bin[Bin[..],+,3]");
+  assert_eq!(inner.kind(), K_WRAP);
+  assert_eq!(inner.text().to_string(), "1+2");
+}
+
+/// The Marker typestate over a real sink: complete wraps the marked region; precede
+/// wraps the completed node from the same tombstone (the alias shape, then the outer
+/// layer).
+#[test]
+fn marker_complete_and_precede_build_nested_wraps() {
+  use crate::cst::event::Marker;
+
+  let mut sink = verbose_sink();
+  let marker = Marker::new(sink.cst_mark());
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  sink.cst_token(&MiniTok(b':'), &span(1, 2));
+  let completed = marker.complete(&mut sink, K_WRAP); // Alias[a, :]
+  let outer = completed.precede();
+  sink.cst_token(&MiniTok(b'b'), &span(2, 3));
+  let _outer = outer.complete(&mut sink, K_NODE); // Field[Alias[a,:], b]
+
+  let (green, _emitter) = sink.finish(K_ROOT, "a:b");
+  let green = green.expect("nested wraps balance");
+  assert_eq!(text(green.clone()), "a:b");
+  let root = tree(green);
+  let field = root.first_child().expect("Root[Field]");
+  assert_eq!(field.kind(), K_NODE);
+  let alias = field.first_child().expect("Field[Alias[..], b]");
+  assert_eq!(alias.kind(), K_WRAP);
+  assert_eq!(alias.text().to_string(), "a:");
+}
+
+/// F-A3 at the tree: the declined wrap leaves no trace — the retry's tree is exactly the
+/// straight tree, gap-tiled over the byte the abandoned branch had consumed.
+#[test]
+fn declined_wrap_leaves_the_retry_tree_pristine() {
+  let mut sink = verbose_sink();
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  let mark = sink.cst_mark();
+  sink.cst_token(&MiniTok(b'b'), &span(1, 2));
+  let ckp = Emitter::<MiniLexer<'_>>::checkpoint(&sink);
+  sink.cst_start_at(mark, K_WRAP);
+  sink.cst_token(&MiniTok(b'c'), &span(2, 3));
+  sink.cst_finish();
+  rewind(&mut sink, ckp);
+
+  // The retry consumes a different shape.
+  sink.cst_start(K_LIST);
+  sink.cst_token(&MiniTok(b'd'), &span(2, 3));
+  sink.cst_finish();
+
+  let (green, _emitter) = sink.finish(K_ROOT, "abd");
+  let green = green.expect("the retry timeline is clean");
+  assert_eq!(text(green.clone()), "abd");
+  let root = tree(green);
+  let kinds: std::vec::Vec<u16> = root.children_with_tokens().map(|el| el.kind()).collect();
+  assert_eq!(
+    kinds,
+    std::vec![K_TOK, K_TOK, K_LIST],
+    "no wrap node survives the decline (F-A3's steal is unrepresentable)"
+  );
+}
+
+/// Backtrack equivalence, seed form: a straight drive and a decline-then-retry drive of
+/// the same final timeline materialize byte-identical green trees.
+#[test]
+fn backtrack_equivalence_yields_identical_green_trees() {
+  let drive = |sink: &mut VerboseSink<'_>| {
+    sink.cst_start(K_NODE);
+    sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+    sink.cst_token(&MiniTok(b'b'), &span(1, 2));
+    sink.cst_finish();
+  };
+
+  let mut straight = verbose_sink();
+  drive(&mut straight);
+  let (straight_green, _emitter) = straight.finish(K_ROOT, "ab");
+
+  let mut backtracked = verbose_sink();
+  let ckp = Emitter::<MiniLexer<'_>>::checkpoint(&backtracked);
+  backtracked.cst_start(K_LIST);
+  backtracked.cst_token(&MiniTok(b'a'), &span(0, 1));
+  rewind(&mut backtracked, ckp);
+  drive(&mut backtracked);
+  let (backtracked_green, _emitter) = backtracked.finish(K_ROOT, "ab");
+
+  assert_eq!(
+    straight_green.expect("straight"),
+    backtracked_green.expect("backtracked"),
+    "same final timeline, byte-identical green tree"
+  );
+}
+
+/// Diag slots and unwrapped tombstones are invisible to the tree, and the inner emitter
+/// comes back with its diagnostics intact.
+#[test]
+fn diag_slots_and_inert_tombstones_are_invisible() {
+  let mut sink = verbose_sink();
+  let _unspent = sink.cst_mark();
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  emit_error(&mut sink, 0, 7);
+  let (green, emitter) = sink.finish(K_ROOT, "a");
+  let green = green.expect("marks and diag slots are structural silence");
+  assert_eq!(text(green.clone()), "a");
+  let root = tree(green);
+  assert_eq!(
+    root.children_with_tokens().count(),
+    1,
+    "one token, nothing else"
+  );
+  assert_eq!(
+    emitter.errors().len(),
+    1,
+    "the diagnostics survive materialization"
+  );
+}
+
+/// The hole wrap materializes as one error node holding the REAL skipped tokens.
+#[test]
+fn hole_wrap_materializes_as_an_error_node_with_real_tokens() {
+  let mut sink = verbose_sink();
+  sink.cst_token(&MiniTok(b'{'), &span(0, 1));
+  // The scan settles two garbage tokens, then the hole is reported.
+  sink.cst_token(&MiniTok(b'x'), &span(1, 2));
+  sink.cst_token(&MiniTok(b'y'), &span(2, 3));
+  Emitter::<MiniLexer<'_>>::emit_skipped_region(&mut sink, span(1, 3), 2).expect("collects");
+  sink.cst_token(&MiniTok(b'}'), &span(3, 4));
+
+  let (green, _emitter) = sink.finish(K_ROOT, "{xy}");
+  let green = green.expect("the hole wrap balances");
+  assert_eq!(text(green.clone()), "{xy}");
+  let root = tree(green);
+  let error_node = root.first_child().expect("Root[.., Error[..], ..]");
+  assert_eq!(error_node.kind(), K_ERR);
+  assert_eq!(error_node.text().to_string(), "xy");
+  assert_eq!(
+    error_node.children_with_tokens().count(),
+    2,
+    "the REAL skipped tokens are the error node's children"
+  );
+}

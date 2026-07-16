@@ -64,7 +64,7 @@ mod sink;
 
 #[cfg(feature = "rowan")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
-pub use sink::{CstSink, TriviaPolicy};
+pub use sink::{CstFinishError, CstSink, TriviaPolicy};
 
 /// A builder for constructing concrete syntax trees.
 ///
