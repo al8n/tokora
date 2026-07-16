@@ -133,12 +133,31 @@ struct DiagSlot {
 /// two sinks' `(index, era)` pairs coincide trivially (two fresh sinks both mint `(0, 0)`),
 /// so a build without the identity check would let a foreign mark wrap an unrelated
 /// history. A monotone counter rather than an address: sinks move, and a dead sink's
-/// address can be reused, but a counter id is never reissued for the process's life.
+/// address can be reused, but a counter id is never reissued for the process's life —
+/// **never** reissued: exhaustion aborts (see [`bump_witness`]), it does not wrap.
 /// (`rowan` implies `std`, and the atomic is as available as the `Arc`s rowan itself uses.)
 fn next_sink_witness() -> usize {
-  use core::sync::atomic::{AtomicUsize, Ordering};
+  use core::sync::atomic::AtomicUsize;
   static NEXT: AtomicUsize = AtomicUsize::new(1);
-  NEXT.fetch_add(1, Ordering::Relaxed)
+  bump_witness(&NEXT)
+}
+
+/// Allocates the next id from `next` **without ever wrapping**: a `fetch_update` that panics
+/// rather than roll `usize::MAX` over to `0`. A wrap would be doubly wrong — `0` is the
+/// inert-mark id (a foreign inert mark would then validate), and every id after it reissues a
+/// live one (a stale mark from an earlier sink would validate on a later one). So the counter
+/// is never reissued in *any* build: the horizon is `usize::MAX` (2^64 on 64-bit targets,
+/// where all mainstream `rowan`/`std` builds run) and its exhaustion is a loud abort, not a
+/// silent reuse — the wrong-tree class the witness exists to kill.
+fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
+  use core::sync::atomic::Ordering;
+  next
+    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+    .expect(
+      "CstSink witness counter exhausted: usize::MAX sinks were minted in one process. The \
+       witness is never reissued (a wrap to 0 is the inert-mark id and would let a foreign \
+       mark validate), so exhaustion aborts instead of rolling over.",
+    )
 }
 
 /// The recording CST emitter: wraps an inner emitter `E`, forwards every diagnostic to it,

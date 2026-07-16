@@ -332,6 +332,19 @@ fn foreign_sink_mark_panics() {
   b.cst_start_at(mark_a, K_WRAP);
 }
 
+/// The witness counter can never wrap and reissue: a wrap of `usize::MAX` back to `0` is
+/// the inert-mark id, and reissuing prior ids lets a foreign mark validate on an unrelated
+/// sink — the exact wrong-tree class the witness exists to kill. The primitive is tested at
+/// its boundary directly (set to `MAX`, the next allocation aborts rather than roll over);
+/// constructing 2^{32,64} sinks is not feasible, so the counter itself is the unit here.
+#[test]
+#[should_panic(expected = "witness counter exhausted")]
+fn witness_counter_aborts_before_wrapping() {
+  use core::sync::atomic::AtomicUsize;
+  let counter = AtomicUsize::new(usize::MAX);
+  let _ = super::bump_witness(&counter);
+}
+
 /// The legal counterpart: rewinds strictly above a mark leave it spendable forever (the
 /// pratt shape — an entry mark surviving per-iteration rollbacks).
 #[test]
