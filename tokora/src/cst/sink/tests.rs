@@ -316,12 +316,10 @@ fn inert_mark_spend_panics() {
 }
 
 /// A mark minted by one sink must not validate on another, even when the foreign sink has
-/// a live tombstone at the same index and era (debug witness).
-#[cfg(all(
-  debug_assertions,
-  any(feature = "std", feature = "alloc"),
-  target_has_atomic = "ptr"
-))]
+/// a live tombstone at the same index and era — the exact `(index: 0, era: 0)` collision
+/// two fresh sinks mint. The witness runs in **every build**: this is the release-mode
+/// regression (`cargo test --release`) for the cross-sink spend that the positional and
+/// era checks alone would silently accept, wrapping an unrelated history.
 #[test]
 #[should_panic(expected = "different sink")]
 fn foreign_sink_mark_panics() {

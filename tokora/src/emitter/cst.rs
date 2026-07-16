@@ -88,7 +88,8 @@ pub trait CstEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   /// nothing: an unwrapped tombstone materializes into nothing.
   ///
   /// The default returns an **inert** mark (no event channel to anchor into); spending an
-  /// inert mark on a recording sink panics as stale, deterministically. Prefer wrapping
+  /// inert mark on a recording sink panics deterministically, at the sink-identity wall
+  /// that rejects every foreign mark in every build. Prefer wrapping
   /// the result in a [`Marker`](crate::cst::event::Marker) for the single-use
   /// open/completed/abandoned discipline.
   #[inline(always)]

@@ -17,7 +17,7 @@
 //! | — | [`CstSink::floor`] | derived memo (the newest released row) | reset to the surviving top row when a rewind drops below it |
 //! | — | [`CstSink::base_inner`] | derived memo (the inner's reading at first use) | captured once, never restored |
 //! | — | `inner`, `mapper`, `error_kind`, `gap_kind`, `trivia` | configuration / the wrapped emitter | never touched by rewind (the inner rewinds through its own contract) |
-//! | — | `witness` | debug witness (sink identity) | never restored |
+//! | — | `witness` | sink identity (validated at every mark spend, every build) | never restored |
 //!
 //! Open-node **depth is derived, never cached**: there is no live depth counter anywhere —
 //! [`checkpoint`](Emitter::checkpoint) snapshots a frozen per-row depth, and every query
@@ -128,11 +128,13 @@ struct DiagSlot {
 }
 
 /// Mints a process-unique sink witness id (1-based; 0 is the inert mark's reserved id).
-#[cfg(all(
-  debug_assertions,
-  any(feature = "std", feature = "alloc"),
-  target_has_atomic = "ptr"
-))]
+///
+/// Unconditional on purpose: the witness is the **every-build** half of mark validation —
+/// two sinks' `(index, era)` pairs coincide trivially (two fresh sinks both mint `(0, 0)`),
+/// so a build without the identity check would let a foreign mark wrap an unrelated
+/// history. A monotone counter rather than an address: sinks move, and a dead sink's
+/// address can be reused, but a counter id is never reissued for the process's life.
+/// (`rowan` implies `std`, and the atomic is as available as the `Arc`s rowan itself uses.)
 fn next_sink_witness() -> usize {
   use core::sync::atomic::{AtomicUsize, Ordering};
   static NEXT: AtomicUsize = AtomicUsize::new(1);
@@ -206,12 +208,8 @@ where
   gap_kind: u16,
   /// The materialization-time trivia placement policy.
   trivia: TriviaPolicy,
-  /// The sink's debug identity, stamped into every mark it mints.
-  #[cfg(all(
-    debug_assertions,
-    any(feature = "std", feature = "alloc"),
-    target_has_atomic = "ptr"
-  ))]
+  /// The sink's identity, stamped into every mark it mints and validated at every spend —
+  /// in **every** build (see `next_sink_witness`).
   witness: usize,
   _lexer: PhantomData<&'inp L>,
 }
@@ -265,13 +263,8 @@ where
     error_kind: _,
     gap_kind: _,
     trivia: _,
-    // — witness: sink identity, never restored.
-    #[cfg(all(
-      debug_assertions,
-      any(feature = "std", feature = "alloc"),
-      target_has_atomic = "ptr"
-    ))]
-      witness: _,
+    // — witness: sink identity (every build), never restored.
+    witness: _,
     _lexer: _,
   } = sink;
 }
@@ -303,11 +296,6 @@ where
       error_kind,
       gap_kind,
       trivia: TriviaPolicy::AsEmitted,
-      #[cfg(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      ))]
       witness: next_sink_witness(),
       _lexer: PhantomData,
     }
@@ -370,24 +358,20 @@ where
 
   /// Validates a mark before a spend — the panic-in-every-build wall.
   ///
-  /// A mark is live iff its index is in bounds, the slot still holds a tombstone, no
-  /// truncation younger than the mark's era reached its index, and (debug) it was minted
-  /// by this sink. Anything else is a parser bug: the branch that conceived the wrap was
-  /// rolled back, and silently wrapping whatever regrew at that index is the wrong-tree
-  /// class nothing downstream can detect.
+  /// A mark is live iff it was minted **by this sink**, its index is in bounds, the slot
+  /// still holds a tombstone, and no truncation younger than the mark's era reached its
+  /// index. Every check runs in every build — the identity check first, because the
+  /// positional and era halves are only meaningful against the issuing sink's own history
+  /// (two fresh sinks both mint `(index: 0, era: 0)`, so a foreign mark can look perfectly
+  /// live). Anything else is a parser bug: the branch that conceived the wrap was rolled
+  /// back (or belonged to another parse entirely), and silently wrapping whatever sits at
+  /// that index is the wrong-tree class nothing downstream can detect.
   fn validate_mark(&self, mark: &EventMark) {
-    #[cfg(all(
-      debug_assertions,
-      any(feature = "std", feature = "alloc"),
-      target_has_atomic = "ptr"
-    ))]
-    {
-      assert!(
-        mark.sink() == self.witness,
-        "EventMark was minted by a different sink (or by a no-event emitter's defaulted \
-         cst_mark): marks are only spendable on the sink that issued them"
-      );
-    }
+    assert!(
+      mark.sink() == self.witness,
+      "EventMark was minted by a different sink (or by a no-event emitter's defaulted \
+       cst_mark): marks are only spendable on the sink that issued them"
+    );
     let index = mark.index();
     let in_bounds = (index as usize) < self.events.len();
     let is_tombstone = in_bounds && self.events[index as usize].is_tombstone();
@@ -772,16 +756,7 @@ where
       kind: TOMBSTONE,
       forward_parent: None,
     });
-    EventMark::new(
-      index,
-      self.ledger.era(),
-      #[cfg(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      ))]
-      self.witness,
-    )
+    EventMark::new(index, self.ledger.era(), self.witness)
   }
 
   fn cst_start_at(&mut self, mark: EventMark, kind: u16)

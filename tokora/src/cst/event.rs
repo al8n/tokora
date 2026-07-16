@@ -36,10 +36,12 @@
 //! Truncate-and-regrow is the normal backtracking rhythm, so "the index is in bounds" says
 //! nothing about whether the event at that index is still the one a mark was issued for. An
 //! [`EventMark`] therefore pairs its buffer index with the **era** of the truncation history
-//! at issue time; the recording sink keeps a monotone era source and a truncation ledger
-//! (`TruncationLedger`) that restore never rewinds, and validates every spend. A stale mark
-//! **panics in every build** — the savepoint posture: staleness is a parser bug, not an
-//! input-dependent condition, and the silent alternative is a wrong tree with no witness.
+//! at issue time — and with the **identity** of the issuing sink, because eras are per-sink
+//! histories and two sinks' `(index, era)` pairs coincide trivially. The recording sink keeps
+//! a monotone era source and a truncation ledger (`TruncationLedger`) that restore never
+//! rewinds, and validates every spend. A stale or foreign mark **panics in every build** —
+//! the savepoint posture: both are parser bugs, not input-dependent conditions, and the
+//! silent alternative is a wrong tree with no witness.
 
 #[cfg(feature = "rowan")]
 use core::num::NonZeroU32;
@@ -166,10 +168,12 @@ impl<S> Event<S> {
 /// [`cst_start_at`](crate::emitter::CstEmitter::cst_start_at) retro-wraps from.
 ///
 /// A mark is a **positional witness plus identity**: `index` names the tombstone's buffer
-/// slot, `era` names the truncation history it was issued under. Index-in-bounds is *not*
-/// validity — a rewind can truncate the tombstone away and unrelated events can regrow over
-/// the same index — so the recording sink checks both halves at every spend and **panics in
-/// every build** on staleness (the savepoint posture; see the [module docs](self)).
+/// slot, `era` names the truncation history it was issued under, and `sink` names the one
+/// recording sink that minted it. Index-in-bounds is *not* validity — a rewind can truncate
+/// the tombstone away and unrelated events can regrow over the same index — and `(index,
+/// era)` is *not* identity — two fresh sinks both mint `(0, 0)` — so the recording sink
+/// checks all three at every spend and **panics in every build** on a stale *or foreign*
+/// mark (the savepoint posture; see the [module docs](self)).
 ///
 /// Marks are freely `Copy` and may legitimately outlive combinator frames (a pratt driver
 /// holds one across arbitrarily many operator iterations, spending it once per fold). A
@@ -179,73 +183,48 @@ impl<S> Event<S> {
 ///
 /// Emitters without an event channel (the diagnostics-only implementations that opt into
 /// [`CstEmitter`] via the defaulted no-ops) return an **inert**
-/// mark; spending an inert mark on a recording sink panics as stale, deterministically.
+/// mark; spending an inert mark on a recording sink panics deterministically (its reserved
+/// witness id names no sink).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EventMark {
   /// The buffer index of the tombstone this mark names.
   index: u64,
   /// The truncation era the mark was issued under (see `TruncationLedger`).
   era: u64,
-  /// The identity of the recording sink that issued this mark (debug-only witness): two
-  /// sinks' `(index, era)` pairs can coincide, so spending a mark on a foreign sink would
-  /// otherwise validate by accident. Same gate as the input-identity witness.
-  #[cfg(all(
-    debug_assertions,
-    any(feature = "std", feature = "alloc"),
-    target_has_atomic = "ptr"
-  ))]
+  /// The identity of the recording sink that issued this mark, validated at every spend
+  /// **in every build**: two sinks' `(index, era)` pairs coincide trivially — two fresh
+  /// sinks both mint `(0, 0)` — so without the witness a foreign mark whose slot happens
+  /// to hold a live tombstone would validate and wrap an unrelated history. That is the
+  /// wrong-tree class the always-panic contract exists to kill, so the witness is carried
+  /// unconditionally (the `SavepointId` nonce posture, not the debug-only input witness).
   sink: usize,
 }
 
 impl EventMark {
   /// The reserved witness id of an [`inert`](Self::inert) mark (no recording sink).
-  #[cfg(all(
-    debug_assertions,
-    any(feature = "std", feature = "alloc"),
-    target_has_atomic = "ptr"
-  ))]
+  /// Recording sinks mint their witnesses from `1`, so an inert mark can never pass a
+  /// sink's identity check.
   pub(crate) const INERT_SINK: usize = 0;
 
   /// Creates a mark naming the tombstone at `index`, issued under `era` by the sink
   /// witnessed as `sink`. Crate-private: only a recording sink mints live marks.
   #[cfg(feature = "rowan")]
   #[inline(always)]
-  pub(crate) const fn new(
-    index: u64,
-    era: u64,
-    #[cfg(all(
-      debug_assertions,
-      any(feature = "std", feature = "alloc"),
-      target_has_atomic = "ptr"
-    ))]
-    sink: usize,
-  ) -> Self {
-    Self {
-      index,
-      era,
-      #[cfg(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      ))]
-      sink,
-    }
+  pub(crate) const fn new(index: u64, era: u64, sink: usize) -> Self {
+    Self { index, era, sink }
   }
 
   /// The inert mark returned by the defaulted
   /// [`cst_mark`](crate::emitter::CstEmitter::cst_mark) of an emitter with no event
-  /// channel. Its index is `u64::MAX`, which no buffer reaches, so a recording sink that
-  /// is handed one panics as stale rather than wrapping anything.
+  /// channel. Its witness is the reserved [`INERT_SINK`](Self::INERT_SINK) id (which no
+  /// recording sink ever carries) and its index is `u64::MAX` (which no buffer reaches),
+  /// so a recording sink that is handed one panics at the identity wall rather than
+  /// wrapping anything.
   #[inline(always)]
   pub(crate) const fn inert() -> Self {
     Self {
       index: u64::MAX,
       era: u64::MAX,
-      #[cfg(all(
-        debug_assertions,
-        any(feature = "std", feature = "alloc"),
-        target_has_atomic = "ptr"
-      ))]
       sink: Self::INERT_SINK,
     }
   }
@@ -262,13 +241,8 @@ impl EventMark {
     self.era
   }
 
-  /// The issuing sink's debug witness id.
-  #[cfg(all(
-    feature = "rowan",
-    debug_assertions,
-    any(feature = "std", feature = "alloc"),
-    target_has_atomic = "ptr"
-  ))]
+  /// The issuing sink's witness id (validated at every spend, in every build).
+  #[cfg(feature = "rowan")]
   #[inline(always)]
   pub(crate) const fn sink(&self) -> usize {
     self.sink
