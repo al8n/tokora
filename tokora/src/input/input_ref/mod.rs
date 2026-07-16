@@ -50,9 +50,11 @@ pub use transaction::Transaction;
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub use stacked::{SavepointId, StackedTransaction};
 
-/// SETTLE_CENSUS / RELEASE_CENSUS — pure source-census tests (`include_str!` only), so
-/// they run in every feature configuration.
-#[cfg(test)]
+/// SETTLE_CENSUS / RELEASE_CENSUS — source-census tests over `include_str!` snapshots.
+/// The census greps the same source bytes in every configuration, so one allocator-enabled
+/// run locks it for all of them; the string-building the checks use needs `format!`, which
+/// the allocator-less build lacks.
+#[cfg(all(test, any(feature = "std", feature = "alloc")))]
 mod census_tests;
 
 #[cfg(all(test, feature = "logos", feature = "std"))]
