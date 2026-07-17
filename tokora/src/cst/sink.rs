@@ -153,8 +153,8 @@ fn next_sink_witness() -> usize {
   bump_witness(&NEXT)
 }
 
-/// Allocates the next id from `next` **without ever wrapping**: a `fetch_update` that panics
-/// rather than roll `usize::MAX` over to `0`. A wrap would be doubly wrong — `0` is the
+/// Allocates the next id from `next` **without ever wrapping**: a compare-exchange loop that
+/// panics rather than roll `usize::MAX` over to `0`. A wrap would be doubly wrong — `0` is the
 /// inert-mark id (a foreign inert mark would then validate), and every id after it reissues a
 /// live one (a stale mark from an earlier sink would validate on a later one). So the counter
 /// is never reissued in *any* build: the horizon is `usize::MAX` (2^64 on 64-bit targets,
@@ -162,13 +162,18 @@ fn next_sink_witness() -> usize {
 /// silent reuse — the wrong-tree class the witness exists to kill.
 fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
   use core::sync::atomic::Ordering;
-  next
-    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
-    .expect(
+  let mut current = next.load(Ordering::Relaxed);
+  loop {
+    let bumped = current.checked_add(1).expect(
       "Sink witness counter exhausted: usize::MAX sinks were minted in one process. The \
        witness is never reissued (a wrap to 0 is the inert-mark id and would let a foreign \
        mark validate), so exhaustion aborts instead of rolling over.",
-    )
+    );
+    match next.compare_exchange_weak(current, bumped, Ordering::Relaxed, Ordering::Relaxed) {
+      Ok(_) => return current,
+      Err(actual) => current = actual,
+    }
+  }
 }
 
 /// The recording CST emitter: wraps an inner emitter `E`, forwards every diagnostic to it,
