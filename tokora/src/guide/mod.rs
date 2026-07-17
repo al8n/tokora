@@ -103,3 +103,7 @@ pub mod ref_vocabulary_macros_features {
 pub mod ref_pratt {
   #![doc = include_str!("ref_pratt.md")]
 }
+
+pub mod ref_types_syntax {
+  #![doc = include_str!("ref_types_syntax.md")]
+}
