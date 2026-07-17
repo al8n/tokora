@@ -19,8 +19,10 @@
 
 # Part III — Design & Architecture
 
+- [Source, Slice & storage backends](arch_source_slice.md)
+
 <!-- Forthcoming: the parse-while-lexing engine, checkpoint & rewind, the atomic
-     emitter design, the event-stream CST engine, and source & storage backends. -->
+     emitter design, and the event-stream CST engine. -->
 
 # Part IV — Recipes & Applied Parsers
 

@@ -50,6 +50,10 @@ pub mod ch10_testing {
   #![doc = include_str!("ch10_testing.md")]
 }
 
+pub mod arch_source_slice {
+  #![doc = include_str!("arch_source_slice.md")]
+}
+
 pub mod ch11_real_parser {
   #![doc = include_str!("ch11_real_parser.md")]
 }
