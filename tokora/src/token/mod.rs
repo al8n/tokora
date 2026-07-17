@@ -163,6 +163,27 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   /// The error type of this token.
   type Error: Clone + core::fmt::Debug;
 
+  /// Whether the lexer grammar this vocabulary belongs to **surfaces trivia as real
+  /// tokens** — the totality half of the trivia concept ([`is_trivia`](Token::is_trivia)
+  /// is the per-token identity half.)
+  ///
+  /// `true` is a **contract declaration**, not a checked fact: it promises that the lexer
+  /// never silently discards source bytes — every byte of the input is covered by either
+  /// an emitted token (trivia included) or a reported lexer error. A grammar with a
+  /// lexer-level skip rule (e.g. logos `skip r"[ \t\r\n]+"`) must keep the default
+  /// `false`.
+  ///
+  /// The lossless (`gap_kind`) [`Sink`](crate::cst::Sink) refuses **at compile
+  /// time** to be constructed over a lexer that does not declare this (see
+  /// [`Lexer::SURFACES_TRIVIA`](crate::Lexer::SURFACES_TRIVIA), which defaults to this
+  /// value): a skipped-trivia gap is indistinguishable at the event level from a
+  /// dropped committed token, so materialization over a skipping lexer could never
+  /// distinguish lost tokens from lost whitespace. Declaring `true` while skipping is a
+  /// contract violation with the misused-checkpoint posture: no UB, no panic from this
+  /// crate — materialization surfaces it as
+  /// [`UncoveredGap`](crate::cst::FinishError::UncoveredGap).
+  const SURFACES_TRIVIA: bool = false;
+
   /// Returns the kind (category) of this token.
   ///
   /// This method is used extensively by parsers to determine what kind of token
@@ -242,6 +263,8 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
 impl<'a, T: Token<'a>> Token<'a> for &'a T {
   type Kind = T::Kind;
   type Error = T::Error;
+
+  const SURFACES_TRIVIA: bool = T::SURFACES_TRIVIA;
 
   #[inline(always)]
   fn kind(&self) -> Self::Kind {

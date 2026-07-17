@@ -188,8 +188,13 @@ pub use fold::*;
 pub use ident_list::*;
 pub use ignore::*;
 pub use labelled::*;
+#[cfg(any(feature = "alloc", feature = "std"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "alloc", feature = "std"))))]
+pub use list::*;
 pub use many::*;
 pub use map::*;
+pub use node::*;
+pub use opt::*;
 pub use padded::*;
 pub use peek::*;
 pub use pratt::*;
@@ -216,8 +221,12 @@ mod ident_list;
 mod ignore;
 mod keyword;
 mod labelled;
+#[cfg(any(feature = "alloc", feature = "std"))]
+mod list;
 mod many;
 mod map;
+mod node;
+mod opt;
 mod padded;
 mod peek;
 mod pratt;

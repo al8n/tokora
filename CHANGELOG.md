@@ -1,3 +1,95 @@
+# Unreleased (0.2.0)
+
+## Added
+
+- **Event-stream CST (feature `rowan`).** A rewindable, lossless concrete-syntax-tree channel
+  that rides the parser's own backtracking: the tree is a flat log of events on the emitter's
+  rewindable buffer, so a parser rollback truncates the log and rewinds the half-built tree for
+  free — no separate tree-side undo.
+  - **`CstEmitter`** — the tree-structuring capability subtrait of `Emitter` (`cst_start`,
+    `cst_finish`, `cst_token`, `cst_mark`, `cst_start_at`), defaulted to no-ops on the
+    diagnostics emitters. One parser assembly therefore builds a tree or runs tree-less by
+    emitter choice alone; driving a `node`-bearing parser with an emitter that does not forward
+    `CstEmitter` is a compile error, never a silently empty tree.
+  - **`Sink`** — the rewindable recording sink: wraps an inner emitter, records every
+    committed token into a lossless green tree through a dialect `fn(&Token) -> u16` kind mapper,
+    and forwards diagnostics to the inner emitter. `finish(root_kind, source)` materializes the
+    tree and gap-tiles untokenized bytes (lexer-skipped trivia, covered lexer-error spans) so
+    `tree.text() == source` structurally for every input; an unexplained gap is a typed
+    `FinishError`, never a wrong tree. Adds `TriviaPolicy` / `with_trivia_policy`,
+    `finish_partial`, and the `FinishError` enum.
+  - **`node` / `node_at` / `node_opt`** — the CST bracketing combinators: a sub-parse's
+    committed tokens, trivia, and nested nodes become the children of one syntax node. The
+    bracket is append-only, so a decline or an error-path unwind leaves no node and no dangling
+    open node — speculation and recovery cannot corrupt the tree. Gated on
+    `Ctx::Emitter: CstEmitter`; AST-level Pratt gains an additive `with_cst_kinds` classifier so
+    operator expressions nest into the tree.
+  - **Event vocabulary and branded marks** — `EventMark`, a backtracking-safe handle carrying
+    buffer index, truncation era, and issuing-sink identity (a stale or foreign spend panics in
+    every build); the single-use `Marker` / `CompletedMarker` typestate; and the reserved
+    `TOMBSTONE` kind.
+
+- **`Token::SURFACES_TRIVIA` and `Lexer::SURFACES_TRIVIA`** — new defaulted associated
+  `const bool` (default `false`). Declares whether a lexer *surfaces trivia as real tokens*
+  (every source byte reaches the sink as a token or a reported lexer error) instead of
+  skipping it at the lexer level. `Lexer::SURFACES_TRIVIA` defaults to the token
+  vocabulary's `Token::SURFACES_TRIVIA`, so a `LogosLexer`-backed dialect declares it once
+  on its `Token` impl. Every existing `Token`/`Lexer` impl keeps compiling unchanged — the
+  default preserves prior behavior.
+
+- **Dialect-author atoms** (`tokora::parser`). `separated1` — one-or-more `item`s separated by
+  a punctuator, permitting an optional leading separator, collected into a `Vec`; `list_of` —
+  zero-or-more elements up to an `Until` stopper that is left in place for the caller;
+  `peek_kind` — reports the next token's kind without consuming it, the dispatch primitive for
+  sum-type composites; and `opt` — adapts a declining `try_`-parser to yield `Option`, honoring
+  the decline-consumes-nothing contract.
+
+- **Capability bundles.** `ComposableEmitter` — one bound standing in for the full emitter
+  capability ladder — and `ParseCtx`, the parse-context bundle implemented for every
+  `ParseContext` whose emitter is a `ComposableEmitter` and whose source slice is `Clone`, so an
+  atom needs only `Ctx: ParseCtx<'inp, L>` to unlock the ladder. Adds the `ErrorOf` context
+  alias.
+
+- **`Emitter::release`** — the dual of `rewind`: settles a *kept* checkpoint (a commit) so an
+  emitter can reclaim per-checkpoint bookkeeping instead of stranding one dead row per committed
+  guard. Advisory and observably pure; the stateless and value-keyed emitters (`Fatal`,
+  `Silent`, `Ignored`, `Verbose`) inherit the no-op default.
+
+- **smol-bytes source support** (feature `smol_bytes_0_1`, alias `smol_bytes`, std-gated).
+  `Source` and `Slice` implementations for the `smol-bytes` crate's `shared::Bytes`,
+  `compact::Bytes`, and `Utf8Bytes` buffers.
+
+- **`SliceOf<'inp, L>`** — a type alias naming a lexer's source-slice path once, so bounds and
+  return types carrying the slice stay legible.
+
+## Changed
+
+- **Lossless (`gap_kind`) `Sink` construction is now compile-time restricted to
+  trivia-surfacing lexers** (`rowan` feature). `Sink::new` carries an inline-`const`
+  guard requiring `Lexer::SURFACES_TRIVIA == true`. Pairing a syntactic (trivia-skipping)
+  lexer with a lossless sink is now a compile error (a post-monomorphization `error[E0080]`
+  at build/test/doc time) instead of a runtime `FinishError::UncoveredGap` on the first
+  skipped-whitespace gap. The guard does not fire under `cargo check`.
+
+- **Every committed token now settles through one input-layer primitive.** The input layer
+  funnels each token — consumed, or skipped behind a scan frontier — through a single settle
+  point and the new defaulted `Emitter::commit_token` hook, exactly once per token; peeks,
+  declines, and unconsumed stoppers never settle. This is the auto-emission chokepoint the
+  recording `Sink` overrides to record tokens, which is what makes every consuming atom
+  tree-producing with no per-atom code. Diagnostics emitters keep the no-op default, so their
+  observable behavior is unchanged.
+
+## Migration
+
+- A lexer paired with a lossless `Sink` must declare `const SURFACES_TRIVIA: bool = true;`
+  on its `Token` impl (or override it on the `Lexer` impl). Forgetting it is a loud build
+  error naming the exact const. Syntactic lexers that never construct a lossless sink are
+  unaffected — the default `false` is honest for them.
+
+---
+
+_Entries below predate the `tokora` crate and use the pre-rename version line._
+
 # 0.3.0 (Nov 3rd, 2025)
 
 ## Breaking Changes

@@ -68,7 +68,7 @@ where
     // return the empty peek.
     match self.skip_until::<SyncTo, _, _>(&mut pred, &mut exp, ())? {
       Scanned::Found(_) => self.peek_with_emitter::<W>(),
-      Scanned::Exhausted => Ok((GenericArrayDeque::new(), self.emitter)),
+      Scanned::Exhausted => Ok((GenericArrayDeque::new(), self.session.emitter)),
     }
   }
 }

@@ -45,7 +45,7 @@ impl Language for TLang {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct PlusToken;
 
-impl CstElement<TLang> for PlusToken {
+impl Element<TLang> for PlusToken {
   const KIND: TK = TK::Plus;
   fn castable(kind: TK) -> bool {
     kind == TK::Plus
@@ -68,21 +68,21 @@ fn make_ident_token() -> SyntaxToken<TLang> {
 #[test]
 fn new_and_found() {
   let tok = make_ident_token();
-  let err = CstTokenMismatch::<PlusToken, TLang>::new(tok.clone());
+  let err = TokenMismatch::<PlusToken, TLang>::new(tok.clone());
   assert_eq!(err.found().kind(), TK::Ident);
 }
 
 #[test]
 fn expected_kind() {
   let tok = make_ident_token();
-  let err = CstTokenMismatch::<PlusToken, TLang>::new(tok);
+  let err = TokenMismatch::<PlusToken, TLang>::new(tok);
   assert_eq!(err.expected(), TK::Plus);
 }
 
 #[test]
 fn into_components_returns_kind_and_token() {
   let tok = make_ident_token();
-  let err = CstTokenMismatch::<PlusToken, TLang>::new(tok.clone());
+  let err = TokenMismatch::<PlusToken, TLang>::new(tok.clone());
   let (kind, found) = err.into_components();
   assert_eq!(kind, TK::Plus);
   assert_eq!(found.kind(), TK::Ident);
@@ -91,7 +91,7 @@ fn into_components_returns_kind_and_token() {
 #[test]
 fn display_impl() {
   let tok = make_ident_token();
-  let err = CstTokenMismatch::<PlusToken, TLang>::new(tok);
+  let err = TokenMismatch::<PlusToken, TLang>::new(tok);
   let msg = std::format!("{}", err);
   assert!(msg.contains("Plus"));
   assert!(msg.contains("Ident"));
@@ -100,7 +100,7 @@ fn display_impl() {
 #[test]
 fn debug_clone_eq() {
   let tok = make_ident_token();
-  let err = CstTokenMismatch::<PlusToken, TLang>::new(tok);
+  let err = TokenMismatch::<PlusToken, TLang>::new(tok);
   let err2 = err.clone();
   assert_eq!(err, err2);
   let _ = std::format!("{:?}", err);
@@ -109,6 +109,6 @@ fn debug_clone_eq() {
 #[test]
 fn error_impl() {
   let tok = make_ident_token();
-  let err = CstTokenMismatch::<PlusToken, TLang>::new(tok);
+  let err = TokenMismatch::<PlusToken, TLang>::new(tok);
   let _: &dyn core::error::Error = &err;
 }

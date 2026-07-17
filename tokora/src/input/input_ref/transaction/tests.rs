@@ -772,7 +772,7 @@ fn txn_commit_keeps_state_surgery() {
 fn txn_rollback_after_state_surgery_restores_poison_and_diagnostic() {
   // The poison-focused twin of the divergence test. Trip the limiter (latching the boundary
   // and emitting the limit diagnostic exactly once), begin a transaction, do state surgery
-  // (the re-key drops the boundary — R14 forward semantics), then EXPLICITLY roll back. The
+  // (the re-key drops the boundary — forward semantics), then EXPLICITLY roll back. The
   // rollback undoes the surgery: the original poison boundary returns paired with its single
   // retained diagnostic — no duplicate, no diagnostic-less latch. At HEAD the explicit
   // rollback debug-panicked (the surgery cleared the lineage).
@@ -850,12 +850,12 @@ fn txn_rollback_after_state_surgery_restores_poison_and_diagnostic() {
   expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
 )]
 fn txn_raw_restore_below_base_panics_at_the_restore() {
-  // Codex's exact scenario, converted from `txn_drop_after_raw_restore_below_base_does_not_
+  // The exact scenario converted from `txn_drop_after_raw_restore_below_base_does_not_
   // resurrect`. save A, begin (rollback policy), consume, then raw-restore to A through the
   // guard. A predates the guard's begin point, so restoring it would invalidate the guard's
   // pinned base — the pin check panics AT THE RESTORE. At HEAD the restore instead succeeded
   // and, with further parsing before the drop, the rolling-back drop silently committed the
-  // abandoned work (the report captures that left-1/right-0 diagnostic evidence).
+  // abandoned work.
   let mut input = silent_input("1 2 3 4 5");
   let mut emitter = Silent::<NumErr>::new();
   let mut inp = input.as_ref(&mut emitter);

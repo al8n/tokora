@@ -41,7 +41,7 @@ impl Language for TLang {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct IdentNode;
 
-impl CstElement<TLang> for IdentNode {
+impl Element<TLang> for IdentNode {
   const KIND: TK = TK::Ident;
   fn castable(kind: TK) -> bool {
     kind == TK::Ident
@@ -59,21 +59,21 @@ fn make_root_node() -> SyntaxNode<TLang> {
 #[test]
 fn new_and_found() {
   let node = make_root_node();
-  let err = CstNodeMismatch::<IdentNode, TLang>::new(node.clone());
+  let err = NodeMismatch::<IdentNode, TLang>::new(node.clone());
   assert_eq!(err.found().kind(), TK::Root);
 }
 
 #[test]
 fn expected_kind() {
   let node = make_root_node();
-  let err = CstNodeMismatch::<IdentNode, TLang>::new(node);
+  let err = NodeMismatch::<IdentNode, TLang>::new(node);
   assert_eq!(err.expected(), TK::Ident);
 }
 
 #[test]
 fn into_components_returns_kind_and_node() {
   let node = make_root_node();
-  let err = CstNodeMismatch::<IdentNode, TLang>::new(node.clone());
+  let err = NodeMismatch::<IdentNode, TLang>::new(node.clone());
   let (kind, found) = err.into_components();
   assert_eq!(kind, TK::Ident);
   assert_eq!(found.kind(), TK::Root);
@@ -82,7 +82,7 @@ fn into_components_returns_kind_and_node() {
 #[test]
 fn display_impl() {
   let node = make_root_node();
-  let err = CstNodeMismatch::<IdentNode, TLang>::new(node);
+  let err = NodeMismatch::<IdentNode, TLang>::new(node);
   let msg = std::format!("{}", err);
   assert!(msg.contains("Ident"));
   assert!(msg.contains("Root"));
@@ -91,7 +91,7 @@ fn display_impl() {
 #[test]
 fn debug_clone_eq() {
   let node = make_root_node();
-  let err = CstNodeMismatch::<IdentNode, TLang>::new(node);
+  let err = NodeMismatch::<IdentNode, TLang>::new(node);
   let err2 = err.clone();
   assert_eq!(err, err2);
   let _ = std::format!("{:?}", err);
@@ -100,6 +100,6 @@ fn debug_clone_eq() {
 #[test]
 fn error_impl() {
   let node = make_root_node();
-  let err = CstNodeMismatch::<IdentNode, TLang>::new(node);
+  let err = NodeMismatch::<IdentNode, TLang>::new(node);
   let _: &dyn core::error::Error = &err;
 }

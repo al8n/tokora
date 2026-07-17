@@ -66,7 +66,7 @@ where
     let snapshot = ThroughEntry::new(
       self.span.clone(),
       self.state.clone(),
-      self.emitter.checkpoint(),
+      self.session.emitter.checkpoint(),
       self.emitted_error_end.clone(),
     );
 
@@ -155,7 +155,7 @@ where
     let snapshot = ThroughEntry::new(
       self.span.clone(),
       self.state.clone(),
-      self.emitter.checkpoint(),
+      self.session.emitter.checkpoint(),
       self.emitted_error_end.clone(),
     );
 
@@ -167,7 +167,7 @@ where
       }
       // The exhausted outcomes — a poison trip committed at the durable frontier, or a
       // no-match run to end of input rewound to `snapshot` — yield no match and an empty peek.
-      Scanned::Exhausted => Ok((None, GenericArrayDeque::new(), self.emitter)),
+      Scanned::Exhausted => Ok((None, GenericArrayDeque::new(), self.session.emitter)),
     }
   }
 }

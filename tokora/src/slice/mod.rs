@@ -12,6 +12,10 @@ mod bstr_1;
 #[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
 mod hipstr_0_8;
 
+#[cfg(feature = "smol_bytes_0_1")]
+#[cfg_attr(docsrs, doc(cfg(feature = "smol_bytes_0_1")))]
+mod smol_bytes_0_1;
+
 /// The slice type returned by lexers' sources.
 pub trait Slice<'source>: PartialEq + Eq + core::fmt::Debug {
   /// The character type used by the lexer.

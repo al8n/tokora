@@ -228,7 +228,7 @@ where
     let snapshot = ThroughEntry::new(
       self.span.clone(),
       self.state.clone(),
-      self.emitter.checkpoint(),
+      self.session.emitter.checkpoint(),
       self.emitted_error_end.clone(),
     );
 

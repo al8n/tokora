@@ -373,11 +373,12 @@ where
   pub fn release(&mut self, sp: SavepointId<'txn>) {
     let idx = self.slot(sp);
     // Forget from the youngest down to `sp` inclusive, so each removed id is the
-    // live-stack top when it is forgotten (the `O(1)` fast path). Progress is kept: no
-    // checkpoint is restored.
+    // live-stack top when it is forgotten (the `O(1)` fast path) and each emitter mark is
+    // released newest-first (the kept-checkpoint funnel pairs the two). Progress is kept:
+    // no checkpoint is restored.
     while self.saves.len() > idx {
       let (_, ckp) = self.saves.pop().expect("len > idx implies a value to pop");
-      self.input.forget_checkpoint(ckp.ckp_id);
+      self.input.forget_kept_checkpoint(ckp);
     }
   }
 
@@ -425,16 +426,17 @@ where
   #[inline]
   pub fn commit(mut self) {
     trace_event!(self.input, "commit");
-    // Forget youngest-first (each is the live-stack top when popped), then the base last
-    // (it is the deepest, so it is the top once the savepoints are gone). Taking `base`
-    // leaves the `Drop` guard nothing to restore.
+    // Forget youngest-first (each is the live-stack top when popped, and each emitter mark
+    // is released newest-first through the kept-checkpoint funnel), then the base last (it
+    // is the deepest, so it is the top once the savepoints are gone). Taking `base` leaves
+    // the `Drop` guard nothing to restore.
     while let Some((_, ckp)) = self.saves.pop() {
-      self.input.forget_checkpoint(ckp.ckp_id);
+      self.input.forget_kept_checkpoint(ckp);
     }
     if let Some(base) = self.base.take() {
       // Only the base was pinned (savepoints keep their detect-at-use rule): unpin it too.
       self.input.unpin_checkpoint(base.ckp_id);
-      self.input.forget_checkpoint(base.ckp_id);
+      self.input.forget_kept_checkpoint(base);
     }
   }
 
@@ -533,14 +535,16 @@ where
       }
     } else {
       // Commit-on-drop: progress kept; forget every savepoint id (youngest first, each the
-      // live-stack top when popped) then unpin and forget the base, so nothing lingers on the
-      // live/pin stacks.
+      // live-stack top when popped, its emitter mark released through the kept-checkpoint
+      // funnel) then unpin and settle the base the same way, so nothing lingers on the
+      // live/pin stacks or in mark-keyed emitter bookkeeping. The funnel is assert-free, so
+      // this arm stays silent even mid-unwind.
       while let Some((_, ckp)) = self.saves.pop() {
-        self.input.forget_checkpoint(ckp.ckp_id);
+        self.input.forget_kept_checkpoint(ckp);
       }
       if let Some(base) = self.base.take() {
         self.input.unpin_checkpoint(base.ckp_id);
-        self.input.forget_checkpoint(base.ckp_id);
+        self.input.forget_kept_checkpoint(base);
       }
     }
   }

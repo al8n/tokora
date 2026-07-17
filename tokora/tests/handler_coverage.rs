@@ -2125,11 +2125,22 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, La
 /// delegation actually reaches the inner emitter.
 struct TrackingEmitter {
   calls: usize,
+  /// Counted separately from `calls`: `release` fires on every commit/forget path of the
+  /// input layer, so folding it into the shared counter would shift every existing tally.
+  releases: usize,
+  /// Counted separately from `calls`: CST events are a channel, not emissions — a
+  /// forwarding gap here drops the tree while diagnostics flow, so the tally must not be
+  /// maskable by diagnostic traffic.
+  cst_events: usize,
 }
 
 impl TrackingEmitter {
   fn new() -> Self {
-    Self { calls: 0 }
+    Self {
+      calls: 0,
+      releases: 0,
+      cst_events: 0,
+    }
   }
 }
 
@@ -2177,6 +2188,10 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for TrackingEmitter {
     TestLexer<'inp>: Lexer<'inp>,
   {
     self.calls += 1;
+  }
+
+  fn release(&mut self, _: u64) {
+    self.releases += 1;
   }
 }
 
@@ -2376,6 +2391,22 @@ fn emitter_mut_ref_emit_error() {
   let spanned = Spanned::new(SimpleSpan::new(0usize, 1usize), Err::Any);
   <&mut TrackingEmitter as Emitter<'_, TestLexer<'_>>>::emit_error(&mut r, spanned).unwrap();
   assert_eq!(emitter.calls, 1);
+}
+
+#[test]
+fn emitter_mut_ref_release() {
+  // The W3 forwarding-gap class: a defaulted trait method the `&mut U` blanket impl fails to
+  // forward resolves to the *default no-op* on `&mut E`, silently dropping the capability while
+  // everything else flows. Drive `release` through the blanket impl and assert it reaches the
+  // inner emitter's override.
+  let mut emitter = TrackingEmitter::new();
+  let mut r: &mut TrackingEmitter = &mut emitter;
+  <&mut TrackingEmitter as Emitter<'_, TestLexer<'_>>>::release(&mut r, 0);
+  assert_eq!(emitter.releases, 1);
+  assert_eq!(
+    emitter.calls, 0,
+    "release must not masquerade as an emission"
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2764,4 +2795,116 @@ fn delimiter_handler_ignored_via_parser() {
     .apply(delim_into_ignored)
     .parse_str("[1,2,3]");
   assert!(r.is_ok());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// emitter/cst.rs — &mut U delegation for CstEmitter (the W3 forwarding-gap class)
+// A defaulted CST method the `&mut U` blanket impl failed to forward would resolve
+// to the *default no-op* on `&mut E` — the exact configuration parse_partial
+// round-threading uses — silently dropping the whole tree while diagnostics flow.
+// Drive every method through the blanket impl and assert it reaches the inner
+// emitter's override, without touching the diagnostic tally.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+use tokora::{cst::event::EventMark, emitter::CstEmitter};
+
+impl<'inp> CstEmitter<'inp, TestLexer<'inp>> for TrackingEmitter {
+  fn cst_start(&mut self, _: u16) {
+    self.cst_events += 1;
+  }
+
+  fn cst_token(
+    &mut self,
+    _: &<TestLexer<'inp> as Lexer<'inp>>::Token,
+    _: &<TestLexer<'inp> as Lexer<'inp>>::Span,
+  ) {
+    self.cst_events += 1;
+  }
+
+  fn cst_finish(&mut self) {
+    self.cst_events += 1;
+  }
+
+  fn cst_mark(&mut self) -> EventMark {
+    self.cst_events += 1;
+    // No public EventMark constructor exists (only a recording sink mints live marks), so
+    // the tracking override hands back the defaulted inert mark of a diagnostics-only
+    // emitter; the forwarding proof is the counter, not the value.
+    <Fatal<E> as CstEmitter<'inp, TestLexer<'inp>>>::cst_mark(&mut Fatal::new())
+  }
+
+  fn cst_start_at(&mut self, _: EventMark, _: u16) {
+    self.cst_events += 1;
+  }
+}
+
+#[test]
+fn cst_emitter_mut_ref_start() {
+  let mut emitter = TrackingEmitter::new();
+  let mut r: &mut TrackingEmitter = &mut emitter;
+  <&mut TrackingEmitter as CstEmitter<'_, TestLexer<'_>>>::cst_start(&mut r, 1);
+  assert_eq!(emitter.cst_events, 1);
+  assert_eq!(
+    emitter.calls, 0,
+    "an event must not masquerade as an emission"
+  );
+}
+
+#[test]
+fn cst_emitter_mut_ref_token() {
+  let mut emitter = TrackingEmitter::new();
+  let mut r: &mut TrackingEmitter = &mut emitter;
+  let tok = Token::Num(7);
+  let span = SimpleSpan::new(0usize, 1usize);
+  <&mut TrackingEmitter as CstEmitter<'_, TestLexer<'_>>>::cst_token(&mut r, &tok, &span);
+  assert_eq!(emitter.cst_events, 1);
+  assert_eq!(emitter.calls, 0);
+}
+
+#[test]
+fn cst_emitter_mut_ref_finish() {
+  let mut emitter = TrackingEmitter::new();
+  let mut r: &mut TrackingEmitter = &mut emitter;
+  <&mut TrackingEmitter as CstEmitter<'_, TestLexer<'_>>>::cst_finish(&mut r);
+  assert_eq!(emitter.cst_events, 1);
+  assert_eq!(emitter.calls, 0);
+}
+
+#[test]
+fn cst_emitter_mut_ref_mark_and_start_at() {
+  let mut emitter = TrackingEmitter::new();
+  let mut r: &mut TrackingEmitter = &mut emitter;
+  let m = <&mut TrackingEmitter as CstEmitter<'_, TestLexer<'_>>>::cst_mark(&mut r);
+  <&mut TrackingEmitter as CstEmitter<'_, TestLexer<'_>>>::cst_start_at(&mut r, m, 3);
+  assert_eq!(emitter.cst_events, 2);
+  assert_eq!(emitter.calls, 0);
+}
+
+/// The diagnostics-only bundles opt into the event channel via the defaulted no-ops, so a
+/// parse path bounding `Ctx::Emitter: CstEmitter` accepts them unchanged (tree-less
+/// configuration) — while a wrapper emitter gets no blanket opt-in and must implement the
+/// trait deliberately. The `&mut` forms hold through the blanket impl.
+#[test]
+fn cst_emitter_bound_accepts_diagnostics_only_bundles() {
+  fn requires_cst_emitter<'inp, T>(_: &T)
+  where
+    T: CstEmitter<'inp, TestLexer<'inp>>,
+  {
+  }
+
+  let mut fatal = Fatal::<E>::new();
+  let mut silent = Silent::<E>::new();
+  let mut verbose = tokora::emitter::Verbose::<E>::new();
+  let ignored = Ignored::<()>::default();
+  requires_cst_emitter(&fatal);
+  requires_cst_emitter(&silent);
+  requires_cst_emitter(&verbose);
+  requires_cst_emitter(&ignored);
+  requires_cst_emitter(&&mut fatal);
+  requires_cst_emitter(&&mut silent);
+  requires_cst_emitter(&&mut verbose);
+
+  // The inert mark a defaulted cst_mark returns can never name a live slot.
+  let m = <Fatal<E> as CstEmitter<'_, TestLexer<'_>>>::cst_mark(&mut fatal);
+  assert_eq!(m.index(), u64::MAX);
 }

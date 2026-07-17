@@ -58,6 +58,8 @@
 use std::vec::Vec;
 
 mod consume;
+#[cfg(feature = "rowan")]
+mod cst;
 mod fixtures;
 mod ops;
 mod partial;
@@ -123,8 +125,9 @@ impl Case {
 pub fn run_case(case: Case) -> Coverage {
   let mut rng = Rng::new(case.seed);
   let mut cov = Coverage::new();
-  match rng.below(5) {
-    // Weighted toward the consume tree, which owns most of the alphabet.
+  match rng.below(6) {
+    // Weighted toward the consume tree, which owns most of the alphabet (including the
+    // sinkless halves of the CST ops, over the defaulted no-op event channel).
     0..=2 => {
       let src = gen_stream(&mut rng, /*allow_errors*/ false);
       let script = consume::gen_seq(&mut rng, 0);
@@ -134,9 +137,24 @@ pub fn run_case(case: Case) -> Coverage {
       let src = gen_stream(&mut rng, false);
       session::run(&src, case.seed, &mut cov);
     }
-    _ => {
+    4 => {
       let src = gen_stream(&mut rng, /*allow_errors*/ true);
       partial::run(&src, case.seed, &mut cov);
+    }
+    // The CST recording twin (`rowan`): the event-channel ops over a real sink with the
+    // backtrack-equivalence + exactly-once oracles. Without `rowan` the case falls back
+    // to another consume tree, so seed determinism holds per build configuration.
+    _ => {
+      let src = gen_stream(&mut rng, /*allow_errors*/ false);
+      #[cfg(feature = "rowan")]
+      {
+        cst::run(&src, case.seed, &mut cov);
+      }
+      #[cfg(not(feature = "rowan"))]
+      {
+        let script = consume::gen_seq(&mut rng, 0);
+        consume::run(&src, &script, &mut cov, case.seed ^ 0x0C57_FA11);
+      }
     }
   }
   cov

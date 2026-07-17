@@ -430,6 +430,20 @@ where
 /// perturb the depth counter and mis-place a recovery sync point. See
 /// [`sync_balanced`](crate::InputRef::sync_balanced) for the counter this leans on.
 ///
+/// ## Trivia surfacing
+///
+/// A lexer either **surfaces** every trivia byte as a real token or **skips** it at the
+/// lexer level. [`SURFACES_TRIVIA`](Self::SURFACES_TRIVIA) declares which — defaulting to
+/// the token vocabulary's own [`Token::SURFACES_TRIVIA`], the totality half of the trivia
+/// concept whose per-token identity half is [`Token::is_trivia`]. Declaring `true` promises
+/// *totality*: every source byte is covered by either an emitted token (trivia included) or
+/// a reported lexer error, none silently discarded. The lossless (`gap_kind`)
+/// [`Sink`](crate::cst::Sink) requires it at **compile time**; declaring it while a
+/// lexer-level `skip` rule discards bytes anyway is the unspecified-but-bounded violation
+/// class below — surfaced by materialization as
+/// [`UncoveredGap`](crate::cst::FinishError::UncoveredGap), never UB or a panic from this
+/// crate.
+///
 /// ## Violation posture
 ///
 /// A lexer that breaks a clause above is **not** undefined behavior and **not**
@@ -454,6 +468,17 @@ pub trait Lexer<'inp>: 'inp {
   type Span: fmt::Debug + Span<Offset = Self::Offset> + Ord + Clone + Hash;
   /// The offset type of the source.
   type Offset: Default + fmt::Debug + Ord + Clone + Hash;
+
+  /// Whether this lexer **surfaces trivia as real tokens** instead of silently skipping
+  /// the bytes. Defaults to the token vocabulary's own declaration
+  /// ([`Token::SURFACES_TRIVIA`]), which is where a [`LogosLexer`]-backed dialect
+  /// declares it (the logos adapter is one blanket impl for every token type, so the
+  /// per-dialect site is the `Token` impl). A hand-written lexer whose skipping behavior
+  /// differs from its vocabulary's declaration overrides it here.
+  ///
+  /// See [`Token::SURFACES_TRIVIA`] for the contract this declares and the compile-time
+  /// wall (`Sink::new`) that consumes it.
+  const SURFACES_TRIVIA: bool = <Self::Token as Token<'inp>>::SURFACES_TRIVIA;
 
   /// Lexes the input source and returns a tokenizer.
   fn new(src: &'inp Self::Source) -> Self;
@@ -508,6 +533,30 @@ pub trait Lexer<'inp>: 'inp {
   /// or in the middle of an UTF-8 code point (does not apply when lexing raw `&[u8]`).
   fn bump(&mut self, n: &Self::Offset);
 }
+
+/// The slice type lexer `L` yields from its source.
+///
+/// Generic parser code reaches for this projection constantly — the payload of an
+/// identifier, the raw text of a literal — and spelling it out means chaining two
+/// associated types through [`Source`]. `SliceOf` names that path once, so a bound
+/// like `SliceOf<'inp, L>: Clone` or a return type carrying the slice stays legible.
+///
+/// # Examples
+///
+/// The alias is definitionally the nested projection — this identity function
+/// compiles precisely because the two spellings are the same type:
+///
+/// ```rust
+/// use tokora::{Lexer, SliceOf, Source};
+///
+/// fn same_type<'inp, L: Lexer<'inp>>(
+///   slice: <L::Source as Source<L::Offset>>::Slice<'inp>,
+/// ) -> SliceOf<'inp, L> {
+///   slice
+/// }
+/// ```
+pub type SliceOf<'inp, L> =
+  <<L as Lexer<'inp>>::Source as Source<<L as Lexer<'inp>>::Offset>>::Slice<'inp>;
 
 /// A trait for types that can be lexed from the input.
 ///

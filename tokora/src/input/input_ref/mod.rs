@@ -50,6 +50,13 @@ pub use transaction::Transaction;
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub use stacked::{SavepointId, StackedTransaction};
 
+/// SETTLE_CENSUS / RELEASE_CENSUS — source-census tests over `include_str!` snapshots.
+/// The census greps the same source bytes in every configuration, so one allocator-enabled
+/// run locks it for all of them; the string-building the checks use needs `format!`, which
+/// the allocator-less build lacks.
+#[cfg(all(test, any(feature = "std", feature = "alloc")))]
+mod census_tests;
+
 #[cfg(all(test, feature = "logos", feature = "std"))]
 mod tests;
 
@@ -83,16 +90,18 @@ where
   pub(super) emitted_error_end: &'closure mut L::Offset,
   pub(super) poison_boundary: &'closure mut Option<L::Offset>,
   /// The **session cell**: the input's lineage memos (the live-checkpoint stack, the pin set, and
-  /// the cache-push/checkpoint-id/savepoint counters) together with the live
+  /// the cache-push/checkpoint-id/savepoint counters), the handle's **emitter borrow** (the
+  /// ground-truth emission log, reached through [`emitter`](Self::emitter)), and the live
   /// [session points](Self::begin_point) opened on this handle.
   ///
   /// They are one cell because an abandoned session point has to release bookkeeping it does not
-  /// own — the pin lives on the [`Input`](super::Input), which outlives this handle, while the
-  /// point's [`Checkpoint`] lives here and dies with it. [`Session`]'s `Drop` reconciles them (see
-  /// its [module docs](session) for that, and for why the destructor lives on this cell rather than
-  /// on the handle: a `Drop` on `InputRef` would escape *every* field to the destructor and cost the
-  /// scanner its registers).
-  pub(super) session: Session<'inp, 'closure, L>,
+  /// own — the pin lives on the [`Input`](super::Input), which outlives this handle; the emitter
+  /// mark lives in the borrowed emitter, which outlives it too; the point's [`Checkpoint`] lives
+  /// here and dies with it. [`Session`]'s `Drop` reconciles all three (see its
+  /// [module docs](session) for that, and for why the destructor lives on this cell rather than
+  /// on the handle: a `Drop` on `InputRef` would escape *every* field to the destructor and cost
+  /// the scanner its registers).
+  pub(super) session: Session<'inp, 'closure, L, Ctx::Emitter, Lang>,
   /// Trace nesting depth, borrowed from the owning [`Input`] (the `trace` feature). Its sole
   /// mutators are [`traced`](crate::traced)'s enter/exit hooks; internal leaf events only read
   /// it for indentation.
@@ -105,7 +114,6 @@ where
     target_has_atomic = "ptr"
   ))]
   pub(super) witness: &'closure super::Witness,
-  pub(super) emitter: &'closure mut Ctx::Emitter,
   pub(super) _marker: PhantomData<Lang>,
 }
 
@@ -332,10 +340,11 @@ where
     *self.emitted_error_end = committed;
   }
 
-  /// Returns a mutable reference to the emitter.
+  /// Returns a mutable reference to the emitter (borrowed through the session cell — see
+  /// `input_ref::session` for why the borrow lives there).
   #[inline(always)]
   pub const fn emitter(&mut self) -> &mut Ctx::Emitter {
-    self.emitter
+    self.session.emitter
   }
 
   /// Emits a lexer error unless the same region has already been reported.
@@ -501,9 +510,49 @@ where
   /// `span()`/`slice()` therefore report the most recently consumed token even
   /// when the cache still holds later peeked tokens. The span is clamped to the
   /// input length.
+  ///
+  /// This is a **position write**, not a token settle: [`commit_token`](Self::commit_token) is
+  /// the settle, and the only consume path allowed to write here. The remaining callers write
+  /// positions that are *not* committed tokens — `settle_fatal` (a rejected lexer error's
+  /// span), `SyncTo::on_eof` (the lexer's span at exhaustion), and `commit_at` (a scan's batch
+  /// frontier write) — and the census (`grep SETTLE_CENSUS`) locks that list.
   #[inline(always)]
   fn set_span_after_consume(&mut self, new: MaybeRef<'_, L::Span>) {
     self.set_span(new);
+  }
+
+  /// SETTLE_CENSUS — **the** primitive that settles a committed token: one call per token, at
+  /// the moment it commits, on every consume path.
+  ///
+  /// A token is *committed* the instant no continuation of the current lineage can yield it
+  /// again — popped off the cache front by a consume, or accepted straight off the lexer. All
+  /// eleven 1:1 consume settles route through here (the census in `census_tests.rs` holds the
+  /// list and fails on drift), so a side channel that must observe committed tokens exactly
+  /// once has exactly one home on the consume surface — plus the scanner's skip settle
+  /// ([`AtFrontier::adopt`], its own censused site) — instead of a dozen.
+  ///
+  /// The body is the settle the sites always performed — the span write that makes
+  /// [`span`](Self::span)/[`slice`](Self::slice) report the consumed token — plus **the**
+  /// side-channel hook: one [`Emitter::commit_token`] call, the auto-emission chokepoint
+  /// that makes a recording CST sink see every consumed token exactly once (the scanner's
+  /// skip settle beside [`AtFrontier::adopt`] is the surface's censused second member).
+  /// The state write stays at each site — its value is a site-specific move (cached
+  /// extras, or the live lexer's state), and no side channel needs it. Both references are
+  /// borrowed straight from the site's own token, and the defaulted emitter hook is an
+  /// empty inlined body, so a build with no observer computes nothing extra and the call
+  /// inlines to exactly the pre-hook code (the `__text`-hash standard holds it).
+  ///
+  /// **Non-settles must never route here**: peeks and declines (nothing committed),
+  /// [`unconsume`](Self::unconsume) (the stopper is examined, not consumed), `settle_fatal`
+  /// (the span written is a rejected *error's*, with no token to observe), `SyncTo::on_eof`
+  /// (exhaustion, not a token), `commit_at` (its tokens already settled behind the frontier
+  /// via `adopt`), and the position surgeries (`set_state`, the restore paths).
+  #[inline(always)]
+  fn commit_token(&mut self, tok: &L::Token, span: &L::Span) {
+    // The settle observed: the one home of the committed-token side channel on the
+    // consume surface (SETTLE_CENSUS locks the emitter-hook sites too).
+    self.session.emitter.commit_token(tok, span);
+    self.set_span_after_consume(span.into());
   }
 
   /// Commits a scan at its [`AtFrontier`] frontier — the end of the last token it settled there,
@@ -886,14 +935,20 @@ where
   /// to surface that bug instead.
   ///
   /// What the drop *does* do is **release the bookkeeping**: each remaining point's pin and its
-  /// live-checkpoint lineage entry are dropped from the input's lineage memos (see [`InputRef`]'s
-  /// `Drop`). It has to, precisely because the point is split across two lifetimes — the
-  /// [`Checkpoint`] dies with the handle, but the pin lives on the *input*, which does not. A pin
-  /// left behind would stand for a point nobody can ever settle, so the pin set would no longer hold
-  /// exactly the live begin points and would grow for the life of the input. Enforcing tests (in
-  /// `src/input/input_ref/session_tests.rs`): `dropping_the_handle_releases_the_open_points`,
+  /// live-checkpoint lineage entry are dropped from the input's lineage memos, and its emitter
+  /// mark is [`release`](crate::emitter::Emitter::release)d (see the session cell's `Drop` in
+  /// `input_ref::session`).
+  /// It has to, precisely because the point is split across lifetimes — the [`Checkpoint`] dies
+  /// with the handle, but the pin lives on the *input* and the mark-keyed bookkeeping in the
+  /// *emitter*, and both outlive it. A pin left behind would stand for a point nobody can ever
+  /// settle, so the pin set would no longer hold exactly the live begin points and would grow for
+  /// the life of the input — and a mark never released would strand one row of an event sink's
+  /// checkpoint stack per abandoned point, the same leak one layer up. Enforcing tests:
+  /// `dropping_the_handle_releases_the_open_points`,
   /// `dropping_the_handle_keeps_the_progress_of_the_open_points`, and
-  /// `a_second_handle_rewinds_across_an_abandoned_point`.
+  /// `a_second_handle_rewinds_across_an_abandoned_point` (in
+  /// `src/input/input_ref/session_tests.rs`), and
+  /// `abandoned_session_points_release_their_emitter_marks` (in `src/cst/sink/tests.rs`).
   ///
   /// # Fuzz coverage
   ///
@@ -983,13 +1038,40 @@ where
   }
 
   /// Drops `id` from the live-checkpoint lineage stack because its checkpoint was kept
-  /// (committed) rather than restored — see [`Transaction::commit`], [`attempt`](Self::attempt),
-  /// [`try_attempt`](Self::try_attempt), and the [`StackedTransaction`] release/commit paths.
-  /// See [`Lineage::forget`](super::Lineage::forget) for the bounding invariant and its cost.
+  /// (committed) rather than restored. Lineage-only, and deliberately private to this module:
+  /// the sole caller is [`forget_kept_checkpoint`](Self::forget_kept_checkpoint), which pairs
+  /// this with the emitter-mark [`release`](Emitter::release) so the two cannot come apart
+  /// (RELEASE_CENSUS). See [`Lineage::forget`](super::Lineage::forget) for the bounding
+  /// invariant and its cost.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[inline]
-  pub(crate) fn forget_checkpoint(&mut self, id: u64) {
+  fn forget_checkpoint(&mut self, id: u64) {
     self.session.lineage.forget(id);
+  }
+
+  /// RELEASE_CENSUS — **the** settle for a checkpoint whose branch was kept: drops its
+  /// live-checkpoint lineage entry and [`release`](Emitter::release)s its emitter mark in one
+  /// body, so lineage hygiene and emitter-bookkeeping hygiene cannot come apart.
+  ///
+  /// Every commit-shaped path routes through here — `commit_checkpoint` (the raw
+  /// [`commit`](Self::commit) and the session [`commit_point`](Self::commit_point)), both
+  /// [`Transaction`] commit arms (explicit and on-drop), and the [`StackedTransaction`]
+  /// savepoint-release/commit/drop paths — because each holds the full [`Checkpoint`] at the
+  /// exact moment its mark becomes unrewindable. The abandoning settle is the restore family,
+  /// which *spends* the mark through [`Emitter::rewind`] instead; every checkpoint the crate
+  /// takes ends in exactly one of the two (the census in `census_tests.rs` locks the sites).
+  ///
+  /// Assert-free and silent on purpose: the guards' commit-on-drop arms run inside `Drop`,
+  /// possibly mid-unwind. The one keeper that does **not** route through this funnel is a
+  /// session point abandoned with its handle: `Session::drop` performs the same
+  /// unpin/forget/release settle itself, through the assert-free `Lineage` primitives (a
+  /// mid-unwind drop must not assert) — the cell holds the emitter borrow precisely so it
+  /// can. The census locks both homes.
+  #[inline(always)]
+  fn forget_kept_checkpoint(&mut self, checkpoint: Checkpoint<'inp, '_, L>) {
+    #[cfg(any(feature = "std", feature = "alloc"))]
+    self.forget_checkpoint(checkpoint.ckp_id);
+    self.emitter().release(checkpoint.emitter_checkpoint);
   }
 
   /// Returns whether `id` is still live on the lineage stack; see
@@ -1200,7 +1282,7 @@ where
       self.cursor().clone(),
       self.span.clone(),
       self.state.clone(),
-      self.emitter.checkpoint(),
+      self.session.emitter.checkpoint(),
       self.emitted_error_end.clone(),
       self.poison_boundary.clone(),
       self.session.lineage.cache_pushes(),
@@ -1532,8 +1614,9 @@ where
       "checkpoint committed into a foreign input: this checkpoint was created by a different input"
     );
 
-    // Keep all progress; release ONLY the lineage entry, never the pin set. `forget_checkpoint`
-    // is `O(1)` at the stack top and pops nothing for an already-invalidated id (the no-op case).
+    // Keep all progress; release ONLY the lineage entry (via the kept-checkpoint funnel, which
+    // pairs it with the emitter-mark release), never the pin set. `forget_checkpoint` is `O(1)`
+    // at the stack top and pops nothing for an already-invalidated id (the no-op case).
     //
     // No pin check is needed, and none could ever trip: a pinned id is the begin point of a live
     // transaction guard or `attempt`, which holds that begin-point `Checkpoint` internally and
@@ -1541,11 +1624,7 @@ where
     // and this method consumes one it was given — so the committed id is a raw, unpinned
     // checkpoint by construction. There is no reachable way to commit a guard's pinned base and
     // unpin-bypass it, and `forget_checkpoint` leaves `pinned` untouched regardless.
-    #[cfg(any(feature = "std", feature = "alloc"))]
-    self.forget_checkpoint(checkpoint.ckp_id);
-
-    #[cfg(not(any(feature = "std", feature = "alloc")))]
-    let _ = checkpoint;
+    self.forget_kept_checkpoint(checkpoint);
   }
 
   /// Rewinds to `checkpoint` without the debug raw-misuse panics, the shared primitive behind
@@ -1697,7 +1776,7 @@ where
     if let Some(cached_token) = self.cache_mut().pop_front() {
       let (spanned_lexed, extras) = cached_token.into_components();
       let (span, lexed) = spanned_lexed.into_components();
-      self.set_span_after_consume((&span).into());
+      self.commit_token(&lexed, &span);
       *self.state = extras;
       return Ok(Some(Spanned::new(span, lexed)));
     }
@@ -1716,7 +1795,7 @@ where
     let mut lexer = self.lexer();
     match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
       Scan::Token(tok) => {
-        self.set_span_after_consume(tok.span_ref().into());
+        self.commit_token(tok.data(), tok.span_ref());
         *self.state = lexer.into_state();
         Ok(Some(tok))
       }

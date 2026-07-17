@@ -21,6 +21,7 @@ std = [
   "bytes_1?/default",
   "hipstr_0_8?/default",
   "bstr_1?/default",
+  "smol_bytes_0_1?/default",
   "tinyvec_1?/default",
 
   "logos_0_14?/default",
@@ -77,6 +78,12 @@ bstr_1 = ["dep:bstr_1"]
 hipstr = ["hipstr_0_8"]
 hipstr_0_8 = ["dep:hipstr_0_8"]
 
+# smol-bytes is a `cdylib`+`rlib` crate, so its library target requires a global
+# allocator and panic handler even to `check`; that is only satisfied under `std`
+# (a no-std + alloc build of it fails to compile). Gate on `std`, mirroring `rowan`.
+smol_bytes = ["smol_bytes_0_1"]
+smol_bytes_0_1 = ["dep:smol_bytes_0_1", "std"]
+
 smallvec = ["smallvec_1"]
 smallvec_1 = ["dep:smallvec_1", "alloc"]
 
@@ -110,6 +117,7 @@ thiserror = { version = "2", default-features = false }
 bstr_1 = { package = "bstr", version = "1", default-features = false, optional = true }
 bytes_1 = { package = "bytes", version = "1", default-features = false, optional = true }
 hipstr_0_8 = { package = "hipstr", version = "0.8", default-features = false, optional = true }
+smol_bytes_0_1 = { package = "smol-bytes", version = "0.1", default-features = false, optional = true }
 
 # Third-party Container Types
 heapless_0_9 = { package = "heapless", version = "0.9", default-features = false, optional = true }
@@ -180,6 +188,28 @@ required-features = ["std", "logos"]
 name = "c_expression"
 path = "examples/c_expression.rs"
 required-features = ["std", "logos"]
+
+# Lossless-CST twins of the four examples above: each parses the same grammar as its twin but
+# builds a rowan concrete syntax tree through a `cst::Sink`, so it needs `rowan` as well.
+[[example]]
+name = "calculator_cst"
+path = "examples/calculator_cst.rs"
+required-features = ["std", "logos", "rowan"]
+
+[[example]]
+name = "s_expression_cst"
+path = "examples/s_expression_cst.rs"
+required-features = ["std", "logos", "rowan"]
+
+[[example]]
+name = "json_cst"
+path = "examples/json_cst.rs"
+required-features = ["std", "logos", "rowan"]
+
+[[example]]
+name = "c_expression_cst"
+path = "examples/c_expression_cst.rs"
+required-features = ["std", "logos", "rowan"]
 
 [package.metadata.docs.rs]
 all-features = true

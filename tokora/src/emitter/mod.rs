@@ -10,12 +10,14 @@ use crate::{
 
 use super::Token;
 
+pub use cst::*;
 pub use impl_::*;
 pub use pratt::*;
 pub use repeated::*;
 pub use separated::*;
 pub use severity::*;
 
+mod cst;
 mod impl_;
 mod pratt;
 mod repeated;
@@ -279,6 +281,81 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   where
     L: Lexer<'a>;
 
+  /// Releases a previously captured [`checkpoint`](Self::checkpoint) whose branch was
+  /// **kept** — the dual of [`rewind`](Self::rewind), which spends one whose branch was
+  /// abandoned.
+  ///
+  /// The input layer captures a mark around every speculative region and settles it in
+  /// exactly one of two ways: a rollback hands it to [`rewind`](Self::rewind); a commit —
+  /// a transaction guard's commit (explicit or on drop), an
+  /// [`attempt`](crate::InputRef::attempt)/[`try_attempt`](crate::InputRef::try_attempt)
+  /// success, a stacked guard's savepoint release, a session
+  /// [`commit_point`](crate::InputRef::commit_point), a sync scan that found its target or
+  /// otherwise kept its progress — hands it here. `release(m)` tells the emitter that `m`
+  /// will **never** be rewound to by that settle, so any bookkeeping keyed on the mark (a
+  /// checkpoint stack in an event-buffering sink, for instance) can be reclaimed instead of
+  /// stranding one dead row per committed guard — commit-heavy loops (a pratt operator loop
+  /// saves per iteration) would otherwise grow such state without bound.
+  ///
+  /// # Contract: advisory, and strictly bookkeeping
+  ///
+  /// `release` is **advisory**: an emitter MAY reclaim per-checkpoint bookkeeping on it, and
+  /// releasing must never change the observable emission state — no diagnostic appears,
+  /// disappears, or reorders because a mark was released. Correctness must not depend on it
+  /// being called: emitters that key their rollback state on emission *values* rather than
+  /// on a per-mark table — [`Verbose`], whose mark is just its log length and whose rewind
+  /// pops entries by value — legitimately inherit the no-op default, and stateless emitters
+  /// ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::marker::Ignored)) have nothing to
+  /// reclaim in the first place. One mark is released at most once, and marks arrive
+  /// last-in, first-out on the crate's own paths (guards and scans settle newest-first;
+  /// a session point abandoned with its handle releases at the handle's drop, newest-first,
+  /// possibly mid-unwind — which is why releasing must stay observably pure and panic-free).
+  /// A mark abandoned outside those paths (an `unstable-raw` checkpoint merely dropped) is
+  /// simply never released — bounded-but-unswept bookkeeping, reclaimed by the next
+  /// enclosing `rewind`/`release` at or below it, per the crate's unspecified-but-bounded
+  /// posture on undisciplined use.
+  #[inline(always)]
+  fn release(&mut self, checkpoint: u64) {
+    let _ = checkpoint;
+  }
+
+  /// Observes one **committed token** — the settle-timeline twin of
+  /// [`release`](Self::release): the input layer calls this exactly once per token, at the
+  /// moment the token settles (consumed, or skipped behind a scan frontier), from its two
+  /// censused settle surfaces and nowhere else.
+  ///
+  /// This is the auto-emission chokepoint of the CST channel: the recording `Sink`
+  /// overrides it to record a `Token` event (mapping the token through its dialect-supplied
+  /// mapper), which is what makes **every** consuming atom and combinator tree-producing
+  /// with zero per-atom code — including the tokens a recovery sync or a trivia skip
+  /// consumes. Peeks, declines, [`unconsume`](crate::InputRef)-style stoppers, position
+  /// writes, rejected lexer-error items, and end-of-input commits are **not** token
+  /// settles and never arrive here.
+  ///
+  /// # Contract: bookkeeping on the emission timeline
+  ///
+  /// Like [`release`](Self::release), this is a defaulted no-op capability — diagnostics
+  /// emitters have nothing to observe, and the reference-taking signature makes the
+  /// defaulted call compile to nothing. An implementation that *records* settles must
+  /// cover them with [`checkpoint`](Self::checkpoint)/[`rewind`](Self::rewind) exactly as
+  /// it covers diagnostics — a speculative branch's tokens rewind with the branch, and a
+  /// re-consume after a rollback re-settles them exactly once per surviving timeline. A
+  /// **wrapper** emitter that records or forwards events must forward this too; the
+  /// tree-structuring surface lives on the [`CstEmitter`] subtrait, whose bound on the
+  /// `node()` combinators is what stops a non-forwarding wrapper from silently producing
+  /// an empty tree. Forwarding the subtrait while inheriting this no-op severs the token
+  /// channel invisibly at parse time; the recording sink's `finish` refuses that shape
+  /// with a typed error
+  /// ([`StructureWithoutTokens`](crate::cst::FinishError::StructureWithoutTokens))
+  /// rather than materializing a plausible gap-tiled tree.
+  #[inline(always)]
+  fn commit_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    let _ = (tok, span);
+  }
+
   /// Pushes a diagnostic label onto the emitter's open-label stack, opening a
   /// *"while parsing X"* context for the duration of a [`labelled`](crate::labelled)
   /// sub-parse.
@@ -389,6 +466,19 @@ where
   }
 
   #[inline(always)]
+  fn release(&mut self, checkpoint: u64) {
+    (**self).release(checkpoint)
+  }
+
+  #[inline(always)]
+  fn commit_token(&mut self, tok: &L::Token, span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    (**self).commit_token(tok, span)
+  }
+
+  #[inline(always)]
   fn enter_label(&mut self, label: &'static str) {
     (**self).enter_label(label)
   }
@@ -432,4 +522,77 @@ where
   {
     err.into()
   }
+}
+
+/// Everything the collecting combinators require from an emitter, as one bound.
+///
+/// The atomic emitter design splits diagnostics across a family of focused traits, and a
+/// parser that drives the separated/repeated machinery ends up needing most of them at
+/// once — a six-line where-clause ladder repeated at every generic parser an author
+/// writes. `ComposableEmitter` is that ladder as a single name: it is
+/// blanket-implemented for every emitter satisfying the whole family, so a bound of
+/// `E: ComposableEmitter<'inp, L, Lang>` is interchangeable with spelling out all six
+/// sub-traits. The pre-built [`Fatal`], [`Verbose`], and [`Silent`] emitters all qualify
+/// whenever their error type absorbs the corresponding error families.
+///
+/// The context-side twin is [`ParseCtx`](crate::ParseCtx), which rides this bound on a
+/// [`ParseContext`](crate::ParseContext)'s emitter so a whole parsing context collapses
+/// to one bound as well.
+///
+/// # Examples
+///
+/// The bundle elaborates back to the entire family — the one-bound function can call
+/// into the six-bound ladder:
+///
+/// ```rust
+/// use tokora::{ComposableEmitter, Emitter, Lexer};
+/// use tokora::emitter::{
+///   FullContainerEmitter, SeparatedEmitter, TooFewEmitter, UnexpectedLeadingSeparatorEmitter,
+///   UnexpectedTrailingSeparatorEmitter,
+/// };
+///
+/// // The where-clause ladder an atom would otherwise carry…
+/// fn ladder<'inp, L, E>()
+/// where
+///   L: Lexer<'inp>,
+///   E: Emitter<'inp, L>
+///     + FullContainerEmitter<'inp, L>
+///     + SeparatedEmitter<'inp, L>
+///     + UnexpectedLeadingSeparatorEmitter<'inp, L>
+///     + UnexpectedTrailingSeparatorEmitter<'inp, L>
+///     + TooFewEmitter<'inp, L>,
+/// {
+/// }
+///
+/// // …collapses to a single bound that still unlocks every rung.
+/// fn bundled<'inp, L, E>()
+/// where
+///   L: Lexer<'inp>,
+///   E: ComposableEmitter<'inp, L>,
+/// {
+///   ladder::<L, E>()
+/// }
+/// ```
+pub trait ComposableEmitter<'inp, L, Lang: ?Sized = ()>:
+  Emitter<'inp, L, Lang>
+  + FullContainerEmitter<'inp, L, Lang>
+  + SeparatedEmitter<'inp, L, Lang>
+  + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
+  + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
+  + TooFewEmitter<'inp, L, Lang>
+where
+  L: Lexer<'inp>,
+{
+}
+
+impl<'inp, L, Lang: ?Sized, T> ComposableEmitter<'inp, L, Lang> for T
+where
+  L: Lexer<'inp>,
+  T: Emitter<'inp, L, Lang>
+    + FullContainerEmitter<'inp, L, Lang>
+    + SeparatedEmitter<'inp, L, Lang>
+    + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
+    + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
+    + TooFewEmitter<'inp, L, Lang>,
+{
 }
