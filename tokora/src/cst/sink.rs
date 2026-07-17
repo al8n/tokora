@@ -12,8 +12,7 @@
 //! | E1 | [`CstSink::events`] | **ground truth** (a second emission log) | append + suffix-truncate to the mark — the same two verbs as `Verbose`'s log (plus the one censused prefix-preserving splice of the hole wrap, entirely above every live mark) |
 //! | E2 | [`CstSink::journal`] | **undo journal** (the Verbose-parallel-maps discipline lifted to events) | rewind pops entries written above the mark, reverse order, restoring each overwritten `forward_parent`; never grows on rewind |
 //! | E3 | [`CstSink::ledger`] | **monotone era source + truncation witness** | rewind APPENDS to it (a rewind *is* a truncation) and never removes; rewinding it would false-accept a stale mark |
-//! | E4 | [`CstSink::rows`] | **release stack + per-checkpoint depth ledger** | push at `checkpoint()`, pop at `release()` (kept) and `rewind()` (spent); depth entries are frozen facts about prefixes, never live counters |
-//! | E5 | [`CstSink::diag_index`] | **derived memo of E1's `Diag` slots** | truncated with E1; never checkpointed separately |
+//! | E4 | [`CstSink::rows`] | **release stack + per-checkpoint depth ledger + inner reading** | push at `checkpoint()` (freezing the depth and the inner emitter's own checkpoint reading), pop at `release()` (kept) and `rewind()` (spent, the popped row's inner reading is the inner's rewind target); depth entries are frozen facts about prefixes, never live counters |
 //! | — | [`CstSink::floor`] | derived memo (the newest released row) | reset to the surviving top row when a rewind drops below it |
 //! | — | [`CstSink::base_inner`] | derived memo (the inner's reading at first use) | captured once, never restored |
 //! | — | `inner`, `mapper`, `error_kind`, `gap_kind`, `trivia` | configuration / the wrapped emitter | never touched by rewind (the inner rewinds through its own contract) |
@@ -94,11 +93,29 @@ struct MarkRow {
   /// The derived open-node depth at capture time — a frozen fact about the `mark`-length
   /// prefix, not a live counter.
   depth: i64,
+  /// The inner emitter's own checkpoint reading captured at this sink checkpoint. Handed
+  /// back to `inner.rewind` when this row is the rewind target, restoring the inner to
+  /// exactly its state when the mark was taken — every forwarded token AND diagnostic before
+  /// the mark survives, every one after is undone. (Pre-fix the inner target came from the
+  /// last surviving `Diag` slot, which missed tokens forwarded after the last diagnostic —
+  /// the desync.)
+  ///
+  /// This is a plain `u64` reading, spent when the row is popped — there is no inner-side
+  /// resource on the row, so `release` (which also pops the row) leaks no inner checkpoint.
+  /// The mechanism assumes a **value-keyed** inner: `checkpoint` a pure monotone reading,
+  /// `rewind` a drop-by-value, and `release` a no-op — the `Verbose`/token-tracking shape.
+  /// (A table-keyed inner that allocated per `checkpoint` was already unsupported pre-fix,
+  /// since `forward_diag` calls `inner.checkpoint()` per diagnostic with no matching release.)
+  inner: u64,
 }
 
 impl MarkRow {
-  /// The empty-buffer baseline: depth 0 at length 0.
-  const ZERO: Self = Self { mark: 0, depth: 0 };
+  /// The empty-buffer baseline: depth 0 at length 0, inner at its base reading 0.
+  const ZERO: Self = Self {
+    mark: 0,
+    depth: 0,
+    inner: 0,
+  };
 }
 
 /// One undo-journal entry: an in-place `forward_parent` write performed by
@@ -114,17 +131,6 @@ struct JournalEntry {
   index: u64,
   /// The `forward_parent` value the write overwrote.
   old_forward_parent: Option<NonZeroU32>,
-}
-
-/// One entry of the derived `Diag`-slot index: the buffer position of a
-/// [`Event::Diag`] slot and the inner mark it recorded, kept beside the buffer so rewind
-/// recovery is a stack read instead of a backward scan.
-#[derive(Debug, Clone, Copy)]
-struct DiagSlot {
-  /// The buffer index of the `Diag` event.
-  pos: u64,
-  /// The inner emitter's mark immediately after the forwarded emission.
-  inner_mark_after: u64,
 }
 
 /// Mints a process-unique sink witness id (1-based; 0 is the inert mark's reserved id).
@@ -170,9 +176,10 @@ fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
 /// emitter occupies a [`Diag`](super::event) slot *inside* the event buffer (appended by one
 /// census-marked helper, on `Ok` and `Err` alike), so [`rewind`](Emitter::rewind) is:
 /// truncate the buffer to the mark, reverse-replay the undo journal, and rewind the inner
-/// emitter to the reading of the last surviving slot. No per-checkpoint side table exists;
-/// the mark stack holds exactly the live captures because every capture is spent by exactly
-/// one of `rewind` (abandoned) or [`release`](Emitter::release) (kept).
+/// emitter to the reading its mark-stack row captured at the checkpoint. The mark stack holds
+/// exactly the live captures — the only per-checkpoint table — because every capture is spent
+/// by exactly one of `rewind` (abandoned) or [`release`](Emitter::release) (kept), and it
+/// carries the inner's own checkpoint reading so both channels rewind under the one mark.
 ///
 /// # Composition
 ///
@@ -206,7 +213,8 @@ where
   events: Vec<Event<L::Span>>,
   /// E2 — the undo journal for the `forward_parent` acceleration writes.
   journal: Vec<JournalEntry>,
-  /// E4 — the mark stack: one row per live checkpoint capture, holding the frozen depth.
+  /// E4 — the mark stack: one row per live checkpoint capture, holding the frozen depth and
+  /// the inner emitter's own checkpoint reading (the inner's rewind target).
   /// Interior mutability because [`Emitter::checkpoint`] is `&self` by contract; every
   /// borrow is method-local and non-reentrant, and the `&mut` paths use `get_mut` (no
   /// runtime flag traffic).
@@ -214,13 +222,12 @@ where
   /// The newest *released* row: a frozen `(mark, depth)` fact that keeps depth derivation
   /// O(events-since-last-settle) instead of O(buffer) across commit-heavy loops.
   floor: MarkRow,
-  /// E5 — the derived index of the buffer's `Diag` slots.
-  diag_index: Vec<DiagSlot>,
   /// E3 — the monotone era source and truncation witness backing mark validation.
   ledger: TruncationLedger,
   /// The inner emitter's mark as of this sink's first operation — the rewind recovery
-  /// value when no `Diag` slot survives below the mark. Captured lazily (the inner is
-  /// unreachable from outside once moved in, so first-use equals construction).
+  /// value when no mark-stack row sits at the target (the undisciplined raw case). Captured
+  /// lazily (the inner is unreachable from outside once moved in, so first-use equals
+  /// construction).
   base_inner: Option<u64>,
   /// The dialect's token mapper into the unified u16 kind space.
   mapper: fn(&L::Token) -> u16,
@@ -274,8 +281,6 @@ where
     rows: _,
     // — derived memo: the newest released row; reset when a rewind drops below it.
     floor: _,
-    // — E5, derived memo of E1's Diag slots: truncated with E1.
-    diag_index: _,
     // — E3, monotone era source + truncation witness: NEVER rewound.
     ledger: _,
     // — derived memo: captured once at first use, never restored.
@@ -401,7 +406,6 @@ where
       journal: Vec::new(),
       rows: RefCell::new(Vec::new()),
       floor: MarkRow::ZERO,
-      diag_index: Vec::new(),
       ledger: TruncationLedger::new(),
       base_inner: None,
       mapper,
@@ -568,14 +572,9 @@ where
     );
     self.events.push(Event::FinishNode);
 
-    // Keep the derived memos exact across the splice: positions at or above the insert
-    // point shift by one. (Journal entries cannot reference the spliced region — marks
-    // and their tombstones all predate the scan — but the bump is exact anyway.)
-    for slot in &mut self.diag_index {
-      if slot.pos >= at as u64 {
-        slot.pos += 1;
-      }
-    }
+    // Keep the undo journal exact across the splice: positions at or above the insert point
+    // shift by one. (Journal entries cannot reference the spliced region — marks and their
+    // tombstones all predate the scan — but the bump is exact anyway.)
     for entry in &mut self.journal {
       if entry.at_len > at as u64 {
         entry.at_len += 1;
@@ -611,14 +610,19 @@ where
   }
 
   /// CST_FORWARD_CENSUS — the ONE helper every forwarded diagnostic routes through: call
-  /// the inner emitter, then append a `Diag` slot carrying the inner's mark **regardless
-  /// of the verdict** (record-then-propagate: transaction guards rewind during fatal
-  /// unwinds, so a slot skipped on the `Err` edge would skew every later recovery).
+  /// the inner emitter, then append a `Diag` slot **regardless of the verdict**
+  /// (record-then-propagate: transaction guards rewind during fatal unwinds, so a slot
+  /// skipped on the `Err` edge would drop an `error_span` a later `finish` needs to cover).
   ///
   /// `error_span` is `Some` only for a **lexer error** (the one forwarded diagnostic that
   /// names untokenized source bytes); it is recorded into the slot so `finish`'s
   /// gap-coverage law can tell a legitimately-refused byte from a dropped committed token.
   /// Every other `emit_*` passes `None`.
+  ///
+  /// The inner emitter's rewind reading is captured on the mark-stack row at
+  /// [`checkpoint`](Emitter::checkpoint), not here — a forwarded diagnostic advances the
+  /// inner but records no rewind target of its own. This helper still primes `base_inner`
+  /// (the no-row rewind fallback) before the first forwarded emission.
   ///
   /// Every `emit_*` of every implemented emitter trait calls this; none touches
   /// `self.inner` directly. The source census test locks the discipline.
@@ -631,19 +635,10 @@ where
     Lang: ?Sized,
     E: Emitter<'inp, L, Lang>,
   {
-    // The base must predate the first forwarded emission.
+    // The base must predate the first forwarded emission: it is the no-row rewind fallback.
     let _ = self.base_inner_mark::<Lang>();
     let out = forward(&mut self.inner);
-    let inner_mark_after = <E as Emitter<'inp, L, Lang>>::checkpoint(&self.inner);
-    let pos = self.events.len() as u64;
-    self.events.push(Event::Diag {
-      inner_mark_after,
-      error_span,
-    });
-    self.diag_index.push(DiagSlot {
-      pos,
-      inner_mark_after,
-    });
+    self.events.push(Event::Diag { error_span });
     out
   }
 }
@@ -715,18 +710,26 @@ where
   /// pushes a mark-stack row freezing the derived depth, so
   /// [`cst_finish`](CstEmitter::cst_finish) can assert against the innermost live capture
   /// and [`release`](Emitter::release) has a row to reclaim.
+  ///
+  /// The row additionally captures the inner emitter's **own** checkpoint reading, handed
+  /// back at the matching [`rewind`](Emitter::rewind) so the inner is restored to exactly
+  /// its state at this mark — every forwarded token AND diagnostic before the mark survives,
+  /// every one after is undone. This requires a value-keyed inner (a pure monotone
+  /// `checkpoint`, a drop-by-value `rewind`, a no-op `release`); the `commit_token`-forwarding
+  /// token-tracking inner the sink now supports is exactly that shape.
   fn checkpoint(&self) -> u64 {
     let mark = self.events.len() as u64;
     let depth = self.derived_depth();
-    self.rows.borrow_mut().push(MarkRow { mark, depth });
+    let inner = self.inner.checkpoint();
+    self.rows.borrow_mut().push(MarkRow { mark, depth, inner });
     mark
   }
 
   /// Truncate + reverse-replay + inner rewind: drop the events above the mark, undo the
   /// journaled `forward_parent` writes whose `StartAt`s died, record the truncation in
   /// the era ledger (marks into the dropped region are stale forever), and rewind the
-  /// inner emitter to the reading of the last surviving `Diag` slot (the sink's base
-  /// reading when none survives). Out-of-range marks clamp (the `Verbose` posture).
+  /// inner emitter to the reading the target row captured at its checkpoint (the sink's base
+  /// reading when no row sits at the mark). Out-of-range marks clamp (the `Verbose` posture).
   fn rewind(&mut self, cursor: &Cursor<'inp, '_, L>, checkpoint: u64)
   where
     L: Lexer<'inp>,
@@ -735,20 +738,27 @@ where
     let len = self.events.len() as u64;
     let mark = checkpoint.min(len);
 
-    // Spend the captures at or above the mark: everything strictly above dies with the
-    // branch; the newest capture at exactly the mark is the one being rewound to.
-    {
+    // Spend the captures at or above the mark, capturing the target row's inner reading as
+    // it is spent: everything strictly above dies with the branch; the newest capture at
+    // exactly the mark is the one being rewound to, and it carries the exact inner reading to
+    // hand back. A disciplined rewind (guards, attempt, the scan family, correct raw
+    // save/restore) always finds that row live — a released mark is a committed mark, never
+    // rewound to. `None` is the no-row case: undisciplined raw use, which falls back to base.
+    let target_inner = {
       let rows = self.rows.get_mut();
       while rows.last().is_some_and(|row| row.mark > mark) {
         rows.pop();
       }
-      if rows.last().map(|row| row.mark) == Some(mark) {
-        rows.pop();
-      }
+      let hit = if rows.last().map(|row| row.mark) == Some(mark) {
+        rows.pop().map(|row| row.inner)
+      } else {
+        None
+      };
       if self.floor.mark > mark {
         self.floor = rows.last().copied().unwrap_or(MarkRow::ZERO);
       }
-    }
+      hit
+    };
 
     if mark < len {
       self.events.truncate(mark as usize);
@@ -764,16 +774,13 @@ where
           *forward_parent = entry.old_forward_parent;
         }
       }
-      while self.diag_index.last().is_some_and(|slot| slot.pos >= mark) {
-        self.diag_index.pop();
-      }
       self.ledger.record_truncation(mark);
     }
 
-    let inner_mark = match self.diag_index.last() {
-      Some(slot) => slot.inner_mark_after,
-      None => base,
-    };
+    // The inner rewinds to the target row's captured reading; `base` (the inner's first-op
+    // reading) is the bounded fallback only when no row sits at the mark (undisciplined raw
+    // use). On every disciplined path the target row is live and carries the true reading.
+    let inner_mark = target_inner.unwrap_or(base);
     self.inner.rewind(cursor, inner_mark);
   }
 

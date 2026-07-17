@@ -695,7 +695,6 @@ fn hole_wrap_brackets_the_buffered_suffix() {
         span: span(1, 2)
       },
       Event::Diag {
-        inner_mark_after: 1,
         error_span: Some(span(2, 3))
       },
       Event::Token {
@@ -703,10 +702,7 @@ fn hole_wrap_brackets_the_buffered_suffix() {
         span: span(3, 4)
       },
       Event::FinishNode,
-      Event::Diag {
-        inner_mark_after: 2,
-        error_span: None
-      },
+      Event::Diag { error_span: None },
     ]
   );
 }
@@ -1712,5 +1708,186 @@ fn commit_token_forwards_to_the_inner_emitter_recovery_skips_included() {
     recorded,
     "CstSink::commit_token must forward to the wrapped emitter: the inner's count must \
      match the sink's own token-event count exactly, recovery-skipped tokens included"
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// A decline rewinds the inner emitter to its CHECKPOINT reading (R3 rewind contract)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// A test-only inner that journals every forward (token AND diagnostic) with a value-keyed
+/// checkpoint — `checkpoint` = journal length, `rewind` = truncate to the mark — the exact
+/// downstream shape the sink's inner-rewind contract must support. Records enough to prove
+/// the sink hands it the right target: a rewind must keep every entry before the mark and
+/// drop every one after. Unlike [`CountingEmitter`] (a monotone counter that cannot observe a
+/// rewind), this inner is genuinely rewindable, so it witnesses *where* the sink rewinds it.
+#[derive(Debug, Default)]
+struct JournalingEmitter {
+  journal: std::vec::Vec<JEntry>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JEntry {
+  Token,
+  Diag,
+}
+
+impl<'a, L, Lang: ?Sized> Emitter<'a, L, Lang> for JournalingEmitter {
+  type Error = TestErr;
+
+  fn emit_lexer_error(
+    &mut self,
+    _err: Spanned<<L::Token as Token<'a>>::Error, L::Span>,
+  ) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    self.journal.push(JEntry::Diag);
+    Ok(())
+  }
+
+  fn emit_error(&mut self, _err: Spanned<Self::Error, L::Span>) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    self.journal.push(JEntry::Diag);
+    Ok(())
+  }
+
+  fn emit_unexpected_token(
+    &mut self,
+    _err: UnexpectedTokenOf<'a, L, Lang>,
+  ) -> Result<(), Self::Error>
+  where
+    L: Lexer<'a>,
+  {
+    self.journal.push(JEntry::Diag);
+    Ok(())
+  }
+
+  fn checkpoint(&self) -> u64 {
+    self.journal.len() as u64
+  }
+
+  fn rewind(&mut self, _cursor: &Cursor<'a, '_, L>, checkpoint: u64)
+  where
+    L: Lexer<'a>,
+  {
+    self
+      .journal
+      .truncate((checkpoint as usize).min(self.journal.len()));
+  }
+
+  fn commit_token(&mut self, _tok: &L::Token, _span: &L::Span)
+  where
+    L: Lexer<'a>,
+  {
+    self.journal.push(JEntry::Token);
+  }
+}
+
+type JournalingSink<'inp> = CstSink<'inp, MiniLexer<'inp>, JournalingEmitter>;
+type JournalingCtx<'inp> = (JournalingSink<'inp>, DefaultCache<'inp, MiniLexer<'inp>>);
+
+/// REGRESSION (variant A — no diagnostic): a decline must rewind the inner emitter to its
+/// **checkpoint** reading, keeping every token forwarded before the mark. Over `"abc"`,
+/// consume `a`,`b`, then an [`attempt`](crate::InputRef::attempt) that consumes `c` and
+/// declines. The tokens `a`,`b` settled through `commit_token` **before** the attempt's
+/// checkpoint, so they must survive on the inner exactly as they survive on the sink's own
+/// event log — the inner's surviving journal must equal the sink's surviving `Token` count.
+///
+/// Pre-fix the sink derived the inner rewind target from the last surviving `Diag` slot; with
+/// no diagnostic it fell to `base`, so the two surviving tokens were **not** restored to the
+/// inner (the inner's reading and the sink's disagree — permanent desync). Post-fix the
+/// checkpoint captured the inner's own reading and the rewind restores it exactly.
+#[test]
+fn decline_rewinds_inner_to_checkpoint_reading_no_diag() {
+  let mut sink: JournalingSink<'_> =
+    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut input = Input::<MiniLexer<'_>, JournalingCtx<'_>>::with_state_and_cache(
+    "abc",
+    (),
+    DefaultCache::<MiniLexer<'_>>::default(),
+  );
+  let mut inp = input.as_ref(&mut sink);
+
+  // Two plain consumes BEFORE the speculative region: both settle through `commit_token`.
+  inp.next().expect("collects").expect("a token");
+  inp.next().expect("collects").expect("b token");
+
+  // The attempt captures a checkpoint, consumes `c`, then declines — rewinding the inner.
+  let declined: Option<()> = inp.attempt(|inp2| {
+    inp2.next().expect("collects").expect("c token");
+    None
+  });
+  assert!(
+    declined.is_none(),
+    "the closure returned None: the attempt declines"
+  );
+
+  drop(inp);
+  drop(input);
+
+  let recorded = sink
+    .events()
+    .iter()
+    .filter(|ev| matches!(ev, Event::Token { .. }))
+    .count();
+  assert_eq!(recorded, 2, "a, b survive on the sink's own event stream");
+  assert_eq!(
+    sink.inner_ref().journal,
+    std::vec![JEntry::Token, JEntry::Token],
+    "the inner must be rewound to its checkpoint reading (a, b survive), not past them"
+  );
+  assert_eq!(
+    sink.inner_ref().journal.len(),
+    recorded,
+    "the inner's surviving forwards must agree with the sink's own token-event count"
+  );
+}
+
+/// REGRESSION (variant B — a diagnostic before the checkpoint): the surviving-`Diag`-slot
+/// derivation missed tokens forwarded **after** the last diagnostic. Over `"a!bc"`, consume
+/// `a`, then a single `next()` crosses the `!` lexer error (forwarding a `Diag`) and yields
+/// `b`; then an `attempt` consumes `c` and declines. The checkpoint sits after `a`,diag,`b`.
+///
+/// Pre-fix the rewind used the surviving `!` slot's reading (after `a`,diag), dropping the `b`
+/// that settled after it — the inner journal came back `[Token, Diag]` (length 2). Post-fix
+/// the checkpoint captured the inner's reading, so `b` survives: `[Token, Diag, Token]`.
+#[test]
+fn decline_rewinds_inner_to_checkpoint_reading_across_diag() {
+  let mut sink: JournalingSink<'_> =
+    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut input = Input::<MiniLexer<'_>, JournalingCtx<'_>>::with_state_and_cache(
+    "a!bc",
+    (),
+    DefaultCache::<MiniLexer<'_>>::default(),
+  );
+  let mut inp = input.as_ref(&mut sink);
+
+  // `a`, then a consume that crosses the `!` lexer error (a forwarded Diag) and yields `b`.
+  inp.next().expect("collects").expect("a token");
+  inp
+    .next()
+    .expect("collects")
+    .expect("b token, crossing the ! lexer error");
+
+  let declined: Option<()> = inp.attempt(|inp2| {
+    inp2.next().expect("collects").expect("c token");
+    None
+  });
+  assert!(
+    declined.is_none(),
+    "the closure returned None: the attempt declines"
+  );
+
+  drop(inp);
+  drop(input);
+
+  assert_eq!(
+    sink.inner_ref().journal,
+    std::vec![JEntry::Token, JEntry::Diag, JEntry::Token],
+    "the inner must be rewound to its checkpoint reading: a, the crossed diag, and b all \
+     survive — the diag-slot derivation dropped the b forwarded after the diagnostic"
   );
 }
