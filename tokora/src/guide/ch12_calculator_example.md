@@ -477,11 +477,17 @@ where
 
 let eval = |src| Parser::new().apply(calc_expr).parse_str(src);
 
-assert_eq!(eval("1 + 2 * 3").unwrap(), 7.0);   // `*` binds tighter than `+`  → 1 + (2 * 3)
-assert_eq!(eval("(1 + 2) * 3").unwrap(), 9.0); // grouping overrides          → (1 + 2) * 3
-assert_eq!(eval("2 ^ 3 ^ 2").unwrap(), 512.0); // `^` is RIGHT-assoc          → 2 ^ (3 ^ 2)
-assert_eq!(eval("-2 ^ 2").unwrap(), -4.0);     // `^` outranks unary `-`      → -(2 ^ 2)
-assert_eq!(eval("10 / 2 / 5").unwrap(), 1.0);  // `/` is left-assoc           → (10 / 2) / 5
+# // `^` folds through `f64::powf`, and Miri intentionally perturbs transcendental floats to catch
+# // code that assumes bit-exact results across platforms — so this table compares with a small
+# // epsilon instead of `assert_eq!`. The taught values themselves are unchanged.
+# fn assert_close(got: f64, want: f64) {
+#   assert!((got - want).abs() < 1e-9, "{got} != {want}");
+# }
+assert_close(eval("1 + 2 * 3").unwrap(), 7.0);   // `*` binds tighter than `+`  → 1 + (2 * 3)
+assert_close(eval("(1 + 2) * 3").unwrap(), 9.0); // grouping overrides          → (1 + 2) * 3
+assert_close(eval("2 ^ 3 ^ 2").unwrap(), 512.0); // `^` is RIGHT-assoc          → 2 ^ (3 ^ 2)
+assert_close(eval("-2 ^ 2").unwrap(), -4.0);     // `^` outranks unary `-`      → -(2 ^ 2)
+assert_close(eval("10 / 2 / 5").unwrap(), 1.0);  // `/` is left-assoc           → (10 / 2) / 5
 ```
 
 ## Reproduce the maintained assertion table
