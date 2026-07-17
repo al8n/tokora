@@ -29,19 +29,32 @@ CHAPTERS = (
     ("ch08_recovery.md", "8. Recovery"),
     ("ch09_streaming.md", "9. Partial input"),
     ("ch10_testing.md", "10. Testing"),
+    ("arch_parsing_engine.md", "The parsing engine: parse while lexing"),
+    ("arch_checkpoint_rewind.md", "Checkpoint, rewind, and the LIFO contract"),
+    ("arch_atomic_emitter.md", "The atomic emitter"),
+    ("arch_event_stream_cst.md", "The event-stream CST engine"),
+    ("arch_source_slice.md", "Source, Slice, and storage backends"),
     ("ch11_real_parser.md", "11. Anatomy of a real Tokora parser"),
+    ("recipe_custom_lexer.md", "Recipe: writing a custom lexer"),
     ("ch12_calculator_example.md", "12. Walkthrough: calculator"),
     ("ch13_s_expression_example.md", "13. Walkthrough: S-expressions"),
     ("ch14_json_example.md", "14. Walkthrough: JSON"),
     ("ch15_c_expression_example.md", "15. Walkthrough: C expressions"),
     ("ch16_lossless_cst.md", "16. Lossless CSTs with Rowan"),
+    ("ref_combinators.md", "Reference: combinators & atoms"),
+    ("ref_errors_emitters_context.md", "Reference: errors, emitters & context"),
+    ("ref_vocabulary_macros_features.md", "Reference: vocabulary, macros & feature flags"),
+    ("ref_pratt.md", "Reference: Pratt (precedence) parsing"),
+    ("ref_types_syntax.md", "Reference: types & syntax building blocks"),
 )
 
 SUMMARY = """# Summary
 
-[Introduction](README.md)
+# Part I — Getting Started
 
-# Fundamentals: build Calc
+- [Introduction](README.md)
+
+# Part II — Core Concepts
 
 - [Tokens and the lexer](ch01_tokens.md)
 - [First parsers](ch02_parsers.md)
@@ -54,23 +67,62 @@ SUMMARY = """# Summary
 - [Partial input](ch09_streaming.md)
 - [Testing](ch10_testing.md)
 
-# Applied parsers
+# Part III — Design & Architecture
+
+- [The parsing engine: parse while lexing](arch_parsing_engine.md)
+- [Checkpoint, rewind & the LIFO contract](arch_checkpoint_rewind.md)
+- [The atomic emitter](arch_atomic_emitter.md)
+- [The event-stream CST engine](arch_event_stream_cst.md)
+- [Source, Slice & storage backends](arch_source_slice.md)
+
+# Part IV — Recipes & Applied Parsers
 
 - [Anatomy of a real Tokora parser](ch11_real_parser.md)
+- [Recipe: writing a custom lexer](recipe_custom_lexer.md)
 - [Walkthrough: calculator](ch12_calculator_example.md)
 - [Walkthrough: S-expressions](ch13_s_expression_example.md)
 - [Walkthrough: JSON](ch14_json_example.md)
 - [Walkthrough: C expressions](ch15_c_expression_example.md)
-
-# Language tooling
-
 - [Lossless CSTs with Rowan](ch16_lossless_cst.md)
+
+# Part V — Reference
+
+- [Combinator & atom reference](ref_combinators.md)
+- [Errors, emitters & context reference](ref_errors_emitters_context.md)
+- [Vocabulary, macros & feature flags](ref_vocabulary_macros_features.md)
+- [Pratt (precedence) reference](ref_pratt.md)
+- [Types & syntax building blocks](ref_types_syntax.md)
 """
 
 SECTIONS = {
+    "arch_parsing_engine.md": (
+        "Lex, then parse — and why tokora does neither in that order",
+        "Two objects: the input owner and the working handle",
+        "A parser is a function over the handle", "The engine, end to end",
+    ),
+    "arch_checkpoint_rewind.md": (
+        "What a checkpoint captures",
+        "The last-in, first-out contract, and how misuse is caught",
+        "The rewind, end to end",
+    ),
+    "arch_atomic_emitter.md": (
+        "checkpoint / rewind / release: the emitter's transactional surface",
+        "The built-ins as design points", "One assembly, two effect channels",
+    ),
+    "arch_event_stream_cst.md": (
+        "Events, not eager nodes", "The event vocabulary", "The rewindable sink",
+        "Materialization: one walk that builds and validates",
+    ),
+    "arch_source_slice.md": (
+        "The seam is two traits", "The backends", "no_std posture",
+    ),
     "ch11_real_parser.md": (
         "Start with the output", "Build the lexical layer", "Choose a parser shape",
         "Wire the entry point", "Test the complete program", "Map the maintained examples",
+    ),
+    "recipe_custom_lexer.md": (
+        "Step 1 — the token vocabulary", "Step 4 — the hand-written path",
+        "Step 5 — trivia and losslessness",
     ),
     "ch12_calculator_example.md": (
         "Define token, kind, lexer alias, and CalcError",
@@ -96,14 +148,32 @@ SECTIONS = {
         "Parse sample.json and test separators",
     ),
     "ch15_c_expression_example.md": (
+        "Define the lexer, token kinds, and CExprError",
         "Define UnaryOp, BinOp, PostfixOp, and Expr", "Define the precedence ladder",
-        "Implement parse_lhs", "Implement parse_rhs and the sentinel",
-        "Implement the three folds", "Show how fold_postfix parses [], calls, and ?:",
-        "Close the recursion in parse_cexpr", "Run the maintained AST-display assertion table",
+        "Implement parse_lhs and parse_rhs", "Implement the three folds",
+        "Close the recursion in parse_cexpr", "Reproduce the maintained assertion table",
     ),
     "ch16_lossless_cst.md": (
-        "Enable Rowan", "Define syntax kinds", "Preserve trivia", "Build nodes during parsing",
-        "Prove round-trip losslessness", "Checkpoints and transactional limits",
+        "Enable Rowan", "One enum owns the kind space", "The grammar declares the tree",
+        "Tokens reach the tree on their own", "Backtracking rewinds the tree",
+        "Materialization is a typed wall",
+    ),
+    "ref_combinators.md": (
+        "Atoms — parsers from nothing", "Repetition & folding",
+        "Separation — comma-separated and friends", "Feature matrix",
+    ),
+    "ref_errors_emitters_context.md": (
+        "The error model", "Emitters", "ParseContext / ParseCtx",
+    ),
+    "ref_pratt.md": (
+        "Folds are fn items, not closures", "Token-level surface", "AST-level surface",
+    ),
+    "ref_types_syntax.md": (
+        "Span, offset & location primitives", "Literals",
+        "Error recovery: ErrorNode and Recoverable",
+    ),
+    "ref_vocabulary_macros_features.md": (
+        "The punctuator! macro", "The keyword! macro & KeywordToken", "Feature matrix",
     ),
 }
 
@@ -170,13 +240,17 @@ def validate_summary(errors: list[str]) -> None:
     actual = path.read_text(encoding="utf-8")
     if actual != SUMMARY:
         add(errors, "tokora/src/guide/SUMMARY.md does not match the approved structure exactly")
-    names = re.findall(r"^\s*-\s+\[[^\]]+\]\((ch\d{2}_[^)]+\.md)\)\s*$", actual, re.M)
+    names = re.findall(r"^\s*-\s+\[[^\]]+\]\(((?:ch\d{2}|arch|ref|recipe)_[^)]+\.md)\)\s*$", actual, re.M)
     expected = [name for name, _title in CHAPTERS]
     if names != expected or len(names) != len(set(names)):
-        add(errors, "SUMMARY.md must contain the ordered, unique 16 chapter links")
-    found = sorted(path.name for path in GUIDE.glob("ch[0-9][0-9]_*.md"))
+        add(errors, "SUMMARY.md must contain the ordered, unique 27 chapter links")
+    found = sorted(
+        path.name
+        for pattern in ("ch[0-9][0-9]_*.md", "arch_*.md", "recipe_*.md", "ref_*.md")
+        for path in GUIDE.glob(pattern)
+    )
     if found != sorted(expected):
-        add(errors, "tokora/src/guide must contain exactly the 16 chapter files in SUMMARY.md")
+        add(errors, "tokora/src/guide must contain exactly the 27 chapter files in SUMMARY.md")
 
 
 def validate_headings(errors: list[str]) -> None:
@@ -343,16 +417,23 @@ def validate_book(errors: list[str], book: Path) -> None:
     if not toc.is_file() or not toc.stat().st_size:
         add(errors, "generated mdBook must include non-empty toc.html for sidebar validation")
         return
-    parts = ("Fundamentals: build Calc", "Applied parsers", "Language tooling")
+    parts = (
+        "Part I — Getting Started",
+        "Part II — Core Concepts",
+        "Part III — Design & Architecture",
+        "Part IV — Recipes & Applied Parsers",
+        "Part V — Reference",
+    )
     sidebar = sidebar_toc(toc)
     if tuple(sidebar.part_titles) != parts:
-        add(errors, "mdBook sidebar is missing or reorders the three required parts")
+        add(errors, "mdBook sidebar is missing or reorders the five required parts")
     expected_hrefs = tuple(filename.replace(".md", ".html") for filename, _title in CHAPTERS)
     chapter_hrefs = tuple(
-        href for href in sidebar.chapter_hrefs if re.fullmatch(r"ch\d{2}_[^/]+\.html", href)
+        href for href in sidebar.chapter_hrefs
+        if re.fullmatch(r"(?:ch\d{2}|arch|ref|recipe)_[^/]+\.html", href)
     )
     if chapter_hrefs != expected_hrefs:
-        add(errors, "mdBook sidebar chapter hrefs do not match the ordered 16 chapters")
+        add(errors, "mdBook sidebar chapter hrefs do not match the ordered 27 chapters")
 
 
 def main() -> int:
