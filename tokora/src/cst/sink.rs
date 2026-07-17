@@ -14,7 +14,7 @@
 //! | E3 | [`CstSink::ledger`] | **monotone era source + truncation witness** | rewind APPENDS to it (a rewind *is* a truncation) and never removes; rewinding it would false-accept a stale mark |
 //! | E4 | [`CstSink::rows`] | **release stack + per-checkpoint depth ledger + inner reading** | push at `checkpoint()` (freezing the depth and the inner emitter's own checkpoint reading), pop at `release()` (kept) and `rewind()` (spent, the popped row's inner reading is the inner's rewind target); depth entries are frozen facts about prefixes, never live counters |
 //! | — | [`CstSink::floor`] | derived memo (the newest released row) | reset to the surviving top row when a rewind drops below it |
-//! | — | [`CstSink::base_inner`] | derived memo (the inner's construction-time reading) | primed at the first advancing touch (provably the construction reading), never restored |
+//! | — | [`CstSink::base_inner`] | derived memo (the inner's construction-time reading) | primed at the first advancing touch (provably the construction reading), never restored (the exact no-row target at the origin only) |
 //! | — | `inner`, `mapper`, `error_kind`, `gap_kind`, `trivia` | configuration / the wrapped emitter | never touched by rewind (the inner rewinds through its own contract) |
 //! | — | `witness` | sink identity (validated at every mark spend, every build) | never restored |
 //!
@@ -113,9 +113,9 @@ struct MarkRow {
 impl MarkRow {
   /// The empty-buffer baseline: depth 0 at length 0, inner at its base reading 0.
   ///
-  /// Floor sentinel only — the floor's `inner` is never a rewind target (the no-row fallback
-  /// is `base_inner`), so the 0 here stays inert even for a reused inner whose construction
-  /// reading is nonzero.
+  /// Floor sentinel only — the floor's `inner` is never a rewind target (the no-row **origin**
+  /// fallback is `base_inner`), so the 0 here stays inert even for a reused inner whose
+  /// construction reading is nonzero.
   const ZERO: Self = Self {
     mark: 0,
     depth: 0,
@@ -212,11 +212,15 @@ fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
 /// (no per-call allocation), `rewind` restores by value — reclaiming everything above the
 /// mark as a range — and `release` needs nothing forwarded, because a kept reading is just a
 /// number going out of scope. The reading is a fact about the inner's one emission timeline,
-/// whichever `Lang` instantiation reads it (the trait's one-timeline law).
+/// whichever `Lang` instantiation reads it (the trait's one-timeline law). The sink hands
+/// `inner.rewind` only readings it knows exactly — a row's capture, or the construction-time
+/// base for a full unwind to the origin; a rewind that truncates nothing never touches the
+/// inner, and a truncating rewind to a mid-log mark no row captured is witnessed in debug and
+/// leaves the inner untouched in release (the sink never fabricates a reading).
 ///
 /// A table-keyed emitter — one that allocates per-`checkpoint` bookkeeping behind interior
 /// mutability and reclaims it per-`release` — is **not supported as the inner**: the sink
-/// re-spends its base reading across no-row rewinds, drops row readings above a rewound
+/// re-spends its base reading across no-row **origin** rewinds, drops row readings above a rewound
 /// target by value, and settles rows out of stack order under mixed raw use, all of which
 /// presuppose readings. Such an emitter belongs at the input layer's direct seam, where the
 /// settle discipline is 1:1 — the sink's own mark stack is exactly that shape, and the input
@@ -253,8 +257,9 @@ where
   floor: MarkRow,
   /// E3 — the monotone era source and truncation witness backing mark validation.
   ledger: TruncationLedger,
-  /// The inner emitter's **construction-time** reading — the rewind recovery value when no
-  /// mark-stack row sits at the target (the undisciplined raw case). Primed at the first
+  /// The inner emitter's **construction-time** reading — the no-row **origin** rewind's exact
+  /// inner target (an empty event log provably pairs with the construction reading; mid-log
+  /// no-row marks have no exact reading and never touch the inner). Primed at the first
   /// inner-advancing touch (a forwarded diagnostic or a settled token; the rewind fallback
   /// reads it the same way), which provably equals the reading at [`new`](Self::new): the sink
   /// exposes no `&mut` path to the inner, so the inner cannot advance before the sink's own
@@ -624,8 +629,9 @@ impl<'inp, L, E> CstSink<'inp, L, E>
 where
   L: Lexer<'inp>,
 {
-  /// The inner emitter's construction-time reading — the no-row rewind fallback used only
-  /// when no mark-stack row sits at the rewind mark. Primed at the first **advancing** touch:
+  /// The inner emitter's construction-time reading — the no-row rewind's inner target, used
+  /// only for the full unwind to the **origin** — the one no-row case with an exact
+  /// reconstruction (empty log ⟺ construction reading). Primed at the first **advancing** touch:
   /// `forward_diag` (emissions) and `commit_token` (settles) both prime before forwarding, and
   /// those two are the sink's only inner-advancing surfaces (labels are scope state that never
   /// moves a checkpoint reading, by the trait's label law). Whenever this value is read it
@@ -673,7 +679,7 @@ where
     Lang: ?Sized,
     E: Emitter<'inp, L, Lang>,
   {
-    // The base must predate the first forwarded emission: it is the no-row rewind fallback.
+    // The base must predate the first forwarded emission: it is the no-row origin-rewind target.
     let _ = self.base_inner_mark::<Lang>();
     let out = forward(&mut self.inner);
     self.events.push(Event::Diag { error_span });
@@ -766,13 +772,18 @@ where
   /// Truncate + reverse-replay + inner rewind: drop the events above the mark, undo the
   /// journaled `forward_parent` writes whose `StartAt`s died, record the truncation in
   /// the era ledger (marks into the dropped region are stale forever), and rewind the
-  /// inner emitter to the reading the target row captured at its checkpoint (the sink's base
-  /// reading when no row sits at the mark). Out-of-range marks clamp (the `Verbose` posture).
+  /// inner emitter to a reading the sink **knows exactly** — the target row's captured
+  /// reading, or the construction-time base for a no-row unwind to the origin. A rewind
+  /// that truncates nothing — the mark is at, or clamps to, the current length (the
+  /// `Verbose` posture) — is a **no-op on every channel, the inner included**: the trait's
+  /// rewind-to-current law. A truncating rewind to a mid-log mark no live row captured has
+  /// no exact inner reading anywhere: debug builds panic at cause; release builds keep the
+  /// sink's own channels exact and leave the inner untouched (unspecified-but-bounded —
+  /// the sink never guesses a reading; see the *Inner-emitter contract* on [`CstSink`]).
   fn rewind(&mut self, cursor: &Cursor<'inp, '_, L>, checkpoint: u64)
   where
     L: Lexer<'inp>,
   {
-    let base = self.base_inner_mark::<Lang>();
     let len = self.events.len() as u64;
     let mark = checkpoint.min(len);
 
@@ -781,7 +792,7 @@ where
     // exactly the mark is the one being rewound to, and it carries the exact inner reading to
     // hand back. A disciplined rewind (guards, attempt, the scan family, correct raw
     // save/restore) always finds that row live — a released mark is a committed mark, never
-    // rewound to. `None` is the no-row case: undisciplined raw use, which falls back to base.
+    // rewound to. `None` is the no-row case, resolved below by what the sink still knows.
     let target_inner = {
       let rows = self.rows.get_mut();
       while rows.last().is_some_and(|row| row.mark > mark) {
@@ -815,12 +826,45 @@ where
       self.ledger.record_truncation(mark);
     }
 
-    // The inner rewinds to the target row's captured reading; `base` (the inner's
-    // construction-time reading) is the bounded fallback only when no row sits at the mark
-    // (undisciplined raw use). On every disciplined path the target row is live and carries
-    // the true reading.
-    let inner_mark = target_inner.unwrap_or(base);
-    self.inner.rewind(cursor, inner_mark);
+    // The inner is rewound only to a reading the sink knows EXACTLY:
+    //   - a spent row's captured reading (any mark) — every disciplined path lands here;
+    //   - nothing at all when nothing was truncated (a no-row rewind at, or clamped to, the
+    //     current length): the surviving events are the whole log, so every inner-side
+    //     record they reference must survive with them — the trait's rewind-to-current
+    //     no-op law, upheld on every channel (this arm wins the len == 0 overlap: with an
+    //     empty log nothing ever advanced the inner, so skipping is exact there too);
+    //   - the construction-time base for a no-row unwind to the ORIGIN, exact by the
+    //     advancing-surfaces law: every inner advance appends an event and primes the base
+    //     first, so an empty event log pairs with exactly the construction reading.
+    // A truncating no-row rewind to a MID-LOG mark has no exact reading anywhere: the
+    // inner's reading is inner-specific (an emission-log length, a token count, a constant)
+    // and was never captured at that mark — the mark was never returned by `checkpoint()`,
+    // or its capture was already spent by an earlier rewind or release. That is
+    // undisciplined raw use: debug builds panic at cause (the sink-level twin of the input
+    // layer's LIFO witness, which already rejects it on every input-mediated path); release
+    // builds keep the sink's own channels exact and REFUSE TO GUESS an inner reading — the
+    // inner stays put, one-sided staleness that preserves every inner-side record the
+    // surviving prefix still references. Rewinding to `base` here (the pre-fix behavior) or
+    // to a neighboring row's reading would instead destroy committed inner state the
+    // surviving log still carries.
+    let inner_target = match target_inner {
+      Some(reading) => Some(reading),
+      None if mark == len => None,
+      None if mark == 0 => Some(self.base_inner_mark::<Lang>()),
+      None => {
+        if cfg!(debug_assertions) {
+          panic!(
+            "CstSink rewind to a mid-log mark with no captured row: mark {mark} of a \
+             {len}-event log was never returned by checkpoint(), or its capture was already \
+             spent by an earlier rewind or release — no exact inner reading exists for it"
+          );
+        }
+        None
+      }
+    };
+    if let Some(reading) = inner_target {
+      self.inner.rewind(cursor, reading);
+    }
   }
 
   /// The auto-emission hook: the input layer settles every committed token through this

@@ -2047,3 +2047,79 @@ fn no_row_base_rewind_restores_the_construction_reading() {
      sink log dropped"
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// The inner is rewound only to a reading the sink knows EXACTLY (R5 loop-cap closure)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// REGRESSION (R5 [high]): a no-row rewind that truncates NOTHING — the mark clamps to, or
+/// sits exactly at, the current log length — must be a no-op on EVERY channel, the inner
+/// included: the surviving events are the whole log, so every inner-side record they
+/// reference must survive with them (the trait's rewind-to-current law). Pre-fix the no-row
+/// fallback rewound the inner to base unconditionally: the sink log kept the settled token,
+/// the inner dropped it — silent one-timeline shear on a lawful no-op call.
+#[test]
+fn no_row_truncation_free_rewind_leaves_the_inner_untouched() {
+  let mut sink: JournalingSink<'_> =
+    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+
+  // One settled token, forwarded to the inner — and no checkpoint ever captured.
+  Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'a'), &span(0, 1));
+  let origin = 0usize;
+
+  // The clamp: a mark far above the log length truncates nothing and must move nothing.
+  Emitter::<MiniLexer<'_>>::rewind(&mut sink, Cursor::from_ref(&origin), u64::MAX);
+  assert_eq!(sink.events().len(), 1, "the event log keeps the token");
+  assert_eq!(
+    sink.inner_ref().journal,
+    std::vec![JEntry::Token],
+    "the inner keeps the token the log kept — a truncation-free rewind touches no channel"
+  );
+
+  // Exactly at the length: the same law without the clamp.
+  Emitter::<MiniLexer<'_>>::rewind(&mut sink, Cursor::from_ref(&origin), 1);
+  assert_eq!(sink.events().len(), 1);
+  assert_eq!(sink.inner_ref().journal, std::vec![JEntry::Token]);
+}
+
+/// REGRESSION (R5, mid-log no-row case): a truncating rewind to a mark no checkpoint ever
+/// captured has NO exact inner reading anywhere — undisciplined raw use, witnessed at cause
+/// in debug builds (the sink-level twin of the input layer's LIFO witness) instead of
+/// silently corrupting a channel. Pre-fix it silently paired the surviving prefix with the
+/// construction-time base, destroying committed inner state the log still carried.
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(expected = "rewind to a mid-log mark with no captured row")]
+fn no_row_middle_rewind_debug_asserts_at_cause() {
+  let mut sink: JournalingSink<'_> =
+    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'a'), &span(0, 1));
+  Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'b'), &span(1, 2));
+  let origin = 0usize;
+  Emitter::<MiniLexer<'_>>::rewind(&mut sink, Cursor::from_ref(&origin), 1);
+}
+
+/// The release twin of the debug witness: a truncating no-row mid-log rewind still rewinds
+/// the sink's OWN channels exactly, and refuses to guess an inner reading — the inner stays
+/// put (bounded one-sided staleness), never dropped to base (which would destroy inner-side
+/// records the surviving prefix still references).
+#[cfg(not(debug_assertions))]
+#[test]
+fn no_row_middle_rewind_leaves_the_inner_untouched_in_release() {
+  let mut sink: JournalingSink<'_> =
+    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'a'), &span(0, 1));
+  Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'b'), &span(1, 2));
+  let origin = 0usize;
+  Emitter::<MiniLexer<'_>>::rewind(&mut sink, Cursor::from_ref(&origin), 1);
+  assert_eq!(
+    sink.events().len(),
+    1,
+    "the sink's own log truncates exactly"
+  );
+  assert_eq!(
+    sink.inner_ref().journal,
+    std::vec![JEntry::Token, JEntry::Token],
+    "no exact reading exists for a mid-log no-row mark: the inner is left untouched"
+  );
+}
