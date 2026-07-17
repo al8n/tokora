@@ -181,7 +181,6 @@ where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
     trace_event!(self, "try_expect");
-    // if cache is empty, directly try expect on input
     if self.cache.is_empty() {
       return self.try_expect_on_input(pred);
     }
@@ -196,50 +195,6 @@ where
       Spanned::new(span, tok)
     }))
   }
-
-  // /// Advances to the next valid token and expects it to satisfy the predicate.
-  // ///
-  // /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
-  // /// If `pred` returns `Ok`, the token is consumed and returned.
-  // /// Otherwise, the error is returned and the token remains in the cache.
-  // pub fn try_expect_either<F>(
-  //   &mut self,
-  //   mut pred: F,
-  // ) -> Result<Option<Either<Spanned<L::Token, L::Span>, Spanned<L::Token, L::Span>>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  // where
-  //   F: FnMut(Spanned<&L::Token, &L::Span>) -> Option<Either<(), ()>>,
-  // {
-  //   // if cache is empty, directly try expect on input
-  //   if self.cache.is_empty() {
-  //     return self.try_expect_on_input(pred);
-  //   }
-
-  //   // pop from cache if matching
-  //   let mut is_left = false;
-  //   Ok(self.cache.pop_front_if(|t| {
-  //     match pred(t.token) {
-  //       Some(Either::Left(_)) => {
-  //         is_left = true;
-  //         true
-  //       }
-  //       Some(Either::Right(_)) => {
-  //         true
-  //       }
-  //       None => false,
-  //     }
-  //   }).map(|tok| {
-  //     let (lexed, state) = tok.into_components();
-  //     let (span, tok) = lexed.into_components();
-  //     self.set_span_after_consume((&span).into());
-  //     *self.state = state;
-
-  //     if is_left {
-  //       Either::Left(Spanned::new(span, tok))
-  //     } else {
-  //       Either::Right(Spanned::new(span, tok))
-  //     }
-  //   }))
-  // }
 
   /// Advances to the next valid token and expects it to satisfy the predicate.
   ///
@@ -257,7 +212,6 @@ where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> Option<O>,
   {
     trace_event!(self, "try_expect_map");
-    // if cache is empty, directly try expect on input
     if self.cache.is_empty() {
       return self.try_expect_map_on_input(pred);
     }
@@ -302,7 +256,6 @@ where
     ) -> Option<Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>>,
   {
     trace_event!(self, "try_expect_and_then");
-    // if cache is empty, directly try expect on input
     if self.cache.is_empty() {
       return self.try_expect_and_then_on_input(pred);
     }
@@ -393,7 +346,6 @@ where
 
     match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
       Scan::Token(tok) => {
-        // if the token matches, we return it
         if pred(tok.as_ref()) {
           self.commit_token(tok.data(), tok.span_ref());
           *self.state = lexer.into_state();
@@ -434,7 +386,6 @@ where
 
     match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
       Scan::Token(tok) => {
-        // if the token matches, we return it
         if let Some(out) = pred(tok.as_ref()) {
           self.commit_token(tok.data(), tok.span_ref());
           *self.state = lexer.into_state();

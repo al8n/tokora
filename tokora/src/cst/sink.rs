@@ -793,7 +793,7 @@ where
   {
     let len = self.events.len() as u64;
     if checkpoint > len {
-      // R6 root guard — an out-of-range FUTURE mark names a log position that does not
+      // root guard — an out-of-range FUTURE mark names a log position that does not
       // exist yet, so there is nothing to rewind on ANY channel: return before every
       // consumer of the mark (row pops, floor, truncation, journal replay, ledger, the
       // inner enumeration — and any consumer added later). The pre-fix

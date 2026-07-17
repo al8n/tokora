@@ -616,7 +616,7 @@ fn labels_forward_without_diag_slots() {
 }
 
 /// An out-of-range mark is ignored outright — a total no-op, never a panic. (It must NOT
-/// clamp: clamping to the length would spend a live row at the current mark — the R6 class;
+/// clamp: clamping to the length would spend a live row at the current mark;
 /// see `out_of_range_rewind_spends_no_live_row`.)
 #[test]
 fn rewind_ignores_out_of_range_marks() {
@@ -958,7 +958,7 @@ fn cst_composition_census_every_family_method_is_overridden() {
 // The forwarding matrix — CstSink satisfies every bound its inner emitter does
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// The `ComposableEmitter`-shaped conformance (consumers R5): a context bound naming the
+/// The `ComposableEmitter`-shaped conformance: a context bound naming the
 /// full emitter trait family — core + the six atomic capability traits + the separated
 /// refinements + pratt — accepts `CstSink<E>` (and `&mut CstSink<E>`, the parse_partial
 /// threading shape) wherever it accepts `E`.
@@ -1717,7 +1717,7 @@ fn auto_emission_lexer_error_and_eof_emit_no_token_event() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Composition: the wrapped emitter must observe every committed token (R3)
+// Composition: the wrapped emitter must observe every committed token
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// A test-only inner emitter that counts every token [`Emitter::commit_token`] observes
@@ -1788,7 +1788,7 @@ fn counting_parens(kind: &u8) -> Balance<u8> {
   }
 }
 
-/// THE R3 REGRESSION: `CstSink::commit_token` must forward to the wrapped emitter, not
+/// THE REGRESSION: `CstSink::commit_token` must forward to the wrapped emitter, not
 /// just record its own CST event. Drives a real parse — a plain consume, a
 /// `sync_balanced` recovery skip (whose skipped tokens settle through `commit_token`
 /// exactly like a consume, per the auto-emission contract), and the resumed consumes
@@ -1846,7 +1846,7 @@ fn commit_token_forwards_to_the_inner_emitter_recovery_skips_included() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// A decline rewinds the inner emitter to its CHECKPOINT reading (R3 rewind contract)
+// A decline rewinds the inner emitter to its CHECKPOINT reading (rewind contract)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// A test-only inner that journals every forward (token AND diagnostic) with a value-keyed
@@ -2026,7 +2026,7 @@ fn decline_rewinds_inner_to_checkpoint_reading_across_diag() {
   );
 }
 
-/// REGRESSION (R4 finding 2): the no-row base rewind must restore the inner to its
+/// REGRESSION: the no-row base rewind must restore the inner to its
 /// construction-time reading even when settled TOKENS were the only forwards. Pre-fix,
 /// `commit_token` advanced the inner without priming the base, so the no-row rewind captured a
 /// post-token reading and the inner retained tokens the sink log dropped — a one-timeline
@@ -2055,10 +2055,10 @@ fn no_row_base_rewind_restores_the_construction_reading() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// The inner is rewound only to a reading the sink knows EXACTLY (R5 loop-cap closure)
+// The inner is rewound only to a reading the sink knows EXACTLY
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// REGRESSION (R5 [high]): a no-row rewind that truncates NOTHING — the mark is out of
+/// REGRESSION: a no-row rewind that truncates NOTHING — the mark is out of
 /// range above, or sits exactly at, the current log length — must be a no-op on EVERY
 /// channel, the inner
 /// included: the surviving events are the whole log, so every inner-side record they
@@ -2089,7 +2089,7 @@ fn no_row_truncation_free_rewind_leaves_the_inner_untouched() {
   assert_eq!(sink.inner_ref().journal, std::vec![JEntry::Token]);
 }
 
-/// REGRESSION (R5, mid-log no-row case): a truncating rewind to a mark no checkpoint ever
+/// REGRESSION (mid-log no-row case): a truncating rewind to a mark no checkpoint ever
 /// captured has NO exact inner reading anywhere — undisciplined raw use, witnessed at cause
 /// in debug builds (the sink-level twin of the input layer's LIFO witness) instead of
 /// silently corrupting a channel. Pre-fix it silently paired the surviving prefix with the
@@ -2132,10 +2132,10 @@ fn no_row_middle_rewind_leaves_the_inner_untouched_in_release() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Out-of-range marks are ignored BEFORE the row lookup (R6 clamp-class closure)
+// Out-of-range marks are ignored BEFORE the row lookup
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// REGRESSION (R6 [medium]): an out-of-range FUTURE mark (`checkpoint > len`) is a rewind to
+/// REGRESSION: an out-of-range FUTURE mark (`checkpoint > len`) is a rewind to
 /// a point the log has not reached — a TOTAL no-op on every channel, the mark stack included.
 /// Pre-fix, `mark = checkpoint.min(len)` clamped it to the length BEFORE the row lookup, so a
 /// future mark masqueraded as a rewind-to-current and spent the live row of a REAL checkpoint

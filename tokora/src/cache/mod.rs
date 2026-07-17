@@ -213,29 +213,6 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   /// After calling this method, `len()` returns 0 and `is_empty()` returns `true`.
   fn clear(&mut self);
 
-  // /// Retains only the tokens in the cache, removing all errors
-  // fn retain_tokens<E, Lang>(&mut self, emitter: &mut E) -> Result<(), E::Error>
-  // where
-  //   E: super::Emitter<'a, L, Lang>,
-  //   Lang: ?Sized,
-  // {
-  //   self.retain(
-  //     |t| {
-  //       match t.token().data()
-  //     },
-  //     emitter,
-  //   )
-  // }
-
-  // /// Retains only the elements specified by the predicate.
-  // ///
-  // /// In other words, remove all elements e for which f(&e) returns false. This method operates in place, visiting each element exactly once in the original order, and preserves the order of the retained elements.
-  // fn retain<E, F, Lang>(&mut self, f: F, emitter: &mut E) -> Result<(), E::Error>
-  // where
-  //   F: FnMut(CachedTokenRefOf<'_, 'a, L>) -> bool,
-  //   E: super::Emitter<'a, L, Lang>,
-  //   Lang: ?Sized;
-
   /// Conditionally removes and returns the front token if it matches a predicate.
   ///
   /// Peeks at the first token in the cache and checks if it satisfies the predicate.
@@ -488,18 +465,6 @@ where
     }
   }
 }
-
-// impl<'a, L: Lexer<'a>> TryFrom<> for CachedToken<T, State, Span> {
-//   #[inline(always)]
-//   pub(super) fn try_into_token(
-//     self,
-//   ) -> Result<CachedToken<T, State, Span>, <T as Token<>>::Error> {
-//     match self.token.data {
-//       Lexed::Token(token) => Ok(CachedToken::new(Spanned::new(self.token.span, token), self.state)),
-//       Lexed::Error(e) => Err(e),
-//     }
-//   }
-// }
 
 impl<T, State, Span> CachedToken<T, State, Span> {
   /// Creates a new cached token.

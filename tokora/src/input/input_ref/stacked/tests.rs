@@ -727,7 +727,7 @@ fn stacked_savepoints_survive_nested_attempt_and_transaction() {
   expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
 )]
 fn stacked_raw_restore_below_base_panics_at_the_restore() {
-  // The stacked twin of Codex's scenario, converted from `stacked_base_drop_after_raw_restore_
+  // The stacked twin of the scenario converted from `stacked_base_drop_after_raw_restore_
   // below_base_does_not_resurrect`. save A, begin_stacked (base above A), savepoint, consume,
   // then raw-restore to A through the guard. A predates the guard's begin point, so restoring
   // it would invalidate the pinned base (and every savepoint above it) — the pin check panics

@@ -245,27 +245,6 @@ impl<Char, O> MalformedHexEscape<Char, O> {
     Self { digits, span }
   }
 
-  // /// Returns `true` if the sequence is also incomplete.
-  // ///
-  // /// A hex escape `\xXX` is 4 characters long total.
-  // /// If the span is shorter, it means the escape was cut off mid-sequence.
-  // ///
-  // /// ## Examples
-  // ///
-  // /// ```
-  // /// use tokora::error::{MalformedHexEscape, InvalidHexDigits};
-  // /// use tokora::SimpleSpan;
-  // ///
-  // /// let digits: InvalidHexDigits<char, 2> = InvalidHexDigits::from_char(12, 'G');
-  // /// let error = MalformedHexEscape::new(digits, SimpleSpan::new(10, 13));
-  // /// assert!(error.is_incomplete()); // Only 3 chars, not 4
-  // /// ```
-  // #[inline(always)]
-  // pub const fn is_incomplete(&self) -> bool
-  // {
-  //   self.span.len() < 4 // \x[0-9a-fA-F]{2} is 4 characters long
-  // }
-
   /// Returns the invalid hex digits.
   ///
   /// ## Examples

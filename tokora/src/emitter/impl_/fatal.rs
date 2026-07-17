@@ -119,17 +119,3 @@ where
   {
   }
 }
-
-// #[cfg(test)]
-// const _: () = {
-//   use crate::lexer::DummyLexer;
-
-//   const fn assert_noop_separated_by_emitter<'a, L, Error, E>()
-//   where
-//     L: Lexer<'a>,
-//     E: SeparatedEmitter<'a, L, Error = Error>,
-//   {
-//   }
-
-//   assert_noop_separated_by_emitter::<'_, DummyLexer, (), Fatal<()>>();
-// };

@@ -233,26 +233,6 @@ impl<Char, O> MalformedFixedUnicodeEscape<Char, O> {
     Self { digits, span }
   }
 
-  // /// Returns `true` if the sequence is also incomplete.
-  // ///
-  // /// A fixed-width unicode escape `\uXXXX` is 6 characters long total.
-  // /// If the span is shorter, it means the escape was cut off mid-sequence.
-  // ///
-  // /// ## Examples
-  // ///
-  // /// ```
-  // /// use tokora::error::{MalformedFixedUnicodeEscape, InvalidFixedUnicodeHexDigits};
-  // /// use tokora::SimpleSpan;
-  // ///
-  // /// let digits = InvalidFixedUnicodeHexDigits::<char>::from_char(12, 'G');
-  // /// let error = MalformedFixedUnicodeEscape::new(digits, SimpleSpan::new(10, 14));
-  // /// assert!(error.is_incomplete()); // Only 4 chars, not 6
-  // /// ```
-  // #[inline(always)]
-  // pub const fn is_incomplete(&self) -> bool {
-  //   self.span.len() < 6 // \u[0-9a-fA-F]{4} is 6 characters long
-  // }
-
   /// Returns the invalid unicode hex digits.
   ///
   /// ## Examples
