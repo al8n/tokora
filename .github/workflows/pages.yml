@@ -50,9 +50,9 @@ jobs:
           rustup component add rustfmt --toolchain "$RUST_TOOLCHAIN"
 
       - name: Install mdBook
-        run: >-
-          cargo +"$RUST_TOOLCHAIN" install mdbook --version "=$MDBOOK_VERSION" --locked
-          --no-default-features --features search
+        uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook@${{ env.MDBOOK_VERSION }}
 
       - name: Verify mdBook version
         run: |
