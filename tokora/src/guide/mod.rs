@@ -83,3 +83,7 @@ pub mod ref_combinators {
 pub mod ref_errors_emitters_context {
   #![doc = include_str!("ref_errors_emitters_context.md")]
 }
+
+pub mod ref_vocabulary_macros_features {
+  #![doc = include_str!("ref_vocabulary_macros_features.md")]
+}
