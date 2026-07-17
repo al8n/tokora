@@ -59,7 +59,7 @@ fail(f) -> Fail<F, L, O, Ctx>                         // f: FnMut() -> Error
 
 [`Any`](crate::parser::Any) also has `::spanned()`, `::sliced()`, and `::located()` constructors
 that attach position/text to the token. [`expect`](crate::parser::expect) is preferred over
-`Any` + [`filter`](crate::parser::ParseInput::filter) because it produces an
+`Any` + [`filter`](crate::ParseInput::filter) because it produces an
 [`expected …, found …`](crate::error::token::UnexpectedToken) diagnostic from the
 [`Expected`](crate::utils::Expected) the classifier returns.
 
@@ -179,11 +179,11 @@ receives a [`ParseState`](crate::ParseState) (span/slice access) — `map_with`,
 
 | Method | Shape | One-liner |
 |--------|-------|-----------|
-| [`map`](crate::parser::ParseInput::map) | `FnMut(O) -> U` | transform the output |
-| [`filter`](crate::parser::ParseInput::filter) | `FnMut(&O) -> Result<(), E>` | keep the value, or fail |
-| [`filter_map`](crate::parser::ParseInput::filter_map) | `FnMut(O) -> Result<U, E>` | transform-or-fail in one step |
-| [`validate`](crate::parser::ParseInput::validate) | `FnMut(&O) -> Result<(), E>` | assert an invariant, keep the value |
-| [`.unwrap()`](crate::parser::ParseInputUnwrapExt::unwrap) | `Option<O>` → `O` | unwrap an `Option` output, **panic** on `None` |
+| [`map`](crate::ParseInput::map) | `FnMut(O) -> U` | transform the output |
+| [`filter`](crate::ParseInput::filter) | `FnMut(&O) -> Result<(), E>` | keep the value, or fail |
+| [`filter_map`](crate::ParseInput::filter_map) | `FnMut(O) -> Result<U, E>` | transform-or-fail in one step |
+| [`validate`](crate::ParseInput::validate) | `FnMut(&O) -> Result<(), E>` | assert an invariant, keep the value |
+| [`.unwrap()`](crate::ParseInputUnwrapExt::unwrap) | `Option<O>` → `O` | unwrap an `Option` output, **panic** on `None` |
 
 ```text
 map<U, F>(self, f: F) -> Map<…>                       // F: FnMut(O) -> U
@@ -318,11 +318,11 @@ consumed. `spanned`/`sliced`/`located` are taught in [chapter 3](super::ch03_com
 
 | Method | Produces |
 |--------|----------|
-| [`spanned`](crate::parser::ParseInput::spanned) | `Spanned<O, Span>` — output + its source span |
-| [`sliced`](crate::parser::ParseInput::sliced) | `Sliced<O, Slice>` — output + its source text |
-| [`located`](crate::parser::ParseInput::located) | `Located<O, Span, Slice>` — output + span **and** text |
-| [`ignored`](crate::parser::ParseInput::ignored) | `()` — discard the output, keep the consumption |
-| [`by_ref`](crate::parser::ParseInput::by_ref) | `&mut ByRef<Self>` — reuse a parser without moving it |
+| [`spanned`](crate::ParseInput::spanned) | `Spanned<O, Span>` — output + its source span |
+| [`sliced`](crate::ParseInput::sliced) | `Sliced<O, Slice>` — output + its source text |
+| [`located`](crate::ParseInput::located) | `Located<O, Span, Slice>` — output + span **and** text |
+| [`ignored`](crate::ParseInput::ignored) | `()` — discard the output, keep the consumption |
+| [`by_ref`](crate::ParseInput::by_ref) | `&mut ByRef<Self>` — reuse a parser without moving it |
 
 ```rust
 # use core::{convert::Infallible, fmt};
@@ -429,11 +429,11 @@ the brackets ignored — `open.ignore_then(body).then_ignore(close)`.
 
 | Method | Keeps | One-liner |
 |--------|-------|-----------|
-| [`then`](crate::parser::ParseInput::then) | `(O, U)` | parse both, keep both |
-| [`then_ignore`](crate::parser::ParseInput::then_ignore) | `O` | parse both, keep the first |
-| [`ignore_then`](crate::parser::ParseInput::ignore_then) | `U` | parse both, keep the second |
-| [`then_value`](crate::parser::ParseInput::then_value) | `U` | parse `self`, discard it, yield `f()` |
-| [`and_then`](crate::parser::ParseInput::and_then) | `U` | map the first output fallibly (`FnMut(O) -> Result<U, E>`) |
+| [`then`](crate::ParseInput::then) | `(O, U)` | parse both, keep both |
+| [`then_ignore`](crate::ParseInput::then_ignore) | `O` | parse both, keep the first |
+| [`ignore_then`](crate::ParseInput::ignore_then) | `U` | parse both, keep the second |
+| [`then_value`](crate::ParseInput::then_value) | `U` | parse `self`, discard it, yield `f()` |
+| [`and_then`](crate::ParseInput::and_then) | `U` | map the first output fallibly (`FnMut(O) -> Result<U, E>`) |
 
 ```text
 then<T, U>(self, second: T) -> Then<…>               // second: ParseInput<U>
@@ -692,21 +692,21 @@ assert!(Parser::with_parser(choose).parse_str(";").is_err()); // `;` is in no ta
 ## Repetition & folding
 
 The [`repeated`](crate::try_parse_input::TryParseInput::repeated) driver runs a `TryParseInput`
-element until it declines; [`repeated_while`](crate::parser::ParseInput::repeated_while) runs a
+element until it declines; [`repeated_while`](crate::ParseInput::repeated_while) runs a
 plain `ParseInput` element until *your* peek-window condition says
-[`Stop`](crate::parser::Action). [`collect`](crate::parser::Accumulator::collect) accumulates the
+[`Stop`](crate::parser::Action). [`collect`](crate::Accumulator::collect) accumulates the
 elements into any [`Container`](crate::container::Container) (a `Vec`, a bounded array, …). The
 **fold** family combines elements without an intermediate container.
 
 | Combinator | On | One-liner |
 |------------|-----|-----------|
 | [`repeated()`](crate::try_parse_input::TryParseInput::repeated) | `TryParseInput` | repeat until the element declines |
-| [`repeated_while(cond)`](crate::parser::ParseInput::repeated_while) | `ParseInput` | repeat while `cond` (a peek decision) returns `Continue` |
-| [`collect()`](crate::parser::Accumulator::collect) / [`collect_with(c)`](crate::parser::Accumulator::collect_with) | repetition | gather elements into a `Container` (default / provided) |
+| [`repeated_while(cond)`](crate::ParseInput::repeated_while) | `ParseInput` | repeat while `cond` (a peek decision) returns `Continue` |
+| [`collect()`](crate::Accumulator::collect) / [`collect_with(c)`](crate::Accumulator::collect_with) | repetition | gather elements into a `Container` (default / provided) |
 | [`fold(init, acc)`](crate::try_parse_input::TryParseInput::fold) | `TryParseInput` | left-fold: `acc: FnMut(O, O) -> O` |
 | [`try_fold(init, acc)`](crate::try_parse_input::TryParseInput::try_fold) | `TryParseInput` | left-fold with a fallible `acc` |
 | [`rfold(init, acc)`](crate::try_parse_input::TryParseInput::rfold) | `TryParseInput` | right-fold (buffers, `alloc`) |
-| [`fold_while(cond, init, acc)`](crate::parser::ParseInput::fold_while) | `ParseInput` | left-fold under a peek condition (also `try_fold_while`, `rfold_while`) |
+| [`fold_while(cond, init, acc)`](crate::ParseInput::fold_while) | `ParseInput` | left-fold under a peek condition (also `try_fold_while`, `rfold_while`) |
 
 ```text
 repeated(self) -> Repeated<…>                          // element: TryParseInput
@@ -826,7 +826,7 @@ a typed separator [`Punctuator`](crate::punct::Punctuator); the ready-made spell
 (`separated_by_semicolon`, `_colon`, `_pipe`, … 18 in all) fix the separator. Wire your token to
 the vocabulary with one [`PunctuatorToken`](crate::token::PunctuatorToken) impl (which kind is the
 comma) and a `From<Comma<(), (), ()>>` for your kind (so the punctuator can name itself). When your
-element cannot decline, [`separated_while`](crate::parser::ParseInput::separated_while) (and the
+element cannot decline, [`separated_while`](crate::ParseInput::separated_while) (and the
 `separated_by_*_while` spellings) take an explicit peek condition instead.
 
 ```text
@@ -939,7 +939,7 @@ assert!(Parser::with_parser(csv).parse_str("1,,2").is_err()); // a doubled separ
 Each repetition/separation driver ([`Repeated`](crate::parser::Repeated),
 [`Separated`](crate::parser::Separated),
 [`SeparatedWhile`](crate::parser::SeparatedWhile)) exposes a small builder to tune element counts,
-separator policy, and delimiters before you [`collect`](crate::parser::Accumulator::collect). The
+separator policy, and delimiters before you [`collect`](crate::Accumulator::collect). The
 knobs return wrapper types (`AtLeast`, `AllowTrailing`, `Bounded`, …) that themselves chain, so
 order is flexible.
 
@@ -1321,10 +1321,10 @@ assert_eq!(Parser::with_parser(opt_number).parse_str("+").unwrap(), None);
 
 | Wrapper | One-liner |
 |---------|-----------|
-| [`recover(r)`](crate::parser::ParseInput::recover) | on error, **rewind** and run `r` (`FnMut(inp, err) -> Result<O, E>`) from the start |
-| [`inplace_recover(r)`](crate::parser::ParseInput::inplace_recover) | on error, run `r` from the **error position** (no rewind) — panic-mode resync |
-| [`skip_then_retry(class, pred)`](crate::parser::ParseInput::skip_then_retry) | on error, [`sync_balanced`](crate::InputRef::sync_balanced) to a sync point and retry |
-| [`padded()`](crate::parser::ParseInput::padded) | skip surrounding trivia (also `padded_left`, `padded_right`) |
+| [`recover(r)`](crate::ParseInput::recover) | on error, **rewind** and run `r` (`FnMut(inp, err) -> Result<O, E>`) from the start |
+| [`inplace_recover(r)`](crate::ParseInput::inplace_recover) | on error, run `r` from the **error position** (no rewind) — panic-mode resync |
+| [`skip_then_retry(class, pred)`](crate::ParseInput::skip_then_retry) | on error, [`sync_balanced`](crate::InputRef::sync_balanced) to a sync point and retry |
+| [`padded()`](crate::ParseInput::padded) | skip surrounding trivia (also `padded_left`, `padded_right`) |
 | [`labelled(name, p)`](crate::labelled) | stamp `p`'s diagnostics with a *"while parsing name"* context |
 
 `recover`/`inplace_recover`/`skip_then_retry` are the error-recovery surface taught in

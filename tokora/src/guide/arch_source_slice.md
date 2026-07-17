@@ -10,8 +10,8 @@ input through two small traits, [`Source`](crate::Source) and [`Slice`](crate::S
 else — owned or borrowed, text or raw bytes, `std` or bare-metal — is a matter of which type you
 hand it.
 
-This is the first chapter of Part III, so it also sets the register: less *here is how to use it*,
-more *here is why it is shaped this way*.
+Like [the previous chapter](super::arch_parsing_engine), this one keeps Part III's register: less
+*here is how to use it*, more *here is why it is shaped this way*.
 
 ## The problem: one engine, two axes of representation
 
