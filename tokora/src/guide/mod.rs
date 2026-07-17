@@ -58,6 +58,10 @@ pub mod arch_checkpoint_rewind {
   #![doc = include_str!("arch_checkpoint_rewind.md")]
 }
 
+pub mod arch_atomic_emitter {
+  #![doc = include_str!("arch_atomic_emitter.md")]
+}
+
 pub mod arch_source_slice {
   #![doc = include_str!("arch_source_slice.md")]
 }

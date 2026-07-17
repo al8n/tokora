@@ -374,7 +374,7 @@ The checkpoint is one of the four seams Part III opens onto the same engine:
 - **How the emitter marks and rewinds its own log** — the atomic
   [`Emitter`](crate::Emitter) capability family, the value-keyed `checkpoint` / `rewind` /
   [`release`](crate::Emitter::release) trio this chapter leaned on, and how `Fatal` / `Verbose` /
-  `Silent` get their rewind behavior: the forthcoming Atomic Emitter chapter.
+  `Silent` get their rewind behavior: the [Atomic Emitter chapter](super::arch_atomic_emitter).
 - **How committed tokens become a lossless tree** — the [`CstEmitter`](crate::emitter::CstEmitter)
   hook and the [`cst`](crate::cst) event stream the [`cst::Sink`](crate::cst::Sink) buffers and
   rewinds under this chapter's mark: the forthcoming event-stream CST chapter, which is where the

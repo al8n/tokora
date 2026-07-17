@@ -196,7 +196,7 @@ Two channels ride that timeline, and neither is a second pass:
   the [`Emitter`](crate::Emitter) as they are discovered, mid-consume. Whether an emission is fatal
   (unwind now) or merely recorded (keep going, collect more) is the emitter's choice, not the
   parser's; the same parser runs fail-fast or collecting depending only on the context it was given.
-  The atomic emitter design behind that is the subject of the Atomic Emitter chapter.
+  The atomic emitter design behind that is the subject of the [Atomic Emitter chapter](super::arch_atomic_emitter).
 - **Committed tokens.** Every token that settles flows to one emitter hook, once. That hook is the
   seam the lossless CST rides: a recording sink turns each settled token into a tree event, which is
   how *every* consuming combinator becomes tree-producing with no per-combinator code. A
@@ -229,8 +229,8 @@ told to drop exactly the abandoned branch's emissions — is deliberately left t
 
 - the **Checkpoint & Rewind chapter** for the snapshot/restore machinery and the
   [`Checkpoint`](crate::input::Checkpoint) it copies;
-- the **Atomic Emitter chapter** for how an emitter marks and rewinds its own log in step, through
-  [`Emitter::rewind`](crate::Emitter::rewind).
+- the [Atomic Emitter chapter](super::arch_atomic_emitter) for how an emitter marks and rewinds its
+  own log in step, through [`Emitter::rewind`](crate::Emitter::rewind).
 
 This chapter asserts only the *observable* half — position returns — in code below; the emission
 half is the emitter chapter's to demonstrate.
@@ -354,6 +354,6 @@ You now have the mental model the rest of Part III refines along four axes:
   chapter.
 - **How the emitter marks and rewinds its log in step with the cursor** — the atomic
   [`Emitter`](crate::Emitter) capability family and [`Emitter::rewind`](crate::Emitter::rewind): the
-  Atomic Emitter chapter.
+  [Atomic Emitter chapter](super::arch_atomic_emitter).
 - **How committed tokens become a lossless tree** — the [`CstEmitter`](crate::emitter::CstEmitter)
   hook and the [`cst`](crate::cst) event stream it feeds: the event-stream CST chapter.
