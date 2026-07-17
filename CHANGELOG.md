@@ -1,3 +1,35 @@
+# Unreleased (0.2.0)
+
+## Added
+
+- **`Token::SURFACES_TRIVIA` and `Lexer::SURFACES_TRIVIA`** — new defaulted associated
+  `const bool` (default `false`). Declares whether a lexer *surfaces trivia as real tokens*
+  (every source byte reaches the sink as a token or a reported lexer error) instead of
+  skipping it at the lexer level. `Lexer::SURFACES_TRIVIA` defaults to the token
+  vocabulary's `Token::SURFACES_TRIVIA`, so a `LogosLexer`-backed dialect declares it once
+  on its `Token` impl. Every existing `Token`/`Lexer` impl keeps compiling unchanged — the
+  default preserves prior behavior.
+
+## Changed
+
+- **Lossless (`gap_kind`) `CstSink` construction is now compile-time restricted to
+  trivia-surfacing lexers** (`rowan` feature). `CstSink::new` carries an inline-`const`
+  guard requiring `Lexer::SURFACES_TRIVIA == true`. Pairing a syntactic (trivia-skipping)
+  lexer with a lossless sink is now a compile error (a post-monomorphization `error[E0080]`
+  at build/test/doc time) instead of a runtime `CstFinishError::UncoveredGap` on the first
+  skipped-whitespace gap. The guard does not fire under `cargo check`.
+
+## Migration
+
+- A lexer paired with a lossless `CstSink` must declare `const SURFACES_TRIVIA: bool = true;`
+  on its `Token` impl (or override it on the `Lexer` impl). Forgetting it is a loud build
+  error naming the exact const. Syntactic lexers that never construct a lossless sink are
+  unaffected — the default `false` is honest for them.
+
+---
+
+_Entries below predate the `tokora` crate and use the pre-rename version line._
+
 # 0.3.0 (Nov 3rd, 2025)
 
 ## Breaking Changes

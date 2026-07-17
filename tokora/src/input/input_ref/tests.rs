@@ -5420,6 +5420,19 @@ fn cache_transparency_known_divergences() {
 // events; trip/fatal arms keep their settled prefix — that is trip-commit, not a leak).
 // Trees, not raw buffers, are the compared observable: mark nonces, truncation eras, and
 // Diag-slot interleavings are route-dependent by design.
+//
+// The event column drives the LOSSLESS TWIN of the fixture ([`LosslessBalTok`]), not the
+// syntactic `BalTok`: the lossless (`gap_kind`) sink now structurally refuses a
+// trivia-skipping lexer at compile time, so the event oracles need a lexer that surfaces
+// every byte. The diagnostics matrix proper keeps the syntactic `BalTok` and its
+// offset-discontinuity teeth (the skip between tokens is what makes a resume-cursor bug
+// visible), so nothing in that suite changes.
+//
+// Two premises shift under the twin (accepted, no code change): the zero-skip premise of
+// `zero_skip_after_a_consume` and the peek-trips-at-W3 premise of the two limit cells hold
+// only for the syntactic fixture. The event column does not lean on them — it pins
+// cache-transparency (cached tree == uncached tree per cell × entry × prefill) — while the
+// syntactic diagnostics matrix continues to pin those shape premises.
 
 #[cfg(feature = "rowan")]
 mod cst_event_oracles {
@@ -5430,22 +5443,90 @@ mod cst_event_oracles {
   const K_ERR: u16 = 90;
   const K_GAP: u16 = 91;
 
-  fn map_bal(t: &BalTok) -> u16 {
-    match t {
-      BalTok::Num => 10,
-      BalTok::LParen => 11,
-      BalTok::RParen => 12,
-      BalTok::Semi => 13,
-      BalTok::Trivia => 14,
+  /// The lossless twin of [`BalTok`]: the same vocabulary over the same sources, but
+  /// whitespace SURFACES as a real `Ws` token instead of dying in a lexer-level `skip` —
+  /// the fixture a lossless (`gap_kind`) sink structurally requires. `SURFACES_TRIVIA =
+  /// true` is honest here: every source byte becomes a token or a reported lexer error.
+  ///
+  /// The `Ws` rule deliberately does NOT tick the limiter: cell `limit`s keep the same
+  /// real-token meaning they have in the syntactic matrix, so every cell stays valid
+  /// without a per-cell audit. (`~` remains a counted, real trivia token — the `padded`
+  /// entries still have a counted kind to skip.)
+  #[derive(Debug, Clone, PartialEq, crate::logos::Logos)]
+  #[logos(crate = crate::logos, extras = TokenLimiter)]
+  enum LosslessBalTok {
+    #[regex(r"[0-9]+", |lex| { lex.extras.increase(); })]
+    Num,
+    #[token("(", |lex| { lex.extras.increase(); })]
+    LParen,
+    #[token(")", |lex| { lex.extras.increase(); })]
+    RParen,
+    #[token(";", |lex| { lex.extras.increase(); })]
+    Semi,
+    #[token("~", |lex| { lex.extras.increase(); })]
+    Trivia,
+    #[regex(r"[ \t\r\n]+")]
+    Ws,
+  }
+
+  impl core::fmt::Display for LosslessBalTok {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+      f.write_str(match self {
+        Self::Num => "number",
+        Self::LParen => "`(`",
+        Self::RParen => "`)`",
+        Self::Semi => "`;`",
+        Self::Trivia => "trivia",
+        Self::Ws => "whitespace",
+      })
     }
   }
 
-  type EvtSink<'a> = CstSink<'a, BalLexer<'a>, MatrixEmitter>;
-  type EvtCtx<'a> = (EvtSink<'a>, DefaultCache<'a, BalLexer<'a>>);
-  type EvtRef<'inp, 'c> = InputRef<'inp, 'c, BalLexer<'inp>, EvtCtx<'inp>, ()>;
+  impl Token<'_> for LosslessBalTok {
+    type Kind = BalKind;
+    type Error = ByValErr;
+
+    const SURFACES_TRIVIA: bool = true;
+
+    fn kind(&self) -> BalKind {
+      match self {
+        Self::Num => BalKind::Num,
+        Self::LParen => BalKind::LParen,
+        Self::RParen => BalKind::RParen,
+        Self::Semi => BalKind::Semi,
+        Self::Trivia => BalKind::Trivia,
+        // Ws conflates to the trivia kind: both are trivia-category to the parser, and it
+        // lets `parens` (fn(&BalKind) -> Balance<char>) be reused verbatim.
+        Self::Ws => BalKind::Trivia,
+      }
+    }
+
+    fn is_trivia(&self) -> bool {
+      matches!(self, Self::Trivia | Self::Ws)
+    }
+  }
+
+  type LosslessBalLexer<'a> = LogosLexer<'a, LosslessBalTok>;
+
+  fn map_ll(t: &LosslessBalTok) -> u16 {
+    match t {
+      LosslessBalTok::Num => 10,
+      LosslessBalTok::LParen => 11,
+      LosslessBalTok::RParen => 12,
+      LosslessBalTok::Semi => 13,
+      LosslessBalTok::Trivia => 14,
+      // Distinct from `~` (14) so trees show which trivia was which; 15 collides with
+      // nothing (K_ERR 90 / K_GAP 91 / K_ROOT 1).
+      LosslessBalTok::Ws => 15,
+    }
+  }
+
+  type EvtSink<'a> = CstSink<'a, LosslessBalLexer<'a>, MatrixEmitter>;
+  type EvtCtx<'a> = (EvtSink<'a>, DefaultCache<'a, LosslessBalLexer<'a>>);
+  type EvtRef<'inp, 'c> = InputRef<'inp, 'c, LosslessBalLexer<'inp>, EvtCtx<'inp>, ()>;
 
   fn evt_sink<'a>(fatal_at: Option<SimpleSpan>) -> EvtSink<'a> {
-    CstSink::new(MatrixEmitter::new(fatal_at), map_bal, K_ERR, K_GAP)
+    CstSink::new(MatrixEmitter::new(fatal_at), map_ll, K_ERR, K_GAP)
   }
 
   /// The committed spans of the buffered `Token` events, in order.
@@ -5464,9 +5545,9 @@ mod cst_event_oracles {
   /// chain the [`ParseInput`] signature demands (it is `ByValErr`, but the trait will
   /// not take the shortcut).
   type EvtErr<'inp> =
-    <<EvtCtx<'inp> as crate::ParseContext<'inp, BalLexer<'inp>, ()>>::Emitter as Emitter<
+    <<EvtCtx<'inp> as crate::ParseContext<'inp, LosslessBalLexer<'inp>, ()>>::Emitter as Emitter<
       'inp,
-      BalLexer<'inp>,
+      LosslessBalLexer<'inp>,
       (),
     >>::Error;
 
@@ -5474,13 +5555,14 @@ mod cst_event_oracles {
   /// `TakeOne`).
   struct TakeOneCst;
 
-  impl<'inp> ParseInput<'inp, BalLexer<'inp>, Option<(SimpleSpan, BalTok)>, EvtCtx<'inp>, ()>
+  impl<'inp>
+    ParseInput<'inp, LosslessBalLexer<'inp>, Option<(SimpleSpan, LosslessBalTok)>, EvtCtx<'inp>, ()>
     for TakeOneCst
   {
     fn parse_input(
       &mut self,
       inp: &mut EvtRef<'inp, '_>,
-    ) -> Result<Option<(SimpleSpan, BalTok)>, EvtErr<'inp>> {
+    ) -> Result<Option<(SimpleSpan, LosslessBalTok)>, EvtErr<'inp>> {
       Ok(inp.next()?.map(Spanned::into_components))
     }
   }
@@ -5488,7 +5570,7 @@ mod cst_event_oracles {
   /// Runs one entry point over the sink context, discarding the return — the matrix
   /// proper already pins returns and diagnostics; this column pins the event channel.
   fn run_entry_cst(entry: Entry, inp: &mut EvtRef<'_, '_>) {
-    let pred = |t: Spanned<&BalTok, &SimpleSpan>| matches!(t.data(), BalTok::Semi);
+    let pred = |t: Spanned<&LosslessBalTok, &SimpleSpan>| matches!(t.data(), LosslessBalTok::Semi);
     match entry {
       Entry::To => {
         let _ = inp.sync_to(pred, || None);
@@ -5521,10 +5603,10 @@ mod cst_event_oracles {
   /// retry drain, then materialization.
   fn run_cell_cst(cell: &MatrixCell, entry: Entry, prefill: usize) -> rowan::GreenNode {
     let mut sink = evt_sink(cell.fatal_at);
-    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+    let mut input = Input::<LosslessBalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
       cell.src,
       TokenLimiter::with_limitation(cell.limit),
-      DefaultCache::<BalLexer<'_>>::default(),
+      DefaultCache::<LosslessBalLexer<'_>>::default(),
     );
     let mut inp = input.as_ref(&mut sink);
 
@@ -5562,7 +5644,17 @@ mod cst_event_oracles {
 
     drop(inp);
     drop(input);
-    let (green, _emitter) = sink.finish(K_ROOT, cell.src);
+    // The door matches the run's terminal class. {early-halting cells} =
+    // {limit cells} ∪ {fatal cells}, exactly (Rev 1 §A): the retry-drain stops only on
+    // Ok(None)=EOF or Err=fatal-verdict, so the frontier reaches EOF for every entry iff the
+    // lexer cannot poison (limit == MAX) AND no diagnostic can be rejected (fatal_at == None).
+    // Everything else may leave an un-lexed tail — the finish_partial domain — for at least
+    // one entry, and finish_partial is a byte-identical superset for the entries that do drain.
+    let (green, _emitter) = if cell.limit == usize::MAX && cell.fatal_at.is_none() {
+      sink.finish(K_ROOT, cell.src)
+    } else {
+      sink.finish_partial(K_ROOT, cell.src)
+    };
     green.unwrap_or_else(|e| {
       panic!(
         "[{} / {}] the settle-driven buffer must materialize: {e:?}",
@@ -5602,16 +5694,16 @@ mod cst_event_oracles {
   #[test]
   fn t1_failed_sync_over_drained_cache_leaves_zero_events() {
     let mut sink = evt_sink(None);
-    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+    let mut input = Input::<LosslessBalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
       "1 2 3",
       TokenLimiter::with_limitation(usize::MAX),
-      DefaultCache::<BalLexer<'_>>::default(),
+      DefaultCache::<LosslessBalLexer<'_>>::default(),
     );
     let mut inp = input.as_ref(&mut sink);
 
     inp.peek::<W2>().expect("prefill is clean");
     let matched = inp
-      .sync_through(|t| matches!(t.data(), BalTok::Semi), || None)
+      .sync_through(|t| matches!(t.data(), LosslessBalTok::Semi), || None)
       .expect("verbose-shaped emitter collects");
     assert!(matched.is_none(), "no sync point exists");
     assert_eq!(
@@ -5626,7 +5718,9 @@ mod cst_event_oracles {
       token_event_spans(inp.emitter()),
       &[
         SimpleSpan { start: 0, end: 1 },
+        SimpleSpan { start: 1, end: 2 },
         SimpleSpan { start: 2, end: 3 },
+        SimpleSpan { start: 3, end: 4 },
         SimpleSpan { start: 4, end: 5 }
       ],
       "the re-lex re-emits exactly once per token (T1/T2 pairing)"
@@ -5644,10 +5738,10 @@ mod cst_event_oracles {
 
     // The straight drive.
     let mut straight = evt_sink(None);
-    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+    let mut input = Input::<LosslessBalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
       src,
       TokenLimiter::with_limitation(usize::MAX),
-      DefaultCache::<BalLexer<'_>>::default(),
+      DefaultCache::<LosslessBalLexer<'_>>::default(),
     );
     let mut inp = input.as_ref(&mut straight);
     drain(&mut inp);
@@ -5657,15 +5751,21 @@ mod cst_event_oracles {
 
     // The decline-then-reparse drive of the same final timeline.
     let mut sink = evt_sink(None);
-    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+    let mut input = Input::<LosslessBalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
       src,
       TokenLimiter::with_limitation(usize::MAX),
-      DefaultCache::<BalLexer<'_>>::default(),
+      DefaultCache::<LosslessBalLexer<'_>>::default(),
     );
     let mut inp = input.as_ref(&mut sink);
     let declined: Option<()> = inp.attempt(|inp2| {
-      // Consume across the lexer error: two settles plus the error's diagnostic.
+      // Consume across the lexer error: four settles (`1`, the leading Ws, the Ws past the
+      // crossed `@`, then `2`) plus the crossed error's diagnostic.
       inp2.next().expect("collects").expect("1");
+      inp2.next().expect("collects").expect("leading Ws");
+      inp2
+        .next()
+        .expect("collects")
+        .expect("Ws after the crossed @");
       inp2.next().expect("collects").expect("2");
       None
     });
@@ -5680,6 +5780,8 @@ mod cst_event_oracles {
       token_event_spans(inp.emitter()),
       &[
         SimpleSpan { start: 0, end: 1 },
+        SimpleSpan { start: 1, end: 2 },
+        SimpleSpan { start: 3, end: 4 },
         SimpleSpan { start: 4, end: 5 }
       ],
       "each committed token settles exactly once on the final timeline (T2)"
@@ -5704,10 +5806,10 @@ mod cst_event_oracles {
   #[test]
   fn t4_zero_skip_sync_emits_nothing() {
     let mut sink = evt_sink(None);
-    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
-      "1 ; 2",
+    let mut input = Input::<LosslessBalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+      "1; 2",
       TokenLimiter::with_limitation(usize::MAX),
-      DefaultCache::<BalLexer<'_>>::default(),
+      DefaultCache::<LosslessBalLexer<'_>>::default(),
     );
     let mut inp = input.as_ref(&mut sink);
 
@@ -5719,7 +5821,7 @@ mod cst_event_oracles {
     // returned hole describes an empty region; its one-per-hole diagnostic is never
     // emitted for zero skips, so the emitter sees no traffic at all).
     let hole = inp
-      .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+      .sync_balanced(parens, |t| matches!(t.data(), LosslessBalTok::Semi))
       .expect("collects");
     assert_eq!(
       hole.map(|h| h.skipped()),
@@ -5743,14 +5845,14 @@ mod cst_event_oracles {
   fn trip_and_fatal_sync_arms_keep_settled_events() {
     // A sticky limit trip mid-skip: the two durable skipped tokens' events persist.
     let mut sink = evt_sink(None);
-    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+    let mut input = Input::<LosslessBalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
       "1 2 3 4 5 ;",
       TokenLimiter::with_limitation(2),
-      DefaultCache::<BalLexer<'_>>::default(),
+      DefaultCache::<LosslessBalLexer<'_>>::default(),
     );
     let mut inp = input.as_ref(&mut sink);
     let matched = inp
-      .sync_through(|t| matches!(t.data(), BalTok::Semi), || None)
+      .sync_through(|t| matches!(t.data(), LosslessBalTok::Semi), || None)
       .expect("a trip is not a fatal exit");
     assert!(
       matched.is_none(),
@@ -5760,7 +5862,9 @@ mod cst_event_oracles {
       token_event_spans(inp.emitter()),
       &[
         SimpleSpan { start: 0, end: 1 },
-        SimpleSpan { start: 2, end: 3 }
+        SimpleSpan { start: 1, end: 2 },
+        SimpleSpan { start: 2, end: 3 },
+        SimpleSpan { start: 3, end: 4 }
       ],
       "the diagnosed prefix's settles persist across the trip (trip-commit)"
     );
@@ -5770,18 +5874,19 @@ mod cst_event_oracles {
     // A fatal rejection of a skipped token's diagnostic: the token settled BEFORE the
     // verdict, so its event rides out with the committed position.
     let mut sink = evt_sink(Some(SimpleSpan { start: 2, end: 3 }));
-    let mut input = Input::<BalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
+    let mut input = Input::<LosslessBalLexer<'_>, EvtCtx<'_>, ()>::with_state_and_cache(
       "1 2 3 ; 4",
       TokenLimiter::with_limitation(usize::MAX),
-      DefaultCache::<BalLexer<'_>>::default(),
+      DefaultCache::<LosslessBalLexer<'_>>::default(),
     );
     let mut inp = input.as_ref(&mut sink);
-    let res = inp.sync_to(|t| matches!(t.data(), BalTok::Semi), || None);
+    let res = inp.sync_to(|t| matches!(t.data(), LosslessBalTok::Semi), || None);
     assert!(res.is_err(), "the emitter rejects token 2's diagnostic");
     assert_eq!(
       token_event_spans(inp.emitter()),
       &[
         SimpleSpan { start: 0, end: 1 },
+        SimpleSpan { start: 1, end: 2 },
         SimpleSpan { start: 2, end: 3 }
       ],
       "event and commit stay paired on the fatal exit: the reported token settled first"

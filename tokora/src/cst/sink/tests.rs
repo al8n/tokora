@@ -29,6 +29,9 @@ impl Token<'_> for MiniTok {
   type Kind = u8;
   type Error = MiniErr;
 
+  // honest: byte-per-token, never skips a byte
+  const SURFACES_TRIVIA: bool = true;
+
   fn kind(&self) -> u8 {
     self.0
   }

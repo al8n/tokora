@@ -97,6 +97,9 @@ impl Token<'_> for FuzzTok {
   type Kind = FuzzKind;
   type Error = FuzzTokError;
 
+  // honest: byte-per-token, never skips a byte
+  const SURFACES_TRIVIA: bool = true;
+
   #[inline]
   fn kind(&self) -> FuzzKind {
     self.kind

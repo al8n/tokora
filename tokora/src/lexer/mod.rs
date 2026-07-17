@@ -430,6 +430,20 @@ where
 /// perturb the depth counter and mis-place a recovery sync point. See
 /// [`sync_balanced`](crate::InputRef::sync_balanced) for the counter this leans on.
 ///
+/// ## Trivia surfacing
+///
+/// A lexer either **surfaces** every trivia byte as a real token or **skips** it at the
+/// lexer level. [`SURFACES_TRIVIA`](Self::SURFACES_TRIVIA) declares which — defaulting to
+/// the token vocabulary's own [`Token::SURFACES_TRIVIA`], the totality half of the trivia
+/// concept whose per-token identity half is [`Token::is_trivia`]. Declaring `true` promises
+/// *totality*: every source byte is covered by either an emitted token (trivia included) or
+/// a reported lexer error, none silently discarded. The lossless (`gap_kind`)
+/// [`CstSink`](crate::cst::CstSink) requires it at **compile time**; declaring it while a
+/// lexer-level `skip` rule discards bytes anyway is the unspecified-but-bounded violation
+/// class below — surfaced by materialization as
+/// [`UncoveredGap`](crate::cst::CstFinishError::UncoveredGap), never UB or a panic from this
+/// crate.
+///
 /// ## Violation posture
 ///
 /// A lexer that breaks a clause above is **not** undefined behavior and **not**
@@ -454,6 +468,17 @@ pub trait Lexer<'inp>: 'inp {
   type Span: fmt::Debug + Span<Offset = Self::Offset> + Ord + Clone + Hash;
   /// The offset type of the source.
   type Offset: Default + fmt::Debug + Ord + Clone + Hash;
+
+  /// Whether this lexer **surfaces trivia as real tokens** instead of silently skipping
+  /// the bytes. Defaults to the token vocabulary's own declaration
+  /// ([`Token::SURFACES_TRIVIA`]), which is where a [`LogosLexer`]-backed dialect
+  /// declares it (the logos adapter is one blanket impl for every token type, so the
+  /// per-dialect site is the `Token` impl). A hand-written lexer whose skipping behavior
+  /// differs from its vocabulary's declaration overrides it here.
+  ///
+  /// See [`Token::SURFACES_TRIVIA`] for the contract this declares and the compile-time
+  /// wall (`CstSink::new`) that consumes it.
+  const SURFACES_TRIVIA: bool = <Self::Token as Token<'inp>>::SURFACES_TRIVIA;
 
   /// Lexes the input source and returns a tokenizer.
   fn new(src: &'inp Self::Source) -> Self;

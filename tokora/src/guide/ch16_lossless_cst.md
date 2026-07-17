@@ -65,7 +65,10 @@ rather than merely checked.
 This chapter builds **Query**, a GraphQL-shaped slice: selection sets, fields with optional
 aliases, and integer arguments. Its lossless lexer (hidden below, a logos derive like
 chapter 1's — just without a `skip` rule, so whitespace, comments, and commas are real
-tokens with [`is_trivia`](crate::Token::is_trivia) returning `true`) produces `Tok`; the
+tokens with [`is_trivia`](crate::Token::is_trivia) returning `true`) produces `Tok`. Because
+the lexer surfaces every byte, its `Tok` declares `const SURFACES_TRIVIA = true`, and the
+lossless [`CstSink`](crate::cst::CstSink) refuses **at compile time** to wrap a trivia-skipping
+lexer — a skipped-whitespace gap is indistinguishable from a dropped committed token. The
 unified kind space maps it like this:
 
 ```rust
@@ -99,6 +102,7 @@ unified kind space maps it like this:
 # impl TokenT<'_> for Tok {
 #   type Kind = Tok;
 #   type Error = LexError;
+#   const SURFACES_TRIVIA: bool = true;
 #   fn kind(&self) -> Tok { *self }
 #   fn is_trivia(&self) -> bool { matches!(self, Tok::Whitespace | Tok::Comment | Tok::Comma) }
 # }
@@ -219,6 +223,7 @@ structure*. Helpers that merely consume keep the plain emitter bound.
 # impl TokenT<'_> for Tok {
 #   type Kind = Tok;
 #   type Error = LexError;
+#   const SURFACES_TRIVIA: bool = true;
 #   fn kind(&self) -> Tok { *self }
 #   fn is_trivia(&self) -> bool { matches!(self, Tok::Whitespace | Tok::Comment | Tok::Comma) }
 # }
@@ -550,6 +555,7 @@ the mark, including tokens committed before the wrap was conceivable.
 # impl TokenT<'_> for Tok {
 #   type Kind = Tok;
 #   type Error = LexError;
+#   const SURFACES_TRIVIA: bool = true;
 #   fn kind(&self) -> Tok { *self }
 #   fn is_trivia(&self) -> bool { matches!(self, Tok::Whitespace | Tok::Comment | Tok::Comma) }
 # }
@@ -831,6 +837,7 @@ formatting data *without* a tree in the dependency closure; under a sink they ar
 # impl TokenT<'_> for Tok {
 #   type Kind = Tok;
 #   type Error = LexError;
+#   const SURFACES_TRIVIA: bool = true;
 #   fn kind(&self) -> Tok { *self }
 #   fn is_trivia(&self) -> bool { matches!(self, Tok::Whitespace | Tok::Comment | Tok::Comma) }
 # }
@@ -1112,6 +1119,7 @@ inline to empty bodies, and compile to nothing.
 # impl TokenT<'_> for Tok {
 #   type Kind = Tok;
 #   type Error = LexError;
+#   const SURFACES_TRIVIA: bool = true;
 #   fn kind(&self) -> Tok { *self }
 #   fn is_trivia(&self) -> bool { matches!(self, Tok::Whitespace | Tok::Comment | Tok::Comma) }
 # }
@@ -1341,6 +1349,7 @@ branch is abandoned, its events are truncated as if they never happened.
 # impl TokenT<'_> for Tok {
 #   type Kind = Tok;
 #   type Error = LexError;
+#   const SURFACES_TRIVIA: bool = true;
 #   fn kind(&self) -> Tok { *self }
 #   fn is_trivia(&self) -> bool { matches!(self, Tok::Whitespace | Tok::Comment | Tok::Comma) }
 # }
@@ -1608,6 +1617,7 @@ scan — no sync point found — rewinds its speculative events entirely.)
 # impl TokenT<'_> for Tok {
 #   type Kind = Tok;
 #   type Error = LexError;
+#   const SURFACES_TRIVIA: bool = true;
 #   fn kind(&self) -> Tok { *self }
 #   fn is_trivia(&self) -> bool { matches!(self, Tok::Whitespace | Tok::Comment | Tok::Comma) }
 # }
@@ -1930,6 +1940,7 @@ the wall that keeps a hand-rolled mistake loud:
 # impl TokenT<'_> for Tok {
 #   type Kind = Tok;
 #   type Error = LexError;
+#   const SURFACES_TRIVIA: bool = true;
 #   fn kind(&self) -> Tok { *self }
 #   fn is_trivia(&self) -> bool { matches!(self, Tok::Whitespace | Tok::Comment | Tok::Comma) }
 # }

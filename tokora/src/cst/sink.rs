@@ -192,7 +192,10 @@ fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
 /// (`fn(&L::Token) -> u16` into the dialect's unified kind space — no kind bound leaks into
 /// core), the `error_kind` used to wrap recovery holes, and the `gap_kind` used to tile
 /// uncovered source bytes at materialization (what makes `tree.text() == source` structural
-/// for every input, lexer errors included).
+/// for every input, lexer errors included). Construction is **compile-time restricted to
+/// trivia-surfacing lexers** ([`Lexer::SURFACES_TRIVIA`]): a syntactic lexer that skips
+/// trivia cannot take the lossless door, because a skipped-whitespace gap is
+/// indistinguishable from a dropped committed token.
 pub struct CstSink<'inp, L, E>
 where
   L: Lexer<'inp>,
@@ -300,8 +303,98 @@ where
   /// - `error_kind` is the node kind wrapped around a recovery hole's skipped tokens;
   /// - `gap_kind` is the token kind tiled over source bytes no committed token covers at
   ///   materialization, making `tree.text() == source` structural for every input.
+  ///
+  /// Construction is restricted at **compile time** to trivia-surfacing lexers
+  /// ([`Lexer::SURFACES_TRIVIA`] `== true`): a syntactic lexer that skips trivia cannot take
+  /// this lossless door, because a skipped-whitespace gap is indistinguishable from a
+  /// dropped committed token. The wall is an inline-`const` assertion, so it fires at
+  /// build/test/doc time (a post-monomorphization `error[E0080]` at the offending call
+  /// site) — **not** under `cargo check`, which never monomorphizes the call.
+  ///
+  /// # Compile-time wall: trivia-surfacing lexers only
+  ///
+  /// A lexer that surfaces trivia (declares [`Token::SURFACES_TRIVIA`] = `true`)
+  /// constructs a sink:
+  ///
+  /// ```rust
+  /// use tokora::{Lexer, SimpleSpan, Token, cst::CstSink, emitter::Verbose};
+  ///
+  /// #[derive(Debug, Clone, Copy)]
+  /// struct STok;
+  /// impl Token<'_> for STok {
+  ///   type Kind = u8;
+  ///   type Error = ();
+  ///   const SURFACES_TRIVIA: bool = true; // ← the declaration under test
+  ///   fn kind(&self) -> u8 { 0 }
+  ///   fn is_trivia(&self) -> bool { false }
+  /// }
+  /// # struct Lossless<'a> { src: &'a str, state: () }
+  /// # impl<'inp> Lexer<'inp> for Lossless<'inp> {
+  /// #   type State = (); type Source = str; type Token = STok;
+  /// #   type Span = SimpleSpan; type Offset = usize;
+  /// #   fn new(src: &'inp str) -> Self { Self { src, state: () } }
+  /// #   fn with_state(src: &'inp str, state: ()) -> Self { Self { src, state } }
+  /// #   fn check(&self) -> Result<(), ()> { Ok(()) }
+  /// #   fn state(&self) -> &() { &self.state }
+  /// #   fn state_mut(&mut self) -> &mut () { &mut self.state }
+  /// #   fn into_state(self) -> () { self.state }
+  /// #   fn source(&self) -> &'inp str { self.src }
+  /// #   fn span(&self) -> SimpleSpan { SimpleSpan::new(0, 0) }
+  /// #   fn slice(&self) -> &'inp str { "" }
+  /// #   fn lex(&mut self) -> Option<Result<STok, ()>> { None }
+  /// #   fn bump(&mut self, _: &usize) {}
+  /// # }
+  /// let _sink: CstSink<'_, Lossless<'_>, Verbose<()>> =
+  ///   CstSink::new(Verbose::new(), |_| 0, 90, 91);
+  /// ```
+  ///
+  /// The same lexer without the declaration (the default, i.e. a syntactic lexer that
+  /// skips trivia) is refused at compile time — the only difference from the example
+  /// above is the missing `SURFACES_TRIVIA` line:
+  ///
+  /// ```compile_fail
+  /// use tokora::{Lexer, SimpleSpan, Token, cst::CstSink, emitter::Verbose};
+  ///
+  /// #[derive(Debug, Clone, Copy)]
+  /// struct STok;
+  /// impl Token<'_> for STok {
+  ///   type Kind = u8;
+  ///   type Error = ();
+  ///   // no SURFACES_TRIVIA: defaults to false (a skipping, syntactic grammar)
+  ///   fn kind(&self) -> u8 { 0 }
+  ///   fn is_trivia(&self) -> bool { false }
+  /// }
+  /// # struct Syntactic<'a> { src: &'a str, state: () }
+  /// # impl<'inp> Lexer<'inp> for Syntactic<'inp> {
+  /// #   type State = (); type Source = str; type Token = STok;
+  /// #   type Span = SimpleSpan; type Offset = usize;
+  /// #   fn new(src: &'inp str) -> Self { Self { src, state: () } }
+  /// #   fn with_state(src: &'inp str, state: ()) -> Self { Self { src, state } }
+  /// #   fn check(&self) -> Result<(), ()> { Ok(()) }
+  /// #   fn state(&self) -> &() { &self.state }
+  /// #   fn state_mut(&mut self) -> &mut () { &mut self.state }
+  /// #   fn into_state(self) -> () { self.state }
+  /// #   fn source(&self) -> &'inp str { self.src }
+  /// #   fn span(&self) -> SimpleSpan { SimpleSpan::new(0, 0) }
+  /// #   fn slice(&self) -> &'inp str { "" }
+  /// #   fn lex(&mut self) -> Option<Result<STok, ()>> { None }
+  /// #   fn bump(&mut self, _: &usize) {}
+  /// # }
+  /// let _sink: CstSink<'_, Syntactic<'_>, Verbose<()>> =
+  ///   CstSink::new(Verbose::new(), |_| 0, 90, 91);
+  /// ```
   #[inline]
   pub fn new(inner: E, mapper: fn(&L::Token) -> u16, error_kind: u16, gap_kind: u16) -> Self {
+    const {
+      assert!(
+        L::SURFACES_TRIVIA,
+        "a lossless (gap_kind) CstSink requires a trivia-surfacing lexer: every source \
+         byte must reach the sink as a token or a reported lexer error, and a skipped \
+         whitespace gap is indistinguishable from a dropped committed token. Declare \
+         `const SURFACES_TRIVIA: bool = true` on the lexer's Token impl (or override it \
+         on the Lexer impl) ONLY if the lexer really surfaces trivia as tokens."
+      )
+    };
     Self {
       inner,
       events: Vec::new(),
