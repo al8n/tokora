@@ -205,17 +205,18 @@ The feature graph layers up from there:
   staying `no_std`.
 - **`std`** (default) → everything, plus it turns on the upstream backends' own default features.
 
-The backend features themselves are deliberately *not* uniform about `std`:
+The backend features themselves are uniform about `std`: none implies it.
 
-- `bytes_1`, `bstr_1`, and `hipstr_0_8` bring their crates in with `default-features = false`, so
-  enabling a backend does **not** drag in `std`. `bstr_1` and `bytes_1` even compile with neither
-  `std` nor `alloc` turned on in tokora (their owned buffers still need a global allocator to
-  *link* into a final binary, but tokora's feature graph leaves that choice to you rather than
-  forcing it).
-- `smol_bytes_0_1` is the one exception: it implies `std`. This is a documented decision in
-  `Cargo.toml` — smol-bytes is a `cdylib`+`rlib` crate that needs a global allocator and panic
-  handler even to *check*, so tokora gates it on `std`, mirroring how the `rowan` feature is
-  handled.
+- `bytes_1`, `bstr_1`, `hipstr_0_8`, and `smol_bytes_0_1` all bring their crates in with
+  `default-features = false`, so enabling a backend does **not** drag in `std`. Every backend
+  compiles with neither `std` nor `alloc` turned on in tokora (the owned buffers still need a
+  global allocator to *link* into a final binary, but tokora's feature graph leaves that choice
+  to you rather than forcing it).
+- `smol_bytes_0_1` additionally turns on smol-bytes' own `alloc` feature — the tier its buffer
+  types live on — so it requires smol-bytes ≥ 0.1.2, the first `rlib`-only release with an
+  `alloc` tier. (Earlier 0.1.x built a `cdylib` alongside the `rlib`, which needed `std`'s
+  global allocator and panic handler even to *check*; that is why this feature once implied
+  `std`.)
 
 However far down you turn the graph, the parser you write does not change. It is generic over
 `L: Lexer`, and `L::Source` is *some* `Source`; the concrete choice of representation lives at the

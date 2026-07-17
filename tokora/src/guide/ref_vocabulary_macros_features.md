@@ -521,7 +521,7 @@ currently-supported versioned feature (`bytes_1`), which pulls the optional depe
 | `bytes` | `&[u8]` / `Bytes` source | `bytes_1` → `dep:bytes_1` | as the dep allows |
 | `bstr` | `BStr` byte-string source | `bstr_1` → `dep:bstr_1` | as the dep allows |
 | `hipstr` | `HipStr` / `HipByt` source | `hipstr_0_8` → `dep:hipstr_0_8` | as the dep allows |
-| `smol_bytes` | the smol-bytes source | `smol_bytes_0_1` → `dep:smol_bytes_0_1`, **`std`** | requires `std` (its `cdylib` target needs a global allocator + panic handler) |
+| `smol_bytes` | the smol-bytes source | `smol_bytes_0_1` → `dep:smol_bytes_0_1` (with the dep's `alloc` feature; smol-bytes ≥ 0.1.2) | as the dep allows |
 
 ### Container backends ([`Container`](crate::container::Container))
 
@@ -545,6 +545,6 @@ currently-supported versioned feature (`bytes_1`), which pulls the optional depe
 
 The base crate is `no-std` / `no-std::no-alloc` (its Cargo categories): drop `default` for core-only
 parsing, add `alloc` for the allocator tier, or keep `std`. Features that **force `std`**: `rowan`,
-`smol_bytes`, `trace`, `conformance`, `fuzz`. Features that **force `alloc`**: `smallvec`. Every
+`trace`, `conformance`, `fuzz`. Features that **force `alloc`**: `smallvec`. Every
 other feature adds no tier floor of its own — a third-party backend compiles wherever that crate's
 own `default-features = false` build does, which this table does not independently re-verify.

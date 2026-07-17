@@ -1473,7 +1473,7 @@ Defaults to `std`. `docs.rs` builds `all-features`.
 | `conformance` | the `conformance` lexer test kit | implies `std` |
 | `fuzz` | the `fuzz` operation-script harness | implies `std` |
 | `trace` | [`traced`](crate::traced) + combinator instrumentation | implies `std`; zero-cost when off |
-| `bytes` / `bstr` / `hipstr` / `smol_bytes` | extra [`Source`](crate::Source)/[`Slice`](crate::Slice) backends | `smol_bytes` implies `std` |
+| `bytes` / `bstr` / `hipstr` / `smol_bytes` | extra [`Source`](crate::Source)/[`Slice`](crate::Slice) backends | none implies `std`; each pins one upstream major |
 | `smallvec` / `heapless` / `tinyvec` | extra [`Container`](crate::container::Container) backends | `smallvec` implies `alloc` |
 
 Where a combinator needs a capability, its `where`-clause names it — e.g. the `many/` builder's
