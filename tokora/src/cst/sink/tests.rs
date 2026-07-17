@@ -615,13 +615,19 @@ fn labels_forward_without_diag_slots() {
   assert_eq!(labels[&span(0, 1)][0], std::vec!["field"]);
 }
 
-/// Out-of-contract marks clamp (the Verbose posture) instead of panicking.
+/// An out-of-range mark is ignored outright — a total no-op, never a panic. (It must NOT
+/// clamp: clamping to the length would spend a live row at the current mark — the R6 class;
+/// see `out_of_range_rewind_spends_no_live_row`.)
 #[test]
-fn rewind_clamps_out_of_range_marks() {
+fn rewind_ignores_out_of_range_marks() {
   let mut sink = verbose_sink();
   sink.cst_token(&MiniTok(b'a'), &span(0, 1));
   rewind(&mut sink, u64::MAX);
-  assert_eq!(sink.events().len(), 1, "a clamped rewind truncates nothing");
+  assert_eq!(
+    sink.events().len(),
+    1,
+    "an out-of-range rewind truncates nothing"
+  );
 }
 
 /// A rewind to the current length spends the capture's row but truncates nothing — the
@@ -2052,8 +2058,9 @@ fn no_row_base_rewind_restores_the_construction_reading() {
 // The inner is rewound only to a reading the sink knows EXACTLY (R5 loop-cap closure)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// REGRESSION (R5 [high]): a no-row rewind that truncates NOTHING — the mark clamps to, or
-/// sits exactly at, the current log length — must be a no-op on EVERY channel, the inner
+/// REGRESSION (R5 [high]): a no-row rewind that truncates NOTHING — the mark is out of
+/// range above, or sits exactly at, the current log length — must be a no-op on EVERY
+/// channel, the inner
 /// included: the surviving events are the whole log, so every inner-side record they
 /// reference must survive with them (the trait's rewind-to-current law). Pre-fix the no-row
 /// fallback rewound the inner to base unconditionally: the sink log kept the settled token,
@@ -2067,7 +2074,7 @@ fn no_row_truncation_free_rewind_leaves_the_inner_untouched() {
   Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'a'), &span(0, 1));
   let origin = 0usize;
 
-  // The clamp: a mark far above the log length truncates nothing and must move nothing.
+  // Out of range above the log length: a total no-op — truncates nothing, moves nothing.
   Emitter::<MiniLexer<'_>>::rewind(&mut sink, Cursor::from_ref(&origin), u64::MAX);
   assert_eq!(sink.events().len(), 1, "the event log keeps the token");
   assert_eq!(
@@ -2076,7 +2083,7 @@ fn no_row_truncation_free_rewind_leaves_the_inner_untouched() {
     "the inner keeps the token the log kept — a truncation-free rewind touches no channel"
   );
 
-  // Exactly at the length: the same law without the clamp.
+  // Exactly at the length: the rewind-to-current law — in range, same observables.
   Emitter::<MiniLexer<'_>>::rewind(&mut sink, Cursor::from_ref(&origin), 1);
   assert_eq!(sink.events().len(), 1);
   assert_eq!(sink.inner_ref().journal, std::vec![JEntry::Token]);
@@ -2121,5 +2128,60 @@ fn no_row_middle_rewind_leaves_the_inner_untouched_in_release() {
     sink.inner_ref().journal,
     std::vec![JEntry::Token, JEntry::Token],
     "no exact reading exists for a mid-log no-row mark: the inner is left untouched"
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Out-of-range marks are ignored BEFORE the row lookup (R6 clamp-class closure)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// REGRESSION (R6 [medium]): an out-of-range FUTURE mark (`checkpoint > len`) is a rewind to
+/// a point the log has not reached — a TOTAL no-op on every channel, the mark stack included.
+/// Pre-fix, `mark = checkpoint.min(len)` clamped it to the length BEFORE the row lookup, so a
+/// future mark masqueraded as a rewind-to-current and spent the live row of a REAL checkpoint
+/// taken at the current length; that checkpoint's own later rewind then found no row — the
+/// mid-log no-row witness fired on a disciplined mark in debug, the inner ghosted the
+/// abandoned branch's records in release.
+#[test]
+fn out_of_range_rewind_spends_no_live_row() {
+  let mut sink: JournalingSink<'_> =
+    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let origin = 0usize;
+
+  // One settled token, then a live checkpoint AT the current length: len == 1, row at 1.
+  Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'a'), &span(0, 1));
+  let c = Emitter::<MiniLexer<'_>>::checkpoint(&sink);
+  assert_eq!(c, 1, "the checkpoint sits exactly at the current length");
+  assert_eq!(sink.rows_len(), 1);
+
+  // Out of range, strictly above the length: a total no-op on EVERY channel.
+  Emitter::<MiniLexer<'_>>::rewind(&mut sink, Cursor::from_ref(&origin), u64::MAX);
+  assert_eq!(sink.events().len(), 1, "the event log keeps the token");
+  assert_eq!(
+    sink.rows_len(),
+    1,
+    "the live row at len is NOT spent by an out-of-range mark"
+  );
+  assert_eq!(
+    sink.inner_ref().journal,
+    std::vec![JEntry::Token],
+    "the inner is untouched"
+  );
+
+  // The aftermath the clamp used to poison: more traffic, then the LEGITIMATE rewind of `c` —
+  // it must find its live row and restore both timelines to the mark (not trip the mid-log
+  // no-row witness on a disciplined mark).
+  Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'b'), &span(1, 2));
+  Emitter::<MiniLexer<'_>>::rewind(&mut sink, Cursor::from_ref(&origin), c);
+  assert_eq!(
+    sink.events().len(),
+    1,
+    "rewound to the mark: the second token is gone"
+  );
+  assert_eq!(sink.rows_len(), 0, "the legitimate rewind spent the row");
+  assert_eq!(
+    sink.inner_ref().journal,
+    std::vec![JEntry::Token],
+    "the inner rewound to the row's captured reading — no ghost of the abandoned token"
   );
 }

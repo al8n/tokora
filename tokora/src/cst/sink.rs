@@ -773,19 +773,43 @@ where
   /// journaled `forward_parent` writes whose `StartAt`s died, record the truncation in
   /// the era ledger (marks into the dropped region are stale forever), and rewind the
   /// inner emitter to a reading the sink **knows exactly** — the target row's captured
-  /// reading, or the construction-time base for a no-row unwind to the origin. A rewind
-  /// that truncates nothing — the mark is at, or clamps to, the current length (the
-  /// `Verbose` posture) — is a **no-op on every channel, the inner included**: the trait's
-  /// rewind-to-current law. A truncating rewind to a mid-log mark no live row captured has
-  /// no exact inner reading anywhere: debug builds panic at cause; release builds keep the
-  /// sink's own channels exact and leave the inner untouched (unspecified-but-bounded —
-  /// the sink never guesses a reading; see the *Inner-emitter contract* on [`CstSink`]).
+  /// reading, or the construction-time base for a no-row unwind to the origin. An
+  /// out-of-range FUTURE mark — `checkpoint` strictly above the current length — names a
+  /// log position that does not exist yet: the sink ignores the call outright, a **total
+  /// no-op on every channel** (events, mark stack, floor, journal, ledger, and the inner
+  /// alike; no live row can sit above the length, so no settle is owed). Clamping it to
+  /// the length instead — the pre-fix behavior — let a future mark spend the live row of
+  /// a real checkpoint taken at the current length; `Verbose` may clamp only because it
+  /// keeps no per-mark bookkeeping. A rewind to a mark exactly **at** the current length
+  /// is the trait's rewind-to-current law — a no-op on every observable channel that
+  /// still spends its capture's row. A truncating rewind to a mid-log mark no live row
+  /// captured has no exact inner reading anywhere: debug builds panic at cause; release
+  /// builds keep the sink's own channels exact and leave the inner untouched
+  /// (unspecified-but-bounded — the sink never guesses a reading; see the *Inner-emitter
+  /// contract* on [`CstSink`]).
   fn rewind(&mut self, cursor: &Cursor<'inp, '_, L>, checkpoint: u64)
   where
     L: Lexer<'inp>,
   {
     let len = self.events.len() as u64;
-    let mark = checkpoint.min(len);
+    if checkpoint > len {
+      // R6 root guard — an out-of-range FUTURE mark names a log position that does not
+      // exist yet, so there is nothing to rewind on ANY channel: return before every
+      // consumer of the mark (row pops, floor, truncation, journal replay, ledger, the
+      // inner enumeration — and any consumer added later). The pre-fix
+      // `checkpoint.min(len)` clamp instead dressed a future mark up as a
+      // rewind-to-current, and the row lookup below then spent the live row of a REAL
+      // checkpoint taken at the current length; that checkpoint's own later rewind found
+      // no row (the mid-log witness in debug, the ghost-inner in release). No live row
+      // can sit above `len` (rows are pushed at the current length and truncation pops
+      // them first), so no settle is owed here — the no-op is exact, not defensive.
+      // `Verbose` may clamp only because it keeps no per-mark bookkeeping: clamp and
+      // ignore coincide there; the sink's mark-keyed row stack makes them differ.
+      // The boundary is strict: `checkpoint == len` IS the current position — a lawful
+      // rewind-to-current that must still spend its capture's row below.
+      return;
+    }
+    let mark = checkpoint;
 
     // Spend the captures at or above the mark, capturing the target row's inner reading as
     // it is spent: everything strictly above dies with the branch; the newest capture at
@@ -828,8 +852,9 @@ where
 
     // The inner is rewound only to a reading the sink knows EXACTLY:
     //   - a spent row's captured reading (any mark) — every disciplined path lands here;
-    //   - nothing at all when nothing was truncated (a no-row rewind at, or clamped to, the
-    //     current length): the surviving events are the whole log, so every inner-side
+    //   - nothing at all when nothing was truncated (a no-row rewind at the current length;
+    //     an out-of-range future mark never reaches this match — it early-returned above as
+    //     a total no-op): the surviving events are the whole log, so every inner-side
     //     record they reference must survive with them — the trait's rewind-to-current
     //     no-op law, upheld on every channel (this arm wins the len == 0 overlap: with an
     //     empty log nothing ever advanced the inner, so skipping is exact there too);
