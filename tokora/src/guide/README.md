@@ -1,11 +1,14 @@
 # The Tokora Guide
 
-A guided tour of tokora: build a small language end-to-end.
+Tokora writes parsers as plain Rust functions with the reach of a combinator library. It lexes on
+demand as the parser pulls tokens — there is no separate tokenize pass — and gives you typed,
+structured errors with rich diagnostics, explicit backtracking and recovery, streaming over
+partial input, and optional [lossless concrete syntax trees](crate::cst) that preserve every byte
+(whitespace and comments included) for formatters, refactoring tools, and language servers.
 
-The crate's reference documentation explains each API in isolation; this guide tells the
-story in order. The first ten chapters build **Calc**, a tiny calculator language with
-variables. One anatomy chapter plus four maintained-example walkthroughs make up the applied-parser
-section, and a final optional tooling chapter introduces lossless CSTs with Rowan.
+This guide is the tour. The reference documentation explains each API in isolation; the guide
+tells the story in order, building **Calc** — a tiny calculator language with variables — end to
+end, then reusing it to introduce the harder machinery.
 
 ```text
 program := stmt+
@@ -15,57 +18,52 @@ stmt    := "let" ident "=" expr ";"        bind a variable
 expr    := integers, variables, + - * / ^, unary -, ( ) grouping
 ```
 
+## The five parts
+
+- **Part I — Getting Started** (this introduction) frames tokora and sketches Calc.
+- **Part II — Core Concepts** is the tutorial: ten chapters that build Calc, from
+  [tokens and the lexer](crate::guide::ch01_tokens) and
+  [first parsers](crate::guide::ch02_parsers) through composition, deterministic choice, Pratt
+  expressions, backtracking, diagnostics, recovery, partial input, and testing. Read it to
+  *build* a parser.
+- **Part III — Design & Architecture** is the internals: how the
+  [parse-while-lexing engine](crate::guide::arch_parsing_engine), the
+  [checkpoint and rewind timeline](crate::guide::arch_checkpoint_rewind), the
+  [atomic emitter](crate::guide::arch_atomic_emitter), the event-stream CST engine, and the
+  [source and slice layer](crate::guide::arch_source_slice) actually work. Read it to
+  *understand the design*, or before contributing.
+- **Part IV — Recipes & Applied Parsers** puts it together: the
+  [anatomy of a real parser](crate::guide::ch11_real_parser), a
+  [custom (non-logos) lexer](crate::guide::recipe_custom_lexer), and four full walkthroughs —
+  [calculator](crate::guide::ch12_calculator_example),
+  [S-expressions](crate::guide::ch13_s_expression_example),
+  [JSON](crate::guide::ch14_json_example), and
+  [C expressions](crate::guide::ch15_c_expression_example) — capped by lossless CSTs with Rowan.
+  Read it for *worked examples*.
+- **Part V — Reference** is the catalog: the
+  [combinator and atom reference](crate::guide::ref_combinators); the
+  [errors, emitters, and context](crate::guide::ref_errors_emitters_context) model; the
+  [Pratt reference](crate::guide::ref_pratt); the
+  [reusable AST building blocks](crate::guide::ref_types_syntax); and the
+  [vocabulary, macros, and feature flags](crate::guide::ref_vocabulary_macros_features). Read it
+  to *look something up*.
+
+Two topics ride a feature flag: Testing (Part II) needs `conformance`, and both Lossless CSTs
+(Part IV) and the event-stream CST engine (Part III) need `rowan`.
+
 ## How to read this guide
 
 Every non-ignored Rust fence is a **doctest** — the suite compiles and runs it, so the examples
-cannot quietly drift from the API. Later chapters may hide reduced token and error definitions
-to keep the visible code focused (expand an example in the HTML docs to see them). The chapters
-build on each other, but each states what it teaches up front, so you can jump in anywhere.
+cannot quietly drift from the API. Later chapters may hide reduced token and error definitions to
+keep the visible code focused (expand an example in the HTML docs to see them). Chapters build on
+each other, but each states what it teaches up front, so you can jump in anywhere. Pick a path:
 
-## Chapters
-
-1. [`ch01_tokens`](crate::guide::ch01_tokens) — tokens and the lexer: the [`Token`](crate::Token) split into data and
-   [`Kind`](crate::Token::Kind), the logos adapter, and the [`Lexer`](crate::Lexer) contract
-   in brief.
-2. [`ch02_parsers`](crate::guide::ch02_parsers) — first parsers: [`InputRef`](crate::InputRef),
-   [`next`](crate::InputRef::next) / [`try_expect`](crate::InputRef::try_expect), typed
-   errors, and the fluent [`Parse`](crate::Parse) entry points.
-3. [`ch03_combinators`](crate::guide::ch03_combinators) — composition: sequencing with
-   [`then`](crate::ParseInput::then), repetition with
-   [`repeated`](crate::TryParseInput::repeated), separation with
-   [`separated`](crate::TryParseInput::separated), and delimited shapes.
-4. [`ch04_dispatch`](crate::guide::ch04_dispatch) — deterministic choice:
-   [`DispatchOnKind`](crate::parser::DispatchOnKind) versus
-   [`FusedDispatchOnKind`](crate::parser::FusedDispatchOnKind), and when each shape wins.
-5. [`ch05_pratt`](crate::guide::ch05_pratt) — Pratt expression parsing with
-   [`pratt_of`](crate::parser::pratt_of) and the built-in integer
-   [`PrattPower`](crate::parser::PrattPower) impls.
-6. [`ch06_backtracking`](crate::guide::ch06_backtracking) — speculation: [`attempt`](crate::InputRef::attempt) /
-   [`try_attempt`](crate::InputRef::try_attempt), the [`Transaction`](crate::Transaction)
-   guards and their [`DropPolicy`](crate::DropPolicy) typestate, and
-   the [`InputRef`](crate::InputRef) session points.
-7. [`ch07_diagnostics`](crate::guide::ch07_diagnostics) — diagnostics: [`Fatal`](crate::emitter::Fatal) versus
-   [`Verbose`](crate::emitter::Verbose), [`Severity`](crate::emitter::Severity), labels,
-   expected sets, and the [`diagnostics()`](crate::emitter::Verbose::diagnostics) view.
-8. [`ch08_recovery`](crate::guide::ch08_recovery) — error recovery: [`sync_balanced`](crate::InputRef::sync_balanced),
-   [`Hole`](crate::Hole)s, [`skip_then_retry`](crate::ParseInput::skip_then_retry), and the
-   never-recoverable law.
-9. [`ch09_streaming`](crate::guide::ch09_streaming) — partial input, Sans-I/O: the
-   [`Completeness`](crate::Completeness) typestate and the
-   [`parse_partial`](crate::parse_partial) refill loop.
-10. Chapter 10, Testing (requires the `conformance` feature), covers the `conformance` kit
-    for custom lexers and the [`traced`](crate::traced) combinator for debugging.
-11. [`ch11_real_parser`](crate::guide::ch11_real_parser) — turning a tutorial fragment into a
-    complete parser program.
-12. [`ch12_calculator_example`](crate::guide::ch12_calculator_example) — the token-level Pratt
-    calculator evaluator.
-13. [`ch13_s_expression_example`](crate::guide::ch13_s_expression_example) — a recursive-descent
-    S-expression parser and evaluator.
-14. [`ch14_json_example`](crate::guide::ch14_json_example) — borrowed JSON values, delimiters,
-    and tentative choice.
-15. [`ch15_c_expression_example`](crate::guide::ch15_c_expression_example) — an AST-level Pratt
-    parser with complex postfix forms.
-16. Chapter 16, Lossless CSTs with Rowan, requires the `rowan` feature.
+- **New to tokora** — read Part I, work Part II in order, then open the matching walkthrough in
+  Part IV.
+- **Using tokora as a library** — Part V is the lookup catalog; its entries point back to the
+  chapter that teaches each API.
+- **Contributing, or just curious how it works** — Part III is the internals tour; it assumes
+  Part II.
 
 The four `examples/` programs in the repository (`json`, `calculator`, `s_expression`, and
 `c_expression`) are canonical complete programs; the applied chapters explain how to reproduce

@@ -2,128 +2,904 @@
 
 Prerequisites: chapters 5 and 11; chapter 12 is helpful.
 
-The maintained [`c_expression.rs`](https://github.com/al8n/tokora/blob/main/tokora/examples/c_expression.rs)
-uses AST-level Pratt parsing. Unlike the calculator, its folds construct typed `Expr` nodes and
-some postfix folds consume further input for indexing, calls, and ternaries.
+This walkthrough builds the maintained
+[`c_expression.rs`](https://github.com/al8n/tokora/blob/main/tokora/examples/c_expression.rs)
+end to end, inline. Where [chapter 12](super::ch12_calculator_example) folded tokens straight to an
+`f64` with the *token-level* Pratt engine, this is the **AST-level** engine
+([`pratt_of`](crate::parser::pratt_of)): `parse_lhs` and `parse_rhs` are full parser *functions*
+with the [`InputRef`](crate::InputRef) in hand, and the folds build a typed `Expr` tree over your
+own node type. Three things here are unique to this chapter, worth watching for as they appear
+below:
+
+- **The classifiers are parsers, not a token trait.** `parse_lhs`/`parse_rhs` return
+  [`PrattLHS`](crate::parser::PrattLHS)/[`PrattRHS`](crate::parser::PrattRHS) values; a
+  non-operator is a below-floor **`Sentinel`**, not a `None`.
+- **Postfix operators that consume more input.** `fold_postfix` receives the `InputRef` *first*, so
+  `[i]`, `(args...)`, and `? t : f` read the tokens they need — the token-level postfix fold could
+  not.
+- **C's deep precedence ladder**, with the ternary as a *low-precedence* postfix.
+
+Every part — lexer, AST types, precedence ladder, the two classifiers, the three folds, and the
+one-call entry point — is shown as a compiling doctest, so you can follow the whole parser without
+leaving the page.
 
 | Maintained program | Symbols to follow |
 | --- | --- |
 | [`c_expression.rs`](https://github.com/al8n/tokora/blob/main/tokora/examples/c_expression.rs) | `parse_lhs`, `parse_rhs`, `fold_prefix`, `fold_infix`, `fold_postfix`, `parse_cexpr` |
 
+This chapter's public surface is [`parser::pratt_of`](crate::parser::pratt_of),
+[`parser::PrattLHS`](crate::parser::PrattLHS), [`parser::PrattRHS`](crate::parser::PrattRHS),
+[`parser::PrattInfix`](crate::parser::PrattInfix),
+[`parser::Precedenced`](crate::parser::Precedenced),
+[`parser::PrattPower`](crate::parser::PrattPower), [`InputRef::next`](crate::InputRef::next),
+[`InputRef::try_expect`](crate::InputRef::try_expect),
+[`ParseInput::parse_input`](crate::ParseInput::parse_input), and
+[`Parse::parse_str`](crate::Parse::parse_str). The [Pratt reference](super::ref_pratt) catalogs the
+whole surface, token-level and AST-level, side by side.
+
+## Define the lexer, token kinds, and `CExprError`
+
+The Logos lexer carries payloads in `Token::Num(i64)` and `Token::Ident(String)`; the remaining
+variants are punctuation. Multi-character operators (`==`, `<<`, `++`, …) are listed *before* their
+single-character prefixes so Logos' longest-match rule tokenizes `==` as one token, not two. As in
+the calculator, classification lives on a separate fieldless `TokenKind` (so it can be
+`Copy + Eq + Hash`, as [`Token`](crate::Token) requires of its `Kind`), and `Display` on the kind
+doubles as the diagnostic name.
+
+The error family is *simpler* than the calculator's: AST-level Pratt does not route
+expression-end errors through a `PrattEmitter` (`parse_lhs` reports "ran out of operand" itself, as
+you will see), so there are no `UnexpectedEo*` conversions — just a lexical error, an unexpected
+token, and an unexpected end.
+
+```rust
+use tokora::{
+  Token as TokenT,
+  error::token::UnexpectedTokenOf,
+  logos::{self, Logos},
+};
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct LexError;
+impl From<()> for LexError { fn from(_: ()) -> Self { Self } }
+
+#[derive(Clone, Debug, Logos)]
+#[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
+enum Token {
+  #[regex(r"[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|_| LexError))]
+  Num(i64),
+  #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
+  Ident(String),
+  // Multi-character operators — before the single-char variants (longest match wins).
+  #[token("++")] PlusPlus,
+  #[token("--")] MinusMinus,
+  #[token("==")] EqEq,
+  #[token("!=")] BangEq,
+  #[token("<=")] LtEq,
+  #[token(">=")] GtEq,
+  #[token("&&")] AmpAmp,
+  #[token("||")] PipePipe,
+  #[token("<<")] Shl,
+  #[token(">>")] Shr,
+  // Single-character operators.
+  #[token("+")] Plus,
+  #[token("-")] Minus,
+  #[token("*")] Star,
+  #[token("/")] Slash,
+  #[token("%")] Percent,
+  #[token("&")] Amp,
+  #[token("|")] Pipe,
+  #[token("^")] Caret,
+  #[token("~")] Tilde,
+  #[token("!")] Bang,
+  #[token("?")] Question,
+  #[token(":")] Colon,
+  #[token("<")] Lt,
+  #[token(">")] Gt,
+  #[token(",")] Comma,
+  // Delimiters.
+  #[token("(")] LParen,
+  #[token(")")] RParen,
+  #[token("[")] LBracket,
+  #[token("]")] RBracket,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum TokenKind {
+  Num, Ident, PlusPlus, MinusMinus, EqEq, BangEq, LtEq, GtEq, AmpAmp, PipePipe, Shl, Shr, Plus,
+  Minus, Star, Slash, Percent, Amp, Pipe, Caret, Tilde, Bang, Question, Colon, Lt, Gt, Comma,
+  LParen, RParen, LBracket, RBracket,
+}
+
+impl core::fmt::Display for TokenKind {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.write_str(match self {
+      Self::Num => "number", Self::Ident => "identifier", Self::PlusPlus => "++",
+      Self::MinusMinus => "--", Self::EqEq => "==", Self::BangEq => "!=", Self::LtEq => "<=",
+      Self::GtEq => ">=", Self::AmpAmp => "&&", Self::PipePipe => "||", Self::Shl => "<<",
+      Self::Shr => ">>", Self::Plus => "+", Self::Minus => "-", Self::Star => "*",
+      Self::Slash => "/", Self::Percent => "%", Self::Amp => "&", Self::Pipe => "|",
+      Self::Caret => "^", Self::Tilde => "~", Self::Bang => "!", Self::Question => "?",
+      Self::Colon => ":", Self::Lt => "<", Self::Gt => ">", Self::Comma => ",",
+      Self::LParen => "(", Self::RParen => ")", Self::LBracket => "[", Self::RBracket => "]",
+    })
+  }
+}
+impl core::fmt::Display for Token {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    core::fmt::Display::fmt(&self.kind(), f)
+  }
+}
+
+impl From<&Token> for TokenKind {
+  fn from(t: &Token) -> Self {
+    match t {
+      Token::Num(_) => Self::Num, Token::Ident(_) => Self::Ident, Token::PlusPlus => Self::PlusPlus,
+      Token::MinusMinus => Self::MinusMinus, Token::EqEq => Self::EqEq, Token::BangEq => Self::BangEq,
+      Token::LtEq => Self::LtEq, Token::GtEq => Self::GtEq, Token::AmpAmp => Self::AmpAmp,
+      Token::PipePipe => Self::PipePipe, Token::Shl => Self::Shl, Token::Shr => Self::Shr,
+      Token::Plus => Self::Plus, Token::Minus => Self::Minus, Token::Star => Self::Star,
+      Token::Slash => Self::Slash, Token::Percent => Self::Percent, Token::Amp => Self::Amp,
+      Token::Pipe => Self::Pipe, Token::Caret => Self::Caret, Token::Tilde => Self::Tilde,
+      Token::Bang => Self::Bang, Token::Question => Self::Question, Token::Colon => Self::Colon,
+      Token::Lt => Self::Lt, Token::Gt => Self::Gt, Token::Comma => Self::Comma,
+      Token::LParen => Self::LParen, Token::RParen => Self::RParen, Token::LBracket => Self::LBracket,
+      Token::RBracket => Self::RBracket,
+    }
+  }
+}
+
+impl TokenT<'_> for Token {
+  type Kind = TokenKind;
+  type Error = LexError;
+  fn kind(&self) -> TokenKind { TokenKind::from(self) }
+  fn is_trivia(&self) -> bool { false }
+}
+
+type CExprLexer<'a> = tokora::lexer::LogosLexer<'a, Token>;
+
+#[derive(Debug)]
+enum CExprError { Lex(LexError), UnexpectedToken, UnexpectedEot }
+
+impl From<LexError> for CExprError { fn from(e: LexError) -> Self { Self::Lex(e) } }
+impl<'inp> From<UnexpectedTokenOf<'inp, CExprLexer<'inp>>> for CExprError {
+  fn from(_: UnexpectedTokenOf<'inp, CExprLexer<'inp>>) -> Self { Self::UnexpectedToken }
+}
+
+assert_eq!(Token::Star.kind(), TokenKind::Star);
+assert_eq!(Token::PlusPlus.kind(), TokenKind::PlusPlus);
+assert_eq!(Token::Star.to_string(), "*");
+```
+
 ## Define `UnaryOp`, `BinOp`, `PostfixOp`, and `Expr`
 
 The AST has typed variants for prefix, binary, postfix increment/decrement, index, call, and
-ternary expressions. Separating operator tags from tree nodes lets the folds be small and keeps
-the display implementation useful as an assertion oracle.
+ternary expressions. Separating operator tags from tree nodes lets the folds stay small and keeps
+the `Display` implementation useful as an assertion oracle: every node prints fully parenthesised,
+so `to_string()` is a compact, exact check on the tree's *shape*. `PostfixOp` is the tag
+`parse_rhs` hands to `fold_postfix`; its `Index`/`Call`/`Ternary` variants are instructions to the
+fold to consume more input, and `Sentinel` is the below-floor "not an operator" marker.
 
-The public surface is [`parser::pratt_of`](crate::parser::pratt_of),
-[`parser::PrattPower`](crate::parser::PrattPower),
-[`parser::PrattLHS`](crate::parser::PrattLHS),
-[`parser::PrattRHS`](crate::parser::PrattRHS),
-[`parser::Precedenced`](crate::parser::Precedenced),
-[`parser::PrattInfix`](crate::parser::PrattInfix), `ParseInput::parse_input`,
-[`InputRef::next`](crate::InputRef::next), [`InputRef::try_expect`](crate::InputRef::try_expect),
-`Parser`, and [`Parse::parse_str`](crate::Parse::parse_str).
+```rust
+#[derive(Clone, Copy, Debug)]
+enum UnaryOp { Neg, Pos, Not, BNot, PreInc, PreDec }
+
+#[derive(Clone, Copy, Debug)]
+enum BinOp {
+  Add, Sub, Mul, Div, Mod, Or, And, BOr, BXor, BAnd, Eq, Neq, Lt, Gt, Lte, Gte, Shl, Shr,
+}
+
+// The tag `parse_rhs` passes to `fold_postfix`. `Index`/`Call`/`Ternary` tell the fold to consume
+// more input; `Sentinel` is the below-floor marker and never reaches the fold.
+#[derive(Clone, Copy, Debug)]
+enum PostfixOp { Inc, Dec, Index, Call, Ternary, Sentinel }
+
+#[derive(Clone, Debug)]
+enum Expr {
+  Num(i64),
+  Var(String),
+  Prefix { op: UnaryOp, operand: Box<Expr> },
+  Binary { op: BinOp, left: Box<Expr>, right: Box<Expr> },
+  PostfixInc(Box<Expr>),
+  PostfixDec(Box<Expr>),
+  Index { base: Box<Expr>, index: Box<Expr> },
+  Call { func: Box<Expr>, args: Vec<Expr> },
+  Ternary { cond: Box<Expr>, then: Box<Expr>, otherwise: Box<Expr> },
+}
+
+impl core::fmt::Display for UnaryOp {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.write_str(match self {
+      UnaryOp::Neg => "-", UnaryOp::Pos => "+", UnaryOp::Not => "!", UnaryOp::BNot => "~",
+      UnaryOp::PreInc => "++", UnaryOp::PreDec => "--",
+    })
+  }
+}
+impl core::fmt::Display for BinOp {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    f.write_str(match self {
+      BinOp::Add => "+", BinOp::Sub => "-", BinOp::Mul => "*", BinOp::Div => "/", BinOp::Mod => "%",
+      BinOp::Or => "||", BinOp::And => "&&", BinOp::BOr => "|", BinOp::BXor => "^", BinOp::BAnd => "&",
+      BinOp::Eq => "==", BinOp::Neq => "!=", BinOp::Lt => "<", BinOp::Gt => ">", BinOp::Lte => "<=",
+      BinOp::Gte => ">=", BinOp::Shl => "<<", BinOp::Shr => ">>",
+    })
+  }
+}
+impl core::fmt::Display for Expr {
+  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    match self {
+      Expr::Num(n) => write!(f, "{n}"),
+      Expr::Var(s) => write!(f, "{s}"),
+      Expr::Prefix { op, operand } => write!(f, "({op}{operand})"),
+      Expr::Binary { op, left, right } => write!(f, "({left} {op} {right})"),
+      Expr::PostfixInc(e) => write!(f, "({e}++)"),
+      Expr::PostfixDec(e) => write!(f, "({e}--)"),
+      Expr::Index { base, index } => write!(f, "({base}[{index}])"),
+      Expr::Ternary { cond, then, otherwise } => write!(f, "({cond} ? {then} : {otherwise})"),
+      Expr::Call { func, args } => {
+        write!(f, "{func}(")?;
+        for (i, a) in args.iter().enumerate() {
+          if i > 0 { write!(f, ", ")?; }
+          write!(f, "{a}")?;
+        }
+        write!(f, ")")
+      }
+    }
+  }
+}
+
+// The Display impl is the assertion oracle used throughout this chapter.
+let two_times_three = Expr::Binary {
+  op: BinOp::Mul,
+  left: Box::new(Expr::Num(2)),
+  right: Box::new(Expr::Num(3)),
+};
+assert_eq!(two_times_three.to_string(), "(2 * 3)");
+assert_eq!(
+  Expr::Prefix { op: UnaryOp::Neg, operand: Box::new(Expr::Var("a".to_string())) }.to_string(),
+  "(-a)",
+);
+assert_eq!(
+  Expr::Call {
+    func: Box::new(Expr::Var("f".to_string())),
+    args: vec![Expr::Num(1), Expr::Num(2)],
+  }
+  .to_string(),
+  "f(1, 2)",
+);
+```
 
 ## Define the precedence ladder
 
-The ladder runs from a sentinel below the default floor through ternary, logical and bitwise
-operators, comparison, arithmetic, prefix, and high-power postfix forms. The precise numeric
-values matter only relative to one another; named constants make that relationship auditable.
+The ladder runs from a sentinel below the default floor through the ternary, the logical and
+bitwise operators, comparison, shifts, arithmetic, prefix, and the high-power postfix forms. The
+precise numeric values matter only relative to one another; named constants make that relationship
+auditable. Two rows carry C-specific character: the **ternary is a postfix operator, but a very
+low-precedence one** (`a || b ? c : d` parses as `(a || b) ? c : d`), and the sentinel sits *below*
+`Power::default()` so any real operator outranks it — that is what lets `parse_rhs` use it to mean
+"roll this token back."
 
 ```rust
-use tokora::parser::{PrattInfix, PrattPower, PrattRHS, Precedenced};
+use tokora::parser::PrattPower;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct Power(i32);
 impl PrattPower for Power {
-  fn next(&self) -> Self { Self(self.0 + 1) }
-  fn prev(&self) -> Self { Self(self.0 - 1) }
+  fn next(&self) -> Self { Power(self.0 + 1) } // one level tighter
+  fn prev(&self) -> Self { Power(self.0 - 1) } // one level looser
 }
 
-const SENTINEL: Power = Power(-1);
-const TERNARY: Power = Power(2);
-const ADD: Power = Power(11);
-const POSTFIX: Power = Power(14);
+const SENTINEL: Power = Power(-1);     // "not an operator" — below the floor
+const PREC_TERNARY: Power = Power(2);  // ?:        (postfix, low precedence)
+const PREC_OR: Power = Power(3);       // ||
+const PREC_AND: Power = Power(4);      // &&
+const PREC_BOR: Power = Power(5);      // |
+const PREC_BXOR: Power = Power(6);     // ^
+const PREC_BAND: Power = Power(7);     // &
+const PREC_EQ: Power = Power(8);       // == !=
+const PREC_CMP: Power = Power(9);      // < > <= >=
+const PREC_SHIFT: Power = Power(10);   // << >>
+const PREC_ADD: Power = Power(11);     // + -
+const PREC_MUL: Power = Power(12);     // * / %
+const PREC_PREFIX: Power = Power(13);  // unary - + ! ~ ++ --
+const PREC_POSTFIX: Power = Power(14); // ++ -- [] ()  (postfix)
 
-#[derive(Clone, Copy, Debug)]
-enum Postfix { Index, Call, Ternary, Sentinel }
+// The sentinel is below the default floor, so any real operator beats it.
+assert!(SENTINEL < Power::default());
+// The whole ladder is one strictly-increasing chain; only the relative order matters.
+assert!(
+  PREC_TERNARY < PREC_OR && PREC_OR < PREC_AND && PREC_AND < PREC_BOR && PREC_BOR < PREC_BXOR
+    && PREC_BXOR < PREC_BAND && PREC_BAND < PREC_EQ && PREC_EQ < PREC_CMP && PREC_CMP < PREC_SHIFT
+    && PREC_SHIFT < PREC_ADD && PREC_ADD < PREC_MUL && PREC_MUL < PREC_PREFIX
+    && PREC_PREFIX < PREC_POSTFIX
+);
+// Left-associativity is just one step up the ladder (the engine does the stepping).
+assert_eq!(PREC_ADD.next(), PREC_MUL);
+```
 
-fn rhs(token: char) -> PrattRHS<(), (), (), Postfix, Power> {
-  let sentinel = PrattRHS::Postfix(Precedenced::new(Postfix::Sentinel, SENTINEL));
-  match token {
-    '+' => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), ADD)),
-    '[' => PrattRHS::Postfix(Precedenced::new(Postfix::Index, POSTFIX)),
-    '(' => PrattRHS::Postfix(Precedenced::new(Postfix::Call, POSTFIX)),
-    '?' => PrattRHS::Postfix(Precedenced::new(Postfix::Ternary, TERNARY)),
-    _ => sentinel,
+## Implement `parse_lhs` and `parse_rhs`
+
+`parse_lhs` reads the left edge of a (sub-)expression: an operand (number or identifier), a
+parenthesised group, or a prefix operator (`-`, `+`, `!`, `~`, `++`, `--`). Unlike the calculator's
+[`PrattToken::try_pratt_lhs`](crate::token::PrattToken) — a pure classifier *on the token* — this
+is a full parser function with the `InputRef` in hand, which is exactly what lets the `(` arm
+recurse into `parse_cexpr` and then consume its own `)` with [`try_expect`](crate::InputRef::try_expect).
+Running out of input here is *this function's* error to report (`CExprError::UnexpectedEot`); the
+AST engine does not synthesize one.
+
+`parse_rhs` classifies what follows an operand: an infix operator (mapped to a left-associative
+[`PrattInfix`](crate::parser::PrattInfix)), a postfix trigger (`++`, `--`, `[`, `(`, `?`), or — for
+anything else — the low-power `Sentinel`. Because the sentinel's power is below the current floor,
+the Pratt engine restores the checkpoint it made before `parse_rhs`, leaving that token on the
+input for the surrounding grammar (a `)`, `]`, `:`, or `,` closing an enclosing form) instead of
+losing it. This is the AST-level counterpart of a token-level `try_pratt_rhs` returning `None`:
+`parse_rhs` must always return a *value*, so "not an operator" is spelled as a below-floor postfix.
+
+```rust
+# use tokora::{Token as TokenT, ParseInput, error::token::UnexpectedTokenOf, logos::{self, Logos}, parser::{PrattPower, pratt_of}};
+# #[derive(Clone, Debug, Default, PartialEq)] struct LexError;
+# impl From<()> for LexError { fn from(_: ()) -> Self { Self } }
+# #[derive(Clone, Debug, Logos)]
+# #[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
+# enum Token {
+#   #[regex(r"[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|_| LexError))] Num(i64),
+#   #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())] Ident(String),
+#   #[token("++")] PlusPlus, #[token("--")] MinusMinus, #[token("==")] EqEq, #[token("!=")] BangEq,
+#   #[token("<=")] LtEq, #[token(">=")] GtEq, #[token("&&")] AmpAmp, #[token("||")] PipePipe,
+#   #[token("<<")] Shl, #[token(">>")] Shr, #[token("+")] Plus, #[token("-")] Minus,
+#   #[token("*")] Star, #[token("/")] Slash, #[token("%")] Percent, #[token("&")] Amp,
+#   #[token("|")] Pipe, #[token("^")] Caret, #[token("~")] Tilde, #[token("!")] Bang,
+#   #[token("?")] Question, #[token(":")] Colon, #[token("<")] Lt, #[token(">")] Gt,
+#   #[token(",")] Comma, #[token("(")] LParen, #[token(")")] RParen, #[token("[")] LBracket,
+#   #[token("]")] RBracket,
+# }
+# #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+# enum TokenKind { Num, Ident, PlusPlus, MinusMinus, EqEq, BangEq, LtEq, GtEq, AmpAmp, PipePipe, Shl, Shr, Plus, Minus, Star, Slash, Percent, Amp, Pipe, Caret, Tilde, Bang, Question, Colon, Lt, Gt, Comma, LParen, RParen, LBracket, RBracket }
+# impl core::fmt::Display for TokenKind {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     f.write_str(match self { Self::Num => "number", Self::Ident => "identifier", Self::PlusPlus => "++", Self::MinusMinus => "--", Self::EqEq => "==", Self::BangEq => "!=", Self::LtEq => "<=", Self::GtEq => ">=", Self::AmpAmp => "&&", Self::PipePipe => "||", Self::Shl => "<<", Self::Shr => ">>", Self::Plus => "+", Self::Minus => "-", Self::Star => "*", Self::Slash => "/", Self::Percent => "%", Self::Amp => "&", Self::Pipe => "|", Self::Caret => "^", Self::Tilde => "~", Self::Bang => "!", Self::Question => "?", Self::Colon => ":", Self::Lt => "<", Self::Gt => ">", Self::Comma => ",", Self::LParen => "(", Self::RParen => ")", Self::LBracket => "[", Self::RBracket => "]" })
+#   }
+# }
+# impl core::fmt::Display for Token { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { core::fmt::Display::fmt(&self.kind(), f) } }
+# impl From<&Token> for TokenKind {
+#   fn from(t: &Token) -> Self { match t { Token::Num(_) => Self::Num, Token::Ident(_) => Self::Ident, Token::PlusPlus => Self::PlusPlus, Token::MinusMinus => Self::MinusMinus, Token::EqEq => Self::EqEq, Token::BangEq => Self::BangEq, Token::LtEq => Self::LtEq, Token::GtEq => Self::GtEq, Token::AmpAmp => Self::AmpAmp, Token::PipePipe => Self::PipePipe, Token::Shl => Self::Shl, Token::Shr => Self::Shr, Token::Plus => Self::Plus, Token::Minus => Self::Minus, Token::Star => Self::Star, Token::Slash => Self::Slash, Token::Percent => Self::Percent, Token::Amp => Self::Amp, Token::Pipe => Self::Pipe, Token::Caret => Self::Caret, Token::Tilde => Self::Tilde, Token::Bang => Self::Bang, Token::Question => Self::Question, Token::Colon => Self::Colon, Token::Lt => Self::Lt, Token::Gt => Self::Gt, Token::Comma => Self::Comma, Token::LParen => Self::LParen, Token::RParen => Self::RParen, Token::LBracket => Self::LBracket, Token::RBracket => Self::RBracket } }
+# }
+# impl TokenT<'_> for Token { type Kind = TokenKind; type Error = LexError; fn kind(&self) -> TokenKind { TokenKind::from(self) } fn is_trivia(&self) -> bool { false } }
+# type CExprLexer<'a> = tokora::lexer::LogosLexer<'a, Token>;
+# #[derive(Debug)] enum CExprError { Lex(LexError), UnexpectedToken, UnexpectedEot }
+# impl From<LexError> for CExprError { fn from(e: LexError) -> Self { Self::Lex(e) } }
+# impl<'inp> From<UnexpectedTokenOf<'inp, CExprLexer<'inp>>> for CExprError { fn from(_: UnexpectedTokenOf<'inp, CExprLexer<'inp>>) -> Self { Self::UnexpectedToken } }
+# #[derive(Clone, Copy, Debug)] enum UnaryOp { Neg, Pos, Not, BNot, PreInc, PreDec }
+# #[derive(Clone, Copy, Debug)] enum BinOp { Add, Sub, Mul, Div, Mod, Or, And, BOr, BXor, BAnd, Eq, Neq, Lt, Gt, Lte, Gte, Shl, Shr }
+# #[derive(Clone, Copy, Debug)] enum PostfixOp { Inc, Dec, Index, Call, Ternary, Sentinel }
+# #[derive(Clone, Debug)] enum Expr { Num(i64), Var(String), Prefix { op: UnaryOp, operand: Box<Expr> }, Binary { op: BinOp, left: Box<Expr>, right: Box<Expr> }, PostfixInc(Box<Expr>), PostfixDec(Box<Expr>), Index { base: Box<Expr>, index: Box<Expr> }, Call { func: Box<Expr>, args: Vec<Expr> }, Ternary { cond: Box<Expr>, then: Box<Expr>, otherwise: Box<Expr> } }
+# impl core::fmt::Display for UnaryOp { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { f.write_str(match self { UnaryOp::Neg => "-", UnaryOp::Pos => "+", UnaryOp::Not => "!", UnaryOp::BNot => "~", UnaryOp::PreInc => "++", UnaryOp::PreDec => "--" }) } }
+# impl core::fmt::Display for BinOp { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { f.write_str(match self { BinOp::Add => "+", BinOp::Sub => "-", BinOp::Mul => "*", BinOp::Div => "/", BinOp::Mod => "%", BinOp::Or => "||", BinOp::And => "&&", BinOp::BOr => "|", BinOp::BXor => "^", BinOp::BAnd => "&", BinOp::Eq => "==", BinOp::Neq => "!=", BinOp::Lt => "<", BinOp::Gt => ">", BinOp::Lte => "<=", BinOp::Gte => ">=", BinOp::Shl => "<<", BinOp::Shr => ">>" }) } }
+# impl core::fmt::Display for Expr { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { match self { Expr::Num(n) => write!(f, "{n}"), Expr::Var(s) => write!(f, "{s}"), Expr::Prefix { op, operand } => write!(f, "({op}{operand})"), Expr::Binary { op, left, right } => write!(f, "({left} {op} {right})"), Expr::PostfixInc(e) => write!(f, "({e}++)"), Expr::PostfixDec(e) => write!(f, "({e}--)"), Expr::Index { base, index } => write!(f, "({base}[{index}])"), Expr::Ternary { cond, then, otherwise } => write!(f, "({cond} ? {then} : {otherwise})"), Expr::Call { func, args } => { write!(f, "{func}(")?; for (i, a) in args.iter().enumerate() { if i > 0 { write!(f, ", ")?; } write!(f, "{a}")?; } write!(f, ")") } } } }
+# #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)] struct Power(i32);
+# impl PrattPower for Power { fn next(&self) -> Self { Power(self.0 + 1) } fn prev(&self) -> Self { Power(self.0 - 1) } }
+# const SENTINEL: Power = Power(-1);
+# const PREC_TERNARY: Power = Power(2);
+# const PREC_OR: Power = Power(3);
+# const PREC_AND: Power = Power(4);
+# const PREC_BOR: Power = Power(5);
+# const PREC_BXOR: Power = Power(6);
+# const PREC_BAND: Power = Power(7);
+# const PREC_EQ: Power = Power(8);
+# const PREC_CMP: Power = Power(9);
+# const PREC_SHIFT: Power = Power(10);
+# const PREC_ADD: Power = Power(11);
+# const PREC_MUL: Power = Power(12);
+# const PREC_PREFIX: Power = Power(13);
+# const PREC_POSTFIX: Power = Power(14);
+# fn fold_prefix<'inp, Ctx>(_inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>, operand: Box<Expr>, op: Precedenced<UnaryOp, Power>) -> Result<Box<Expr>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> { Ok(Box::new(Expr::Prefix { op: op.into_data(), operand })) }
+# fn fold_infix<'inp, Ctx>(_inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>, left: Box<Expr>, right: Box<Expr>, op: Precedenced<PrattInfix<BinOp, BinOp, BinOp>, Power>) -> Result<Box<Expr>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> { let (PrattInfix::Left(op) | PrattInfix::Right(op) | PrattInfix::Neither(op)) = op.into_data(); Ok(Box::new(Expr::Binary { op, left, right })) }
+# fn fold_postfix<'inp, Ctx>(inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>, operand: Box<Expr>, op: Precedenced<PostfixOp, Power>) -> Result<Box<Expr>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> {
+#   match op.into_data() {
+#     PostfixOp::Inc => Ok(Box::new(Expr::PostfixInc(operand))),
+#     PostfixOp::Dec => Ok(Box::new(Expr::PostfixDec(operand))),
+#     PostfixOp::Index => { let index = parse_cexpr(inp)?; if inp.try_expect(|t| matches!(t.data, Token::RBracket))?.is_none() { return Err(CExprError::UnexpectedToken); } Ok(Box::new(Expr::Index { base: operand, index })) }
+#     PostfixOp::Call => { let mut args: Vec<Expr> = Vec::new(); if inp.try_expect(|t| matches!(t.data, Token::RParen))?.is_some() { return Ok(Box::new(Expr::Call { func: operand, args })); } args.push(*parse_cexpr(inp)?); loop { if inp.try_expect(|t| matches!(t.data, Token::RParen))?.is_some() { break; } if inp.try_expect(|t| matches!(t.data, Token::Comma))?.is_none() { return Err(CExprError::UnexpectedToken); } args.push(*parse_cexpr(inp)?); } Ok(Box::new(Expr::Call { func: operand, args })) }
+#     PostfixOp::Ternary => { let then = parse_cexpr(inp)?; if inp.try_expect(|t| matches!(t.data, Token::Colon))?.is_none() { return Err(CExprError::UnexpectedToken); } let otherwise = parse_cexpr(inp)?; Ok(Box::new(Expr::Ternary { cond: operand, then, otherwise })) }
+#     PostfixOp::Sentinel => unreachable!(),
+#   }
+# }
+# fn parse_cexpr<'inp, Ctx>(inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>) -> Result<Box<Expr>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> { pratt_of(parse_lhs, parse_rhs, fold_prefix, fold_infix, fold_postfix).parse_input(inp) }
+use tokora::{
+  Emitter, InputRef, Parse, ParseContext, Parser,
+  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced},
+};
+
+fn parse_lhs<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>,
+) -> Result<PrattLHS<Box<Expr>, UnaryOp, Power>, CExprError>
+where
+  Ctx: ParseContext<'inp, CExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError>,
+{
+  match inp.next()? {
+    None => Err(CExprError::UnexpectedEot),
+    Some(tok) => match tok.into_data() {
+      Token::Num(n) => Ok(PrattLHS::Operand(Box::new(Expr::Num(n)))),
+      Token::Ident(s) => Ok(PrattLHS::Operand(Box::new(Expr::Var(s)))),
+      // Grouping: recurse, then require the matching `)`. The parser owns the delimiter.
+      Token::LParen => {
+        let e = parse_cexpr(inp)?;
+        if inp.try_expect(|t| matches!(t.data, Token::RParen))?.is_none() {
+          return Err(CExprError::UnexpectedToken);
+        }
+        Ok(PrattLHS::Operand(e))
+      }
+      Token::Minus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::Neg, PREC_PREFIX))),
+      Token::Plus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::Pos, PREC_PREFIX))),
+      Token::Bang => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::Not, PREC_PREFIX))),
+      Token::Tilde => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::BNot, PREC_PREFIX))),
+      Token::PlusPlus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::PreInc, PREC_PREFIX))),
+      Token::MinusMinus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::PreDec, PREC_PREFIX))),
+      _ => Err(CExprError::UnexpectedToken),
+    },
   }
 }
 
-assert!(matches!(rhs('+'), PrattRHS::Infix(_)));
-assert!(matches!(rhs('['), PrattRHS::Postfix(_)));
-assert!(matches!(rhs(')'), PrattRHS::Postfix(_)));
+fn parse_rhs<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>,
+) -> Result<PrattRHS<BinOp, BinOp, BinOp, PostfixOp, Power>, CExprError>
+where
+  Ctx: ParseContext<'inp, CExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError>,
+{
+  macro_rules! infix_l {
+    ($op:expr, $prec:expr) => { PrattRHS::Infix(Precedenced::new(PrattInfix::Left($op), $prec)) };
+  }
+  // Anything that is not an operator here becomes the below-floor sentinel; the engine restores
+  // the checkpoint it took before this call and leaves the token for the surrounding grammar.
+  let sentinel = PrattRHS::Postfix(Precedenced::new(PostfixOp::Sentinel, SENTINEL));
+  match inp.next()? {
+    None => Ok(sentinel),
+    Some(tok) => Ok(match tok.into_data() {
+      Token::PipePipe => infix_l!(BinOp::Or, PREC_OR),
+      Token::AmpAmp => infix_l!(BinOp::And, PREC_AND),
+      Token::Pipe => infix_l!(BinOp::BOr, PREC_BOR),
+      Token::Caret => infix_l!(BinOp::BXor, PREC_BXOR),
+      Token::Amp => infix_l!(BinOp::BAnd, PREC_BAND),
+      Token::EqEq => infix_l!(BinOp::Eq, PREC_EQ),
+      Token::BangEq => infix_l!(BinOp::Neq, PREC_EQ),
+      Token::Lt => infix_l!(BinOp::Lt, PREC_CMP),
+      Token::Gt => infix_l!(BinOp::Gt, PREC_CMP),
+      Token::LtEq => infix_l!(BinOp::Lte, PREC_CMP),
+      Token::GtEq => infix_l!(BinOp::Gte, PREC_CMP),
+      Token::Shl => infix_l!(BinOp::Shl, PREC_SHIFT),
+      Token::Shr => infix_l!(BinOp::Shr, PREC_SHIFT),
+      Token::Plus => infix_l!(BinOp::Add, PREC_ADD),
+      Token::Minus => infix_l!(BinOp::Sub, PREC_ADD),
+      Token::Star => infix_l!(BinOp::Mul, PREC_MUL),
+      Token::Slash => infix_l!(BinOp::Div, PREC_MUL),
+      Token::Percent => infix_l!(BinOp::Mod, PREC_MUL),
+      // Postfix triggers. `parse_rhs` consumes only the trigger token; `fold_postfix` reads the
+      // rest. `?` binds at the low ternary level; the rest at the high postfix level.
+      Token::PlusPlus => PrattRHS::Postfix(Precedenced::new(PostfixOp::Inc, PREC_POSTFIX)),
+      Token::MinusMinus => PrattRHS::Postfix(Precedenced::new(PostfixOp::Dec, PREC_POSTFIX)),
+      Token::LBracket => PrattRHS::Postfix(Precedenced::new(PostfixOp::Index, PREC_POSTFIX)),
+      Token::LParen => PrattRHS::Postfix(Precedenced::new(PostfixOp::Call, PREC_POSTFIX)),
+      Token::Question => PrattRHS::Postfix(Precedenced::new(PostfixOp::Ternary, PREC_TERNARY)),
+      _ => sentinel,
+    }),
+  }
+}
+
+// Precedence, associativity, grouping, and prefix operators are all decided by these two
+// classifiers plus the engine. (The folds — hidden here — build the tree; they are revealed next.)
+let parse = |src| Parser::new().apply(parse_cexpr).parse_str(src).map(|e: Box<Expr>| e.to_string());
+assert_eq!(parse("1 + 2 * 3").unwrap(), "(1 + (2 * 3))");    // `*` outranks `+`
+assert_eq!(parse("(1 + 2) * 3").unwrap(), "((1 + 2) * 3)");  // grouping overrides
+assert_eq!(parse("a + b + c").unwrap(), "((a + b) + c)");    // `+` is left-associative
+assert_eq!(parse("-a").unwrap(), "(-a)");                    // prefix
+assert_eq!(parse("~bits | flags").unwrap(), "((~bits) | flags)"); // prefix binds tighter than `|`
 ```
-
-## Implement `parse_lhs`
-
-`parse_lhs` consumes a number or identifier as an operand, parses a grouped expression after
-`(`, and classifies prefix `-`, `+`, `!`, `~`, `++`, and `--` operators. For grouping it calls
-`parse_cexpr` recursively and consumes the matching close parenthesis with `try_expect`.
-
-## Implement `parse_rhs` and the sentinel
-
-`parse_rhs` maps infix tokens to left-associative `PrattInfix` values and maps postfix trigger
-tokens to `PostfixOp` values. A non-operator is classified as the low-power `Sentinel`. Because
-its power is below the current floor, the Pratt engine restores the checkpoint made before
-`parse_rhs`, leaving that token for the surrounding grammar instead of losing it.
 
 ## Implement the three folds
 
-`fold_prefix` wraps an operand in `Expr::Prefix`. `fold_infix` extracts the operator from
-`PrattInfix` and constructs `Expr::Binary`. `fold_postfix` handles simple increment/decrement
-nodes immediately and delegates the forms that need more tokens to the ordinary parser.
+Use named `fn`s, not closures: the fold traits carry a higher-ranked lifetime bound (here on the
+`InputRef`'s inner lifetime) that a monomorphic closure cannot satisfy but a generic `fn` item
+satisfies for free. `fold_prefix` wraps an operand in `Expr::Prefix`; `fold_infix` extracts the
+operator from [`PrattInfix`](crate::parser::PrattInfix) (the engine has already applied
+associativity) and builds `Expr::Binary`. Both are pure tree builders — they never touch the input.
 
-## Show how `fold_postfix` parses `[]`, calls, and `?:`
+`fold_postfix` is where the AST-level API earns its keep. It receives the `InputRef` **first** (the
+calculator's token-level postfix fold gets no input at all), so a postfix trigger can go on to
+consume the tokens it needs. `parse_rhs` has already eaten the trigger (`[`, `(`, or `?`); the fold
+reads the rest:
 
-The fold receives the already-parsed left operand and an `InputRef`. For an index it parses an
-expression until `]`. For a call it accepts `)` for an empty argument list or loops over
-comma-separated expressions. For a ternary it parses the then-expression, requires `:`, and
-parses the otherwise-expression. The parser is still in control of all delimiters.
+- **index** parses an expression, then requires `]`;
+- **call** accepts `)` for an empty argument list or loops over comma-separated expressions;
+- **ternary** parses the then-expression, requires `:`, and parses the otherwise-expression.
+
+Crucially, each enclosed sub-expression is just a recursive `parse_cexpr` call, and each of those
+stops before the delimiter this fold then consumes itself — the parser stays in control of every
+delimiter.
 
 ```rust
-#[derive(Debug, PartialEq)]
-enum Expr {
-  Name(&'static str),
-  Index { base: Box<Expr>, index: Box<Expr> },
-  Call { function: Box<Expr>, arguments: Vec<Expr> },
-  Ternary { condition: Box<Expr>, then: Box<Expr>, otherwise: Box<Expr> },
+# use tokora::{Token as TokenT, ParseInput, error::token::UnexpectedTokenOf, logos::{self, Logos}, parser::{PrattLHS, PrattPower, PrattRHS, pratt_of}};
+# #[derive(Clone, Debug, Default, PartialEq)] struct LexError;
+# impl From<()> for LexError { fn from(_: ()) -> Self { Self } }
+# #[derive(Clone, Debug, Logos)]
+# #[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
+# enum Token {
+#   #[regex(r"[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|_| LexError))] Num(i64),
+#   #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())] Ident(String),
+#   #[token("++")] PlusPlus, #[token("--")] MinusMinus, #[token("==")] EqEq, #[token("!=")] BangEq,
+#   #[token("<=")] LtEq, #[token(">=")] GtEq, #[token("&&")] AmpAmp, #[token("||")] PipePipe,
+#   #[token("<<")] Shl, #[token(">>")] Shr, #[token("+")] Plus, #[token("-")] Minus,
+#   #[token("*")] Star, #[token("/")] Slash, #[token("%")] Percent, #[token("&")] Amp,
+#   #[token("|")] Pipe, #[token("^")] Caret, #[token("~")] Tilde, #[token("!")] Bang,
+#   #[token("?")] Question, #[token(":")] Colon, #[token("<")] Lt, #[token(">")] Gt,
+#   #[token(",")] Comma, #[token("(")] LParen, #[token(")")] RParen, #[token("[")] LBracket,
+#   #[token("]")] RBracket,
+# }
+# #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+# enum TokenKind { Num, Ident, PlusPlus, MinusMinus, EqEq, BangEq, LtEq, GtEq, AmpAmp, PipePipe, Shl, Shr, Plus, Minus, Star, Slash, Percent, Amp, Pipe, Caret, Tilde, Bang, Question, Colon, Lt, Gt, Comma, LParen, RParen, LBracket, RBracket }
+# impl core::fmt::Display for TokenKind {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     f.write_str(match self { Self::Num => "number", Self::Ident => "identifier", Self::PlusPlus => "++", Self::MinusMinus => "--", Self::EqEq => "==", Self::BangEq => "!=", Self::LtEq => "<=", Self::GtEq => ">=", Self::AmpAmp => "&&", Self::PipePipe => "||", Self::Shl => "<<", Self::Shr => ">>", Self::Plus => "+", Self::Minus => "-", Self::Star => "*", Self::Slash => "/", Self::Percent => "%", Self::Amp => "&", Self::Pipe => "|", Self::Caret => "^", Self::Tilde => "~", Self::Bang => "!", Self::Question => "?", Self::Colon => ":", Self::Lt => "<", Self::Gt => ">", Self::Comma => ",", Self::LParen => "(", Self::RParen => ")", Self::LBracket => "[", Self::RBracket => "]" })
+#   }
+# }
+# impl core::fmt::Display for Token { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { core::fmt::Display::fmt(&self.kind(), f) } }
+# impl From<&Token> for TokenKind {
+#   fn from(t: &Token) -> Self { match t { Token::Num(_) => Self::Num, Token::Ident(_) => Self::Ident, Token::PlusPlus => Self::PlusPlus, Token::MinusMinus => Self::MinusMinus, Token::EqEq => Self::EqEq, Token::BangEq => Self::BangEq, Token::LtEq => Self::LtEq, Token::GtEq => Self::GtEq, Token::AmpAmp => Self::AmpAmp, Token::PipePipe => Self::PipePipe, Token::Shl => Self::Shl, Token::Shr => Self::Shr, Token::Plus => Self::Plus, Token::Minus => Self::Minus, Token::Star => Self::Star, Token::Slash => Self::Slash, Token::Percent => Self::Percent, Token::Amp => Self::Amp, Token::Pipe => Self::Pipe, Token::Caret => Self::Caret, Token::Tilde => Self::Tilde, Token::Bang => Self::Bang, Token::Question => Self::Question, Token::Colon => Self::Colon, Token::Lt => Self::Lt, Token::Gt => Self::Gt, Token::Comma => Self::Comma, Token::LParen => Self::LParen, Token::RParen => Self::RParen, Token::LBracket => Self::LBracket, Token::RBracket => Self::RBracket } }
+# }
+# impl TokenT<'_> for Token { type Kind = TokenKind; type Error = LexError; fn kind(&self) -> TokenKind { TokenKind::from(self) } fn is_trivia(&self) -> bool { false } }
+# type CExprLexer<'a> = tokora::lexer::LogosLexer<'a, Token>;
+# #[derive(Debug)] enum CExprError { Lex(LexError), UnexpectedToken, UnexpectedEot }
+# impl From<LexError> for CExprError { fn from(e: LexError) -> Self { Self::Lex(e) } }
+# impl<'inp> From<UnexpectedTokenOf<'inp, CExprLexer<'inp>>> for CExprError { fn from(_: UnexpectedTokenOf<'inp, CExprLexer<'inp>>) -> Self { Self::UnexpectedToken } }
+# #[derive(Clone, Copy, Debug)] enum UnaryOp { Neg, Pos, Not, BNot, PreInc, PreDec }
+# #[derive(Clone, Copy, Debug)] enum BinOp { Add, Sub, Mul, Div, Mod, Or, And, BOr, BXor, BAnd, Eq, Neq, Lt, Gt, Lte, Gte, Shl, Shr }
+# #[derive(Clone, Copy, Debug)] enum PostfixOp { Inc, Dec, Index, Call, Ternary, Sentinel }
+# #[derive(Clone, Debug)] enum Expr { Num(i64), Var(String), Prefix { op: UnaryOp, operand: Box<Expr> }, Binary { op: BinOp, left: Box<Expr>, right: Box<Expr> }, PostfixInc(Box<Expr>), PostfixDec(Box<Expr>), Index { base: Box<Expr>, index: Box<Expr> }, Call { func: Box<Expr>, args: Vec<Expr> }, Ternary { cond: Box<Expr>, then: Box<Expr>, otherwise: Box<Expr> } }
+# impl core::fmt::Display for UnaryOp { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { f.write_str(match self { UnaryOp::Neg => "-", UnaryOp::Pos => "+", UnaryOp::Not => "!", UnaryOp::BNot => "~", UnaryOp::PreInc => "++", UnaryOp::PreDec => "--" }) } }
+# impl core::fmt::Display for BinOp { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { f.write_str(match self { BinOp::Add => "+", BinOp::Sub => "-", BinOp::Mul => "*", BinOp::Div => "/", BinOp::Mod => "%", BinOp::Or => "||", BinOp::And => "&&", BinOp::BOr => "|", BinOp::BXor => "^", BinOp::BAnd => "&", BinOp::Eq => "==", BinOp::Neq => "!=", BinOp::Lt => "<", BinOp::Gt => ">", BinOp::Lte => "<=", BinOp::Gte => ">=", BinOp::Shl => "<<", BinOp::Shr => ">>" }) } }
+# impl core::fmt::Display for Expr { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { match self { Expr::Num(n) => write!(f, "{n}"), Expr::Var(s) => write!(f, "{s}"), Expr::Prefix { op, operand } => write!(f, "({op}{operand})"), Expr::Binary { op, left, right } => write!(f, "({left} {op} {right})"), Expr::PostfixInc(e) => write!(f, "({e}++)"), Expr::PostfixDec(e) => write!(f, "({e}--)"), Expr::Index { base, index } => write!(f, "({base}[{index}])"), Expr::Ternary { cond, then, otherwise } => write!(f, "({cond} ? {then} : {otherwise})"), Expr::Call { func, args } => { write!(f, "{func}(")?; for (i, a) in args.iter().enumerate() { if i > 0 { write!(f, ", ")?; } write!(f, "{a}")?; } write!(f, ")") } } } }
+# #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)] struct Power(i32);
+# impl PrattPower for Power { fn next(&self) -> Self { Power(self.0 + 1) } fn prev(&self) -> Self { Power(self.0 - 1) } }
+# const SENTINEL: Power = Power(-1);
+# const PREC_TERNARY: Power = Power(2);
+# const PREC_OR: Power = Power(3);
+# const PREC_AND: Power = Power(4);
+# const PREC_BOR: Power = Power(5);
+# const PREC_BXOR: Power = Power(6);
+# const PREC_BAND: Power = Power(7);
+# const PREC_EQ: Power = Power(8);
+# const PREC_CMP: Power = Power(9);
+# const PREC_SHIFT: Power = Power(10);
+# const PREC_ADD: Power = Power(11);
+# const PREC_MUL: Power = Power(12);
+# const PREC_PREFIX: Power = Power(13);
+# const PREC_POSTFIX: Power = Power(14);
+# fn parse_lhs<'inp, Ctx>(inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>) -> Result<PrattLHS<Box<Expr>, UnaryOp, Power>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> {
+#   match inp.next()? {
+#     None => Err(CExprError::UnexpectedEot),
+#     Some(tok) => match tok.into_data() {
+#       Token::Num(n) => Ok(PrattLHS::Operand(Box::new(Expr::Num(n)))),
+#       Token::Ident(s) => Ok(PrattLHS::Operand(Box::new(Expr::Var(s)))),
+#       Token::LParen => { let e = parse_cexpr(inp)?; if inp.try_expect(|t| matches!(t.data, Token::RParen))?.is_none() { return Err(CExprError::UnexpectedToken); } Ok(PrattLHS::Operand(e)) }
+#       Token::Minus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::Neg, PREC_PREFIX))),
+#       Token::Plus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::Pos, PREC_PREFIX))),
+#       Token::Bang => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::Not, PREC_PREFIX))),
+#       Token::Tilde => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::BNot, PREC_PREFIX))),
+#       Token::PlusPlus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::PreInc, PREC_PREFIX))),
+#       Token::MinusMinus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::PreDec, PREC_PREFIX))),
+#       _ => Err(CExprError::UnexpectedToken),
+#     },
+#   }
+# }
+# fn parse_rhs<'inp, Ctx>(inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>) -> Result<PrattRHS<BinOp, BinOp, BinOp, PostfixOp, Power>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> {
+#   let sentinel = PrattRHS::Postfix(Precedenced::new(PostfixOp::Sentinel, SENTINEL));
+#   match inp.next()? {
+#     None => Ok(sentinel),
+#     Some(tok) => Ok(match tok.into_data() {
+#       Token::PipePipe => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Or), PREC_OR)),
+#       Token::AmpAmp => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::And), PREC_AND)),
+#       Token::Pipe => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::BOr), PREC_BOR)),
+#       Token::Caret => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::BXor), PREC_BXOR)),
+#       Token::Amp => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::BAnd), PREC_BAND)),
+#       Token::EqEq => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Eq), PREC_EQ)),
+#       Token::BangEq => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Neq), PREC_EQ)),
+#       Token::Lt => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Lt), PREC_CMP)),
+#       Token::Gt => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Gt), PREC_CMP)),
+#       Token::LtEq => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Lte), PREC_CMP)),
+#       Token::GtEq => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Gte), PREC_CMP)),
+#       Token::Shl => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Shl), PREC_SHIFT)),
+#       Token::Shr => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Shr), PREC_SHIFT)),
+#       Token::Plus => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Add), PREC_ADD)),
+#       Token::Minus => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Sub), PREC_ADD)),
+#       Token::Star => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Mul), PREC_MUL)),
+#       Token::Slash => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Div), PREC_MUL)),
+#       Token::Percent => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Mod), PREC_MUL)),
+#       Token::PlusPlus => PrattRHS::Postfix(Precedenced::new(PostfixOp::Inc, PREC_POSTFIX)),
+#       Token::MinusMinus => PrattRHS::Postfix(Precedenced::new(PostfixOp::Dec, PREC_POSTFIX)),
+#       Token::LBracket => PrattRHS::Postfix(Precedenced::new(PostfixOp::Index, PREC_POSTFIX)),
+#       Token::LParen => PrattRHS::Postfix(Precedenced::new(PostfixOp::Call, PREC_POSTFIX)),
+#       Token::Question => PrattRHS::Postfix(Precedenced::new(PostfixOp::Ternary, PREC_TERNARY)),
+#       _ => sentinel,
+#     }),
+#   }
+# }
+# fn parse_cexpr<'inp, Ctx>(inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>) -> Result<Box<Expr>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> { pratt_of(parse_lhs, parse_rhs, fold_prefix, fold_infix, fold_postfix).parse_input(inp) }
+use tokora::{
+  Emitter, InputRef, Parse, ParseContext, Parser,
+  parser::{PrattInfix, Precedenced},
+};
+
+fn fold_prefix<'inp, Ctx>(
+  _inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>,
+  operand: Box<Expr>,
+  op: Precedenced<UnaryOp, Power>,
+) -> Result<Box<Expr>, CExprError>
+where
+  Ctx: ParseContext<'inp, CExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError>,
+{
+  Ok(Box::new(Expr::Prefix { op: op.into_data(), operand }))
 }
 
-fn index(base: Expr, index: Expr) -> Expr {
-  Expr::Index { base: Box::new(base), index: Box::new(index) }
+fn fold_infix<'inp, Ctx>(
+  _inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>,
+  left: Box<Expr>,
+  right: Box<Expr>,
+  op: Precedenced<PrattInfix<BinOp, BinOp, BinOp>, Power>,
+) -> Result<Box<Expr>, CExprError>
+where
+  Ctx: ParseContext<'inp, CExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError>,
+{
+  // Associativity has already done its job in the engine; the fold just wants the operator.
+  let (PrattInfix::Left(op) | PrattInfix::Right(op) | PrattInfix::Neither(op)) = op.into_data();
+  Ok(Box::new(Expr::Binary { op, left, right }))
 }
 
-assert_eq!(
-  index(Expr::Name("array"), Expr::Name("i")),
-  Expr::Index { base: Box::new(Expr::Name("array")), index: Box::new(Expr::Name("i")) },
-);
+fn fold_postfix<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>,
+  operand: Box<Expr>,
+  op: Precedenced<PostfixOp, Power>,
+) -> Result<Box<Expr>, CExprError>
+where
+  Ctx: ParseContext<'inp, CExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError>,
+{
+  match op.into_data() {
+    PostfixOp::Inc => Ok(Box::new(Expr::PostfixInc(operand))),
+    PostfixOp::Dec => Ok(Box::new(Expr::PostfixDec(operand))),
+    // e[index]: parse the index (stops before `]`), then require `]`.
+    PostfixOp::Index => {
+      let index = parse_cexpr(inp)?;
+      if inp.try_expect(|t| matches!(t.data, Token::RBracket))?.is_none() {
+        return Err(CExprError::UnexpectedToken);
+      }
+      Ok(Box::new(Expr::Index { base: operand, index }))
+    }
+    // e(args): an empty `)`, or a comma-separated argument loop.
+    PostfixOp::Call => {
+      let mut args: Vec<Expr> = Vec::new();
+      if inp.try_expect(|t| matches!(t.data, Token::RParen))?.is_some() {
+        return Ok(Box::new(Expr::Call { func: operand, args }));
+      }
+      args.push(*parse_cexpr(inp)?);
+      loop {
+        if inp.try_expect(|t| matches!(t.data, Token::RParen))?.is_some() {
+          break;
+        }
+        if inp.try_expect(|t| matches!(t.data, Token::Comma))?.is_none() {
+          return Err(CExprError::UnexpectedToken);
+        }
+        args.push(*parse_cexpr(inp)?);
+      }
+      Ok(Box::new(Expr::Call { func: operand, args }))
+    }
+    // cond ? then : otherwise — parse `then` (stops before `:`), require `:`, parse `otherwise`.
+    PostfixOp::Ternary => {
+      let then = parse_cexpr(inp)?;
+      if inp.try_expect(|t| matches!(t.data, Token::Colon))?.is_none() {
+        return Err(CExprError::UnexpectedToken);
+      }
+      let otherwise = parse_cexpr(inp)?;
+      Ok(Box::new(Expr::Ternary { cond: operand, then, otherwise }))
+    }
+    // The engine compares power before folding, so the below-floor sentinel never gets here.
+    PostfixOp::Sentinel => unreachable!("the sentinel is rolled back, never folded"),
+  }
+}
+
+// The postfix forms — increment/decrement, indexing, calls, and the ternary — each proven by the
+// fold consuming exactly the input it needs after the trigger token.
+let parse = |src| Parser::new().apply(parse_cexpr).parse_str(src).map(|e: Box<Expr>| e.to_string());
+assert_eq!(parse("x++").unwrap(), "(x++)");                       // postfix ++ (same token as prefix)
+assert_eq!(parse("arr[i + 1]").unwrap(), "(arr[(i + 1)])");       // index consumes an expr and `]`
+assert_eq!(parse("f()").unwrap(), "f()");                         // empty argument list
+assert_eq!(parse("f(a + b, c * d)").unwrap(), "f((a + b), (c * d))"); // comma-separated args
+assert_eq!(parse("a ? b : c").unwrap(), "(a ? b : c)");           // ternary consumes `t`, `:`, `f`
 ```
 
 ## Close the recursion in `parse_cexpr`
 
-`parse_cexpr` calls `pratt_of(parse_lhs, parse_rhs, fold_prefix, fold_infix, fold_postfix)` and
-then `parse_input`. Named functions close the mutual recursion through call-stack frames; they
-do not require recursive parser types.
+`parse_cexpr` calls [`pratt_of`](crate::parser::pratt_of) with the two classifiers and three folds,
+then drives it with [`parse_input`](crate::ParseInput::parse_input). Note what is *absent* from its
+bounds: there is no [`PrattEmitter`](crate::emitter::PrattEmitter). The AST engine keeps
+error-reporting inside the folds and `parse_lhs`, so the ordinary [`Emitter`](crate::Emitter) bound
+is all it needs — a [`FatalContext`](crate::FatalContext) satisfies it with no extra work. The
+mutual recursion (grouping in `parse_lhs`, index/call/ternary in `fold_postfix`) rides ordinary
+call-stack frames through these named `fn`s; no recursive parser *type* is involved.
 
-## Run the maintained AST-display assertion table
+The five assertions below extend to the maintained binary's full assertion table — precedence,
+grouping, associativity, unary operators, increment, ternary, indexing, calls, shifts, and bitwise
+operators — now executable inline:
 
-The canonical binary covers precedence, grouping, associativity, unary operators, increment,
-ternary expressions, indexing, calls, shifts, and bitwise operators:
+```rust
+# use tokora::{Token as TokenT, error::token::UnexpectedTokenOf, logos::{self, Logos}, parser::{PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced}};
+# #[derive(Clone, Debug, Default, PartialEq)] struct LexError;
+# impl From<()> for LexError { fn from(_: ()) -> Self { Self } }
+# #[derive(Clone, Debug, Logos)]
+# #[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
+# enum Token {
+#   #[regex(r"[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|_| LexError))] Num(i64),
+#   #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())] Ident(String),
+#   #[token("++")] PlusPlus, #[token("--")] MinusMinus, #[token("==")] EqEq, #[token("!=")] BangEq,
+#   #[token("<=")] LtEq, #[token(">=")] GtEq, #[token("&&")] AmpAmp, #[token("||")] PipePipe,
+#   #[token("<<")] Shl, #[token(">>")] Shr, #[token("+")] Plus, #[token("-")] Minus,
+#   #[token("*")] Star, #[token("/")] Slash, #[token("%")] Percent, #[token("&")] Amp,
+#   #[token("|")] Pipe, #[token("^")] Caret, #[token("~")] Tilde, #[token("!")] Bang,
+#   #[token("?")] Question, #[token(":")] Colon, #[token("<")] Lt, #[token(">")] Gt,
+#   #[token(",")] Comma, #[token("(")] LParen, #[token(")")] RParen, #[token("[")] LBracket,
+#   #[token("]")] RBracket,
+# }
+# #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+# enum TokenKind { Num, Ident, PlusPlus, MinusMinus, EqEq, BangEq, LtEq, GtEq, AmpAmp, PipePipe, Shl, Shr, Plus, Minus, Star, Slash, Percent, Amp, Pipe, Caret, Tilde, Bang, Question, Colon, Lt, Gt, Comma, LParen, RParen, LBracket, RBracket }
+# impl core::fmt::Display for TokenKind {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     f.write_str(match self { Self::Num => "number", Self::Ident => "identifier", Self::PlusPlus => "++", Self::MinusMinus => "--", Self::EqEq => "==", Self::BangEq => "!=", Self::LtEq => "<=", Self::GtEq => ">=", Self::AmpAmp => "&&", Self::PipePipe => "||", Self::Shl => "<<", Self::Shr => ">>", Self::Plus => "+", Self::Minus => "-", Self::Star => "*", Self::Slash => "/", Self::Percent => "%", Self::Amp => "&", Self::Pipe => "|", Self::Caret => "^", Self::Tilde => "~", Self::Bang => "!", Self::Question => "?", Self::Colon => ":", Self::Lt => "<", Self::Gt => ">", Self::Comma => ",", Self::LParen => "(", Self::RParen => ")", Self::LBracket => "[", Self::RBracket => "]" })
+#   }
+# }
+# impl core::fmt::Display for Token { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { core::fmt::Display::fmt(&self.kind(), f) } }
+# impl From<&Token> for TokenKind {
+#   fn from(t: &Token) -> Self { match t { Token::Num(_) => Self::Num, Token::Ident(_) => Self::Ident, Token::PlusPlus => Self::PlusPlus, Token::MinusMinus => Self::MinusMinus, Token::EqEq => Self::EqEq, Token::BangEq => Self::BangEq, Token::LtEq => Self::LtEq, Token::GtEq => Self::GtEq, Token::AmpAmp => Self::AmpAmp, Token::PipePipe => Self::PipePipe, Token::Shl => Self::Shl, Token::Shr => Self::Shr, Token::Plus => Self::Plus, Token::Minus => Self::Minus, Token::Star => Self::Star, Token::Slash => Self::Slash, Token::Percent => Self::Percent, Token::Amp => Self::Amp, Token::Pipe => Self::Pipe, Token::Caret => Self::Caret, Token::Tilde => Self::Tilde, Token::Bang => Self::Bang, Token::Question => Self::Question, Token::Colon => Self::Colon, Token::Lt => Self::Lt, Token::Gt => Self::Gt, Token::Comma => Self::Comma, Token::LParen => Self::LParen, Token::RParen => Self::RParen, Token::LBracket => Self::LBracket, Token::RBracket => Self::RBracket } }
+# }
+# impl TokenT<'_> for Token { type Kind = TokenKind; type Error = LexError; fn kind(&self) -> TokenKind { TokenKind::from(self) } fn is_trivia(&self) -> bool { false } }
+# type CExprLexer<'a> = tokora::lexer::LogosLexer<'a, Token>;
+# #[derive(Debug)] enum CExprError { Lex(LexError), UnexpectedToken, UnexpectedEot }
+# impl From<LexError> for CExprError { fn from(e: LexError) -> Self { Self::Lex(e) } }
+# impl<'inp> From<UnexpectedTokenOf<'inp, CExprLexer<'inp>>> for CExprError { fn from(_: UnexpectedTokenOf<'inp, CExprLexer<'inp>>) -> Self { Self::UnexpectedToken } }
+# #[derive(Clone, Copy, Debug)] enum UnaryOp { Neg, Pos, Not, BNot, PreInc, PreDec }
+# #[derive(Clone, Copy, Debug)] enum BinOp { Add, Sub, Mul, Div, Mod, Or, And, BOr, BXor, BAnd, Eq, Neq, Lt, Gt, Lte, Gte, Shl, Shr }
+# #[derive(Clone, Copy, Debug)] enum PostfixOp { Inc, Dec, Index, Call, Ternary, Sentinel }
+# #[derive(Clone, Debug)] enum Expr { Num(i64), Var(String), Prefix { op: UnaryOp, operand: Box<Expr> }, Binary { op: BinOp, left: Box<Expr>, right: Box<Expr> }, PostfixInc(Box<Expr>), PostfixDec(Box<Expr>), Index { base: Box<Expr>, index: Box<Expr> }, Call { func: Box<Expr>, args: Vec<Expr> }, Ternary { cond: Box<Expr>, then: Box<Expr>, otherwise: Box<Expr> } }
+# impl core::fmt::Display for UnaryOp { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { f.write_str(match self { UnaryOp::Neg => "-", UnaryOp::Pos => "+", UnaryOp::Not => "!", UnaryOp::BNot => "~", UnaryOp::PreInc => "++", UnaryOp::PreDec => "--" }) } }
+# impl core::fmt::Display for BinOp { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { f.write_str(match self { BinOp::Add => "+", BinOp::Sub => "-", BinOp::Mul => "*", BinOp::Div => "/", BinOp::Mod => "%", BinOp::Or => "||", BinOp::And => "&&", BinOp::BOr => "|", BinOp::BXor => "^", BinOp::BAnd => "&", BinOp::Eq => "==", BinOp::Neq => "!=", BinOp::Lt => "<", BinOp::Gt => ">", BinOp::Lte => "<=", BinOp::Gte => ">=", BinOp::Shl => "<<", BinOp::Shr => ">>" }) } }
+# impl core::fmt::Display for Expr { fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { match self { Expr::Num(n) => write!(f, "{n}"), Expr::Var(s) => write!(f, "{s}"), Expr::Prefix { op, operand } => write!(f, "({op}{operand})"), Expr::Binary { op, left, right } => write!(f, "({left} {op} {right})"), Expr::PostfixInc(e) => write!(f, "({e}++)"), Expr::PostfixDec(e) => write!(f, "({e}--)"), Expr::Index { base, index } => write!(f, "({base}[{index}])"), Expr::Ternary { cond, then, otherwise } => write!(f, "({cond} ? {then} : {otherwise})"), Expr::Call { func, args } => { write!(f, "{func}(")?; for (i, a) in args.iter().enumerate() { if i > 0 { write!(f, ", ")?; } write!(f, "{a}")?; } write!(f, ")") } } } }
+# #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)] struct Power(i32);
+# impl PrattPower for Power { fn next(&self) -> Self { Power(self.0 + 1) } fn prev(&self) -> Self { Power(self.0 - 1) } }
+# const SENTINEL: Power = Power(-1);
+# const PREC_TERNARY: Power = Power(2);
+# const PREC_OR: Power = Power(3);
+# const PREC_AND: Power = Power(4);
+# const PREC_BOR: Power = Power(5);
+# const PREC_BXOR: Power = Power(6);
+# const PREC_BAND: Power = Power(7);
+# const PREC_EQ: Power = Power(8);
+# const PREC_CMP: Power = Power(9);
+# const PREC_SHIFT: Power = Power(10);
+# const PREC_ADD: Power = Power(11);
+# const PREC_MUL: Power = Power(12);
+# const PREC_PREFIX: Power = Power(13);
+# const PREC_POSTFIX: Power = Power(14);
+# fn parse_lhs<'inp, Ctx>(inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>) -> Result<PrattLHS<Box<Expr>, UnaryOp, Power>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> {
+#   match inp.next()? {
+#     None => Err(CExprError::UnexpectedEot),
+#     Some(tok) => match tok.into_data() {
+#       Token::Num(n) => Ok(PrattLHS::Operand(Box::new(Expr::Num(n)))),
+#       Token::Ident(s) => Ok(PrattLHS::Operand(Box::new(Expr::Var(s)))),
+#       Token::LParen => { let e = parse_cexpr(inp)?; if inp.try_expect(|t| matches!(t.data, Token::RParen))?.is_none() { return Err(CExprError::UnexpectedToken); } Ok(PrattLHS::Operand(e)) }
+#       Token::Minus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::Neg, PREC_PREFIX))),
+#       Token::Plus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::Pos, PREC_PREFIX))),
+#       Token::Bang => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::Not, PREC_PREFIX))),
+#       Token::Tilde => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::BNot, PREC_PREFIX))),
+#       Token::PlusPlus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::PreInc, PREC_PREFIX))),
+#       Token::MinusMinus => Ok(PrattLHS::Prefix(Precedenced::new(UnaryOp::PreDec, PREC_PREFIX))),
+#       _ => Err(CExprError::UnexpectedToken),
+#     },
+#   }
+# }
+# fn parse_rhs<'inp, Ctx>(inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>) -> Result<PrattRHS<BinOp, BinOp, BinOp, PostfixOp, Power>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> {
+#   let sentinel = PrattRHS::Postfix(Precedenced::new(PostfixOp::Sentinel, SENTINEL));
+#   match inp.next()? {
+#     None => Ok(sentinel),
+#     Some(tok) => Ok(match tok.into_data() {
+#       Token::PipePipe => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Or), PREC_OR)),
+#       Token::AmpAmp => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::And), PREC_AND)),
+#       Token::Pipe => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::BOr), PREC_BOR)),
+#       Token::Caret => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::BXor), PREC_BXOR)),
+#       Token::Amp => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::BAnd), PREC_BAND)),
+#       Token::EqEq => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Eq), PREC_EQ)),
+#       Token::BangEq => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Neq), PREC_EQ)),
+#       Token::Lt => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Lt), PREC_CMP)),
+#       Token::Gt => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Gt), PREC_CMP)),
+#       Token::LtEq => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Lte), PREC_CMP)),
+#       Token::GtEq => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Gte), PREC_CMP)),
+#       Token::Shl => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Shl), PREC_SHIFT)),
+#       Token::Shr => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Shr), PREC_SHIFT)),
+#       Token::Plus => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Add), PREC_ADD)),
+#       Token::Minus => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Sub), PREC_ADD)),
+#       Token::Star => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Mul), PREC_MUL)),
+#       Token::Slash => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Div), PREC_MUL)),
+#       Token::Percent => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(BinOp::Mod), PREC_MUL)),
+#       Token::PlusPlus => PrattRHS::Postfix(Precedenced::new(PostfixOp::Inc, PREC_POSTFIX)),
+#       Token::MinusMinus => PrattRHS::Postfix(Precedenced::new(PostfixOp::Dec, PREC_POSTFIX)),
+#       Token::LBracket => PrattRHS::Postfix(Precedenced::new(PostfixOp::Index, PREC_POSTFIX)),
+#       Token::LParen => PrattRHS::Postfix(Precedenced::new(PostfixOp::Call, PREC_POSTFIX)),
+#       Token::Question => PrattRHS::Postfix(Precedenced::new(PostfixOp::Ternary, PREC_TERNARY)),
+#       _ => sentinel,
+#     }),
+#   }
+# }
+# fn fold_prefix<'inp, Ctx>(_inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>, operand: Box<Expr>, op: Precedenced<UnaryOp, Power>) -> Result<Box<Expr>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> { Ok(Box::new(Expr::Prefix { op: op.into_data(), operand })) }
+# fn fold_infix<'inp, Ctx>(_inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>, left: Box<Expr>, right: Box<Expr>, op: Precedenced<PrattInfix<BinOp, BinOp, BinOp>, Power>) -> Result<Box<Expr>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> { let (PrattInfix::Left(op) | PrattInfix::Right(op) | PrattInfix::Neither(op)) = op.into_data(); Ok(Box::new(Expr::Binary { op, left, right })) }
+# fn fold_postfix<'inp, Ctx>(inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>, operand: Box<Expr>, op: Precedenced<PostfixOp, Power>) -> Result<Box<Expr>, CExprError> where Ctx: ParseContext<'inp, CExprLexer<'inp>>, Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError> {
+#   match op.into_data() {
+#     PostfixOp::Inc => Ok(Box::new(Expr::PostfixInc(operand))),
+#     PostfixOp::Dec => Ok(Box::new(Expr::PostfixDec(operand))),
+#     PostfixOp::Index => { let index = parse_cexpr(inp)?; if inp.try_expect(|t| matches!(t.data, Token::RBracket))?.is_none() { return Err(CExprError::UnexpectedToken); } Ok(Box::new(Expr::Index { base: operand, index })) }
+#     PostfixOp::Call => { let mut args: Vec<Expr> = Vec::new(); if inp.try_expect(|t| matches!(t.data, Token::RParen))?.is_some() { return Ok(Box::new(Expr::Call { func: operand, args })); } args.push(*parse_cexpr(inp)?); loop { if inp.try_expect(|t| matches!(t.data, Token::RParen))?.is_some() { break; } if inp.try_expect(|t| matches!(t.data, Token::Comma))?.is_none() { return Err(CExprError::UnexpectedToken); } args.push(*parse_cexpr(inp)?); } Ok(Box::new(Expr::Call { func: operand, args })) }
+#     PostfixOp::Ternary => { let then = parse_cexpr(inp)?; if inp.try_expect(|t| matches!(t.data, Token::Colon))?.is_none() { return Err(CExprError::UnexpectedToken); } let otherwise = parse_cexpr(inp)?; Ok(Box::new(Expr::Ternary { cond: operand, then, otherwise })) }
+#     PostfixOp::Sentinel => unreachable!(),
+#   }
+# }
+use tokora::{Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, parser::pratt_of};
+
+fn parse_cexpr<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, CExprLexer<'inp>, Ctx>,
+) -> Result<Box<Expr>, CExprError>
+where
+  Ctx: ParseContext<'inp, CExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, CExprLexer<'inp>, Error = CExprError>,
+{
+  pratt_of(parse_lhs, parse_rhs, fold_prefix, fold_infix, fold_postfix).parse_input(inp)
+}
+
+// The maintained binary's assertion table — the parser's behavior contract — now inline. Each row
+// parses a C expression and checks its fully-parenthesised `Display`.
+let parse = |src| Parser::new().apply(parse_cexpr).parse_str(src).map(|e: Box<Expr>| e.to_string());
+assert_eq!(parse("1 + 2 * 3").unwrap(), "(1 + (2 * 3))");
+assert_eq!(parse("(1 + 2) * 3").unwrap(), "((1 + 2) * 3)");
+assert_eq!(parse("a + b + c").unwrap(), "((a + b) + c)");
+assert_eq!(parse("-a").unwrap(), "(-a)");
+assert_eq!(parse("!flag").unwrap(), "(!flag)");
+assert_eq!(parse("~bits").unwrap(), "(~bits)");
+assert_eq!(parse("++x").unwrap(), "(++x)");
+assert_eq!(parse("x++").unwrap(), "(x++)");
+assert_eq!(parse("a ? b : c").unwrap(), "(a ? b : c)");
+assert_eq!(parse("arr[0]").unwrap(), "(arr[0])");
+assert_eq!(parse("f()").unwrap(), "f()");
+assert_eq!(parse("f(1, 2)").unwrap(), "f(1, 2)");
+assert_eq!(parse("a == b && c != d").unwrap(), "((a == b) && (c != d))");
+assert_eq!(parse("~bits | flags").unwrap(), "((~bits) | flags)");
+assert_eq!(parse("arr[i + 1]").unwrap(), "(arr[(i + 1)])");
+assert_eq!(parse("f(a + b, c * d)").unwrap(), "f((a + b), (c * d))");
+assert_eq!(parse("x << 2 | y >> 1").unwrap(), "((x << 2) | (y >> 1))");
+```
+
+## Reproduce the maintained assertion table
+
+The assertions above *are* the maintained binary's assertion table: precedence, grouping,
+left-associativity, unary operators, prefix and postfix increment, the ternary, indexing, calls,
+mixed precedence chains, and C's low-precedence bitwise and shift operators. They are the behavior
+contract for the parser. For the full runnable program — the same code driven from a `main` that
+prints each parsed expression — run:
 
 ```sh
 cargo run -p tokora --example c_expression --features logos
 ```
+
+You have now followed the complete C-expression parser inline: a Logos lexer, a typed `Expr` AST,
+C's precedence ladder, two classifier *functions*, and three folds — the postfix one consuming its
+own delimiters for indexing, calls, and the ternary — closed into a one-call `parse_cexpr`. The
+[Pratt reference](super::ref_pratt) catalogs both Pratt surfaces side by side.
 
 The optional chapter 16, Lossless CSTs with Rowan, takes a different route: it records source
 tokens rather than reducing them to an AST. It requires the `rowan` feature, so it is named here

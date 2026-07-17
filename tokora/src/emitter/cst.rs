@@ -23,8 +23,8 @@ use super::*;
 /// cannot see a provided-method override, so that shape is caught at the other end: a
 /// recording sink's `finish` **refuses** a balanced stream that builds structure without a
 /// single committed token over a nonempty source
-/// ([`StructureWithoutTokens`](crate::cst::FinishError::StructureWithoutTokens)) — a
-/// typed error, never a plausible gap-tiled tree. A wrapper must forward
+/// (`cst::FinishError::StructureWithoutTokens`) — a typed error, never a plausible
+/// gap-tiled tree. A wrapper must forward
 /// [`Emitter::commit_token`] alongside these methods.
 ///
 /// # Defaulted no-ops: diagnostics-only emitters opt in trivially

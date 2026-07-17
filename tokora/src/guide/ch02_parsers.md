@@ -170,6 +170,140 @@ let missing_eq = Parser::new().apply(parse_let).parse_str("let answer 42 ;");
 assert_eq!(missing_eq, Err(CalcError::Unexpected));
 ```
 
+## The parse context
+
+Every signature so far has ended with the same two lines, left unexplained until now:
+
+```text
+where
+  Ctx: ParseContext<'inp, CalcLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, CalcLexer<'inp>, Error = CalcError>,
+```
+
+A **parse context** is the small bundle a parse needs on top of the lexer: an
+[`Emitter`](crate::Emitter) — the policy that decides what becomes of each diagnostic, the
+fail-fast [`Fatal`](crate::emitter::Fatal) one by default — and the lookahead **cache** that
+stages the peeked tokens from this chapter's opening. [`ParseContext`](crate::ParseContext) rolls
+those two (plus an optional language marker) into one type, so a parser is generic over a single
+`Ctx` knob instead of separate emitter, cache, and language parameters.
+
+Read the two clauses in that light. The first says only "`Ctx` is *some* parse context." The
+second pins the one thing the body actually depends on — that the context's emitter produces
+*your* error type, so each `?` yields a `CalcError`. Everything else stays open, which is exactly
+the point: the identical function runs under whatever emitter the caller installs.
+
+You have been choosing a context all along without naming it. `Parser::new()` installs the
+beginner default — [`FatalContext`](crate::FatalContext), a `Fatal` emitter over the default
+cache — and `apply` substitutes it for `Ctx`. So the generic form and a copy pinned to that
+concrete default are one and the same parser:
+
+```rust
+# use tokora::{Token as TokenT, logos::{self, Logos}};
+# #[derive(Clone, Debug, Default, PartialEq)]
+# struct LexError;
+# impl From<()> for LexError { fn from(_: ()) -> Self { LexError } }
+# #[derive(Debug, Clone, PartialEq, Logos)]
+# #[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
+# enum Tok {
+#   #[regex(r"[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|_| LexError))]
+#   Int(i64),
+#   #[token("let")] Let,
+#   #[token("print")] Print,
+#   #[regex(r"[A-Za-z_][A-Za-z0-9_]*")] Ident,
+#   #[token("+")] Plus,
+#   #[token("-")] Minus,
+#   #[token("*")] Star,
+#   #[token("/")] Slash,
+#   #[token("^")] Caret,
+#   #[token("=")] Assign,
+#   #[token(";")] Semi,
+#   #[token(",")] Comma,
+#   #[token("(")] LParen,
+#   #[token(")")] RParen,
+# }
+# #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+# enum TokKind { Int, Let, Print, Ident, Plus, Minus, Star, Slash, Caret, Assign, Semi, Comma, LParen, RParen }
+# impl core::fmt::Display for TokKind {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     f.write_str(match self {
+#       Self::Int => "integer", Self::Let => "`let`", Self::Print => "`print`",
+#       Self::Ident => "identifier", Self::Plus => "`+`", Self::Minus => "`-`",
+#       Self::Star => "`*`", Self::Slash => "`/`", Self::Caret => "`^`",
+#       Self::Assign => "`=`", Self::Semi => "`;`", Self::Comma => "`,`",
+#       Self::LParen => "`(`", Self::RParen => "`)`",
+#     })
+#   }
+# }
+# impl core::fmt::Display for Tok {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     match self {
+#       Tok::Int(n) => write!(f, "{n}"),
+#       other => core::fmt::Display::fmt(&other.kind(), f),
+#     }
+#   }
+# }
+# impl TokenT<'_> for Tok {
+#   type Kind = TokKind;
+#   type Error = LexError;
+#   fn kind(&self) -> TokKind {
+#     match self {
+#       Tok::Int(_) => TokKind::Int, Tok::Let => TokKind::Let, Tok::Print => TokKind::Print,
+#       Tok::Ident => TokKind::Ident, Tok::Plus => TokKind::Plus, Tok::Minus => TokKind::Minus,
+#       Tok::Star => TokKind::Star, Tok::Slash => TokKind::Slash, Tok::Caret => TokKind::Caret,
+#       Tok::Assign => TokKind::Assign, Tok::Semi => TokKind::Semi, Tok::Comma => TokKind::Comma,
+#       Tok::LParen => TokKind::LParen, Tok::RParen => TokKind::RParen,
+#     }
+#   }
+#   fn is_trivia(&self) -> bool { false }
+# }
+# type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
+# use tokora::error::{UnexpectedEot, token::UnexpectedTokenOf};
+# #[derive(Debug, Clone, PartialEq)]
+# enum CalcError { Lex, Unexpected, UnexpectedEnd }
+# impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
+# impl<'inp> From<UnexpectedTokenOf<'inp, CalcLexer<'inp>>> for CalcError {
+#   fn from(_: UnexpectedTokenOf<'inp, CalcLexer<'inp>>) -> Self { CalcError::Unexpected }
+# }
+# impl From<UnexpectedEot> for CalcError {
+#   fn from(_: UnexpectedEot) -> Self { CalcError::UnexpectedEnd }
+# }
+use tokora::{Emitter, FatalContext, InputRef, Parse, ParseContext, Parser};
+
+// The generic idiom, one more time — one function, any context.
+fn one_int<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, CalcLexer<'inp>, Ctx>,
+) -> Result<i64, CalcError>
+where
+  Ctx: ParseContext<'inp, CalcLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, CalcLexer<'inp>, Error = CalcError>,
+{
+  match inp.next()? {
+    Some(tok) => match tok.into_data() {
+      Tok::Int(n) => Ok(n),
+      _ => Err(CalcError::Unexpected),
+    },
+    None => Err(CalcError::UnexpectedEnd),
+  }
+}
+
+// The concrete context `Parser::new()` installs: a fail-fast `Fatal` emitter over the default
+// cache. Pinning it by hand type-checks against the generic `one_int` above — which is exactly
+// the substitution `apply` performs when you never name a context at all.
+fn one_int_default<'inp>(
+  inp: &mut InputRef<'inp, '_, CalcLexer<'inp>, FatalContext<'inp, CalcLexer<'inp>, CalcError>>,
+) -> Result<i64, CalcError> {
+  one_int(inp)
+}
+
+assert_eq!(Parser::new().apply(one_int).parse_str("42"), Ok(42));
+assert_eq!(Parser::new().apply(one_int_default).parse_str("42"), Ok(42));
+```
+
+[Chapter 7](super::ch07_diagnostics) is where the generic knob earns its keep: the very same
+parsers, run under a *collecting* context, gather every diagnostic instead of stopping at the
+first. The full catalog — every context, emitter, and error leaf — is the
+[errors, emitters & context reference](super::ref_errors_emitters_context).
+
 ## `expect`: mismatches with a name
 
 The manual `try_expect`-then-`Err` above works, but the failure says nothing about *what*

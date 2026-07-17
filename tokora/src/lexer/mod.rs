@@ -438,10 +438,10 @@ where
 /// concept whose per-token identity half is [`Token::is_trivia`]. Declaring `true` promises
 /// *totality*: every source byte is covered by either an emitted token (trivia included) or
 /// a reported lexer error, none silently discarded. The lossless (`gap_kind`)
-/// [`Sink`](crate::cst::Sink) requires it at **compile time**; declaring it while a
+/// `cst::Sink` requires it at **compile time**; declaring it while a
 /// lexer-level `skip` rule discards bytes anyway is the unspecified-but-bounded violation
 /// class below — surfaced by materialization as
-/// [`UncoveredGap`](crate::cst::FinishError::UncoveredGap), never UB or a panic from this
+/// `cst::FinishError::UncoveredGap`, never UB or a panic from this
 /// crate.
 ///
 /// ## Violation posture
@@ -471,7 +471,7 @@ pub trait Lexer<'inp>: 'inp {
 
   /// Whether this lexer **surfaces trivia as real tokens** instead of silently skipping
   /// the bytes. Defaults to the token vocabulary's own declaration
-  /// ([`Token::SURFACES_TRIVIA`]), which is where a [`LogosLexer`]-backed dialect
+  /// ([`Token::SURFACES_TRIVIA`]), which is where a `LogosLexer`-backed dialect
   /// declares it (the logos adapter is one blanket impl for every token type, so the
   /// per-dialect site is the `Token` impl). A hand-written lexer whose skipping behavior
   /// differs from its vocabulary's declaration overrides it here.
