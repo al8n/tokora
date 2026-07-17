@@ -62,6 +62,12 @@ pub mod arch_atomic_emitter {
   #![doc = include_str!("arch_atomic_emitter.md")]
 }
 
+#[cfg(feature = "rowan")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+pub mod arch_event_stream_cst {
+  #![doc = include_str!("arch_event_stream_cst.md")]
+}
+
 pub mod arch_source_slice {
   #![doc = include_str!("arch_source_slice.md")]
 }

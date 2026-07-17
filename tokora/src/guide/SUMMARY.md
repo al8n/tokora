@@ -22,9 +22,8 @@
 - [The parsing engine: parse while lexing](arch_parsing_engine.md)
 - [Checkpoint, rewind & the LIFO contract](arch_checkpoint_rewind.md)
 - [The atomic emitter](arch_atomic_emitter.md)
+- [The event-stream CST engine](arch_event_stream_cst.md)
 - [Source, Slice & storage backends](arch_source_slice.md)
-
-<!-- Forthcoming: the event-stream CST engine. -->
 
 # Part IV — Recipes & Applied Parsers
 

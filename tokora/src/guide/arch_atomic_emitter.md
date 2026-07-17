@@ -374,7 +374,7 @@ The emitter is one of the four seams Part III opens onto the same engine:
 - **How committed tokens become a lossless tree** — the [`CstEmitter`](crate::emitter::CstEmitter)
   structuring surface and the [`commit_token`](crate::Emitter::commit_token) auto-emission hook this
   chapter named, and the [`cst`](crate::cst) event stream the [`cst::Sink`](crate::cst::Sink)
-  buffers and rewinds: the forthcoming event-stream CST chapter.
+  buffers and rewinds: the event-stream CST chapter.
 - **How the input is stored** — the `Source` / `Slice` seam this same machinery reads through, byte-
   or text-shaped, owned or borrowed: the [Source, Slice & storage backends](super::arch_source_slice)
   chapter.
