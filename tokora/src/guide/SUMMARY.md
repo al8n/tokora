@@ -19,10 +19,11 @@
 
 # Part III — Design & Architecture
 
+- [The parsing engine: parse while lexing](arch_parsing_engine.md)
 - [Source, Slice & storage backends](arch_source_slice.md)
 
-<!-- Forthcoming: the parse-while-lexing engine, checkpoint & rewind, the atomic
-     emitter design, and the event-stream CST engine. -->
+<!-- Forthcoming: checkpoint & rewind, the atomic emitter design, and the
+     event-stream CST engine. -->
 
 # Part IV — Recipes & Applied Parsers
 
