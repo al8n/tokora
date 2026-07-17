@@ -538,8 +538,8 @@ currently-supported versioned feature (`bytes_1`), which pulls the optional depe
 | `rowan` | the recording CST sink + typed lossless tree (the Rowan chapter) | `dep:rowan`, **`std`** | requires `std` |
 | `unstable-raw` | the raw `InputRef::{save, restore, commit}` triple + `Checkpoint` construction | — | no_std-clean |
 | `trace` | [`traced`](crate::traced) + combinator instrumentation | **`std`** | requires `std`; zero-cost when off |
-| `conformance` | the [`conformance`](crate::conformance) lexer test kit | **`std`** | requires `std` |
-| `fuzz` | the [`fuzz`](crate::fuzz) operation-script harness | **`std`** | requires `std` |
+| `conformance` | the `conformance` lexer test kit | **`std`** | requires `std` |
+| `fuzz` | the `fuzz` operation-script harness | **`std`** | requires `std` |
 
 ### no_std posture, in brief
 

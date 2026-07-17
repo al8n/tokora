@@ -1452,8 +1452,9 @@ the shorthand for a context's error type.
 | **Delimiter** | [`Unclosed`](crate::error::Unclosed), [`Unopened`](crate::error::Unopened), [`Undelimited`](crate::error::Undelimited), [`Unterminated`](crate::error::Unterminated) |
 | **Incomplete** | [`Incomplete`](crate::error::Incomplete) — the never-recoverable partial-input signal (see [chapter 9](super::ch09_streaming)) |
 
-The whole taxonomy and the emitter/context surface are covered in depth in
-[chapter 7](super::ch07_diagnostics).
+The whole taxonomy and the emitter/context surface are covered in depth in the
+[errors, emitters & context reference](super::ref_errors_emitters_context);
+[chapter 7](super::ch07_diagnostics) is the guided tutorial.
 
 ---
 
@@ -1469,8 +1470,8 @@ Defaults to `std`. `docs.rs` builds `all-features`.
 | `logos` (`= logos_0_16`) | the [`LogosLexer`](crate::lexer::LogosLexer) adapter | also `logos_0_14`, `logos_0_15` for other versions |
 | `rowan` | the recording CST sink + typed lossless tree | implies `std`; the lossless-CST chapter |
 | `unstable-raw` | the raw `InputRef::{save, restore, commit}` checkpoint triple | otherwise the transaction guards are the surface |
-| `conformance` | the [`conformance`](crate::conformance) lexer test kit | implies `std` |
-| `fuzz` | the [`fuzz`](crate::fuzz) operation-script harness | implies `std` |
+| `conformance` | the `conformance` lexer test kit | implies `std` |
+| `fuzz` | the `fuzz` operation-script harness | implies `std` |
 | `trace` | [`traced`](crate::traced) + combinator instrumentation | implies `std`; zero-cost when off |
 | `bytes` / `bstr` / `hipstr` / `smol_bytes` | extra [`Source`](crate::Source)/[`Slice`](crate::Slice) backends | `smol_bytes` implies `std` |
 | `smallvec` / `heapless` / `tinyvec` | extra [`Container`](crate::container::Container) backends | `smallvec` implies `alloc` |

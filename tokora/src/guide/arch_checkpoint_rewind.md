@@ -77,9 +77,10 @@ the two channels are pinned to a single point and released from it together.
 ## Why a copy, not a merge — and the cell taxonomy
 
 The predecessor design tried to be cleverer, and that is where the bugs lived. When restore
-*reconciles* saved and current state — merging a saved log tail against the live one, keying a
-diagnostic rollback on a **span-end offset heuristic** rather than on emission order — it cannot
-tell two diagnostics at the same offset apart, and it silently keeps or drops the wrong one. The
+*reconciles* saved and current state — as the previous `Verbose` rewind did, keeping or dropping
+live diagnostics by a **span-end offset heuristic** (*retain every diagnostic whose span ends at
+or before the restore offset*) rather than truncating by emission order — it cannot tell two
+diagnostics at the same offset apart, and it silently keeps or drops the wrong one. The
 golden model refuses reconciliation on principle: restore **overwrites** the scanning cells and
 **truncates** the emission log by mark. There is no heuristic to be wrong, because there is no
 merge.
@@ -93,7 +94,7 @@ input owns is classified into exactly one of five classes, and the class **is** 
 | Class | Cells | What restore does |
 |---|---|---|
 | **Ground truth** | lexer state, last-consumed span, token cache, the emitter's log | overwrite from the snapshot (the log by truncation to the saved mark) |
-| **Lineage memos** | dedup watermark, poison boundary, cache-push count, the live-checkpoint stack, the pin set | pure-copy the saved value — with two structural exceptions noted below |
+| **Lineage memos** | dedup watermark, poison boundary, cache-push count, the live-checkpoint stack, the pin set, the open session points | pure-copy the saved value — with two structural exceptions noted below |
 | **Monotone id sources** | the checkpoint-id counter, the savepoint sequence | **nothing** — rewinding a counter would reissue a live id, and a colliding id is worse than none |
 | **World facts** | the `is_final` finality bit | **nothing** — a rollback rewinds the *parse*, not the *world* (a stream cannot un-end) |
 | **Witness / instrumentation** | the input's identity, the `trace` nesting depth | **nothing** — neither affects scanning |
@@ -105,7 +106,8 @@ a speculative peek that trips a resource limit latches the poison boundary, emit
 diagnostic, and lifts the dedup watermark in one step, so a restore that unwinds that peek must put
 all three back paired. The two structural exceptions are still lineage memos, but their mechanics
 differ: the live-checkpoint stack is *popped through* the restored id rather than snapshot-copied,
-and the pin set is left untouched (a restore never changes which guards are live).
+and the pin set is left untouched (a restore never changes which guards are live) — as is the
+open session-point stack, a restore below whose base is refused by its pin.
 
 The **world fact** row is the one place the discipline must *not* reach, and it is enforced
 structurally rather than remembered. A working handle borrows the input for its whole life, so the
@@ -207,7 +209,7 @@ always.
 ## Composing with a tree-building emitter
 
 The one-timeline promise has to survive one more composition: the lossless CST. When a parse builds
-a tree, committed tokens and structure flow to a recording emitter — a [`cst::Sink`](crate::cst::Sink)
+a tree, committed tokens and structure flow to a recording emitter — a `cst::Sink`
 wrapping an inner diagnostics emitter — through the same
 [`Emitter::commit_token`](crate::Emitter::commit_token) hook the engine chapter named. The sink
 buffers a second log (the event stream) *and* forwards every diagnostic to its inner emitter, and
@@ -216,7 +218,7 @@ manages. Get that wrong and a rolled-back branch leaves a phantom node in the tr
 diagnostic vanished — the two channels sheared apart.
 
 The sink keeps them together with a **value-keyed inner** contract, and the discipline is worth
-naming at the architecture level (the [lossless-CST chapter](super::ch16_lossless_cst) and the
+naming at the architecture level (the lossless-CST chapter — chapter 16 — and the
 emitter reference carry the API detail). The sink's own mark is the event-log length; at each
 `checkpoint` it also freezes, on a small stack, the inner emitter's *own* checkpoint reading — a
 plain `u64`, captured by value, not a resource to reclaim. On `rewind` it truncates its event log
@@ -376,6 +378,6 @@ The checkpoint is one of the four seams Part III opens onto the same engine:
   [`release`](crate::Emitter::release) trio this chapter leaned on, and how `Fatal` / `Verbose` /
   `Silent` get their rewind behavior: the [Atomic Emitter chapter](super::arch_atomic_emitter).
 - **How committed tokens become a lossless tree** — the [`CstEmitter`](crate::emitter::CstEmitter)
-  hook and the [`cst`](crate::cst) event stream the [`cst::Sink`](crate::cst::Sink) buffers and
+  hook and the [`cst`](crate::cst) event stream the `cst::Sink` buffers and
   rewinds under this chapter's mark: the event-stream CST chapter, which is where the
   value-keyed-inner composition sketched above is developed in full.

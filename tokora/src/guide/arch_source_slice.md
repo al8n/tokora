@@ -199,7 +199,8 @@ whole abstraction rests on.
 The feature graph layers up from there:
 
 - **no feature** → `core` only. Core `str` / `[u8]` sources, the parser itself, and its
-  stack-buffered lookahead window (1-32 tokens) — no allocator in sight.
+  stack-buffered lookahead machinery (peek windows of 1-32 tokens over a small inline
+  cache) — no allocator in sight.
 - **`alloc`** → adds the allocator-backed pieces (growable containers, the session stack) while
   staying `no_std`.
 - **`std`** (default) → everything, plus it turns on the upstream backends' own default features.

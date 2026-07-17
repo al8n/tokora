@@ -212,20 +212,27 @@ trait Emitter<'a, L, Lang = ()> {
     fn emit_lexer_error(&mut self, Spanned<Token::Error, Span>)     -> Result<(), Error>;
     fn emit_unexpected_token(&mut self, UnexpectedTokenOf<'a,L,Lang>) -> Result<(), Error>;
     fn emit_error(&mut self, Spanned<Error, Span>)                  -> Result<(), Error>;
-    // defaulted (no-op) surface — override only what your emitter records:
+    // REQUIRED, no default — how does your state unwind? A speculative branch
+    // unwinds position + diagnostics + CST events together (chapter 6); the
+    // stateless emitters write the trivially empty body by hand.
+    fn rewind(.., u64);
+    // defaulted surface — override only what your emitter records:
     fn emit_warning(..)          // second, never-fatal channel
     fn emit_skipped_region(..)   // one note per recovery hole (chapter 8)
-    fn checkpoint(&self) -> u64  //  ┐ the rewindable emission timeline: a speculative
-    fn rewind(.., u64)           //  ┤ branch unwinds position + diagnostics + CST events
-    fn release(&mut self, u64)   //  ┘ together (chapter 6)
+    fn checkpoint(&self) -> u64  //  ┐ the marks of that rewindable timeline: a reading
+    fn release(&mut self, u64)   //  ┘ taken at a save, reclaimed when a branch is kept
     fn commit_token(.., ..)      // the auto-CST hook (see CstEmitter)
     fn enter_label / exit_label  // the "while parsing X" stack for `labelled`
 }
 ```
 
 `Ok(())` means non-fatal (parsing continues); `Err(Self::Error)` is fatal (the `?` stops the
-parse). Everything past the three required methods has a blanket no-op default, so a fail-fast
-emitter inherits an empty body and the calls inline to nothing.
+parse). Four members are required: the three emit verbs, plus [`rewind`](crate::Emitter::rewind),
+which deliberately has **no default body** — an emitter must say how its state unwinds, because a
+recording emitter that inherited a no-op rewind would keep the diagnostics of abandoned branches
+(the [atomic-emitter chapter](super::arch_atomic_emitter) develops why; `Fatal`/`Silent`/`Ignored`
+each write the trivially empty body explicitly). Everything past those four has a blanket no-op
+default, so a fail-fast emitter inherits empty bodies and the calls inline to nothing.
 
 ### Capability sub-traits
 

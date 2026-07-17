@@ -27,13 +27,12 @@
 //!    [`Marker`](crate::cst::event::Marker) retro-wrap typestate
 //! 2. **`Sink`** (`rowan`): The recording emitter — buffers events under the one
 //!    checkpoint/rewind mark and materializes once into a green tree
-//! 3. **[`SyntaxTreeBuilder`](crate::cst::SyntaxTreeBuilder)** (`rowan`): The low-level
-//!    append-only builder over rowan's green tree builder (no rollback of its own — that is
-//!    what the event buffer is for)
-//! 4. **[`Element`](crate::cst::Element)** / **[`Node`](crate::cst::Node)** /
-//!    **[`Token`](crate::cst::Token)** (`rowan`): Typed views over the finished tree
-//! 5. **[`cast`](crate::cst::cast)** (`rowan`): Utility functions for the typed layer
-//! 6. **[`error`](crate::cst::error)** (`rowan`): Error types for CST operations
+//! 3. **`SyntaxTreeBuilder`** (`rowan`): The low-level append-only builder over rowan's
+//!    green tree builder (no rollback of its own — that is what the event buffer is for)
+//! 4. **`Element`** / **`Node`** / **`Token`** (`rowan`): Typed views over the finished
+//!    tree
+//! 5. **`cast`** (`rowan`): Utility functions for the typed layer
+//! 6. **`error`** (`rowan`): Error types for CST operations
 //!
 //! # Design Philosophy
 //!

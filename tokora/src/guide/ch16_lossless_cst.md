@@ -1083,10 +1083,11 @@ assert!(
 The grammar functions above bound their emitter as
 [`CstEmitter`](crate::emitter::CstEmitter) — and every diagnostics-only emitter the crate
 ships ([`Fatal`](crate::emitter::Fatal), [`Verbose`](crate::emitter::Verbose),
-[`Silent`](crate::emitter::Silent)) already implements it, through defaulted no-op event
-methods. So the same functions run in a plain fail-fast context with no sink anywhere in
-sight — no `rowan` feature, no tree, and no cost: the no-op event calls take references,
-inline to empty bodies, and compile to nothing.
+[`Silent`](crate::emitter::Silent), and [`Ignored`](crate::emitter::Ignored)) already
+implements it, through defaulted no-op event methods. So the same functions run in a plain
+fail-fast context with no sink anywhere in sight — no `rowan` feature, no tree, and no
+cost: the no-op event calls take references, inline to empty bodies, and compile to
+nothing.
 
 ```rust
 # use tokora::{Token as TokenT, logos::{self, Logos}};

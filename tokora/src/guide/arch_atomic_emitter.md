@@ -146,7 +146,7 @@ wrapper emitter that forwarded the diagnostic surface and forgot the structure s
 a parse whose diagnostics flow perfectly and whose tree is *silently empty*. On every other
 capability that is an annoyance; on this one it is a wrong tree nothing downstream can detect, so CST
 is the one place the design binds instead of trusting a default. The recording implementation is the
-`rowan`-gated [`cst::Sink`](crate::cst::Sink), the subject of the event-stream CST chapter (its
+`rowan`-gated `cst::Sink`, the subject of the event-stream CST chapter (its
 vocabulary lives in [`crate::cst`]).
 
 ## The one method the design refuses to default
@@ -201,7 +201,7 @@ why the reference posture is value-keyed: the property "correctness does not dep
 falls out of it for free.
 
 How the *input* drives this trio — one save pinning both the cursor and this mark, and a recording
-[`cst::Sink`](crate::cst::Sink) buffering a second (event) log under the very same mark so the tree
+`cst::Sink` buffering a second (event) log under the very same mark so the tree
 rewinds exactly as the diagnostics do — is the [checkpoint chapter](super::arch_checkpoint_rewind)'s
 subject, developed there in full. This chapter owns only the emitter's half of the contract.
 
@@ -223,7 +223,7 @@ reading them side by side is the clearest way to see the trait's range.
 | [`Verbose<E, S>`](crate::emitter::Verbose) | `E` | records every diagnostic and continues | span-keyed channels on one log (`std`/`alloc`) |
 | [`Silent<E>`](crate::emitter::Silent) | `E` | drops every diagnostic; keeps the error type | none (zero-sized) |
 | [`Ignored`](crate::emitter::Ignored) | `()` | drops everything; error type collapses to `()` | none (zero-sized) |
-| [`cst::Sink`](crate::cst::Sink) | inner's | buffers tree events on the rewind timeline, forwarding diagnostics to an inner emitter | event log + inner (`rowan`) |
+| `cst::Sink` | inner's | buffers tree events on the rewind timeline, forwarding diagnostics to an inner emitter | event log + inner (`rowan`) |
 
 - **[`Fatal`](crate::emitter::Fatal)** is fail-fast, and the default a bare
   [`Parser::new()`](crate::Parser) installs. Every emit verb returns `Err`, so the first diagnostic
@@ -240,7 +240,7 @@ reading them side by side is the clearest way to see the trait's range.
   same signatures as `Fatal`/`Verbose` for a best-effort parse where the diagnostics are unwanted.
   **[`Ignored`](crate::emitter::Ignored)** goes further and collapses the error type to `()`, for
   when you want the value and never the diagnostics.
-- **[`cst::Sink`](crate::cst::Sink)** is the recording `CstEmitter` the capability section pointed at:
+- **`cst::Sink`** is the recording `CstEmitter` the capability section pointed at:
   it wraps an inner diagnostics emitter, forwards its diagnostics, and *also* buffers the CST event
   stream under the one rewind mark. Its internals — the event vocabulary and the `finish`
   materialization — are the event-stream CST chapter's; see [`crate::cst`].
@@ -368,12 +368,12 @@ grammar's behalf. That is the atomic emitter design in one line of code seen thr
 The emitter is one of the four seams Part III opens onto the same engine:
 
 - **How the input drives this log in step with the cursor** — one save pinning both channels, the
-  LIFO contract, and how a [`cst::Sink`](crate::cst::Sink) buffers a second event log under this
+  LIFO contract, and how a `cst::Sink` buffers a second event log under this
   chapter's mark: the [Checkpoint, rewind & the LIFO contract](super::arch_checkpoint_rewind)
   chapter, which develops the value-keyed-inner composition in full.
 - **How committed tokens become a lossless tree** — the [`CstEmitter`](crate::emitter::CstEmitter)
   structuring surface and the [`commit_token`](crate::Emitter::commit_token) auto-emission hook this
-  chapter named, and the [`cst`](crate::cst) event stream the [`cst::Sink`](crate::cst::Sink)
+  chapter named, and the [`cst`](crate::cst) event stream the `cst::Sink`
   buffers and rewinds: the event-stream CST chapter.
 - **How the input is stored** — the `Source` / `Slice` seam this same machinery reads through, byte-
   or text-shaped, owned or borrowed: the [Source, Slice & storage backends](super::arch_source_slice)

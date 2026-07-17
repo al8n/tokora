@@ -148,5 +148,6 @@ integration, including their entry points and assertion tables.
 | AST-level Pratt parser | [`c_expression.rs`](https://github.com/al8n/tokora/blob/main/tokora/examples/c_expression.rs) | `parse_lhs`, `parse_rhs`, `fold_postfix`, `parse_cexpr` |
 
 With an output model, lexical layer, parser shape, entry point, and assertions chosen, you can
-start a real parser and know which maintained program to follow. Next:
+start a real parser and know which maintained program to follow. Next: the
+[custom-lexer recipe](super::recipe_custom_lexer), then the walkthroughs, starting with
 [chapter 12](super::ch12_calculator_example).

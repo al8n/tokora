@@ -185,12 +185,12 @@ assert_eq!(
 ## Fuzzing the machinery, not just the grammar
 
 The conformance kit checks your *lexer* against the contract. The
-[`fuzz`](crate::fuzz) module (feature `fuzz`) checks the layer above it: a deterministic
+`fuzz` module (feature `fuzz`) checks the layer above it: a deterministic
 **operation-script** fuzzer that drives the input and backtracking machinery — consume, peek,
 the `sync` family, `attempt`, the transaction guards, stacked savepoints, session points,
 partial-mode chunking — against a scriptable synthetic lexer, and verifies the documented laws
-after *every* operation. [`run_case`](crate::fuzz::run_case) runs one
-[`Case`](crate::fuzz::Case); [`run_seeds`](crate::fuzz::run_seeds) sweeps a range of them. They
+after *every* operation. `run_case` runs one
+`Case`; `run_seeds` sweeps a range of them. They
 are ordinary `#[test]`s on stable Rust — no nightly, no external fuzzer — so the arbitrary
 operation orders your grammar will eventually produce get exercised long before your users
 produce them.

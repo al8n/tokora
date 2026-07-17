@@ -170,7 +170,10 @@ The consume/peek surface the handle exposes is small and deliberate:
 - [`peek`](crate::InputRef::peek) / `peek_one` — fill the lookahead window *without* committing.
   `peek` takes a compile-time [`Window`](crate::Window) capacity (`typenum::U1` through `U32`), so
   the maximum lookahead a grammar uses is fixed at monomorphization — there is no unbounded,
-  hidden lookahead. Peeked tokens land in the cache and are served from there when consumed.
+  hidden lookahead. Peeked tokens land in the cache and are served from there when
+  consumed. (The cache itself is the context's one pluggable seam here: the default is a
+  small, fixed, stack-inline buffer, so the shipped engine allocates nothing for
+  lookahead — a custom [`Cache`](crate::Cache) may choose its own storage and capacity.)
 - [`try_expect`](crate::InputRef::try_expect) — the peek-or-take workhorse: examine the next token
   and either commit it (the predicate matched) or leave it staged. A predicate that never commits
   is a one-token peek.
