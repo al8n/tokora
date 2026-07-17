@@ -28,6 +28,7 @@
 # Part IV — Recipes & Applied Parsers
 
 - [Anatomy of a real Tokora parser](ch11_real_parser.md)
+- [Recipe: writing a custom lexer](recipe_custom_lexer.md)
 - [Walkthrough: calculator](ch12_calculator_example.md)
 - [Walkthrough: S-expressions](ch13_s_expression_example.md)
 - [Walkthrough: JSON](ch14_json_example.md)

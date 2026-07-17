@@ -62,6 +62,10 @@ pub mod ch11_real_parser {
   #![doc = include_str!("ch11_real_parser.md")]
 }
 
+pub mod recipe_custom_lexer {
+  #![doc = include_str!("recipe_custom_lexer.md")]
+}
+
 pub mod ch12_calculator_example {
   #![doc = include_str!("ch12_calculator_example.md")]
 }
