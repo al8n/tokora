@@ -114,9 +114,7 @@ thiserror = { version = "2", default-features = false }
 bstr_1 = { package = "bstr", version = "1", default-features = false, optional = true }
 bytes_1 = { package = "bytes", version = "1", default-features = false, optional = true }
 hipstr_0_8 = { package = "hipstr", version = "0.8", default-features = false, optional = true }
-# 0.1.2 is the floor: earlier 0.1.x built a `cdylib` alongside the `rlib` (which needs a
-# global allocator + panic handler even to `check`) and had no `alloc` feature tier.
-smol_bytes_0_1 = { package = "smol-bytes", version = "0.1.2", default-features = false, optional = true, features = [
+smol_bytes_0_1 = { package = "smol-bytes", version = "0.1", default-features = false, optional = true, features = [
   "alloc",
 ] }
 
