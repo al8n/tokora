@@ -224,10 +224,11 @@ where
   floor: MarkRow,
   /// E3 — the monotone era source and truncation witness backing mark validation.
   ledger: TruncationLedger,
-  /// The inner emitter's mark as of this sink's first operation — the rewind recovery
-  /// value when no mark-stack row sits at the target (the undisciplined raw case). Captured
-  /// lazily (the inner is unreachable from outside once moved in, so first-use equals
-  /// construction).
+  /// The inner emitter's reading at first capture — the rewind recovery value when no
+  /// mark-stack row sits at the target (the undisciplined raw case). Captured lazily, not
+  /// at construction: `commit_token` advances the inner on every committed token without
+  /// priming this field, so the captured reading can postdate construction by however many
+  /// tokens were forwarded first.
   base_inner: Option<u64>,
   /// The dialect's token mapper into the unified u16 kind space.
   mapper: fn(&L::Token) -> u16,
@@ -590,10 +591,13 @@ impl<'inp, L, E> CstSink<'inp, L, E>
 where
   L: Lexer<'inp>,
 {
-  /// The inner emitter's reading as of this sink's first operation. Lazy on purpose: the
-  /// inner is unreachable from outside once moved into the sink, so the first sink
-  /// operation observes exactly the construction-time state — and capturing here keeps
-  /// the constructor free of emitter bounds.
+  /// The inner emitter's reading at first capture — the no-row rewind fallback used only
+  /// when no mark-stack row sits at the rewind mark. Lazy on purpose, but lazy no longer
+  /// means construction-time: `commit_token` advances the inner on every committed token
+  /// without priming this field, so whatever runs before the first forwarded diagnostic (or
+  /// the first no-row rewind) can leave the captured reading postdating construction.
+  /// Capturing here — instead of at construction — still keeps the constructor free of
+  /// emitter bounds.
   fn base_inner_mark<Lang>(&mut self) -> u64
   where
     Lang: ?Sized,

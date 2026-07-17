@@ -551,10 +551,12 @@ fn finish_crossing_a_live_capture_debug_asserts() {
 // The unified log — one mark governs both channels
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Rewind recovers the inner emitter's state from the last surviving Diag slot — exactly
-/// the diagnostics recorded below the mark survive, on values not guesses.
+/// Rewind recovers the inner emitter's state from the mark-stack row captured at
+/// `checkpoint` — the row snapshots `inner.checkpoint()` when the mark is taken, and
+/// `rewind` hands that exact reading back to the inner: exactly the diagnostics recorded
+/// below the mark survive, on values not guesses.
 #[test]
-fn rewind_recovers_the_inner_mark_from_diag_slots() {
+fn rewind_recovers_the_inner_mark_from_the_mark_row() {
   let mut sink = verbose_sink();
   emit_error(&mut sink, 0, 1);
   let ckp = Emitter::<MiniLexer<'_>>::checkpoint(&sink);
