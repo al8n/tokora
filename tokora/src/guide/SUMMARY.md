@@ -1,8 +1,10 @@
 # Summary
 
-[Introduction](README.md)
+# Part I — Getting Started
 
-# Fundamentals: build Calc
+- [Introduction](README.md)
+
+# Part II — Core Concepts
 
 - [Tokens and the lexer](ch01_tokens.md)
 - [First parsers](ch02_parsers.md)
@@ -15,14 +17,20 @@
 - [Partial input](ch09_streaming.md)
 - [Testing](ch10_testing.md)
 
-# Applied parsers
+# Part III — Design & Architecture
+
+<!-- Forthcoming: the parse-while-lexing engine, checkpoint & rewind, the atomic
+     emitter design, the event-stream CST engine, and source & storage backends. -->
+
+# Part IV — Recipes & Applied Parsers
 
 - [Anatomy of a real Tokora parser](ch11_real_parser.md)
 - [Walkthrough: calculator](ch12_calculator_example.md)
 - [Walkthrough: S-expressions](ch13_s_expression_example.md)
 - [Walkthrough: JSON](ch14_json_example.md)
 - [Walkthrough: C expressions](ch15_c_expression_example.md)
-
-# Language tooling
-
 - [Lossless CSTs with Rowan](ch16_lossless_cst.md)
+
+# Part V — Reference
+
+- [Combinator & atom reference](ref_combinators.md)

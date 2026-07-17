@@ -75,3 +75,7 @@ pub mod ch15_c_expression_example {
 pub mod ch16_lossless_cst {
   #![doc = include_str!("ch16_lossless_cst.md")]
 }
+
+pub mod ref_combinators {
+  #![doc = include_str!("ref_combinators.md")]
+}
