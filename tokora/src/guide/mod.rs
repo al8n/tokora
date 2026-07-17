@@ -87,3 +87,7 @@ pub mod ref_errors_emitters_context {
 pub mod ref_vocabulary_macros_features {
   #![doc = include_str!("ref_vocabulary_macros_features.md")]
 }
+
+pub mod ref_pratt {
+  #![doc = include_str!("ref_pratt.md")]
+}

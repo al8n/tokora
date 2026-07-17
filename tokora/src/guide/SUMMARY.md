@@ -36,3 +36,4 @@
 - [Combinator & atom reference](ref_combinators.md)
 - [Errors, emitters & context reference](ref_errors_emitters_context.md)
 - [Vocabulary, macros & feature flags](ref_vocabulary_macros_features.md)
+- [Pratt (precedence) reference](ref_pratt.md)
