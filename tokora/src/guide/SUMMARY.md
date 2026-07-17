@@ -20,10 +20,10 @@
 # Part III — Design & Architecture
 
 - [The parsing engine: parse while lexing](arch_parsing_engine.md)
+- [Checkpoint, rewind & the LIFO contract](arch_checkpoint_rewind.md)
 - [Source, Slice & storage backends](arch_source_slice.md)
 
-<!-- Forthcoming: checkpoint & rewind, the atomic emitter design, and the
-     event-stream CST engine. -->
+<!-- Forthcoming: the atomic emitter design and the event-stream CST engine. -->
 
 # Part IV — Recipes & Applied Parsers
 

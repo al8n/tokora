@@ -54,6 +54,10 @@ pub mod arch_parsing_engine {
   #![doc = include_str!("arch_parsing_engine.md")]
 }
 
+pub mod arch_checkpoint_rewind {
+  #![doc = include_str!("arch_checkpoint_rewind.md")]
+}
+
 pub mod arch_source_slice {
   #![doc = include_str!("arch_source_slice.md")]
 }
