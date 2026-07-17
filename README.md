@@ -33,7 +33,7 @@ Most applications use the maintained Logos adapter:
 
 ```toml
 [dependencies]
-tokora = { version = "0.1", features = ["logos"] }
+tokora = { version = "0.2", features = ["logos"] }
 ```
 
 `logos` is the alias for the current `logos_0_16` integration. The default `std` feature remains
@@ -47,6 +47,9 @@ enabled unless you set `default-features = false`.
 - Token-level and AST-level Pratt parsing.
 - Configurable `Fatal`, `Verbose`, `Silent`, and `Ignored` diagnostics.
 - Recovery, partial-input support, lexer conformance checks, tracing, and a public fuzz harness.
+- Optional lossless CST building over the parser's own backtracking (feature `rowan`): a
+  rewindable event-stream sink where a parser rollback rewinds the half-built tree, and `node`
+  combinators bracket sub-parses into syntax nodes.
 - Optional adapters for Logos, Rowan CSTs, source types, and container types.
 
 ## How Tokora parses
@@ -114,13 +117,15 @@ also compile together with `cargo test -p tokora --no-default-features --feature
 | `unstable-raw` | Exposes the unstable raw checkpoint API. |
 | `conformance` | Enables the custom-lexer conformance test kit; implies `std`. |
 | `fuzz` | Enables the deterministic public input/backtracking fuzz harness; implies `std`. |
-| `rowan` | Enables Rowan CST utilities; implies `std`. Add `rowan = "0.16"` directly when implementing `rowan::Language`. |
+| `rowan` | Enables the rewindable event-stream Rowan CST — emitter, recording sink, and `node` combinators; implies `std`. A lossless sink requires a trivia-surfacing lexer (`Lexer::SURFACES_TRIVIA`). Add `rowan = "0.16"` directly when implementing `rowan::Language`. |
 | `bytes` | Alias for `bytes_1`. |
 | `bytes_1` | Enables `bytes@1` source support. |
 | `bstr` | Alias for `bstr_1`. |
 | `bstr_1` | Enables `bstr@1` source support. |
 | `hipstr` | Alias for `hipstr_0_8`. |
 | `hipstr_0_8` | Enables `hipstr@0.8` source support. |
+| `smol_bytes` | Alias for `smol_bytes_0_1`. |
+| `smol_bytes_0_1` | Enables `smol-bytes@0.1` source support; implies `std`. |
 | `smallvec` | Alias for `smallvec_1`. |
 | `smallvec_1` | Enables `smallvec@1` containers and implies `alloc`. |
 | `heapless` | Alias for `heapless_0_9`. |
@@ -132,8 +137,8 @@ Feature aliases select their versioned counterpart; versioned features make the 
 optional dependency available. One Logos version is normally sufficient, though multiple versioned
 integrations may coexist. When several are enabled, the unversioned
 `tokora::lexer::LogosLexer` selects 0.16, then 0.15, then 0.14. `tokora::logos` is available only
-with `logos_0_16` and re-exports that version. `rowan` does not enable `logos`, and `smallvec_1`
-is the versioned feature that adds `alloc`.
+with `logos_0_16` and re-exports that version. `rowan` does not enable `logos`, `smallvec_1`
+is the versioned feature that adds `alloc`, and `smol_bytes_0_1` — like `rowan` — implies `std`.
 
 ## Platform support
 
@@ -146,14 +151,14 @@ Allocator-free `no_std`:
 
 ```toml
 [dependencies]
-tokora = { version = "0.1", default-features = false }
+tokora = { version = "0.2", default-features = false }
 ```
 
 `no_std` with `alloc`:
 
 ```toml
 [dependencies]
-tokora = { version = "0.1", default-features = false, features = ["alloc"] }
+tokora = { version = "0.2", default-features = false, features = ["alloc"] }
 ```
 
 ## Design philosophy and inspirations
