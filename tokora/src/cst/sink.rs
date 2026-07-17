@@ -1,4 +1,4 @@
-//! The rewindable event sink: [`CstSink`] wraps any inner emitter, buffers the CST event
+//! The rewindable event sink: [`Sink`] wraps any inner emitter, buffers the CST event
 //! stream, and rewinds it under the **same** mark that rewinds diagnostics — one timeline,
 //! every channel (see the [`event`](super::event) module for the vocabulary and its laws).
 //!
@@ -9,12 +9,12 @@
 //!
 //! | # | Cell | Class | Rewind/restore semantics |
 //! |---|------|-------|--------------------------|
-//! | E1 | [`CstSink::events`] | **ground truth** (a second emission log) | append + suffix-truncate to the mark — the same two verbs as `Verbose`'s log (plus the one censused prefix-preserving splice of the hole wrap, entirely above every live mark) |
-//! | E2 | [`CstSink::journal`] | **undo journal** (the Verbose-parallel-maps discipline lifted to events) | rewind pops entries written above the mark, reverse order, restoring each overwritten `forward_parent`; never grows on rewind |
-//! | E3 | [`CstSink::ledger`] | **monotone era source + truncation witness** | rewind APPENDS to it (a rewind *is* a truncation) and never removes; rewinding it would false-accept a stale mark |
-//! | E4 | [`CstSink::rows`] | **release stack + per-checkpoint depth ledger + inner reading** | push at `checkpoint()` (freezing the depth and the inner emitter's own checkpoint reading), pop at `release()` (kept) and `rewind()` (spent, the popped row's inner reading is the inner's rewind target); depth entries are frozen facts about prefixes, never live counters |
-//! | — | [`CstSink::floor`] | derived memo (the newest released row) | reset to the surviving top row when a rewind drops below it |
-//! | — | [`CstSink::base_inner`] | derived memo (the inner's construction-time reading) | primed at the first advancing touch (provably the construction reading), never restored (the exact no-row target at the origin only) |
+//! | E1 | [`Sink::events`] | **ground truth** (a second emission log) | append + suffix-truncate to the mark — the same two verbs as `Verbose`'s log (plus the one censused prefix-preserving splice of the hole wrap, entirely above every live mark) |
+//! | E2 | [`Sink::journal`] | **undo journal** (the Verbose-parallel-maps discipline lifted to events) | rewind pops entries written above the mark, reverse order, restoring each overwritten `forward_parent`; never grows on rewind |
+//! | E3 | [`Sink::ledger`] | **monotone era source + truncation witness** | rewind APPENDS to it (a rewind *is* a truncation) and never removes; rewinding it would false-accept a stale mark |
+//! | E4 | [`Sink::rows`] | **release stack + per-checkpoint depth ledger + inner reading** | push at `checkpoint()` (freezing the depth and the inner emitter's own checkpoint reading), pop at `release()` (kept) and `rewind()` (spent, the popped row's inner reading is the inner's rewind target); depth entries are frozen facts about prefixes, never live counters |
+//! | — | [`Sink::floor`] | derived memo (the newest released row) | reset to the surviving top row when a rewind drops below it |
+//! | — | [`Sink::base_inner`] | derived memo (the inner's construction-time reading) | primed at the first advancing touch (provably the construction reading), never restored (the exact no-row target at the origin only) |
 //! | — | `inner`, `mapper`, `error_kind`, `gap_kind`, `trivia` | configuration / the wrapped emitter | never touched by rewind (the inner rewinds through its own contract) |
 //! | — | `witness` | sink identity (validated at every mark spend, every build) | never restored |
 //!
@@ -47,7 +47,7 @@ use crate::{
 
 use super::event::{Event, EventMark, TOMBSTONE, TruncationLedger};
 
-pub use finish::CstFinishError;
+pub use finish::FinishError;
 
 mod finish;
 
@@ -106,7 +106,7 @@ struct MarkRow {
   /// `rewind` a drop-by-value, and `release` a no-op — the `Verbose`/token-tracking shape.
   /// (A table-keyed inner that allocated per `checkpoint` was already unsupported pre-fix:
   /// `forward_diag` then captured `inner.checkpoint()` per diagnostic with no matching
-  /// release.) See the *Inner-emitter contract* section on [`CstSink`].
+  /// release.) See the *Inner-emitter contract* section on [`Sink`].
   inner: u64,
 }
 
@@ -165,7 +165,7 @@ fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
   next
     .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
     .expect(
-      "CstSink witness counter exhausted: usize::MAX sinks were minted in one process. The \
+      "Sink witness counter exhausted: usize::MAX sinks were minted in one process. The \
        witness is never reissued (a wrap to 0 is the inert-mark id and would let a foreign \
        mark validate), so exhaustion aborts instead of rolling over.",
     )
@@ -191,7 +191,7 @@ fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
 /// The sink forwards the **entire** emitter trait family — core [`Emitter`], the atomic
 /// capability traits ([`TooFewEmitter`], [`TooManyEmitter`], [`FullContainerEmitter`],
 /// [`SeparatedEmitter`] and its four leading/trailing refinements), and [`PrattEmitter`] —
-/// so any context bound satisfied by `E` is satisfied by `CstSink<E>`. It exposes the inner
+/// so any context bound satisfied by `E` is satisfied by `Sink<E>`. It exposes the inner
 /// emitter by shared reference only ([`inner_ref`](Self::inner_ref)); there is **no** `&mut`
 /// accessor, because a caller who could rewind the inner emitter directly would shear the
 /// event log from the diagnostic log with no witness. Materialization
@@ -236,7 +236,7 @@ fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
 /// trivia-surfacing lexers** ([`Lexer::SURFACES_TRIVIA`]): a syntactic lexer that skips
 /// trivia cannot take the lossless door, because a skipped-whitespace gap is
 /// indistinguishable from a dropped committed token.
-pub struct CstSink<'inp, L, E>
+pub struct Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
 {
@@ -281,13 +281,13 @@ where
   _lexer: PhantomData<&'inp L>,
 }
 
-impl<'inp, L, E> core::fmt::Debug for CstSink<'inp, L, E>
+impl<'inp, L, E> core::fmt::Debug for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: core::fmt::Debug,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    f.debug_struct("CstSink")
+    f.debug_struct("Sink")
       .field("inner", &self.inner)
       .field("events", &self.events.len())
       .field("live_marks", &self.rows.borrow().len())
@@ -299,16 +299,16 @@ where
 }
 
 /// CELL_CENSUS — the structural tripwire for the sink's cells, in the exact shape of the
-/// input layer's guardian (`input::lineage::census`): it destructures [`CstSink`]
+/// input layer's guardian (`input::lineage::census`): it destructures [`Sink`]
 /// exhaustively — no `..` — so adding a field fails to compile *here*, at the table that
 /// asks which class the new cell is in and what a rewind must do to it. Generic and never
 /// instantiated: type-checked in every build, monomorphized in none.
 #[allow(dead_code)]
-pub(crate) fn census<'inp, L, E>(sink: &CstSink<'inp, L, E>)
+pub(crate) fn census<'inp, L, E>(sink: &Sink<'inp, L, E>)
 where
   L: Lexer<'inp>,
 {
-  let CstSink {
+  let Sink {
     // — the wrapped emitter: rewinds through its own contract, driven only by this sink.
     inner: _,
     // — E1, ground truth: append + suffix-truncate (+ the censused hole-wrap splice).
@@ -335,7 +335,7 @@ where
   } = sink;
 }
 
-impl<'inp, L, E> CstSink<'inp, L, E>
+impl<'inp, L, E> Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
 {
@@ -361,7 +361,7 @@ where
   /// constructs a sink:
   ///
   /// ```rust
-  /// use tokora::{Lexer, SimpleSpan, Token, cst::CstSink, emitter::Verbose};
+  /// use tokora::{Lexer, SimpleSpan, Token, cst::Sink, emitter::Verbose};
   ///
   /// #[derive(Debug, Clone, Copy)]
   /// struct STok;
@@ -388,8 +388,8 @@ where
   /// #   fn lex(&mut self) -> Option<Result<STok, ()>> { None }
   /// #   fn bump(&mut self, _: &usize) {}
   /// # }
-  /// let _sink: CstSink<'_, Lossless<'_>, Verbose<()>> =
-  ///   CstSink::new(Verbose::new(), |_| 0, 90, 91);
+  /// let _sink: Sink<'_, Lossless<'_>, Verbose<()>> =
+  ///   Sink::new(Verbose::new(), |_| 0, 90, 91);
   /// ```
   ///
   /// The same lexer without the declaration (the default, i.e. a syntactic lexer that
@@ -397,7 +397,7 @@ where
   /// above is the missing `SURFACES_TRIVIA` line:
   ///
   /// ```compile_fail
-  /// use tokora::{Lexer, SimpleSpan, Token, cst::CstSink, emitter::Verbose};
+  /// use tokora::{Lexer, SimpleSpan, Token, cst::Sink, emitter::Verbose};
   ///
   /// #[derive(Debug, Clone, Copy)]
   /// struct STok;
@@ -424,15 +424,15 @@ where
   /// #   fn lex(&mut self) -> Option<Result<STok, ()>> { None }
   /// #   fn bump(&mut self, _: &usize) {}
   /// # }
-  /// let _sink: CstSink<'_, Syntactic<'_>, Verbose<()>> =
-  ///   CstSink::new(Verbose::new(), |_| 0, 90, 91);
+  /// let _sink: Sink<'_, Syntactic<'_>, Verbose<()>> =
+  ///   Sink::new(Verbose::new(), |_| 0, 90, 91);
   /// ```
   #[inline]
   pub fn new(inner: E, mapper: fn(&L::Token) -> u16, error_kind: u16, gap_kind: u16) -> Self {
     const {
       assert!(
         L::SURFACES_TRIVIA,
-        "a lossless (gap_kind) CstSink requires a trivia-surfacing lexer: every source \
+        "a lossless (gap_kind) Sink requires a trivia-surfacing lexer: every source \
          byte must reach the sink as a token or a reported lexer error, and a skipped \
          whitespace gap is indistinguishable from a dropped committed token. Declare \
          `const SURFACES_TRIVIA: bool = true` on the lexer's Token impl (or override it \
@@ -625,7 +625,7 @@ where
   }
 }
 
-impl<'inp, L, E> CstSink<'inp, L, E>
+impl<'inp, L, E> Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
 {
@@ -687,7 +687,7 @@ where
   }
 }
 
-impl<'inp, L, E, Lang> Emitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> Emitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L, Lang>,
@@ -786,7 +786,7 @@ where
   /// captured has no exact inner reading anywhere: debug builds panic at cause; release
   /// builds keep the sink's own channels exact and leave the inner untouched
   /// (unspecified-but-bounded — the sink never guesses a reading; see the *Inner-emitter
-  /// contract* on [`CstSink`]).
+  /// contract* on [`Sink`]).
   fn rewind(&mut self, cursor: &Cursor<'inp, '_, L>, checkpoint: u64)
   where
     L: Lexer<'inp>,
@@ -879,7 +879,7 @@ where
       None => {
         if cfg!(debug_assertions) {
           panic!(
-            "CstSink rewind to a mid-log mark with no captured row: mark {mark} of a \
+            "Sink rewind to a mid-log mark with no captured row: mark {mark} of a \
              {len}-event log was never returned by checkpoint(), or its capture was already \
              spent by an earlier rewind or release — no exact inner reading exists for it"
           );
@@ -953,7 +953,7 @@ where
   }
 }
 
-impl<'inp, L, E, Lang> CstEmitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> CstEmitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: Emitter<'inp, L, Lang>,
@@ -1050,11 +1050,11 @@ where
 // ── The forwarded capability family ─────────────────────────────────────────────
 //
 // Every atomic emitter trait the crate ships forwards through the ONE census helper, so
-// `CstSink<E>` satisfies every context bound `E` satisfies (the `ComposableEmitter`-shaped
+// `Sink<E>` satisfies every context bound `E` satisfies (the `ComposableEmitter`-shaped
 // bundles downstream) and every forwarded diagnostic occupies a Diag slot in the unified
 // log. CST_FORWARD_CENSUS locks the set.
 
-impl<'inp, L, E, Lang> TooFewEmitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> TooFewEmitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: TooFewEmitter<'inp, L, Lang>,
@@ -1069,7 +1069,7 @@ where
   }
 }
 
-impl<'inp, L, E, Lang> TooManyEmitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> TooManyEmitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: TooManyEmitter<'inp, L, Lang>,
@@ -1084,7 +1084,7 @@ where
   }
 }
 
-impl<'inp, L, E, Lang> FullContainerEmitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> FullContainerEmitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: FullContainerEmitter<'inp, L, Lang>,
@@ -1099,7 +1099,7 @@ where
   }
 }
 
-impl<'inp, L, E, Lang> SeparatedEmitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> SeparatedEmitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: SeparatedEmitter<'inp, L, Lang>,
@@ -1126,7 +1126,7 @@ where
   }
 }
 
-impl<'inp, L, E, Lang> MissingLeadingSeparatorEmitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> MissingLeadingSeparatorEmitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: MissingLeadingSeparatorEmitter<'inp, L, Lang>,
@@ -1147,7 +1147,7 @@ where
   }
 }
 
-impl<'inp, L, E, Lang> MissingTrailingSeparatorEmitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> MissingTrailingSeparatorEmitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: MissingTrailingSeparatorEmitter<'inp, L, Lang>,
@@ -1168,7 +1168,7 @@ where
   }
 }
 
-impl<'inp, L, E, Lang> UnexpectedLeadingSeparatorEmitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> UnexpectedLeadingSeparatorEmitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>,
@@ -1189,7 +1189,7 @@ where
   }
 }
 
-impl<'inp, L, E, Lang> UnexpectedTrailingSeparatorEmitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> UnexpectedTrailingSeparatorEmitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>,
@@ -1210,7 +1210,7 @@ where
   }
 }
 
-impl<'inp, L, E, Lang> PrattEmitter<'inp, L, Lang> for CstSink<'inp, L, E>
+impl<'inp, L, E, Lang> PrattEmitter<'inp, L, Lang> for Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
   E: PrattEmitter<'inp, L, Lang>,
@@ -1245,7 +1245,7 @@ where
 /// (`feature = "fuzz"`): its recording-twin driver asserts through this that every
 /// checkpoint capture was settled once a script ends.
 #[cfg(any(test, feature = "fuzz"))]
-impl<'inp, L, E> CstSink<'inp, L, E>
+impl<'inp, L, E> Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
 {
@@ -1256,7 +1256,7 @@ where
 }
 
 #[cfg(test)]
-impl<'inp, L, E> CstSink<'inp, L, E>
+impl<'inp, L, E> Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
 {

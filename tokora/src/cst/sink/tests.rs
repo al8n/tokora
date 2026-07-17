@@ -15,7 +15,7 @@ use crate::{
   token::Token,
 };
 
-use super::CstSink;
+use super::Sink;
 
 // ── A tiny real lexer: one byte per token, `!` is a lexer error ─────────────────
 
@@ -210,11 +210,11 @@ fn map_tok(_: &MiniTok) -> u16 {
   K_TOK
 }
 
-type VerboseSink<'inp> = CstSink<'inp, MiniLexer<'inp>, Verbose<TestErr>>;
-type FatalSink<'inp> = CstSink<'inp, MiniLexer<'inp>, Fatal<TestErr>>;
+type VerboseSink<'inp> = Sink<'inp, MiniLexer<'inp>, Verbose<TestErr>>;
+type FatalSink<'inp> = Sink<'inp, MiniLexer<'inp>, Fatal<TestErr>>;
 
 fn verbose_sink<'inp>() -> VerboseSink<'inp> {
-  CstSink::new(Verbose::new(), map_tok, K_ERR, K_GAP)
+  Sink::new(Verbose::new(), map_tok, K_ERR, K_GAP)
 }
 
 fn span(start: usize, end: usize) -> SimpleSpan {
@@ -590,7 +590,7 @@ fn rewind_to_origin_recovers_the_base_inner_mark() {
 /// guard-driven rewind still sees an exact log.
 #[test]
 fn diag_slot_lands_on_the_err_edge_too() {
-  let mut sink: FatalSink<'_> = CstSink::new(Fatal::new(), map_tok, K_ERR, K_GAP);
+  let mut sink: FatalSink<'_> = Sink::new(Fatal::new(), map_tok, K_ERR, K_GAP);
   let verdict =
     Emitter::<MiniLexer<'_>>::emit_error(&mut sink, Spanned::new(span(0, 1), TestErr::Custom(9)));
   assert!(verdict.is_err(), "fatal emitters reject");
@@ -754,7 +754,7 @@ fn hole_wrap_rewinds_with_the_log() {
 // The &mut threading shape — events flow through the blanket impl
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// The parse_partial round-threading configuration: a `&mut CstSink<E>` in the emitter
+/// The parse_partial round-threading configuration: a `&mut Sink<E>` in the emitter
 /// seat. Every event lands in the sink through the blanket forward.
 #[test]
 fn mut_ref_sink_records_events() {
@@ -837,7 +837,7 @@ fn cst_forward_census_one_helper_carries_every_channel() {
   assert!(
     count(src, "self.inner.release") == 0,
     "CST_FORWARD_CENSUS drift: the sink never forwards release — inner checkpoints are \
-     value-keyed READINGS needing no reclamation (see the Inner-emitter contract on CstSink). \
+     value-keyed READINGS needing no reclamation (see the Inner-emitter contract on Sink). \
      Forwarding would deliver duplicate and out-of-LIFO releases under raw mixes."
   );
   // The inner's reading is captured in exactly two places: the mark-stack row and the base.
@@ -856,7 +856,7 @@ fn cst_forward_census_one_helper_carries_every_channel() {
 }
 
 /// CST_COMPOSITION_CENSUS — the R3-class tripwire: every method of the emitter trait family
-/// must be OVERRIDDEN by `CstSink`, never left to a trait default. A defaulted inherit
+/// must be OVERRIDDEN by `Sink`, never left to a trait default. A defaulted inherit
 /// silently severs that channel for wrapped inners (exactly how the `commit_token` R3 gap
 /// happened). Two halves: (a) every one of the 27 inventory names appears as an impl in
 /// sink.rs; (b) drift tripwires on the trait definitions, so any NEW family method forces a
@@ -910,7 +910,7 @@ fn cst_composition_census_every_family_method_is_overridden() {
   for name in overridden {
     assert!(
       count(src, &std::format!("fn {name}")) >= 1,
-      "CST_COMPOSITION_CENSUS: CstSink does not override `{name}` — a defaulted inherit \
+      "CST_COMPOSITION_CENSUS: Sink does not override `{name}` — a defaulted inherit \
        silently severs that channel for wrapped inners (the R3 class)"
     );
   }
@@ -950,17 +950,17 @@ fn cst_composition_census_every_family_method_is_overridden() {
   assert_eq!(
     cap_total, 22,
     "capability trait surface drifted (11 methods x trait def + &mut blanket): classify the \
-     new channel in CstSink and update this census"
+     new channel in Sink and update this census"
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// The forwarding matrix — CstSink satisfies every bound its inner emitter does
+// The forwarding matrix — Sink satisfies every bound its inner emitter does
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// The `ComposableEmitter`-shaped conformance: a context bound naming the
 /// full emitter trait family — core + the six atomic capability traits + the separated
-/// refinements + pratt — accepts `CstSink<E>` (and `&mut CstSink<E>`, the parse_partial
+/// refinements + pratt — accepts `Sink<E>` (and `&mut Sink<E>`, the parse_partial
 /// threading shape) wherever it accepts `E`.
 #[test]
 fn sink_satisfies_the_full_emitter_family() {
@@ -1022,7 +1022,7 @@ fn text(green: rowan::GreenNode) -> std::string::String {
   tree(green).text().to_string()
 }
 
-use crate::cst::CstFinishError;
+use crate::cst::FinishError;
 
 #[test]
 fn finish_builds_the_straight_tree() {
@@ -1083,7 +1083,7 @@ fn uncovered_gap_refused_by_finish_tiled_by_partial() {
   let (green, _emitter) = sink.finish(K_ROOT, "abc");
   assert_eq!(
     green.expect_err("a dropped committed token is an unexplained gap"),
-    CstFinishError::UncoveredGap { start: 1, end: 2 }
+    FinishError::UncoveredGap { start: 1, end: 2 }
   );
 
   // The tooling door tolerates the incompleteness and tiles it — the round trip still holds.
@@ -1126,7 +1126,7 @@ fn empty_buffer_finishes() {
   let (green, _emitter) = verbose_sink().finish(K_ROOT, "xy");
   assert_eq!(
     green.expect_err("nothing covers the source"),
-    CstFinishError::UncoveredGap { start: 0, end: 2 }
+    FinishError::UncoveredGap { start: 0, end: 2 }
   );
 
   let (green, _emitter) = verbose_sink().finish_partial(K_ROOT, "xy");
@@ -1147,7 +1147,7 @@ fn balanced_structure_without_tokens_is_refused() {
   let (green, _emitter) = sink.finish(K_ROOT, "ab");
   assert_eq!(
     green.expect_err("structure without tokens over a nonempty source"),
-    CstFinishError::StructureWithoutTokens
+    FinishError::StructureWithoutTokens
   );
 
   // The retro-wrap flavour of the same shape (a spent mark, still no token).
@@ -1158,7 +1158,7 @@ fn balanced_structure_without_tokens_is_refused() {
   let (green, _emitter) = sink.finish_partial(K_ROOT, "ab");
   assert_eq!(
     green.expect_err("the wall holds through the partial door too — the stream is balanced"),
-    CstFinishError::StructureWithoutTokens
+    FinishError::StructureWithoutTokens
   );
 }
 
@@ -1183,7 +1183,7 @@ fn token_channel_wall_boundaries() {
   let (green, _emitter) = verbose_sink().finish(K_ROOT, "ab");
   assert_eq!(
     green.expect_err("an unexplained gap, not the honest tree"),
-    CstFinishError::UncoveredGap { start: 0, end: 2 }
+    FinishError::UncoveredGap { start: 0, end: 2 }
   );
   let (green, _emitter) = verbose_sink().finish_partial(K_ROOT, "ab");
   assert_eq!(text(green.expect("the partial door tiles it")), "ab");
@@ -1212,7 +1212,7 @@ fn orphan_finish_is_a_typed_error_not_an_absorbed_close() {
   let (green, _emitter) = sink.finish(K_ROOT, "a");
   assert_eq!(
     green.expect_err("the imbalance must be refused, never absorbed"),
-    CstFinishError::OrphanFinish { index: 1 }
+    FinishError::OrphanFinish { index: 1 }
   );
 }
 
@@ -1228,7 +1228,7 @@ fn unclosed_nodes_refuse_finish_but_finish_partial_closes() {
   let (green, _emitter) = sink.finish(K_ROOT, "a");
   assert_eq!(
     green.expect_err("open nodes refuse the total finish"),
-    CstFinishError::UnclosedNodes { open: 2 }
+    FinishError::UnclosedNodes { open: 2 }
   );
 
   let mut sink = verbose_sink();
@@ -1257,13 +1257,13 @@ fn reserved_kind_is_refused_at_finish() {
   let (green, _emitter) = sink.finish(K_ROOT, "a");
   assert_eq!(
     green.expect_err("the reserved band never reaches rowan"),
-    CstFinishError::ReservedKind { index: 0 }
+    FinishError::ReservedKind { index: 0 }
   );
 
   let (green, _emitter) = verbose_sink().finish(TOMBSTONE, "");
   assert_eq!(
     green.expect_err("the root kind is validated too"),
-    CstFinishError::ReservedRootKind
+    FinishError::ReservedRootKind
   );
 }
 
@@ -1276,7 +1276,7 @@ fn tombstone_mapper_debug_asserts_at_emission() {
   fn bad_map(_: &MiniTok) -> u16 {
     TOMBSTONE
   }
-  let mut sink: VerboseSink<'_> = CstSink::new(Verbose::new(), bad_map, K_ERR, K_GAP);
+  let mut sink: VerboseSink<'_> = Sink::new(Verbose::new(), bad_map, K_ERR, K_GAP);
   sink.cst_token(&MiniTok(b'a'), &span(0, 1));
 }
 
@@ -1290,7 +1290,7 @@ fn overlapping_spans_are_refused() {
   let (green, _emitter) = sink.finish(K_ROOT, "abc");
   assert_eq!(
     green.expect_err("overlap is a hard error"),
-    CstFinishError::OverlappingSpans { index: 1 }
+    FinishError::OverlappingSpans { index: 1 }
   );
 }
 
@@ -1303,7 +1303,7 @@ fn offset_overflow_is_refused() {
   let (green, _emitter) = sink.finish(K_ROOT, "a");
   assert_eq!(
     green.expect_err("no silent truncation"),
-    CstFinishError::OffsetOverflow { index: 0 }
+    FinishError::OffsetOverflow { index: 0 }
   );
 }
 
@@ -1316,7 +1316,7 @@ fn span_out_of_bounds_is_refused() {
   let (green, _emitter) = sink.finish(K_ROOT, "ab");
   assert_eq!(
     green.expect_err("events and source must agree"),
-    CstFinishError::SpanOutOfBounds { index: 0 }
+    FinishError::SpanOutOfBounds { index: 0 }
   );
 }
 
@@ -1334,7 +1334,7 @@ fn stale_start_at_target_is_refused_at_finish() {
   let (green, _emitter) = sink.finish(K_ROOT, "a");
   assert_eq!(
     green.expect_err("a wrap must target a tombstone"),
-    CstFinishError::StaleStartAt {
+    FinishError::StaleStartAt {
       index: 1,
       target: 0
     }
@@ -1358,7 +1358,7 @@ fn dangling_forward_parent_is_refused_at_finish() {
   let (green, _emitter) = sink.finish(K_ROOT, "a");
   assert_eq!(
     green.expect_err("a dangling wrap pointer is corruption, not a tree"),
-    CstFinishError::DanglingForwardParent { index: 0 }
+    FinishError::DanglingForwardParent { index: 0 }
   );
 }
 
@@ -1377,7 +1377,7 @@ fn improper_wrap_across_a_node_boundary_is_refused() {
   let (green, _emitter) = sink.finish(K_ROOT, "a");
   assert_eq!(
     green.expect_err("a wrap cannot cross a node boundary"),
-    CstFinishError::ImproperWrap {
+    FinishError::ImproperWrap {
       start_at: 4,
       finish: 3
     }
@@ -1664,7 +1664,7 @@ fn auto_emission_scan_skips_flow_and_the_stopper_waits() {
 /// A rejected lexer error (`settle_fatal`) writes a position, not a token: no event.
 #[test]
 fn auto_emission_settle_fatal_emits_no_token_event() {
-  let mut sink: FatalSink<'_> = CstSink::new(Fatal::new(), map_tok, K_ERR, K_GAP);
+  let mut sink: FatalSink<'_> = Sink::new(Fatal::new(), map_tok, K_ERR, K_GAP);
   let mut input =
     Input::<MiniLexer<'_>, (FatalSink<'_>, DefaultCache<'_, MiniLexer<'_>>)>::with_state_and_cache(
       "!a",
@@ -1775,7 +1775,7 @@ impl<'a, L, Lang: ?Sized> Emitter<'a, L, Lang> for CountingEmitter {
   }
 }
 
-type CountingSink<'inp> = CstSink<'inp, MiniLexer<'inp>, CountingEmitter>;
+type CountingSink<'inp> = Sink<'inp, MiniLexer<'inp>, CountingEmitter>;
 type CountingCtx<'inp> = (CountingSink<'inp>, DefaultCache<'inp, MiniLexer<'inp>>);
 
 /// The parenthesis pair table for the recovery-skip scenario below: `(` opens, `)`
@@ -1788,16 +1788,16 @@ fn counting_parens(kind: &u8) -> Balance<u8> {
   }
 }
 
-/// THE REGRESSION: `CstSink::commit_token` must forward to the wrapped emitter, not
+/// THE REGRESSION: `Sink::commit_token` must forward to the wrapped emitter, not
 /// just record its own CST event. Drives a real parse — a plain consume, a
 /// `sync_balanced` recovery skip (whose skipped tokens settle through `commit_token`
 /// exactly like a consume, per the auto-emission contract), and the resumed consumes
-/// after the sync point — through a `CountingEmitter` inner wrapped in `CstSink`. Before
+/// after the sync point — through a `CountingEmitter` inner wrapped in `Sink`. Before
 /// the forwarding fix this reads 0 (`commit_token` never reached `self.inner`); after,
 /// it tracks the sink's own token-event count exactly, recovery-skipped tokens included.
 #[test]
 fn commit_token_forwards_to_the_inner_emitter_recovery_skips_included() {
-  let mut sink: CountingSink<'_> = CstSink::new(CountingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut sink: CountingSink<'_> = Sink::new(CountingEmitter::default(), map_tok, K_ERR, K_GAP);
   let mut input = Input::<MiniLexer<'_>, CountingCtx<'_>>::with_state_and_cache(
     "a(b)c;d",
     (),
@@ -1840,7 +1840,7 @@ fn commit_token_forwards_to_the_inner_emitter_recovery_skips_included() {
   assert_eq!(
     sink.inner_ref().committed,
     recorded,
-    "CstSink::commit_token must forward to the wrapped emitter: the inner's count must \
+    "Sink::commit_token must forward to the wrapped emitter: the inner's count must \
      match the sink's own token-event count exactly, recovery-skipped tokens included"
   );
 }
@@ -1920,7 +1920,7 @@ impl<'a, L, Lang: ?Sized> Emitter<'a, L, Lang> for JournalingEmitter {
   }
 }
 
-type JournalingSink<'inp> = CstSink<'inp, MiniLexer<'inp>, JournalingEmitter>;
+type JournalingSink<'inp> = Sink<'inp, MiniLexer<'inp>, JournalingEmitter>;
 type JournalingCtx<'inp> = (JournalingSink<'inp>, DefaultCache<'inp, MiniLexer<'inp>>);
 
 /// REGRESSION (variant A — no diagnostic): a decline must rewind the inner emitter to its
@@ -1936,8 +1936,7 @@ type JournalingCtx<'inp> = (JournalingSink<'inp>, DefaultCache<'inp, MiniLexer<'
 /// checkpoint captured the inner's own reading and the rewind restores it exactly.
 #[test]
 fn decline_rewinds_inner_to_checkpoint_reading_no_diag() {
-  let mut sink: JournalingSink<'_> =
-    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut sink: JournalingSink<'_> = Sink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
   let mut input = Input::<MiniLexer<'_>, JournalingCtx<'_>>::with_state_and_cache(
     "abc",
     (),
@@ -1990,8 +1989,7 @@ fn decline_rewinds_inner_to_checkpoint_reading_no_diag() {
 /// the checkpoint captured the inner's reading, so `b` survives: `[Token, Diag, Token]`.
 #[test]
 fn decline_rewinds_inner_to_checkpoint_reading_across_diag() {
-  let mut sink: JournalingSink<'_> =
-    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut sink: JournalingSink<'_> = Sink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
   let mut input = Input::<MiniLexer<'_>, JournalingCtx<'_>>::with_state_and_cache(
     "a!bc",
     (),
@@ -2033,8 +2031,7 @@ fn decline_rewinds_inner_to_checkpoint_reading_across_diag() {
 /// shear on the raw fallback path.
 #[test]
 fn no_row_base_rewind_restores_the_construction_reading() {
-  let mut sink: JournalingSink<'_> =
-    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut sink: JournalingSink<'_> = Sink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
 
   // One settled token, forwarded to the inner — and no checkpoint ever captured.
   Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'a'), &span(0, 1));
@@ -2067,8 +2064,7 @@ fn no_row_base_rewind_restores_the_construction_reading() {
 /// the inner dropped it — silent one-timeline shear on a lawful no-op call.
 #[test]
 fn no_row_truncation_free_rewind_leaves_the_inner_untouched() {
-  let mut sink: JournalingSink<'_> =
-    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut sink: JournalingSink<'_> = Sink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
 
   // One settled token, forwarded to the inner — and no checkpoint ever captured.
   Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'a'), &span(0, 1));
@@ -2098,8 +2094,7 @@ fn no_row_truncation_free_rewind_leaves_the_inner_untouched() {
 #[test]
 #[should_panic(expected = "rewind to a mid-log mark with no captured row")]
 fn no_row_middle_rewind_debug_asserts_at_cause() {
-  let mut sink: JournalingSink<'_> =
-    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut sink: JournalingSink<'_> = Sink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
   Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'a'), &span(0, 1));
   Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'b'), &span(1, 2));
   let origin = 0usize;
@@ -2113,8 +2108,7 @@ fn no_row_middle_rewind_debug_asserts_at_cause() {
 #[cfg(not(debug_assertions))]
 #[test]
 fn no_row_middle_rewind_leaves_the_inner_untouched_in_release() {
-  let mut sink: JournalingSink<'_> =
-    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut sink: JournalingSink<'_> = Sink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
   Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'a'), &span(0, 1));
   Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'b'), &span(1, 2));
   let origin = 0usize;
@@ -2144,8 +2138,7 @@ fn no_row_middle_rewind_leaves_the_inner_untouched_in_release() {
 /// abandoned branch's records in release.
 #[test]
 fn out_of_range_rewind_spends_no_live_row() {
-  let mut sink: JournalingSink<'_> =
-    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+  let mut sink: JournalingSink<'_> = Sink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
   let origin = 0usize;
 
   // One settled token, then a live checkpoint AT the current length: len == 1, row at 1.

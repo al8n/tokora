@@ -1,18 +1,18 @@
-use super::super::{CstElement, Language};
+use super::super::{Element, Language};
 use derive_more::{From, Into};
 use rowan::SyntaxNode;
 
 /// An error indicating a mismatch between expected and actual syntax node kinds.
 ///
-/// This error occurs when attempting to cast a [`SyntaxNode`] to a typed [`CstNode`](crate::cst::CstNode)
+/// This error occurs when attempting to cast a [`SyntaxNode`] to a typed [`Node`](crate::cst::Node)
 /// type, but the node's kind doesn't match the expected kind for that type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, Into)]
-pub struct CstNodeMismatch<N, Lang: Language> {
+pub struct NodeMismatch<N, Lang: Language> {
   found: SyntaxNode<Lang>,
   _m: core::marker::PhantomData<N>,
 }
 
-impl<N: CstElement<Lang>, Lang: Language> core::fmt::Display for CstNodeMismatch<N, Lang>
+impl<N: Element<Lang>, Lang: Language> core::fmt::Display for NodeMismatch<N, Lang>
 where
   Lang::Kind: core::fmt::Display,
 {
@@ -27,14 +27,14 @@ where
   }
 }
 
-impl<N: CstElement<Lang>, Lang: Language> core::error::Error for CstNodeMismatch<N, Lang>
+impl<N: Element<Lang>, Lang: Language> core::error::Error for NodeMismatch<N, Lang>
 where
-  N: CstElement<Lang> + core::fmt::Debug,
+  N: Element<Lang> + core::fmt::Debug,
   Lang::Kind: core::fmt::Display,
 {
 }
 
-impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
+impl<N, Lang: Language> NodeMismatch<N, Lang> {
   /// Creates a new syntax node mismatch error.
   #[inline]
   pub const fn new(found: SyntaxNode<Lang>) -> Self {
@@ -48,7 +48,7 @@ impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   #[inline]
   pub const fn expected(&self) -> Lang::Kind
   where
-    N: CstElement<Lang>,
+    N: Element<Lang>,
   {
     N::KIND
   }
@@ -66,7 +66,7 @@ impl<N, Lang: Language> CstNodeMismatch<N, Lang> {
   #[inline]
   pub fn into_components(self) -> (Lang::Kind, SyntaxNode<Lang>)
   where
-    N: CstElement<Lang>,
+    N: Element<Lang>,
   {
     (N::KIND, self.found)
   }

@@ -438,10 +438,10 @@ where
 /// concept whose per-token identity half is [`Token::is_trivia`]. Declaring `true` promises
 /// *totality*: every source byte is covered by either an emitted token (trivia included) or
 /// a reported lexer error, none silently discarded. The lossless (`gap_kind`)
-/// [`CstSink`](crate::cst::CstSink) requires it at **compile time**; declaring it while a
+/// [`Sink`](crate::cst::Sink) requires it at **compile time**; declaring it while a
 /// lexer-level `skip` rule discards bytes anyway is the unspecified-but-bounded violation
 /// class below — surfaced by materialization as
-/// [`UncoveredGap`](crate::cst::CstFinishError::UncoveredGap), never UB or a panic from this
+/// [`UncoveredGap`](crate::cst::FinishError::UncoveredGap), never UB or a panic from this
 /// crate.
 ///
 /// ## Violation posture
@@ -477,7 +477,7 @@ pub trait Lexer<'inp>: 'inp {
   /// differs from its vocabulary's declaration overrides it here.
   ///
   /// See [`Token::SURFACES_TRIVIA`] for the contract this declares and the compile-time
-  /// wall (`CstSink::new`) that consumes it.
+  /// wall (`Sink::new`) that consumes it.
   const SURFACES_TRIVIA: bool = <Self::Token as Token<'inp>>::SURFACES_TRIVIA;
 
   /// Lexes the input source and returns a tokenizer.

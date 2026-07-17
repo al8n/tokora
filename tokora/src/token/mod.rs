@@ -173,7 +173,7 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   /// lexer-level skip rule (e.g. logos `skip r"[ \t\r\n]+"`) must keep the default
   /// `false`.
   ///
-  /// The lossless (`gap_kind`) [`CstSink`](crate::cst::CstSink) refuses **at compile
+  /// The lossless (`gap_kind`) [`Sink`](crate::cst::Sink) refuses **at compile
   /// time** to be constructed over a lexer that does not declare this (see
   /// [`Lexer::SURFACES_TRIVIA`](crate::Lexer::SURFACES_TRIVIA), which defaults to this
   /// value): a skipped-trivia gap is indistinguishable at the event level from a
@@ -181,7 +181,7 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   /// distinguish lost tokens from lost whitespace. Declaring `true` while skipping is a
   /// contract violation with the misused-checkpoint posture: no UB, no panic from this
   /// crate — materialization surfaces it as
-  /// [`UncoveredGap`](crate::cst::CstFinishError::UncoveredGap).
+  /// [`UncoveredGap`](crate::cst::FinishError::UncoveredGap).
   const SURFACES_TRIVIA: bool = false;
 
   /// Returns the kind (category) of this token.

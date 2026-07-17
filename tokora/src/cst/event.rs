@@ -13,7 +13,7 @@
 //! state it had when the mark was captured. (The one journaled exception is the
 //! `forward_parent` *acceleration* field a `StartAt` writes back onto its
 //! target tombstone; the sink's undo journal reverse-replays those writes on rewind, so the
-//! law holds observationally — see `CstSink` under the `rowan` feature.)
+//! law holds observationally — see `Sink` under the `rowan` feature.)
 //!
 //! # The depth model
 //!
@@ -60,7 +60,7 @@ pub const TOMBSTONE: u16 = u16::MAX;
 
 /// One entry of the flat CST event log.
 ///
-/// This is the buffer format of the `rowan`-gated `CstSink` — a crate-internal type by the
+/// This is the buffer format of the `rowan`-gated `Sink` — a crate-internal type by the
 /// second-consumer rule: the *vocabulary* is normative (documented here and in the module
 /// docs), the *type* is not public API until a consumer outside the sink exists. It is
 /// compiled exactly where its one consumer lives (the `rowan` feature); the public half of

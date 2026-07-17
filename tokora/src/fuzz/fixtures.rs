@@ -413,7 +413,7 @@ where
 /// The event channel, defaulted: `CountEmitter` records no tree, so the CST fuzz ops run
 /// their no-op halves here (inert marks, ignored wraps) and the harness's `node`-bearing
 /// scripts satisfy the `Ctx::Emitter: CstEmitter` bound. The recording twin — the same
-/// ops over a real `CstSink` with the tree-equality oracle — is the `rowan`-gated
+/// ops over a real `Sink` with the tree-equality oracle — is the `rowan`-gated
 /// `fuzz::cst` case kind.
 impl<'a, L, Lang: ?Sized> crate::emitter::CstEmitter<'a, L, Lang> for CountEmitter where L: Lexer<'a>
 {}

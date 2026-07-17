@@ -11,13 +11,13 @@
     diagnostics emitters. One parser assembly therefore builds a tree or runs tree-less by
     emitter choice alone; driving a `node`-bearing parser with an emitter that does not forward
     `CstEmitter` is a compile error, never a silently empty tree.
-  - **`CstSink`** — the rewindable recording sink: wraps an inner emitter, records every
+  - **`Sink`** — the rewindable recording sink: wraps an inner emitter, records every
     committed token into a lossless green tree through a dialect `fn(&Token) -> u16` kind mapper,
     and forwards diagnostics to the inner emitter. `finish(root_kind, source)` materializes the
     tree and gap-tiles untokenized bytes (lexer-skipped trivia, covered lexer-error spans) so
     `tree.text() == source` structurally for every input; an unexplained gap is a typed
-    `CstFinishError`, never a wrong tree. Adds `TriviaPolicy` / `with_trivia_policy`,
-    `finish_partial`, and the `CstFinishError` enum.
+    `FinishError`, never a wrong tree. Adds `TriviaPolicy` / `with_trivia_policy`,
+    `finish_partial`, and the `FinishError` enum.
   - **`node` / `node_at` / `node_opt`** — the CST bracketing combinators: a sub-parse's
     committed tokens, trivia, and nested nodes become the children of one syntax node. The
     bracket is append-only, so a decline or an error-path unwind leaves no node and no dangling
@@ -64,24 +64,24 @@
 
 ## Changed
 
-- **Lossless (`gap_kind`) `CstSink` construction is now compile-time restricted to
-  trivia-surfacing lexers** (`rowan` feature). `CstSink::new` carries an inline-`const`
+- **Lossless (`gap_kind`) `Sink` construction is now compile-time restricted to
+  trivia-surfacing lexers** (`rowan` feature). `Sink::new` carries an inline-`const`
   guard requiring `Lexer::SURFACES_TRIVIA == true`. Pairing a syntactic (trivia-skipping)
   lexer with a lossless sink is now a compile error (a post-monomorphization `error[E0080]`
-  at build/test/doc time) instead of a runtime `CstFinishError::UncoveredGap` on the first
+  at build/test/doc time) instead of a runtime `FinishError::UncoveredGap` on the first
   skipped-whitespace gap. The guard does not fire under `cargo check`.
 
 - **Every committed token now settles through one input-layer primitive.** The input layer
   funnels each token — consumed, or skipped behind a scan frontier — through a single settle
   point and the new defaulted `Emitter::commit_token` hook, exactly once per token; peeks,
   declines, and unconsumed stoppers never settle. This is the auto-emission chokepoint the
-  recording `CstSink` overrides to record tokens, which is what makes every consuming atom
+  recording `Sink` overrides to record tokens, which is what makes every consuming atom
   tree-producing with no per-atom code. Diagnostics emitters keep the no-op default, so their
   observable behavior is unchanged.
 
 ## Migration
 
-- A lexer paired with a lossless `CstSink` must declare `const SURFACES_TRIVIA: bool = true;`
+- A lexer paired with a lossless `Sink` must declare `const SURFACES_TRIVIA: bool = true;`
   on its `Token` impl (or override it on the `Lexer` impl). Forgetting it is a loud build
   error naming the exact const. Syntactic lexers that never construct a lossless sink are
   unaffected — the default `false` is honest for them.

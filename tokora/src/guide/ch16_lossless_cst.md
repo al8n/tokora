@@ -18,8 +18,8 @@ Two crates share the work:
   [`node`](crate::parser::node()) combinators. This half is rowan-free and compiles in every
   build.
 - **[rowan](https://docs.rs/rowan)** stores the finished tree. Under the `rowan` feature,
-  the [`CstSink`](crate::cst::CstSink) emitter buffers the parse as a flat event stream, and
-  [`finish`](crate::cst::CstSink::finish) materializes it once into a rowan green tree.
+  the [`Sink`](crate::cst::Sink) emitter buffers the parse as a flat event stream, and
+  [`finish`](crate::cst::Sink::finish) materializes it once into a rowan green tree.
 
 The event stream between the two is an implementation detail: you never construct, inspect,
 or replay events. (The [`cst::event`](crate::cst::event) module documents the vocabulary and
@@ -47,7 +47,7 @@ rowan = "0.16"
 ```
 
 The `rowan` feature implies `std` (rowan itself requires it); it does not imply `logos`.
-Only the *materializing* half — [`CstSink`](crate::cst::CstSink) and the typed tree views —
+Only the *materializing* half — [`Sink`](crate::cst::Sink) and the typed tree views —
 lives behind the feature. The recording half ([`CstEmitter`](crate::emitter::CstEmitter),
 the [`node`](crate::parser::node()) combinators, the marks) is unconditional, which is what
 lets a grammar crate stay rowan-free while its tooling consumers opt in.
@@ -67,7 +67,7 @@ aliases, and integer arguments. Its lossless lexer (hidden below, a logos derive
 chapter 1's — just without a `skip` rule, so whitespace, comments, and commas are real
 tokens with [`is_trivia`](crate::Token::is_trivia) returning `true`) produces `Tok`. Because
 the lexer surfaces every byte, its `Tok` declares `const SURFACES_TRIVIA = true`, and the
-lossless [`CstSink`](crate::cst::CstSink) refuses **at compile time** to wrap a trivia-skipping
+lossless [`Sink`](crate::cst::Sink) refuses **at compile time** to wrap a trivia-skipping
 lexer — a skipped-whitespace gap is indistinguishable from a dropped committed token. The
 unified kind space maps it like this:
 
@@ -270,7 +270,7 @@ structure*. Helpers that merely consume keep the plain emitter bound.
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
   cache::DefaultCache,
-  cst::CstSink,
+  cst::Sink,
   emitter::{CstEmitter, Fatal},
   parser::{node, node_at},
   try_parse_input::ParseAttempt,
@@ -447,8 +447,8 @@ let src = "{ user(id: 4) { name } }";
 // The sink wraps an ordinary emitter (fail-fast `Fatal` here) and takes the dialect
 // corner: the mapper and the two bookkeeping kinds. It stays OUTSIDE the parse — `&mut`
 // in the context seat — because materialization needs it back afterwards.
-let mut sink: CstSink<'_, QueryLexer<'_>, _> =
-  CstSink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
+let mut sink: Sink<'_, QueryLexer<'_>, _> =
+  Sink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
 
 let fields = Parser::with_context((&mut sink, DefaultCache::<QueryLexer<'_>>::default()))
   .apply(selection_set)
@@ -602,7 +602,7 @@ the mark, including tokens committed before the wrap was conceivable.
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
 #   cache::DefaultCache,
-#   cst::CstSink,
+#   cst::Sink,
 #   emitter::{CstEmitter, Fatal},
 #   parser::{node, node_at},
 #   try_parse_input::ParseAttempt,
@@ -758,8 +758,8 @@ where
 }
 
 let src = "{ author: user(id: 4) { name } }";
-let mut sink: CstSink<'_, QueryLexer<'_>, _> =
-  CstSink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
+let mut sink: Sink<'_, QueryLexer<'_>, _> =
+  Sink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
 let fields = Parser::with_context((&mut sink, DefaultCache::<QueryLexer<'_>>::default()))
   .apply(selection_set)
   .parse_str(src)
@@ -884,7 +884,7 @@ formatting data *without* a tree in the dependency closure; under a sink they ar
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
 #   cache::DefaultCache,
-#   cst::CstSink,
+#   cst::Sink,
 #   emitter::{CstEmitter, Fatal},
 #   parser::{node, node_at},
 #   try_parse_input::ParseAttempt,
@@ -1033,8 +1033,8 @@ formatting data *without* a tree in the dependency closure; under a sink they ar
 # }
 // Comments, newlines, commas: no grammar rule mentions them, all of them survive.
 let src = "{ # every byte survives\n  a, b }";
-let mut sink: CstSink<'_, QueryLexer<'_>, _> =
-  CstSink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
+let mut sink: Sink<'_, QueryLexer<'_>, _> =
+  Sink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
 Parser::with_context((&mut sink, DefaultCache::<QueryLexer<'_>>::default()))
   .apply(selection_set)
   .parse_str(src)
@@ -1059,8 +1059,8 @@ assert!(tokens.iter().all(|(kind, _)| *kind != SyntaxKind::Gap));
 // indistinguishable from a dropped token); the tooling door `finish_partial` tiles it, so
 // an aborted parse still round-trips its text.
 let src = "{ a % b }";
-let mut sink: CstSink<'_, QueryLexer<'_>, _> =
-  CstSink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
+let mut sink: Sink<'_, QueryLexer<'_>, _> =
+  Sink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
 let res = Parser::with_context((&mut sink, DefaultCache::<QueryLexer<'_>>::default()))
   .apply(selection_set)
   .parse_str(src);
@@ -1382,7 +1382,7 @@ branch is abandoned, its events are truncated as if they never happened.
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
 #   cache::DefaultCache,
-#   cst::CstSink,
+#   cst::Sink,
 #   emitter::{CstEmitter, Fatal},
 #   parser::{node, node_at},
 #   try_parse_input::ParseAttempt,
@@ -1551,16 +1551,16 @@ where
 // Parse the same source twice: once straight, once through the declined speculation.
 let src = "{ user(id: 4) { name } }";
 
-let mut straight: CstSink<'_, QueryLexer<'_>, _> =
-  CstSink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
+let mut straight: Sink<'_, QueryLexer<'_>, _> =
+  Sink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
 Parser::with_context((&mut straight, DefaultCache::<QueryLexer<'_>>::default()))
   .apply(selection_set)
   .parse_str(src)
   .unwrap();
 let (green_straight, _) = straight.finish(K::Root.raw(), src);
 
-let mut backtracked: CstSink<'_, QueryLexer<'_>, _> =
-  CstSink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
+let mut backtracked: Sink<'_, QueryLexer<'_>, _> =
+  Sink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
 Parser::with_context((&mut backtracked, DefaultCache::<QueryLexer<'_>>::default()))
   .apply(decline_then_parse)
   .parse_str(src)
@@ -1664,7 +1664,7 @@ scan — no sync point found — rewinds its speculative events entirely.)
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
 #   cache::DefaultCache,
-#   cst::CstSink,
+#   cst::Sink,
 #   emitter::CstEmitter,
 #   parser::{node, node_at},
 #   try_parse_input::ParseAttempt,
@@ -1865,8 +1865,8 @@ where
 
 // The garbage between the two fields is not valid Query syntax.
 let src = "{ user(id: 4) 4 5 name }";
-let mut sink: CstSink<'_, QueryLexer<'_>, _> =
-  CstSink::new(Verbose::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
+let mut sink: Sink<'_, QueryLexer<'_>, _> =
+  Sink::new(Verbose::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
 let salvaged = Parser::with_context((&mut sink, DefaultCache::<QueryLexer<'_>>::default()))
   .apply(selection_set_recovering)
   .parse_str(src)
@@ -1900,10 +1900,10 @@ assert_eq!(emitter.errors().values().flatten().count(), 1);
 
 ## Materialization is a typed wall
 
-[`finish(root_kind, source)`](crate::cst::CstSink::finish) consumes the sink, validates the
+[`finish(root_kind, source)`](crate::cst::Sink::finish) consumes the sink, validates the
 recorded stream, and builds the green tree — returning the inner emitter either way, so
 collected diagnostics survive materialization. It **never panics**: a stream that cannot
-become a correct tree comes back as a typed [`CstFinishError`](crate::cst::CstFinishError)
+become a correct tree comes back as a typed [`FinishError`](crate::cst::FinishError)
 naming the offending event, and no wrong tree is ever built. Under the blessed combinators
 you will not meet these errors — the brackets are total — but the raw
 [`CstEmitter`](crate::emitter::CstEmitter) transport is sharp on purpose, and `finish` is
@@ -1987,7 +1987,7 @@ the wall that keeps a hand-rolled mistake loud:
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseContext, Parser,
 #   cache::DefaultCache,
-#   cst::CstSink,
+#   cst::Sink,
 #   emitter::{CstEmitter, Fatal},
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
@@ -2002,7 +2002,7 @@ the wall that keeps a hand-rolled mistake loud:
 #     None => Err(QueryError::Unexpected),
 #   }
 # }
-use tokora::cst::CstFinishError;
+use tokora::cst::FinishError;
 
 /// The raw transport, deliberately skipping the `node()` bracket. Don't write this —
 /// this is what the bracket exists to make unnecessary.
@@ -2018,20 +2018,20 @@ where
 }
 
 let src = "{ user }";
-let mut sink: CstSink<'_, QueryLexer<'_>, _> =
-  CstSink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
+let mut sink: Sink<'_, QueryLexer<'_>, _> =
+  Sink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
 let _ = Parser::with_context((&mut sink, DefaultCache::<QueryLexer<'_>>::default()))
   .apply(unfinished)
   .parse_str(src);
 
 // `finish` refuses to guess what the dangling node meant:
 let (green, _emitter) = sink.finish(K::Root.raw(), src);
-assert!(matches!(green, Err(CstFinishError::UnclosedNodes { open: 1 })));
+assert!(matches!(green, Err(FinishError::UnclosedNodes { open: 1 })));
 
 // `finish_partial` is the explicit tooling opt-in: close whatever the abort left open
 // and hand back an inspectable partial tree — the round-trip law holds on it too.
-let mut sink: CstSink<'_, QueryLexer<'_>, _> =
-  CstSink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
+let mut sink: Sink<'_, QueryLexer<'_>, _> =
+  Sink::new(Fatal::<QueryError>::new(), map_token, K::Error.raw(), K::Gap.raw());
 let _ = Parser::with_context((&mut sink, DefaultCache::<QueryLexer<'_>>::default()))
   .apply(unfinished)
   .parse_str(src);
@@ -2044,7 +2044,7 @@ assert_eq!(tree.first_child().unwrap().kind(), SyntaxKind::SelectionSet);
 Note the two incompletenesses `finish_partial` forgives. A **fatal abort through the blessed
 combinators** leaves no dangling start — the brackets never desync — so it never earns
 `UnclosedNodes`; but the tail it never reached is un-diagnosed, and strict `finish` refuses
-that as an [`UncoveredGap`](crate::cst::CstFinishError::UncoveredGap) (a dropped committed
+that as an [`UncoveredGap`](crate::cst::FinishError::UncoveredGap) (a dropped committed
 token and an abandoned tail are indistinguishable to it). `finish_partial` closes any open
 node *and* tiles the un-diagnosed tail — the aborted-parse example in the trivia section used
 exactly that door. And an [`Incomplete`](crate::Completeness) verdict from a
@@ -2065,8 +2065,8 @@ and is documented CST-unsupported.
 
 ## Where to go next
 
-- **Typed access** over the finished tree: [`CstElement`](crate::cst::CstElement),
-  [`CstNode`](crate::cst::CstNode), [`CstToken`](crate::cst::CstToken), and
+- **Typed access** over the finished tree: [`Element`](crate::cst::Element),
+  [`Node`](crate::cst::Node), [`Token`](crate::cst::Token), and
   [`cst::cast`](crate::cst::cast) wrap and cast rowan elements without changing the
   losslessness story.
 - **The event vocabulary**, its depth model, and the era-branded mark validation are

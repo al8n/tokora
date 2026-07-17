@@ -1,7 +1,7 @@
 #![cfg(all(feature = "rowan", feature = "std"))]
 
 //! The `node()` combinator contract over a real recording sink, driven through the public
-//! parse entry with the caller-held-sink threading (`&mut CstSink` in the context seat):
+//! parse entry with the caller-held-sink threading (`&mut Sink` in the context seat):
 //!
 //! - a decline leaves **no node** (not even an empty one);
 //! - an error-path unwind leaves **no dangling start** — materialization stays balanced;
@@ -16,7 +16,7 @@ use core::fmt;
 use tokora::{
   Emitter, InputRef, Lexer, Parse, ParseInput, Parser, SimpleSpan, Token, TryParseInput,
   cache::DefaultCache,
-  cst::{CstFinishError, CstSink},
+  cst::FinishError,
   emitter::{CstEmitter, Verbose},
   error::token::{UnexpectedToken, UnexpectedTokenOf},
   input::Cursor,
@@ -172,12 +172,12 @@ fn map_tok(t: &Tok) -> u16 {
   100 + t.0 as u16
 }
 
-type Sink<'inp> = CstSink<'inp, ByteLexer<'inp>, Verbose<TestErr>>;
+type Sink<'inp> = tokora::cst::Sink<'inp, ByteLexer<'inp>, Verbose<TestErr>>;
 type Ctx<'inp, 's> = (&'s mut Sink<'inp>, DefaultCache<'inp, ByteLexer<'inp>>);
 type Ir<'inp, 's, 'c> = InputRef<'inp, 'c, ByteLexer<'inp>, Ctx<'inp, 's>, ()>;
 
 fn sink<'inp>() -> Sink<'inp> {
-  CstSink::new(Verbose::new(), map_tok, K_ERR, K_GAP)
+  tokora::cst::Sink::new(Verbose::new(), map_tok, K_ERR, K_GAP)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -205,7 +205,7 @@ fn run<O>(
   parser: impl for<'c> FnMut(&mut Ir<'_, '_, 'c>) -> Result<O, TestErr>,
 ) -> (
   Result<O, TestErr>,
-  Result<rowan::GreenNode, tokora::cst::CstFinishError>,
+  Result<rowan::GreenNode, tokora::cst::FinishError>,
 ) {
   let mut s = sink();
   let res =
@@ -298,7 +298,7 @@ fn node_error_unwind_leaves_no_dangling_start() {
   assert_eq!(res, Err(TestErr::Boom));
   assert_eq!(
     green.expect_err("balanced buffer: not UnclosedNodes, only the unconsumed `b`"),
-    CstFinishError::UncoveredGap { start: 1, end: 2 }
+    FinishError::UncoveredGap { start: 1, end: 2 }
   );
 
   // The aborted parse's tree: `finish_partial` tiles the unconsumed `b`, closing nothing
@@ -751,7 +751,7 @@ fn half_forwarding_wrapper_is_refused_at_finish() {
     ),
   };
   assert!(
-    matches!(err, CstFinishError::StructureWithoutTokens),
+    matches!(err, FinishError::StructureWithoutTokens),
     "expected StructureWithoutTokens, got {err:?}"
   );
 }
@@ -762,9 +762,9 @@ fn half_forwarding_wrapper_is_refused_at_finish() {
 
 /// The partial-forwarding sibling of [`HalfForward`]: it forwards the structuring surface
 /// and the **first** committed token, then severs the channel. Because a token *does*
-/// survive, the zero-token wall ([`CstFinishError::StructureWithoutTokens`]) cannot fire —
+/// survive, the zero-token wall ([`FinishError::StructureWithoutTokens`]) cannot fire —
 /// the dropped tokens vanish as uncovered source bytes instead, the signature only the
-/// gap-coverage law ([`CstFinishError::UncoveredGap`]) catches.
+/// gap-coverage law ([`FinishError::UncoveredGap`]) catches.
 struct HalfForwardPartial<E> {
   inner: E,
   forwarded: usize,
@@ -917,7 +917,7 @@ fn partial_forwarding_wrapper_is_refused_at_finish() {
     ),
   };
   assert!(
-    matches!(err, CstFinishError::UncoveredGap { start: 1, end: 2 }),
+    matches!(err, FinishError::UncoveredGap { start: 1, end: 2 }),
     "expected UncoveredGap {{ start: 1, end: 2 }} over the dropped 'b', got {err:?}"
   );
 }

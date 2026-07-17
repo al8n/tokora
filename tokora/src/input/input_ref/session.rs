@@ -8,7 +8,7 @@
 //! handle borrows, so it is meaningful only within that borrow (see the contract on
 //! [`begin_point`](super::InputRef::begin_point)). Its **pin** and its **live-checkpoint id** live in
 //! the [`Lineage`] memos on the *input*, which outlives the handle — and its **emitter mark** is
-//! bookkeeping keyed inside the borrowed emitter (a `CstSink`'s mark-stack row, for instance),
+//! bookkeeping keyed inside the borrowed emitter (a `Sink`'s mark-stack row, for instance),
 //! which also outlives the handle. A point abandoned outright — the handle dropped without
 //! [`commit_point`](super::InputRef::commit_point) or
 //! [`rollback_point`](super::InputRef::rollback_point) — must therefore release bookkeeping it does

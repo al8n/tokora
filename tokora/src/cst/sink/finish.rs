@@ -9,7 +9,7 @@
 //! non-overlapping, in-bounds, u32-fitting), the **token-channel wall** (a balanced
 //! stream that builds structure without one committed token over a nonempty source is
 //! the half-forwarding-wrapper signature, refused instead of dressed up by tiling — see
-//! [`CstFinishError::StructureWithoutTokens`]), and **gap tiling**: every source byte no
+//! [`FinishError::StructureWithoutTokens`]), and **gap tiling**: every source byte no
 //! committed token covers becomes a `gap_kind` token, which is what makes
 //! `tree.text() == source` structural for every input — poisoned, error-bearing, and
 //! truncated parses included.
@@ -20,11 +20,11 @@
 //! only where a **recorded lexer-error diagnostic** covers it (the lexer saw bytes it could
 //! not tokenize, said so, and committed no token there); a gap with no covering error and no
 //! covering token is a **dropped committed token** — the partial-forwarding-wrapper signature
-//! the zero-token wall cannot see — and is refused ([`CstFinishError::UncoveredGap`]). This is
+//! the zero-token wall cannot see — and is refused ([`FinishError::UncoveredGap`]). This is
 //! the sink's one **deliberate coupling of the diagnostic and CST channels**: elsewhere they
 //! are independent (a `Diag` slot is invisible to the tree), but at `finish` a lexer error's
 //! *span* is what licenses its gap. The audit kept the channels separate; this law crosses
-//! them on purpose, and only at materialization. [`finish_partial`](CstSink::finish_partial)
+//! them on purpose, and only at materialization. [`finish_partial`](Sink::finish_partial)
 //! is exempt — it tiles every gap, tolerating an incomplete parse the way it tolerates open
 //! nodes (see its own boundary note on the fail-fast emitter case).
 
@@ -36,7 +36,7 @@ use crate::{Lexer, span::Span};
 
 use super::{
   super::event::{Event, TOMBSTONE},
-  CstSink, TriviaPolicy,
+  Sink, TriviaPolicy,
 };
 
 /// Why a materialization was refused. Every variant names the offending **event index**
@@ -44,7 +44,7 @@ use super::{
 /// against the recorded stream without exposing the stream itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
-pub enum CstFinishError {
+pub enum FinishError {
   /// A `FinishNode` arrived with no node open — the orphan-finish shape (a start rolled
   /// back apart from its finish). Under a plain rowan root wrapper this imbalance would
   /// be silently absorbed; here it is refused before the builder ever sees it.
@@ -128,7 +128,7 @@ pub enum CstFinishError {
   /// instead — the loud failure the wrapper contract promises. A parse that legitimately
   /// consumed nothing builds either no structure (nothing to refuse) or a tree over an
   /// empty source (also not refused); a fatally-aborted parse inspected through
-  /// [`finish_partial`](CstSink::finish_partial) still has its open nodes as the abort
+  /// [`finish_partial`](Sink::finish_partial) still has its open nodes as the abort
   /// witness and is likewise not refused.
   #[error(
     "the event stream builds structure but carries no committed token over a nonempty \
@@ -145,7 +145,7 @@ pub enum CstFinishError {
   /// signature the zero-token wall ([`StructureWithoutTokens`](Self::StructureWithoutTokens))
   /// cannot see because a token *did* survive — or, under a fail-fast emitter, an unconsumed
   /// tail an abort left un-diagnosed. `finish` refuses it rather than tile a plausible-but-lossy
-  /// tree; [`finish_partial`](CstSink::finish_partial) tiles it (the tooling door that tolerates
+  /// tree; [`finish_partial`](Sink::finish_partial) tiles it (the tooling door that tolerates
   /// an incomplete parse). The first (leftmost) uncovered run is named.
   #[error(
     "source bytes {start}..{end} are covered by neither a committed token nor a recorded \
@@ -196,7 +196,7 @@ enum Frame {
   Wrap(u64),
 }
 
-impl<'inp, L, E> CstSink<'inp, L, E>
+impl<'inp, L, E> Sink<'inp, L, E>
 where
   L: Lexer<'inp>,
 {
@@ -206,13 +206,13 @@ where
   ///
   /// The replay validates and builds in one walk: balance,
   /// retro-wrap integrity, kind hygiene, span discipline, the token-channel wall
-  /// ([`CstFinishError::StructureWithoutTokens`] — structure with zero committed tokens
+  /// ([`FinishError::StructureWithoutTokens`] — structure with zero committed tokens
   /// over a nonempty source is a severed `commit_token` channel, not a tree), the
   /// **gap-coverage law** (every uncovered byte tiles as a `gap_kind` token only where a
   /// recorded lexer error explains it; an unexplained gap is a dropped committed token —
-  /// [`CstFinishError::UncoveredGap`]) — so on success `tree.text() == source` holds and
+  /// [`FinishError::UncoveredGap`]) — so on success `tree.text() == source` holds and
   /// every gap in it is a byte the lexer legitimately refused. On the first violation the
-  /// half-built green state is dropped and a typed [`CstFinishError`] comes back instead;
+  /// half-built green state is dropped and a typed [`FinishError`] comes back instead;
   /// this method **never panics**.
   ///
   /// # Abort semantics
@@ -220,7 +220,7 @@ where
   /// - An `Incomplete` parse (needs more input) should not be materialized: keep the sink
   ///   — the buffered events *are* the resumable state.
   /// - A fatal abort leaves open nodes; `finish` refuses them
-  ///   ([`CstFinishError::UnclosedNodes`]) — [`finish_partial`](Self::finish_partial) is
+  ///   ([`FinishError::UnclosedNodes`]) — [`finish_partial`](Self::finish_partial) is
   ///   the explicit opt-in that closes them for tooling.
   ///
   /// # The fail-fast boundary (precise)
@@ -230,11 +230,11 @@ where
   /// every refused byte is explained and `finish` succeeds. Under a **fail-fast** emitter
   /// ([`Fatal`](crate::emitter::Fatal)) the first lexer error aborts the parse, so the bytes
   /// past it are never lexed and no diagnostic covers them: `finish` then refuses (an
-  /// [`UncoveredGap`](CstFinishError::UncoveredGap), or [`UnclosedNodes`](CstFinishError::UnclosedNodes)
+  /// [`UncoveredGap`](FinishError::UncoveredGap), or [`UnclosedNodes`](FinishError::UnclosedNodes)
   /// if the abort left a node open). That is by design — inspect such a partial parse through
   /// [`finish_partial`](Self::finish_partial), which tiles the un-diagnosed tail, or accept no
   /// tree. The guarantee is stated only for the collecting case for exactly this reason.
-  pub fn finish(self, root_kind: u16, source: &str) -> (Result<GreenNode, CstFinishError>, E)
+  pub fn finish(self, root_kind: u16, source: &str) -> (Result<GreenNode, FinishError>, E)
   where
     L::Offset: TryInto<u32>,
   {
@@ -244,18 +244,14 @@ where
   /// [`finish`](Self::finish), but the two **incompleteness** signals a partial parse leaves
   /// are tolerated instead of refused, so tooling can inspect a fatally-aborted or truncated
   /// parse: open nodes at the end of the stream are **closed** (not
-  /// [`UnclosedNodes`](CstFinishError::UnclosedNodes)), and an uncovered gap is **tiled** (not
-  /// [`UncoveredGap`](CstFinishError::UncoveredGap)) — the un-diagnosed tail of a fail-fast
+  /// [`UnclosedNodes`](FinishError::UnclosedNodes)), and an uncovered gap is **tiled** (not
+  /// [`UncoveredGap`](FinishError::UncoveredGap)) — the un-diagnosed tail of a fail-fast
   /// abort becomes one `gap_kind` run so `tree.text() == source` still holds. Every other law
   /// (balance underflow, wrap integrity, span discipline, and the token-channel wall for
   /// *balanced* streams — the zero-token severance is corruption, not mere incompleteness) is
   /// enforced identically. The exemptions are the two ways an incomplete parse differs from a
   /// complete one; refusing them would defeat the door.
-  pub fn finish_partial(
-    self,
-    root_kind: u16,
-    source: &str,
-  ) -> (Result<GreenNode, CstFinishError>, E)
+  pub fn finish_partial(self, root_kind: u16, source: &str) -> (Result<GreenNode, FinishError>, E)
   where
     L::Offset: TryInto<u32>,
   {
@@ -269,7 +265,7 @@ where
     root_kind: u16,
     source: &str,
     close_open_nodes: bool,
-  ) -> (Result<GreenNode, CstFinishError>, E)
+  ) -> (Result<GreenNode, FinishError>, E)
   where
     L::Offset: TryInto<u32>,
   {
@@ -286,13 +282,13 @@ where
 }
 
 /// Converts one span endpoint, mapping failures to the event's typed error.
-fn offset_to_u32<O>(offset: O, index: u64) -> Result<u32, CstFinishError>
+fn offset_to_u32<O>(offset: O, index: u64) -> Result<u32, FinishError>
 where
   O: TryInto<u32>,
 {
   offset
     .try_into()
-    .map_err(|_| CstFinishError::OffsetOverflow { index })
+    .map_err(|_| FinishError::OffsetOverflow { index })
 }
 
 /// Records the leftmost source run in `[lo, hi)` that no `cover` interval spans, keeping the
@@ -335,17 +331,17 @@ fn replay<S>(
   gap_kind: u16,
   source: &str,
   close_open_nodes: bool,
-) -> Result<GreenNode, CstFinishError>
+) -> Result<GreenNode, FinishError>
 where
   S: Span,
   S::Offset: TryInto<u32>,
 {
   if root_kind == TOMBSTONE {
-    return Err(CstFinishError::ReservedRootKind);
+    return Err(FinishError::ReservedRootKind);
   }
 
   let source_len =
-    u32::try_from(source.len()).map_err(|_| CstFinishError::OffsetOverflow { index: 0 })?;
+    u32::try_from(source.len()).map_err(|_| FinishError::OffsetOverflow { index: 0 })?;
 
   // Pre-pass: group the retro-wraps by target (reverse buffer order opens outermost
   // first), validating targets and the forward_parent canaries — and collect the recorded
@@ -358,11 +354,11 @@ where
     match event {
       Event::StartAt { kind, target } => {
         if *kind == TOMBSTONE {
-          return Err(CstFinishError::ReservedKind { index });
+          return Err(FinishError::ReservedKind { index });
         }
         let live = *target < index && events[*target as usize].is_tombstone();
         if !live {
-          return Err(CstFinishError::StaleStartAt {
+          return Err(FinishError::StaleStartAt {
             index,
             target: *target,
           });
@@ -383,13 +379,13 @@ where
           Some(Event::StartAt { target: t, .. }) if *t == target
         );
         if !names_this {
-          return Err(CstFinishError::DanglingForwardParent { index });
+          return Err(FinishError::DanglingForwardParent { index });
         }
       }
       Event::StartNode { kind, .. } if *kind == TOMBSTONE => {}
       Event::StartNode { kind, .. } | Event::Token { kind, .. } => {
         if *kind == TOMBSTONE {
-          return Err(CstFinishError::ReservedKind { index });
+          return Err(FinishError::ReservedKind { index });
         }
       }
       Event::Diag {
@@ -471,10 +467,10 @@ where
         let start = offset_to_u32(span.start(), index)?;
         let end = offset_to_u32(span.end(), index)?;
         if start < covered || end < start {
-          return Err(CstFinishError::OverlappingSpans { index });
+          return Err(FinishError::OverlappingSpans { index });
         }
         if end > source_len {
-          return Err(CstFinishError::SpanOutOfBounds { index });
+          return Err(FinishError::SpanOutOfBounds { index });
         }
         // Tile the gap this token reveals: bytes no committed token covered (a skipped
         // lexer error, an undrained region) become one gap token in the currently open
@@ -482,13 +478,13 @@ where
         if start > covered {
           let gap = source
             .get(covered as usize..start as usize)
-            .ok_or(CstFinishError::SpanOutOfBounds { index })?;
+            .ok_or(FinishError::SpanOutOfBounds { index })?;
           record_uncovered(covered, start, &error_cover, &mut first_uncovered_gap);
           builder.token(SyntaxKind(gap_kind), gap);
         }
         let text = source
           .get(start as usize..end as usize)
-          .ok_or(CstFinishError::SpanOutOfBounds { index })?;
+          .ok_or(FinishError::SpanOutOfBounds { index })?;
         builder.token(SyntaxKind(*kind), text);
         covered = end;
       }
@@ -497,14 +493,14 @@ where
           None | Some(Frame::Root) => {
             // The sink's own wall: rowan would silently absorb one level of imbalance
             // under the root wrapper; the walk refuses before the builder sees it.
-            return Err(CstFinishError::OrphanFinish { index });
+            return Err(FinishError::OrphanFinish { index });
           }
           Some(Frame::Wrap(start_at)) => {
             // A hoisted wrap may only close at or after its declaration: closing
             // earlier means the wrap crosses a node boundary (the mark was taken
             // inside a node that closed before the wrap was declared).
             if *start_at > index {
-              return Err(CstFinishError::ImproperWrap {
+              return Err(FinishError::ImproperWrap {
                 start_at: *start_at,
                 finish: index,
               });
@@ -531,7 +527,7 @@ where
   if covered < source_len {
     let gap = source
       .get(covered as usize..)
-      .ok_or(CstFinishError::SpanOutOfBounds {
+      .ok_or(FinishError::SpanOutOfBounds {
         index: events.len() as u64,
       })?;
     record_uncovered(covered, source_len, &error_cover, &mut first_uncovered_gap);
@@ -545,7 +541,7 @@ where
   let open = (stack.len() as u64).saturating_sub(1);
   if open > 0 {
     if !close_open_nodes {
-      return Err(CstFinishError::UnclosedNodes { open });
+      return Err(FinishError::UnclosedNodes { open });
     }
     for _ in 0..open {
       builder.finish_node();
@@ -559,14 +555,14 @@ where
     // open nodes (the `open > 0` arm above), so the abort shape is never refused here.
     // Kept ahead of the gap-coverage law so the all-dropped case earns this precise
     // message rather than an `UncoveredGap` over the whole source.
-    return Err(CstFinishError::StructureWithoutTokens);
+    return Err(FinishError::StructureWithoutTokens);
   } else if !close_open_nodes {
     // The gap-coverage law, `finish`-only (the partial-drop generalization of the wall
     // above): an uncovered byte with no covering lexer error is a dropped committed token —
     // or, under a fail-fast emitter, an un-diagnosed unconsumed tail. `finish_partial` is
     // exempt and tiles the run, tolerating an incomplete parse as it tolerates open nodes.
     if let Some((start, end)) = first_uncovered_gap {
-      return Err(CstFinishError::UncoveredGap { start, end });
+      return Err(FinishError::UncoveredGap { start, end });
     }
   }
 

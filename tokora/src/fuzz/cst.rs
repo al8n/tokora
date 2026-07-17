@@ -1,5 +1,5 @@
 //! The **CST recording twin**: the fuzz alphabet's `node`/`mark`/`start_at`/
-//! `rollback-across-mark` ops driven over a real `CstSink`, with the two oracles the
+//! `rollback-across-mark` ops driven over a real `Sink`, with the two oracles the
 //! event channel owes:
 //!
 //! - **Backtrack equivalence** — the full script (declines, rollbacks-across-marks and
@@ -23,7 +23,7 @@ use std::{string::String, vec::Vec};
 use crate::{
   InputRef, ParseInput, Token,
   cache::DefaultCache,
-  cst::{CstFinishError, CstSink, event::EventMark},
+  cst::{FinishError, event::EventMark},
   emitter::CstEmitter,
   input::Input,
   parser::node,
@@ -58,7 +58,7 @@ const MAX_LIVE_MARKS: usize = 16;
 /// The maximum nesting depth of generated scopes.
 const MAX_DEPTH: usize = 3;
 
-type Sink<'a> = CstSink<'a, ScriptLexer<'a>, CountEmitter>;
+type Sink<'a> = crate::cst::Sink<'a, ScriptLexer<'a>, CountEmitter>;
 type Ctx<'a> = (Sink<'a>, DefaultCache<'a, ScriptLexer<'a>>);
 type Ir<'inp, 'c> = InputRef<'inp, 'c, ScriptLexer<'inp>, Ctx<'inp>, ()>;
 
@@ -278,8 +278,8 @@ fn drive(
   src: &str,
   script: &[CStep],
   cov: &mut Coverage,
-) -> (Result<rowan::GreenNode, CstFinishError>, usize) {
-  let mut sink: Sink<'_> = CstSink::new(CountEmitter::new(), map_tok, K_ERR, K_GAP);
+) -> (Result<rowan::GreenNode, FinishError>, usize) {
+  let mut sink: Sink<'_> = crate::cst::Sink::new(CountEmitter::new(), map_tok, K_ERR, K_GAP);
   let cache = DefaultCache::<'_, ScriptLexer<'_>>::default();
   let state = initial_state(src.as_bytes());
   let mut input =
@@ -354,11 +354,11 @@ pub(crate) fn run(src: &[u8], seed: u64, cov: &mut Coverage) {
         "the twins share one committed timeline and must refuse identically"
       );
       match full_err {
-        CstFinishError::StructureWithoutTokens => assert_eq!(
+        FinishError::StructureWithoutTokens => assert_eq!(
           full_consumed, 0,
           "the wall fires only when no committed settle survived"
         ),
-        CstFinishError::UncoveredGap { .. } => {}
+        FinishError::UncoveredGap { .. } => {}
         other => panic!(
           "only the token-channel wall or an uncovered gap may refuse a combinator-driven \
            buffer (balance is structural): {other:?}"

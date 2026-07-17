@@ -95,8 +95,7 @@ fn cst_node_children_clone() {
   let green = builder.finish();
   let root = rowan::SyntaxNode::<TestLang>::new_root(green);
 
-  let children: CstNodeChildren<rowan::SyntaxNode<TestLang>, TestLang> =
-    CstNodeChildren::new(&root);
+  let children: NodeChildren<rowan::SyntaxNode<TestLang>, TestLang> = NodeChildren::new(&root);
   let _cloned = children.clone();
 }
 
@@ -111,8 +110,7 @@ fn cst_node_children_by_kind() {
   let green = builder.finish();
   let root = rowan::SyntaxNode::<TestLang>::new_root(green);
 
-  let children: CstNodeChildren<rowan::SyntaxNode<TestLang>, TestLang> =
-    CstNodeChildren::new(&root);
+  let children: NodeChildren<rowan::SyntaxNode<TestLang>, TestLang> = NodeChildren::new(&root);
   let matching: Vec<_> = children.by_kind(|k| k == TestKind::Root).collect();
   assert_eq!(matching.len(), 1);
 }

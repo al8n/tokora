@@ -5437,7 +5437,7 @@ fn cache_transparency_known_divergences() {
 #[cfg(feature = "rowan")]
 mod cst_event_oracles {
   use super::*;
-  use crate::cst::{CstSink, event::Event};
+  use crate::cst::{Sink, event::Event};
 
   const K_ROOT: u16 = 1;
   const K_ERR: u16 = 90;
@@ -5521,12 +5521,12 @@ mod cst_event_oracles {
     }
   }
 
-  type EvtSink<'a> = CstSink<'a, LosslessBalLexer<'a>, MatrixEmitter>;
+  type EvtSink<'a> = Sink<'a, LosslessBalLexer<'a>, MatrixEmitter>;
   type EvtCtx<'a> = (EvtSink<'a>, DefaultCache<'a, LosslessBalLexer<'a>>);
   type EvtRef<'inp, 'c> = InputRef<'inp, 'c, LosslessBalLexer<'inp>, EvtCtx<'inp>, ()>;
 
   fn evt_sink<'a>(fatal_at: Option<SimpleSpan>) -> EvtSink<'a> {
-    CstSink::new(MatrixEmitter::new(fatal_at), map_ll, K_ERR, K_GAP)
+    Sink::new(MatrixEmitter::new(fatal_at), map_ll, K_ERR, K_GAP)
   }
 
   /// The committed spans of the buffered `Token` events, in order.

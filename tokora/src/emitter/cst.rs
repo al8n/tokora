@@ -23,7 +23,7 @@ use super::*;
 /// cannot see a provided-method override, so that shape is caught at the other end: a
 /// recording sink's `finish` **refuses** a balanced stream that builds structure without a
 /// single committed token over a nonempty source
-/// ([`StructureWithoutTokens`](crate::cst::CstFinishError::StructureWithoutTokens)) — a
+/// ([`StructureWithoutTokens`](crate::cst::FinishError::StructureWithoutTokens)) — a
 /// typed error, never a plausible gap-tiled tree. A wrapper must forward
 /// [`Emitter::commit_token`] alongside these methods.
 ///
@@ -37,7 +37,7 @@ use super::*;
 /// zero-cost bar is byte-identical machine code, held by the `__text`-hash standard); over a
 /// recording sink the same calls buffer the tree.
 ///
-/// The recording implementation is the `rowan`-gated `CstSink`, which buffers events under
+/// The recording implementation is the `rowan`-gated `Sink`, which buffers events under
 /// the one emitter checkpoint/rewind mark so backtracking rewinds the tree exactly as it
 /// rewinds diagnostics.
 ///
@@ -179,7 +179,7 @@ where
 
 // The shipped diagnostics-only emitters opt into the event channel with the defaulted
 // no-ops: one parser assembly can then bound `Ctx::Emitter: CstEmitter` and run tree-less
-// (today's behavior, zero cost) or tree-building (a `CstSink`) by configuration alone. The
+// (today's behavior, zero cost) or tree-building (a `Sink`) by configuration alone. The
 // wrapper-emitter trap this trait exists to close is untouched: a *wrapper* type gets no
 // blanket opt-in and must implement (and forward) the trait deliberately.
 

@@ -324,7 +324,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// moment the token settles (consumed, or skipped behind a scan frontier), from its two
   /// censused settle surfaces and nowhere else.
   ///
-  /// This is the auto-emission chokepoint of the CST channel: the recording `CstSink`
+  /// This is the auto-emission chokepoint of the CST channel: the recording `Sink`
   /// overrides it to record a `Token` event (mapping the token through its dialect-supplied
   /// mapper), which is what makes **every** consuming atom and combinator tree-producing
   /// with zero per-atom code — including the tokens a recovery sync or a trivia skip
@@ -346,7 +346,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// an empty tree. Forwarding the subtrait while inheriting this no-op severs the token
   /// channel invisibly at parse time; the recording sink's `finish` refuses that shape
   /// with a typed error
-  /// ([`StructureWithoutTokens`](crate::cst::CstFinishError::StructureWithoutTokens))
+  /// ([`StructureWithoutTokens`](crate::cst::FinishError::StructureWithoutTokens))
   /// rather than materializing a plausible gap-tiled tree.
   #[inline(always)]
   fn commit_token(&mut self, tok: &L::Token, span: &L::Span)

@@ -1,21 +1,21 @@
-use super::super::{CstElement, Language};
+use super::super::{Element, Language};
 use derive_more::{From, Into};
 use rowan::SyntaxToken;
 
 /// An error indicating a mismatch between expected and actual syntax token kinds.
 ///
-/// This error occurs when attempting to cast a [`SyntaxToken`] to a typed [`CstToken`](crate::cst::CstToken)
+/// This error occurs when attempting to cast a [`SyntaxToken`] to a typed [`Token`](crate::cst::Token)
 /// type, but the token's kind doesn't match the expected kind for that type. This is the
-/// token-equivalent of [`CstNodeMismatch`](super::CstNodeMismatch).
+/// token-equivalent of [`NodeMismatch`](super::NodeMismatch).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, Into)]
-pub struct CstTokenMismatch<N, Lang: Language> {
+pub struct TokenMismatch<N, Lang: Language> {
   found: SyntaxToken<Lang>,
   _m: core::marker::PhantomData<N>,
 }
 
-impl<N, Lang: Language> core::fmt::Display for CstTokenMismatch<N, Lang>
+impl<N, Lang: Language> core::fmt::Display for TokenMismatch<N, Lang>
 where
-  N: CstElement<Lang>,
+  N: Element<Lang>,
   Lang::Kind: core::fmt::Display,
 {
   #[inline]
@@ -29,17 +29,17 @@ where
   }
 }
 
-impl<N, Lang: Language> core::error::Error for CstTokenMismatch<N, Lang>
+impl<N, Lang: Language> core::error::Error for TokenMismatch<N, Lang>
 where
-  N: CstElement<Lang> + core::fmt::Debug,
+  N: Element<Lang> + core::fmt::Debug,
   Lang::Kind: core::fmt::Display,
 {
 }
 
-impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
+impl<N, Lang: Language> TokenMismatch<N, Lang> {
   /// Creates a new syntax token mismatch error.
   ///
-  /// This constructor is typically called by [`CstToken::try_cast_token()`](crate::cst::CstToken::try_cast_token)
+  /// This constructor is typically called by [`Token::try_cast_token()`](crate::cst::Token::try_cast_token)
   /// implementations when a cast fails. You rarely need to call this directly.
   #[inline]
   pub const fn new(found: SyntaxToken<Lang>) -> Self {
@@ -57,7 +57,7 @@ impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
   #[inline]
   pub const fn expected(&self) -> Lang::Kind
   where
-    N: CstElement<Lang>,
+    N: Element<Lang>,
   {
     N::KIND
   }
@@ -85,7 +85,7 @@ impl<N, Lang: Language> CstTokenMismatch<N, Lang> {
   #[inline]
   pub fn into_components(self) -> (Lang::Kind, SyntaxToken<Lang>)
   where
-    N: CstElement<Lang>,
+    N: Element<Lang>,
   {
     (N::KIND, self.found)
   }

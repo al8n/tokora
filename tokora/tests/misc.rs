@@ -24,13 +24,13 @@ macro_rules! ignored_parser {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // cst/cast.rs and cst/mod.rs
-// The cast::child and cast::children functions require CstNode which requires
+// The cast::child and cast::children functions require Node which requires
 // Syntax (a complex trait). The cast.rs functions are tested in inline unit
 // tests inside the file. We exercise the builder-based paths (which the file
-// already covers), plus CstNodeChildren and the source_string/clone variants
+// already covers), plus NodeChildren and the source_string/clone variants
 // which require a proper Syntax impl.
 //
-// We provide a minimal Syntax + CstNode impl to cover lines 474-475, 482-486,
+// We provide a minimal Syntax + Node impl to cover lines 474-475, 482-486,
 // 493-497, 551-552, and cast.rs 8-9, 17, 20.
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -38,7 +38,7 @@ macro_rules! ignored_parser {
 mod cst_coverage {
   use rowan::{GreenNodeBuilder, Language as RowanLanguage, SyntaxKind, SyntaxNode};
   use tokora::{
-    cst::{CstElement, CstNode, CstNodeChildren, SyntaxTreeBuilder, cast, error::CstNodeMismatch},
+    cst::{Element, Node, NodeChildren, SyntaxTreeBuilder, cast, error::NodeMismatch},
     syntax::Syntax,
     utils::{GenericArrayDeque, typenum::U0},
   };
@@ -114,21 +114,21 @@ mod cst_coverage {
     }
   }
 
-  impl CstElement<Lang> for InnerNode {
+  impl Element<Lang> for InnerNode {
     const KIND: K = K::Inner;
     fn castable(kind: K) -> bool {
       kind == K::Inner
     }
   }
 
-  impl CstNode<Lang> for InnerNode {
+  impl Node<Lang> for InnerNode {
     fn try_cast_node(
       syntax: SyntaxNode<Lang>,
     ) -> Result<Self, tokora::cst::error::SyntaxError<Self, Lang>> {
       if Self::castable(syntax.kind()) {
         Ok(Self(syntax))
       } else {
-        Err(CstNodeMismatch::new(syntax).into())
+        Err(NodeMismatch::new(syntax).into())
       }
     }
     fn syntax(&self) -> &SyntaxNode<Lang> {
@@ -207,9 +207,9 @@ mod cst_coverage {
 
   #[test]
   fn cst_node_children_iterator_next() {
-    // Covers cst/mod.rs lines 551-552: CstNodeChildren::next()
+    // Covers cst/mod.rs lines 551-552: NodeChildren::next()
     let root = make_nested();
-    let mut iter: CstNodeChildren<InnerNode, Lang> = cast::children::<InnerNode, Lang>(&root);
+    let mut iter: NodeChildren<InnerNode, Lang> = cast::children::<InnerNode, Lang>(&root);
     let first = iter.next();
     let second = iter.next();
     let third = iter.next();
@@ -232,7 +232,7 @@ mod cst_coverage {
 
   #[test]
   fn cst_node_text_method() {
-    // Covers cst/mod.rs lines 432, 436: CstToken::text()
+    // Covers cst/mod.rs lines 432, 436: Token::text()
     // (exercised via SyntaxNode::to_string which calls token text internally)
     let root = make_nested();
     let s = root.to_string();

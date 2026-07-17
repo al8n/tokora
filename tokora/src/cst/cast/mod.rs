@@ -1,11 +1,11 @@
-use super::{CstNode, CstNodeChildren, Language, SyntaxNode};
+use super::{Language, Node, NodeChildren, SyntaxNode};
 
 /// Returns the first child of a specific typed node type.
 ///
 /// Searches through the children of the parent node and returns the first child
 /// that can be successfully cast to the specified node type `N`.
 #[inline]
-pub fn child<N: CstNode<Lang>, Lang: Language>(parent: &SyntaxNode<Lang>) -> Option<N> {
+pub fn child<N: Node<Lang>, Lang: Language>(parent: &SyntaxNode<Lang>) -> Option<N> {
   parent.children().find_map(|t| N::try_cast_node(t).ok())
 }
 
@@ -14,10 +14,8 @@ pub fn child<N: CstNode<Lang>, Lang: Language>(parent: &SyntaxNode<Lang>) -> Opt
 /// Iterates through all children of the parent node, yielding only those that
 /// can be successfully cast to the specified node type `N`.
 #[inline]
-pub fn children<N: CstNode<Lang>, Lang: Language>(
-  parent: &SyntaxNode<Lang>,
-) -> CstNodeChildren<N, Lang> {
-  CstNodeChildren::new(parent)
+pub fn children<N: Node<Lang>, Lang: Language>(parent: &SyntaxNode<Lang>) -> NodeChildren<N, Lang> {
+  NodeChildren::new(parent)
 }
 
 /// Returns the first token child with the specified syntax kind.
