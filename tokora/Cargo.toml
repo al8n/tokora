@@ -189,6 +189,28 @@ name = "c_expression"
 path = "examples/c_expression.rs"
 required-features = ["std", "logos"]
 
+# Lossless-CST twins of the four examples above: each parses the same grammar as its twin but
+# builds a rowan concrete syntax tree through a `cst::Sink`, so it needs `rowan` as well.
+[[example]]
+name = "calculator_cst"
+path = "examples/calculator_cst.rs"
+required-features = ["std", "logos", "rowan"]
+
+[[example]]
+name = "s_expression_cst"
+path = "examples/s_expression_cst.rs"
+required-features = ["std", "logos", "rowan"]
+
+[[example]]
+name = "json_cst"
+path = "examples/json_cst.rs"
+required-features = ["std", "logos", "rowan"]
+
+[[example]]
+name = "c_expression_cst"
+path = "examples/c_expression_cst.rs"
+required-features = ["std", "logos", "rowan"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
