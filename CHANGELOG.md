@@ -55,9 +55,12 @@
   guard. Advisory and observably pure; the stateless and value-keyed emitters (`Fatal`,
   `Silent`, `Ignored`, `Verbose`) inherit the no-op default.
 
-- **smol-bytes source support** (feature `smol_bytes_0_1`, alias `smol_bytes`, std-gated).
+- **smol-bytes source support** (feature `smol_bytes_0_1`, alias `smol_bytes`).
   `Source` and `Slice` implementations for the `smol-bytes` crate's `shared::Bytes`,
-  `compact::Bytes`, and `Utf8Bytes` buffers.
+  `compact::Bytes`, and `Utf8Bytes` buffers. Sits on the same tier as the other byte
+  backends — it implies neither `std` nor `alloc` in tokora and works on `no_std`; it
+  enables smol-bytes' own `alloc` feature and requires smol-bytes ≥ 0.1.2 (the first
+  `rlib`-only release with an `alloc` tier).
 
 - **`SliceOf<'inp, L>`** — a type alias naming a lexer's source-slice path once, so bounds and
   return types carrying the slice stay legible.

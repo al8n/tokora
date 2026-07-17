@@ -125,7 +125,7 @@ also compile together with `cargo test -p tokora --no-default-features --feature
 | `hipstr` | Alias for `hipstr_0_8`. |
 | `hipstr_0_8` | Enables `hipstr@0.8` source support. |
 | `smol_bytes` | Alias for `smol_bytes_0_1`. |
-| `smol_bytes_0_1` | Enables `smol-bytes@0.1` source support; implies `std`. |
+| `smol_bytes_0_1` | Enables `smol-bytes@0.1` source support (smol-bytes ≥ 0.1.2). |
 | `smallvec` | Alias for `smallvec_1`. |
 | `smallvec_1` | Enables `smallvec@1` containers and implies `alloc`. |
 | `heapless` | Alias for `heapless_0_9`. |
@@ -137,8 +137,8 @@ Feature aliases select their versioned counterpart; versioned features make the 
 optional dependency available. One Logos version is normally sufficient, though multiple versioned
 integrations may coexist. When several are enabled, the unversioned
 `tokora::lexer::LogosLexer` selects 0.16, then 0.15, then 0.14. `tokora::logos` is available only
-with `logos_0_16` and re-exports that version. `rowan` does not enable `logos`, `smallvec_1`
-is the versioned feature that adds `alloc`, and `smol_bytes_0_1` — like `rowan` — implies `std`.
+with `logos_0_16` and re-exports that version. `rowan` does not enable `logos`, and `smallvec_1`
+is the versioned feature that adds `alloc`.
 
 ## Platform support
 
