@@ -14,7 +14,7 @@
 //! | E3 | [`CstSink::ledger`] | **monotone era source + truncation witness** | rewind APPENDS to it (a rewind *is* a truncation) and never removes; rewinding it would false-accept a stale mark |
 //! | E4 | [`CstSink::rows`] | **release stack + per-checkpoint depth ledger + inner reading** | push at `checkpoint()` (freezing the depth and the inner emitter's own checkpoint reading), pop at `release()` (kept) and `rewind()` (spent, the popped row's inner reading is the inner's rewind target); depth entries are frozen facts about prefixes, never live counters |
 //! | — | [`CstSink::floor`] | derived memo (the newest released row) | reset to the surviving top row when a rewind drops below it |
-//! | — | [`CstSink::base_inner`] | derived memo (the inner's reading at first use) | captured once, never restored |
+//! | — | [`CstSink::base_inner`] | derived memo (the inner's construction-time reading) | primed at the first advancing touch (provably the construction reading), never restored |
 //! | — | `inner`, `mapper`, `error_kind`, `gap_kind`, `trivia` | configuration / the wrapped emitter | never touched by rewind (the inner rewinds through its own contract) |
 //! | — | `witness` | sink identity (validated at every mark spend, every build) | never restored |
 //!
@@ -104,13 +104,18 @@ struct MarkRow {
   /// resource on the row, so `release` (which also pops the row) leaks no inner checkpoint.
   /// The mechanism assumes a **value-keyed** inner: `checkpoint` a pure monotone reading,
   /// `rewind` a drop-by-value, and `release` a no-op — the `Verbose`/token-tracking shape.
-  /// (A table-keyed inner that allocated per `checkpoint` was already unsupported pre-fix,
-  /// since `forward_diag` calls `inner.checkpoint()` per diagnostic with no matching release.)
+  /// (A table-keyed inner that allocated per `checkpoint` was already unsupported pre-fix:
+  /// `forward_diag` then captured `inner.checkpoint()` per diagnostic with no matching
+  /// release.) See the *Inner-emitter contract* section on [`CstSink`].
   inner: u64,
 }
 
 impl MarkRow {
   /// The empty-buffer baseline: depth 0 at length 0, inner at its base reading 0.
+  ///
+  /// Floor sentinel only — the floor's `inner` is never a rewind target (the no-row fallback
+  /// is `base_inner`), so the 0 here stays inert even for a reused inner whose construction
+  /// reading is nonzero.
   const ZERO: Self = Self {
     mark: 0,
     depth: 0,
@@ -193,6 +198,30 @@ fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
 /// ([`finish`](Self::finish) / [`finish_partial`](Self::finish_partial)) consumes the sink
 /// and returns the inner emitter with the tree.
 ///
+/// # Inner-emitter contract: value-keyed checkpoint readings
+///
+/// The sink composes with its wrapped emitter through checkpoint *readings*, never mark
+/// *resources*: [`checkpoint`](Emitter::checkpoint) captures `inner.checkpoint()` onto the
+/// mark-stack row as a plain `u64` fact, [`rewind`](Emitter::rewind) hands a captured reading
+/// back to `inner.rewind`, and [`release`](Emitter::release) pops the sink's own row **without
+/// forwarding** — the inner is never told about kept branches. The wrapped emitter must
+/// therefore be **value-keyed**, the trait's reference shape
+/// ([`Verbose`](crate::emitter::Verbose), [`Fatal`](crate::emitter::Fatal),
+/// [`Silent`](crate::emitter::Silent), [`Ignored`](crate::utils::marker::Ignored), and every
+/// `Verbose`-shaped collector): `checkpoint` is a pure monotone reading of the emission state
+/// (no per-call allocation), `rewind` restores by value — reclaiming everything above the
+/// mark as a range — and `release` needs nothing forwarded, because a kept reading is just a
+/// number going out of scope. The reading is a fact about the inner's one emission timeline,
+/// whichever `Lang` instantiation reads it (the trait's one-timeline law).
+///
+/// A table-keyed emitter — one that allocates per-`checkpoint` bookkeeping behind interior
+/// mutability and reclaims it per-`release` — is **not supported as the inner**: the sink
+/// re-spends its base reading across no-row rewinds, drops row readings above a rewound
+/// target by value, and settles rows out of stack order under mixed raw use, all of which
+/// presuppose readings. Such an emitter belongs at the input layer's direct seam, where the
+/// settle discipline is 1:1 — the sink's own mark stack is exactly that shape, and the input
+/// layer does release it.
+///
 /// # Construction
 ///
 /// [`new`](Self::new) takes the wrapped emitter, the dialect's token mapper
@@ -224,11 +253,14 @@ where
   floor: MarkRow,
   /// E3 — the monotone era source and truncation witness backing mark validation.
   ledger: TruncationLedger,
-  /// The inner emitter's reading at first capture — the rewind recovery value when no
-  /// mark-stack row sits at the target (the undisciplined raw case). Captured lazily, not
-  /// at construction: `commit_token` advances the inner on every committed token without
-  /// priming this field, so the captured reading can postdate construction by however many
-  /// tokens were forwarded first.
+  /// The inner emitter's **construction-time** reading — the rewind recovery value when no
+  /// mark-stack row sits at the target (the undisciplined raw case). Primed at the first
+  /// inner-advancing touch (a forwarded diagnostic or a settled token; the rewind fallback
+  /// reads it the same way), which provably equals the reading at [`new`](Self::new): the sink
+  /// exposes no `&mut` path to the inner, so the inner cannot advance before the sink's own
+  /// first advancing call — and every advancing surface primes this field before forwarding.
+  /// (The capture is lazy only to keep the constructor free of emitter bounds: `Emitter` is
+  /// `Lang`-parameterized and the built-in emitters implement it for exactly one `Lang`.)
   base_inner: Option<u64>,
   /// The dialect's token mapper into the unified u16 kind space.
   mapper: fn(&L::Token) -> u16,
@@ -284,7 +316,8 @@ where
     floor: _,
     // — E3, monotone era source + truncation witness: NEVER rewound.
     ledger: _,
-    // — derived memo: captured once at first use, never restored.
+    // — derived memo: the inner's construction-time reading, primed at first advancing touch,
+    // never restored.
     base_inner: _,
     // — configuration: fixed for the sink's life.
     mapper: _,
@@ -591,13 +624,13 @@ impl<'inp, L, E> CstSink<'inp, L, E>
 where
   L: Lexer<'inp>,
 {
-  /// The inner emitter's reading at first capture — the no-row rewind fallback used only
-  /// when no mark-stack row sits at the rewind mark. Lazy on purpose, but lazy no longer
-  /// means construction-time: `commit_token` advances the inner on every committed token
-  /// without priming this field, so whatever runs before the first forwarded diagnostic (or
-  /// the first no-row rewind) can leave the captured reading postdating construction.
-  /// Capturing here — instead of at construction — still keeps the constructor free of
-  /// emitter bounds.
+  /// The inner emitter's construction-time reading — the no-row rewind fallback used only
+  /// when no mark-stack row sits at the rewind mark. Primed at the first **advancing** touch:
+  /// `forward_diag` (emissions) and `commit_token` (settles) both prime before forwarding, and
+  /// those two are the sink's only inner-advancing surfaces (labels are scope state that never
+  /// moves a checkpoint reading, by the trait's label law). Whenever this value is read it
+  /// therefore equals the reading `inner.checkpoint()` returned at construction; laziness
+  /// exists only to keep the constructor free of emitter bounds, not to let the base drift.
   fn base_inner_mark<Lang>(&mut self) -> u64
   where
     Lang: ?Sized,
@@ -626,7 +659,8 @@ where
   /// The inner emitter's rewind reading is captured on the mark-stack row at
   /// [`checkpoint`](Emitter::checkpoint), not here — a forwarded diagnostic advances the
   /// inner but records no rewind target of its own. This helper still primes `base_inner`
-  /// (the no-row rewind fallback) before the first forwarded emission.
+  /// before the first forwarded emission; `commit_token` does the same for settles — together
+  /// the two advancing surfaces pin the base to the construction-time reading.
   ///
   /// Every `emit_*` of every implemented emitter trait calls this; none touches
   /// `self.inner` directly. The source census test locks the discipline.
@@ -781,9 +815,10 @@ where
       self.ledger.record_truncation(mark);
     }
 
-    // The inner rewinds to the target row's captured reading; `base` (the inner's first-op
-    // reading) is the bounded fallback only when no row sits at the mark (undisciplined raw
-    // use). On every disciplined path the target row is live and carries the true reading.
+    // The inner rewinds to the target row's captured reading; `base` (the inner's
+    // construction-time reading) is the bounded fallback only when no row sits at the mark
+    // (undisciplined raw use). On every disciplined path the target row is live and carries
+    // the true reading.
     let inner_mark = target_inner.unwrap_or(base);
     self.inner.rewind(cursor, inner_mark);
   }
@@ -798,6 +833,10 @@ where
   where
     L: Lexer<'inp>,
   {
+    // The base reading must predate the first settle the inner observes — the settle-side
+    // twin of forward_diag's prime. Whichever advancing surface fires first freezes the
+    // inner's construction-time reading (see base_inner_mark).
+    let _ = self.base_inner_mark::<Lang>();
     self.record_token(tok, span);
     self.inner.commit_token(tok, span);
   }
@@ -810,6 +849,11 @@ where
   /// depth recounts short across commit-heavy loops. Marks arrive newest-first on the
   /// crate's paths (O(1) top pop); a mark already gone is a no-op, per the trait's
   /// advisory contract.
+  ///
+  /// The row's captured inner reading is deliberately **not** forwarded to `inner.release` —
+  /// it is a plain value, not an inner-side resource (see *Inner-emitter contract* on the
+  /// type); the forward census pins `self.inner.release` at zero so any future forwarding
+  /// change must rewrite the contract deliberately.
   fn release(&mut self, checkpoint: u64) {
     let rows = self.rows.get_mut();
     let row = if rows.last().map(|row| row.mark) == Some(checkpoint) {
@@ -864,6 +908,9 @@ where
   where
     L: Lexer<'inp>,
   {
+    // Raw transport records the event only — a *settle* reaches the inner through
+    // [`Emitter::commit_token`]; forwarding here would fabricate a settle the input layer
+    // never made (exactly-once law).
     self.record_token(tok, span);
   }
 

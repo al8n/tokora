@@ -804,8 +804,8 @@ fn cst_forward_census_one_helper_carries_every_channel() {
   );
 
   // No emit bypasses the helper: the only `self.inner` touches are the helper's own
-  // closure seam, the two label scope calls, the rewind recovery, and the read-only
-  // reaches (base reading, accessor, Debug).
+  // closure seam, the settle forward (`commit_token`), the two label scope calls, the
+  // rewind recovery, and the read-only reaches (base reading, accessor, Debug).
   assert!(
     count(src, "self.inner.emit") == 0,
     "CST_FORWARD_CENSUS drift: a diagnostic is forwarded outside the census helper"
@@ -819,6 +819,132 @@ fn cst_forward_census_one_helper_carries_every_channel() {
     count(src, "self.inner.enter_label(") == 1 && count(src, "self.inner.exit_label(") == 1,
     "CST_FORWARD_CENSUS drift: labels forward directly (scope state, not emissions) — \
      exactly once each"
+  );
+
+  // The settle channel forwards exactly once, and only from `commit_token`.
+  assert!(
+    count(src, "self.inner.commit_token(") == 1,
+    "CST_FORWARD_CENSUS drift: the settle channel forwards exactly once, in \
+     Emitter::commit_token (cst_token is raw event transport and must NOT fabricate a settle)"
+  );
+  // Option A: the sink NEVER forwards release — inner checkpoints are value-keyed readings.
+  assert!(
+    count(src, "self.inner.release") == 0,
+    "CST_FORWARD_CENSUS drift: the sink never forwards release — inner checkpoints are \
+     value-keyed READINGS needing no reclamation (see the Inner-emitter contract on CstSink). \
+     Forwarding would deliver duplicate and out-of-LIFO releases under raw mixes."
+  );
+  // The inner's reading is captured in exactly two places: the mark-stack row and the base.
+  assert!(
+    count(src, "self.inner.checkpoint()") == 1 && count(src, "checkpoint(&self.inner)") == 1,
+    "CST_FORWARD_CENSUS drift: the inner's reading is captured in exactly two places — the \
+     mark-stack row (sink checkpoint) and the base prime (base_inner_mark)"
+  );
+  // Every inner-advancing surface primes the base first: forward_diag + commit_token, plus
+  // the rewind fallback read = 3.
+  assert!(
+    count(src, "self.base_inner_mark") == 3,
+    "CST_FORWARD_CENSUS drift: every inner-advancing surface primes the base first — \
+     forward_diag (emissions) and commit_token (settles) — plus the rewind fallback read"
+  );
+}
+
+/// CST_COMPOSITION_CENSUS — the R3-class tripwire: every method of the emitter trait family
+/// must be OVERRIDDEN by `CstSink`, never left to a trait default. A defaulted inherit
+/// silently severs that channel for wrapped inners (exactly how the `commit_token` R3 gap
+/// happened). Two halves: (a) every one of the 27 inventory names appears as an impl in
+/// sink.rs; (b) drift tripwires on the trait definitions, so any NEW family method forces a
+/// classification (override + forward, or a documented inherit) in the same commit.
+///
+/// GREEN at 123f840 — the audit's proof that beyond Findings 1 and 2 no third per-method gap
+/// exists — and it stays as the permanent tripwire.
+#[test]
+fn cst_composition_census_every_family_method_is_overridden() {
+  let src = include_str!("../sink.rs");
+
+  // (a) The 27-method inventory: 11 core Emitter + 5 CstEmitter + 11 capability emit_*.
+  // Each must appear as an `fn <name>` impl in the sink; a missing one is a severed channel.
+  let overridden = [
+    // 11 core Emitter
+    "emit_lexer_error",
+    "emit_unexpected_token",
+    "emit_error",
+    "emit_warning",
+    "emit_skipped_region",
+    "checkpoint",
+    "rewind",
+    "release",
+    "commit_token",
+    "enter_label",
+    "exit_label",
+    // 5 CstEmitter
+    "cst_start",
+    "cst_token",
+    "cst_finish",
+    "cst_mark",
+    "cst_start_at",
+    // 11 capability emit_*
+    "emit_too_few",
+    "emit_too_many",
+    "emit_full_container",
+    "emit_missing_separator",
+    "emit_missing_element",
+    "emit_missing_leading_separator",
+    "emit_missing_trailing_separator",
+    "emit_unexpected_leading_separator",
+    "emit_unexpected_trailing_separator",
+    "emit_unexpected_end_of_lhs",
+    "emit_unexpected_end_of_rhs",
+  ];
+  assert_eq!(
+    overridden.len(),
+    27,
+    "the family inventory is 11 core + 5 CstEmitter + 11 capability = 27"
+  );
+  for name in overridden {
+    assert!(
+      count(src, &std::format!("fn {name}")) >= 1,
+      "CST_COMPOSITION_CENSUS: CstSink does not override `{name}` — a defaulted inherit \
+       silently severs that channel for wrapped inners (the R3 class)"
+    );
+  }
+
+  // (b) Drift tripwires pinning the trait definitions: a NEW family method bumps one of these
+  // counts and forces its classification (override + forward, or a documented inherit) here.
+  let core = include_str!("../../emitter/mod.rs");
+  let trait_body = &core[core.find("pub trait Emitter<").unwrap()
+    ..core.find("impl<'a, L, U, Lang: ?Sized> Emitter").unwrap()];
+  assert_eq!(
+    count(trait_body, "  fn "),
+    11,
+    "core Emitter method count drifted: classify the new method (override + forward, or a \
+     documented inherit) and update this census"
+  );
+  let cst = include_str!("../../emitter/cst.rs");
+  let cst_body = &cst[cst.find("pub trait CstEmitter<").unwrap()..cst.find("for &mut U").unwrap()];
+  assert_eq!(
+    count(cst_body, "  fn "),
+    5,
+    "CstEmitter method count drifted"
+  );
+  let cap_total: usize = [
+    include_str!("../../emitter/pratt.rs"),
+    include_str!("../../emitter/repeated/too_few.rs"),
+    include_str!("../../emitter/repeated/too_many.rs"),
+    include_str!("../../emitter/repeated/full_container.rs"),
+    include_str!("../../emitter/separated/mod.rs"),
+    include_str!("../../emitter/separated/missing_leading.rs"),
+    include_str!("../../emitter/separated/missing_trailing.rs"),
+    include_str!("../../emitter/separated/unexpected_leading.rs"),
+    include_str!("../../emitter/separated/unexpected_trailing.rs"),
+  ]
+  .iter()
+  .map(|src| count(src, "fn emit_"))
+  .sum();
+  assert_eq!(
+    cap_total, 22,
+    "capability trait surface drifted (11 methods x trait def + &mut blanket): classify the \
+     new channel in CstSink and update this census"
   );
 }
 
@@ -1891,5 +2017,33 @@ fn decline_rewinds_inner_to_checkpoint_reading_across_diag() {
     std::vec![JEntry::Token, JEntry::Diag, JEntry::Token],
     "the inner must be rewound to its checkpoint reading: a, the crossed diag, and b all \
      survive — the diag-slot derivation dropped the b forwarded after the diagnostic"
+  );
+}
+
+/// REGRESSION (R4 finding 2): the no-row base rewind must restore the inner to its
+/// construction-time reading even when settled TOKENS were the only forwards. Pre-fix,
+/// `commit_token` advanced the inner without priming the base, so the no-row rewind captured a
+/// post-token reading and the inner retained tokens the sink log dropped — a one-timeline
+/// shear on the raw fallback path.
+#[test]
+fn no_row_base_rewind_restores_the_construction_reading() {
+  let mut sink: JournalingSink<'_> =
+    CstSink::new(JournalingEmitter::default(), map_tok, K_ERR, K_GAP);
+
+  // One settled token, forwarded to the inner — and no checkpoint ever captured.
+  Emitter::<MiniLexer<'_>>::commit_token(&mut sink, &MiniTok(b'a'), &span(0, 1));
+  assert_eq!(sink.inner_ref().journal, std::vec![JEntry::Token]);
+  assert_eq!(sink.events().len(), 1);
+
+  // A raw rewind to the origin finds no mark-stack row: the base fallback fires.
+  let origin = 0usize;
+  Emitter::<MiniLexer<'_>>::rewind(&mut sink, Cursor::from_ref(&origin), 0);
+
+  assert_eq!(sink.events().len(), 0, "the sink log drops the token");
+  assert_eq!(
+    sink.inner_ref().journal.len(),
+    0,
+    "the inner returns to its construction-time reading — it must not retain tokens the \
+     sink log dropped"
   );
 }
