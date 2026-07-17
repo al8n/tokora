@@ -445,12 +445,12 @@ comments) at the lexer level, or **surface** it as real tokens?
   error, none silently discarded.
 
 A **lossless CST** (see [`crate::cst`] and the lossless-CST chapter) needs the surfacing lexer: its
-gap-filling [`CstSink`](crate::cst::CstSink) tiles the whole source, and a skipped-trivia gap is
+gap-filling [`cst::Sink`](crate::cst::Sink) tiles the whole source, and a skipped-trivia gap is
 indistinguishable at the event level from a *dropped token*. So the lossless
-([`gap_kind`](crate::cst::CstSink::new)) sink **refuses at compile time** to be built over a lexer
+([`gap_kind`](crate::cst::Sink::new)) sink **refuses at compile time** to be built over a lexer
 that does not declare `SURFACES_TRIVIA` — the guarantee is enforced, not hoped for. (Declaring
 `true` while still skipping is a contract violation surfaced as
-[`CstFinishError::UncoveredGap`](crate::cst::CstFinishError::UncoveredGap), never UB.)
+[`cst::FinishError::UncoveredGap`](crate::cst::FinishError::UncoveredGap), never UB.)
 
 Here is the config vocabulary rebuilt to surface trivia — the shape a lossless parse requires:
 

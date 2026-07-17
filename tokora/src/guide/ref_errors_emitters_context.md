@@ -262,7 +262,7 @@ trait ComposableEmitter<'inp, L, Lang = ()>:
 its methods have no-op defaults (so `Fatal`/`Verbose`/`Silent` are `CstEmitter` for free and run
 tree-less at zero cost), but a CST-producing parse path bounds `Ctx::Emitter: CstEmitter` so a
 non-forwarding wrapper is a compile error rather than a silently empty tree. The recording
-implementation is the `rowan`-gated `CstSink`; see [`crate::cst`] and the
+implementation is the `rowan`-gated `cst::Sink`; see [`crate::cst`] and the
 [lossless-CST material](crate::parser::node).
 
 ### Built-in emitters
@@ -273,7 +273,7 @@ implementation is the `rowan`-gated `CstSink`; see [`crate::cst`] and the
 | [`Verbose<E, S=SimpleSpan, Lang=()>`](crate::emitter::Verbose) | `E` | records every diagnostic, span-keyed, and continues | a human reads the output (compiler, IDE) — needs `std`/`alloc` |
 | [`Silent<E, Lang=()>`](crate::emitter::Silent) | `E` | drops every diagnostic; keeps the error type | best-effort parse where diagnostics are unwanted |
 | [`Ignored`](crate::emitter::Ignored) | `()` | drops everything; the error type collapses to `()` | you want the value, never the errors |
-| `CstSink` (`rowan`) | inner's | a tree-building emitter: buffers CST events on the rewind timeline, forwarding diagnostics to an inner emitter | building a lossless syntax tree ([`crate::cst`]) |
+| `cst::Sink` (`rowan`) | inner's | a tree-building emitter: buffers CST events on the rewind timeline, forwarding diagnostics to an inner emitter | building a lossless syntax tree ([`crate::cst`]) |
 
 `Fatal` and `Silent` are stateless (`Fatal::new()`, `Silent::new()`); `Verbose::new()` starts an
 empty collection. A custom emitter implements the base [`Emitter`](crate::Emitter) plus whichever

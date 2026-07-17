@@ -207,7 +207,7 @@ always.
 ## Composing with a tree-building emitter
 
 The one-timeline promise has to survive one more composition: the lossless CST. When a parse builds
-a tree, committed tokens and structure flow to a recording emitter — a [`CstSink`](crate::cst::CstSink)
+a tree, committed tokens and structure flow to a recording emitter — a [`cst::Sink`](crate::cst::Sink)
 wrapping an inner diagnostics emitter — through the same
 [`Emitter::commit_token`](crate::Emitter::commit_token) hook the engine chapter named. The sink
 buffers a second log (the event stream) *and* forwards every diagnostic to its inner emitter, and
@@ -376,6 +376,6 @@ The checkpoint is one of the four seams Part III opens onto the same engine:
   [`release`](crate::Emitter::release) trio this chapter leaned on, and how `Fatal` / `Verbose` /
   `Silent` get their rewind behavior: the forthcoming Atomic Emitter chapter.
 - **How committed tokens become a lossless tree** — the [`CstEmitter`](crate::emitter::CstEmitter)
-  hook and the [`cst`](crate::cst) event stream the [`CstSink`](crate::cst::CstSink) buffers and
+  hook and the [`cst`](crate::cst) event stream the [`cst::Sink`](crate::cst::Sink) buffers and
   rewinds under this chapter's mark: the forthcoming event-stream CST chapter, which is where the
   value-keyed-inner composition sketched above is developed in full.
