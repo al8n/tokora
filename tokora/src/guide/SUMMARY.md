@@ -34,3 +34,4 @@
 # Part V — Reference
 
 - [Combinator & atom reference](ref_combinators.md)
+- [Errors, emitters & context reference](ref_errors_emitters_context.md)

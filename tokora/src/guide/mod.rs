@@ -79,3 +79,7 @@ pub mod ch16_lossless_cst {
 pub mod ref_combinators {
   #![doc = include_str!("ref_combinators.md")]
 }
+
+pub mod ref_errors_emitters_context {
+  #![doc = include_str!("ref_errors_emitters_context.md")]
+}
