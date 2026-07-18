@@ -19,7 +19,11 @@
 //!
 //! Every shape has an **attempt twin** — [`try_delimited`], [`try_parens`], [`try_braces`],
 //! [`try_brackets`], [`try_angles`] — that declines (`Ok(None)`, zero consumption) **iff
-//! the opener is absent**: the next token is not the opener, or the input is at its end.
+//! the opener is definitely absent**: the next valid token is not the opener (it stays
+//! unconsumed), or the input has genuinely ended. A **terminal stop** at the would-be
+//! opener — a resource-limit trip, fresh or already latched — is *neither*: it is not
+//! evidence the opener is absent, so the attempt does not decline; it fails with the same
+//! end-of-input error the committed form raises there.
 //! The moment the opener is consumed the parse is committed, and every later error
 //! propagates exactly as the committed form's. The attempt boundary is deliberately the
 //! opener alone, never the whole shape — see [`try_delimited`] for why.
@@ -250,11 +254,16 @@ pub type TryDelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// The attempt twin of [`delimited`]: tries to commit the `D` opener and, if it is next,
 /// parses the rest of the construct exactly as [`delimited`] does.
 ///
-/// Declines — `Ok(None)`, zero consumption — **iff the opener is absent**: the next token
-/// is not the `D` opener, or the input is at its end (the same end-of-input decline the
-/// other `try_` atoms make). The moment the opener is consumed the parse is **committed**:
-/// `inner`'s errors and the missing/wrong-closer errors propagate exactly as
-/// [`delimited`]'s do, so an unterminated group is an error, never a silent decline.
+/// Declines — `Ok(None)`, zero consumption — **iff the opener is definitely absent**: the
+/// next valid token is not the `D` opener (it stays unconsumed), or the input has
+/// genuinely ended. A **terminal stop** at the would-be opener — a resource-limit trip,
+/// fresh or already latched — is *neither*: it is not evidence the opener is absent, so
+/// the attempt does not decline. It fails instead with the same end-of-input error the
+/// committed form raises there (the trip's own diagnostic having already reached the
+/// emitter), so an optional construct can never be silently skipped because the lexer was
+/// stopped rather than satisfied. The moment the opener is consumed the parse is
+/// **committed**: `inner`'s errors and the missing/wrong-closer errors propagate exactly
+/// as [`delimited`]'s do, so an unterminated group is an error, never a silent decline.
 ///
 /// This is deliberately not `opt(delimited(inner))`: a whole-shape attempt would swallow
 /// an unclosed-delimiter error into a decline — for a generics-like grammar, `Ident<` at
@@ -369,7 +378,7 @@ where
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
-    let open_span = match inp.try_expect(|tok| D::is_open(&tok.data.kind()))? {
+    let open_span = match inp.try_expect_or_stop(|tok| D::is_open(&tok.data.kind()))? {
       Some(sp) => sp.into_span(),
       None => return Ok(None),
     };
@@ -541,9 +550,14 @@ pub type TryParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// The attempt twin of [`parens`]: tries to commit the `(` opener and, if it is next,
 /// parses the rest of the group exactly as [`parens`] does.
 ///
-/// Declines — `Ok(None)`, zero consumption — **iff the opener is absent**: the next token
-/// is not `(`, or the input is at its end (the same end-of-input decline the other `try_`
-/// atoms make). The moment the `(` opener is consumed the parse is **committed**:
+/// Declines — `Ok(None)`, zero consumption — **iff the opener is definitely absent**: the
+/// next valid token is not `(` (it stays unconsumed), or the input has genuinely ended. A
+/// **terminal stop** at the would-be opener — a resource-limit trip, fresh or already
+/// latched — is *neither*: it is not evidence the opener is absent, so the attempt does
+/// not decline. It fails instead with the same end-of-input error the committed form
+/// raises there (the trip's own diagnostic having already reached the emitter), so an
+/// optional construct can never be silently skipped because the lexer was stopped rather
+/// than satisfied. The moment the `(` opener is consumed the parse is **committed**:
 /// `inner`'s errors and the missing/wrong `)` closer's errors propagate exactly as
 /// [`parens`]' do, so an unterminated `( …` is an error, never a silent decline (see
 /// [`try_delimited`] for why the attempt boundary is the opener alone).
@@ -818,9 +832,14 @@ pub type TryBracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// The attempt twin of [`braces`]: tries to commit the `{` opener and, if it is next,
 /// parses the rest of the group exactly as [`braces`] does.
 ///
-/// Declines — `Ok(None)`, zero consumption — **iff the opener is absent**: the next token
-/// is not `{`, or the input is at its end (the same end-of-input decline the other `try_`
-/// atoms make). The moment the `{` opener is consumed the parse is **committed**:
+/// Declines — `Ok(None)`, zero consumption — **iff the opener is definitely absent**: the
+/// next valid token is not `{` (it stays unconsumed), or the input has genuinely ended. A
+/// **terminal stop** at the would-be opener — a resource-limit trip, fresh or already
+/// latched — is *neither*: it is not evidence the opener is absent, so the attempt does
+/// not decline. It fails instead with the same end-of-input error the committed form
+/// raises there (the trip's own diagnostic having already reached the emitter), so an
+/// optional construct can never be silently skipped because the lexer was stopped rather
+/// than satisfied. The moment the `{` opener is consumed the parse is **committed**:
 /// `inner`'s errors and the missing/wrong `}` closer's errors propagate exactly as
 /// [`braces`]' do, so an unterminated `{ …` is an error, never a silent decline (see
 /// [`try_delimited`] for why the attempt boundary is the opener alone).
@@ -1096,9 +1115,14 @@ pub type TryBracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// The attempt twin of [`brackets`]: tries to commit the `[` opener and, if it is next,
 /// parses the rest of the group exactly as [`brackets`] does.
 ///
-/// Declines — `Ok(None)`, zero consumption — **iff the opener is absent**: the next token
-/// is not `[`, or the input is at its end (the same end-of-input decline the other `try_`
-/// atoms make). The moment the `[` opener is consumed the parse is **committed**:
+/// Declines — `Ok(None)`, zero consumption — **iff the opener is definitely absent**: the
+/// next valid token is not `[` (it stays unconsumed), or the input has genuinely ended. A
+/// **terminal stop** at the would-be opener — a resource-limit trip, fresh or already
+/// latched — is *neither*: it is not evidence the opener is absent, so the attempt does
+/// not decline. It fails instead with the same end-of-input error the committed form
+/// raises there (the trip's own diagnostic having already reached the emitter), so an
+/// optional construct can never be silently skipped because the lexer was stopped rather
+/// than satisfied. The moment the `[` opener is consumed the parse is **committed**:
 /// `inner`'s errors and the missing/wrong `]` closer's errors propagate exactly as
 /// [`brackets`]' do, so an unterminated `[ …` is an error, never a silent decline (see
 /// [`try_delimited`] for why the attempt boundary is the opener alone).
@@ -1375,9 +1399,14 @@ pub type TryAnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// The attempt twin of [`angles`]: tries to commit the `<` opener and, if it is next,
 /// parses the rest of the group exactly as [`angles`] does.
 ///
-/// Declines — `Ok(None)`, zero consumption — **iff the opener is absent**: the next token
-/// is not `<`, or the input is at its end (the same end-of-input decline the other `try_`
-/// atoms make). The moment the `<` opener is consumed the parse is **committed**:
+/// Declines — `Ok(None)`, zero consumption — **iff the opener is definitely absent**: the
+/// next valid token is not `<` (it stays unconsumed), or the input has genuinely ended. A
+/// **terminal stop** at the would-be opener — a resource-limit trip, fresh or already
+/// latched — is *neither*: it is not evidence the opener is absent, so the attempt does
+/// not decline. It fails instead with the same end-of-input error the committed form
+/// raises there (the trip's own diagnostic having already reached the emitter), so an
+/// optional construct can never be silently skipped because the lexer was stopped rather
+/// than satisfied. The moment the `<` opener is consumed the parse is **committed**:
 /// `inner`'s errors and the missing/wrong `>` closer's errors propagate exactly as
 /// [`angles`]' do, so an unterminated `< …` is an error, never a silent decline (see
 /// [`try_delimited`] for why the attempt boundary is the opener alone).

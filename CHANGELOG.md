@@ -97,6 +97,23 @@
   Returned parsers are unchanged `impl FnMut` closures and implement `ParseInput` through the
   same blankets.
 
+## Fixed
+
+- **Try shapes decline only on definite absence.** The five attempt shapes
+  (`try_delimited`/`try_parens`/`try_braces`/`try_brackets`/`try_angles`) derived "opener
+  absent" from `try_expect`'s `Ok(None)`, which also covers a **terminal scanner stop** — a
+  fresh resource-limit trip whose diagnostic a recovering emitter accepted, or an
+  already-latched poison boundary — so an EOI-tolerant grammar could complete with output
+  shaped as if the optional construct were absent. The shapes (and the punct vocabulary's
+  `try_parse`/`try_parse_of` forms, whose machinery the named twins share) now build on the
+  new attempt primitive `InputRef::try_expect_or_stop`: `Ok(None)` means the opener is
+  **definitely absent** (the next valid token is not the opener and stays unconsumed, or the
+  input has genuinely ended), while a terminal stop fails with the same end-of-input error
+  the committed forms raise there — the trip's own diagnostic having already reached the
+  emitter, and a fatal emitter's rejection still propagating from the scan itself.
+  `try_expect` keeps its documented fold (now with an explicit warning and a cross-reference
+  to the new primitive).
+
 # 0.2.0 (2026-07-17)
 
 ## Added

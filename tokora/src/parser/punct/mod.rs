@@ -1,7 +1,10 @@
 use super::*;
 
 use crate::{
-  error::UnexpectedEot, punct::*, token::PunctuatorToken, try_parse_input::ParseAttempt,
+  error::UnexpectedEot,
+  punct::*,
+  token::{PunctuatorToken, PunctuatorTokenExt},
+  try_parse_input::ParseAttempt,
   utils::CowStr,
 };
 
@@ -13,7 +16,8 @@ macro_rules! define_parsers {
           #[doc = "A parser that parses a token and returns a `" $name "` instance if it matches."]
           ///
           /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token does not match,
-          /// and promises no valid token is consumed.
+          /// and promises no valid token is consumed; a terminal scanner stop is an error, never a
+          /// `Decline`.
           pub fn try_parse<'inp, L, Ctx, Cmpl>(
             inp: &mut InputRef<'inp, '_, L, Ctx, (), Cmpl>,
           ) -> Result<ParseAttempt<$name<L::Span, ()>>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
@@ -30,7 +34,8 @@ macro_rules! define_parsers {
           #[doc = "A parser that parses a token and returns a `" $name " ` instance if it matches for a specific language."]
           ///
           /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token does not match,
-          /// and promises no valid token is consumed.
+          /// and promises no valid token is consumed; a terminal scanner stop is an error, never a
+          /// `Decline`.
           pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized, Cmpl>(
             inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
           ) -> Result<ParseAttempt<$name<L::Span, (), Lang>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -41,7 +46,7 @@ macro_rules! define_parsers {
             Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
             <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
           {
-            inp.[< try_expect_ $kind >]().map(|res| res.map(|tok| $name::new(tok.into_span()).change_language()).into())
+            inp.try_expect_or_stop(|t| t.data.[<is_ $kind>]()).map(|res| res.map(|tok| $name::new(tok.into_span()).change_language()).into())
           }
 
           #[doc = "A parser that parses a token and returns a `" $name "` instance if it matches."]
