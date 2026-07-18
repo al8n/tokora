@@ -2,7 +2,10 @@
 //! and [`Partial`] (a growing chunk of a Sans-I/O stream that may still be extended).
 //!
 //! The typestate is a zero-sized type parameter on the input types ([`InputRef`](crate::InputRef)
-//! and the crate-internal `Input`), defaulted to [`Complete`], so it is a **non-breaking** addition:
+//! and the crate-internal `Input`) and, since 0.3.0, on the parser traits themselves
+//! ([`ParseInput`](crate::ParseInput)/[`TryParseInput`](crate::TryParseInput) and the
+//! vocabulary around them) — defaulted to [`Complete`] in every position, so it is a
+//! **source-compatible** addition:
 //! every existing spelling `InputRef<'inp, '_, L, Ctx, Lang>` still names the complete input, and
 //! its generated code is unchanged. The partial-input frontier rules live behind the
 //! [`Completeness::PARTIAL`] associated constant, so [`Complete`] monomorphizes them away entirely

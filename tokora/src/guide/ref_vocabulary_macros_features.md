@@ -10,7 +10,11 @@ The vocabulary types are all **span-generic AST fragments**: each is a `Name<S =
 combinators, most parse entry points come in a **base** form (`Lang = ()`) and an **`_of`** form
 generic over `Lang` — `Comma::parse`/`Comma::parse_of`, `If::try_parse`/`If::try_parse_of`. The
 [combinator reference](super::ref_combinators) explains that convention; reach for the base form
-unless you are writing a language-generic library.
+unless you are writing a language-generic library. Since 0.3.0 every one of these entry points
+is also generic over the input's completeness (a trailing `Cmpl` fn parameter, inferred from
+the handle you pass), so the same `Comma::parse` drives complete and
+[`Partial`](crate::Partial) inputs alike; if you spell an entry point's generics in full, append
+the completeness argument (or `_`).
 
 ## How to read this reference
 

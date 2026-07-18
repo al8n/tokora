@@ -144,14 +144,15 @@ that "no more" is the whole point.
 There is one trait every combinator implements, and its whole surface is a single method:
 
 ```rust,ignore
-pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 }
 ```
 
@@ -162,6 +163,16 @@ parser against the handle until it stops; a hand-written function calls `next()`
 directly. There is no separate "parser value" flowing between stages — only the handle, moving
 forward. The tentative sibling [`TryParseInput`](crate::TryParseInput) has the same shape for
 parsers that report "did not match" without emitting.
+
+Since 0.3.0 the trait carries the same [`Completeness`](crate::Completeness) typestate as the
+handle it consumes: the trailing `Cmpl` parameter names whether the drive is over a whole input
+([`Complete`](crate::Complete), the default) or a still-growing chunk of a stream
+([`Partial`](crate::Partial)). The default keeps every existing signature reading exactly as
+before — `ParseInput<'inp, L, O, Ctx>` *is* the complete-mode trait — while a parser written
+generic over `Cmpl` runs under **both** modes: [`Parse`](crate::Parse) drives it at `Complete`
+and [`parse_partial`](crate::parse_partial) drives the same item at `Partial`. The dispatch
+surface stays one vocabulary, not two (see [chapter 9](super::ch09_streaming) for the
+write-once story and the frontier rules the partial instantiation activates).
 
 The consume/peek surface the handle exposes is small and deliberate:
 

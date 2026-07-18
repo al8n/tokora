@@ -58,7 +58,12 @@ impl that wires it in.
   instead of fabricating a value from input that has not arrived. It has a blanket `false`
   default, so most error types opt in with an empty `impl MaybeIncomplete for MyError {}` and
   override [`is_incomplete`](crate::error::MaybeIncomplete::is_incomplete) only if the type can
-  itself carry the signal. [`Recover`](crate::parser::Recover) requires this bound.
+  itself carry the signal. [`Recover`](crate::parser::Recover) requires this bound — and since
+  0.3.0 partial mode as a whole does: `Partial`'s
+  [`SurfaceIncomplete`](crate::SurfaceIncomplete) impl requires `MaybeIncomplete` alongside
+  `From<Incomplete<L::Offset>>`, because the input layer *constructs* incompletes while the
+  atom layer now also *recognizes* them (the resilient collection loops re-raise a frontier
+  `Incomplete` untouched instead of spending it as a diagnostic).
 - **The `Set` / `Expected` machinery.** A token mismatch does not just say "wrong" — it names
   what was wanted. [`UnexpectedToken`](crate::error::token::UnexpectedToken) carries an
   [`Expected<'a, Kind>`](crate::utils::Expected) (`One(kind)` or `OneOf(set)`); classifiers

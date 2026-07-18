@@ -131,6 +131,7 @@ DOCS_RS_MAP = {
   "crate::Parser::apply": "parser/struct.Parser.html#method.apply",
   "crate::Parser::new": "parser/struct.Parser.html#method.new",
   "crate::Partial": "input/struct.Partial.html",
+  "crate::SurfaceIncomplete": "input/trait.SurfaceIncomplete.html",
   "crate::Require": "trait.Require.html",
   "crate::SavepointId": "input/struct.SavepointId.html",
   "crate::SimpleSpan": "span/struct.SimpleSpan.html",

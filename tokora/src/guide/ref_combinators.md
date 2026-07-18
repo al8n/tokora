@@ -11,6 +11,22 @@ plain `fn(&mut InputRef<…>) -> Result<O, E>` is a `ParseInput`, and a
 `fn(&mut InputRef<…>) -> Result<ParseAttempt<O>, E>` is a `TryParseInput`, so most atoms are just
 constructors for these shapes.
 
+Since 0.3.0 both traits carry a defaulted completeness parameter
+(`Cmpl = `[`Complete`](crate::Complete)), mirroring [`InputRef`](crate::InputRef), so every
+signature in this reference reads unchanged; the parameter exists for when a parser must run
+under [`Partial`](crate::Partial) input ([chapter 9](super::ch09_streaming)). **The mode
+legend for this catalog:** the try/consume-channel families are mode-generic — the leaf atoms
+(`expect`/`any`/`Ident`/keywords/puncts), every pass-through adapter (`map*`, `filter*`,
+`validate*`, `then*`, `ignored`, `padded*`, `recover`/`skip_then_retry`, `spanned`/`sliced`/
+`located`), the try-driven collections (`repeated`, `separated*`, `fold`/`rfold`, `collect`),
+and the delimited shapes. Two families stay **Complete-only** this release, each pinned with
+its reason recorded on the impl: the decision-window class (`*_while`, `peek_*`,
+`dispatch_*`, pratt — a non-final frontier can silently truncate their peeked decision
+window, which would read as "construct ended") and the CST `node` family (partial event
+semantics is a separately-deferred design). Reaching for a pinned combinator from partial
+code fails at the drive site — an `E0277`-family "not implemented for … `Partial`" wall (in
+method-call position it surfaces as `E0599`) — never a silent wrong parse.
+
 ## How to read this reference
 
 - **Signatures** are shown trimmed (the always-present `Self: Sized`, `L: Lexer`,

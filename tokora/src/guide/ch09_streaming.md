@@ -80,10 +80,19 @@ the current slice — which is what "Sans-I/O" means: tokora never reads, never 
 a socket. It parses what you hand it and tells you when it needs more.
 
 [`parse_partial`](crate::parse_partial) wires up one round of that loop: it builds a
-[`Partial`](crate::Partial) input over your slice, seals it if this is the last chunk, and hands your
-parser an [`InputRef`](crate::InputRef). Partial mode adds exactly **one** requirement to your code —
-the emitter's error type must implement `From<Incomplete<L::Offset>>`, so the frontier has a
-way to speak. Give it a variant and it is done.
+[`Partial`](crate::Partial) input over your slice, seals it if this is the last chunk, and drives
+any [`ParseInput`](crate::ParseInput)`<…, `[`Partial`](crate::Partial)`>` — a typed fn like the
+one below, a named combinator chain, or a parser written generic over its completeness
+parameter. Since 0.3.0 that bound *is* the partial driver's whole signature: the closure era's
+bare-`FnOnce` bypass is gone, and partial mode is simply the other instantiation of the same
+trait vocabulary the complete drivers use.
+
+Partial mode adds exactly **two** requirements to your error type, both one-liners: it must
+implement `From<Incomplete<L::Offset>>`, so the frontier has a way to speak — and
+[`MaybeIncomplete`](crate::error::MaybeIncomplete), so the frontier can be *recognized*: your
+refill loop keys off `is_incomplete()`, and inside the parse the resilient collection loops
+(`repeated`/`separated`) consult the same trait to re-raise a frontier `Incomplete` untouched
+instead of spending it as a diagnostic — the never-recoverable law, enforced at the atom layer.
 
 ```rust
 # use tokora::{Token as TokenT, logos::{self, Logos}};
@@ -251,6 +260,203 @@ assert_eq!(answer, Some(33));
 // one-token frontier latency, and it is the whole price of correctness here.
 assert_eq!(refills, 2);
 ```
+
+## Write once, run in both modes
+
+Everything above used a parser whose signature *names* `Partial`. That is one honest way to
+write a streaming parser — but 0.3.0's point is that you do not have to choose. Write the
+parser **generic over its completeness** and it is one item with two instantiations: the
+complete combinator driver pins `Cmpl = `[`Complete`](crate::Complete), `parse_partial` pins
+`Cmpl = `[`Partial`](crate::Partial), and the frontier rules exist in exactly one of the two
+monomorphizations. The bound to reach for is
+[`SurfaceIncomplete`](crate::SurfaceIncomplete) — the [`Completeness`](crate::Completeness)
+refinement the scan chokepoint itself uses, satisfied by `Complete` unconditionally and by
+`Partial` wherever the error type meets the two requirements above.
+
+```rust
+# use tokora::{Token as TokenT, logos::{self, Logos}};
+# #[derive(Clone, Debug, Default, PartialEq)]
+# struct LexError;
+# impl From<()> for LexError { fn from(_: ()) -> Self { LexError } }
+# #[derive(Debug, Clone, PartialEq, Logos)]
+# #[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
+# enum Tok {
+#   #[regex(r"[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|_| LexError))]
+#   Int(i64),
+#   #[token("let")] Let,
+#   #[token("print")] Print,
+#   #[regex(r"[A-Za-z_][A-Za-z0-9_]*")] Ident,
+#   #[token("+")] Plus,
+#   #[token("-")] Minus,
+#   #[token("*")] Star,
+#   #[token("/")] Slash,
+#   #[token("^")] Caret,
+#   #[token("=")] Assign,
+#   #[token(";")] Semi,
+#   #[token(",")] Comma,
+#   #[token("(")] LParen,
+#   #[token(")")] RParen,
+# }
+# #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+# enum TokKind { Int, Let, Print, Ident, Plus, Minus, Star, Slash, Caret, Assign, Semi, Comma, LParen, RParen }
+# impl core::fmt::Display for TokKind {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     f.write_str(match self {
+#       Self::Int => "integer", Self::Let => "`let`", Self::Print => "`print`",
+#       Self::Ident => "identifier", Self::Plus => "`+`", Self::Minus => "`-`",
+#       Self::Star => "`*`", Self::Slash => "`/`", Self::Caret => "`^`",
+#       Self::Assign => "`=`", Self::Semi => "`;`", Self::Comma => "`,`",
+#       Self::LParen => "`(`", Self::RParen => "`)`",
+#     })
+#   }
+# }
+# impl core::fmt::Display for Tok {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     match self {
+#       Tok::Int(n) => write!(f, "{n}"),
+#       other => core::fmt::Display::fmt(&other.kind(), f),
+#     }
+#   }
+# }
+# impl TokenT<'_> for Tok {
+#   type Kind = TokKind;
+#   type Error = LexError;
+#   fn kind(&self) -> TokKind {
+#     match self {
+#       Tok::Int(_) => TokKind::Int, Tok::Let => TokKind::Let, Tok::Print => TokKind::Print,
+#       Tok::Ident => TokKind::Ident, Tok::Plus => TokKind::Plus, Tok::Minus => TokKind::Minus,
+#       Tok::Star => TokKind::Star, Tok::Slash => TokKind::Slash, Tok::Caret => TokKind::Caret,
+#       Tok::Assign => TokKind::Assign, Tok::Semi => TokKind::Semi, Tok::Comma => TokKind::Comma,
+#       Tok::LParen => TokKind::LParen, Tok::RParen => TokKind::RParen,
+#     }
+#   }
+#   fn is_trivia(&self) -> bool { false }
+# }
+# type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
+# use tokora::error::{UnexpectedEot, token::UnexpectedToken};
+# use tokora::{
+#   InputRef, Partial, parse_partial,
+#   cache::DefaultCache,
+#   emitter::Fatal,
+#   error::{Incomplete, MaybeIncomplete},
+# };
+#
+# // Chapter 3's `CalcError`, plus the one variant partial mode asks for.
+#[derive(Debug, Clone, PartialEq)]
+# enum CalcError {
+#   Lex,
+#   Unexpected,
+#   UnexpectedEnd,
+#   /// The frontier speaking: "ask me again when you have more bytes."
+#   Incomplete,
+# }
+# impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
+# impl<'a, T, K: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, K, S, Lang>> for CalcError {
+#   fn from(_: UnexpectedToken<'a, T, K, S, Lang>) -> Self { CalcError::Unexpected }
+# }
+# impl From<UnexpectedEot> for CalcError {
+#   fn from(_: UnexpectedEot) -> Self { CalcError::UnexpectedEnd }
+# }
+# // THE requirement. `L::Offset` is `usize` for a `str` source: the offset the input ran out at.
+# impl From<Incomplete<usize>> for CalcError {
+#   fn from(_: Incomplete<usize>) -> Self {
+#     CalcError::Incomplete
+#   }
+# }
+#
+# // And how a caller *recognises* it — the same trait chapter 8's recovery consults before it
+# // dares to skip anything.
+# impl MaybeIncomplete for CalcError {
+#   fn is_incomplete(&self) -> bool {
+#     matches!(self, CalcError::Incomplete)
+#   }
+# }
+#
+# type CalcCtx<'a> = (Fatal<CalcError>, DefaultCache<'a, CalcLexer<'a>>);
+#
+# /// Sum every integer in the chunk. The `Partial` in the signature is the whole difference:
+# /// the frontier rules exist for this parser and are compiled away for a `Complete` one.
+# fn sum<'inp>(
+#   inp: &mut InputRef<'inp, '_, CalcLexer<'inp>, CalcCtx<'inp>, (), Partial>,
+# ) -> Result<i64, CalcError> {
+#   // Rollback-on-drop (chapter 6). An incomplete attempt must leave *no trace*, because the
+#   // caller is about to re-drive this same parser over a longer buffer.
+#   let mut txn = inp.begin();
+#   let mut total = 0i64;
+#   while let Some(tok) = txn.next()? {
+#     // ↑ the frontier rules live in `next()`; a withheld token surfaces here as `Incomplete`,
+#     //   the `?` propagates it, and the guard's drop rewinds everything on the way out.
+#     match tok.into_data() {
+#       Tok::Int(n) => total += n,
+#       Tok::Plus => {}
+#       _ => return Err(CalcError::Unexpected),
+#     }
+#   }
+#   txn.commit();
+#   Ok(total)
+# }
+#
+# fn fresh_ctx<'a>() -> CalcCtx<'a> {
+#   (Fatal::of(), DefaultCache::<'a, CalcLexer<'a>>::default())
+# }
+use tokora::{Parse, Parser, input::SurfaceIncomplete};
+
+/// ONE parser. The only new thing is the `Cmpl` parameter where chapter 9's `sum` wrote
+/// `Partial`: same transaction, same loop, same commit.
+fn sum_generic<'inp, Cmpl>(
+  inp: &mut InputRef<'inp, '_, CalcLexer<'inp>, CalcCtx<'inp>, (), Cmpl>,
+) -> Result<i64, CalcError>
+where
+  Cmpl: SurfaceIncomplete<'inp, CalcLexer<'inp>, CalcCtx<'inp>, ()>,
+{
+  let mut txn = inp.begin();
+  let mut total = 0i64;
+  while let Some(tok) = txn.next()? {
+    match tok.into_data() {
+      Tok::Int(n) => total += n,
+      Tok::Plus => {}
+      _ => return Err(CalcError::Unexpected),
+    }
+  }
+  txn.commit();
+  Ok(total)
+}
+
+// (a) The COMPLETE drive: the ordinary whole-input combinator API, `Cmpl = Complete`.
+let complete = Parser::with_context(fresh_ctx())
+  .apply(sum_generic)
+  .parse_str("1 + 2 + 30");
+assert_eq!(complete, Ok(33));
+
+// (b) The PARTIAL drive: the SAME item over chunks, `Cmpl = Partial`.
+let chunks = ["1 +", " 2", " + 30"];
+let mut buffer = String::new();
+let mut refills = 0;
+let mut answer = None;
+for (i, chunk) in chunks.iter().enumerate() {
+  buffer.push_str(chunk);
+  let is_final = i + 1 == chunks.len();
+  match parse_partial(fresh_ctx(), buffer.as_str(), (), is_final, sum_generic) {
+    Ok(total) => {
+      answer = Some(total);
+      break;
+    }
+    Err(e) if e.is_incomplete() => refills += 1,
+    Err(other) => panic!("a real parse error: {other:?}"),
+  }
+}
+
+// One parser, two modes, one answer — and the exact frontier latency of the typed version.
+assert_eq!(answer, Some(33));
+assert_eq!(refills, 2);
+```
+
+This scales past single functions: the builder methods thread the same parameter, so a whole
+chain — `expect(…).map(…).repeated().collect()` — assembled inside a `Cmpl`-generic function
+runs under both drivers too. The combinators that *cannot* run partial yet (the
+decision-window `*_while`/peek/dispatch families and the CST `node` family — see the
+[combinator reference](super::ref_combinators)) stay pinned at `Complete`, so reaching for one
+from partial code is a compile error at the drive site, never a silent wrong parse.
 
 ## The bigger example
 

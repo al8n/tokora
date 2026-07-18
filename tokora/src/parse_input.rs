@@ -151,6 +151,14 @@ macro_rules! define_separated_by {
 /// This mirrors the ergonomics of libraries like `winnow`: a parser is
 /// simply something that can mutate an [`InputRef`] and either produce
 /// a value or a spanned error using the configured `Emitter`.
+///
+/// Since 0.3.0 the trait carries the input's [`Completeness`] typestate as its trailing
+/// `Cmpl` parameter (defaulted to [`Complete`], so every pre-0.3.0 spelling reads
+/// unchanged). A parser written generic over `Cmpl` is a **write-once** parser: the same
+/// item runs under the complete drivers ([`Parse`](crate::Parse)) and the Sans-I/O partial
+/// driver ([`parse_partial`](crate::parse_partial)). Builder methods return adapters that
+/// carry the same parameter, so a whole combinator chain stays mode-generic until a drive
+/// site pins it.
 pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// Try to parse from the given input.
   fn parse_input(

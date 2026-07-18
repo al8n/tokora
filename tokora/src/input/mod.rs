@@ -739,13 +739,13 @@ where
 }
 
 /// Opens a **Sans-I/O partial parse session** over `src` and drives the parser `f` — any
-/// [`ParseInput`](crate::ParseInput)`<'inp, L, O, Ctx, Lang, `[`Partial`]`>` — returning whatever
+/// [`ParseInput`]`<'inp, L, O, Ctx, Lang, `[`Partial`]`>` — returning whatever
 /// `f` returns.
 ///
 /// This is the partial-mode entry point, the [`Partial`] instantiation of the same trait
 /// vocabulary the complete-only [`Parse`] API drives at its default: a typed fn item, a named
 /// combinator chain, or a parser written generic over its completeness parameter all satisfy the
-/// bound (write once, run in both modes — see the [`input`](crate::input) module docs). `f`
+/// bound (write once, run in both modes — see the [`input`](self) module docs). `f`
 /// receives an [`InputRef`] in [`Partial`] mode set to `is_final`, so the
 /// [frontier rules](crate::input) are active while non-final: consuming across the frontier
 /// surfaces an [`Incomplete`](crate::error::Incomplete) on the `Err` channel, which the parser

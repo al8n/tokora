@@ -1,4 +1,69 @@
-# Unreleased (0.2.1)
+# Unreleased (0.3.0)
+
+## Changed (breaking)
+
+- **Completeness-generic parser traits.** `ParseInput`/`TryParseInput` gain a trailing,
+  defaulted completeness parameter (`Cmpl = Complete`) mirroring `InputRef`; the
+  `parse_input`/`try_parse_input` methods take `&mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>`.
+  Every default-spelled bound, impl, closure, and fn keeps compiling and keeps its behavior —
+  the parameter is inference-carried through every builder-returned adapter (each adapter
+  struct gains the same trailing defaulted parameter plus a phantom, including `With`), so
+  0.2.0 chains infer exactly as before at a `Complete` drive.
+- **`parse_partial` takes trait-bound parsers.** The bare-`FnOnce` bypass is gone:
+  `parse_partial` now drives any `P: ParseInput<'inp, L, O, Ctx, Lang, Partial>` — a typed fn
+  item, a named combinator chain, or a parser written generic over `Cmpl`
+  (write-once-run-both). `FnOnce`-only closures (moving out of a capture) must hoist the
+  moved capture into an `Option` + `take()`.
+- **`Partial: SurfaceIncomplete` additionally requires `MaybeIncomplete`.** The input layer
+  *constructs* incompletes (`From<Incomplete<L::Offset>>`, as before); the atom layer now
+  also *recognizes* them, so partial mode's error type needs both one-liners. A correct
+  refill loop already called `is_incomplete()`.
+- **The parser vocabulary reserves the completeness position.** `ParseState`,
+  `RecoverInput`/`InplaceRecoverInput` (generalized), `ParseChoice`/`ParseTokenChoice`,
+  `ParsePrattLHS`/`ParsePrattRHS`, `PrattFoldPrefix`/`PrattFoldInfix`/`PrattFoldPostfix`, and
+  `PrattCst` gain the defaulted `Cmpl = Complete` parameter (their `_with` callback
+  signatures thread `ParseState<…, Cmpl>`).
+
+## Added
+
+- **Write-once-run-both parsers.** One parser item — a fn generic over
+  `Cmpl: SurfaceIncomplete<…>` or a combinator chain assembled inside one — runs under the
+  complete drivers (`Parse`/`Parser`) and the Sans-I/O partial driver (`parse_partial`),
+  with chunked-equivalence proven by test oracles over every cut point.
+- **Partial-mode support across the try/consume atom families.** The leaf atoms (`expect`,
+  `any`, `Ident`, the `keyword!`/`punct!` vocabulary and their `parse`/`try_parse` entry
+  points), the pass-through adapters (`map*`/`filter*`/`filter_map*`/`validate*`/`then*`/
+  `ignored`/`spanned`/`sliced`/`located`/`padded*`/`recover`/`inplace_recover`/
+  `skip_then_retry`/`labelled`/`unwrapped`/`accepted`/`opt`), the try-driven collections
+  (`repeated`, `separated*` incl. the delim variants, `fold`/`try_fold*`/`rfold`,
+  `collect`), the delimited shapes and their `try_` twins, and `try_ident_list*` are generic
+  over the completeness parameter. The scanner drivers beneath them (`try_expect*`,
+  `skip_while`, `sync_to`/`sync_through`/`sync_balanced`, `fold`/`foldn`/`foldr_within`/
+  `foldrn`, `consume_cached_*`) generalize with them. The decision-window class
+  (`*_while`, `peek_*`, `dispatch_*`, pratt) and the CST `node` family stay Complete-only,
+  each impl carrying its recorded reason; driving one at `Partial` is a compile-time wall.
+- **`SurfaceIncomplete::is_incomplete_error`** — the error-interrogation twin of
+  `surface_incomplete`: a constant, bound-free `false` for `Complete` (the check const-folds
+  away) and `MaybeIncomplete`-routed for `Partial`.
+- **The atom-layer never-recoverable gate.** The resilient collection loops
+  (`repeated`/`separated` families) re-raise a frontier `Incomplete` from their element
+  parser untouched instead of spending it as a diagnostic and looping — locked by a source
+  census over the four gated loop bodies plus behavior tests in both modes.
+
+## Migration (0.2 → 0.3)
+
+- **Complete-mode users: nothing.** Every default-spelled bound, impl, closure, fn item, and
+  builder chain compiles unchanged with identical behavior and codegen (the frontier rules
+  remain compiled out of `Complete` monomorphizations).
+- **`parse_partial` callers:** typed-fn parsers (the only pattern that ever inferred) are
+  unchanged. The error type must now implement `MaybeIncomplete` alongside
+  `From<Incomplete<L::Offset>>` (usually one line; see `tokora::error::MaybeIncomplete`).
+  A `FnOnce`-only closure must be restructured (hoist the moved capture into an
+  `Option` + `take()`).
+- **Fully-explicit spellings:** if you name *every* parameter of the traits, the adapter
+  structs, or the free-fn constructors (turbofish like `delimited::<Paren, _, _, _, _, _>`),
+  append the completeness argument — `Complete`, or just `_` at a drive site. Default
+  spellings need nothing.
 
 ## Added
 
