@@ -23,7 +23,10 @@ use tokora::{
     syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
     token::{MissingToken, SeparatedError, UnexpectedToken},
   },
-  parser::{angles, braces, brackets, delimited, list_of, opt, parens, peek_kind, separated1},
+  parser::{
+    angles, braces, brackets, delimited, list_of, opt, parens, peek_kind, separated1, try_angles,
+    try_braces, try_brackets, try_delimited, try_parens,
+  },
   punct::{Brace, CloseBrace, Comma, Paren, Semicolon},
   span::Spanned,
   token::IdentifierToken,
@@ -648,6 +651,179 @@ fn nested_delimiters_compose() {
     "{[x]}",
   );
   assert!(out.is_ok());
+}
+
+// ── The try_* attempt twins ──────────────────────────────────────────────────
+//
+// The law: the attempt form declines — `Ok(None)`, zero consumption — iff the opener is
+// absent (wrong token or end of input at entry). The moment the opener is consumed the
+// parse is committed: inner and closer errors propagate exactly as the committed form's,
+// so an unterminated group is an `Err`, never a silent decline. Each shape pins (a) the
+// decline-and-leave path — the next committed parse still sees the token — plus the
+// EOT-at-entry decline, and (b) the law path: opener present + unterminated → `Err`,
+// NOT `None`.
+
+#[test]
+fn try_parens_declines_on_wrong_opener_and_leaves_it() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let declined = try_parens(Ident::parse)(inp)?.is_none();
+      // The `{` group is untouched: the committed brace shape parses it whole.
+      let d = braces(Ident::parse)(inp)?;
+      assert_eq!(d.span(), SimpleSpan::new(0, 3));
+      Ok::<_, E>(declined)
+    },
+    "{x}",
+  );
+  assert!(matches!(out, Ok(true)));
+  // End of input at entry declines too (the `try_` atoms' EOT convention).
+  let out = drive(Fatal::<E>::new(), |inp| try_parens(Ident::parse)(inp), "");
+  assert!(matches!(out, Ok(None)));
+}
+
+#[test]
+fn try_parens_after_opener_is_committed_unterminated_errors() {
+  let out = drive(Fatal::<E>::new(), |inp| try_parens(Ident::parse)(inp), "(a");
+  assert!(out.is_err());
+  let out = drive(
+    Verbose::<E>::new(),
+    |inp| try_parens(Ident::parse)(inp),
+    "(a",
+  );
+  assert!(out.is_err());
+}
+
+#[test]
+fn try_braces_declines_on_wrong_opener_and_leaves_it() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let declined = try_braces(Ident::parse)(inp)?.is_none();
+      // The `(` group is untouched: the committed paren shape parses it whole.
+      let d = parens(Ident::parse)(inp)?;
+      assert_eq!(d.span(), SimpleSpan::new(0, 3));
+      Ok::<_, E>(declined)
+    },
+    "(x)",
+  );
+  assert!(matches!(out, Ok(true)));
+  let out = drive(Fatal::<E>::new(), |inp| try_braces(Ident::parse)(inp), "");
+  assert!(matches!(out, Ok(None)));
+}
+
+#[test]
+fn try_braces_after_opener_is_committed_unterminated_errors() {
+  let out = drive(Fatal::<E>::new(), |inp| try_braces(Ident::parse)(inp), "{a");
+  assert!(out.is_err());
+  let out = drive(
+    Verbose::<E>::new(),
+    |inp| try_braces(Ident::parse)(inp),
+    "{a",
+  );
+  assert!(out.is_err());
+}
+
+#[test]
+fn try_brackets_declines_on_wrong_opener_and_leaves_it() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let declined = try_brackets(Ident::parse)(inp)?.is_none();
+      // The `{` group is untouched: the committed brace shape parses it whole.
+      let d = braces(Ident::parse)(inp)?;
+      assert_eq!(d.span(), SimpleSpan::new(0, 3));
+      Ok::<_, E>(declined)
+    },
+    "{x}",
+  );
+  assert!(matches!(out, Ok(true)));
+  let out = drive(Fatal::<E>::new(), |inp| try_brackets(Ident::parse)(inp), "");
+  assert!(matches!(out, Ok(None)));
+}
+
+#[test]
+fn try_brackets_after_opener_is_committed_unterminated_errors() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| try_brackets(Ident::parse)(inp),
+    "[a",
+  );
+  assert!(out.is_err());
+  let out = drive(
+    Verbose::<E>::new(),
+    |inp| try_brackets(Ident::parse)(inp),
+    "[a",
+  );
+  assert!(out.is_err());
+}
+
+#[test]
+fn try_angles_declines_on_wrong_opener_and_leaves_it() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let declined = try_angles(Ident::parse)(inp)?.is_none();
+      // The `(` group is untouched: the committed paren shape parses it whole.
+      let d = parens(Ident::parse)(inp)?;
+      assert_eq!(d.span(), SimpleSpan::new(0, 3));
+      Ok::<_, E>(declined)
+    },
+    "(x)",
+  );
+  assert!(matches!(out, Ok(true)));
+  let out = drive(Fatal::<E>::new(), |inp| try_angles(Ident::parse)(inp), "");
+  assert!(matches!(out, Ok(None)));
+}
+
+#[test]
+fn try_angles_after_opener_is_committed_unterminated_errors() {
+  let out = drive(Fatal::<E>::new(), |inp| try_angles(Ident::parse)(inp), "<a");
+  assert!(out.is_err());
+  let out = drive(
+    Verbose::<E>::new(),
+    |inp| try_angles(Ident::parse)(inp),
+    "<a",
+  );
+  assert!(out.is_err());
+}
+
+#[test]
+fn try_delimited_generic_declines_on_wrong_opener_and_leaves_it() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let declined = try_delimited::<Brace, _, _, _, _, _>(Ident::parse)(inp)?.is_none();
+      // The `(` group is untouched: the committed paren shape parses it whole.
+      let d = parens(Ident::parse)(inp)?;
+      assert_eq!(d.span(), SimpleSpan::new(0, 3));
+      Ok::<_, E>(declined)
+    },
+    "(x)",
+  );
+  assert!(matches!(out, Ok(true)));
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| try_delimited::<Brace, _, _, _, _, _>(Ident::parse)(inp),
+    "",
+  );
+  assert!(matches!(out, Ok(None)));
+}
+
+#[test]
+fn try_delimited_generic_after_opener_is_committed_unterminated_errors() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| try_delimited::<Paren, _, _, _, _, _>(Ident::parse)(inp),
+    "(a",
+  );
+  assert!(out.is_err());
+  let out = drive(
+    Verbose::<E>::new(),
+    |inp| try_delimited::<Paren, _, _, _, _, _>(Ident::parse)(inp),
+    "(a",
+  );
+  assert!(out.is_err());
 }
 
 // ── Local discriminating error for the generic error-path tests ──────────────

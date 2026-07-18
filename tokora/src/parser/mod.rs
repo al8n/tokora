@@ -119,7 +119,7 @@
 //! - `separated_by` - Parse elements separated by delimiter
 //! - `delim` - Parse delimited content (e.g., parentheses)
 //! - `delim_seq` - Parse delimited, separated sequences
-//! - `delimited`/`parens`/`braces`/`brackets`/`angles` - one delimited region as a span-carrying `Delimited`
+//! - `delimited`/`parens`/`braces`/`brackets`/`angles` (+ `try_` attempt twins) - one delimited region as a span-carrying `Delimited`
 //!
 //! ## Lookahead & Conditional (Deterministic)
 //!
