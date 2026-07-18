@@ -1,3 +1,18 @@
+# Unreleased (0.3.1)
+
+## Fixed
+
+- **`Parser`'s `_of` constructors thread `Lang` through the `ParseInput` bound.**
+  `with_parser_of`, `with_parser_and_context_of`, and `apply_of` bounded their parser-function
+  parameter as `F: ParseInput<'inp, L, O, Ctx>`, leaving the trait's own `Lang` parameter
+  elided (defaulting to `()`) even though each constructor is generic over an explicit `Lang`
+  and its `Ctx` bound already threads it. A closure or fn item written against a non-`()`
+  `Lang` only implements `ParseInput<..., Ctx, Lang>` (per the blanket `FnMut` impl), never
+  `ParseInput<..., Ctx, ()>`, so the bound was unsatisfiable for any `Lang`-generic caller
+  (e.g. `Parser::with_parser_of::<..., GraphQL>` could never accept a GraphQL-tagged closure).
+  Widening-only fix: `Lang = ()` call sites see identical bounds; non-`()` `Lang` call sites,
+  previously uncompilable, now compile.
+
 # 0.3.0 (2026-07-18)
 
 ## Changed (breaking)

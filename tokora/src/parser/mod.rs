@@ -390,7 +390,7 @@ impl Parser<(), (), (), (), ()> {
   ) -> Parser<F, L, O, FatalContext<'inp, L, Error, Lang>, Error>
   where
     L: Lexer<'inp>,
-    F: ParseInput<'inp, L, O, FatalContext<'inp, L, Error, Lang>>,
+    F: ParseInput<'inp, L, O, FatalContext<'inp, L, Error, Lang>, Lang>,
     Error: FromEmitterError<'inp, L, Lang>,
     Lang: ?Sized,
   {
@@ -420,7 +420,7 @@ impl Parser<(), (), (), (), ()> {
   ) -> Parser<F, L, O, Ctx, Error>
   where
     L: Lexer<'inp>,
-    F: ParseInput<'inp, L, O, Ctx>,
+    F: ParseInput<'inp, L, O, Ctx, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Error: FromEmitterError<'inp, L, Lang>,
     Lang: ?Sized,
@@ -454,7 +454,7 @@ where
   pub fn apply_of<F, Lang>(self, f: F) -> Parser<F, L, O, Ctx, Error>
   where
     Ctx: ParseContext<'inp, L, Lang>,
-    F: ParseInput<'inp, L, O, Ctx>,
+    F: ParseInput<'inp, L, O, Ctx, Lang>,
   {
     Parser {
       f,
@@ -649,3 +649,6 @@ pub enum Action {
   #[try_unwrap(ignore)]
   Continue,
 }
+
+#[cfg(test)]
+mod tests;
