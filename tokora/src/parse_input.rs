@@ -89,31 +89,33 @@ where
 }
 
 /// A trait for parsers that accumulate their results into a container.
-pub trait Accumulator<'inp, L, Container, Ctx, Lang: ?Sized = ()> {
+pub trait Accumulator<'inp, L, Container, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// Collects the parsed elements into the specified container.
   #[inline(always)]
-  fn collect(self) -> Collect<Self, Container, Ctx, Lang>
+  fn collect(self) -> Collect<Self, Container, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     Container: Default,
-    Collect<Self, Container, Ctx, Lang>: ParseInput<'inp, L, Container, Ctx, Lang>,
+    Collect<Self, Container, Ctx, Lang, Cmpl>: ParseInput<'inp, L, Container, Ctx, Lang, Cmpl>,
   {
     Collect::new(self, Container::default())
   }
 
   /// Collects the parsed elements with the given container.
   #[inline(always)]
-  fn collect_with(self, container: Container) -> Collect<Self, Container, Ctx, Lang>
+  fn collect_with(self, container: Container) -> Collect<Self, Container, Ctx, Lang, Cmpl>
   where
     Self: Sized,
-    Collect<Self, Container, Ctx, Lang>: ParseInput<'inp, L, Container, Ctx, Lang>,
+    Collect<Self, Container, Ctx, Lang, Cmpl>: ParseInput<'inp, L, Container, Ctx, Lang, Cmpl>,
   {
     Collect::new(self, container)
   }
 }
 
-impl<'inp, P, Container, L, Ctx, Lang: ?Sized> Accumulator<'inp, L, Container, Ctx, Lang> for P where
-  Collect<P, Container, Ctx, Lang>: ParseInput<'inp, L, Container, Ctx, Lang>
+impl<'inp, P, Container, L, Ctx, Lang: ?Sized, Cmpl>
+  Accumulator<'inp, L, Container, Ctx, Lang, Cmpl> for P
+where
+  Collect<P, Container, Ctx, Lang, Cmpl>: ParseInput<'inp, L, Container, Ctx, Lang, Cmpl>,
 {
 }
 
@@ -128,7 +130,7 @@ macro_rules! define_separated_by {
         fn [< separated_by_ $name:snake _while>]<Condition, W>(
           self,
           condition: Condition,
-        ) -> SeparatedWhile<Self, $name, Condition, O, W, L, Ctx, Lang>
+        ) -> SeparatedWhile<Self, $name, Condition, O, W, L, Ctx, Lang, Cmpl>
         where
           Self: Sized,
           L: Lexer<'inp>,
@@ -149,19 +151,20 @@ macro_rules! define_separated_by {
 /// This mirrors the ergonomics of libraries like `winnow`: a parser is
 /// simply something that can mutate an [`InputRef`] and either produce
 /// a value or a spanned error using the configured `Emitter`.
-pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// Try to parse from the given input.
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 
   /// Wraps the output of this parser in a `Spanned` with the span of the parsed input.
   #[inline(always)]
-  fn spanned(self) -> With<PhantomSpan, Self>
+  fn spanned(self) -> With<PhantomSpan, Self, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -171,7 +174,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Wraps the output of this parser in a `Sliced` with the source slice of the parsed input.
   #[inline(always)]
-  fn sliced(self) -> With<PhantomSliced, Self>
+  fn sliced(self) -> With<PhantomSliced, Self, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -181,7 +184,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Wraps the output of this parser in a `Located` with the span and source slice of the parsed input.
   #[inline(always)]
-  fn located(self) -> With<PhantomLocated, Self>
+  fn located(self) -> With<PhantomLocated, Self, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -191,11 +194,11 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Ignores the output of this parser.
   #[inline(always)]
-  fn ignored(self) -> Ignore<Self, O, L, Ctx, Lang>
+  fn ignored(self) -> Ignore<Self, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
-    Ignore<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, (), Ctx, Lang>,
+    Ignore<Self, O, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, (), Ctx, Lang, Cmpl>,
   {
     Ignore::new(self)
   }
@@ -213,14 +216,15 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     pred: Condition,
     init: Init,
     acc: Acc,
-  ) -> FoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>
+  ) -> FoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    FoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    FoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang, Cmpl>:
+      ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     FoldWhile::new(self, pred, init, acc)
   }
@@ -234,7 +238,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     pred: Condition,
     init: Init,
     acc: Acc,
-  ) -> TryFoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>
+  ) -> TryFoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -243,7 +247,8 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Acc: FnMut(O, O) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    TryFoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    TryFoldWhile<Self, Condition, Init, Acc, O, W, L, Ctx, Lang, Cmpl>:
+      ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     TryFoldWhile::new(self, pred, init, acc)
   }
@@ -256,7 +261,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     pred: Condition,
     init: Init,
     acc: Acc,
-  ) -> TryFoldWhileWith<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>
+  ) -> TryFoldWhileWith<Self, Condition, Init, Acc, O, W, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -265,12 +270,12 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Acc: FnMut(
       O,
       O,
-      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    TryFoldWhileWith<Self, Condition, Init, Acc, O, W, L, Ctx, Lang>:
-      ParseInput<'inp, L, O, Ctx, Lang>,
+    TryFoldWhileWith<Self, Condition, Init, Acc, O, W, L, Ctx, Lang, Cmpl>:
+      ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     TryFoldWhileWith::new(self, pred, init, acc)
   }
@@ -289,7 +294,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     condition: Condition,
     init: Init,
     acc: Acc,
-  ) -> RFoldWhile<Self, Condition, Init, Acc, L, O, W, Ctx, Lang>
+  ) -> RFoldWhile<Self, Condition, Init, Acc, L, O, W, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -298,7 +303,8 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Acc: FnMut(O, O) -> O,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    RFoldWhile<Self, Condition, Init, Acc, L, O, W, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    RFoldWhile<Self, Condition, Init, Acc, L, O, W, Ctx, Lang, Cmpl>:
+      ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     RFoldWhile::new(self, condition, init, acc)
   }
@@ -329,7 +335,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn repeated_while<Condition, W>(
     self,
     condition: Condition,
-  ) -> RepeatedWhile<Self, Condition, O, W, L, Ctx, Lang>
+  ) -> RepeatedWhile<Self, Condition, O, W, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -368,7 +374,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   fn separated_while<Sep, Condition, W>(
     self,
     condition: Condition,
-  ) -> SeparatedWhile<Self, Sep, Condition, O, W, L, Ctx, Lang>
+  ) -> SeparatedWhile<Self, Sep, Condition, O, W, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -405,7 +411,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// If the condition handler `C` returns `Ok(())`, the inner parser is applied, otherwise,
   /// parsing is stopped and return the error from the handler.
-  fn peek_then<C, W>(self, condition: C) -> PeekThen<Self, C, L::Token, W>
+  fn peek_then<C, W>(self, condition: C) -> PeekThen<Self, C, L::Token, W, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -415,7 +421,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
       &mut Ctx::Emitter,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     W: Window,
-    PeekThen<Self, C, L::Token, W>: ParseInput<'inp, L, O, Ctx, Lang>,
+    PeekThen<Self, C, L::Token, W, Cmpl>: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     PeekThen::of(self, condition)
   }
@@ -425,67 +431,67 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// If the condition handler `C` returns `Ok(Action::Continue)`, the inner parser is applied,
   /// otherwise returns `None`.
   #[doc(alias = "or_not")]
-  fn peek_then_try<C, W>(self, condition: C) -> PeekThen<Self, C, L::Token, W>
+  fn peek_then_try<C, W>(self, condition: C) -> PeekThen<Self, C, L::Token, W, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     C: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    PeekThen<Self, C, L::Token, W>: TryParseInput<'inp, L, O, Ctx, Lang>,
+    PeekThen<Self, C, L::Token, W, Cmpl>: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     PeekThen::of(self, condition)
   }
 
   /// Map the output of this parser using the given function.
   #[inline(always)]
-  fn map<U, F>(self, f: F) -> Map<Self, F, L, Ctx, O, U, Lang>
+  fn map<U, F>(self, f: F) -> Map<Self, F, L, Ctx, O, U, Lang, Cmpl>
   where
     Self: Sized,
     F: FnMut(O) -> U,
     L: Lexer<'inp>,
-    Map<Self, F, L, Ctx, O, U, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
+    Map<Self, F, L, Ctx, O, U, Lang, Cmpl>: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
   {
     Map::new(self, f)
   }
 
   /// Map the output of this parser using the given function.
   #[inline(always)]
-  fn map_with<U, F>(self, f: F) -> MapWith<Self, F, L, Ctx, O, U, Lang>
+  fn map_with<U, F>(self, f: F) -> MapWith<Self, F, L, Ctx, O, U, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
-    F: FnMut(O, ParseState<'_, 'inp, '_, L, Ctx, Lang>) -> U,
-    MapWith<Self, F, L, Ctx, O, U, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
+    F: FnMut(O, ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>) -> U,
+    MapWith<Self, F, L, Ctx, O, U, Lang, Cmpl>: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
   {
     MapWith::new(self, f)
   }
 
   /// Filter the output of this parser using a validation function.
   #[inline(always)]
-  fn filter<F>(self, validator: F) -> Filter<Self, F, O, L, Ctx, Lang>
+  fn filter<F>(self, validator: F) -> Filter<Self, F, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
     F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Filter<Self, F, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    Filter<Self, F, O, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     Filter::of(self, validator)
   }
 
   /// Filter the output of this parser using a validation function.
   #[inline(always)]
-  fn filter_with<F>(self, validator: F) -> FilterWith<Self, F, O, L, Ctx, Lang>
+  fn filter_with<F>(self, validator: F) -> FilterWith<Self, F, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
     F: FnMut(
       &O,
-      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
-    FilterWith<Self, F, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    FilterWith<Self, F, O, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     FilterWith::of(self, validator)
   }
@@ -495,13 +501,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// The parser must produce a `Spanned<O>` value. The mapper receives
   /// the data and span, and returns `Ok(new_value)` or an error.
   #[inline(always)]
-  fn filter_map<U, F>(self, mapper: F) -> FilterMap<Self, F, O, U, L, Ctx, Lang>
+  fn filter_map<U, F>(self, mapper: F) -> FilterMap<Self, F, O, U, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
     F: FnMut(O) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
-    FilterMap<Self, F, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
+    FilterMap<Self, F, O, U, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
   {
     FilterMap::of(self, mapper)
   }
@@ -511,23 +517,23 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// The parser must produce a `Spanned<O>` value. The mapper receives
   /// the data and span, and returns `Ok(new_value)` or an error.
   #[inline(always)]
-  fn filter_map_with<U, F>(self, mapper: F) -> FilterMapWith<Self, F, O, U, L, Ctx, Lang>
+  fn filter_map_with<U, F>(self, mapper: F) -> FilterMapWith<Self, F, O, U, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
     F: FnMut(
       O,
-      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
-    FilterMapWith<Self, F, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
+    FilterMapWith<Self, F, O, U, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
   {
     FilterMapWith::of(self, mapper)
   }
 
   /// Validate the output of this parser with full location context.
   #[inline(always)]
-  fn validate<F>(self, validator: F) -> Validate<Self, F, O, L, Ctx, Lang>
+  fn validate<F>(self, validator: F) -> Validate<Self, F, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -539,13 +545,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Validate the output of this parser with full location context.
   #[inline(always)]
-  fn validate_with<F>(self, validator: F) -> ValidateWith<Self, F, O, L, Ctx, Lang>
+  fn validate_with<F>(self, validator: F) -> ValidateWith<Self, F, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
     F: FnMut(
       &O,
-      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
@@ -554,20 +560,20 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Sequence this parser with another, ignoring the output of the second.
   #[inline(always)]
-  fn then_ignore<G, U>(self, second: G) -> ThenIgnore<Self, G, O, U, L, Ctx, Lang>
+  fn then_ignore<G, U>(self, second: G) -> ThenIgnore<Self, G, O, U, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
-    G: ParseInput<'inp, L, U, Ctx, Lang>,
+    G: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
     Ctx: ParseContext<'inp, L, Lang>,
-    ThenIgnore<Self, G, O, U, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    ThenIgnore<Self, G, O, U, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     ThenIgnore::new(self, second)
   }
 
   /// Sequence this parser with a fixed value, ignoring the output of the first.
   #[inline(always)]
-  fn then_value<F, U>(self, value: F) -> ThenValue<Self, F, O, U, L, Ctx, Lang>
+  fn then_value<F, U>(self, value: F) -> ThenValue<Self, F, O, U, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -579,54 +585,54 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 
   /// Sequence this parser with another, using the first result to determine the second parser.
   #[inline(always)]
-  fn and_then<T, U>(self, then: T) -> AndThen<Self, T, O, U, L, Ctx, Lang>
+  fn and_then<T, U>(self, then: T) -> AndThen<Self, T, O, U, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     T: FnMut(O) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    AndThen<Self, T, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
+    AndThen<Self, T, O, U, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
   {
     AndThen::new(self, then)
   }
 
   /// Sequence this parser with another, using the first result to determine the second parser.
   #[inline(always)]
-  fn and_then_with<T, U>(self, then: T) -> AndThenWith<Self, T, O, U, L, Ctx, Lang>
+  fn and_then_with<T, U>(self, then: T) -> AndThenWith<Self, T, O, U, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     T: FnMut(
       O,
-      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
     Ctx: ParseContext<'inp, L, Lang>,
     L: Lexer<'inp>,
-    AndThenWith<Self, T, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
+    AndThenWith<Self, T, O, U, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
   {
     AndThenWith::new(self, then)
   }
 
   /// Sequence this parser with another, keeping both outputs.
   #[inline(always)]
-  fn then<T, U>(self, then: T) -> Then<Self, T, O, U, L, Ctx, Lang>
+  fn then<T, U>(self, then: T) -> Then<Self, T, O, U, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
-    T: ParseInput<'inp, L, U, Ctx, Lang>,
+    T: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Then<Self, T, O, U, L, Ctx, Lang>: ParseInput<'inp, L, (O, U), Ctx, Lang>,
+    Then<Self, T, O, U, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, (O, U), Ctx, Lang, Cmpl>,
   {
     Then::new(self, then)
   }
 
   /// Sequence this parser with another, ignoring the output of the first.
   #[inline(always)]
-  fn ignore_then<G, U>(self, second: G) -> IgnoreThen<Self, G, O, U, L, Ctx, Lang>
+  fn ignore_then<G, U>(self, second: G) -> IgnoreThen<Self, G, O, U, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
-    G: ParseInput<'inp, L, U, Ctx, Lang>,
-    IgnoreThen<Self, G, O, U, L, Ctx, Lang>: ParseInput<'inp, L, U, Ctx, Lang>,
+    G: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
+    IgnoreThen<Self, G, O, U, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
   {
     IgnoreThen::new(self, second)
   }
@@ -661,13 +667,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// See [`Recover`] for detailed documentation and more examples.
   #[inline(always)]
-  fn recover<R>(self, recovery: R) -> Recover<Self, R, O, L, Ctx, Lang>
+  fn recover<R>(self, recovery: R) -> Recover<Self, R, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
-    R: RecoverInput<'inp, L, O, Ctx, Lang>,
+    R: RecoverInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Ctx: ParseContext<'inp, L, Lang>,
-    Recover<Self, R, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    Recover<Self, R, O, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     Recover::new(self, recovery)
   }
@@ -708,13 +714,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// See [`InplaceRecover`] for detailed documentation and more examples.
   #[inline(always)]
-  fn inplace_recover<R>(self, recovery: R) -> InplaceRecover<Self, R, O, L, Ctx, Lang>
+  fn inplace_recover<R>(self, recovery: R) -> InplaceRecover<Self, R, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
-    R: InplaceRecoverInput<'inp, L, O, Ctx, Lang>,
+    R: InplaceRecoverInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Ctx: ParseContext<'inp, L, Lang>,
-    InplaceRecover<Self, R, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    InplaceRecover<Self, R, O, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     InplaceRecover::new(self, recovery)
   }
@@ -755,95 +761,99 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     self,
     classifier: D,
     pred: F,
-  ) -> SkipThenRetry<Self, D, F, O, L, Ctx, Lang>
+  ) -> SkipThenRetry<Self, D, F, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
     D: DelimClass<<L::Token as Token<'inp>>::Kind>,
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Ctx: ParseContext<'inp, L, Lang>,
-    SkipThenRetry<Self, D, F, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    SkipThenRetry<Self, D, F, O, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     SkipThenRetry::new(self, classifier, pred)
   }
 
   /// Creates a parser that accepts any token with optional padding.
   #[inline(always)]
-  fn padded(self) -> Padded<Self, O, L, Ctx, Lang>
+  fn padded(self) -> Padded<Self, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
-    Padded<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    Padded<Self, O, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     Padded::new(self)
   }
 
   /// Creates a parser that accepts any token with optional padding.
   #[inline(always)]
-  fn padded_left(self) -> PaddedLeft<Self, O, L, Ctx, Lang>
+  fn padded_left(self) -> PaddedLeft<Self, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
-    PaddedLeft<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    PaddedLeft<Self, O, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     PaddedLeft::new(self)
   }
 
   /// Creates a parser that accepts any token with optional padding.
   #[inline(always)]
-  fn padded_right(self) -> PaddedRight<Self, O, L, Ctx, Lang>
+  fn padded_right(self) -> PaddedRight<Self, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
-    PaddedRight<Self, O, L, Ctx, Lang>: ParseInput<'inp, L, O, Ctx, Lang>,
+    PaddedRight<Self, O, L, Ctx, Lang, Cmpl>: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     PaddedRight::new(self)
   }
 }
 
-impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInput<'inp, L, O, Ctx, Lang> for F
+impl<'inp, F, L, O, Ctx, Lang: ?Sized, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl> for F
 where
   F: FnMut(
-    &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (self)(input)
   }
 }
 
-impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInput<'inp, L, O, Ctx, Lang> for &mut ByRef<F>
+impl<'inp, F, L, O, Ctx, Lang: ?Sized, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for &mut ByRef<F>
 where
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
+  F: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (**self).parse_input(input)
   }
 }
 
-impl<'inp, L, O, Ctx, P, Lang: ?Sized> ParseInput<'inp, L, Spanned<O, L::Span>, Ctx, Lang>
-  for With<PhantomSpan, P>
+impl<'inp, L, O, Ctx, P, Lang: ?Sized, Cmpl>
+  ParseInput<'inp, L, Spanned<O, L::Span>, Ctx, Lang, Cmpl> for With<PhantomSpan, P, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<Spanned<O, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let cursor = inp.cursor().clone();
     self
@@ -853,18 +863,19 @@ where
   }
 }
 
-impl<'inp, L, O, Ctx, P, Lang: ?Sized>
-  ParseInput<'inp, L, Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang>
-  for With<PhantomSliced, P>
+impl<'inp, L, O, Ctx, P, Lang: ?Sized, Cmpl>
+  ParseInput<'inp, L, Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang, Cmpl>
+  for With<PhantomSliced, P, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -881,18 +892,25 @@ where
   }
 }
 
-impl<'inp, L, O, Ctx, P, Lang: ?Sized>
-  ParseInput<'inp, L, Located<O, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang>
-  for With<PhantomLocated, P>
+impl<'inp, L, O, Ctx, P, Lang: ?Sized, Cmpl>
+  ParseInput<
+    'inp,
+    L,
+    Located<O, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    Ctx,
+    Lang,
+    Cmpl,
+  > for With<PhantomLocated, P, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     Located<O, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -911,21 +929,21 @@ where
 }
 
 /// Extension trait for unwrapping `Option` outputs.
-pub trait ParseInputUnwrapExt<'inp, L, O, Ctx, Lang: ?Sized> {
+pub trait ParseInputUnwrapExt<'inp, L, O, Ctx, Lang: ?Sized, Cmpl = Complete> {
   /// Creates an `Unwrapped` parser that unwraps the `Option` result of this parser.
   #[inline(always)]
   #[track_caller]
-  fn unwrap(self) -> Unwrapped<Self, O, Ctx, Lang>
+  fn unwrap(self) -> Unwrapped<Self, O, Ctx, Lang, Cmpl>
   where
-    Self: Sized + ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+    Self: Sized + ParseInput<'inp, L, Option<O>, Ctx, Lang, Cmpl>,
   {
     Unwrapped::new(self)
   }
 }
 
-impl<'inp, F, L, O, Ctx, Lang: ?Sized> ParseInputUnwrapExt<'inp, L, O, Ctx, Lang> for F
+impl<'inp, F, L, O, Ctx, Lang: ?Sized, Cmpl> ParseInputUnwrapExt<'inp, L, O, Ctx, Lang, Cmpl> for F
 where
-  F: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+  F: ParseInput<'inp, L, Option<O>, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
 {

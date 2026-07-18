@@ -28,7 +28,11 @@
 //! classify — and is documented CST-unsupported in this version.
 
 use crate::{
-  InputRef, Lexer, ParseContext, cst::event::EventMark, emitter::CstEmitter, parser::PrattInfix,
+  InputRef, Lexer, ParseContext,
+  cst::event::EventMark,
+  emitter::CstEmitter,
+  input::{Complete, Completeness},
+  parser::PrattInfix,
 };
 
 /// The operator a pratt fold is about to apply, by reference — the input of the
@@ -74,15 +78,25 @@ mod sealed {
 ///   `Ctx::Emitter: CstEmitter` bound lives, so only a parse that *asked* for tree events
 ///   requires the event channel. A non-CST emitter simply cannot drive a
 ///   kinds-configured pratt parser — a compile error, never a silently empty tree.
-pub trait PrattCst<'inp, PreOp, LeftAssoc, RightAssoc, NeitherAssoc, PostOp, L, Ctx, Lang>:
-  sealed::Sealed
-where
+pub trait PrattCst<
+  'inp,
+  PreOp,
+  LeftAssoc,
+  RightAssoc,
+  NeitherAssoc,
+  PostOp,
+  L,
+  Ctx,
+  Lang,
+  Cmpl = Complete,
+>: sealed::Sealed where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   /// Mints the driver-held mark at expression entry (`None` when no hook is configured).
-  fn mark(inp: &mut InputRef<'inp, '_, L, Ctx, Lang>) -> Option<EventMark>;
+  fn mark(inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>) -> Option<EventMark>;
 
   /// Classifies the operator a fold is about to apply into the node kind that should wrap
   /// the folded region (`None` records no node).
@@ -94,7 +108,7 @@ where
   /// Wraps the region recorded since `mark` in a node of `kind` — a retro-wrap
   /// (`cst_start_at` + `cst_finish`) spending the driver-held mark once per fold.
   fn wrap_at(
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     mark: Option<EventMark>,
     kind: Option<u16>,
   );

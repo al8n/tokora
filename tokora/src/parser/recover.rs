@@ -37,7 +37,7 @@ use super::*;
 /// ```
 ///
 /// See [`Recover`] for usage examples.
-pub trait RecoverInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+pub trait RecoverInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// Try to recover from a parsing error.
   ///
   /// This method is called when the primary parser fails. The input position has been
@@ -54,27 +54,29 @@ pub trait RecoverInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// - `Err(error)`: Recovery failed
   fn recover_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     err: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 }
 
-impl<'inp, L, O, Ctx, Lang: ?Sized, F> RecoverInput<'inp, L, O, Ctx, Lang> for F
+impl<'inp, L, O, Ctx, Lang: ?Sized, Cmpl, F> RecoverInput<'inp, L, O, Ctx, Lang, Cmpl> for F
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
   F: FnMut(
-    &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
   #[inline(always)]
   fn recover_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     err: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (self)(input, err)
@@ -129,7 +131,7 @@ where
 /// ```
 ///
 /// See [`InplaceRecover`] for usage examples.
-pub trait InplaceRecoverInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+pub trait InplaceRecoverInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// Try to recover from a parsing error without backtracking.
   ///
   /// This method is called when the primary parser fails. Unlike [`RecoverInput::recover_input`],
@@ -148,21 +150,23 @@ pub trait InplaceRecoverInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// - `Err(error)`: Recovery failed
   fn inplace_recover_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     cursor: Cursor<'inp, '_, L>,
     err: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 }
 
-impl<'inp, L, O, Ctx, Lang: ?Sized, F> InplaceRecoverInput<'inp, L, O, Ctx, Lang> for F
+impl<'inp, L, O, Ctx, Lang: ?Sized, Cmpl, F> InplaceRecoverInput<'inp, L, O, Ctx, Lang, Cmpl> for F
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
   F: FnMut(
-    &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     Cursor<'inp, '_, L>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
@@ -170,7 +174,7 @@ where
   #[inline(always)]
   fn inplace_recover_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     cursor: Cursor<'inp, '_, L>,
     err: <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {

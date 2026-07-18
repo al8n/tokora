@@ -157,7 +157,7 @@ impl<P, F, O, U, L, Ctx, Lang: ?Sized, Cmpl> FilterMap<P, F, O, U, L, Ctx, Lang,
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     F: FnMut(O) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     Self {
@@ -281,10 +281,10 @@ impl<P, F, O, U, L, Ctx, Lang: ?Sized, Cmpl> FilterMapWith<P, F, O, U, L, Ctx, L
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     F: FnMut(
       O,
-      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     Self {

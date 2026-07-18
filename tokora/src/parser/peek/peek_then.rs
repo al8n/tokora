@@ -107,7 +107,7 @@ impl<P, D, T, W: Window, Cmpl> PeekThen<P, D, T, W, Cmpl> {
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Lang: ?Sized,
   {
     Self {

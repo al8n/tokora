@@ -83,7 +83,7 @@ impl<P, F, O, L, Ctx, Lang: ?Sized, Cmpl> Validate<P, F, O, L, Ctx, Lang, Cmpl> 
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     Self {
@@ -202,10 +202,10 @@ impl<P, F, O, L, Ctx, Lang: ?Sized, Cmpl> ValidateWith<P, F, O, L, Ctx, Lang, Cm
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     F: FnMut(
       &O,
-      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     Self {

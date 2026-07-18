@@ -161,7 +161,7 @@ use crate::{
   cache::Peeked,
   emitter::{Fatal, FromEmitterError},
   error::{UnexpectedEot, token::UnexpectedToken},
-  input::{Complete, Input, InputRef},
+  input::{Complete, Completeness, Input, InputRef},
   located::Located,
   parse_context::{FatalContext, ParseContext},
   parse_input::*,
