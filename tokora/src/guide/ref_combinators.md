@@ -1088,6 +1088,14 @@ you and collect into a `Vec`:
 | [`list_of(item, until)`](crate::parser::list_of) | zero-or-more `item`s until `until` accepts the next token (left in place) |
 | [`try_ident_list::<Sep, …>()`](crate::parser::try_ident_list) | a separated list of identifiers into an [`IdentList`](crate::types::IdentList) (needs [`IdentifierToken`](crate::token::IdentifierToken)) |
 
+One convention governs the free atoms, here and in [*Delimited shapes*](#delimited-shapes)
+below: an atom takes its sub-parser as `impl` [`ParseInput`](crate::ParseInput) — a closure, a
+fn item, or any named implementor ([`opt`](crate::parser::opt) takes an `impl`
+[`TryParseInput`](crate::TryParseInput) attempt) — and hands back a builder-form closure that
+is itself a `ParseInput` through the blanket impl, so atoms nest into each other and into the
+method combinators without adapters. Predicate parameters — `peek`, `until`, and friends,
+which inspect a token and answer `bool` — are functions, not parsers, and stay plain closures.
+
 ```text
 separated1<Sep, …>(item: P, peek: Peek) -> impl FnMut(&mut InputRef) -> Result<Vec<T>, Error>
 list_of<…>(item: P, until: Until) -> impl FnMut(&mut InputRef) -> Result<Vec<T>, Error>

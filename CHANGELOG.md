@@ -20,6 +20,18 @@
   errors propagate exactly as the committed forms' (deliberately not `opt(parens(…))`, which
   would swallow an unclosed group into a decline).
 
+## Changed
+
+- **Free-atom bounds converge on the house traits** (`tokora::parser`). The inner-parser
+  parameters are trait bounds instead of bare closures: `delimited`/`parens`/`braces`/
+  `brackets`/`angles`, their `try_` twins, and `separated1`/`list_of` take
+  `impl ParseInput`; `opt` takes `impl TryParseInput`. The closure blanket impls make this a
+  strict relaxation — every existing closure and fn-item call site compiles unchanged — while
+  named implementors no longer need `|inp| p.parse_input(inp)` adapter closures. Predicate
+  parameters (`peek`, `until`) are functions, not parsers, and stay plain `FnMut` closures.
+  Returned parsers are unchanged `impl FnMut` closures and implement `ParseInput` through the
+  same blankets.
+
 # 0.2.0 (2026-07-17)
 
 ## Added
