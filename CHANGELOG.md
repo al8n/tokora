@@ -12,6 +12,13 @@
 - **`TypedDelimiter`** (`tokora::delimiter`) — additive `Delimiter` subtrait materializing
   span-carrying opening/closing punctuator values; implemented for `Paren`/`Brace`/
   `Bracket`/`Angle`.
+- **Attempt twins for the delimited shapes** (`tokora::parser`).
+  `try_delimited::<D>`/`try_parens`/`try_braces`/`try_brackets`/`try_angles` and the result
+  aliases `TryDelimitedOf`/`TryParensOf`/`TryBracesOf`/`TryBracketsOf`/`TryAnglesOf` —
+  decline (`Ok(None)`, zero consumption) iff the opener is absent (wrong token or end of
+  input at entry); the moment the opener is consumed the parse is committed and inner/closer
+  errors propagate exactly as the committed forms' (deliberately not `opt(parens(…))`, which
+  would swallow an unclosed group into a decline).
 
 # 0.2.0 (2026-07-17)
 

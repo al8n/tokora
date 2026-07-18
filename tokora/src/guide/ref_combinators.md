@@ -1212,6 +1212,13 @@ vocabulary whose two capability declarations agree. Bring your own pair by imple
 counterpart to the many-builder's [`delimited::<D>()`](crate::parser::Separated::delimited),
 which instead wraps a *repetition* and hands its delimiter tokens to a handler.
 
+Every shape has an **attempt twin** that declines — `Ok(None)`, zero consumption — **iff the
+opener is absent**: a wrong token or end of input at entry. The moment the opener is consumed
+the parse is committed and every later error propagates exactly as the committed form's. The
+attempt boundary is deliberately the opener alone, not the whole shape: `opt(parens(inner))`
+would swallow an unclosed group into a decline, where `Ident<` at end of input must error as
+unclosed rather than silently disappear.
+
 | Atom | One-liner |
 |------|-----------|
 | [`delimited::<D, …>(inner)`](crate::parser::delimited) | one `D`-delimited region into a span-carrying `Delimited` |
@@ -1219,10 +1226,13 @@ which instead wraps a *repetition* and hands its delimiter tokens to a handler.
 | [`braces(inner)`](crate::parser::braces) | the same, fixed to `{ … }` |
 | [`brackets(inner)`](crate::parser::brackets) | the same, fixed to `[ … ]` |
 | [`angles(inner)`](crate::parser::angles) | the same, fixed to `< … >` |
+| [`try_delimited::<D, …>(inner)`](crate::parser::try_delimited) | the attempt twin: `Ok(None)` iff the opener is absent, committed once it is consumed |
+| [`try_parens`](crate::parser::try_parens) / [`try_braces`](crate::parser::try_braces) / [`try_brackets`](crate::parser::try_brackets) / [`try_angles`](crate::parser::try_angles) | the named attempt twins, pair fixed |
 
 ```text
 delimited<D, …>(inner: P) -> impl FnMut(&mut InputRef) -> Result<Delimited<Open, Close, T>, Error>
 parens(inner) / braces(inner) / brackets(inner) / angles(inner) -> the same, with the pair fixed
+try_delimited<D, …>(inner) / try_parens(inner) / … -> the same, wrapped in Option (None iff the opener is absent)
 ```
 
 ```rust
@@ -1317,7 +1327,7 @@ parens(inner) / braces(inner) / brackets(inner) / angles(inner) -> the same, wit
 # fn digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
 #     match inp.next()? { Some(sp) => match sp.into_data() { Tok::Digit(n) => Ok(n), _ => Err(Error) }, None => Err(Error) }
 # }
-use tokora::{Parse, Parser, punct::Paren, parser::{braces, delimited, parens}};
+use tokora::{Parse, Parser, punct::Paren, parser::{braces, delimited, parens, try_parens}};
 
 // `parens` wraps ONE region and keeps the typed delimiter values and the whole-construct span.
 fn in_parens<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<(u32, SimpleSpan), Error> {
@@ -1339,6 +1349,15 @@ fn via_generic<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result
     delimited::<Paren, _, _, _, _, _>(digit)(inp).map(|d| *d.data())
 }
 assert_eq!(Parser::with_parser(via_generic).parse_str("(1)").unwrap(), 1);
+
+// The attempt twin declines with zero consumption when the opener is absent…
+fn attempt<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<Option<u32>, Error> {
+    try_parens(digit)(inp).map(|d| d.map(|d| *d.data()))
+}
+assert_eq!(Parser::with_parser(attempt).parse_str("1").unwrap(), None);
+// …but once `(` is consumed it is committed: an unterminated group errors, it
+// does not decline.
+assert!(Parser::with_parser(attempt).parse_str("(1").is_err());
 ```
 
 ---
