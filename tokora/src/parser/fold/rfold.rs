@@ -2,7 +2,7 @@ use super::*;
 
 /// A parser that repeatedly applies another parser, buffers outputs, and folds them in reverse order.
 #[derive(Debug, Clone, Copy)]
-pub struct RFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
+pub struct RFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   init: Init,
   acc: Acc,
@@ -10,9 +10,10 @@ pub struct RFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> RFold<P, Init, Acc, L, O, Ctx, Lang> {
+impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> RFold<P, Init, Acc, L, O, Ctx, Lang, Cmpl> {
   /// Creates a new `RFold` parser combinator.
   #[inline(always)]
   pub(crate) fn new(parser: P, init: Init, acc: Acc) -> Self {
@@ -24,6 +25,7 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> RFold<P, Init, Acc, L, O, Ctx, Lang>
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

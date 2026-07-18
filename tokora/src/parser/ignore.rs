@@ -104,15 +104,16 @@ use super::*;
 /// - [`ignore_then`](crate::parser::ParseInput::ignore_then) - Parse then discard first
 /// - [`Map`] - Transform output instead of discarding
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Ignore<P, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Ignore<P, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   _output: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, O, L, Ctx, Lang: ?Sized> Ignore<P, O, L, Ctx, Lang> {
+impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> Ignore<P, O, L, Ctx, Lang, Cmpl> {
   /// Creates a parser that ignores any output.
   #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
@@ -122,6 +123,7 @@ impl<P, O, L, Ctx, Lang: ?Sized> Ignore<P, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

@@ -126,7 +126,7 @@ use super::*;
 /// - [`MapWith`] - Transform with access to parse state
 /// - [`Ignore`] - Special case: map to `()`
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Map<F, G, L, Ctx, O, O2, Lang: ?Sized = ()> {
+pub struct Map<F, G, L, Ctx, O, O2, Lang: ?Sized = (), Cmpl = Complete> {
   parser: F,
   map_fn: G,
   _o: PhantomData<O>,
@@ -134,9 +134,10 @@ pub struct Map<F, G, L, Ctx, O, O2, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, G, L, Ctx, O, O2, Lang: ?Sized> Map<F, G, L, Ctx, O, O2, Lang> {
+impl<F, G, L, Ctx, O, O2, Lang: ?Sized, Cmpl> Map<F, G, L, Ctx, O, O2, Lang, Cmpl> {
   /// Creates a new `Map` combinator.
   #[inline(always)]
   pub(crate) const fn new(parser: F, map_fn: G) -> Self {
@@ -148,6 +149,7 @@ impl<F, G, L, Ctx, O, O2, Lang: ?Sized> Map<F, G, L, Ctx, O, O2, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
@@ -257,7 +259,7 @@ where
 /// - [`FilterMapWith`] - Fallible transformation with parse state
 /// - [`ParseState`] - The state object passed to mappers
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct MapWith<F, G, L, Ctx, O, O2, Lang: ?Sized = ()> {
+pub struct MapWith<F, G, L, Ctx, O, O2, Lang: ?Sized = (), Cmpl = Complete> {
   parser: F,
   map_fn: G,
   _o: PhantomData<O>,
@@ -265,9 +267,10 @@ pub struct MapWith<F, G, L, Ctx, O, O2, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, G, L, Ctx, O, O2, Lang: ?Sized> MapWith<F, G, L, Ctx, O, O2, Lang> {
+impl<F, G, L, Ctx, O, O2, Lang: ?Sized, Cmpl> MapWith<F, G, L, Ctx, O, O2, Lang, Cmpl> {
   /// Creates a new `Map` combinator.
   #[inline(always)]
   pub(crate) const fn new(parser: F, map_fn: G) -> Self {
@@ -279,6 +282,7 @@ impl<F, G, L, Ctx, O, O2, Lang: ?Sized> MapWith<F, G, L, Ctx, O, O2, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

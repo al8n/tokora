@@ -126,16 +126,17 @@ use super::*;
 /// - [`PeekThen`] - Validate before parsing using lookahead
 /// - [`Map`] - Transform output without validation
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Filter<P, F, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Filter<P, F, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   filter: F,
   _marker: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, F, O, L, Ctx, Lang: ?Sized> Filter<P, F, O, L, Ctx, Lang> {
+impl<P, F, O, L, Ctx, Lang: ?Sized, Cmpl> Filter<P, F, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `Validate` combinator for the specified language.
   #[inline(always)]
   pub(crate) const fn of<'inp>(parser: P, filter: F) -> Self
@@ -152,6 +153,7 @@ impl<P, F, O, L, Ctx, Lang: ?Sized> Filter<P, F, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
@@ -235,16 +237,17 @@ where
 /// - [`FilterMapWith`] - Transform and validate with parse state
 /// - [`ParseState`] - The state object passed to validators
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct FilterWith<P, F, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct FilterWith<P, F, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   filter: F,
   _marker: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, F, O, L, Ctx, Lang: ?Sized> FilterWith<P, F, O, L, Ctx, Lang> {
+impl<P, F, O, L, Ctx, Lang: ?Sized, Cmpl> FilterWith<P, F, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `Validate` combinator for the specified language.
   #[inline(always)]
   pub(crate) const fn of<'inp>(parser: P, filter: F) -> Self
@@ -264,6 +267,7 @@ impl<P, F, O, L, Ctx, Lang: ?Sized> FilterWith<P, F, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

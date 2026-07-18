@@ -92,14 +92,15 @@ use super::*;
 /// - [`PeekThenChoice`] - Choose between multiple parsers based on lookahead
 /// - [`filter`](crate::parser::Filter) - Validate after parsing (no lookahead)
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct PeekThen<P, D, T, Window> {
+pub struct PeekThen<P, D, T, Window, Cmpl = Complete> {
   parser: P,
   handler: D,
   _token: PhantomData<T>,
   _capacity: PhantomData<Window>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, D, T, W: Window> PeekThen<P, D, T, W> {
+impl<P, D, T, W: Window, Cmpl> PeekThen<P, D, T, W, Cmpl> {
   /// Creates a new `PeekThen` combinator for the specified language.
   #[inline(always)]
   pub(crate) const fn of<'inp, L, O, Ctx, Lang>(parser: P, condition: D) -> Self
@@ -114,6 +115,7 @@ impl<P, D, T, W: Window> PeekThen<P, D, T, W> {
       handler: condition,
       _token: PhantomData,
       _capacity: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

@@ -19,16 +19,21 @@ use super::*;
 /// - `P`: The primary value (typically a parser function or marker)
 /// - `S`: The secondary value (typically configuration or a base parser)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct With<P, S> {
+pub struct With<P, S, Cmpl = Complete> {
   pub(crate) primary: P,
   pub(crate) secondary: S,
+  pub(crate) _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, S> With<P, S> {
+impl<P, S, Cmpl> With<P, S, Cmpl> {
   /// Create a new `With` combinator.
   #[inline(always)]
   pub const fn new(primary: P, secondary: S) -> Self {
-    Self { primary, secondary }
+    Self {
+      primary,
+      secondary,
+      _cmpl: PhantomData,
+    }
   }
 
   /// Returns a reference to the primary.
@@ -57,25 +62,27 @@ impl<P, S> With<P, S> {
 
   /// Maps the primary value using the given function.
   #[inline(always)]
-  pub fn map_primary<U, F>(self, f: F) -> With<U, S>
+  pub fn map_primary<U, F>(self, f: F) -> With<U, S, Cmpl>
   where
     F: FnOnce(P) -> U,
   {
     With {
       primary: f(self.primary),
       secondary: self.secondary,
+      _cmpl: PhantomData,
     }
   }
 
   /// Maps the secondary value using the given function.
   #[inline(always)]
-  pub fn map_secondary<U, F>(self, f: F) -> With<P, U>
+  pub fn map_secondary<U, F>(self, f: F) -> With<P, U, Cmpl>
   where
     F: FnOnce(S) -> U,
   {
     With {
       primary: self.primary,
       secondary: f(self.secondary),
+      _cmpl: PhantomData,
     }
   }
 }

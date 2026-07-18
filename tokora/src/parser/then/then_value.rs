@@ -6,7 +6,7 @@ use super::*;
 /// regardless of the first parser's output. Useful for cases where
 /// you want to parse some input but always yield the same result.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ThenValue<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
+pub struct ThenValue<F, T, O, U, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: F,
   value: T,
   _o: PhantomData<O>,
@@ -14,9 +14,10 @@ pub struct ThenValue<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, O, T, U, L, Ctx, Lang: ?Sized> ThenValue<F, T, O, U, L, Ctx, Lang> {
+impl<F, O, T, U, L, Ctx, Lang: ?Sized, Cmpl> ThenValue<F, T, O, U, L, Ctx, Lang, Cmpl> {
   /// Creates a new `ThenValue` combinator.
   #[inline(always)]
   pub(crate) const fn new(parser: F, value: T) -> Self {
@@ -28,6 +29,7 @@ impl<F, O, T, U, L, Ctx, Lang: ?Sized> ThenValue<F, T, O, U, L, Ctx, Lang> {
       _lang: PhantomData,
       _o: PhantomData,
       _u: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

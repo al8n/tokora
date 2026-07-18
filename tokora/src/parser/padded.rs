@@ -109,15 +109,16 @@ use super::*;
 /// - [`Token::is_trivia()`](crate::Token::is_trivia) - Determines what counts as trivia
 /// - [`then_ignore`](crate::parser::ParseInput::then_ignore) - Ignore specific tokens (not trivia)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Padded<P, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Padded<P, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   _m: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, O, L, Ctx, Lang: ?Sized> Padded<P, O, L, Ctx, Lang> {
+impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> Padded<P, O, L, Ctx, Lang, Cmpl> {
   /// Creates a parser that accepts any token with optional padding.
   #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
@@ -127,6 +128,7 @@ impl<P, O, L, Ctx, Lang: ?Sized> Padded<P, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
@@ -201,15 +203,16 @@ where
 /// - [`PaddedRight`] - Skip trailing trivia only
 /// - [`Token::is_trivia()`](crate::Token::is_trivia) - Determines trivia
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PaddedLeft<P, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct PaddedLeft<P, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   _m: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, O, L, Ctx, Lang: ?Sized> PaddedLeft<P, O, L, Ctx, Lang> {
+impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> PaddedLeft<P, O, L, Ctx, Lang, Cmpl> {
   /// Creates a parser that accepts any token with optional padding.
   #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
@@ -219,6 +222,7 @@ impl<P, O, L, Ctx, Lang: ?Sized> PaddedLeft<P, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
@@ -292,15 +296,16 @@ where
 /// - [`PaddedLeft`] - Skip leading trivia only
 /// - [`Token::is_trivia()`](crate::Token::is_trivia) - Determines trivia
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PaddedRight<P, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct PaddedRight<P, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   _m: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, O, L, Ctx, Lang: ?Sized> PaddedRight<P, O, L, Ctx, Lang> {
+impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> PaddedRight<P, O, L, Ctx, Lang, Cmpl> {
   /// Creates a parser that accepts any token with optional padding.
   #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
@@ -310,6 +315,7 @@ impl<P, O, L, Ctx, Lang: ?Sized> PaddedRight<P, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

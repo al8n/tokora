@@ -49,14 +49,15 @@ use super::*;
 /// - [`filter_map`](FilterMap) - Transform and filter with error handling
 /// - [`map`](Map) - Transform output without unwrapping
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Unwrapped<P, O, Ctx, Lang: ?Sized = ()> {
+pub struct Unwrapped<P, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   pub(crate) parser: P,
   pub(crate) _m: PhantomData<O>,
   pub(crate) _ctx: PhantomData<Ctx>,
   pub(crate) _lang: PhantomData<Lang>,
+  pub(crate) _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, O, Ctx, Lang: ?Sized> Unwrapped<P, O, Ctx, Lang> {
+impl<P, O, Ctx, Lang: ?Sized, Cmpl> Unwrapped<P, O, Ctx, Lang, Cmpl> {
   /// Creates a new `Unwrapped` parser.
   #[inline(always)]
   #[track_caller]
@@ -66,6 +67,7 @@ impl<P, O, Ctx, Lang: ?Sized> Unwrapped<P, O, Ctx, Lang> {
       _m: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

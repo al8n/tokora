@@ -134,7 +134,7 @@ mod unbounded;
 /// - [`delimited`](RepeatedWhile::delimited) - Wrap in delimiters
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RepeatedWhile<F, Condition, O, W, L, Ctx, Lang: ?Sized = ()> {
+pub struct RepeatedWhile<F, Condition, O, W, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   pub(super) f: F,
   pub(super) condition: Condition,
   _m: PhantomData<O>,
@@ -142,9 +142,12 @@ pub struct RepeatedWhile<F, Condition, O, W, L, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W, L, Ctx, Lang> {
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl>
+  RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>
+{
   /// Creates a new `RepeatedWhile` parser.
   #[inline(always)]
   pub(crate) const fn new(f: F, condition: Condition) -> Self {
@@ -162,11 +165,14 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W,
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W, L, Ctx, Lang> {
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl>
+  RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>
+{
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[inline(always)]
   pub const fn delimited<'inp, Delim>(self) -> DelimitedBy<Self, Delim>
@@ -177,16 +183,21 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W,
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W, L, Ctx, Lang> {
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl>
+  RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>
+{
   /// Sets the minimum number of elements to parse.
   #[inline(always)]
-  pub fn at_least(self, n: usize) -> AtLeast<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
+  pub fn at_least(
+    self,
+    n: usize,
+  ) -> AtLeast<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>> {
     self.apply(Minimum::new(n))
   }
 
   /// Sets the maximum number of elements to parse.
   #[inline(always)]
-  pub fn at_most(self, n: usize) -> AtMost<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
+  pub fn at_most(self, n: usize) -> AtMost<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>> {
     self.apply(Maximum::new(n))
   }
 
@@ -196,13 +207,13 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> RepeatedWhile<F, Condition, O, W,
     self,
     min: usize,
     max: usize,
-  ) -> Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
+  ) -> Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>> {
     self.apply(With::new(Maximum::new(max), Minimum::new(min)))
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>>
-  for RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl> Apply<AtLeast<Self>>
+  for RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>
 {
   type Options = Minimum;
 
@@ -212,8 +223,8 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>>
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>>
-  for RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl> Apply<AtMost<Self>>
+  for RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>
 {
   type Options = Maximum;
 
@@ -223,8 +234,8 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>>
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>>
-  for RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl> Apply<Bounded<Self>>
+  for RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>
 {
   type Options = With<Maximum, Minimum>;
 
@@ -234,9 +245,9 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>>
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  Apply<Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>>
-  for AtMost<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl>
+  Apply<Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>>>
+  for AtMost<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>>
 {
   type Options = Minimum;
 
@@ -244,14 +255,14 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
   fn apply(
     self,
     options: Self::Options,
-  ) -> Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
+  ) -> Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>> {
     Bounded::new(self.parser, self.maximum.get(), options.get())
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  Apply<Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>>
-  for AtLeast<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>>
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl>
+  Apply<Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>>>
+  for AtLeast<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>>
 {
   type Options = Maximum;
 
@@ -259,7 +270,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
   fn apply(
     self,
     options: Self::Options,
-  ) -> Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang>> {
+  ) -> Bounded<RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>> {
     Bounded::new(self.parser, options.get(), self.minimum.get())
   }
 }

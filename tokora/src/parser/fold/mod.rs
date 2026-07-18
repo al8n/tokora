@@ -26,7 +26,7 @@ mod rfold_while;
 
 /// A fold parser combinator.
 #[derive(Debug, Clone)]
-pub struct Fold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
+pub struct Fold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   init: Init,
   acc: Acc,
@@ -34,9 +34,10 @@ pub struct Fold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> Fold<P, Init, Acc, L, O, Ctx, Lang> {
+impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> Fold<P, Init, Acc, L, O, Ctx, Lang, Cmpl> {
   /// Creates a new fold parser combinator.
   pub(crate) fn new(parser: P, init: Init, acc: Acc) -> Self {
     Self {
@@ -47,6 +48,7 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> Fold<P, Init, Acc, L, O, Ctx, Lang> 
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
@@ -79,7 +81,7 @@ where
 
 /// A fold parser combinator that accepts a fallible accumulator.
 #[derive(Debug, Clone)]
-pub struct TryFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
+pub struct TryFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   init: Init,
   acc: Acc,
@@ -87,9 +89,10 @@ pub struct TryFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> TryFold<P, Init, Acc, L, O, Ctx, Lang> {
+impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> TryFold<P, Init, Acc, L, O, Ctx, Lang, Cmpl> {
   /// Creates a new fold parser combinator.
   pub(crate) fn new(parser: P, init: Init, acc: Acc) -> Self {
     Self {
@@ -100,6 +103,7 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> TryFold<P, Init, Acc, L, O, Ctx, Lan
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
@@ -132,7 +136,7 @@ where
 
 /// A fold parser combinator that accepts a fallible accumulator with access to parsing state.
 #[derive(Debug, Clone)]
-pub struct TryFoldWith<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
+pub struct TryFoldWith<P, Init, Acc, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   init: Init,
   acc: Acc,
@@ -140,9 +144,10 @@ pub struct TryFoldWith<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> TryFoldWith<P, Init, Acc, L, O, Ctx, Lang> {
+impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> TryFoldWith<P, Init, Acc, L, O, Ctx, Lang, Cmpl> {
   /// Creates a new fold parser combinator.
   pub(crate) fn new(parser: P, init: Init, acc: Acc) -> Self {
     Self {
@@ -153,6 +158,7 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> TryFoldWith<P, Init, Acc, L, O, Ctx,
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

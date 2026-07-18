@@ -302,16 +302,17 @@ where
 /// implementation as the error value; whether to emit a diagnostic for it is
 /// the recoverer's decision.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Recover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Recover<P, R, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   recoverer: R,
   _m: PhantomData<O>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
   _l: PhantomData<L>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, R, O, L, Ctx, Lang: ?Sized> Recover<P, R, O, L, Ctx, Lang> {
+impl<P, R, O, L, Ctx, Lang: ?Sized, Cmpl> Recover<P, R, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `Recover` parser.
   #[inline(always)]
   pub(crate) const fn new(parser: P, recoverer: R) -> Self {
@@ -322,6 +323,7 @@ impl<P, R, O, L, Ctx, Lang: ?Sized> Recover<P, R, O, L, Ctx, Lang> {
       _ctx: PhantomData,
       _lang: PhantomData,
       _l: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
@@ -473,16 +475,17 @@ where
 ///
 /// - [`Recover`] - Error recovery with backtracking
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct InplaceRecover<P, R, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct InplaceRecover<P, R, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   recoverer: R,
   _m: PhantomData<O>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
   _l: PhantomData<L>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, R, O, L, Ctx, Lang: ?Sized> InplaceRecover<P, R, O, L, Ctx, Lang> {
+impl<P, R, O, L, Ctx, Lang: ?Sized, Cmpl> InplaceRecover<P, R, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `InplaceRecover` parser.
   #[inline(always)]
   pub(crate) const fn new(parser: P, recoverer: R) -> Self {
@@ -493,6 +496,7 @@ impl<P, R, O, L, Ctx, Lang: ?Sized> InplaceRecover<P, R, O, L, Ctx, Lang> {
       _ctx: PhantomData,
       _lang: PhantomData,
       _l: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

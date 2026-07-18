@@ -6,7 +6,7 @@ use super::*;
 /// the second parser and returns its result. Useful for skipping over
 /// expected tokens or syntax.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct IgnoreThen<F, G, O, U, L, Ctx, Lang: ?Sized> {
+pub struct IgnoreThen<F, G, O, U, L, Ctx, Lang: ?Sized, Cmpl = Complete> {
   first: F,
   second: G,
   _o: PhantomData<O>,
@@ -14,9 +14,10 @@ pub struct IgnoreThen<F, G, O, U, L, Ctx, Lang: ?Sized> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, G, O, U, L, Ctx, Lang: ?Sized> IgnoreThen<F, G, O, U, L, Ctx, Lang> {
+impl<F, G, O, U, L, Ctx, Lang: ?Sized, Cmpl> IgnoreThen<F, G, O, U, L, Ctx, Lang, Cmpl> {
   /// Creates a new `IgnoreThen` combinator.
   #[inline(always)]
   pub(crate) const fn new(first: F, second: G) -> Self {
@@ -28,6 +29,7 @@ impl<F, G, O, U, L, Ctx, Lang: ?Sized> IgnoreThen<F, G, O, U, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

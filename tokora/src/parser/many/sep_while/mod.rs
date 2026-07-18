@@ -140,7 +140,8 @@ mod delim;
 /// - [`repeated`](RepeatedWhile) - Repeat without separators
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct SeparatedWhile<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized = ()> {
+pub struct SeparatedWhile<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized = (), Cmpl = Complete>
+{
   pub(super) f: F,
   pub(super) condition: Condition,
   pub(super) _sep: PhantomData<Sep>,
@@ -149,10 +150,11 @@ pub struct SeparatedWhile<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized = (
   pub(super) _l: PhantomData<L>,
   pub(super) _ctx: PhantomData<Ctx>,
   pub(super) _lang: PhantomData<Lang>,
+  pub(super) _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized> Copy
-  for SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>
+impl<F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl> Copy
+  for SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang, Cmpl>
 where
   F: Copy,
   Sep: Copy,
@@ -160,8 +162,8 @@ where
 {
 }
 
-impl<F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized> Clone
-  for SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang>
+impl<F, Sep, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl> Clone
+  for SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang, Cmpl>
 where
   F: Clone,
   Sep: Clone,
@@ -178,19 +180,20 @@ where
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
-  SeparatedWhile<F, (), Condition, O, W, L, Ctx, Lang>
+impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl>
+  SeparatedWhile<F, (), Condition, O, W, L, Ctx, Lang, Cmpl>
 {
   /// Creates a new `SeparatedWhile` parser with the given container.
   #[inline(always)]
   pub const fn new<Sep>(
     f: F,
     condition: Condition,
-  ) -> SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang> {
+  ) -> SeparatedWhile<F, Sep, Condition, O, W, L, Ctx, Lang, Cmpl> {
     SeparatedWhile {
       f,
       condition,
@@ -200,18 +203,19 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized>
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized>
-  SeparatedWhile<F, Sep, Condition, O, Window, L, Ctx, Lang>
+impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized, Cmpl>
+  SeparatedWhile<F, Sep, Condition, O, Window, L, Ctx, Lang, Cmpl>
 {
   /// Creates a mutable reference version of this `SeparatedWhile` parser.
   #[inline(always)]
   pub const fn as_mut(
     &mut self,
-  ) -> SeparatedWhile<&mut F, Sep, &mut Condition, O, Window, L, Ctx, Lang> {
+  ) -> SeparatedWhile<&mut F, Sep, &mut Condition, O, Window, L, Ctx, Lang, Cmpl> {
     SeparatedWhile {
       f: &mut self.f,
       condition: &mut self.condition,
@@ -221,6 +225,7 @@ impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized>
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 

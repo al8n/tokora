@@ -139,15 +139,16 @@ mod unbounded;
 /// - [`delimited`](Repeated::delimited) - Wrap in delimiters
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Repeated<F, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Repeated<F, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   pub(super) f: F,
   _m: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
+impl<F, O, L, Ctx, Lang: ?Sized, Cmpl> Repeated<F, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `Repeated` parser.
   #[inline(always)]
   pub(crate) const fn new(f: F) -> Self {
@@ -157,11 +158,12 @@ impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
+impl<F, O, L, Ctx, Lang: ?Sized, Cmpl> Repeated<F, O, L, Ctx, Lang, Cmpl> {
   /// Delimits the parser with the given open and close classifiers and delimiter.
   #[inline(always)]
   pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
@@ -169,27 +171,27 @@ impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
+impl<F, O, L, Ctx, Lang: ?Sized, Cmpl> Repeated<F, O, L, Ctx, Lang, Cmpl> {
   /// Sets the minimum number of elements to parse.
   #[inline(always)]
-  pub fn at_least(self, n: usize) -> AtLeast<Repeated<F, O, L, Ctx, Lang>> {
+  pub fn at_least(self, n: usize) -> AtLeast<Repeated<F, O, L, Ctx, Lang, Cmpl>> {
     self.apply(Minimum::new(n))
   }
 
   /// Sets the maximum number of elements to parse.
   #[inline(always)]
-  pub fn at_most(self, n: usize) -> AtMost<Repeated<F, O, L, Ctx, Lang>> {
+  pub fn at_most(self, n: usize) -> AtMost<Repeated<F, O, L, Ctx, Lang, Cmpl>> {
     self.apply(Maximum::new(n))
   }
 
   /// Sets both the minimum and maximum number of elements to parse.
   #[inline(always)]
-  pub fn bounded(self, min: usize, max: usize) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
+  pub fn bounded(self, min: usize, max: usize) -> Bounded<Repeated<F, O, L, Ctx, Lang, Cmpl>> {
     self.apply(With::new(Maximum::new(max), Minimum::new(min)))
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>> for Repeated<F, O, L, Ctx, Lang> {
+impl<F, O, L, Ctx, Lang: ?Sized, Cmpl> Apply<AtLeast<Self>> for Repeated<F, O, L, Ctx, Lang, Cmpl> {
   type Options = Minimum;
 
   #[inline(always)]
@@ -198,7 +200,7 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtLeast<Self>> for Repeated<F, O, L, Ctx,
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>> for Repeated<F, O, L, Ctx, Lang> {
+impl<F, O, L, Ctx, Lang: ?Sized, Cmpl> Apply<AtMost<Self>> for Repeated<F, O, L, Ctx, Lang, Cmpl> {
   type Options = Maximum;
 
   #[inline(always)]
@@ -207,7 +209,7 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<AtMost<Self>> for Repeated<F, O, L, Ctx, 
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>> for Repeated<F, O, L, Ctx, Lang> {
+impl<F, O, L, Ctx, Lang: ?Sized, Cmpl> Apply<Bounded<Self>> for Repeated<F, O, L, Ctx, Lang, Cmpl> {
   type Options = With<Maximum, Minimum>;
 
   #[inline(always)]
@@ -216,24 +218,24 @@ impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Self>> for Repeated<F, O, L, Ctx,
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Repeated<F, O, L, Ctx, Lang>>>
-  for AtMost<Repeated<F, O, L, Ctx, Lang>>
+impl<F, O, L, Ctx, Lang: ?Sized, Cmpl> Apply<Bounded<Repeated<F, O, L, Ctx, Lang, Cmpl>>>
+  for AtMost<Repeated<F, O, L, Ctx, Lang, Cmpl>>
 {
   type Options = Minimum;
 
   #[inline(always)]
-  fn apply(self, options: Self::Options) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
+  fn apply(self, options: Self::Options) -> Bounded<Repeated<F, O, L, Ctx, Lang, Cmpl>> {
     Bounded::new(self.parser, self.maximum.get(), options.get())
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Apply<Bounded<Repeated<F, O, L, Ctx, Lang>>>
-  for AtLeast<Repeated<F, O, L, Ctx, Lang>>
+impl<F, O, L, Ctx, Lang: ?Sized, Cmpl> Apply<Bounded<Repeated<F, O, L, Ctx, Lang, Cmpl>>>
+  for AtLeast<Repeated<F, O, L, Ctx, Lang, Cmpl>>
 {
   type Options = Maximum;
 
   #[inline(always)]
-  fn apply(self, options: Self::Options) -> Bounded<Repeated<F, O, L, Ctx, Lang>> {
+  fn apply(self, options: Self::Options) -> Bounded<Repeated<F, O, L, Ctx, Lang, Cmpl>> {
     Bounded::new(self.parser, options.get(), self.minimum.get())
   }
 }

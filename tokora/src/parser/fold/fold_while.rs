@@ -2,7 +2,7 @@ use super::*;
 
 /// A fold parser that accumulates results while a condition is met, with a fallible accumulator.
 #[derive(Clone, Debug, Copy)]
-pub struct FoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized = ()> {
+pub struct FoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   f: F,
   condition: Condition,
   init: Init,
@@ -12,10 +12,11 @@ pub struct FoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized>
-  FoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang>
+impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized, Cmpl>
+  FoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang, Cmpl>
 {
   /// Creates a new `FoldWhile` parser with the given container.
   #[inline(always)]
@@ -30,6 +31,7 @@ impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized>
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
@@ -71,7 +73,7 @@ where
 
 /// A fold parser that accumulates results while a condition is met, with a fallible accumulator.
 #[derive(Clone, Debug, Copy)]
-pub struct TryFoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized = ()> {
+pub struct TryFoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   f: F,
   condition: Condition,
   init: Init,
@@ -81,10 +83,11 @@ pub struct TryFoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized = ()
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized>
-  TryFoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang>
+impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized, Cmpl>
+  TryFoldWhile<F, Condition, Init, Acc, O, W, L, Ctx, Lang, Cmpl>
 {
   /// Creates a new `FoldWhile` parser with the given container.
   #[inline(always)]
@@ -99,6 +102,7 @@ impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized>
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
@@ -142,7 +146,18 @@ where
 /// A fold parser that accumulates results while a condition is met, with a fallible accumulator
 /// and access to parsing state.
 #[derive(Clone, Debug, Copy)]
-pub struct TryFoldWhileWith<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized = ()> {
+pub struct TryFoldWhileWith<
+  F,
+  Condition,
+  Init,
+  Acc,
+  O,
+  W,
+  L,
+  Ctx,
+  Lang: ?Sized = (),
+  Cmpl = Complete,
+> {
   f: F,
   condition: Condition,
   init: Init,
@@ -152,10 +167,11 @@ pub struct TryFoldWhileWith<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized 
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized>
-  TryFoldWhileWith<F, Condition, Init, Acc, O, W, L, Ctx, Lang>
+impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized, Cmpl>
+  TryFoldWhileWith<F, Condition, Init, Acc, O, W, L, Ctx, Lang, Cmpl>
 {
   /// Creates a new `FoldWhile` parser with the given container.
   #[inline(always)]
@@ -170,6 +186,7 @@ impl<F, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized>
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

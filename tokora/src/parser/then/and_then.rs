@@ -6,7 +6,7 @@ use super::*;
 /// the second parser to run. This enables context-dependent parsing where
 /// the result of one parser influences what comes next.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct AndThen<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
+pub struct AndThen<F, T, O, U, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: F,
   then: T,
   _o: PhantomData<O>,
@@ -14,9 +14,10 @@ pub struct AndThen<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, O, T, U, L, Ctx, Lang: ?Sized> AndThen<F, T, O, U, L, Ctx, Lang> {
+impl<F, O, T, U, L, Ctx, Lang: ?Sized, Cmpl> AndThen<F, T, O, U, L, Ctx, Lang, Cmpl> {
   /// Creates a new `AndThen` combinator.
   #[inline(always)]
   pub(crate) const fn new(parser: F, then: T) -> Self {
@@ -28,6 +29,7 @@ impl<F, O, T, U, L, Ctx, Lang: ?Sized> AndThen<F, T, O, U, L, Ctx, Lang> {
       _lang: PhantomData,
       _o: PhantomData,
       _u: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

@@ -24,7 +24,7 @@ mod then_value;
 /// See also [`AndThen`] and [`AndThenWith`] for variants that use the output
 /// of the first parser to determine the second parser.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Then<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
+pub struct Then<F, T, O, U, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: F,
   then: T,
   _o: PhantomData<O>,
@@ -32,9 +32,10 @@ pub struct Then<F, T, O, U, L, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _lang: PhantomData<Lang>,
   _ctx: PhantomData<Ctx>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, T, O, U, L, Ctx, Lang: ?Sized> Then<F, T, O, U, L, Ctx, Lang> {
+impl<F, T, O, U, L, Ctx, Lang: ?Sized, Cmpl> Then<F, T, O, U, L, Ctx, Lang, Cmpl> {
   /// Creates a new `Then` combinator.
   #[inline(always)]
   pub(crate) const fn new(parser: F, then: T) -> Self {
@@ -46,6 +47,7 @@ impl<F, T, O, U, L, Ctx, Lang: ?Sized> Then<F, T, O, U, L, Ctx, Lang> {
       _lang: PhantomData,
       _o: PhantomData,
       _u: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

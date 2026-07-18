@@ -66,16 +66,17 @@ use super::*;
 /// - [`ValidateWith`] - Validate with access to parse state
 /// - [`FilterMap`] - Validate and transform simultaneously
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Validate<P, F, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Validate<P, F, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   validator: F,
   _l: PhantomData<L>,
   _o: PhantomData<O>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, F, O, L, Ctx, Lang: ?Sized> Validate<P, F, O, L, Ctx, Lang> {
+impl<P, F, O, L, Ctx, Lang: ?Sized, Cmpl> Validate<P, F, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `Validate` combinator for the specified language.
   #[inline(always)]
   pub(crate) const fn of<'inp>(parser: P, validator: F) -> Self
@@ -92,6 +93,7 @@ impl<P, F, O, L, Ctx, Lang: ?Sized> Validate<P, F, O, L, Ctx, Lang> {
       _ctx: PhantomData,
       _lang: PhantomData,
       _o: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
@@ -183,16 +185,17 @@ where
 /// - [`FilterWith`] - Identical functionality (different name)
 /// - [`ParseState`] - The state object passed to validators
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ValidateWith<P, F, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct ValidateWith<P, F, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   validator: F,
   _l: PhantomData<L>,
   _o: PhantomData<O>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, F, O, L, Ctx, Lang: ?Sized> ValidateWith<P, F, O, L, Ctx, Lang> {
+impl<P, F, O, L, Ctx, Lang: ?Sized, Cmpl> ValidateWith<P, F, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `Validate` combinator for the specified language.
   #[inline(always)]
   pub(crate) const fn of<'inp>(parser: P, validator: F) -> Self
@@ -212,6 +215,7 @@ impl<P, F, O, L, Ctx, Lang: ?Sized> ValidateWith<P, F, O, L, Ctx, Lang> {
       _ctx: PhantomData,
       _lang: PhantomData,
       _o: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }

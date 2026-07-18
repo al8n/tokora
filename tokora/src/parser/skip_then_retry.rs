@@ -59,7 +59,7 @@ use super::*;
 /// - [`Recover`] — recovery by an alternative parser from the original position
 /// - [`InplaceRecover`] — recovery continuing from the error position
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SkipThenRetry<P, D, F, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct SkipThenRetry<P, D, F, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   classifier: D,
   pred: F,
@@ -67,9 +67,10 @@ pub struct SkipThenRetry<P, D, F, O, L, Ctx, Lang: ?Sized = ()> {
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
   _l: PhantomData<L>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, D, F, O, L, Ctx, Lang: ?Sized> SkipThenRetry<P, D, F, O, L, Ctx, Lang> {
+impl<P, D, F, O, L, Ctx, Lang: ?Sized, Cmpl> SkipThenRetry<P, D, F, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `SkipThenRetry` parser.
   #[inline(always)]
   pub(crate) const fn new(parser: P, classifier: D, pred: F) -> Self {
@@ -81,6 +82,7 @@ impl<P, D, F, O, L, Ctx, Lang: ?Sized> SkipThenRetry<P, D, F, O, L, Ctx, Lang> {
       _ctx: PhantomData,
       _lang: PhantomData,
       _l: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
