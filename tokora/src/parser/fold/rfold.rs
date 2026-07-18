@@ -30,20 +30,21 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> RFold<P, Init, Acc, L, O, Ctx,
   }
 }
 
-impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for RFold<P, Init, Acc, L, O, Ctx, Lang>
+impl<'inp, P, Init, Acc, O, L, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for RFold<P, Init, Acc, L, O, Ctx, Lang, Cmpl>
 where
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Init: FnMut() -> O,
   Acc: FnMut(O, O) -> O,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

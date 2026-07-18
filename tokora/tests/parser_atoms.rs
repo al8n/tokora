@@ -583,7 +583,7 @@ fn delimited_generic_paren_equals_parens() {
   let out = drive(
     Fatal::<E>::new(),
     |inp| {
-      let d = delimited::<Paren, _, _, _, _, _>(Ident::parse)(inp)?;
+      let d = delimited::<Paren, _, _, _, _, _, _>(Ident::parse)(inp)?;
       assert_eq!(*d.data().source_ref(), "x");
       assert_eq!(d.data().span(), SimpleSpan::new(1, 2));
       assert_eq!(d.span(), SimpleSpan::new(0, 3));
@@ -604,7 +604,7 @@ fn delimited_wrong_close_reports_unexpected_token() {
   fn wrong_close<'a>(
     inp: &mut InputRef<'a, '_, TestLexer<'a>, FatalContext<'a, TestLexer<'a>, ShapeError>>,
   ) -> Result<(), ShapeError> {
-    delimited::<Brace, _, _, _, _, _>(Ident::parse)(inp).map(|_| ())
+    delimited::<Brace, _, _, _, _, _, _>(Ident::parse)(inp).map(|_| ())
   }
   let err = Parser::with_parser(wrong_close)
     .parse_str("{x)")
@@ -622,7 +622,7 @@ fn delimited_eof_reports_unexpected_eot() {
   fn unterminated<'a>(
     inp: &mut InputRef<'a, '_, TestLexer<'a>, FatalContext<'a, TestLexer<'a>, ShapeError>>,
   ) -> Result<(), ShapeError> {
-    delimited::<Paren, _, _, _, _, _>(Ident::parse)(inp).map(|_| ())
+    delimited::<Paren, _, _, _, _, _, _>(Ident::parse)(inp).map(|_| ())
   }
   let err = Parser::with_parser(unterminated)
     .parse_str("(a")
@@ -793,7 +793,7 @@ fn try_delimited_generic_declines_on_wrong_opener_and_leaves_it() {
   let out = drive(
     Fatal::<E>::new(),
     |inp| {
-      let declined = try_delimited::<Brace, _, _, _, _, _>(Ident::parse)(inp)?.is_none();
+      let declined = try_delimited::<Brace, _, _, _, _, _, _>(Ident::parse)(inp)?.is_none();
       // The `(` group is untouched: the committed paren shape parses it whole.
       let d = parens(Ident::parse)(inp)?;
       assert_eq!(d.span(), SimpleSpan::new(0, 3));
@@ -804,7 +804,7 @@ fn try_delimited_generic_declines_on_wrong_opener_and_leaves_it() {
   assert!(matches!(out, Ok(true)));
   let out = drive(
     Fatal::<E>::new(),
-    |inp| try_delimited::<Brace, _, _, _, _, _>(Ident::parse)(inp),
+    |inp| try_delimited::<Brace, _, _, _, _, _, _>(Ident::parse)(inp),
     "",
   );
   assert!(matches!(out, Ok(None)));
@@ -814,13 +814,13 @@ fn try_delimited_generic_declines_on_wrong_opener_and_leaves_it() {
 fn try_delimited_generic_after_opener_is_committed_unterminated_errors() {
   let out = drive(
     Fatal::<E>::new(),
-    |inp| try_delimited::<Paren, _, _, _, _, _>(Ident::parse)(inp),
+    |inp| try_delimited::<Paren, _, _, _, _, _, _>(Ident::parse)(inp),
     "(a",
   );
   assert!(out.is_err());
   let out = drive(
     Verbose::<E>::new(),
-    |inp| try_delimited::<Paren, _, _, _, _, _>(Ident::parse)(inp),
+    |inp| try_delimited::<Paren, _, _, _, _, _, _>(Ident::parse)(inp),
     "(a",
   );
   assert!(out.is_err());

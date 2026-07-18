@@ -3,9 +3,9 @@ use crate::emitter::{MissingLeadingSeparatorEmitter, UnexpectedTrailingSeparator
 use super::*;
 
 impl_separated_parse! {
-  owned_type = [RequireLeading<Separated<F, Sep, O, L, Ctx, Lang>>],
-  ref_type = [RequireLeading<Separated<F, Sep, O, L, Ctx, Lang>>],
-  wrapper_type = [RequireLeading<Separated<&'c mut F, Sep, O, L, Ctx, Lang>>],
+  owned_type = [RequireLeading<Separated<F, Sep, O, L, Ctx, Lang, Cmpl>>],
+  ref_type = [RequireLeading<Separated<F, Sep, O, L, Ctx, Lang, Cmpl>>],
+  wrapper_type = [RequireLeading<Separated<&'c mut F, Sep, O, L, Ctx, Lang, Cmpl>>],
   map_depth = 1,
   cardinality = unbounded,
   policy = [RequireLeading],

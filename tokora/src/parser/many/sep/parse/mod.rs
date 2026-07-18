@@ -29,10 +29,10 @@ mod require_surrounded;
 mod require_trailing;
 mod unbounded;
 
-impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, Lang> {
+impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized, Cmpl> Separated<&mut F, Sep, O, L, Ctx, Lang, Cmpl> {
   fn parse<'closure, Container, CH, SP, EH>(
     &mut self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     container: &mut Container,
     continue_state_handler: &CH,
     separator_state_handler: &SP,
@@ -40,14 +40,15 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    F: TryParseInput<'inp, L, O, Ctx, Lang>,
+    F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Sep: Punctuator<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + FullContainerEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
-    EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
-    CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
-    SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
+    EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
+    CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
+    SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
   {
     trace_event!(inp, "separated");
     let mut state = State::Start;
@@ -77,6 +78,10 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
       };
 
       match self.f.try_parse_input(inp) {
+        // The never-recoverable gate (0.3.0): a frontier `Incomplete` from the element
+        // parser re-raises untouched — never spent as a diagnostic. Constant-false under
+        // `Complete`.
+        Err(e) if Cmpl::is_incomplete_error(&e) => return Err(e),
         Err(e) => {
           let span = inp.span_since(&cursor);
           inp.emitter().emit_error(Spanned::new(span, e))?;
@@ -108,7 +113,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
   pub(super) fn handle_separator<'closure, Handler, Container>(
     &mut self,
     mut state: State<L::Token, L::Span>,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     container: &mut Container,
     handler: &Handler,
     sep_tok: Spanned<L::Token, L::Span>,
@@ -117,8 +122,9 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
     'inp: 'closure,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
-    Handler: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
+    Handler: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
   {
     match state {
@@ -179,7 +185,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
   pub(super) fn handle_continue<'closure, Container, Handler>(
     &mut self,
     mut state: State<L::Token, L::Span>,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     peek_span: L::Span,
     element: O,
@@ -191,11 +197,12 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
     'inp: 'closure,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    F: TryParseInput<'inp, L, O, Ctx, Lang>,
+    Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
+    F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Sep: Punctuator<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + FullContainerEmitter<'inp, L, Lang>,
     Container: ContainerT<O> + SeparatorHandler<'inp, L>,
-    Handler: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
+    Handler: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
   {
     match state {
       // happy path, we found a separator before an element
@@ -268,7 +275,7 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
   pub(super) fn handle_end<'closure, Handler>(
     &mut self,
     state: State<L::Token, L::Span>,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
     handler: &Handler,
@@ -277,10 +284,11 @@ impl<'inp, F, Sep, O, L, Ctx, Lang: ?Sized> Separated<&mut F, Sep, O, L, Ctx, La
     'inp: 'closure,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    F: TryParseInput<'inp, L, O, Ctx, Lang>,
+    Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
+    F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Sep: Punctuator<'inp, L, Lang>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
-    Handler: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
+    Handler: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
   {
     Ok(match state {
       // we are in the start state, so no elements were found

@@ -158,19 +158,20 @@ impl<P, F, O, L, Ctx, Lang: ?Sized, Cmpl> Filter<P, F, O, L, Ctx, Lang, Cmpl> {
   }
 }
 
-impl<'inp, P, F, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for Filter<P, F, O, L, Ctx, Lang>
+impl<'inp, P, F, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Filter<P, F, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self
       .parser
@@ -272,22 +273,23 @@ impl<P, F, O, L, Ctx, Lang: ?Sized, Cmpl> FilterWith<P, F, O, L, Ctx, Lang, Cmpl
   }
 }
 
-impl<'inp, P, F, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for FilterWith<P, F, O, L, Ctx, Lang>
+impl<'inp, P, F, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for FilterWith<P, F, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   F: FnMut(
     &O,
-    ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let cursor = input.cursor().clone();
     self

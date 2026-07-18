@@ -13,8 +13,8 @@ use crate::{
 
 use super::*;
 
-impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for With<Minimum, Maximum>
+impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized, Cmpl: crate::input::Completeness>
+  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl> for With<Minimum, Maximum>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -28,7 +28,7 @@ where
   fn handle_start_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -42,7 +42,7 @@ where
   fn handle_element_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -56,7 +56,7 @@ where
   fn handle_leading_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     _: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -71,7 +71,7 @@ where
   fn handle_separator_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     sep: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -90,8 +90,8 @@ where
   }
 }
 
-impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for With<Minimum, Maximum>
+impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized, Cmpl: crate::input::Completeness>
+  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl> for With<Minimum, Maximum>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -103,7 +103,7 @@ where
   #[inline(always)]
   fn handle_start_state(
     &self,
-    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     _: L::Offset,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -117,14 +117,14 @@ where
   fn handle_too_many_element(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
   {
-    <Maximum as ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>>::handle_too_many_element(
+    <Maximum as ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>>::handle_too_many_element(
       self.secondary(),
       num_elems,
       inp,
@@ -133,8 +133,8 @@ where
   }
 }
 
-impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for With<Minimum, Maximum>
+impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized, Cmpl: crate::input::Completeness>
+  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl> for With<Minimum, Maximum>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -144,7 +144,7 @@ where
   #[inline(always)]
   fn handle_start_state(
     &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     sep_tok: &Spanned<L::Token, L::Span>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -159,8 +159,8 @@ where
   }
 }
 
-impl<'inp, 'closure, O, L, Ctx, Lang: ?Sized> RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang>
-  for With<Minimum, Maximum>
+impl<'inp, 'closure, O, L, Ctx, Lang: ?Sized, Cmpl: crate::input::Completeness>
+  RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang, Cmpl> for With<Minimum, Maximum>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -170,7 +170,7 @@ where
   fn on_element(
     &self,
     nums: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -189,7 +189,7 @@ where
   fn on_stop(
     &self,
     nums: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -203,7 +203,9 @@ where
       inp.emitter().emit_too_few(TooFew::of(span, nums, min))?;
     }
 
-    <Self as RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang>>::on_element(self, nums, inp, anchor)
-      .map(|_| inp.span_since(anchor))
+    <Self as RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang, Cmpl>>::on_element(
+      self, nums, inp, anchor,
+    )
+    .map(|_| inp.span_since(anchor))
   }
 }

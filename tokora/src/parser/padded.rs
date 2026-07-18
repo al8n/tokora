@@ -133,17 +133,19 @@ impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> Padded<P, O, L, Ctx, Lang, Cmpl> {
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for Padded<P, O, L, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Padded<P, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -227,17 +229,19 @@ impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> PaddedLeft<P, O, L, Ctx, Lang, Cmpl> {
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for PaddedLeft<P, O, L, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for PaddedLeft<P, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -320,17 +324,19 @@ impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> PaddedRight<P, O, L, Ctx, Lang, Cmpl> {
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for PaddedRight<P, O, L, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for PaddedRight<P, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -381,17 +387,19 @@ impl<P, O, L, Ctx, Lang: ?Sized> Inner<P, O, L, Ctx, Lang> {
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for Inner<&mut P, O, L, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Inner<&mut P, O, L, Ctx, Lang>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

@@ -10,8 +10,9 @@ use crate::{
   span::{Span, Spanned},
 };
 
-impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang> for AllowLeading<AllowTrailing<Minimum>>
+impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized, Cmpl: crate::input::Completeness>
+  EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>
+  for AllowLeading<AllowTrailing<Minimum>>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -21,7 +22,7 @@ where
   fn handle_start_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -35,7 +36,7 @@ where
   fn handle_element_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -49,7 +50,7 @@ where
   fn handle_leading_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     spanned: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -70,7 +71,7 @@ where
   fn handle_separator_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     _: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -82,8 +83,8 @@ where
   }
 }
 
-impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>
+impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized, Cmpl: crate::input::Completeness>
+  ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>
   for AllowLeading<AllowTrailing<Minimum>>
 where
   L: Lexer<'inp>,
@@ -93,7 +94,7 @@ where
   #[inline(always)]
   fn handle_start_state(
     &self,
-    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     _: L::Offset,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -104,8 +105,8 @@ where
   }
 }
 
-impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized>
-  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>
+impl<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized, Cmpl: crate::input::Completeness>
+  SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>
   for AllowLeading<AllowTrailing<Minimum>>
 where
   L: Lexer<'inp>,
@@ -115,7 +116,7 @@ where
   #[inline(always)]
   fn handle_start_state(
     &self,
-    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     _: &Spanned<L::Token, L::Span>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where

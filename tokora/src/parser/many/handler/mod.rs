@@ -444,11 +444,21 @@ const _: () = {
   }
 };
 
-pub(super) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+pub(super) trait EndStateHandler<
+  'inp,
+  'closure,
+  Sep,
+  O,
+  L,
+  Ctx,
+  Lang: ?Sized,
+  Cmpl: crate::input::Completeness = crate::input::Complete,
+>
+{
   fn handle_start_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -458,7 +468,7 @@ pub(super) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
   fn handle_element_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -468,7 +478,7 @@ pub(super) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
   fn handle_leading_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     leading_sep: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -479,7 +489,7 @@ pub(super) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
   fn handle_separator_state(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     sep: Spanned<L::Token, L::Span>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -488,10 +498,20 @@ pub(super) trait EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
     Ctx: ParseContext<'inp, L, Lang>;
 }
 
-pub(super) trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+pub(super) trait ContinueStateHandler<
+  'inp,
+  'closure,
+  Sep,
+  O,
+  L,
+  Ctx,
+  Lang: ?Sized,
+  Cmpl: crate::input::Completeness = crate::input::Complete,
+>
+{
   fn handle_start_state(
     &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     off: L::Offset,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -502,7 +522,7 @@ pub(super) trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Siz
   fn handle_too_many_element(
     &self,
     _: usize,
-    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    _: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     _: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -513,10 +533,20 @@ pub(super) trait ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Siz
   }
 }
 
-pub(super) trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Sized> {
+pub(super) trait SeparatorStateHandler<
+  'inp,
+  'closure,
+  Sep,
+  O,
+  L,
+  Ctx,
+  Lang: ?Sized,
+  Cmpl: crate::input::Completeness = crate::input::Complete,
+>
+{
   fn handle_start_state(
     &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     sep_tok: &Spanned<L::Token, L::Span>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -524,11 +554,20 @@ pub(super) trait SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang: ?Si
     Ctx: ParseContext<'inp, L, Lang>;
 }
 
-pub(super) trait RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang: ?Sized> {
+pub(super) trait RepeatedHandler<
+  'inp,
+  'closure,
+  O,
+  L,
+  Ctx,
+  Lang: ?Sized,
+  Cmpl: crate::input::Completeness = crate::input::Complete,
+>
+{
   fn on_element(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
@@ -538,7 +577,7 @@ pub(super) trait RepeatedHandler<'inp, 'closure, O, L, Ctx, Lang: ?Sized> {
   fn on_stop(
     &self,
     num_elems: usize,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where

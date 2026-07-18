@@ -128,17 +128,19 @@ impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> Ignore<P, O, L, Ctx, Lang, Cmpl> {
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, (), Ctx, Lang> for Ignore<P, O, L, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, (), Ctx, Lang, Cmpl>
+  for Ignore<P, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

@@ -28,7 +28,7 @@ use crate::{
   ErrorOf, Lexer, ParseCtx, ParseInput, Token,
   delimiter::TypedDelimiter,
   error::{UnexpectedEot, token::UnexpectedToken},
-  input::{Cursor, InputRef},
+  input::{Cursor, InputRef, SurfaceIncomplete},
   punct::{
     CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen,
   },
@@ -165,7 +165,7 @@ pub type DelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 ///
 /// // A parenthesized digit through the generic form, fixing the pair to `Paren`.
 /// fn paren_digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
-///     delimited::<Paren, _, _, _, _, _>(digit)(inp).map(|d| *d.data())
+///     delimited::<Paren, _, _, _, _, _, _>(digit)(inp).map(|d| *d.data())
 /// }
 ///
 /// assert_eq!(Parser::with_parser(paren_digit).parse_str("(1)").unwrap(), 1);
@@ -173,26 +173,29 @@ pub type DelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// assert!(Parser::with_parser(paren_digit).parse_str("(1").is_err());
 /// ```
 #[inline]
-pub fn delimited<'inp, D, L, Ctx, Lang, P, T>(
+pub fn delimited<'inp, D, L, Ctx, Lang, P, T, Cmpl>(
   mut inner: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> DelimitedOf<'inp, D, L, Ctx, Lang, T>
+) -> impl for<'c> FnMut(
+  &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
+) -> DelimitedOf<'inp, D, L, Ctx, Lang, T>
 where
   D: TypedDelimiter<'inp, L, Lang>,
   L: Lexer<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
     let open_span = match inp.next()? {
       Some(sp) if D::is_open(&sp.data().kind()) => sp.into_span(),
       Some(sp) => return Err(D::unexpected_open_token(sp).into()),
       None => return Err(UnexpectedEot::eot_of(inp.span().end()).into()),
     };
-    finish_delimited::<D, _, _, _, _, _>(inp, &cursor, open_span, &mut inner)
+    finish_delimited::<D, _, _, _, _, _, _>(inp, &cursor, open_span, &mut inner)
   }
 }
 
@@ -200,8 +203,8 @@ where
 /// is committed — runs `inner`, commits the `D` closer, and builds the [`Delimited`]
 /// whose span runs from `cursor` (captured before the opener) to the closer.
 #[inline]
-fn finish_delimited<'inp, 'c, D, L, Ctx, Lang, P, T>(
-  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang>,
+fn finish_delimited<'inp, 'c, D, L, Ctx, Lang, P, T, Cmpl>(
+  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
   cursor: &Cursor<'inp, 'c, L>,
   open_span: L::Span,
   inner: &mut P,
@@ -211,7 +214,8 @@ where
   L: Lexer<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -336,7 +340,7 @@ pub type TryDelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 ///   inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>,
 /// ) -> Result<(char, Option<char>), Error> {
 ///     let name = ident(inp)?;
-///     let args = try_delimited::<Angle, _, _, _, _, _>(ident)(inp)?;
+///     let args = try_delimited::<Angle, _, _, _, _, _, _>(ident)(inp)?;
 ///     Ok((name, args.map(|d| *d.data())))
 /// }
 ///
@@ -348,25 +352,28 @@ pub type TryDelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// assert!(Parser::with_parser(generic_name).parse_str("x<t").is_err());
 /// ```
 #[inline]
-pub fn try_delimited<'inp, D, L, Ctx, Lang, P, T>(
+pub fn try_delimited<'inp, D, L, Ctx, Lang, P, T, Cmpl>(
   mut inner: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> TryDelimitedOf<'inp, D, L, Ctx, Lang, T>
+) -> impl for<'c> FnMut(
+  &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
+) -> TryDelimitedOf<'inp, D, L, Ctx, Lang, T>
 where
   D: TypedDelimiter<'inp, L, Lang>,
   L: Lexer<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
     let open_span = match inp.try_expect(|tok| D::is_open(&tok.data.kind()))? {
       Some(sp) => sp.into_span(),
       None => return Ok(None),
     };
-    finish_delimited::<D, _, _, _, _, _>(inp, &cursor, open_span, &mut inner).map(Some)
+    finish_delimited::<D, _, _, _, _, _, _>(inp, &cursor, open_span, &mut inner).map(Some)
   }
 }
 
@@ -472,19 +479,20 @@ pub type ParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// assert!(Parser::with_parser(wrapped).parse_str("(1").is_err());
 /// ```
 #[inline]
-pub fn parens<'inp, L, Ctx, Lang, P, T>(
+pub fn parens<'inp, L, Ctx, Lang, P, T, Cmpl>(
   mut inner: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> ParensOf<'inp, L, Ctx, Lang, T>
+) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>) -> ParensOf<'inp, L, Ctx, Lang, T>
 where
   L: Lexer<'inp>,
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
     let open = OpenParen::parse_of(inp)?;
     finish_parens(inp, &cursor, open, &mut inner)
@@ -495,8 +503,8 @@ where
 /// committed — runs `inner`, commits the `)` closer, and builds the [`Delimited`] whose
 /// span runs from `cursor` (captured before the opener) to the closer.
 #[inline]
-fn finish_parens<'inp, 'c, L, Ctx, Lang, P, T>(
-  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang>,
+fn finish_parens<'inp, 'c, L, Ctx, Lang, P, T, Cmpl>(
+  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
   cursor: &Cursor<'inp, 'c, L>,
   open: OpenParen<L::Span, (), Lang>,
   inner: &mut P,
@@ -506,7 +514,8 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -623,19 +632,20 @@ pub type TryParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// assert!(Parser::with_parser(attempt).parse_str("(1").is_err());
 /// ```
 #[inline]
-pub fn try_parens<'inp, L, Ctx, Lang, P, T>(
+pub fn try_parens<'inp, L, Ctx, Lang, P, T, Cmpl>(
   mut inner: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> TryParensOf<'inp, L, Ctx, Lang, T>
+) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>) -> TryParensOf<'inp, L, Ctx, Lang, T>
 where
   L: Lexer<'inp>,
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
     match OpenParen::try_parse_of(inp)? {
       ParseAttempt::Accept(open) => finish_parens(inp, &cursor, open, &mut inner).map(Some),
@@ -746,19 +756,20 @@ pub type BracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// assert!(Parser::with_parser(wrapped).parse_str("{1").is_err());
 /// ```
 #[inline]
-pub fn braces<'inp, L, Ctx, Lang, P, T>(
+pub fn braces<'inp, L, Ctx, Lang, P, T, Cmpl>(
   mut inner: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> BracesOf<'inp, L, Ctx, Lang, T>
+) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>) -> BracesOf<'inp, L, Ctx, Lang, T>
 where
   L: Lexer<'inp>,
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
     let open = OpenBrace::parse_of(inp)?;
     finish_braces(inp, &cursor, open, &mut inner)
@@ -769,8 +780,8 @@ where
 /// committed — runs `inner`, commits the `}` closer, and builds the [`Delimited`] whose
 /// span runs from `cursor` (captured before the opener) to the closer.
 #[inline]
-fn finish_braces<'inp, 'c, L, Ctx, Lang, P, T>(
-  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang>,
+fn finish_braces<'inp, 'c, L, Ctx, Lang, P, T, Cmpl>(
+  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
   cursor: &Cursor<'inp, 'c, L>,
   open: OpenBrace<L::Span, (), Lang>,
   inner: &mut P,
@@ -780,7 +791,8 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -897,19 +909,20 @@ pub type TryBracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// assert!(Parser::with_parser(attempt).parse_str("{1").is_err());
 /// ```
 #[inline]
-pub fn try_braces<'inp, L, Ctx, Lang, P, T>(
+pub fn try_braces<'inp, L, Ctx, Lang, P, T, Cmpl>(
   mut inner: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> TryBracesOf<'inp, L, Ctx, Lang, T>
+) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>) -> TryBracesOf<'inp, L, Ctx, Lang, T>
 where
   L: Lexer<'inp>,
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
     match OpenBrace::try_parse_of(inp)? {
       ParseAttempt::Accept(open) => finish_braces(inp, &cursor, open, &mut inner).map(Some),
@@ -1021,19 +1034,20 @@ pub type BracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// assert!(Parser::with_parser(wrapped).parse_str("[1").is_err());
 /// ```
 #[inline]
-pub fn brackets<'inp, L, Ctx, Lang, P, T>(
+pub fn brackets<'inp, L, Ctx, Lang, P, T, Cmpl>(
   mut inner: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> BracketsOf<'inp, L, Ctx, Lang, T>
+) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>) -> BracketsOf<'inp, L, Ctx, Lang, T>
 where
   L: Lexer<'inp>,
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
     let open = OpenBracket::parse_of(inp)?;
     finish_brackets(inp, &cursor, open, &mut inner)
@@ -1044,8 +1058,8 @@ where
 /// committed — runs `inner`, commits the `]` closer, and builds the [`Delimited`] whose
 /// span runs from `cursor` (captured before the opener) to the closer.
 #[inline]
-fn finish_brackets<'inp, 'c, L, Ctx, Lang, P, T>(
-  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang>,
+fn finish_brackets<'inp, 'c, L, Ctx, Lang, P, T, Cmpl>(
+  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
   cursor: &Cursor<'inp, 'c, L>,
   open: OpenBracket<L::Span, (), Lang>,
   inner: &mut P,
@@ -1055,7 +1069,8 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -1172,19 +1187,22 @@ pub type TryBracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// assert!(Parser::with_parser(attempt).parse_str("[1").is_err());
 /// ```
 #[inline]
-pub fn try_brackets<'inp, L, Ctx, Lang, P, T>(
+pub fn try_brackets<'inp, L, Ctx, Lang, P, T, Cmpl>(
   mut inner: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> TryBracketsOf<'inp, L, Ctx, Lang, T>
+) -> impl for<'c> FnMut(
+  &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
+) -> TryBracketsOf<'inp, L, Ctx, Lang, T>
 where
   L: Lexer<'inp>,
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
     match OpenBracket::try_parse_of(inp)? {
       ParseAttempt::Accept(open) => finish_brackets(inp, &cursor, open, &mut inner).map(Some),
@@ -1295,19 +1313,20 @@ pub type AnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// assert!(Parser::with_parser(wrapped).parse_str("<1").is_err());
 /// ```
 #[inline]
-pub fn angles<'inp, L, Ctx, Lang, P, T>(
+pub fn angles<'inp, L, Ctx, Lang, P, T, Cmpl>(
   mut inner: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> AnglesOf<'inp, L, Ctx, Lang, T>
+) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>) -> AnglesOf<'inp, L, Ctx, Lang, T>
 where
   L: Lexer<'inp>,
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
     let open = OpenAngle::parse_of(inp)?;
     finish_angles(inp, &cursor, open, &mut inner)
@@ -1318,8 +1337,8 @@ where
 /// committed — runs `inner`, commits the `>` closer, and builds the [`Delimited`] whose
 /// span runs from `cursor` (captured before the opener) to the closer.
 #[inline]
-fn finish_angles<'inp, 'c, L, Ctx, Lang, P, T>(
-  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang>,
+fn finish_angles<'inp, 'c, L, Ctx, Lang, P, T, Cmpl>(
+  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
   cursor: &Cursor<'inp, 'c, L>,
   open: OpenAngle<L::Span, (), Lang>,
   inner: &mut P,
@@ -1329,7 +1348,8 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -1446,19 +1466,20 @@ pub type TryAnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// assert!(Parser::with_parser(attempt).parse_str("<1").is_err());
 /// ```
 #[inline]
-pub fn try_angles<'inp, L, Ctx, Lang, P, T>(
+pub fn try_angles<'inp, L, Ctx, Lang, P, T, Cmpl>(
   mut inner: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> TryAnglesOf<'inp, L, Ctx, Lang, T>
+) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>) -> TryAnglesOf<'inp, L, Ctx, Lang, T>
 where
   L: Lexer<'inp>,
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: ParseInput<'inp, L, T, Ctx, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
     match OpenAngle::try_parse_of(inp)? {
       ParseAttempt::Accept(open) => finish_angles(inp, &cursor, open, &mut inner).map(Some),

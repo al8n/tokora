@@ -173,19 +173,20 @@ impl<P, F, O, U, L, Ctx, Lang: ?Sized, Cmpl> FilterMap<P, F, O, U, L, Ctx, Lang,
   }
 }
 
-impl<'inp, P, F, L, O, U, Ctx, Lang> ParseInput<'inp, L, U, Ctx, Lang>
-  for FilterMap<P, F, O, U, L, Ctx, Lang>
+impl<'inp, P, F, L, O, U, Ctx, Lang, Cmpl> ParseInput<'inp, L, U, Ctx, Lang, Cmpl>
+  for FilterMap<P, F, O, U, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   F: FnMut(O) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self.parser.parse_input(input).and_then(&mut self.mapper)
   }
@@ -300,22 +301,23 @@ impl<P, F, O, U, L, Ctx, Lang: ?Sized, Cmpl> FilterMapWith<P, F, O, U, L, Ctx, L
   }
 }
 
-impl<'inp, P, F, L, O, U, Ctx, Lang> ParseInput<'inp, L, U, Ctx, Lang>
-  for FilterMapWith<P, F, O, U, L, Ctx, Lang>
+impl<'inp, P, F, L, O, U, Ctx, Lang, Cmpl> ParseInput<'inp, L, U, Ctx, Lang, Cmpl>
+  for FilterMapWith<P, F, O, U, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   F: FnMut(
     O,
-    ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let start = input.cursor().clone();
     self

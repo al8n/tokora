@@ -240,20 +240,21 @@ impl<F, O, L, Ctx, Lang: ?Sized, Cmpl> Apply<Bounded<Repeated<F, O, L, Ctx, Lang
   }
 }
 
-impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
+impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized, Cmpl> Repeated<F, O, L, Ctx, Lang, Cmpl> {
   pub(super) fn parse<Container, RH>(
     &mut self,
-    inp: &mut InputRef<'inp, 'c, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
     container: &mut Container,
     rh: &RH,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    F: TryParseInput<'inp, L, O, Ctx, Lang>,
+    F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Ctx::Emitter: Emitter<'inp, L, Lang> + FullContainerEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
     Container: crate::container::Container<O>,
-    RH: RepeatedHandler<'inp, 'c, O, L, Ctx, Lang>,
+    RH: RepeatedHandler<'inp, 'c, O, L, Ctx, Lang, Cmpl>,
   {
     trace_event!(inp, "repeated");
     let mut num = 0;
@@ -275,6 +276,11 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized> Repeated<F, O, L, Ctx, Lang> {
           num += 1;
         }
         Ok(Decline) => break,
+        // The never-recoverable gate (0.3.0): under Partial non-final, the element's
+        // `Err` can be the frontier `Incomplete` — an unfinished construct, not a
+        // malformed one. Re-raise it untouched instead of spending it as a diagnostic;
+        // constant-false (and compiled away) under `Complete`.
+        Err(err) if Cmpl::is_incomplete_error(&err) => return Err(err),
         Err(err) => {
           let span = inp.span_since(&cursor);
           inp.emitter().emit_error(Spanned::new(span, err))?;

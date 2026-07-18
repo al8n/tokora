@@ -72,17 +72,19 @@ impl<P, O, Ctx, Lang: ?Sized, Cmpl> Unwrapped<P, O, Ctx, Lang, Cmpl> {
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for Unwrapped<P, O, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Unwrapped<P, O, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  P: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+  P: ParseInput<'inp, L, Option<O>, Ctx, Lang, Cmpl>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

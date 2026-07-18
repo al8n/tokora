@@ -3,9 +3,9 @@ use crate::emitter::{MissingTrailingSeparatorEmitter, UnexpectedLeadingSeparator
 use super::*;
 
 impl_separated_delim! {
-  owned_type = [DelimitedBy<RequireTrailing<Separated<F, Sep, O, L, Ctx, Lang>>, Delim>],
-  ref_type = [DelimitedBy<RequireTrailing<Separated<&'c mut F, Sep, O, L, Ctx, Lang>>, Delim>],
-  wrapper_type = [DelimitedBy<RequireTrailing<Separated<&'c mut F, Sep, O, L, Ctx, Lang>>, Delim>],
+  owned_type = [DelimitedBy<RequireTrailing<Separated<F, Sep, O, L, Ctx, Lang, Cmpl>>, Delim>],
+  ref_type = [DelimitedBy<RequireTrailing<Separated<&'c mut F, Sep, O, L, Ctx, Lang, Cmpl>>, Delim>],
+  wrapper_type = [DelimitedBy<RequireTrailing<Separated<&'c mut F, Sep, O, L, Ctx, Lang, Cmpl>>, Delim>],
   map_depth = 2,
   cardinality = unbounded,
   policy = [RequireTrailing],

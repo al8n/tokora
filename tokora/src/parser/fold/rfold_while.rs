@@ -37,6 +37,13 @@ impl<P, Condition, Init, Acc, O, W, L, Ctx, Lang: ?Sized, Cmpl>
   }
 }
 
+// STAYS COMPLETE-ONLY (0.3.0 — the decision-window class): the `Decision` peeks a
+// `W`-window, and at a non-final Partial frontier the peek fill silently serves a SHORT
+// window (the peek contract: short at the frontier, never an error). The condition would
+// read that truncation as "construct ended" and return `Ok` early — breaking chunked
+// equivalence with no error on any channel. Generalizing needs the deferred
+// frontier-window rule (full-or-incomplete decision windows); until then the impls stay
+// pinned at `Complete` in both positions, so a Partial drive is a compile-time wall.
 impl<'inp, P, Condition, Init, Acc, O, W, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
   for RFoldWhile<P, Condition, Init, Acc, L, O, W, Ctx, Lang>
 where

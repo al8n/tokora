@@ -119,16 +119,17 @@ impl<O: ?Sized> Todo<O> {
   }
 }
 
-impl<'inp, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for Todo<O>
+impl<'inp, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl> for Todo<O>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    _inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    _inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

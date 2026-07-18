@@ -34,18 +34,19 @@ impl<F, G, O, U, L, Ctx, Lang: ?Sized, Cmpl> IgnoreThen<F, G, O, U, L, Ctx, Lang
   }
 }
 
-impl<'inp, F, G, L, O, U, Ctx, Lang: ?Sized> ParseInput<'inp, L, U, Ctx, Lang>
-  for IgnoreThen<F, G, O, U, L, Ctx, Lang>
+impl<'inp, F, G, L, O, U, Ctx, Lang: ?Sized, Cmpl> ParseInput<'inp, L, U, Ctx, Lang, Cmpl>
+  for IgnoreThen<F, G, O, U, L, Ctx, Lang, Cmpl>
 where
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
-  G: ParseInput<'inp, L, U, Ctx, Lang>,
+  F: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
+  G: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<U, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let _ = self.first.parse_input(input)?;
     self.second.parse_input(input)

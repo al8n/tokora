@@ -196,12 +196,12 @@ macro_rules! impl_separated_parse {
     block4_inline = $b4i:ident $(,)?
   ) => {
     // Block 1: owned -> Container
-    impl<'inp, L, F, Sep, O, Container, Ctx, Lang: ?Sized>
-      ParseInput<'inp, L, Container, Ctx, Lang>
-      for Collect<$($owned)*, Container, Ctx, Lang>
+    impl<'inp, L, F, Sep, O, Container, Ctx, Lang: ?Sized, Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>>
+      ParseInput<'inp, L, Container, Ctx, Lang, Cmpl>
+      for Collect<$($owned)*, Container, Ctx, Lang, Cmpl>
     where
       L: Lexer<'inp>,
-      F: TryParseInput<'inp, L, O, Ctx, Lang>,
+      F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
@@ -212,7 +212,7 @@ macro_rules! impl_separated_parse {
       #[inline(always)]
       fn parse_input(
         &mut self,
-        inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+        inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
       ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
         Wrapper(impl_separated_parse!(@map_self $depth self))
           .parse_input(inp)
@@ -221,12 +221,12 @@ macro_rules! impl_separated_parse {
     }
 
     // Block 2: owned -> Spanned<Container>
-    impl<'inp, L, F, Sep, O, Container, Ctx, Lang: ?Sized>
-      ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-      for With<Collect<$($owned)*, Container, Ctx, Lang>, PhantomSpan>
+    impl<'inp, L, F, Sep, O, Container, Ctx, Lang: ?Sized, Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>>
+      ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang, Cmpl>
+      for With<Collect<$($owned)*, Container, Ctx, Lang, Cmpl>, PhantomSpan>
     where
       L: Lexer<'inp>,
-      F: TryParseInput<'inp, L, O, Ctx, Lang>,
+      F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
@@ -237,7 +237,7 @@ macro_rules! impl_separated_parse {
       #[inline(always)]
       fn parse_input(
         &mut self,
-        inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+        inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
       ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
         Wrapper(impl_separated_parse!(@map_primary $depth self))
           .parse_input(inp)
@@ -246,12 +246,12 @@ macro_rules! impl_separated_parse {
     }
 
     // Block 3: &mut ref -> L::Span
-    impl<'inp, 'c, L, F, Sep, O, Container, Ctx, Lang: ?Sized>
-      ParseInput<'inp, L, L::Span, Ctx, Lang>
-      for Collect<&'c mut $($reft)*, &'c mut Container, Ctx, Lang>
+    impl<'inp, 'c, L, F, Sep, O, Container, Ctx, Lang: ?Sized, Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>>
+      ParseInput<'inp, L, L::Span, Ctx, Lang, Cmpl>
+      for Collect<&'c mut $($reft)*, &'c mut Container, Ctx, Lang, Cmpl>
     where
       L: Lexer<'inp>,
-      F: TryParseInput<'inp, L, O, Ctx, Lang>,
+      F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
@@ -262,7 +262,7 @@ macro_rules! impl_separated_parse {
       impl_separated_parse!(@inline $b3i
         fn parse_input(
           &mut self,
-          input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+          input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
         ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
         where
           L: Lexer<'inp>,
@@ -276,12 +276,12 @@ macro_rules! impl_separated_parse {
     struct Wrapper<T>(T);
 
     // Block 4: Wrapper -> L::Span
-    impl<'inp, 'c, L, F, Sep, O, Container, Ctx, Lang: ?Sized>
-      ParseInput<'inp, L, L::Span, Ctx, Lang>
-      for Wrapper<Collect<$($wt)*, &'c mut Container, Ctx, Lang>>
+    impl<'inp, 'c, L, F, Sep, O, Container, Ctx, Lang: ?Sized, Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>>
+      ParseInput<'inp, L, L::Span, Ctx, Lang, Cmpl>
+      for Wrapper<Collect<$($wt)*, &'c mut Container, Ctx, Lang, Cmpl>>
     where
       L: Lexer<'inp>,
-      F: TryParseInput<'inp, L, O, Ctx, Lang>,
+      F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
@@ -292,7 +292,7 @@ macro_rules! impl_separated_parse {
       impl_separated_parse!(@inline $b4i
         fn parse_input(
           &mut self,
-          inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+          inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
         ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
           impl_separated_parse!(@block4 $card [$($policy),*] self inp)
         }
@@ -527,12 +527,12 @@ macro_rules! impl_separated_delim {
     block4_inline = $b4i:ident $(,)?
   ) => {
     // Block 1: owned -> Container
-    impl<'inp, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized>
-      ParseInput<'inp, L, Container, Ctx, Lang>
-      for Collect<$($owned)*, Container, Ctx, Lang>
+    impl<'inp, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized, Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>>
+      ParseInput<'inp, L, Container, Ctx, Lang, Cmpl>
+      for Collect<$($owned)*, Container, Ctx, Lang, Cmpl>
     where
       L: Lexer<'inp>,
-      F: TryParseInput<'inp, L, O, Ctx, Lang>,
+      F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
@@ -545,7 +545,7 @@ macro_rules! impl_separated_delim {
       #[inline(always)]
       fn parse_input(
         &mut self,
-        inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+        inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
       ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
         Wrapper(impl_separated_delim!(@map_self $depth self))
           .parse_input(inp)
@@ -554,12 +554,12 @@ macro_rules! impl_separated_delim {
     }
 
     // Block 2: owned -> Spanned<Container>
-    impl<'inp, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized>
-      ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-      for With<Collect<$($owned)*, Container, Ctx, Lang>, PhantomSpan>
+    impl<'inp, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized, Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>>
+      ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang, Cmpl>
+      for With<Collect<$($owned)*, Container, Ctx, Lang, Cmpl>, PhantomSpan>
     where
       L: Lexer<'inp>,
-      F: TryParseInput<'inp, L, O, Ctx, Lang>,
+      F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
@@ -572,7 +572,7 @@ macro_rules! impl_separated_delim {
       #[inline(always)]
       fn parse_input(
         &mut self,
-        inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+        inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
       ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
         Wrapper(impl_separated_delim!(@map_primary $depth self))
           .parse_input(inp)
@@ -581,12 +581,12 @@ macro_rules! impl_separated_delim {
     }
 
     // Block 3: &mut ref -> L::Span
-    impl<'inp, 'c, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized>
-      ParseInput<'inp, L, L::Span, Ctx, Lang>
-      for Collect<&'c mut $($reft)*, &'c mut Container, Ctx, Lang>
+    impl<'inp, 'c, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized, Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>>
+      ParseInput<'inp, L, L::Span, Ctx, Lang, Cmpl>
+      for Collect<&'c mut $($reft)*, &'c mut Container, Ctx, Lang, Cmpl>
     where
       L: Lexer<'inp>,
-      F: TryParseInput<'inp, L, O, Ctx, Lang>,
+      F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
@@ -599,7 +599,7 @@ macro_rules! impl_separated_delim {
       impl_separated_delim!(@inline $b3i
         fn parse_input(
           &mut self,
-          input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+          input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
         ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
         where
           L: Lexer<'inp>,
@@ -613,12 +613,12 @@ macro_rules! impl_separated_delim {
     struct Wrapper<T>(T);
 
     // Block 4: Wrapper -> L::Span
-    impl<'inp, 'c, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized>
-      ParseInput<'inp, L, L::Span, Ctx, Lang>
-      for Wrapper<Collect<$($wt)*, &'c mut Container, Ctx, Lang>>
+    impl<'inp, 'c, L, F, Sep, O, Delim, Container, Ctx, Lang: ?Sized, Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>>
+      ParseInput<'inp, L, L::Span, Ctx, Lang, Cmpl>
+      for Wrapper<Collect<$($wt)*, &'c mut Container, Ctx, Lang, Cmpl>>
     where
       L: Lexer<'inp>,
-      F: TryParseInput<'inp, L, O, Ctx, Lang>,
+      F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
@@ -631,7 +631,7 @@ macro_rules! impl_separated_delim {
       impl_separated_delim!(@inline $b4i
         fn parse_input(
           &mut self,
-          inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+          inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
         ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
           impl_separated_delim!(@block4 $card [$($policy),*] self inp)
         }

@@ -332,20 +332,21 @@ impl<P, R, O, L, Ctx, Lang: ?Sized, Cmpl> Recover<P, R, O, L, Ctx, Lang, Cmpl> {
   }
 }
 
-impl<'inp, P, R, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for Recover<P, R, O, L, Ctx, Lang>
+impl<'inp, P, R, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Recover<P, R, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
-  R: RecoverInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
+  R: RecoverInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: MaybeIncomplete,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     // Speculate through `try_attempt`: it saves a checkpoint before the primary runs, and
     // on `Ok` keeps the progress while dropping the checkpoint's lineage id — closing the
@@ -505,20 +506,21 @@ impl<P, R, O, L, Ctx, Lang: ?Sized, Cmpl> InplaceRecover<P, R, O, L, Ctx, Lang, 
   }
 }
 
-impl<'inp, P, R, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for InplaceRecover<P, R, O, L, Ctx, Lang>
+impl<'inp, P, R, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for InplaceRecover<P, R, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
-  R: InplaceRecoverInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
+  R: InplaceRecoverInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: MaybeIncomplete,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     // The in-place path never backtracks: hand the recovery handler a position view
     // (the cursor where the primary parser started), not a restorable checkpoint.

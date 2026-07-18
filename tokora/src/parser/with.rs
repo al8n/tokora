@@ -89,9 +89,9 @@ impl<P, S, Cmpl> With<P, S, Cmpl> {
 
 impl With<Minimum, Maximum> {
   #[inline(always)]
-  pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
+  pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized, Cmpl: crate::input::Completeness>(
     &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -122,9 +122,9 @@ impl With<Minimum, Maximum> {
 
 impl Minimum {
   #[inline(always)]
-  pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
+  pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized, Cmpl: crate::input::Completeness>(
     &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
@@ -146,9 +146,9 @@ impl Minimum {
 
 impl Maximum {
   #[inline(always)]
-  pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized>(
+  pub(crate) fn check<'inp, 'closure, L, Ctx, Lang: ?Sized, Cmpl: crate::input::Completeness>(
     &self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     anchor: &Cursor<'inp, 'closure, L>,
     num_elems: usize,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>

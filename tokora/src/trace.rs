@@ -89,21 +89,22 @@ pub struct Traced<P> {
 mod on {
   use super::Traced;
   use crate::{
-    Emitter, InputRef, Lexer, ParseContext, ParseInput, TryParseInput,
+    Emitter, InputRef, Lexer, ParseContext, ParseInput, TryParseInput, input::Completeness,
     try_parse_input::ParseAttempt,
   };
 
-  impl<'inp, L, O, Ctx, Lang, P> ParseInput<'inp, L, O, Ctx, Lang> for Traced<P>
+  impl<'inp, L, O, Ctx, Lang, P, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl> for Traced<P>
   where
     Lang: ?Sized,
-    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness,
   {
     #[inline]
     fn parse_input(
       &mut self,
-      input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+      input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
       let start = input.offset().clone();
       input.trace_enter(self.name);
@@ -116,17 +117,18 @@ mod on {
     }
   }
 
-  impl<'inp, L, O, Ctx, Lang, P> TryParseInput<'inp, L, O, Ctx, Lang> for Traced<P>
+  impl<'inp, L, O, Ctx, Lang, P, Cmpl> TryParseInput<'inp, L, O, Ctx, Lang, Cmpl> for Traced<P>
   where
     Lang: ?Sized,
-    P: TryParseInput<'inp, L, O, Ctx, Lang>,
+    P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness,
   {
     #[inline]
     fn try_parse_input(
       &mut self,
-      input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+      input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
       let start = input.offset().clone();
       input.trace_enter(self.name);

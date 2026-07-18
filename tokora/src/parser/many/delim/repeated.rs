@@ -16,26 +16,28 @@ mod at_most;
 mod bounded;
 mod unbounded;
 
-impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
-  DelimitedBy<&mut Repeated<P, O, L, Ctx, Lang>, Delim>
+impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
+  DelimitedBy<&mut Repeated<P, O, L, Ctx, Lang, Cmpl>, Delim>
 {
   fn parse_repeated<Container>(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     container: &mut Container,
     on_stop: impl FnOnce(
       usize,
-      &mut InputRef<'inp, '_, L, Ctx, Lang>,
+      &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
       &L::Span,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
     Delim: Delimiter<'inp, L, Lang>,
     L: Lexer<'inp>,
-    P: TryParseInput<'inp, L, O, Ctx, Lang>,
+    P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
     Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
@@ -76,6 +78,10 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized>
 
     loop {
       match self.parser.f.try_parse_input(inp) {
+        // The never-recoverable gate (0.3.0): a frontier `Incomplete` from the element
+        // parser re-raises untouched — never spent as a diagnostic. Constant-false under
+        // `Complete`.
+        Err(err) if Cmpl::is_incomplete_error(&err) => return Err(err),
         Err(err) => {
           let span = inp.span_since(&elem_cur);
           inp.emitter().emit_error(Spanned::new(span, err))?;

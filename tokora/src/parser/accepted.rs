@@ -56,17 +56,18 @@ impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> Accepted<P, L, O, Ctx, Lang, Cmpl> {
   }
 }
 
-impl<'inp, L, P, O, Ctx, Lang: ?Sized> ParseInput<'inp, L, ParseAttempt<O>, Ctx, Lang>
-  for Accepted<P, L, O, Ctx, Lang>
+impl<'inp, L, P, O, Ctx, Lang: ?Sized, Cmpl> ParseInput<'inp, L, ParseAttempt<O>, Ctx, Lang, Cmpl>
+  for Accepted<P, L, O, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -76,17 +77,18 @@ where
   }
 }
 
-impl<'inp, L, P, O, Ctx, Lang: ?Sized> ParseInput<'inp, L, Option<O>, Ctx, Lang>
-  for Accepted<P, L, O, Ctx, Lang>
+impl<'inp, L, P, O, Ctx, Lang: ?Sized, Cmpl> ParseInput<'inp, L, Option<O>, Ctx, Lang, Cmpl>
+  for Accepted<P, L, O, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<Option<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -96,17 +98,18 @@ where
   }
 }
 
-impl<'inp, L, P, O, Ctx, Lang: ?Sized> TryParseInput<'inp, L, O, Ctx, Lang>
-  for Accepted<P, L, O, Ctx, Lang>
+impl<'inp, L, P, O, Ctx, Lang: ?Sized, Cmpl> TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Accepted<P, L, O, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn try_parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

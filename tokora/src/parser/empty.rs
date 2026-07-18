@@ -70,16 +70,17 @@ impl Empty {
   }
 }
 
-impl<'inp, L, Ctx, Lang> ParseInput<'inp, L, (), Ctx, Lang> for Empty
+impl<'inp, L, Ctx, Lang, Cmpl> ParseInput<'inp, L, (), Ctx, Lang, Cmpl> for Empty
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    _inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    _inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

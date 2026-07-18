@@ -1354,7 +1354,7 @@ assert_eq!(Parser::with_parser(in_braces).parse_str("{1}").unwrap(), 1);
 
 // `parens(inner)` ≡ `delimited::<Paren, …>(inner)`.
 fn via_generic<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
-    delimited::<Paren, _, _, _, _, _>(digit)(inp).map(|d| *d.data())
+    delimited::<Paren, _, _, _, _, _, _>(digit)(inp).map(|d| *d.data())
 }
 assert_eq!(Parser::with_parser(via_generic).parse_str("(1)").unwrap(), 1);
 

@@ -156,6 +156,11 @@ fn wrap<'inp, L, Ctx, Lang>(
   emitter.cst_finish();
 }
 
+// STAYS COMPLETE-ONLY (0.3.0 — the CST seam): Partial event semantics — what a `Sink`
+// does with events from a parse that ends `Incomplete` and is then re-driven over a
+// grown buffer — is the separately-deferred CST-partial design (ledger: CST spec item 8).
+// The `node` family's impls stay pinned at `Complete` so the compiler enforces that
+// deferral: no events flow under `Partial` until the event column exists.
 impl<'inp, L, O, Ctx, Lang, P> ParseInput<'inp, L, O, Ctx, Lang> for Node<P>
 where
   Lang: ?Sized,

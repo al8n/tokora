@@ -139,6 +139,16 @@ mod delim;
 /// - [`delimited`](SeparatedWhile::delimited) - Wrap in delimiters (e.g., `[...]` or `{...}`)
 /// - [`repeated`](RepeatedWhile) - Repeat without separators
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
+///
+/// # Completeness (0.3.0): Complete-only
+///
+/// Decision-window class: the `Decision` peeks a
+/// `W`-window, and at a non-final Partial frontier the peek fill silently serves a SHORT
+/// window (the peek contract: short at the frontier, never an error). The condition would
+/// read that truncation as "construct ended" and return `Ok` early — breaking chunked
+/// equivalence with no error on any channel. Generalizing needs the deferred
+/// frontier-window rule (full-or-incomplete decision windows); until then the impls stay
+/// pinned at `Complete` in both positions, so a Partial drive is a compile-time wall.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SeparatedWhile<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized = (), Cmpl = Complete>
 {

@@ -53,19 +53,20 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> Fold<P, Init, Acc, L, O, Ctx, 
   }
 }
 
-impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for Fold<P, Init, Acc, L, O, Ctx, Lang>
+impl<'inp, P, Init, Acc, O, L, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Fold<P, Init, Acc, L, O, Ctx, Lang, Cmpl>
 where
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Init: FnMut() -> O,
   Acc: FnMut(O, O) -> O,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -108,19 +109,20 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> TryFold<P, Init, Acc, L, O, Ct
   }
 }
 
-impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for TryFold<P, Init, Acc, L, O, Ctx, Lang>
+impl<'inp, P, Init, Acc, O, L, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for TryFold<P, Init, Acc, L, O, Ctx, Lang, Cmpl>
 where
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Init: FnMut() -> O,
   Acc: FnMut(O, O) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -163,23 +165,24 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> TryFoldWith<P, Init, Acc, L, O
   }
 }
 
-impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for TryFoldWith<P, Init, Acc, L, O, Ctx, Lang>
+impl<'inp, P, Init, Acc, O, L, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for TryFoldWith<P, Init, Acc, L, O, Ctx, Lang, Cmpl>
 where
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Init: FnMut() -> O,
   Acc: FnMut(
     O,
     O,
-    ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

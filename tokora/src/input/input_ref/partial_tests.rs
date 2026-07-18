@@ -16,7 +16,7 @@ use core::cell::Cell;
 use std::rc::Rc;
 
 use crate::{
-  InputRef, Parse, Parser, Token,
+  InputRef, Parse, ParseInput, Parser, Token, TryParseInput,
   cache::DefaultCache,
   emitter::{Fatal, Verbose},
   error::{Incomplete, MaybeIncomplete, token::UnexpectedToken},
@@ -62,6 +62,18 @@ impl MaybeIncomplete for PErr {
 
 impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for PErr {
   fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
+    PErr::Lex
+  }
+}
+
+impl<O, Lang: ?Sized> From<crate::error::UnexpectedEot<O, Lang>> for PErr {
+  fn from(_: crate::error::UnexpectedEot<O, Lang>) -> Self {
+    PErr::Lex
+  }
+}
+
+impl<S, Lang: ?Sized> From<crate::error::syntax::FullContainer<S, Lang>> for PErr {
+  fn from(_: crate::error::syntax::FullContainer<S, Lang>) -> Self {
     PErr::Lex
   }
 }
@@ -1488,5 +1500,228 @@ fn try_expect_poison_at_frontier_beats_incomplete() {
     limit_diags(&emitter),
     1,
     "the trip was diagnosed exactly once"
+  );
+}
+
+// ── §8.3: the combinator Lego under both modes (the T6 chain oracle) ─────────────────
+//
+// ONE `Cmpl`-generic CHAIN — free leaf atom → adapter → try-driven collection — assembled
+// once and driven under Complete AND Partial-chunked to equivalence. This is the test the
+// probe could not run: it needs the whole atoms wave (threaded builder returns, A-class
+// leaf impls, B-class collection impls) to compose.
+
+/// The write-once Lego chain, assembled INSIDE one `Cmpl`-generic fn (the corpus's
+/// parser-fn shape) and driven under both modes: `expect(word) → map(kind) → repeated →
+/// collect -> map`, crossing a leaf try-atom, the try-driven collection, and a
+/// threaded adapter — assembled once, driven in both modes.
+fn lego_chain<'inp, Ctx, Cmpl>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx, (), Cmpl>,
+) -> Result<std::vec::Vec<PKind>, PErr>
+where
+  Ctx: crate::ParseContext<'inp, Lex<'inp>>,
+  Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>
+    + crate::emitter::FullContainerEmitter<'inp, Lex<'inp>>,
+  Cmpl: SurfaceIncomplete<'inp, Lex<'inp>, Ctx, ()>,
+{
+  use crate::Accumulator as _;
+  try_word
+    .repeated()
+    .collect()
+    .map(|words: std::vec::Vec<PTok>| words.into_iter().map(|t| t.kind()).collect())
+    .parse_input(inp)
+}
+
+/// The chain's leaf: a `Cmpl`-generic try-atom over the scan chokepoint (the same
+/// decline-channel shape as the crate's `Ident::try_parse_of` leaf).
+fn try_word<'inp, Ctx, Cmpl>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx, (), Cmpl>,
+) -> Result<crate::try_parse_input::ParseAttempt<PTok>, PErr>
+where
+  Ctx: crate::ParseContext<'inp, Lex<'inp>>,
+  Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>,
+  Cmpl: SurfaceIncomplete<'inp, Lex<'inp>, Ctx, ()>,
+{
+  Ok(
+    inp
+      .try_expect(|t| matches!(t.data(), PTok::Word))?
+      .map(|s| s.into_data())
+      .into(),
+  )
+}
+
+#[test]
+fn lego_chain_runs_both_modes_to_equivalence() {
+  // Complete drive of the assembled chain.
+  let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+  let complete: std::vec::Vec<PKind> = Parser::with_context(ctx)
+    .apply(lego_chain)
+    .parse_str("foo bar baz")
+    .expect("the Complete drive of the chain succeeds");
+  assert_eq!(complete, std::vec![PKind::Word; 3]);
+
+  // Partial-chunked drive of the SAME chain fn, over the probe's cut shape and then a
+  // full deterministic sweep.
+  let mut buffer = std::string::String::new();
+  let mut incompletes = 0;
+  let chunks = ["foo b", "ar ", "baz"];
+  let mut parsed = None;
+  for (i, chunk) in chunks.iter().enumerate() {
+    buffer.push_str(chunk);
+    let is_final = i + 1 == chunks.len();
+    let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+    match parse_partial(ctx, buffer.as_str(), (), is_final, lego_chain) {
+      Ok(kinds) => {
+        parsed = Some(kinds);
+        break;
+      }
+      Err(e) if e.is_incomplete() => incompletes += 1,
+      Err(e) => panic!("a real parse error: {e:?}"),
+    }
+  }
+  assert_eq!(
+    parsed.as_ref(),
+    Some(&complete),
+    "one chain, two modes, one answer"
+  );
+  assert_eq!(incompletes, 2);
+
+  let corpus = "foo bar baz qux";
+  for cut in 1..corpus.len() {
+    let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+    let round1 = parse_partial(ctx, &corpus[..cut], (), false, lego_chain);
+    assert!(
+      matches!(&round1, Err(e) if e.is_incomplete()),
+      "a non-final prefix of a drain-all chain is Incomplete at cut {cut}"
+    );
+    let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+    let sealed =
+      parse_partial(ctx, corpus, (), true, lego_chain).expect("the sealed drive completes");
+    assert_eq!(
+      sealed,
+      std::vec![PKind::Word; 4],
+      "chunked equivalence at cut {cut}"
+    );
+  }
+}
+
+#[test]
+fn lego_chain_shape_at_a_partial_drive_is_annotation_free() {
+  // The T5 pin at crate level: the SAME chain shape spelled inline against a CONCRETE
+  // `Partial` handle — no `Cmpl` annotation and no turbofish anywhere in the chain.
+  use crate::Accumulator as _;
+  fn drive<'inp, Ctx>(
+    inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx, (), Partial>,
+  ) -> Result<std::vec::Vec<PKind>, PErr>
+  where
+    Ctx: crate::ParseContext<'inp, Lex<'inp>>,
+    Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>
+      + crate::emitter::FullContainerEmitter<'inp, Lex<'inp>>,
+  {
+    try_word
+      .repeated()
+      .collect()
+      .map(|words: std::vec::Vec<PTok>| words.into_iter().map(|t| t.kind()).collect())
+      .parse_input(inp)
+  }
+  let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+  let kinds =
+    parse_partial(ctx, "foo bar", (), true, drive).expect("the sealed partial drive completes");
+  assert_eq!(kinds, std::vec![PKind::Word; 2]);
+}
+
+// ── §8.4: the never-recoverable gate through the resilient collections ───────────────
+
+/// An element that CONSUMES a word and then requires a number: a missing number is a
+/// plain `Lex` error (the resilient arm's food), while a frontier-cut word surfaces
+/// `Incomplete` out of the scan (the gate's food).
+fn word_then_num<'inp, Ctx, Cmpl>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx, (), Cmpl>,
+) -> Result<crate::try_parse_input::ParseAttempt<PKind>, PErr>
+where
+  Ctx: crate::ParseContext<'inp, Lex<'inp>>,
+  Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>,
+  Cmpl: SurfaceIncomplete<'inp, Lex<'inp>, Ctx, ()>,
+{
+  use crate::try_parse_input::{Accept, Decline};
+  match inp.try_expect(|t| matches!(t.data(), PTok::Word))? {
+    None => Ok(Decline),
+    Some(_) => match inp.try_expect(|t| matches!(t.data(), PTok::Num))? {
+      Some(_) => Ok(Accept(PKind::Word)),
+      None => Err(PErr::Lex),
+    },
+  }
+}
+
+#[test]
+fn gate_propagates_frontier_incomplete_out_of_repeated() {
+  use crate::Accumulator as _;
+  // Non-final: element 1 completes mid-buffer; element 2's word is cut at the frontier.
+  // The collection loop's resilient arm must NOT spend that `Incomplete` as a diagnostic
+  // — the gate re-raises it, the loop stops, and the emitter log is untouched.
+  let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_cache(
+    "foo 1 ba",
+    (),
+    DefaultCache::<'_, Lex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  let out: Result<std::vec::Vec<PKind>, PErr> = {
+    let mut inp = input.as_ref(&mut emitter);
+    word_then_num.repeated().collect().parse_input(&mut inp)
+  };
+  assert_eq!(
+    out,
+    Err(PErr::Incomplete(8)),
+    "the frontier incomplete PROPAGATES"
+  );
+  let emitted: usize = emitter.errors().values().map(|g| g.len()).sum();
+  assert_eq!(emitted, 0, "no emit-and-continue: the log is clean");
+}
+
+#[test]
+fn gate_is_inert_when_final_and_matches_complete() {
+  use crate::Accumulator as _;
+  // The same input sealed: the missing number after "bar" is a genuine error and the
+  // resilient arm emits-and-continues — byte-for-byte the Complete-mode outcome.
+  fn drive_partial_final(src: &str) -> (Result<std::vec::Vec<PKind>, PErr>, usize) {
+    let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_cache(
+      src,
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    input.seal();
+    let mut emitter = Verbose::<PErr>::new();
+    let out = {
+      let mut inp = input.as_ref(&mut emitter);
+      word_then_num.repeated().collect().parse_input(&mut inp)
+    };
+    (out, emitter.errors().values().map(|g| g.len()).sum())
+  }
+  fn drive_complete(src: &str) -> (Result<std::vec::Vec<PKind>, PErr>, usize) {
+    let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+      src,
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    let mut emitter = Verbose::<PErr>::new();
+    let out = {
+      let mut inp = input.as_ref(&mut emitter);
+      word_then_num.repeated().collect().parse_input(&mut inp)
+    };
+    (out, emitter.errors().values().map(|g| g.len()).sum())
+  }
+  let sealed = drive_partial_final("foo 1 bar");
+  let complete = drive_complete("foo 1 bar");
+  assert_eq!(
+    sealed, complete,
+    "final-mode resilience is Complete-identical"
+  );
+  assert_eq!(
+    sealed.0,
+    Ok(std::vec![PKind::Word]),
+    "one full element collected"
+  );
+  assert_eq!(
+    sealed.1, 1,
+    "the missing number was diagnosed resiliently, once"
   );
 }

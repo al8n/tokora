@@ -168,6 +168,11 @@ pub trait ParsePrattLHS<'inp, Power, Op, Pre, L, Ctx, Lang: ?Sized = (), Cmpl = 
     Cmpl: Completeness;
 }
 
+// STAYS COMPLETE-ONLY (0.3.0): pratt carries both S-class hazards at once — `is_eoi()`
+// consulted as a POSITION test (an exact non-final buffer end would end the expression
+// instead of surfacing `Incomplete`), and RHS operator detection by peek (a frontier-cut
+// window reads as "no operator"). Both need the deferred frontier-window rule; the
+// vocabulary traits reserve the `Cmpl` position, the impls stay at the default.
 impl<'inp, P, Power, L, Op, Pre, Ctx, Lang: ?Sized>
   ParsePrattLHS<'inp, Power, Op, Pre, L, Ctx, Lang> for P
 where
