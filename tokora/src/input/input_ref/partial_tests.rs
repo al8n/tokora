@@ -1332,6 +1332,45 @@ fn try_expect_partial_matrix() {
 }
 
 #[test]
+fn try_expect_or_stop_partial_matrix() {
+  // Terminal beats incomplete ON THE ATTEMPT PATH: a limit trip at the attempt is a
+  // terminal stop, so `try_expect_or_stop` surfaces an error that is NOT Incomplete —
+  // even though the tripping token sits at the non-final frontier. ("a b c": the two
+  // words under the limit are consumed, then the attempt's scan trips on `c`.)
+  let tracker = LimitTracker::with_limit(2);
+  let mut input = Input::<LimLex<'_>, LimCtx<'_>, (), Partial>::with_state_and_cache(
+    "a b c",
+    tracker,
+    DefaultCache::<'_, LimLex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    assert!(inp.next().unwrap().is_some(), "first word under the limit");
+    assert!(inp.next().unwrap().is_some(), "second word under the limit");
+    let err = inp
+      .try_expect_or_stop(|_| true)
+      .expect_err("a trip at the attempt is an error, never a decline");
+    assert!(
+      !err.is_incomplete(),
+      "terminal beats incomplete on the attempt path, got {err:?}"
+    );
+  }
+  assert_eq!(
+    limit_diags(&emitter),
+    1,
+    "the trip's own diagnostic reached the emitter"
+  );
+
+  // A plain (non-terminal) frontier holdback at the attempt still surfaces
+  // Incomplete on the `Err` channel, exactly as `try_expect` — the unchanged
+  // `scan_with` routing.
+  let (r, emitted) = with_partial!("foo", false, |inp| inp.try_expect_or_stop(|_| true));
+  assert_eq!(r, Err(PErr::Incomplete(3)));
+  assert_eq!(emitted, 0);
+}
+
+#[test]
 fn skip_while_partial_matrix() {
   // Non-final: the trivia run's last word touches the buffer end — it may extend, so the
   // run is not finishable yet. (This is what hands `padded` its partial semantics.)
