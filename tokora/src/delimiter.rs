@@ -51,6 +51,37 @@ pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
   }
 }
 
+/// A [`Delimiter`] whose punctuators can be materialized as typed, span-carrying values —
+/// the capability the [`delimited`](crate::parser::delimited) shape parser uses to build
+/// its [`Delimited`](crate::utils::Delimited) result.
+///
+/// The base [`Delimiter`] trait is a classifier and error helper; this additive subtrait
+/// adds the *consumption* side, turning a committed opener's or closer's span into the
+/// span-carrying punctuator value the shape parsers store. It is implemented for the
+/// built-in pairs [`Paren`], [`Brace`], [`Bracket`], and [`Angle`].
+///
+/// # Custom delimiter pairs
+///
+/// Any user pair works the same way: implement [`Punctuator`] for the two punctuator types
+/// (or define them with [`punctuator!`](crate::punctuator)), then implement [`Delimiter`]
+/// and `TypedDelimiter` for the pair. It then drops straight into
+/// [`delimited::<MyPair, …>`](crate::parser::delimited) — see that function's example.
+pub trait TypedDelimiter<'inp, L, Lang: ?Sized = ()>: Delimiter<'inp, L, Lang>
+where
+  L: Lexer<'inp>,
+{
+  /// The span-carrying opening punctuator value this delimiter materializes.
+  type OpenValue;
+  /// The span-carrying closing punctuator value this delimiter materializes.
+  type CloseValue;
+
+  /// Materializes the opening punctuator value from its committed token's span.
+  fn open_value(span: L::Span) -> Self::OpenValue;
+
+  /// Materializes the closing punctuator value from its committed token's span.
+  fn close_value(span: L::Span) -> Self::CloseValue;
+}
+
 macro_rules! impl_builtin_delimiter {
   ($($name:ident { description: $description:literal, open: $open:ident, close: $close:ident $(,)? }),+$(,)?) => {
     $(
@@ -67,6 +98,27 @@ macro_rules! impl_builtin_delimiter {
         #[inline(always)]
         fn name() -> CowStr {
           CowStr::from_static($description)
+        }
+      }
+
+      impl<'inp, S, C, L, Lang: ?Sized> TypedDelimiter<'inp, L, Lang> for $name<S, C, Lang>
+      where
+        L: Lexer<'inp>,
+        $open<S, C, Lang>: Punctuator<'inp, L, Lang>,
+        $close<S, C, Lang>: Punctuator<'inp, L, Lang>,
+      {
+        type OpenValue = $open<L::Span, (), Lang>;
+
+        type CloseValue = $close<L::Span, (), Lang>;
+
+        #[inline(always)]
+        fn open_value(span: L::Span) -> Self::OpenValue {
+          $open::new(span).change_language()
+        }
+
+        #[inline(always)]
+        fn close_value(span: L::Span) -> Self::CloseValue {
+          $close::new(span).change_language()
         }
       }
     )*

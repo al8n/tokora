@@ -119,6 +119,7 @@
 //! - `separated_by` - Parse elements separated by delimiter
 //! - `delim` - Parse delimited content (e.g., parentheses)
 //! - `delim_seq` - Parse delimited, separated sequences
+//! - `delimited`/`parens`/`braces`/`brackets`/`angles` - one delimited region as a span-carrying `Delimited`
 //!
 //! ## Lookahead & Conditional (Deterministic)
 //!
@@ -179,6 +180,7 @@ pub use accepted::*;
 pub use any::*;
 pub use by_ref::*;
 pub use collect::Collect;
+pub use delimited::*;
 pub use empty::*;
 pub use expect::*;
 pub use fail::*;
@@ -210,6 +212,7 @@ mod accepted;
 mod any;
 mod by_ref;
 mod collect;
+mod delimited;
 mod empty;
 mod expect;
 mod fail;

@@ -18,10 +18,17 @@ use common::{E, TestLexer, Token, TokenKind};
 use tokora::{
   Emitter, FatalContext, InputRef, Lexer, Parse, ParseCtx, Parser, ParserContext, SimpleSpan,
   emitter::{Fatal, FullContainerEmitter, SeparatedEmitter, TooFewEmitter, Verbose},
-  parser::{list_of, opt, peek_kind, separated1},
-  punct::{CloseBrace, Comma, Semicolon},
+  error::{
+    UnexpectedEot,
+    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
+    token::{MissingToken, SeparatedError, UnexpectedToken},
+  },
+  parser::{angles, braces, brackets, delimited, list_of, opt, parens, peek_kind, separated1},
+  punct::{Brace, CloseBrace, Comma, Paren, Semicolon},
+  span::Spanned,
   token::IdentifierToken,
   types::Ident,
+  utils::Expected,
 };
 
 // The atoms' item parser is `Ident::parse`, which classifies through
@@ -347,4 +354,374 @@ fn opt_try_comma_declines_on_semicolon_and_leaves_it() {
     ";",
   );
   assert!(matches!(out, Ok(true)));
+}
+
+// ── Delimited shapes (smear: shape/tests.rs) ─────────────────────────────────
+//
+// `parens`/`braces`/`brackets`/`angles` commit the opener, run the inner sub-parser,
+// commit the closer, and wrap the three in a `Delimited` spanning the whole construct;
+// the generic `delimited::<D>` does the same through the `Delimiter` pair type. The
+// accept paths assert the wrapped data (slice and span), each delimiter's span, and the
+// construct span; the unterminated paths run under both emitter modes. Smear's `ident`
+// inner becomes the fixture's `Ident::parse`.
+
+/// An inner sub-parser that records one non-fatal diagnostic and then yields `()`. Under
+/// a fail-fast emitter the emit is fatal and this errors; under a collecting emitter the
+/// diagnostic is recorded, the emit recovers, and this returns `Ok` — so an enclosing
+/// delimited atom threads on to commit its closer. It is a bare `fn` so the atom's
+/// higher-order bound pins the lexer for the emitter call, the way the atom fns compose.
+fn emit_then_recover<'inp, Em>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, Em>>,
+) -> Result<(), E>
+where
+  Em: Emitter<'inp, TestLexer<'inp>, Error = E>,
+{
+  inp
+    .emitter()
+    .emit_error(Spanned::new(SimpleSpan::new(0, 0), E))?;
+  Ok(())
+}
+
+#[test]
+fn braces_wrap_ident() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let delimited = braces(Ident::parse)(inp)?;
+      assert_eq!(*delimited.data().source_ref(), "x");
+      assert_eq!(delimited.data().span(), SimpleSpan::new(1, 2));
+      assert_eq!(delimited.span(), SimpleSpan::new(0, 3));
+      assert_eq!(delimited.open_ref().span(), &SimpleSpan::new(0, 1));
+      assert_eq!(delimited.close_ref().span(), &SimpleSpan::new(2, 3));
+      Ok::<_, E>(())
+    },
+    "{x}",
+  );
+  assert!(out.is_ok());
+}
+
+#[test]
+fn parens_wrap_ident() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let delimited = parens(Ident::parse)(inp)?;
+      assert_eq!(*delimited.data().source_ref(), "x");
+      assert_eq!(delimited.data().span(), SimpleSpan::new(1, 2));
+      assert_eq!(delimited.span(), SimpleSpan::new(0, 3));
+      assert_eq!(delimited.open_ref().span(), &SimpleSpan::new(0, 1));
+      assert_eq!(delimited.close_ref().span(), &SimpleSpan::new(2, 3));
+      Ok::<_, E>(())
+    },
+    "(x)",
+  );
+  assert!(out.is_ok());
+}
+
+#[test]
+fn brackets_wrap_ident() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let delimited = brackets(Ident::parse)(inp)?;
+      assert_eq!(*delimited.data().source_ref(), "x");
+      assert_eq!(delimited.data().span(), SimpleSpan::new(1, 2));
+      assert_eq!(delimited.span(), SimpleSpan::new(0, 3));
+      assert_eq!(delimited.open_ref().span(), &SimpleSpan::new(0, 1));
+      assert_eq!(delimited.close_ref().span(), &SimpleSpan::new(2, 3));
+      Ok::<_, E>(())
+    },
+    "[x]",
+  );
+  assert!(out.is_ok());
+}
+
+// An empty group with an `opt(Ident::try_parse)` inner yields `None` inside, proving the
+// inner runs between the delimiters and that a declining inner leaves the closer for the
+// atom to commit.
+#[test]
+fn braces_empty_with_opt_inner_yields_none() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let delimited = braces(opt(Ident::try_parse))(inp)?;
+      assert!(delimited.data().is_none());
+      assert_eq!(delimited.span(), SimpleSpan::new(0, 2));
+      assert_eq!(delimited.open_ref().span(), &SimpleSpan::new(0, 1));
+      assert_eq!(delimited.close_ref().span(), &SimpleSpan::new(1, 2));
+      Ok::<_, E>(())
+    },
+    "{}",
+  );
+  assert!(out.is_ok());
+}
+
+// Unterminated groups: the inner consumes the `a` ident, then the missing closer makes
+// the committed closer atom error on end of input. That error propagates identically
+// under a fail-fast and a collecting emitter — a missing closer is not recovered into a
+// fabricated delimiter — so both modes return `Err`.
+
+#[test]
+fn braces_unterminated_errors() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| braces(Ident::parse)(inp).map(|_| ()),
+    "{a",
+  );
+  assert!(out.is_err());
+  let out = drive(
+    Verbose::<E>::new(),
+    |inp| braces(Ident::parse)(inp).map(|_| ()),
+    "{a",
+  );
+  assert!(out.is_err());
+}
+
+#[test]
+fn parens_unterminated_errors() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| parens(Ident::parse)(inp).map(|_| ()),
+    "(a",
+  );
+  assert!(out.is_err());
+  let out = drive(
+    Verbose::<E>::new(),
+    |inp| parens(Ident::parse)(inp).map(|_| ()),
+    "(a",
+  );
+  assert!(out.is_err());
+}
+
+#[test]
+fn brackets_unterminated_errors() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| brackets(Ident::parse)(inp).map(|_| ()),
+    "[a",
+  );
+  assert!(out.is_err());
+  let out = drive(
+    Verbose::<E>::new(),
+    |inp| brackets(Ident::parse)(inp).map(|_| ()),
+    "[a",
+  );
+  assert!(out.is_err());
+}
+
+// The collecting-mode recovery continuation: an inner sub-parser that records a non-fatal
+// diagnostic and then yields. Under a fail-fast emitter the emit is fatal, so `braces`
+// aborts before the closer and returns `Err`. Under a collecting emitter the emit is
+// recorded and recovers, so the inner returns `Ok`, `braces` threads on to commit the `}`
+// closer, and it returns the delimited construct spanning `{}`.
+#[test]
+fn braces_thread_collecting_mode_inner_emit() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| braces(emit_then_recover)(inp).map(|_| ()),
+    "{}",
+  );
+  assert!(out.is_err());
+  let out = drive(
+    Verbose::<E>::new(),
+    |inp| {
+      let delimited = braces(emit_then_recover)(inp)?;
+      assert_eq!(delimited.span(), SimpleSpan::new(0, 2));
+      assert_eq!(delimited.open_ref().span(), &SimpleSpan::new(0, 1));
+      assert_eq!(delimited.close_ref().span(), &SimpleSpan::new(1, 2));
+      Ok::<_, E>(())
+    },
+    "{}",
+  );
+  assert!(out.is_ok());
+}
+
+// New coverage: `angles` (the pair with no smear-side dialect vehicle) over the fixture,
+// which wires both capability routes for `<`/`>`.
+#[test]
+fn angles_wrap_ident() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let delimited = angles(Ident::parse)(inp)?;
+      assert_eq!(*delimited.data().source_ref(), "x");
+      assert_eq!(delimited.data().span(), SimpleSpan::new(1, 2));
+      assert_eq!(delimited.span(), SimpleSpan::new(0, 3));
+      assert_eq!(delimited.open_ref().span(), &SimpleSpan::new(0, 1));
+      assert_eq!(delimited.close_ref().span(), &SimpleSpan::new(2, 3));
+      Ok::<_, E>(())
+    },
+    "<x>",
+  );
+  assert!(out.is_ok());
+}
+
+#[test]
+fn angles_unterminated_errors() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| angles(Ident::parse)(inp).map(|_| ()),
+    "<a",
+  );
+  assert!(out.is_err());
+  let out = drive(
+    Verbose::<E>::new(),
+    |inp| angles(Ident::parse)(inp).map(|_| ()),
+    "<a",
+  );
+  assert!(out.is_err());
+}
+
+// The `≡` proof: the generic `delimited::<Paren, …>` over `(x)` yields the same data and
+// spans as `parens` (test `parens_wrap_ident`) — and, because the built-in pair's
+// `OpenValue`/`CloseValue` normalize to the named alias inner types, the same result type.
+#[test]
+fn delimited_generic_paren_equals_parens() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let d = delimited::<Paren, _, _, _, _, _>(Ident::parse)(inp)?;
+      assert_eq!(*d.data().source_ref(), "x");
+      assert_eq!(d.data().span(), SimpleSpan::new(1, 2));
+      assert_eq!(d.span(), SimpleSpan::new(0, 3));
+      assert_eq!(d.open_ref().span(), &SimpleSpan::new(0, 1));
+      assert_eq!(d.close_ref().span(), &SimpleSpan::new(2, 3));
+      Ok::<_, E>(())
+    },
+    "(x)",
+  );
+  assert!(out.is_ok());
+}
+
+// A wrong closer is a hard error carrying the expected close kind. `ShapeError` (local,
+// discriminating — the shared `E` is unit) pins that the error IS an `UnexpectedToken`
+// naming the close-brace kind, not a fabricated delimiter.
+#[test]
+fn delimited_wrong_close_reports_unexpected_token() {
+  fn wrong_close<'a>(
+    inp: &mut InputRef<'a, '_, TestLexer<'a>, FatalContext<'a, TestLexer<'a>, ShapeError>>,
+  ) -> Result<(), ShapeError> {
+    delimited::<Brace, _, _, _, _, _>(Ident::parse)(inp).map(|_| ())
+  }
+  let err = Parser::with_parser(wrong_close)
+    .parse_str("{x)")
+    .unwrap_err();
+  assert!(matches!(
+    err,
+    ShapeError::Unexpected(Some(TokenKind::RBrace))
+  ));
+}
+
+// A missing closer at end of input is an `UnexpectedEot`, pinned distinct from the
+// unexpected-token path by the same local discriminating error.
+#[test]
+fn delimited_eof_reports_unexpected_eot() {
+  fn unterminated<'a>(
+    inp: &mut InputRef<'a, '_, TestLexer<'a>, FatalContext<'a, TestLexer<'a>, ShapeError>>,
+  ) -> Result<(), ShapeError> {
+    delimited::<Paren, _, _, _, _, _>(Ident::parse)(inp).map(|_| ())
+  }
+  let err = Parser::with_parser(unterminated)
+    .parse_str("(a")
+    .unwrap_err();
+  assert!(matches!(err, ShapeError::Eot));
+}
+
+// Nesting composes: `braces(brackets(ident))` over `{[x]}` wraps the bracket construct as
+// the brace construct's data, each carrying its own delimiter and construct spans.
+#[test]
+fn nested_delimiters_compose() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let delimited = braces(brackets(Ident::parse))(inp)?;
+      assert_eq!(delimited.span(), SimpleSpan::new(0, 5));
+      assert_eq!(delimited.open_ref().span(), &SimpleSpan::new(0, 1));
+      assert_eq!(delimited.close_ref().span(), &SimpleSpan::new(4, 5));
+      let inner = delimited.data();
+      assert_eq!(inner.span(), SimpleSpan::new(1, 4));
+      assert_eq!(inner.open_ref().span(), &SimpleSpan::new(1, 2));
+      assert_eq!(inner.close_ref().span(), &SimpleSpan::new(3, 4));
+      assert_eq!(*inner.data().source_ref(), "x");
+      Ok::<_, E>(())
+    },
+    "{[x]}",
+  );
+  assert!(out.is_ok());
+}
+
+// ── Local discriminating error for the generic error-path tests ──────────────
+//
+// `ShapeError` mirrors the shared `E`'s absorb-everything `From` family (so it is a
+// `ComposableEmitter` error and backs a `FatalContext`), but keeps the two token-level
+// families the shapes commit through as distinct variants, so a test can pin WHICH one a
+// missing/wrong closer produced. The shared `E` is unit and cannot.
+#[derive(Debug)]
+enum ShapeError {
+  /// An unexpected token, carrying the single expected kind (the delimiter).
+  Unexpected(Option<TokenKind>),
+  /// End of input where a delimiter was required.
+  Eot,
+  /// Any other diagnostic family (unexercised by these tests).
+  Other,
+}
+
+impl From<()> for ShapeError {
+  fn from(_: ()) -> Self {
+    ShapeError::Other
+  }
+}
+
+impl<'a, S, Lang: ?Sized> From<UnexpectedToken<'a, Token, TokenKind, S, Lang>> for ShapeError {
+  fn from(e: UnexpectedToken<'a, Token, TokenKind, S, Lang>) -> Self {
+    let kind = match e.expected() {
+      Some(Expected::One(k)) => Some(*k),
+      _ => None,
+    };
+    ShapeError::Unexpected(kind)
+  }
+}
+
+impl From<UnexpectedEot> for ShapeError {
+  fn from(_: UnexpectedEot) -> Self {
+    ShapeError::Eot
+  }
+}
+
+impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for ShapeError {
+  fn from(_: FullContainer<S, Lang>) -> Self {
+    ShapeError::Other
+  }
+}
+
+impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for ShapeError {
+  fn from(_: TooFew<S, Lang>) -> Self {
+    ShapeError::Other
+  }
+}
+
+impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for ShapeError {
+  fn from(_: TooMany<S, Lang>) -> Self {
+    ShapeError::Other
+  }
+}
+
+impl<'a, Kind: Clone, O, Lang: ?Sized> From<MissingToken<'a, Kind, O, Lang>> for ShapeError {
+  fn from(_: MissingToken<'a, Kind, O, Lang>) -> Self {
+    ShapeError::Other
+  }
+}
+
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, Lang>>
+  for ShapeError
+{
+  fn from(_: SeparatedError<'a, T, Kind, S, Lang>) -> Self {
+    ShapeError::Other
+  }
+}
+
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for ShapeError {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
+    ShapeError::Other
+  }
 }
