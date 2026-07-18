@@ -160,7 +160,7 @@ SECTIONS = {
     ),
     "ref_combinators.md": (
         "Atoms — parsers from nothing", "Repetition & folding",
-        "Separation — comma-separated and friends", "Feature matrix",
+        "Separation — comma-separated and friends", "Delimited shapes", "Feature matrix",
     ),
     "ref_errors_emitters_context.md": (
         "The error model", "Emitters", "ParseContext / ParseCtx",

@@ -166,7 +166,11 @@ assert_eq!(Parser::new().apply(true_then_null).parse_str("true null"), Ok(true))
 `list` passes `try_json_value` to `separated_by_comma`, collects accepted values into a `Vec`,
 and sequences the bracket parsers around that comma-separated core. A tentative element must
 decline without consuming when the closer is next; malformed separators remain errors. This
-focused parser follows the same comma-separated array path and makes those failures executable:
+focused parser follows the same comma-separated array path and makes those failures executable.
+For the ready-made single-region alternative to this bracket hand-roll, see the
+[`brackets`](crate::parser::brackets) free shape (and its
+[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`angles`](crate::parser::angles)/[`delimited`](crate::parser::delimited)
+siblings):
 
 ```rust
 # use tokora::{

@@ -425,7 +425,10 @@ assert!(Parser::with_parser(ignored).parse_str("+").is_ok());
 ## Sequencing
 
 All methods on [`ParseInput`](crate::ParseInput). A **delimited** shape is just sequencing with
-the brackets ignored — `open.ignore_then(body).then_ignore(close)`.
+the brackets ignored — `open.ignore_then(body).then_ignore(close)` — packaged ready-made by
+[`delimited`](crate::parser::delimited) and
+[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
+(see [*Delimited shapes*](#delimited-shapes)).
 
 | Method | Keeps | One-liner |
 |--------|-------|-----------|
@@ -952,7 +955,7 @@ order is flexible.
 | [`require_trailing()`](crate::parser::Separated::require_trailing) | separated | require a trailing separator |
 | [`allow_leading()`](crate::parser::Separated::allow_leading) | separated | accept a leading separator |
 | [`require_leading()`](crate::parser::Separated::require_leading) | separated | require a leading separator |
-| [`delimited::<D>()`](crate::parser::Separated::delimited) | both | wrap in a [`Delimiter`](crate::delimiter::Delimiter) pair (`Paren`/`Bracket`/`Brace`/`Angle`) |
+| [`delimited::<D>()`](crate::parser::Separated::delimited) | both | wrap in a [`Delimiter`](crate::delimiter::Delimiter) pair (`Paren`/`Bracket`/`Brace`/`Angle`); for a single region see the [`delimited`](crate::parser::delimited)/[`parens`](crate::parser::parens) free shapes |
 
 Trailing/leading violations report through dedicated emitter capabilities
 ([`UnexpectedTrailingSeparatorEmitter`](crate::emitter::UnexpectedTrailingSeparatorEmitter), …).
@@ -1186,6 +1189,156 @@ fn run<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<Vec<u32
     list_of(digit, |t| matches!(t, Tok::RBracket))(inp)
 }
 assert_eq!(Parser::with_parser(run).parse_str("123]").unwrap(), vec![1, 2, 3]);
+```
+
+---
+
+## Delimited shapes
+
+A committed single-region shape: commit the opener, run the inner sub-parser, commit the
+closer, and return a span-carrying [`Delimited`](crate::utils::Delimited) — the open value,
+the close value, the inner output, and the whole-construct span. A missing closer is a hard
+error: the closer's unexpected-token or end-of-input error propagates rather than fabricating
+a delimiter, and this family never fires the `Unclosed`/`Unopened`/`Undelimited` recovery
+vocabulary (see [*Error taxonomy*](#error-taxonomy)) — a recovery-oriented caller holds the
+region's start cursor and can map at the call site.
+
+[`delimited::<D, …>(inner)`](crate::parser::delimited) takes the delimiter pair as its first
+type parameter through the [`TypedDelimiter`](crate::delimiter::TypedDelimiter) capability;
+[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
+fix that pair to a built-in, and `parens(inner)` ≡ `delimited::<Paren, …>(inner)` for any
+vocabulary whose two capability declarations agree. Bring your own pair by implementing
+[`TypedDelimiter`](crate::delimiter::TypedDelimiter) for it. This is the single-region
+counterpart to the many-builder's [`delimited::<D>()`](crate::parser::Separated::delimited),
+which instead wraps a *repetition* and hands its delimiter tokens to a handler.
+
+| Atom | One-liner |
+|------|-----------|
+| [`delimited::<D, …>(inner)`](crate::parser::delimited) | one `D`-delimited region into a span-carrying `Delimited` |
+| [`parens(inner)`](crate::parser::parens) | the same, fixed to `( … )` |
+| [`braces(inner)`](crate::parser::braces) | the same, fixed to `{ … }` |
+| [`brackets(inner)`](crate::parser::brackets) | the same, fixed to `[ … ]` |
+| [`angles(inner)`](crate::parser::angles) | the same, fixed to `< … >` |
+
+```text
+delimited<D, …>(inner: P) -> impl FnMut(&mut InputRef) -> Result<Delimited<Open, Close, T>, Error>
+parens(inner) / braces(inner) / brackets(inner) / angles(inner) -> the same, with the pair fixed
+```
+
+```rust
+# use core::{convert::Infallible, fmt};
+# use tokora::{
+#   FatalContext, InputRef, Lexer, SimpleSpan, Token,
+#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, OpenBrace, CloseBrace, OpenAngle, CloseAngle, Semicolon},
+#   span::Span as _,
+#   token::PunctuatorToken,
+# };
+# #[derive(Debug, PartialEq)]
+# struct Error;
+# impl From<Infallible> for Error { fn from(e: Infallible) -> Self { match e {} } }
+# impl<'a, T, K: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, K, S, Lang>> for Error { fn from(_: UnexpectedToken<'a, T, K, S, Lang>) -> Self { Error } }
+# impl<'a, T, K: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, K, S, Lang>> for Error { fn from(_: SeparatedError<'a, T, K, S, Lang>) -> Self { Error } }
+# impl<'a, K: Clone, O, Lang: ?Sized> From<MissingToken<'a, K, O, Lang>> for Error { fn from(_: MissingToken<'a, K, O, Lang>) -> Self { Error } }
+# impl<O, Lang: ?Sized, Set: Clone + 'static> From<UnexpectedEot<O, Lang, Set>> for Error { fn from(_: UnexpectedEot<O, Lang, Set>) -> Self { Error } }
+# impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
+# impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
+# impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+# impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl tokora::error::MaybeIncomplete for Error {}
+# #[derive(Debug, Clone, PartialEq)]
+# enum Tok { Digit(u32), Comma, Semi, LParen, RParen, LBracket, RBracket, LBrace, RBrace, LAngle, RAngle }
+# #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+# enum Kind { Digit, Comma, Semi, LParen, RParen, LBracket, RBracket, LBrace, RBrace, LAngle, RAngle }
+# impl fmt::Display for Kind { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{self:?}") } }
+# impl Token<'_> for Tok {
+#   type Kind = Kind;
+#   type Error = Infallible;
+#   fn kind(&self) -> Kind { match self {
+#     Tok::Digit(_) => Kind::Digit, Tok::Comma => Kind::Comma, Tok::Semi => Kind::Semi,
+#     Tok::LParen => Kind::LParen, Tok::RParen => Kind::RParen,
+#     Tok::LBracket => Kind::LBracket, Tok::RBracket => Kind::RBracket,
+#     Tok::LBrace => Kind::LBrace, Tok::RBrace => Kind::RBrace,
+#     Tok::LAngle => Kind::LAngle, Tok::RAngle => Kind::RAngle } }
+#   fn is_trivia(&self) -> bool { false }
+# }
+# impl PunctuatorToken<'_> for Tok {
+#   fn comma() -> Option<Kind> { Some(Kind::Comma) }
+#   fn semicolon() -> Option<Kind> { Some(Kind::Semi) }
+#   fn open_paren() -> Option<Kind> { Some(Kind::LParen) }
+#   fn close_paren() -> Option<Kind> { Some(Kind::RParen) }
+#   fn open_bracket() -> Option<Kind> { Some(Kind::LBracket) }
+#   fn close_bracket() -> Option<Kind> { Some(Kind::RBracket) }
+#   fn open_brace() -> Option<Kind> { Some(Kind::LBrace) }
+#   fn close_brace() -> Option<Kind> { Some(Kind::RBrace) }
+#   fn open_angle() -> Option<Kind> { Some(Kind::LAngle) }
+#   fn close_angle() -> Option<Kind> { Some(Kind::RAngle) }
+# }
+# impl From<Comma<(), (), ()>> for Kind { fn from(_: Comma<(), (), ()>) -> Self { Kind::Comma } }
+# impl From<Semicolon<(), (), ()>> for Kind { fn from(_: Semicolon<(), (), ()>) -> Self { Kind::Semi } }
+# impl From<OpenParen<(), (), ()>> for Kind { fn from(_: OpenParen<(), (), ()>) -> Self { Kind::LParen } }
+# impl From<CloseParen<(), (), ()>> for Kind { fn from(_: CloseParen<(), (), ()>) -> Self { Kind::RParen } }
+# impl From<OpenBracket<(), (), ()>> for Kind { fn from(_: OpenBracket<(), (), ()>) -> Self { Kind::LBracket } }
+# impl From<CloseBracket<(), (), ()>> for Kind { fn from(_: CloseBracket<(), (), ()>) -> Self { Kind::RBracket } }
+# impl From<OpenBrace<(), (), ()>> for Kind { fn from(_: OpenBrace<(), (), ()>) -> Self { Kind::LBrace } }
+# impl From<CloseBrace<(), (), ()>> for Kind { fn from(_: CloseBrace<(), (), ()>) -> Self { Kind::RBrace } }
+# impl From<OpenAngle<(), (), ()>> for Kind { fn from(_: OpenAngle<(), (), ()>) -> Self { Kind::LAngle } }
+# impl From<CloseAngle<(), (), ()>> for Kind { fn from(_: CloseAngle<(), (), ()>) -> Self { Kind::RAngle } }
+# struct CharLexer<'a> { src: &'a str, pos: usize, tok: SimpleSpan, state: () }
+# impl<'a> Lexer<'a> for CharLexer<'a> {
+#   type State = (); type Source = str; type Token = Tok; type Span = SimpleSpan; type Offset = usize;
+#   fn new(src: &'a str) -> Self { Self { src, pos: 0, tok: SimpleSpan::new(0, 0), state: () } }
+#   fn with_state(src: &'a str, _: ()) -> Self { Self::new(src) }
+#   fn check(&self) -> Result<(), Infallible> { Ok(()) }
+#   fn state(&self) -> &() { &self.state }
+#   fn state_mut(&mut self) -> &mut () { &mut self.state }
+#   fn into_state(self) -> Self::State {}
+#   fn source(&self) -> &'a str { self.src }
+#   fn span(&self) -> SimpleSpan { self.tok }
+#   fn slice(&self) -> &'a str { &self.src[self.tok.start()..self.tok.end()] }
+#   fn lex(&mut self) -> Option<Result<Tok, Infallible>> {
+#     let bytes = self.src.as_bytes();
+#     while self.pos < bytes.len() && bytes[self.pos] == b' ' { self.pos += 1; }
+#     if self.pos >= bytes.len() { return None; }
+#     let (start, c) = (self.pos, bytes[self.pos] as char);
+#     self.pos += 1;
+#     self.tok = SimpleSpan::new(start, self.pos);
+#     Some(Ok(match c {
+#       '0'..='9' => Tok::Digit(c as u32 - '0' as u32),
+#       ',' => Tok::Comma, ';' => Tok::Semi,
+#       '(' => Tok::LParen, ')' => Tok::RParen, '[' => Tok::LBracket, ']' => Tok::RBracket,
+#       '{' => Tok::LBrace, '}' => Tok::RBrace, '<' => Tok::LAngle, '>' => Tok::RAngle,
+#       c => Tok::Digit(c as u32),
+#     }))
+#   }
+#   fn bump(&mut self, n: &usize) { self.pos += n; }
+# }
+# type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
+# fn digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
+#     match inp.next()? { Some(sp) => match sp.into_data() { Tok::Digit(n) => Ok(n), _ => Err(Error) }, None => Err(Error) }
+# }
+use tokora::{Parse, Parser, punct::Paren, parser::{braces, delimited, parens}};
+
+// `parens` wraps ONE region and keeps the typed delimiter values and the whole-construct span.
+fn in_parens<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<(u32, SimpleSpan), Error> {
+    let d = parens(digit)(inp)?;
+    Ok((*d.data(), d.span()))
+}
+let (value, span) = Parser::with_parser(in_parens).parse_str("(1)").unwrap();
+assert_eq!(value, 1);
+assert_eq!(span, SimpleSpan::new(0, 3));
+
+// `braces` fixes the pair to `{ … }`.
+fn in_braces<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
+    braces(digit)(inp).map(|d| *d.data())
+}
+assert_eq!(Parser::with_parser(in_braces).parse_str("{1}").unwrap(), 1);
+
+// `parens(inner)` ≡ `delimited::<Paren, …>(inner)`.
+fn via_generic<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
+    delimited::<Paren, _, _, _, _, _>(digit)(inp).map(|d| *d.data())
+}
+assert_eq!(Parser::with_parser(via_generic).parse_str("(1)").unwrap(), 1);
 ```
 
 ---

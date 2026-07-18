@@ -231,7 +231,10 @@ trait Delimiter<'inp, L, Lang = ()> {
 `Delimiter` is a **classifier/error helper**, not a combinator: it recognizes the boundary kinds
 and builds the boundary errors. To parse a delimited body, sequence the punctuators (as taught in
 [chapter 3](super::ch03_combinators)) — `OpenParen::parse` then the body then `CloseParen::parse`,
-or `open.ignore_then(body).then_ignore(close)`. The `is_open`/`is_close` classification is
+or `open.ignore_then(body).then_ignore(close)` — or reach for the ready-made
+[`delimited`](crate::parser::delimited)/[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
+shapes, the consumption side of these pairs, which materialize each pair's typed values through
+[`TypedDelimiter`](crate::delimiter::TypedDelimiter). The `is_open`/`is_close` classification is
 exercised over `Paren` in the built-in-punctuator doctest above. Balanced recovery
 ([chapter 8](super::ch08_recovery)) uses the same delimiter notion through
 [`DelimClass`](crate::DelimClass).

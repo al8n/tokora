@@ -1,3 +1,18 @@
+# Unreleased (0.2.1)
+
+## Added
+
+- **Delimited shape parsers** (`tokora::parser`). `delimited::<D>` — commits a `Delimiter`
+  pair's opener, runs an inner parser, commits the closer, and returns the three as a
+  span-carrying `Delimited` covering the whole construct; plus the named conveniences
+  `parens`/`braces`/`brackets`/`angles` and the result aliases
+  `DelimitedOf`/`ParensOf`/`BracesOf`/`BracketsOf`/`AnglesOf`. A missing closer is a hard
+  error — the closer's unexpected-token or end-of-input error propagates; the
+  `Unclosed`/`Unopened`/`Undelimited` vocabulary is deliberately not fired by this family.
+- **`TypedDelimiter`** (`tokora::delimiter`) — additive `Delimiter` subtrait materializing
+  span-carrying opening/closing punctuator values; implemented for `Paren`/`Brace`/
+  `Bracket`/`Angle`.
+
 # 0.2.0 (2026-07-17)
 
 ## Added
