@@ -2,11 +2,12 @@ use generic_arraydeque::typenum::Unsigned;
 
 use super::*;
 
-impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> InputRef<'inp, '_, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   /// Folds over the input tokens using the provided accumulator function.
   pub fn fold<O, Pred, Init, Op>(

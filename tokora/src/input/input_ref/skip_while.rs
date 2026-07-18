@@ -2,11 +2,12 @@ use super::*;
 
 use super::scan::SkipWhile;
 
-impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> InputRef<'inp, '_, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   /// Consumes consecutive tokens matching `pred` without reporting them.
   ///

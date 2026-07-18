@@ -151,12 +151,13 @@ impl<Span, State, Offset> ThroughEntry<Span, State, Offset> {
 /// No hook is told where its token came from — that is the point. Each is handed the same
 /// [`Fetched`] carrier whether the loop popped it off the cache or lexed it, so a settle cannot be
 /// written to depend on the cache even by accident.
-pub(super) trait ScanMode<'inp, L, Ctx, Lang>
+pub(super) trait ScanMode<'inp, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   /// The pre-call snapshot the end-of-input arm needs: `()` for the committing modes, a
   /// [`ThroughEntry`] for the rewinding ones.
@@ -175,7 +176,7 @@ where
   /// consumes it (commits at its span, adopting the state that produced it) and returns
   /// `Some(tok)`.
   fn on_stop(
-    ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     frontier: AtFrontier<L::Span, L::State>,
     stopper: Fetched<'inp, L>,
   ) -> Option<Spanned<L::Token, L::Span>>;
@@ -183,7 +184,7 @@ where
   /// Settle the input at end of input (nothing stopped the scan). The committing modes commit at
   /// the lexer's end; the rewinding ones restore span, lexer state, dedup watermark, and emissions
   /// from `snapshot`.
-  fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, lexer: L, snapshot: Self::Snapshot);
+  fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, lexer: L, snapshot: Self::Snapshot);
 
   /// RELEASE_CENSUS — settle the pre-call snapshot on an exit that **keeps** the scan's
   /// progress (a stop, a trip, a boundary drain, either fatal propagation): the snapshot will
@@ -195,19 +196,20 @@ where
   /// [`on_eof`], and the census locks the count.
   ///
   /// [`on_eof`]: ScanMode::on_eof
-  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, snapshot: Self::Snapshot);
+  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, snapshot: Self::Snapshot);
 }
 
 /// Stop *before* the sync token: commit at the frontier on a match, commit at the lexer's end at
 /// end of input. Drives `sync_to`.
 pub(super) struct SyncTo;
 
-impl<'inp, L, Ctx, Lang> ScanMode<'inp, L, Ctx, Lang> for SyncTo
+impl<'inp, L, Ctx, Lang, Cmpl> ScanMode<'inp, L, Ctx, Lang, Cmpl> for SyncTo
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   type Snapshot = ();
 
@@ -215,7 +217,7 @@ where
 
   #[inline(always)]
   fn on_stop(
-    ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     frontier: AtFrontier<L::Span, L::State>,
     stopper: Fetched<'inp, L>,
   ) -> Option<Spanned<L::Token, L::Span>> {
@@ -231,7 +233,7 @@ where
   }
 
   #[inline(always)]
-  fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, lexer: L, _snapshot: ()) {
+  fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, lexer: L, _snapshot: ()) {
     // Nothing stopped the scan: commit the whole skipped run at the lexer's end. `sync_to` reports
     // as it goes and keeps that progress, so end of input is not a rewinding failure here.
     ir.set_span_after_consume(lexer.span().into());
@@ -239,7 +241,7 @@ where
   }
 
   #[inline(always)]
-  fn on_commit(_ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, _snapshot: ()) {
+  fn on_commit(_ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, _snapshot: ()) {
     // A committing mode snapshots nothing, so a kept exit has nothing to release.
   }
 }
@@ -248,12 +250,13 @@ where
 /// of input. Drives `sync_through` and `sync_through_then_peek`.
 pub(super) struct SyncThrough;
 
-impl<'inp, L, Ctx, Lang> ScanMode<'inp, L, Ctx, Lang> for SyncThrough
+impl<'inp, L, Ctx, Lang, Cmpl> ScanMode<'inp, L, Ctx, Lang, Cmpl> for SyncThrough
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   type Snapshot = ThroughEntry<L::Span, L::State, L::Offset>;
 
@@ -261,7 +264,7 @@ where
 
   #[inline(always)]
   fn on_stop(
-    ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     _frontier: AtFrontier<L::Span, L::State>,
     stopper: Fetched<'inp, L>,
   ) -> Option<Spanned<L::Token, L::Span>> {
@@ -277,7 +280,7 @@ where
 
   #[inline(always)]
   fn on_eof(
-    ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     _lexer: L,
     snapshot: ThroughEntry<L::Span, L::State, L::Offset>,
   ) {
@@ -296,7 +299,7 @@ where
   }
 
   #[inline(always)]
-  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, snapshot: Self::Snapshot) {
+  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, snapshot: Self::Snapshot) {
     // The scan kept its progress, so the entry snapshot will never be restored: release the
     // emitter mark it captured — the keep-dual of `on_eof`'s rewind. Advisory (a no-op for
     // every built-in emitter); a mark-keyed emitter reclaims its row here instead of
@@ -311,12 +314,13 @@ where
 /// region. Composed from the other two modes' settles.
 pub(super) struct SyncBalanced;
 
-impl<'inp, L, Ctx, Lang> ScanMode<'inp, L, Ctx, Lang> for SyncBalanced
+impl<'inp, L, Ctx, Lang, Cmpl> ScanMode<'inp, L, Ctx, Lang, Cmpl> for SyncBalanced
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   type Snapshot = ThroughEntry<L::Span, L::State, L::Offset>;
 
@@ -324,26 +328,26 @@ where
 
   #[inline(always)]
   fn on_stop(
-    ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     frontier: AtFrontier<L::Span, L::State>,
     stopper: Fetched<'inp, L>,
   ) -> Option<Spanned<L::Token, L::Span>> {
     // Stop before the sync point, exactly as `sync_to` does — which is also what places the
     // zero-skip hole: `sync_balanced` anchors it at `cursor()`, and the cursor is the match's start
     // because the match is left at the cache front here, cached or lexed.
-    <SyncTo as ScanMode<'inp, L, Ctx, Lang>>::on_stop(ir, frontier, stopper)
+    <SyncTo as ScanMode<'inp, L, Ctx, Lang, Cmpl>>::on_stop(ir, frontier, stopper)
   }
 
   #[inline(always)]
-  fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, lexer: L, snapshot: Self::Snapshot) {
+  fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, lexer: L, snapshot: Self::Snapshot) {
     // A failed balanced sync leaves no trace, exactly as `sync_through`'s no-match exit.
-    <SyncThrough as ScanMode<'inp, L, Ctx, Lang>>::on_eof(ir, lexer, snapshot)
+    <SyncThrough as ScanMode<'inp, L, Ctx, Lang, Cmpl>>::on_eof(ir, lexer, snapshot)
   }
 
   #[inline(always)]
-  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, snapshot: Self::Snapshot) {
+  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, snapshot: Self::Snapshot) {
     // A kept balanced sync releases its entry mark, exactly as `sync_through`'s keep exits.
-    <SyncThrough as ScanMode<'inp, L, Ctx, Lang>>::on_commit(ir, snapshot)
+    <SyncThrough as ScanMode<'inp, L, Ctx, Lang, Cmpl>>::on_commit(ir, snapshot)
   }
 }
 
@@ -364,12 +368,13 @@ where
 /// deep the caller had peeked.
 pub(super) struct SkipWhile;
 
-impl<'inp, L, Ctx, Lang> ScanMode<'inp, L, Ctx, Lang> for SkipWhile
+impl<'inp, L, Ctx, Lang, Cmpl> ScanMode<'inp, L, Ctx, Lang, Cmpl> for SkipWhile
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   type Snapshot = ();
 
@@ -377,34 +382,35 @@ where
 
   #[inline(always)]
   fn on_stop(
-    ir: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     frontier: AtFrontier<L::Span, L::State>,
     stopper: Fetched<'inp, L>,
   ) -> Option<Spanned<L::Token, L::Span>> {
-    <SyncTo as ScanMode<'inp, L, Ctx, Lang>>::on_stop(ir, frontier, stopper)
+    <SyncTo as ScanMode<'inp, L, Ctx, Lang, Cmpl>>::on_stop(ir, frontier, stopper)
   }
 
   #[inline(always)]
-  fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, lexer: L, snapshot: ()) {
+  fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, lexer: L, snapshot: ()) {
     // Everything from the cursor to the end of input matched, and was skipped: keep that progress,
     // at the lexer's end.
-    <SyncTo as ScanMode<'inp, L, Ctx, Lang>>::on_eof(ir, lexer, snapshot)
+    <SyncTo as ScanMode<'inp, L, Ctx, Lang, Cmpl>>::on_eof(ir, lexer, snapshot)
   }
 
   #[inline(always)]
-  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang>, snapshot: ()) {
+  fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, snapshot: ()) {
     // Nothing snapshotted, nothing to release — and this empty body is what keeps the trivia
     // hot path's kept exits free of any per-call work.
-    <SyncTo as ScanMode<'inp, L, Ctx, Lang>>::on_commit(ir, snapshot)
+    <SyncTo as ScanMode<'inp, L, Ctx, Lang, Cmpl>>::on_commit(ir, snapshot)
   }
 }
 
-impl<'inp, L, Ctx, Lang> InputRef<'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang, Cmpl> InputRef<'inp, '_, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   /// **The** scanner: skip tokens — diagnosing each as unexpected if the mode says so — until
   /// `pred` stops the scan or the input is exhausted, then settle per the [`ScanMode`] `M`.
@@ -471,7 +477,8 @@ where
     snapshot: M::Snapshot,
   ) -> Result<Scanned<'inp, L>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    M: ScanMode<'inp, L, Ctx, Lang>,
+    M: ScanMode<'inp, L, Ctx, Lang, Cmpl>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
@@ -586,7 +593,7 @@ where
     exp: &mut Exp,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
-    M: ScanMode<'inp, L, Ctx, Lang>,
+    M: ScanMode<'inp, L, Ctx, Lang, Cmpl>,
     Exp: FnMut() -> Option<Expected<'inp, <L::Token as Token<'inp>>::Kind>>,
   {
     let (spanned, state) = skipped.tok.into_components();

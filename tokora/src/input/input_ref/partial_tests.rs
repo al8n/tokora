@@ -1260,3 +1260,233 @@ fn is_incomplete_error_routes_through_maybe_incomplete_at_partial() {
     (),
   >>::is_incomplete_error(&PErr::Limit));
 }
+
+// ── §8.5: the generalized scanner drivers under Partial ─────────────────────────────
+//
+// Each G-class driver (0.3.0: `try_expect`, `skip_while`, `sync_to`, `sync_through`,
+// `sync_balanced`, `fold`/`foldn`, `consume_cached_*`) runs under `Partial` through its
+// now-generic header. The matrix per driver: non-final ⇒ `Incomplete` at the frontier
+// (conservative — later input could extend what it stopped on); final ⇒ identical to the
+// complete-mode outcome. Plus the poison-at-frontier precedence case for `try_expect`.
+
+/// Inlines a partial-input drive: builds the input over `$src`, seals per `$is_final`,
+/// hands the handle to `$body`, and evaluates to `(body_output, emitted_diagnostics)`.
+macro_rules! with_partial {
+  ($src:expr, $is_final:expr, |$inp:ident| $body:expr) => {{
+    let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_cache(
+      $src,
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    if $is_final {
+      input.seal();
+    }
+    let mut emitter = Verbose::<PErr>::new();
+    let out = {
+      #[allow(unused_mut)]
+      let mut $inp = input.as_ref(&mut emitter);
+      $body
+    };
+    let emitted: usize = emitter.errors().values().map(|g| g.len()).sum();
+    (out, emitted)
+  }};
+}
+
+#[test]
+fn try_expect_partial_matrix() {
+  // Non-final, the only token touches the buffer end: withheld, Incomplete.
+  let (r, emitted) = with_partial!("foo", false, |inp| inp.try_expect(|_| true));
+  assert_eq!(r, Err(PErr::Incomplete(3)));
+  assert_eq!(emitted, 0);
+  // Final: consumed, exactly as complete mode.
+  let (r, _) = with_partial!("foo", true, |inp| {
+    inp.try_expect(|_| true).map(|t| t.map(|s| s.data().kind()))
+  });
+  assert_eq!(r, Ok(Some(PKind::Word)));
+  // The decline path puts a MID-BUFFER token back without any incomplete: "foo" ends
+  // strictly before the trailing space, so it lexes even non-final, and the declining
+  // predicate leaves it cached for the next consume.
+  let (r, emitted) = with_partial!("foo ", false, |inp| {
+    let declined = inp
+      .try_expect(|t| matches!(t.data(), PTok::Num))
+      .expect("the decline path is not an error");
+    assert!(declined.is_none(), "the word is not a number");
+    inp
+      .try_expect(|t| matches!(t.data(), PTok::Word))
+      .map(|t| t.map(|s| s.data().kind()))
+  });
+  assert_eq!(r, Ok(Some(PKind::Word)));
+  assert_eq!(emitted, 0);
+}
+
+#[test]
+fn skip_while_partial_matrix() {
+  // Non-final: the trivia run's last word touches the buffer end — it may extend, so the
+  // run is not finishable yet. (This is what hands `padded` its partial semantics.)
+  let (r, _) = with_partial!("foo bar", false, |inp| {
+    inp.skip_while(|t| matches!(t.data(), PTok::Word))
+  });
+  assert_eq!(r, Err(PErr::Incomplete(7)));
+  // Final: the run completes and the stopper is left at the cache front.
+  let (r, _) = with_partial!("foo 42", true, |inp| {
+    inp
+      .skip_while(|t| matches!(t.data(), PTok::Word))
+      .expect("the final-mode skip completes");
+    inp.next().map(|t| t.map(|s| s.data().kind()))
+  });
+  assert_eq!(r, Ok(Some(PKind::Num)));
+}
+
+#[test]
+fn sync_to_partial_matrix() {
+  // Non-final: the would-be sync token touches the buffer end — the next chunk could
+  // extend it ("42" → "425"), so recovery-sync is not decidable yet: Incomplete.
+  let (r, emitted) = with_partial!("foo bar 42", false, |inp| {
+    inp
+      .sync_to(|t| matches!(t.data(), PTok::Num), || None)
+      .map(|s| s.is_some())
+  });
+  assert_eq!(r, Err(PErr::Incomplete(10)));
+  assert_eq!(
+    emitted, 2,
+    "the mid-buffer skipped words are diagnosed as they settle (emit-as-you-go, exactly \
+     as complete mode); only the frontier item itself is withheld"
+  );
+  // Final: syncs to the number, diagnosing the two skipped words — complete-identical.
+  let (r, emitted) = with_partial!("foo bar 42", true, |inp| {
+    inp
+      .sync_to(|t| matches!(t.data(), PTok::Num), || None)
+      .map(|s| s.is_some())
+  });
+  assert_eq!(r, Ok(true));
+  assert_eq!(
+    emitted, 2,
+    "each skipped token is diagnosed, as in complete mode"
+  );
+}
+
+#[test]
+fn sync_through_partial_matrix() {
+  let (r, _) = with_partial!("foo bar 42", false, |inp| {
+    inp
+      .sync_through(|t| matches!(t.data(), PTok::Num), || None)
+      .map(|s| s.map(|t| t.data().kind()))
+  });
+  assert_eq!(r, Err(PErr::Incomplete(10)));
+  let (r, emitted) = with_partial!("foo bar 42", true, |inp| {
+    inp
+      .sync_through(|t| matches!(t.data(), PTok::Num), || None)
+      .map(|s| s.map(|t| t.data().kind()))
+  });
+  assert_eq!(
+    r,
+    Ok(Some(PKind::Num)),
+    "through-sync consumes the sync token"
+  );
+  assert_eq!(emitted, 2);
+}
+
+#[test]
+fn sync_balanced_partial_matrix() {
+  use crate::input::Balance;
+  // Non-final: same conservatism through the balanced scanner.
+  let (r, _) = with_partial!("foo bar 42", false, |inp| {
+    inp
+      .sync_balanced(
+        |_k: &PKind| Balance::<char>::Neutral,
+        |t| matches!(t.data(), PTok::Num),
+      )
+      .map(|h| h.is_some())
+  });
+  assert_eq!(r, Err(PErr::Incomplete(10)));
+  // Final: the hole over the skipped words is produced, with no per-token diagnostics.
+  let (r, _) = with_partial!("foo bar 42", true, |inp| {
+    inp
+      .sync_balanced(
+        |_k: &PKind| Balance::<char>::Neutral,
+        |t| matches!(t.data(), PTok::Num),
+      )
+      .map(|h| h.is_some())
+  });
+  assert_eq!(r, Ok(true));
+}
+
+#[test]
+fn fold_partial_matrix() {
+  // Non-final: the last folded word touches the end — the fold is not finishable.
+  let (r, _) = with_partial!("foo bar baz", false, |inp| {
+    inp.fold(|t| matches!(t.data(), PTok::Word), || 0usize, |n, _| n + 1)
+  });
+  assert_eq!(r, Err(PErr::Incomplete(11)));
+  // Final: all three words fold — complete-identical.
+  let (r, _) = with_partial!("foo bar baz", true, |inp| {
+    inp.fold(|t| matches!(t.data(), PTok::Word), || 0usize, |n, _| n + 1)
+  });
+  assert_eq!(r, Ok(3));
+}
+
+#[test]
+fn foldn_stops_mid_buffer_without_incomplete() {
+  // `foldn(2)` consumes exactly the two MID-BUFFER words and never reaches the frontier
+  // token, so even a non-final run completes: the frontier rules hold back only what the
+  // drive actually touches.
+  let (r, _) = with_partial!("foo bar baz", false, |inp| {
+    inp.foldn(|| 0usize, |n, _| n + 1, 2)
+  });
+  assert_eq!(r, Ok(2));
+}
+
+#[test]
+fn consume_cached_never_surfaces_incomplete() {
+  // `consume_cached_*` never lexes (bound-only generalization, no `SurfaceIncomplete`):
+  // it pops what peeking already cached, and the peek fill never caches a frontier token,
+  // so the mid-buffer word is consumable and the frontier word simply is not there.
+  let (r, emitted) = with_partial!("foo bar", false, |inp| {
+    let peeked = inp
+      .peek_one()
+      .expect("the partial peek never errs — a short window, not an error")
+      .is_some();
+    let first = inp.consume_cached_one().map(|t| t.data().kind());
+    let second = inp.consume_cached_one().map(|t| t.data().kind());
+    (peeked, first, second)
+  });
+  assert_eq!(r, (true, Some(PKind::Word), None));
+  assert_eq!(emitted, 0);
+}
+
+#[test]
+fn try_expect_poison_at_frontier_beats_incomplete() {
+  // Terminal beats incomplete THROUGH the generalized driver: "a b c" behind a 2-word
+  // limiter, non-final — the tripping third word ends exactly at the buffer end, and the
+  // trip must fire as `Limit` (diagnostic + latch), never be re-raised as `Incomplete`.
+  let tracker = LimitTracker::with_limit(2);
+  let mut input = Input::<LimLex<'_>, LimCtx<'_>, (), Partial>::with_state_and_cache(
+    "a b c",
+    tracker,
+    DefaultCache::<'_, LimLex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  let (results, poisoned) = {
+    let mut inp = input.as_ref(&mut emitter);
+    let a = inp.try_expect(|_| true).map(|t| t.is_some());
+    let b = inp.try_expect(|_| true).map(|t| t.is_some());
+    let c = inp.try_expect(|_| true).map(|t| t.is_some());
+    ((a, b, c), inp.is_poisoned())
+  };
+  assert_eq!(results.0, Ok(true));
+  assert_eq!(results.1, Ok(true));
+  // Under the collecting emitter the trip's diagnostic is EMITTED (not returned), the
+  // poison boundary latches, and the drive reads the terminal stop — a decline at the
+  // boundary, exactly as the `next()`-driven twin above — and NEVER `Incomplete`.
+  assert_eq!(
+    results.2,
+    Ok(false),
+    "the frontier-aligned trip is a terminal stop, never re-raised as incomplete"
+  );
+  assert!(poisoned, "the poison boundary latched at the trip");
+  assert_eq!(
+    limit_diags(&emitter),
+    1,
+    "the trip was diagnosed exactly once"
+  );
+}
