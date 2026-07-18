@@ -175,17 +175,19 @@ impl<L, Ctx, Lang> Any<L, Ctx, Lang> {
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> ParseInput<'inp, L, L::Token, Ctx, Lang> for Any<L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> ParseInput<'inp, L, L::Token, Ctx, Lang, Cmpl>
+  for Any<L, Ctx, Lang>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
     From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<L::Token, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Ctx: ParseContext<'inp, L, Lang>,
@@ -197,18 +199,20 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl>
+  ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang, Cmpl>
   for With<Any<L, Ctx, Lang>, PhantomSpan>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
     From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Ctx: ParseContext<'inp, L, Lang>,
@@ -220,19 +224,26 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized>
-  ParseInput<'inp, L, Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang>
-  for With<Any<L, Ctx, Lang>, PhantomSliced>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl>
+  ParseInput<
+    'inp,
+    L,
+    Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    Ctx,
+    Lang,
+    Cmpl,
+  > for With<Any<L, Ctx, Lang>, PhantomSliced>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
     From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -247,24 +258,26 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl>
   ParseInput<
     'inp,
     L,
     Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     Ctx,
     Lang,
+    Cmpl,
   > for With<Any<L, Ctx, Lang>, PhantomLocated>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
     From<UnexpectedEot<L::Offset, Lang>> + From<<L::Token as Token<'inp>>::Error>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,

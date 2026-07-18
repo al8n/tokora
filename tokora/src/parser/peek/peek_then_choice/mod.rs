@@ -79,11 +79,11 @@ pub struct PeekThenChoice<P, H, L, Ctx, W, Lang: ?Sized = ()> {
 impl<P, H, L, Ctx, W: Window, Lang: ?Sized> PeekThenChoice<P, H, L, Ctx, W, Lang> {
   /// Creates a new `PeekThenChoice` combinator for the specified language.
   #[inline(always)]
-  pub(crate) const fn of<'inp, O>(parser: P, condition: H) -> Self
+  pub(crate) const fn of<'inp, O, Cmpl>(parser: P, condition: H) -> Self
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    P: ParseChoice<'inp, L, O, Ctx, Lang>,
+    P: ParseChoice<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     Self {
       parser,

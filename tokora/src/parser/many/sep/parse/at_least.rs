@@ -5,9 +5,9 @@ use crate::emitter::{
 use super::*;
 
 impl_separated_parse! {
-  owned_type = [AtLeast<Separated<F, Sep, O, L, Ctx, Lang>>],
-  ref_type = [AtLeast<Separated<&'c mut F, Sep, O, L, Ctx, Lang>>],
-  wrapper_type = [AtLeast<Separated<&'c mut F, Sep, O, L, Ctx, Lang>>],
+  owned_type = [AtLeast<Separated<F, Sep, O, L, Ctx, Lang, Cmpl>>],
+  ref_type = [AtLeast<Separated<&'c mut F, Sep, O, L, Ctx, Lang, Cmpl>>],
+  wrapper_type = [AtLeast<Separated<&'c mut F, Sep, O, L, Ctx, Lang, Cmpl>>],
   map_depth = 1,
   cardinality = at_least,
   policy = [],

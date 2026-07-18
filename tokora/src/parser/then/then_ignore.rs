@@ -6,7 +6,7 @@ use super::*;
 /// but only returns the first parser's result. Useful for parsing required
 /// trailing tokens or syntax that you want to validate but don't need.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ThenIgnore<F, G, O, U, L, Ctx, Lang: ?Sized> {
+pub struct ThenIgnore<F, G, O, U, L, Ctx, Lang: ?Sized, Cmpl = Complete> {
   first: F,
   second: G,
   _o: PhantomData<O>,
@@ -14,9 +14,10 @@ pub struct ThenIgnore<F, G, O, U, L, Ctx, Lang: ?Sized> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, G, O, U, L, Ctx, Lang: ?Sized> ThenIgnore<F, G, O, U, L, Ctx, Lang> {
+impl<F, G, O, U, L, Ctx, Lang: ?Sized, Cmpl> ThenIgnore<F, G, O, U, L, Ctx, Lang, Cmpl> {
   /// Creates a new `ThenIgnore` combinator.
   #[inline(always)]
   pub(crate) const fn new(first: F, second: G) -> Self {
@@ -28,22 +29,24 @@ impl<F, G, O, U, L, Ctx, Lang: ?Sized> ThenIgnore<F, G, O, U, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, F, G, L, O, U, Ctx, Lang: ?Sized> ParseInput<'inp, L, O, Ctx, Lang>
-  for ThenIgnore<F, G, O, U, L, Ctx, Lang>
+impl<'inp, F, G, L, O, U, Ctx, Lang: ?Sized, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for ThenIgnore<F, G, O, U, L, Ctx, Lang, Cmpl>
 where
-  F: ParseInput<'inp, L, O, Ctx, Lang>,
-  G: ParseInput<'inp, L, U, Ctx, Lang>,
+  F: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
+  G: ParseInput<'inp, L, U, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let first_result = self.first.parse_input(input)?;
     self.second.parse_input(input).map(|_| first_result)

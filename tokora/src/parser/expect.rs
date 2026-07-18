@@ -88,7 +88,7 @@ impl<Classifier, Ctx, Lang: ?Sized> Expect<Classifier, Ctx, Lang> {
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized> ParseInput<'inp, L, L::Token, Ctx, Lang>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized, Cmpl> ParseInput<'inp, L, L::Token, Ctx, Lang, Cmpl>
   for Expect<Classifier, Ctx, Lang>
 where
   L: Lexer<'inp>,
@@ -96,11 +96,12 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
     + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<L::Token, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     Expect::from_ref(&self.is)
       .parse_input(inp)
@@ -108,19 +109,21 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
-  ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang> for &Expect<Classifier, Ctx, Lang>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized, Cmpl>
+  ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang, Cmpl>
+  for &Expect<Classifier, Ctx, Lang>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
     + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     match inp.next()? {
       None => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
@@ -139,8 +142,8 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
-  ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized, Cmpl>
+  ParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang, Cmpl>
   for With<Expect<Classifier, Ctx, Lang>, PhantomSpan>
 where
   L: Lexer<'inp>,
@@ -148,30 +151,38 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
     + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<Spanned<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     Expect::from_ref(&self.primary.is).parse_input(inp)
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
-  ParseInput<'inp, L, Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang>
-  for With<Expect<Classifier, Ctx, Lang>, PhantomSliced>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized, Cmpl>
+  ParseInput<
+    'inp,
+    L,
+    Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    Ctx,
+    Lang,
+    Cmpl,
+  > for With<Expect<Classifier, Ctx, Lang>, PhantomSliced>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
     + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -183,13 +194,14 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized, Cmpl>
   ParseInput<
     'inp,
     L,
     Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     Ctx,
     Lang,
+    Cmpl,
   > for With<Expect<Classifier, Ctx, Lang>, PhantomLocated>
 where
   L: Lexer<'inp>,
@@ -197,11 +209,12 @@ where
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
     + From<UnexpectedEot<L::Offset, Lang>>,
   Classifier: Check<L::Token, Result<(), Expected<'inp, <L::Token as Token<'inp>>::Kind>>>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -215,17 +228,18 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized> TryParseInput<'inp, L, L::Token, Ctx, Lang>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized, Cmpl> TryParseInput<'inp, L, L::Token, Ctx, Lang, Cmpl>
   for Expect<Classifier, Ctx, Lang>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn try_parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<ParseAttempt<L::Token>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (&*self)
       .try_parse_input(inp)
@@ -233,17 +247,19 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
-  TryParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang> for &Expect<Classifier, Ctx, Lang>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized, Cmpl>
+  TryParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang, Cmpl>
+  for &Expect<Classifier, Ctx, Lang>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn try_parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     ParseAttempt<Spanned<L::Token, L::Span>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -254,18 +270,19 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
-  TryParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized, Cmpl>
+  TryParseInput<'inp, L, Spanned<L::Token, L::Span>, Ctx, Lang, Cmpl>
   for With<Expect<Classifier, Ctx, Lang>, PhantomSpan>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn try_parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     ParseAttempt<Spanned<L::Token, L::Span>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -274,18 +291,25 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
-  TryParseInput<'inp, L, Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang>
-  for With<Expect<Classifier, Ctx, Lang>, PhantomSliced>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized, Cmpl>
+  TryParseInput<
+    'inp,
+    L,
+    Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    Ctx,
+    Lang,
+    Cmpl,
+  > for With<Expect<Classifier, Ctx, Lang>, PhantomSliced>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn try_parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     ParseAttempt<Sliced<L::Token, <L::Source as Source<L::Offset>>::Slice<'inp>>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -299,23 +323,25 @@ where
   }
 }
 
-impl<'inp, L, Ctx, Classifier, Lang: ?Sized>
+impl<'inp, L, Ctx, Classifier, Lang: ?Sized, Cmpl>
   TryParseInput<
     'inp,
     L,
     Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     Ctx,
     Lang,
+    Cmpl,
   > for With<Expect<Classifier, Ctx, Lang>, PhantomLocated>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Classifier: Check<L::Token>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn try_parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     ParseAttempt<Located<L::Token, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,

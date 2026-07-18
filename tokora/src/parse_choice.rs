@@ -10,30 +10,32 @@ use crate::{
 use super::*;
 
 /// A choice of multiple parsers.
-pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// The id of the parser branch.
   type Id;
 
   /// Parses using branch identified by `id`.
   fn parse_choice(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     id: &Self::Id,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 
   /// Parses using branch identified by `id`.
   #[inline(always)]
   fn try_parse_choice(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     id: Option<&Self::Id>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness,
   {
     match id {
       Some(id) => self.parse_choice(inp, id).map(ParseAttempt::Accept),
@@ -129,7 +131,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
 /// Implemented for tuples of up to 32 arms, each an
 /// `FnMut(Spanned<Token, Span>, &mut InputRef<…>) -> Result<O, Error>` (a closure or a
 /// plain `fn`); branch `i` is tuple position `i`, identified by [`Branch`].
-pub trait ParseTokenChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+pub trait ParseTokenChoice<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// The id of the parser branch.
   type Id;
 
@@ -137,13 +139,14 @@ pub trait ParseTokenChoice<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// token (the token the dispatcher consumed to make its decision).
   fn parse_token_choice(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     id: &Self::Id,
     head: Spanned<L::Token, L::Span>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 
   /// Creates a [`FusedDispatchOnKind`] combinator: the **fused** twin of
   /// [`dispatch_on_kind`](ParseChoice::dispatch_on_kind), driven by the same kind of

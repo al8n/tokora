@@ -1,4 +1,7 @@
-use crate::{ErrorOf, Lexer, ParseCtx, input::InputRef, try_parse_input::ParseAttempt};
+use crate::{
+  ErrorOf, Lexer, ParseCtx, TryParseInput,
+  input::{Completeness, InputRef},
+};
 
 /// The result the parser [`opt`] builds yields: `Some` on accept, `None` on decline,
 /// or the propagated error.
@@ -9,6 +12,10 @@ pub type OptOf<'inp, L, Ctx, Lang, O> = Result<Option<O>, ErrorOf<'inp, L, Ctx, 
 ///
 /// The declining sub-parser promises a decline consumes nothing, and `opt` preserves
 /// that: on `None` the next token is still in place for the following atom.
+///
+/// `p` may be any [`TryParseInput`] — the `try_parse`-style atoms and hand-written
+/// attempts alike — and the returned closure is itself a
+/// [`ParseInput`](crate::ParseInput) (yielding the `Option`) through the blanket impl.
 ///
 /// # Examples
 ///
@@ -81,16 +88,15 @@ pub type OptOf<'inp, L, Ctx, Lang, O> = Result<Option<O>, ErrorOf<'inp, L, Ctx, 
 /// assert!(none.is_none()); // declined — the identifier is still unconsumed
 /// ```
 #[inline]
-pub fn opt<'inp, L, Ctx, Lang, P, O>(
+pub fn opt<'inp, L, Ctx, Lang, P, O, Cmpl>(
   mut p: P,
-) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> OptOf<'inp, L, Ctx, Lang, O>
+) -> impl for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>) -> OptOf<'inp, L, Ctx, Lang, O>
 where
   L: Lexer<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(
-    &mut InputRef<'inp, 'c, L, Ctx, Lang>,
-  ) -> Result<ParseAttempt<O>, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
+  Cmpl: Completeness,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| p(inp).map(Option::from)
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| p.try_parse_input(inp).map(Option::from)
 }

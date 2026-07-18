@@ -90,9 +90,13 @@
 //! ## The Sans-I/O resumption loop
 //!
 //! Each attempt parses under a rollback-on-drop [`Transaction`], so an incomplete attempt unwinds
-//! its emissions and cursor before the retry; [`parse_partial`] wires this up and hands the closure
-//! a [`Partial`] [`InputRef`]. The only requirement partial mode adds is that the emitter error
-//! implement `From<Incomplete<L::Offset>>`.
+//! its emissions and cursor before the retry; [`parse_partial`] wires this up and drives any
+//! [`ParseInput`](crate::ParseInput)`<…, `[`Partial`]`>` — a typed fn item like the one below, a
+//! named combinator, or a parser written generic over its completeness. The only requirements
+//! partial mode adds are that the emitter error implement `From<Incomplete<L::Offset>>` (the
+//! construction side of the frontier rules) and [`MaybeIncomplete`](crate::error::MaybeIncomplete)
+//! (the recognition side: the atom-layer never-recoverable gate, and the refill loop's own
+//! `is_incomplete()` check).
 //!
 //! ```
 //! use core::convert::Infallible;
@@ -734,18 +738,23 @@ where
   }
 }
 
-/// Opens a **Sans-I/O partial parse session** over `src` and drives `f` on a
-/// [`Partial`] [`InputRef`], returning whatever `f` returns.
+/// Opens a **Sans-I/O partial parse session** over `src` and drives the parser `f` — any
+/// [`ParseInput`]`<'inp, L, O, Ctx, Lang, `[`Partial`]`>` — returning whatever
+/// `f` returns.
 ///
-/// This is the entry point for partial-input parsing (the combinator [`Parse`] API
-/// is complete-only). `f` receives an [`InputRef`] in [`Partial`] mode set to `is_final`, so the
+/// This is the partial-mode entry point, the [`Partial`] instantiation of the same trait
+/// vocabulary the complete-only [`Parse`] API drives at its default: a typed fn item, a named
+/// combinator chain, or a parser written generic over its completeness parameter all satisfy the
+/// bound (write once, run in both modes — see the [`input`](self) module docs). `f`
+/// receives an [`InputRef`] in [`Partial`] mode set to `is_final`, so the
 /// [frontier rules](crate::input) are active while non-final: consuming across the frontier
-/// surfaces an [`Incomplete`](crate::error::Incomplete) on the `Err` channel, which the closure
+/// surfaces an [`Incomplete`](crate::error::Incomplete) on the `Err` channel, which the parser
 /// propagates out. `ctx` supplies the emitter and cache exactly as [`Parse`] does.
 ///
-/// The `Partial: SurfaceIncomplete` bound requires only that the emitter's error implements
-/// `From<Incomplete<L::Offset>>` — the single least-surface requirement partial mode adds; complete
-/// parses never see it.
+/// The `Partial: SurfaceIncomplete` bound requires that the emitter's error implements
+/// `From<Incomplete<L::Offset>>` (constructing the frontier sentinel) and
+/// [`MaybeIncomplete`](crate::error::MaybeIncomplete) (recognizing it — the atom-layer
+/// never-recoverable gate and the caller's own refill check); complete parses see neither.
 ///
 /// # The refill loop
 ///
@@ -756,12 +765,12 @@ where
 /// cursor cleanly before the retry. See the [`input`] module docs for the full
 /// runnable loop and the one-token frontier-latency guarantee.
 #[inline]
-pub fn parse_partial<'inp, L, Ctx, Lang, O, F>(
+pub fn parse_partial<'inp, L, Ctx, Lang, O, P>(
   ctx: Ctx,
   src: &'inp L::Source,
   state: L::State,
   is_final: bool,
-  f: F,
+  mut f: P,
 ) -> Result<O, <Ctx::Emitter as crate::Emitter<'inp, L, Lang>>::Error>
 where
   L: Lexer<'inp>,
@@ -769,9 +778,7 @@ where
   Lang: ?Sized,
   Ctx: ParseContext<'inp, L, Lang>,
   Partial: SurfaceIncomplete<'inp, L, Ctx, Lang>,
-  F: for<'closure> FnOnce(
-    &mut InputRef<'inp, 'closure, L, Ctx, Lang, Partial>,
-  ) -> Result<O, <Ctx::Emitter as crate::Emitter<'inp, L, Lang>>::Error>,
+  P: crate::ParseInput<'inp, L, O, Ctx, Lang, Partial>,
 {
   let (mut emitter, cache) = ctx.provide().into_components();
   let mut input = Input::<L, Ctx, Lang, Partial>::with_state_and_cache(src, state, cache);
@@ -782,7 +789,7 @@ where
     input.seal();
   }
   let mut input_ref = input.as_ref(&mut emitter);
-  f(&mut input_ref)
+  f.parse_input(&mut input_ref)
 }
 
 #[cfg(test)]

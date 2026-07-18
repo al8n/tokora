@@ -2,7 +2,7 @@ use super::*;
 
 /// A parser that repeatedly applies another parser, buffers outputs, and folds them in reverse order.
 #[derive(Debug, Clone, Copy)]
-pub struct RFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
+pub struct RFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   init: Init,
   acc: Acc,
@@ -10,9 +10,10 @@ pub struct RFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> RFold<P, Init, Acc, L, O, Ctx, Lang> {
+impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> RFold<P, Init, Acc, L, O, Ctx, Lang, Cmpl> {
   /// Creates a new `RFold` parser combinator.
   #[inline(always)]
   pub(crate) fn new(parser: P, init: Init, acc: Acc) -> Self {
@@ -24,24 +25,26 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> RFold<P, Init, Acc, L, O, Ctx, Lang>
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for RFold<P, Init, Acc, L, O, Ctx, Lang>
+impl<'inp, P, Init, Acc, O, L, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for RFold<P, Init, Acc, L, O, Ctx, Lang, Cmpl>
 where
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Init: FnMut() -> O,
   Acc: FnMut(O, O) -> O,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

@@ -26,7 +26,7 @@ mod rfold_while;
 
 /// A fold parser combinator.
 #[derive(Debug, Clone)]
-pub struct Fold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
+pub struct Fold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   init: Init,
   acc: Acc,
@@ -34,9 +34,10 @@ pub struct Fold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> Fold<P, Init, Acc, L, O, Ctx, Lang> {
+impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> Fold<P, Init, Acc, L, O, Ctx, Lang, Cmpl> {
   /// Creates a new fold parser combinator.
   pub(crate) fn new(parser: P, init: Init, acc: Acc) -> Self {
     Self {
@@ -47,23 +48,25 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> Fold<P, Init, Acc, L, O, Ctx, Lang> 
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for Fold<P, Init, Acc, L, O, Ctx, Lang>
+impl<'inp, P, Init, Acc, O, L, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Fold<P, Init, Acc, L, O, Ctx, Lang, Cmpl>
 where
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Init: FnMut() -> O,
   Acc: FnMut(O, O) -> O,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -79,7 +82,7 @@ where
 
 /// A fold parser combinator that accepts a fallible accumulator.
 #[derive(Debug, Clone)]
-pub struct TryFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
+pub struct TryFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   init: Init,
   acc: Acc,
@@ -87,9 +90,10 @@ pub struct TryFold<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> TryFold<P, Init, Acc, L, O, Ctx, Lang> {
+impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> TryFold<P, Init, Acc, L, O, Ctx, Lang, Cmpl> {
   /// Creates a new fold parser combinator.
   pub(crate) fn new(parser: P, init: Init, acc: Acc) -> Self {
     Self {
@@ -100,23 +104,25 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> TryFold<P, Init, Acc, L, O, Ctx, Lan
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for TryFold<P, Init, Acc, L, O, Ctx, Lang>
+impl<'inp, P, Init, Acc, O, L, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for TryFold<P, Init, Acc, L, O, Ctx, Lang, Cmpl>
 where
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Init: FnMut() -> O,
   Acc: FnMut(O, O) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -132,7 +138,7 @@ where
 
 /// A fold parser combinator that accepts a fallible accumulator with access to parsing state.
 #[derive(Debug, Clone)]
-pub struct TryFoldWith<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
+pub struct TryFoldWith<P, Init, Acc, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   init: Init,
   acc: Acc,
@@ -140,9 +146,10 @@ pub struct TryFoldWith<P, Init, Acc, L, O, Ctx, Lang: ?Sized = ()> {
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> TryFoldWith<P, Init, Acc, L, O, Ctx, Lang> {
+impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized, Cmpl> TryFoldWith<P, Init, Acc, L, O, Ctx, Lang, Cmpl> {
   /// Creates a new fold parser combinator.
   pub(crate) fn new(parser: P, init: Init, acc: Acc) -> Self {
     Self {
@@ -153,27 +160,29 @@ impl<P, Init, Acc, O, L, Ctx, Lang: ?Sized> TryFoldWith<P, Init, Acc, L, O, Ctx,
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, Init, Acc, O, L, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for TryFoldWith<P, Init, Acc, L, O, Ctx, Lang>
+impl<'inp, P, Init, Acc, O, L, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for TryFoldWith<P, Init, Acc, L, O, Ctx, Lang, Cmpl>
 where
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Init: FnMut() -> O,
   Acc: FnMut(
     O,
     O,
-    ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <<Ctx>::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

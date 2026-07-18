@@ -1,4 +1,8 @@
-use crate::{Emitter, InputRef, Lexer, ParseContext, ParseInput, span::Spanned};
+use crate::{
+  Emitter, InputRef, Lexer, ParseContext, ParseInput,
+  input::{Complete, Completeness},
+  span::Spanned,
+};
 
 pub use cst::*;
 pub use expr::*;
@@ -152,17 +156,23 @@ pub enum PrattRHS<L, R, N, Post, Power = i64> {
 }
 
 /// A trait for parsing left-hand sides in Pratt parsing, which can be either operands or operators with precedence levels.
-pub trait ParsePrattLHS<'inp, Power, Op, Pre, L, Ctx, Lang: ?Sized = ()> {
+pub trait ParsePrattLHS<'inp, Power, Op, Pre, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// Try to parse a pratt lhs from the lexer input, returning with its precedence level if successful.
   fn parse_pratt_lhs(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<PrattLHS<Op, Pre, Power>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 }
 
+// STAYS COMPLETE-ONLY (0.3.0): pratt carries both S-class hazards at once — `is_eoi()`
+// consulted as a POSITION test (an exact non-final buffer end would end the expression
+// instead of surfacing `Incomplete`), and RHS operator detection by peek (a frontier-cut
+// window reads as "no operator"). Both need the deferred frontier-window rule; the
+// vocabulary traits reserve the `Cmpl` position, the impls stay at the default.
 impl<'inp, P, Power, L, Op, Pre, Ctx, Lang: ?Sized>
   ParsePrattLHS<'inp, Power, Op, Pre, L, Ctx, Lang> for P
 where
@@ -195,19 +205,21 @@ pub trait ParsePrattRHS<
   L,
   Ctx,
   Lang: ?Sized = (),
+  Cmpl = Complete,
 >
 {
   /// Try to parse a pratt rhs from the lexer input, returning with its precedence level if successful.
   fn parse_pratt_rhs(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     PrattRHS<LeftAssoc, RightAssoc, NeitherAssoc, Post, Power>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 }
 
 impl<'inp, P, Power, LeftAssoc, RightAssoc, NeitherAssoc, Post, L, Ctx, Lang: ?Sized>
@@ -234,17 +246,18 @@ where
 }
 
 /// A trait for postfix fold dispatch
-pub trait PrattFoldPostfix<'inp, Power, Operator, L, O, Ctx, Lang: ?Sized = ()> {
+pub trait PrattFoldPostfix<'inp, Power, Operator, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// Apply the postfix fold to the operand.
   fn fold_postfix(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     operand: O,
     operator: Precedenced<Operator, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 }
 
 impl<'inp, P, Power, Operator, L, O, Ctx, Lang: ?Sized>
@@ -284,19 +297,21 @@ pub trait PrattFoldInfix<
   O,
   Ctx,
   Lang: ?Sized = (),
+  Cmpl = Complete,
 >
 {
   /// Apply the infix fold to the operand.
   fn fold_infix(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     left: O,
     right: O,
     operator: Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 }
 
 impl<'inp, P, Power, LO, RO, NO, L, O, Ctx, Lang: ?Sized>
@@ -328,17 +343,18 @@ where
 }
 
 /// A trait for prefix fold dispatch
-pub trait PrattFoldPrefix<'inp, Power, Operator, L, O, Ctx, Lang: ?Sized = ()> {
+pub trait PrattFoldPrefix<'inp, Power, Operator, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// Apply the prefix fold to the operand.
   fn fold_prefix(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     operand: O,
     operator: Precedenced<Operator, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 }
 
 impl<'inp, P, Power, Operator, L, O, Ctx, Lang: ?Sized>

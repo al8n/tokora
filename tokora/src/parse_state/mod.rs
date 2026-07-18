@@ -17,24 +17,27 @@ use super::{input::Cursor, *};
 /// [`begin_stacked`](crate::InputRef::begin_stacked)) for lexical speculation and the
 /// [session points](crate::InputRef::begin_point) for the non-lexical kind a driver steps across
 /// separate calls.
-pub struct ParseState<'a, 'inp, 'closure, L, Ctx, Lang: ?Sized = ()>
+pub struct ParseState<'a, 'inp, 'closure, L, Ctx, Lang: ?Sized = (), Cmpl = Complete>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
-  inp: &'a mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+  inp: &'a mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
   start: Cursor<'inp, 'closure, L>,
 }
 
-impl<'a, 'inp, 'closure, L, Ctx, Lang: ?Sized> ParseState<'a, 'inp, 'closure, L, Ctx, Lang>
+impl<'a, 'inp, 'closure, L, Ctx, Lang: ?Sized, Cmpl>
+  ParseState<'a, 'inp, 'closure, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   /// Create a new `ParseState`.
   #[inline(always)]
   pub(super) const fn new(
-    inp: &'a mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &'a mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     start: Cursor<'inp, 'closure, L>,
   ) -> Self {
     Self { inp, start }

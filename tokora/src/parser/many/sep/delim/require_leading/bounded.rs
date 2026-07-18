@@ -5,9 +5,9 @@ use crate::emitter::{
 use super::*;
 
 impl_separated_delim! {
-  owned_type = [DelimitedBy<RequireLeading<Bounded<Separated<F, Sep, O, L, Ctx, Lang>>>, Delim>],
-  ref_type = [DelimitedBy<RequireLeading<Bounded<Separated<&'c mut F, Sep, O, L, Ctx, Lang>>>, Delim>],
-  wrapper_type = [DelimitedBy<RequireLeading<Bounded<Separated<&'c mut F, Sep, O, L, Ctx, Lang>>>, Delim>],
+  owned_type = [DelimitedBy<RequireLeading<Bounded<Separated<F, Sep, O, L, Ctx, Lang, Cmpl>>>, Delim>],
+  ref_type = [DelimitedBy<RequireLeading<Bounded<Separated<&'c mut F, Sep, O, L, Ctx, Lang, Cmpl>>>, Delim>],
+  wrapper_type = [DelimitedBy<RequireLeading<Bounded<Separated<&'c mut F, Sep, O, L, Ctx, Lang, Cmpl>>>, Delim>],
   map_depth = 3,
   cardinality = bounded,
   policy = [RequireLeading],

@@ -10,6 +10,10 @@ macro_rules! try_expect_punct {
     paste::paste! {
       $(
         #[doc = "Tries to advance to the next valid token if it is " $punct " (" $punct_char "). Otherwise leaves the input unchanged."]
+        ///
+        /// `Ok(None)` also covers a terminal stop (limit trip / latched poison
+        /// boundary); when a decline commits the caller to a different parse, use
+        /// [`try_expect_or_stop`](Self::try_expect_or_stop).
         #[inline(always)]
         pub fn [< try_expect_ $punct >](
           &mut self,
@@ -40,6 +44,10 @@ macro_rules! try_expect_punct {
 
         $(
           #[doc = "Tries to advance to the next valid token if it is " $alias " (" $punct_char "). Otherwise leaves the input unchanged."]
+          ///
+          /// `Ok(None)` also covers a terminal stop (limit trip / latched poison
+          /// boundary); when a decline commits the caller to a different parse, use
+          /// [`try_expect_or_stop`](Self::try_expect_or_stop).
           #[inline(always)]
           pub fn [< try_expect_ $alias >](
             &mut self,
@@ -68,11 +76,12 @@ macro_rules! try_expect_punct {
   };
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> InputRef<'inp, '_, L, Ctx, Lang>
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> InputRef<'inp, '_, L, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   L::State: Clone,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   try_expect_punct!(
     // Delimiters
@@ -173,6 +182,10 @@ where
   /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
   /// If `pred` returns `true`, the token is consumed and returned.
   /// Otherwise, the token remains in the cache and `Ok(None)` is returned.
+  ///
+  /// `Ok(None)` also covers a terminal stop (limit trip / latched poison
+  /// boundary); when a decline commits the caller to a different parse, use
+  /// [`try_expect_or_stop`](Self::try_expect_or_stop).
   pub fn try_expect<F>(
     &mut self,
     mut pred: F,
@@ -196,11 +209,88 @@ where
     }))
   }
 
+  /// Tries to advance to the next valid token if it satisfies `pred` — like
+  /// [`try_expect`](Self::try_expect), except that a **terminal stop is an error,
+  /// never a decline**.
+  ///
+  /// `Ok(None)` here means the thing attempted is **definitely absent**: the next
+  /// valid token failed `pred` (it stays unconsumed, at the cache front), or the
+  /// input has genuinely ended. A terminal stop — a resource-limit trip on this
+  /// scan, or an already-latched poison boundary — is *not* evidence of absence,
+  /// so it surfaces as the same end-of-input error the committed `expect_*` forms
+  /// raise there, after the trip's own diagnostic has gone to the emitter
+  /// (deduplicated; a fatal emitter's rejection still propagates from the scan
+  /// itself). This is the primitive an attempt/decline caller should build on
+  /// when a decline commits it to a different parse — see the `try_*` delimited
+  /// shapes.
+  pub fn try_expect_or_stop<F>(
+    &mut self,
+    mut pred: F,
+  ) -> Result<Option<Spanned<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+  {
+    trace_event!(self, "try_expect_or_stop");
+    if !self.cache.is_empty() {
+      // A cached token is a REAL token (the cache never holds errors): a decline
+      // against it is definite absence — identical to `try_expect`'s cache arm.
+      return Ok(self.cache.pop_front_if(|t| pred(t.token)).map(|tok| {
+        let (lexed, state) = tok.into_components();
+        let (span, tok) = lexed.into_components();
+        self.commit_token(&tok, &span);
+        *self.state = state;
+        Spanned::new(span, tok)
+      }));
+    }
+    // E4: an already-latched poison boundary at the cursor is a terminal stop,
+    // not proof of absence — surface the committed form's end-of-input error.
+    if self.reached_boundary(self.offset()) {
+      return Err(UnexpectedEot::eot_of(self.span().end()).into());
+    }
+    let mut lex_at = self.offset().clone();
+    let mut lexer = self.lexer();
+    match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
+      Scan::Token(tok) => {
+        if pred(tok.as_ref()) {
+          self.commit_token(tok.data(), tok.span_ref());
+          *self.state = lexer.into_state();
+          Ok(Some(tok))
+        } else {
+          let (span, tok) = tok.into_components();
+          let ct = CachedToken::new(Spanned::new(span, tok), lexer.state().clone());
+          let _ = self.cache_push_back(ct);
+          Ok(None) // E1: definite absence — the token stays at the cache front.
+        }
+      }
+      // E3: a fresh trip whose diagnostic a recovering emitter accepted. (A fatal
+      // emitter never reaches this arm — its rejection propagated out of
+      // `scan_with` above.)
+      Scan::Tripped => Err(UnexpectedEot::eot_of(self.span().end()).into()),
+      Scan::Eof => {
+        // E5 belt-and-braces: an exhaustion produced by refusing to cross a
+        // pre-latched boundary is terminal, not genuine end of input. (Under
+        // Partial non-final, `scan_with` already surfaced Incomplete for every
+        // non-boundary exhaustion, so Eof implies boundary there — this check
+        // makes that explicit in Complete mode too.) One cold compare.
+        if self.reached_boundary(&lex_at) {
+          Err(UnexpectedEot::eot_of(self.span().end()).into())
+        } else {
+          Ok(None) // E2: genuine end of input — the documented decline.
+        }
+      }
+    }
+  }
+
   /// Advances to the next valid token and expects it to satisfy the predicate.
   ///
   /// Emits any lexer errors encountered. If a valid token is found, calls `pred`.
   /// If `pred` returns `Some(output)`, the token is consumed and `(output, token)` is returned.
   /// If `pred` returns `None`, the token remains in the cache and `Ok(None)` is returned.
+  ///
+  /// `Ok(None)` also covers a terminal stop (limit trip / latched poison
+  /// boundary); when a decline commits the caller to a different parse, use
+  /// [`try_expect_or_stop`](Self::try_expect_or_stop).
   pub fn try_expect_map<O, F>(
     &mut self,
     mut pred: F,
@@ -243,6 +333,10 @@ where
   /// If `pred` returns `Some(Ok(output))`, the token is consumed and `(output, token)` is returned.
   /// If `pred` returns `Some(Err(error))`, the token is consumed and `Err(error)` is returned.
   /// If `pred` returns `None`, the token remains in the cache and `Ok(None)` is returned.
+  ///
+  /// `Ok(None)` also covers a terminal stop (limit trip / latched poison
+  /// boundary); when a decline commits the caller to a different parse, use
+  /// [`try_expect_or_stop`](Self::try_expect_or_stop).
   pub fn try_expect_and_then<O, F>(
     &mut self,
     mut pred: F,

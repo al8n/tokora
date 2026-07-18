@@ -1,3 +1,119 @@
+# Unreleased (0.3.0)
+
+## Changed (breaking)
+
+- **Completeness-generic parser traits.** `ParseInput`/`TryParseInput` gain a trailing,
+  defaulted completeness parameter (`Cmpl = Complete`) mirroring `InputRef`; the
+  `parse_input`/`try_parse_input` methods take `&mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>`.
+  Every default-spelled bound, impl, closure, and fn keeps compiling and keeps its behavior —
+  the parameter is inference-carried through every builder-returned adapter (each adapter
+  struct gains the same trailing defaulted parameter plus a phantom, including `With`), so
+  0.2.0 chains infer exactly as before at a `Complete` drive.
+- **`parse_partial` takes trait-bound parsers.** The bare-`FnOnce` bypass is gone:
+  `parse_partial` now drives any `P: ParseInput<'inp, L, O, Ctx, Lang, Partial>` — a typed fn
+  item, a named combinator chain, or a parser written generic over `Cmpl`
+  (write-once-run-both). `FnOnce`-only closures (moving out of a capture) must hoist the
+  moved capture into an `Option` + `take()`.
+- **`Partial: SurfaceIncomplete` additionally requires `MaybeIncomplete`.** The input layer
+  *constructs* incompletes (`From<Incomplete<L::Offset>>`, as before); the atom layer now
+  also *recognizes* them, so partial mode's error type needs both one-liners. A correct
+  refill loop already called `is_incomplete()`.
+- **The parser vocabulary reserves the completeness position.** `ParseState`,
+  `RecoverInput`/`InplaceRecoverInput` (generalized), `ParseChoice`/`ParseTokenChoice`,
+  `ParsePrattLHS`/`ParsePrattRHS`, `PrattFoldPrefix`/`PrattFoldInfix`/`PrattFoldPostfix`, and
+  `PrattCst` gain the defaulted `Cmpl = Complete` parameter (their `_with` callback
+  signatures thread `ParseState<…, Cmpl>`).
+
+## Added
+
+- **Write-once-run-both parsers.** One parser item — a fn generic over
+  `Cmpl: SurfaceIncomplete<…>` or a combinator chain assembled inside one — runs under the
+  complete drivers (`Parse`/`Parser`) and the Sans-I/O partial driver (`parse_partial`),
+  with chunked-equivalence proven by test oracles over every cut point.
+- **Partial-mode support across the try/consume atom families.** The leaf atoms (`expect`,
+  `any`, `Ident`, the `keyword!`/`punct!` vocabulary and their `parse`/`try_parse` entry
+  points), the pass-through adapters (`map*`/`filter*`/`filter_map*`/`validate*`/`then*`/
+  `ignored`/`spanned`/`sliced`/`located`/`padded*`/`recover`/`inplace_recover`/
+  `skip_then_retry`/`labelled`/`unwrapped`/`accepted`/`opt`), the try-driven collections
+  (`repeated`, `separated*` incl. the delim variants, `fold`/`try_fold*`/`rfold`,
+  `collect`), the delimited shapes and their `try_` twins, and `try_ident_list*` are generic
+  over the completeness parameter. The scanner drivers beneath them (`try_expect*`,
+  `skip_while`, `sync_to`/`sync_through`/`sync_balanced`, `fold`/`foldn`/`foldr_within`/
+  `foldrn`, `consume_cached_*`) generalize with them. The decision-window class
+  (`*_while`, `peek_*`, `dispatch_*`, pratt) and the CST `node` family stay Complete-only,
+  each impl carrying its recorded reason; driving one at `Partial` is a compile-time wall.
+- **`SurfaceIncomplete::is_incomplete_error`** — the error-interrogation twin of
+  `surface_incomplete`: a constant, bound-free `false` for `Complete` (the check const-folds
+  away) and `MaybeIncomplete`-routed for `Partial`.
+- **The atom-layer never-recoverable gate.** The resilient collection loops
+  (`repeated`/`separated` families) re-raise a frontier `Incomplete` from their element
+  parser untouched instead of spending it as a diagnostic and looping — locked by a source
+  census over the four gated loop bodies plus behavior tests in both modes.
+
+## Migration (0.2 → 0.3)
+
+- **Complete-mode users: nothing.** Every default-spelled bound, impl, closure, fn item, and
+  builder chain compiles unchanged with identical behavior and codegen (the frontier rules
+  remain compiled out of `Complete` monomorphizations).
+- **`parse_partial` callers:** typed-fn parsers (the only pattern that ever inferred) are
+  unchanged. The error type must now implement `MaybeIncomplete` alongside
+  `From<Incomplete<L::Offset>>` (usually one line; see `tokora::error::MaybeIncomplete`).
+  A `FnOnce`-only closure must be restructured (hoist the moved capture into an
+  `Option` + `take()`).
+- **Fully-explicit spellings:** if you name *every* parameter of the traits, the adapter
+  structs, or the free-fn constructors (turbofish like `delimited::<Paren, _, _, _, _, _>`),
+  append the completeness argument — `Complete`, or just `_` at a drive site. Default
+  spellings need nothing.
+
+## Added
+
+- **Delimited shape parsers** (`tokora::parser`). `delimited::<D>` — commits a `Delimiter`
+  pair's opener, runs an inner parser, commits the closer, and returns the three as a
+  span-carrying `Delimited` covering the whole construct; plus the named conveniences
+  `parens`/`braces`/`brackets`/`angles` and the result aliases
+  `DelimitedOf`/`ParensOf`/`BracesOf`/`BracketsOf`/`AnglesOf`. A missing closer is a hard
+  error — the closer's unexpected-token or end-of-input error propagates; the
+  `Unclosed`/`Unopened`/`Undelimited` vocabulary is deliberately not fired by this family.
+- **`TypedDelimiter`** (`tokora::delimiter`) — additive `Delimiter` subtrait materializing
+  span-carrying opening/closing punctuator values; implemented for `Paren`/`Brace`/
+  `Bracket`/`Angle`.
+- **Attempt twins for the delimited shapes** (`tokora::parser`).
+  `try_delimited::<D>`/`try_parens`/`try_braces`/`try_brackets`/`try_angles` and the result
+  aliases `TryDelimitedOf`/`TryParensOf`/`TryBracesOf`/`TryBracketsOf`/`TryAnglesOf` —
+  decline (`Ok(None)`, zero consumption) iff the opener is absent (wrong token or end of
+  input at entry); the moment the opener is consumed the parse is committed and inner/closer
+  errors propagate exactly as the committed forms' (deliberately not `opt(parens(…))`, which
+  would swallow an unclosed group into a decline).
+
+## Changed
+
+- **Free-atom bounds converge on the house traits** (`tokora::parser`). The inner-parser
+  parameters are trait bounds instead of bare closures: `delimited`/`parens`/`braces`/
+  `brackets`/`angles`, their `try_` twins, and `separated1`/`list_of` take
+  `impl ParseInput`; `opt` takes `impl TryParseInput`. The closure blanket impls make this a
+  strict relaxation — every existing closure and fn-item call site compiles unchanged — while
+  named implementors no longer need `|inp| p.parse_input(inp)` adapter closures. Predicate
+  parameters (`peek`, `until`) are functions, not parsers, and stay plain `FnMut` closures.
+  Returned parsers are unchanged `impl FnMut` closures and implement `ParseInput` through the
+  same blankets.
+
+## Fixed
+
+- **Try shapes decline only on definite absence.** The five attempt shapes
+  (`try_delimited`/`try_parens`/`try_braces`/`try_brackets`/`try_angles`) derived "opener
+  absent" from `try_expect`'s `Ok(None)`, which also covers a **terminal scanner stop** — a
+  fresh resource-limit trip whose diagnostic a recovering emitter accepted, or an
+  already-latched poison boundary — so an EOI-tolerant grammar could complete with output
+  shaped as if the optional construct were absent. The shapes (and the punct vocabulary's
+  `try_parse`/`try_parse_of` forms, whose machinery the named twins share) now build on the
+  new attempt primitive `InputRef::try_expect_or_stop`: `Ok(None)` means the opener is
+  **definitely absent** (the next valid token is not the opener and stays unconsumed, or the
+  input has genuinely ended), while a terminal stop fails with the same end-of-input error
+  the committed forms raise there — the trip's own diagnostic having already reached the
+  emitter, and a fatal emitter's rejection still propagating from the scan itself.
+  `try_expect` keeps its documented fold (now with an explicit warning and a cross-reference
+  to the new primitive).
+
 # 0.2.0 (2026-07-17)
 
 ## Added

@@ -66,23 +66,24 @@ use super::*;
 /// - [`ValidateWith`] - Validate with access to parse state
 /// - [`FilterMap`] - Validate and transform simultaneously
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Validate<P, F, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Validate<P, F, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   validator: F,
   _l: PhantomData<L>,
   _o: PhantomData<O>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, F, O, L, Ctx, Lang: ?Sized> Validate<P, F, O, L, Ctx, Lang> {
+impl<P, F, O, L, Ctx, Lang: ?Sized, Cmpl> Validate<P, F, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `Validate` combinator for the specified language.
   #[inline(always)]
   pub(crate) const fn of<'inp>(parser: P, validator: F) -> Self
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     Self {
@@ -92,23 +93,25 @@ impl<P, F, O, L, Ctx, Lang: ?Sized> Validate<P, F, O, L, Ctx, Lang> {
       _ctx: PhantomData,
       _lang: PhantomData,
       _o: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, F, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for Validate<P, F, O, L, Ctx, Lang>
+impl<'inp, P, F, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Validate<P, F, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   F: FnMut(&O) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self
       .parser
@@ -183,26 +186,27 @@ where
 /// - [`FilterWith`] - Identical functionality (different name)
 /// - [`ParseState`] - The state object passed to validators
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ValidateWith<P, F, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct ValidateWith<P, F, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   validator: F,
   _l: PhantomData<L>,
   _o: PhantomData<O>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, F, O, L, Ctx, Lang: ?Sized> ValidateWith<P, F, O, L, Ctx, Lang> {
+impl<P, F, O, L, Ctx, Lang: ?Sized, Cmpl> ValidateWith<P, F, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `Validate` combinator for the specified language.
   #[inline(always)]
   pub(crate) const fn of<'inp>(parser: P, validator: F) -> Self
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     F: FnMut(
       &O,
-      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     Self {
@@ -212,26 +216,28 @@ impl<P, F, O, L, Ctx, Lang: ?Sized> ValidateWith<P, F, O, L, Ctx, Lang> {
       _ctx: PhantomData,
       _lang: PhantomData,
       _o: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, F, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for ValidateWith<P, F, O, L, Ctx, Lang>
+impl<'inp, P, F, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for ValidateWith<P, F, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   F: FnMut(
     &O,
-    ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+    ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     let start = input.cursor().clone();
     self

@@ -59,7 +59,7 @@ use super::*;
 /// - [`Recover`] — recovery by an alternative parser from the original position
 /// - [`InplaceRecover`] — recovery continuing from the error position
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct SkipThenRetry<P, D, F, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct SkipThenRetry<P, D, F, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   classifier: D,
   pred: F,
@@ -67,9 +67,10 @@ pub struct SkipThenRetry<P, D, F, O, L, Ctx, Lang: ?Sized = ()> {
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
   _l: PhantomData<L>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, D, F, O, L, Ctx, Lang: ?Sized> SkipThenRetry<P, D, F, O, L, Ctx, Lang> {
+impl<P, D, F, O, L, Ctx, Lang: ?Sized, Cmpl> SkipThenRetry<P, D, F, O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `SkipThenRetry` parser.
   #[inline(always)]
   pub(crate) const fn new(parser: P, classifier: D, pred: F) -> Self {
@@ -81,14 +82,15 @@ impl<P, D, F, O, L, Ctx, Lang: ?Sized> SkipThenRetry<P, D, F, O, L, Ctx, Lang> {
       _ctx: PhantomData,
       _lang: PhantomData,
       _l: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, D, F, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang>
-  for SkipThenRetry<P, D, F, O, L, Ctx, Lang>
+impl<'inp, P, D, F, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for SkipThenRetry<P, D, F, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   D: DelimClass<<L::Token as Token<'inp>>::Kind>,
   F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   L: Lexer<'inp>,
@@ -96,10 +98,11 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: MaybeIncomplete,
   Lang: ?Sized,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     // First attempt, exactly `Recover`'s shape: speculate through `try_attempt` so a failure
     // rolls back to the pre-parse state (position, lexer state, emissions), and re-raise an

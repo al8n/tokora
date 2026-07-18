@@ -49,14 +49,15 @@ use super::*;
 /// - [`filter_map`](FilterMap) - Transform and filter with error handling
 /// - [`map`](Map) - Transform output without unwrapping
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Unwrapped<P, O, Ctx, Lang: ?Sized = ()> {
+pub struct Unwrapped<P, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   pub(crate) parser: P,
   pub(crate) _m: PhantomData<O>,
   pub(crate) _ctx: PhantomData<Ctx>,
   pub(crate) _lang: PhantomData<Lang>,
+  pub(crate) _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, O, Ctx, Lang: ?Sized> Unwrapped<P, O, Ctx, Lang> {
+impl<P, O, Ctx, Lang: ?Sized, Cmpl> Unwrapped<P, O, Ctx, Lang, Cmpl> {
   /// Creates a new `Unwrapped` parser.
   #[inline(always)]
   #[track_caller]
@@ -66,21 +67,24 @@ impl<P, O, Ctx, Lang: ?Sized> Unwrapped<P, O, Ctx, Lang> {
       _m: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for Unwrapped<P, O, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Unwrapped<P, O, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  P: ParseInput<'inp, L, Option<O>, Ctx, Lang>,
+  P: ParseInput<'inp, L, Option<O>, Ctx, Lang, Cmpl>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

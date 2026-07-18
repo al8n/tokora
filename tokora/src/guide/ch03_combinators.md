@@ -23,7 +23,10 @@ three shapes recur in every grammar — *A then B*, *zero or more A*, *A separat
 [`spanned`](crate::ParseInput::spanned) / [`sliced`](crate::ParseInput::sliced) /
 [`located`](crate::ParseInput::located) attach where it came from. A **delimited** shape is
 just sequencing with the brackets ignored — `open.ignore_then(body).then_ignore(close)` —
-which is how the argument-list example below wraps its comma list in parentheses.
+which is how the argument-list example below wraps its comma list in parentheses. That
+hand-roll is the lesson here; the combinator reference packages it ready-made as the
+[`parens`](crate::parser::parens) shape (with [`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
+and the generic [`delimited`](crate::parser::delimited)).
 
 ## Repetition
 

@@ -10,7 +10,11 @@ The vocabulary types are all **span-generic AST fragments**: each is a `Name<S =
 combinators, most parse entry points come in a **base** form (`Lang = ()`) and an **`_of`** form
 generic over `Lang` — `Comma::parse`/`Comma::parse_of`, `If::try_parse`/`If::try_parse_of`. The
 [combinator reference](super::ref_combinators) explains that convention; reach for the base form
-unless you are writing a language-generic library.
+unless you are writing a language-generic library. Since 0.3.0 every one of these entry points
+is also generic over the input's completeness (a trailing `Cmpl` fn parameter, inferred from
+the handle you pass), so the same `Comma::parse` drives complete and
+[`Partial`](crate::Partial) inputs alike; if you spell an entry point's generics in full, append
+the completeness argument (or `_`).
 
 ## How to read this reference
 
@@ -231,7 +235,10 @@ trait Delimiter<'inp, L, Lang = ()> {
 `Delimiter` is a **classifier/error helper**, not a combinator: it recognizes the boundary kinds
 and builds the boundary errors. To parse a delimited body, sequence the punctuators (as taught in
 [chapter 3](super::ch03_combinators)) — `OpenParen::parse` then the body then `CloseParen::parse`,
-or `open.ignore_then(body).then_ignore(close)`. The `is_open`/`is_close` classification is
+or `open.ignore_then(body).then_ignore(close)` — or reach for the ready-made
+[`delimited`](crate::parser::delimited)/[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
+shapes, the consumption side of these pairs, which materialize each pair's typed values through
+[`TypedDelimiter`](crate::delimiter::TypedDelimiter). The `is_open`/`is_close` classification is
 exercised over `Paren` in the built-in-punctuator doctest above. Balanced recovery
 ([chapter 8](super::ch08_recovery)) uses the same delimiter notion through
 [`DelimClass`](crate::DelimClass).

@@ -7,7 +7,7 @@ use crate::{
   Token,
   cache::DefaultCache,
   emitter::{Silent, Verbose},
-  error::token::UnexpectedToken,
+  error::{UnexpectedEot, token::UnexpectedToken},
   input::Input,
   lexer::LogosLexer,
   state::State,
@@ -66,6 +66,8 @@ impl State for ProbeLimiter {
 enum ProbeErr {
   Lex,
   Limit,
+  /// The end-of-input error `try_expect_or_stop` surfaces on a terminal stop.
+  Eot,
 }
 
 impl From<()> for ProbeErr {
@@ -77,6 +79,12 @@ impl From<()> for ProbeErr {
 impl From<ProbeLimitExceeded> for ProbeErr {
   fn from(_: ProbeLimitExceeded) -> Self {
     ProbeErr::Limit
+  }
+}
+
+impl<O, Lang: ?Sized> From<UnexpectedEot<O, Lang>> for ProbeErr {
+  fn from(_: UnexpectedEot<O, Lang>) -> Self {
+    ProbeErr::Eot
   }
 }
 
@@ -220,6 +228,146 @@ fn poisoned_input_latches_no_rescan_across_try_expect() {
     frozen,
     "no lexer was rebuilt after the latch — the token counter is frozen"
   );
+}
+
+// ── `try_expect_or_stop`: the attempt primitive that surfaces terminal stops ──
+//
+// `try_expect` folds a terminal stop (a fresh limit trip under a recovering
+// emitter, or an already-latched poison boundary) into the same `Ok(None)` as a
+// legitimate decline — pinned above as intended input-layer behavior. The
+// `or_stop` twin keeps `Ok(None)` for definite absence only (non-matching token,
+// genuine end of input) and surfaces a terminal stop as the committed forms'
+// end-of-input error instead.
+
+#[test]
+fn try_expect_or_stop_errs_on_fresh_trip() {
+  // The first two calls consume `1` and `2`; the third rebuilds a lexer whose
+  // scan trips the limiter — a terminal stop, not evidence of absence.
+  let (mut input, scanned) = probe_input("1 2 3 4 5 6");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  assert!(
+    inp.try_expect_or_stop(|_| true).unwrap().is_some(),
+    "first token"
+  );
+  assert!(
+    inp.try_expect_or_stop(|_| true).unwrap().is_some(),
+    "second token"
+  );
+  assert!(
+    matches!(inp.try_expect_or_stop(|_| true), Err(ProbeErr::Eot)),
+    "a fresh trip surfaces the committed forms' end-of-input error, never a decline"
+  );
+  assert_eq!(scanned.get(), 3, "scanned exactly 1, 2, and the tripping 3");
+}
+
+#[test]
+fn try_expect_or_stop_errs_on_latched_boundary_without_rescan() {
+  // Latch via `next()`: the third scan trips and latches the poison boundary.
+  let (mut input, scanned) = probe_input("1 2 3 4 5 6");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  assert!(inp.next().unwrap().is_some(), "first token");
+  assert!(inp.next().unwrap().is_some(), "second token");
+  assert!(inp.next().unwrap().is_none(), "trip latches to None");
+
+  let frozen = scanned.get();
+  assert_eq!(frozen, 3, "scanned exactly 1, 2, 3 before latching");
+
+  // Every attempt at the latched boundary errs — and never rebuilds a lexer.
+  for _ in 0..5 {
+    assert!(
+      matches!(inp.try_expect_or_stop(|_| true), Err(ProbeErr::Eot)),
+      "a latched boundary surfaces the end-of-input error on every attempt"
+    );
+  }
+  assert_eq!(
+    scanned.get(),
+    frozen,
+    "no lexer was rebuilt after the latch — the token counter is frozen"
+  );
+}
+
+#[test]
+fn try_expect_or_stop_declines_on_non_matching_token() {
+  use crate::span::SimpleSpan;
+
+  // A failing predicate is definite absence: `Ok(None)`, with the scanned token
+  // put back at the cache front for the next consume.
+  let (mut input, scanned) = probe_input("1 2");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  assert!(
+    inp.try_expect_or_stop(|_| false).unwrap().is_none(),
+    "a non-matching token declines"
+  );
+  assert_eq!(scanned.get(), 1, "one scan staged the declined token");
+
+  let tok = inp
+    .next()
+    .unwrap()
+    .expect("the declined token is still next");
+  assert_eq!(
+    *tok.span_ref(),
+    SimpleSpan::new(0, 1),
+    "the cache-front put-back is intact"
+  );
+  assert_eq!(
+    scanned.get(),
+    1,
+    "the follow-up consume is served from cache, not rescanned"
+  );
+}
+
+#[test]
+fn try_expect_or_stop_declines_on_genuine_eoi() {
+  // Empty input under a roomy limit: genuine end of input declines.
+  let limiter = ProbeLimiter::with_limit(usize::MAX);
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut input =
+    Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache("", limiter, cache);
+  let mut inp = input.as_ref(&mut emitter);
+  assert!(
+    inp.try_expect_or_stop(|_| true).unwrap().is_none(),
+    "empty input declines"
+  );
+
+  // Fully-consumed input under a roomy limit: the exhaustion is genuine too.
+  let limiter = ProbeLimiter::with_limit(usize::MAX);
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut input =
+    Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache("1", limiter, cache);
+  let mut inp = input.as_ref(&mut emitter);
+  assert!(inp.next().unwrap().is_some(), "consume the only token");
+  assert!(
+    inp.try_expect_or_stop(|_| true).unwrap().is_none(),
+    "a fully-consumed input declines"
+  );
+}
+
+#[test]
+fn try_expect_or_stop_consumes_match() {
+  use crate::span::SimpleSpan;
+
+  let (mut input, scanned) = probe_input("1 2");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let tok = inp
+    .try_expect_or_stop(|_| true)
+    .unwrap()
+    .expect("the matching token is consumed");
+  assert_eq!(*tok.span_ref(), SimpleSpan::new(0, 1));
+  assert_eq!(scanned.get(), 1, "one scan for the consumed token");
+
+  // The cursor advanced: the next consume yields the second token.
+  let tok = inp.next().unwrap().expect("cursor advanced past the match");
+  assert_eq!(*tok.span_ref(), SimpleSpan::new(2, 3));
 }
 
 #[test]

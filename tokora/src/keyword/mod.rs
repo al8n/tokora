@@ -164,8 +164,8 @@ macro_rules! keyword {
           ///
           /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not the
           /// `" $kw "` keyword, and promises no valid token is consumed.
-          pub fn try_parse<'inp, L, Ctx>(
-            inp: &mut $crate::InputRef<'inp, '_, L, Ctx>,
+          pub fn try_parse<'inp, L, Ctx, Cmpl>(
+            inp: &mut $crate::InputRef<'inp, '_, L, Ctx, (), Cmpl>,
           ) -> ::core::result::Result<
             $crate::try_parse_input::ParseAttempt<$name<L::Span, ()>>,
             <Ctx::Emitter as $crate::Emitter<'inp, L>>::Error,
@@ -174,6 +174,7 @@ macro_rules! keyword {
             L: $crate::Lexer<'inp>,
             L::Token: $crate::__private::token::KeywordToken<'inp>,
             Ctx: $crate::ParseContext<'inp, L>,
+            Cmpl: $crate::input::SurfaceIncomplete<'inp, L, Ctx, ()>,
             <Ctx::Emitter as $crate::Emitter<'inp, L>>::Error:
               ::core::convert::From<$crate::error::UnexpectedEot<L::Offset>>,
           {
@@ -184,8 +185,8 @@ macro_rules! keyword {
           ///
           /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not the
           /// `" $kw "` keyword, and promises no valid token is consumed.
-          pub fn try_parse_of<'inp, L, Ctx, Lang: ?::core::marker::Sized>(
-            inp: &mut $crate::InputRef<'inp, '_, L, Ctx, Lang>,
+          pub fn try_parse_of<'inp, L, Ctx, Lang: ?::core::marker::Sized, Cmpl>(
+            inp: &mut $crate::InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
           ) -> ::core::result::Result<
             $crate::try_parse_input::ParseAttempt<$name<L::Span, (), Lang>>,
             <Ctx::Emitter as $crate::Emitter<'inp, L, Lang>>::Error,
@@ -194,6 +195,7 @@ macro_rules! keyword {
             L: $crate::Lexer<'inp>,
             L::Token: $crate::__private::token::KeywordToken<'inp>,
             Ctx: $crate::ParseContext<'inp, L, Lang>,
+            Cmpl: $crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
             <Ctx::Emitter as $crate::Emitter<'inp, L, Lang>>::Error:
               ::core::convert::From<$crate::error::UnexpectedEot<L::Offset, Lang>>,
           {
@@ -212,13 +214,14 @@ macro_rules! keyword {
           /// `UnexpectedEot` error.
           ///
           /// The error carries the found token; it does not carry an expected-token entry — the expected keyword is statically known at the call site.
-          pub fn parse<'inp, L, Ctx>(
-            inp: &mut $crate::InputRef<'inp, '_, L, Ctx>,
+          pub fn parse<'inp, L, Ctx, Cmpl>(
+            inp: &mut $crate::InputRef<'inp, '_, L, Ctx, (), Cmpl>,
           ) -> ::core::result::Result<$name<L::Span, ()>, <Ctx::Emitter as $crate::Emitter<'inp, L>>::Error>
           where
             L: $crate::Lexer<'inp>,
             L::Token: $crate::__private::token::KeywordToken<'inp>,
             Ctx: $crate::ParseContext<'inp, L>,
+            Cmpl: $crate::input::SurfaceIncomplete<'inp, L, Ctx, ()>,
             <Ctx::Emitter as $crate::Emitter<'inp, L>>::Error:
               ::core::convert::From<$crate::error::UnexpectedEot<L::Offset>>
               + ::core::convert::From<$crate::error::token::UnexpectedToken<'inp, L::Token, <L::Token as $crate::Token<'inp>>::Kind, L::Span>>,
@@ -233,13 +236,14 @@ macro_rules! keyword {
           /// `UnexpectedEot` error.
           ///
           /// The error carries the found token; it does not carry an expected-token entry — the expected keyword is statically known at the call site.
-          pub fn parse_of<'inp, L, Ctx, Lang: ?::core::marker::Sized>(
-            inp: &mut $crate::InputRef<'inp, '_, L, Ctx, Lang>,
+          pub fn parse_of<'inp, L, Ctx, Lang: ?::core::marker::Sized, Cmpl>(
+            inp: &mut $crate::InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
           ) -> ::core::result::Result<$name<L::Span, (), Lang>, <Ctx::Emitter as $crate::Emitter<'inp, L, Lang>>::Error>
           where
             L: $crate::Lexer<'inp>,
             L::Token: $crate::__private::token::KeywordToken<'inp>,
             Ctx: $crate::ParseContext<'inp, L, Lang>,
+            Cmpl: $crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
             <Ctx::Emitter as $crate::Emitter<'inp, L, Lang>>::Error:
               ::core::convert::From<$crate::error::UnexpectedEot<L::Offset, Lang>>
               + ::core::convert::From<$crate::error::token::UnexpectedToken<'inp, L::Token, <L::Token as $crate::Token<'inp>>::Kind, L::Span, Lang>>,

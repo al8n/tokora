@@ -1,7 +1,10 @@
 use super::*;
 
 use crate::{
-  error::UnexpectedEot, punct::*, token::PunctuatorToken, try_parse_input::ParseAttempt,
+  error::UnexpectedEot,
+  punct::*,
+  token::{PunctuatorToken, PunctuatorTokenExt},
+  try_parse_input::ParseAttempt,
   utils::CowStr,
 };
 
@@ -13,14 +16,16 @@ macro_rules! define_parsers {
           #[doc = "A parser that parses a token and returns a `" $name "` instance if it matches."]
           ///
           /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token does not match,
-          /// and promises no valid token is consumed.
-          pub fn try_parse<'inp, L, Ctx>(
-            inp: &mut InputRef<'inp, '_, L, Ctx>,
+          /// and promises no valid token is consumed; a terminal scanner stop is an error, never a
+          /// `Decline`.
+          pub fn try_parse<'inp, L, Ctx, Cmpl>(
+            inp: &mut InputRef<'inp, '_, L, Ctx, (), Cmpl>,
           ) -> Result<ParseAttempt<$name<L::Span, ()>>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
           where
             L: Lexer<'inp>,
             L::Token: PunctuatorToken<'inp>,
             Ctx: ParseContext<'inp, L>,
+            Cmpl: SurfaceIncomplete<'inp, L, Ctx, ()>,
             <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>,
           {
             Self::try_parse_of(inp)
@@ -29,27 +34,30 @@ macro_rules! define_parsers {
           #[doc = "A parser that parses a token and returns a `" $name " ` instance if it matches for a specific language."]
           ///
           /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token does not match,
-          /// and promises no valid token is consumed.
-          pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized>(
-            inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+          /// and promises no valid token is consumed; a terminal scanner stop is an error, never a
+          /// `Decline`.
+          pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized, Cmpl>(
+            inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
           ) -> Result<ParseAttempt<$name<L::Span, (), Lang>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
           where
             L: Lexer<'inp>,
             L::Token: PunctuatorToken<'inp>,
             Ctx: ParseContext<'inp, L, Lang>,
+            Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
             <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
           {
-            inp.[< try_expect_ $kind >]().map(|res| res.map(|tok| $name::new(tok.into_span()).change_language()).into())
+            inp.try_expect_or_stop(|t| t.data.[<is_ $kind>]()).map(|res| res.map(|tok| $name::new(tok.into_span()).change_language()).into())
           }
 
           #[doc = "A parser that parses a token and returns a `" $name "` instance if it matches."]
-          pub fn parse<'inp, L, Ctx>(
-            inp: &mut InputRef<'inp, '_, L, Ctx>,
+          pub fn parse<'inp, L, Ctx, Cmpl>(
+            inp: &mut InputRef<'inp, '_, L, Ctx, (), Cmpl>,
           ) -> Result<$name<L::Span, ()>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
           where
             L: Lexer<'inp>,
             L::Token: PunctuatorToken<'inp>,
             Ctx: ParseContext<'inp, L>,
+            Cmpl: SurfaceIncomplete<'inp, L, Ctx, ()>,
             <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
             + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
           {
@@ -57,13 +65,14 @@ macro_rules! define_parsers {
           }
 
           #[doc = "A parser that parses a token and returns a `" $name " ` instance if it matches for a specific language."]
-          pub fn parse_of<'inp, L, Ctx, Lang>(
-            inp: &mut InputRef<'inp, '_, L, Ctx, Lang>
+          pub fn parse_of<'inp, L, Ctx, Lang, Cmpl>(
+            inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>
           ) -> Result<$name<L::Span, (), Lang>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
           where
             L: Lexer<'inp>,
             L::Token: PunctuatorToken<'inp>,
             Ctx: ParseContext<'inp, L, Lang>,
+            Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
             <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>> +
             From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
             Lang: ?Sized,

@@ -118,7 +118,7 @@ macro_rules! define_separated_by {
         #[inline(always)]
         fn [< separated_by_ $name:snake>](
           self,
-        ) -> Separated<Self, $name, O, L, Ctx, Lang>
+        ) -> Separated<Self, $name, O, L, Ctx, Lang, Cmpl>
         where
           Self: Sized,
           L: Lexer<'inp>,
@@ -142,7 +142,7 @@ macro_rules! define_separated_by {
 /// **IMPORTANT:** backtracking on `Ok(ParseAttempt::Decline)` is transactional over
 /// **valid tokens only**. A decline may still have consumed lexer-ERROR tokens, and any
 /// diagnostics emitted during the attempt are **not** rolled back.
-pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
+pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// Attempts to parse `O` from the input without committing.
   ///
   /// **IMPORTANT:**
@@ -155,15 +155,16 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   /// - ✅ `Err(error)` - Parser encountered an error (may have consumed tokens)
   fn try_parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>;
+    Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: Completeness;
 
   /// Applies combinator on [`ParseAttempt::Accept`].
   #[inline(always)]
-  fn accepted(self) -> Accepted<Self, L, O, Ctx, Lang>
+  fn accepted(self) -> Accepted<Self, L, O, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -202,7 +203,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// - [`repeated_while`](crate::ParseInput::repeated_while) - When you want to provide explicit stopping condition
   #[inline(always)]
-  fn repeated(self) -> Repeated<Self, O, L, Ctx, Lang>
+  fn repeated(self) -> Repeated<Self, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -215,7 +216,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// See also [`try_fold`](TryParseInput::try_fold), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
   #[inline(always)]
-  fn fold<Init, Acc>(self, init: Init, acc: Acc) -> Fold<Self, Init, Acc, L, O, Ctx, Lang>
+  fn fold<Init, Acc>(self, init: Init, acc: Acc) -> Fold<Self, Init, Acc, L, O, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -230,7 +231,11 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// See also [`try_fold_with`](Self::try_fold_with), [`fold_while`](crate::ParseInput::fold_while), [try_fold_while](crate::ParseInput::try_fold_while).
   #[inline(always)]
-  fn try_fold<Init, Acc>(self, init: Init, acc: Acc) -> TryFold<Self, Init, Acc, L, O, Ctx, Lang>
+  fn try_fold<Init, Acc>(
+    self,
+    init: Init,
+    acc: Acc,
+  ) -> TryFold<Self, Init, Acc, L, O, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -250,7 +255,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     self,
     init: Init,
     acc: Acc,
-  ) -> TryFoldWith<Self, Init, Acc, L, O, Ctx, Lang>
+  ) -> TryFoldWith<Self, Init, Acc, L, O, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -259,7 +264,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
     Acc: FnMut(
       O,
       O,
-      ParseState<'_, 'inp, '_, L, Ctx, Lang>,
+      ParseState<'_, 'inp, '_, L, Ctx, Lang, Cmpl>,
     ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
     TryFoldWith::new(self, init, acc)
@@ -275,7 +280,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   #[cfg(any(feature = "alloc", feature = "std"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "alloc", feature = "std"))))]
   #[inline(always)]
-  fn rfold<Init, Acc>(self, init: Init, acc: Acc) -> RFold<Self, Init, Acc, L, O, Ctx, Lang>
+  fn rfold<Init, Acc>(self, init: Init, acc: Acc) -> RFold<Self, Init, Acc, L, O, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -311,7 +316,7 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   ///
   /// - [`separated_while`](crate::ParseInput::separated_while) - When you want to provide the lookahead/stopping logic externally
   #[inline(always)]
-  fn separated<Sep>(self) -> Separated<Self, Sep, O, L, Ctx, Lang>
+  fn separated<Sep>(self) -> Separated<Self, Sep, O, L, Ctx, Lang, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
@@ -343,33 +348,36 @@ pub trait TryParseInput<'inp, L, O, Ctx, Lang: ?Sized = ()> {
   );
 }
 
-impl<'inp, L, F, O, Ctx, Lang: ?Sized> TryParseInput<'inp, L, O, Ctx, Lang> for F
+impl<'inp, L, F, O, Ctx, Lang: ?Sized, Cmpl> TryParseInput<'inp, L, O, Ctx, Lang, Cmpl> for F
 where
   F: FnMut(
-    &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn try_parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (self)(input)
   }
 }
 
-impl<'inp, L, F, O, Ctx, Lang: ?Sized> TryParseInput<'inp, L, O, Ctx, Lang> for &mut ByRef<F>
+impl<'inp, L, F, O, Ctx, Lang: ?Sized, Cmpl> TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for &mut ByRef<F>
 where
-  F: TryParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn try_parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (**self).try_parse_input(input)
   }

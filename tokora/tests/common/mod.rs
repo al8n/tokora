@@ -7,7 +7,8 @@ use tokora::{
   Token as TokenT,
   logos::{self, Logos},
   punct::{
-    CloseBrace, CloseBracket, CloseParen, Comma, OpenBrace, OpenBracket, OpenParen, Semicolon,
+    CloseAngle, CloseBrace, CloseBracket, CloseParen, Comma, OpenAngle, OpenBrace, OpenBracket,
+    OpenParen, Semicolon,
   },
   token::PunctuatorToken,
 };
@@ -44,6 +45,10 @@ pub enum Token {
   LBrace,
   #[token("}")]
   RBrace,
+  #[token("<")]
+  LAngle,
+  #[token(">")]
+  RAngle,
   #[token("=")]
   Eq,
   #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
@@ -67,6 +72,8 @@ pub enum TokenKind {
   RBracket,
   LBrace,
   RBrace,
+  LAngle,
+  RAngle,
   Eq,
   Ident,
 }
@@ -87,6 +94,8 @@ impl core::fmt::Display for TokenKind {
       TokenKind::RBracket => write!(f, "]"),
       TokenKind::LBrace => write!(f, "{{"),
       TokenKind::RBrace => write!(f, "}}"),
+      TokenKind::LAngle => write!(f, "<"),
+      TokenKind::RAngle => write!(f, ">"),
       TokenKind::Eq => write!(f, "="),
       TokenKind::Ident => write!(f, "identifier"),
     }
@@ -109,6 +118,8 @@ impl core::fmt::Display for Token {
       Token::RBracket => write!(f, "]"),
       Token::LBrace => write!(f, "{{"),
       Token::RBrace => write!(f, "}}"),
+      Token::LAngle => write!(f, "<"),
+      Token::RAngle => write!(f, ">"),
       Token::Eq => write!(f, "="),
       Token::Ident => write!(f, "identifier"),
     }
@@ -131,6 +142,8 @@ impl From<&Token> for TokenKind {
       Token::RBracket => TokenKind::RBracket,
       Token::LBrace => TokenKind::LBrace,
       Token::RBrace => TokenKind::RBrace,
+      Token::LAngle => TokenKind::LAngle,
+      Token::RAngle => TokenKind::RAngle,
       Token::Eq => TokenKind::Eq,
       Token::Ident => TokenKind::Ident,
     }
@@ -185,6 +198,14 @@ impl PunctuatorToken<'_> for Token {
 
   fn close_brace() -> Option<Self::Kind> {
     Some(TokenKind::RBrace)
+  }
+
+  fn open_angle() -> Option<Self::Kind> {
+    Some(TokenKind::LAngle)
+  }
+
+  fn close_angle() -> Option<Self::Kind> {
+    Some(TokenKind::RAngle)
   }
 
   fn minus() -> Option<Self::Kind> {
@@ -258,6 +279,18 @@ impl From<OpenParen<(), (), ()>> for TokenKind {
 impl From<CloseParen<(), (), ()>> for TokenKind {
   fn from(_: CloseParen<(), (), ()>) -> Self {
     TokenKind::RParen
+  }
+}
+
+impl From<OpenAngle<(), (), ()>> for TokenKind {
+  fn from(_: OpenAngle<(), (), ()>) -> Self {
+    TokenKind::LAngle
+  }
+}
+
+impl From<CloseAngle<(), (), ()>> for TokenKind {
+  fn from(_: CloseAngle<(), (), ()>) -> Self {
+    TokenKind::RAngle
   }
 }
 

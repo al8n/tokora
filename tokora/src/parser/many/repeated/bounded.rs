@@ -2,11 +2,20 @@ use crate::emitter::{TooFewEmitter, TooManyEmitter};
 
 use super::*;
 
-impl<'inp, L, F, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, Container, Ctx, Lang>
-  for Collect<Bounded<Repeated<F, O, L, Ctx, Lang>>, Container, Ctx, Lang>
+impl<
+  'inp,
+  L,
+  F,
+  O,
+  Container,
+  Ctx,
+  Lang: ?Sized,
+  Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
+> ParseInput<'inp, L, Container, Ctx, Lang, Cmpl>
+  for Collect<Bounded<Repeated<F, O, L, Ctx, Lang, Cmpl>>, Container, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
-  F: TryParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Ctx::Emitter: TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + FullContainerEmitter<'inp, L, Lang>,
@@ -16,7 +25,7 @@ where
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<Container, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -29,12 +38,20 @@ where
   }
 }
 
-impl<'inp, L, F, O, Container, Ctx, Lang: ?Sized>
-  ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang>
-  for Collect<Bounded<Repeated<F, O, L, Ctx, Lang>>, Container, Ctx, Lang>
+impl<
+  'inp,
+  L,
+  F,
+  O,
+  Container,
+  Ctx,
+  Lang: ?Sized,
+  Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
+> ParseInput<'inp, L, Spanned<Container, L::Span>, Ctx, Lang, Cmpl>
+  for Collect<Bounded<Repeated<F, O, L, Ctx, Lang, Cmpl>>, Container, Ctx, Lang, Cmpl>
 where
   L: Lexer<'inp>,
-  F: TryParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Ctx::Emitter: TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + FullContainerEmitter<'inp, L, Lang>,
@@ -44,7 +61,7 @@ where
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<Spanned<Container, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -57,11 +74,27 @@ where
   }
 }
 
-impl<'inp, 'c, L, F, O, Container, Ctx, Lang: ?Sized> ParseInput<'inp, L, L::Span, Ctx, Lang>
-  for Collect<&'c mut Bounded<Repeated<F, O, L, Ctx, Lang>>, &'c mut Container, Ctx, Lang>
+impl<
+  'inp,
+  'c,
+  L,
+  F,
+  O,
+  Container,
+  Ctx,
+  Lang: ?Sized,
+  Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
+> ParseInput<'inp, L, L::Span, Ctx, Lang, Cmpl>
+  for Collect<
+    &'c mut Bounded<Repeated<F, O, L, Ctx, Lang, Cmpl>>,
+    &'c mut Container,
+    Ctx,
+    Lang,
+    Cmpl,
+  >
 where
   L: Lexer<'inp>,
-  F: TryParseInput<'inp, L, O, Ctx, Lang>,
+  F: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   Ctx::Emitter: TooFewEmitter<'inp, L, Lang>
     + TooManyEmitter<'inp, L, Lang>
     + FullContainerEmitter<'inp, L, Lang>,
@@ -70,7 +103,7 @@ where
 {
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<L::Span, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

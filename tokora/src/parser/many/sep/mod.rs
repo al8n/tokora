@@ -140,23 +140,24 @@ mod delim;
 /// - [`repeated`](RepeatedWhile) - Repeat without separators
 /// - [`Collect`](crate::parser::Collect) - Wrapper for collecting elements into a container
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct Separated<F, Sep, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Separated<F, Sep, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   pub(super) f: F,
   pub(super) _sep: PhantomData<Sep>,
   pub(super) _m: PhantomData<O>,
   pub(super) _l: PhantomData<L>,
   pub(super) _ctx: PhantomData<Ctx>,
   pub(super) _lang: PhantomData<Lang>,
+  pub(super) _cmpl: PhantomData<Cmpl>,
 }
 
-impl<F, Sep, O, L, Ctx, Lang: ?Sized> Copy for Separated<F, Sep, O, L, Ctx, Lang>
+impl<F, Sep, O, L, Ctx, Lang: ?Sized, Cmpl> Copy for Separated<F, Sep, O, L, Ctx, Lang, Cmpl>
 where
   F: Copy,
   Sep: Copy,
 {
 }
 
-impl<F, Sep, O, L, Ctx, Lang: ?Sized> Clone for Separated<F, Sep, O, L, Ctx, Lang>
+impl<F, Sep, O, L, Ctx, Lang: ?Sized, Cmpl> Clone for Separated<F, Sep, O, L, Ctx, Lang, Cmpl>
 where
   F: Clone,
   Sep: Clone,
@@ -170,14 +171,15 @@ where
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<F, O, L, Ctx, Lang: ?Sized> Separated<F, (), O, L, Ctx, Lang> {
+impl<F, O, L, Ctx, Lang: ?Sized, Cmpl> Separated<F, (), O, L, Ctx, Lang, Cmpl> {
   /// Creates a new `Separated` parser with the given container.
   #[inline(always)]
-  pub const fn new<Sep>(f: F) -> Separated<F, Sep, O, L, Ctx, Lang> {
+  pub const fn new<Sep>(f: F) -> Separated<F, Sep, O, L, Ctx, Lang, Cmpl> {
     Separated {
       f,
       _sep: PhantomData,
@@ -185,14 +187,15 @@ impl<F, O, L, Ctx, Lang: ?Sized> Separated<F, (), O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<F, Sep, O, L, Ctx, Lang: ?Sized> Separated<F, Sep, O, L, Ctx, Lang> {
+impl<F, Sep, O, L, Ctx, Lang: ?Sized, Cmpl> Separated<F, Sep, O, L, Ctx, Lang, Cmpl> {
   /// Creates a mutable reference version of this `Separated` parser.
   #[inline(always)]
-  pub const fn as_mut(&mut self) -> Separated<&mut F, Sep, O, L, Ctx, Lang> {
+  pub const fn as_mut(&mut self) -> Separated<&mut F, Sep, O, L, Ctx, Lang, Cmpl> {
     Separated {
       f: &mut self.f,
       _sep: PhantomData,
@@ -200,6 +203,7 @@ impl<F, Sep, O, L, Ctx, Lang: ?Sized> Separated<F, Sep, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 

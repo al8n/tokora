@@ -17,11 +17,13 @@ use crate::{
 ///
 /// The parser will not consume any valid token if it is not a valid ident list.
 #[must_use]
-pub fn try_ident_list<'inp, Sep, L, Container, Ctx>() -> impl TryParseInput<
+pub fn try_ident_list<'inp, Sep, L, Container, Ctx, Cmpl>() -> impl TryParseInput<
   'inp,
   L,
   IdentList<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Container>,
   Ctx,
+  (),
+  Cmpl,
 > + 'inp
 where
   L: Lexer<'inp>,
@@ -29,6 +31,7 @@ where
   L::Token: IdentifierToken<'inp>,
   Sep: Punctuator<'inp, L>,
   Ctx: ParseContext<'inp, L>,
+  Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, ()>,
   Ctx::Emitter: SeparatedEmitter<'inp, L>
     + FullContainerEmitter<'inp, L>
     + UnexpectedLeadingSeparatorEmitter<'inp, L>
@@ -39,19 +42,20 @@ where
     + SeparatorHandler<'inp, L>
     + 'inp,
 {
-  try_ident_list_of::<Sep, _, _, _, _>()
+  try_ident_list_of::<Sep, _, _, _, _, _>()
 }
 
 /// Returns a parser for a list of identifiers separated by the given separator for the specified language.
 ///
 /// The parser will not consume any valid token if it is not a valid ident list.
 #[must_use]
-pub fn try_ident_list_of<'inp, Sep, L, Container, Ctx, Lang>() -> impl TryParseInput<
+pub fn try_ident_list_of<'inp, Sep, L, Container, Ctx, Lang, Cmpl>() -> impl TryParseInput<
   'inp,
   L,
   IdentList<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Container, Lang>,
   Ctx,
   Lang,
+  Cmpl,
 > + 'inp
 where
   L: Lexer<'inp>,
@@ -59,6 +63,7 @@ where
   L::Token: IdentifierToken<'inp>,
   Sep: Punctuator<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
   Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
     + FullContainerEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
@@ -69,7 +74,7 @@ where
     + SeparatorHandler<'inp, L>
     + 'inp,
 {
-  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+  move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     Ident::try_parse_of
       .separated::<Sep>()
       .collect()

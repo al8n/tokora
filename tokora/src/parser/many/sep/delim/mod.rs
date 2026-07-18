@@ -26,12 +26,12 @@ mod require_leading_allow_trailing;
 mod require_surrounded;
 mod require_trailing;
 
-impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
-  DelimitedBy<Separated<&mut P, Sep, O, L, Ctx, Lang>, Delim>
+impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
+  DelimitedBy<Separated<&mut P, Sep, O, L, Ctx, Lang, Cmpl>, Delim>
 {
   fn parse_separated<'closure, Container, CH, SP, EH>(
     &mut self,
-    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     container: &mut Container,
     continue_state_handler: &CH,
     separator_state_handler: &SP,
@@ -40,17 +40,19 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
     Delim: Delimiter<'inp, L, Lang>,
     Sep: Punctuator<'inp, L, Lang>,
     L: Lexer<'inp>,
-    P: TryParseInput<'inp, L, O, Ctx, Lang>,
+    P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + FullContainerEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     Container: DelimiterHandler<'inp, L> + SeparatorHandler<'inp, L> + ContainerT<O>,
-    EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
-    CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
-    SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
+    EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
+    CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
+    SP: SeparatorStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
   {
     trace_event!(inp, "separated");
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
@@ -127,6 +129,10 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized>
       };
 
       match parser.f.try_parse_input(inp) {
+        // The never-recoverable gate (0.3.0): a frontier `Incomplete` from the element
+        // parser re-raises untouched — never spent as a diagnostic. Constant-false under
+        // `Complete`.
+        Err(e) if Cmpl::is_incomplete_error(&e) => return Err(e),
         Err(e) => {
           let span = inp.span_since(&cursor);
           inp.emitter().emit_error(Spanned::new(span, e))?;

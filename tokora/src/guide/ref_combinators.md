@@ -11,6 +11,22 @@ plain `fn(&mut InputRef<…>) -> Result<O, E>` is a `ParseInput`, and a
 `fn(&mut InputRef<…>) -> Result<ParseAttempt<O>, E>` is a `TryParseInput`, so most atoms are just
 constructors for these shapes.
 
+Since 0.3.0 both traits carry a defaulted completeness parameter
+(`Cmpl = `[`Complete`](crate::Complete)), mirroring [`InputRef`](crate::InputRef), so every
+signature in this reference reads unchanged; the parameter exists for when a parser must run
+under [`Partial`](crate::Partial) input ([chapter 9](super::ch09_streaming)). **The mode
+legend for this catalog:** the try/consume-channel families are mode-generic — the leaf atoms
+(`expect`/`any`/`Ident`/keywords/puncts), every pass-through adapter (`map*`, `filter*`,
+`validate*`, `then*`, `ignored`, `padded*`, `recover`/`skip_then_retry`, `spanned`/`sliced`/
+`located`), the try-driven collections (`repeated`, `separated*`, `fold`/`rfold`, `collect`),
+and the delimited shapes. Two families stay **Complete-only** this release, each pinned with
+its reason recorded on the impl: the decision-window class (`*_while`, `peek_*`,
+`dispatch_*`, pratt — a non-final frontier can silently truncate their peeked decision
+window, which would read as "construct ended") and the CST `node` family (partial event
+semantics is a separately-deferred design). Reaching for a pinned combinator from partial
+code fails at the drive site — an `E0277`-family "not implemented for … `Partial`" wall (in
+method-call position it surfaces as `E0599`) — never a silent wrong parse.
+
 ## How to read this reference
 
 - **Signatures** are shown trimmed (the always-present `Self: Sized`, `L: Lexer`,
@@ -425,7 +441,10 @@ assert!(Parser::with_parser(ignored).parse_str("+").is_ok());
 ## Sequencing
 
 All methods on [`ParseInput`](crate::ParseInput). A **delimited** shape is just sequencing with
-the brackets ignored — `open.ignore_then(body).then_ignore(close)`.
+the brackets ignored — `open.ignore_then(body).then_ignore(close)` — packaged ready-made by
+[`delimited`](crate::parser::delimited) and
+[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
+(see [*Delimited shapes*](#delimited-shapes)).
 
 | Method | Keeps | One-liner |
 |--------|-------|-----------|
@@ -952,7 +971,7 @@ order is flexible.
 | [`require_trailing()`](crate::parser::Separated::require_trailing) | separated | require a trailing separator |
 | [`allow_leading()`](crate::parser::Separated::allow_leading) | separated | accept a leading separator |
 | [`require_leading()`](crate::parser::Separated::require_leading) | separated | require a leading separator |
-| [`delimited::<D>()`](crate::parser::Separated::delimited) | both | wrap in a [`Delimiter`](crate::delimiter::Delimiter) pair (`Paren`/`Bracket`/`Brace`/`Angle`) |
+| [`delimited::<D>()`](crate::parser::Separated::delimited) | both | wrap in a [`Delimiter`](crate::delimiter::Delimiter) pair (`Paren`/`Bracket`/`Brace`/`Angle`); for a single region see the [`delimited`](crate::parser::delimited)/[`parens`](crate::parser::parens) free shapes |
 
 Trailing/leading violations report through dedicated emitter capabilities
 ([`UnexpectedTrailingSeparatorEmitter`](crate::emitter::UnexpectedTrailingSeparatorEmitter), …).
@@ -1085,6 +1104,14 @@ you and collect into a `Vec`:
 | [`list_of(item, until)`](crate::parser::list_of) | zero-or-more `item`s until `until` accepts the next token (left in place) |
 | [`try_ident_list::<Sep, …>()`](crate::parser::try_ident_list) | a separated list of identifiers into an [`IdentList`](crate::types::IdentList) (needs [`IdentifierToken`](crate::token::IdentifierToken)) |
 
+One convention governs the free atoms, here and in [*Delimited shapes*](#delimited-shapes)
+below: an atom takes its sub-parser as `impl` [`ParseInput`](crate::ParseInput) — a closure, a
+fn item, or any named implementor ([`opt`](crate::parser::opt) takes an `impl`
+[`TryParseInput`](crate::TryParseInput) attempt) — and hands back a builder-form closure that
+is itself a `ParseInput` through the blanket impl, so atoms nest into each other and into the
+method combinators without adapters. Predicate parameters — `peek`, `until`, and friends,
+which inspect a token and answer `bool` — are functions, not parsers, and stay plain closures.
+
 ```text
 separated1<Sep, …>(item: P, peek: Peek) -> impl FnMut(&mut InputRef) -> Result<Vec<T>, Error>
 list_of<…>(item: P, until: Until) -> impl FnMut(&mut InputRef) -> Result<Vec<T>, Error>
@@ -1186,6 +1213,175 @@ fn run<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<Vec<u32
     list_of(digit, |t| matches!(t, Tok::RBracket))(inp)
 }
 assert_eq!(Parser::with_parser(run).parse_str("123]").unwrap(), vec![1, 2, 3]);
+```
+
+---
+
+## Delimited shapes
+
+A committed single-region shape: commit the opener, run the inner sub-parser, commit the
+closer, and return a span-carrying [`Delimited`](crate::utils::Delimited) — the open value,
+the close value, the inner output, and the whole-construct span. A missing closer is a hard
+error: the closer's unexpected-token or end-of-input error propagates rather than fabricating
+a delimiter, and this family never fires the `Unclosed`/`Unopened`/`Undelimited` recovery
+vocabulary (see [*Error taxonomy*](#error-taxonomy)) — a recovery-oriented caller holds the
+region's start cursor and can map at the call site.
+
+[`delimited::<D, …>(inner)`](crate::parser::delimited) takes the delimiter pair as its first
+type parameter through the [`TypedDelimiter`](crate::delimiter::TypedDelimiter) capability;
+[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
+fix that pair to a built-in, and `parens(inner)` ≡ `delimited::<Paren, …>(inner)` for any
+vocabulary whose two capability declarations agree. Bring your own pair by implementing
+[`TypedDelimiter`](crate::delimiter::TypedDelimiter) for it. This is the single-region
+counterpart to the many-builder's [`delimited::<D>()`](crate::parser::Separated::delimited),
+which instead wraps a *repetition* and hands its delimiter tokens to a handler.
+
+Every shape has an **attempt twin** that declines — `Ok(None)`, zero consumption — **iff the
+opener is absent**: a wrong token or end of input at entry. The moment the opener is consumed
+the parse is committed and every later error propagates exactly as the committed form's. The
+attempt boundary is deliberately the opener alone, not the whole shape: `opt(parens(inner))`
+would swallow an unclosed group into a decline, where `Ident<` at end of input must error as
+unclosed rather than silently disappear.
+
+| Atom | One-liner |
+|------|-----------|
+| [`delimited::<D, …>(inner)`](crate::parser::delimited) | one `D`-delimited region into a span-carrying `Delimited` |
+| [`parens(inner)`](crate::parser::parens) | the same, fixed to `( … )` |
+| [`braces(inner)`](crate::parser::braces) | the same, fixed to `{ … }` |
+| [`brackets(inner)`](crate::parser::brackets) | the same, fixed to `[ … ]` |
+| [`angles(inner)`](crate::parser::angles) | the same, fixed to `< … >` |
+| [`try_delimited::<D, …>(inner)`](crate::parser::try_delimited) | the attempt twin: `Ok(None)` iff the opener is absent, committed once it is consumed |
+| [`try_parens`](crate::parser::try_parens) / [`try_braces`](crate::parser::try_braces) / [`try_brackets`](crate::parser::try_brackets) / [`try_angles`](crate::parser::try_angles) | the named attempt twins, pair fixed |
+
+```text
+delimited<D, …>(inner: P) -> impl FnMut(&mut InputRef) -> Result<Delimited<Open, Close, T>, Error>
+parens(inner) / braces(inner) / brackets(inner) / angles(inner) -> the same, with the pair fixed
+try_delimited<D, …>(inner) / try_parens(inner) / … -> the same, wrapped in Option (None iff the opener is absent)
+```
+
+```rust
+# use core::{convert::Infallible, fmt};
+# use tokora::{
+#   FatalContext, InputRef, Lexer, SimpleSpan, Token,
+#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, OpenBrace, CloseBrace, OpenAngle, CloseAngle, Semicolon},
+#   span::Span as _,
+#   token::PunctuatorToken,
+# };
+# #[derive(Debug, PartialEq)]
+# struct Error;
+# impl From<Infallible> for Error { fn from(e: Infallible) -> Self { match e {} } }
+# impl<'a, T, K: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, K, S, Lang>> for Error { fn from(_: UnexpectedToken<'a, T, K, S, Lang>) -> Self { Error } }
+# impl<'a, T, K: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, K, S, Lang>> for Error { fn from(_: SeparatedError<'a, T, K, S, Lang>) -> Self { Error } }
+# impl<'a, K: Clone, O, Lang: ?Sized> From<MissingToken<'a, K, O, Lang>> for Error { fn from(_: MissingToken<'a, K, O, Lang>) -> Self { Error } }
+# impl<O, Lang: ?Sized, Set: Clone + 'static> From<UnexpectedEot<O, Lang, Set>> for Error { fn from(_: UnexpectedEot<O, Lang, Set>) -> Self { Error } }
+# impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
+# impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
+# impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+# impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl tokora::error::MaybeIncomplete for Error {}
+# #[derive(Debug, Clone, PartialEq)]
+# enum Tok { Digit(u32), Comma, Semi, LParen, RParen, LBracket, RBracket, LBrace, RBrace, LAngle, RAngle }
+# #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+# enum Kind { Digit, Comma, Semi, LParen, RParen, LBracket, RBracket, LBrace, RBrace, LAngle, RAngle }
+# impl fmt::Display for Kind { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{self:?}") } }
+# impl Token<'_> for Tok {
+#   type Kind = Kind;
+#   type Error = Infallible;
+#   fn kind(&self) -> Kind { match self {
+#     Tok::Digit(_) => Kind::Digit, Tok::Comma => Kind::Comma, Tok::Semi => Kind::Semi,
+#     Tok::LParen => Kind::LParen, Tok::RParen => Kind::RParen,
+#     Tok::LBracket => Kind::LBracket, Tok::RBracket => Kind::RBracket,
+#     Tok::LBrace => Kind::LBrace, Tok::RBrace => Kind::RBrace,
+#     Tok::LAngle => Kind::LAngle, Tok::RAngle => Kind::RAngle } }
+#   fn is_trivia(&self) -> bool { false }
+# }
+# impl PunctuatorToken<'_> for Tok {
+#   fn comma() -> Option<Kind> { Some(Kind::Comma) }
+#   fn semicolon() -> Option<Kind> { Some(Kind::Semi) }
+#   fn open_paren() -> Option<Kind> { Some(Kind::LParen) }
+#   fn close_paren() -> Option<Kind> { Some(Kind::RParen) }
+#   fn open_bracket() -> Option<Kind> { Some(Kind::LBracket) }
+#   fn close_bracket() -> Option<Kind> { Some(Kind::RBracket) }
+#   fn open_brace() -> Option<Kind> { Some(Kind::LBrace) }
+#   fn close_brace() -> Option<Kind> { Some(Kind::RBrace) }
+#   fn open_angle() -> Option<Kind> { Some(Kind::LAngle) }
+#   fn close_angle() -> Option<Kind> { Some(Kind::RAngle) }
+# }
+# impl From<Comma<(), (), ()>> for Kind { fn from(_: Comma<(), (), ()>) -> Self { Kind::Comma } }
+# impl From<Semicolon<(), (), ()>> for Kind { fn from(_: Semicolon<(), (), ()>) -> Self { Kind::Semi } }
+# impl From<OpenParen<(), (), ()>> for Kind { fn from(_: OpenParen<(), (), ()>) -> Self { Kind::LParen } }
+# impl From<CloseParen<(), (), ()>> for Kind { fn from(_: CloseParen<(), (), ()>) -> Self { Kind::RParen } }
+# impl From<OpenBracket<(), (), ()>> for Kind { fn from(_: OpenBracket<(), (), ()>) -> Self { Kind::LBracket } }
+# impl From<CloseBracket<(), (), ()>> for Kind { fn from(_: CloseBracket<(), (), ()>) -> Self { Kind::RBracket } }
+# impl From<OpenBrace<(), (), ()>> for Kind { fn from(_: OpenBrace<(), (), ()>) -> Self { Kind::LBrace } }
+# impl From<CloseBrace<(), (), ()>> for Kind { fn from(_: CloseBrace<(), (), ()>) -> Self { Kind::RBrace } }
+# impl From<OpenAngle<(), (), ()>> for Kind { fn from(_: OpenAngle<(), (), ()>) -> Self { Kind::LAngle } }
+# impl From<CloseAngle<(), (), ()>> for Kind { fn from(_: CloseAngle<(), (), ()>) -> Self { Kind::RAngle } }
+# struct CharLexer<'a> { src: &'a str, pos: usize, tok: SimpleSpan, state: () }
+# impl<'a> Lexer<'a> for CharLexer<'a> {
+#   type State = (); type Source = str; type Token = Tok; type Span = SimpleSpan; type Offset = usize;
+#   fn new(src: &'a str) -> Self { Self { src, pos: 0, tok: SimpleSpan::new(0, 0), state: () } }
+#   fn with_state(src: &'a str, _: ()) -> Self { Self::new(src) }
+#   fn check(&self) -> Result<(), Infallible> { Ok(()) }
+#   fn state(&self) -> &() { &self.state }
+#   fn state_mut(&mut self) -> &mut () { &mut self.state }
+#   fn into_state(self) -> Self::State {}
+#   fn source(&self) -> &'a str { self.src }
+#   fn span(&self) -> SimpleSpan { self.tok }
+#   fn slice(&self) -> &'a str { &self.src[self.tok.start()..self.tok.end()] }
+#   fn lex(&mut self) -> Option<Result<Tok, Infallible>> {
+#     let bytes = self.src.as_bytes();
+#     while self.pos < bytes.len() && bytes[self.pos] == b' ' { self.pos += 1; }
+#     if self.pos >= bytes.len() { return None; }
+#     let (start, c) = (self.pos, bytes[self.pos] as char);
+#     self.pos += 1;
+#     self.tok = SimpleSpan::new(start, self.pos);
+#     Some(Ok(match c {
+#       '0'..='9' => Tok::Digit(c as u32 - '0' as u32),
+#       ',' => Tok::Comma, ';' => Tok::Semi,
+#       '(' => Tok::LParen, ')' => Tok::RParen, '[' => Tok::LBracket, ']' => Tok::RBracket,
+#       '{' => Tok::LBrace, '}' => Tok::RBrace, '<' => Tok::LAngle, '>' => Tok::RAngle,
+#       c => Tok::Digit(c as u32),
+#     }))
+#   }
+#   fn bump(&mut self, n: &usize) { self.pos += n; }
+# }
+# type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
+# fn digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
+#     match inp.next()? { Some(sp) => match sp.into_data() { Tok::Digit(n) => Ok(n), _ => Err(Error) }, None => Err(Error) }
+# }
+use tokora::{Parse, Parser, punct::Paren, parser::{braces, delimited, parens, try_parens}};
+
+// `parens` wraps ONE region and keeps the typed delimiter values and the whole-construct span.
+fn in_parens<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<(u32, SimpleSpan), Error> {
+    let d = parens(digit)(inp)?;
+    Ok((*d.data(), d.span()))
+}
+let (value, span) = Parser::with_parser(in_parens).parse_str("(1)").unwrap();
+assert_eq!(value, 1);
+assert_eq!(span, SimpleSpan::new(0, 3));
+
+// `braces` fixes the pair to `{ … }`.
+fn in_braces<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
+    braces(digit)(inp).map(|d| *d.data())
+}
+assert_eq!(Parser::with_parser(in_braces).parse_str("{1}").unwrap(), 1);
+
+// `parens(inner)` ≡ `delimited::<Paren, …>(inner)`.
+fn via_generic<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
+    delimited::<Paren, _, _, _, _, _, _>(digit)(inp).map(|d| *d.data())
+}
+assert_eq!(Parser::with_parser(via_generic).parse_str("(1)").unwrap(), 1);
+
+// The attempt twin declines with zero consumption when the opener is absent…
+fn attempt<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<Option<u32>, Error> {
+    try_parens(digit)(inp).map(|d| d.map(|d| *d.data()))
+}
+assert_eq!(Parser::with_parser(attempt).parse_str("1").unwrap(), None);
+// …but once `(` is consumed it is committed: an unterminated group errors, it
+// does not decline.
+assert!(Parser::with_parser(attempt).parse_str("(1").is_err());
 ```
 
 ---

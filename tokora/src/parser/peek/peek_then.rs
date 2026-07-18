@@ -92,21 +92,22 @@ use super::*;
 /// - [`PeekThenChoice`] - Choose between multiple parsers based on lookahead
 /// - [`filter`](crate::parser::Filter) - Validate after parsing (no lookahead)
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct PeekThen<P, D, T, Window> {
+pub struct PeekThen<P, D, T, Window, Cmpl = Complete> {
   parser: P,
   handler: D,
   _token: PhantomData<T>,
   _capacity: PhantomData<Window>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, D, T, W: Window> PeekThen<P, D, T, W> {
+impl<P, D, T, W: Window, Cmpl> PeekThen<P, D, T, W, Cmpl> {
   /// Creates a new `PeekThen` combinator for the specified language.
   #[inline(always)]
   pub(crate) const fn of<'inp, L, O, Ctx, Lang>(parser: P, condition: D) -> Self
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
-    P: ParseInput<'inp, L, O, Ctx, Lang>,
+    P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Lang: ?Sized,
   {
     Self {
@@ -114,10 +115,18 @@ impl<P, D, T, W: Window> PeekThen<P, D, T, W> {
       handler: condition,
       _token: PhantomData,
       _capacity: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
+// STAYS COMPLETE-ONLY (0.3.0 — the decision-window class): the `Decision` peeks a
+// scrutinee window (`W = 1` and up), and at a non-final Partial frontier the peek fill silently serves a SHORT
+// window (the peek contract: short at the frontier, never an error). The condition would
+// read that truncation as "construct ended" and return `Ok` early — breaking chunked
+// equivalence with no error on any channel. Generalizing needs the deferred
+// frontier-window rule (full-or-incomplete decision windows); until then the impls stay
+// pinned at `Complete` in both positions, so a Partial drive is a compile-time wall.
 impl<'inp, P, D, L, O, Ctx, Lang, W> ParseInput<'inp, L, O, Ctx, Lang>
   for PeekThen<P, D, L::Token, W>
 where

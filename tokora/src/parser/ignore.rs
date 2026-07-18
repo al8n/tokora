@@ -104,15 +104,16 @@ use super::*;
 /// - [`ignore_then`](crate::parser::ParseInput::ignore_then) - Parse then discard first
 /// - [`Map`] - Transform output instead of discarding
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Ignore<P, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Ignore<P, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   _output: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, O, L, Ctx, Lang: ?Sized> Ignore<P, O, L, Ctx, Lang> {
+impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> Ignore<P, O, L, Ctx, Lang, Cmpl> {
   /// Creates a parser that ignores any output.
   #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
@@ -122,21 +123,24 @@ impl<P, O, L, Ctx, Lang: ?Sized> Ignore<P, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, (), Ctx, Lang> for Ignore<P, O, L, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, (), Ctx, Lang, Cmpl>
+  for Ignore<P, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

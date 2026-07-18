@@ -109,15 +109,16 @@ use super::*;
 /// - [`Token::is_trivia()`](crate::Token::is_trivia) - Determines what counts as trivia
 /// - [`then_ignore`](crate::parser::ParseInput::then_ignore) - Ignore specific tokens (not trivia)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Padded<P, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct Padded<P, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   _m: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, O, L, Ctx, Lang: ?Sized> Padded<P, O, L, Ctx, Lang> {
+impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> Padded<P, O, L, Ctx, Lang, Cmpl> {
   /// Creates a parser that accepts any token with optional padding.
   #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
@@ -127,21 +128,24 @@ impl<P, O, L, Ctx, Lang: ?Sized> Padded<P, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for Padded<P, O, L, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Padded<P, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -201,15 +205,16 @@ where
 /// - [`PaddedRight`] - Skip trailing trivia only
 /// - [`Token::is_trivia()`](crate::Token::is_trivia) - Determines trivia
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PaddedLeft<P, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct PaddedLeft<P, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   _m: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, O, L, Ctx, Lang: ?Sized> PaddedLeft<P, O, L, Ctx, Lang> {
+impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> PaddedLeft<P, O, L, Ctx, Lang, Cmpl> {
   /// Creates a parser that accepts any token with optional padding.
   #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
@@ -219,21 +224,24 @@ impl<P, O, L, Ctx, Lang: ?Sized> PaddedLeft<P, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for PaddedLeft<P, O, L, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for PaddedLeft<P, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -292,15 +300,16 @@ where
 /// - [`PaddedLeft`] - Skip leading trivia only
 /// - [`Token::is_trivia()`](crate::Token::is_trivia) - Determines trivia
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PaddedRight<P, O, L, Ctx, Lang: ?Sized = ()> {
+pub struct PaddedRight<P, O, L, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   parser: P,
   _m: PhantomData<O>,
   _l: PhantomData<L>,
   _ctx: PhantomData<Ctx>,
   _lang: PhantomData<Lang>,
+  _cmpl: PhantomData<Cmpl>,
 }
 
-impl<P, O, L, Ctx, Lang: ?Sized> PaddedRight<P, O, L, Ctx, Lang> {
+impl<P, O, L, Ctx, Lang: ?Sized, Cmpl> PaddedRight<P, O, L, Ctx, Lang, Cmpl> {
   /// Creates a parser that accepts any token with optional padding.
   #[inline(always)]
   pub(crate) const fn new(parser: P) -> Self {
@@ -310,21 +319,24 @@ impl<P, O, L, Ctx, Lang: ?Sized> PaddedRight<P, O, L, Ctx, Lang> {
       _l: PhantomData,
       _ctx: PhantomData,
       _lang: PhantomData,
+      _cmpl: PhantomData,
     }
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for PaddedRight<P, O, L, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for PaddedRight<P, O, L, Ctx, Lang, Cmpl>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
@@ -375,17 +387,19 @@ impl<P, O, L, Ctx, Lang: ?Sized> Inner<P, O, L, Ctx, Lang> {
   }
 }
 
-impl<'inp, P, L, O, Ctx, Lang> ParseInput<'inp, L, O, Ctx, Lang> for Inner<&mut P, O, L, Ctx, Lang>
+impl<'inp, P, L, O, Ctx, Lang, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl>
+  for Inner<&mut P, O, L, Ctx, Lang>
 where
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

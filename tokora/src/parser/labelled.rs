@@ -14,7 +14,8 @@
 //! reduces to exactly `p`.
 
 use crate::{
-  Emitter, InputRef, Lexer, ParseContext, ParseInput, TryParseInput, try_parse_input::ParseAttempt,
+  Emitter, InputRef, Lexer, ParseContext, ParseInput, TryParseInput, input::Completeness,
+  try_parse_input::ParseAttempt,
 };
 
 /// Wraps `parser` with the diagnostic context `name`: for the duration of the sub-parse, `name`
@@ -58,17 +59,18 @@ pub struct Labelled<P> {
   parser: P,
 }
 
-impl<'inp, L, O, Ctx, Lang, P> ParseInput<'inp, L, O, Ctx, Lang> for Labelled<P>
+impl<'inp, L, O, Ctx, Lang, P, Cmpl> ParseInput<'inp, L, O, Ctx, Lang, Cmpl> for Labelled<P>
 where
   Lang: ?Sized,
-  P: ParseInput<'inp, L, O, Ctx, Lang>,
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline]
   fn parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     input.emitter().enter_label(self.name);
     trace_event!(input, self.name);
@@ -78,17 +80,18 @@ where
   }
 }
 
-impl<'inp, L, O, Ctx, Lang, P> TryParseInput<'inp, L, O, Ctx, Lang> for Labelled<P>
+impl<'inp, L, O, Ctx, Lang, P, Cmpl> TryParseInput<'inp, L, O, Ctx, Lang, Cmpl> for Labelled<P>
 where
   Lang: ?Sized,
-  P: TryParseInput<'inp, L, O, Ctx, Lang>,
+  P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline]
   fn try_parse_input(
     &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+    input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     input.emitter().enter_label(self.name);
     trace_event!(input, self.name);

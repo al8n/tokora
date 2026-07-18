@@ -15,13 +15,14 @@ impl Keyword<(), ()> {
   ///
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not a keyword,
   /// and promises no valid token is consumed.
-  pub fn try_parse<'inp, L, Ctx>(
-    inp: &mut InputRef<'inp, '_, L, Ctx>,
+  pub fn try_parse<'inp, L, Ctx, Cmpl>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, (), Cmpl>,
   ) -> Result<ParseAttempt<Keyword<L::Token, L::Span>>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, ()>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>,
   {
     Self::try_parse_of(inp)
@@ -31,8 +32,8 @@ impl Keyword<(), ()> {
   ///
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not a keyword,
   /// and promises no valid token is consumed.
-  pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized>(
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  pub fn try_parse_of<'inp, L, Ctx, Lang: ?Sized, Cmpl>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     ParseAttempt<Keyword<L::Token, L::Span, Lang>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -41,6 +42,7 @@ impl Keyword<(), ()> {
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     inp
@@ -61,13 +63,14 @@ impl Keyword<(), ()> {
   /// Unlike [`try_parse`](Self::try_parse), a non-keyword token is converted
   /// into an [`UnexpectedToken`] error carrying the found token, and end of
   /// input into an [`UnexpectedEot`] error.
-  pub fn parse<'inp, L, Ctx>(
-    inp: &mut InputRef<'inp, '_, L, Ctx>,
+  pub fn parse<'inp, L, Ctx, Cmpl>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, (), Cmpl>,
   ) -> Result<Keyword<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L>>::Error>
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, ()>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
       + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
   {
@@ -80,13 +83,14 @@ impl Keyword<(), ()> {
   /// Unlike [`try_parse_of`](Self::try_parse_of), a non-keyword token is
   /// converted into an [`UnexpectedToken`] error carrying the found token, and
   /// end of input into an [`UnexpectedEot`] error.
-  pub fn parse_of<'inp, L, Ctx, Lang: ?Sized>(
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  pub fn parse_of<'inp, L, Ctx, Lang: ?Sized, Cmpl>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<Keyword<L::Token, L::Span, Lang>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
       + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
   {
@@ -108,8 +112,8 @@ impl Keyword<(), ()> {
   ///
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not a keyword,
   /// and promises no valid token is consumed.
-  pub fn try_parse_sliced<'inp, L, Ctx>(
-    inp: &mut InputRef<'inp, '_, L, Ctx>,
+  pub fn try_parse_sliced<'inp, L, Ctx, Cmpl>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, (), Cmpl>,
   ) -> Result<
     ParseAttempt<Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error,
@@ -118,6 +122,7 @@ impl Keyword<(), ()> {
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, ()>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>,
   {
     Self::try_parse_sliced_of(inp)
@@ -127,8 +132,8 @@ impl Keyword<(), ()> {
   ///
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not a keyword,
   /// and promises no valid token is consumed.
-  pub fn try_parse_sliced_of<'inp, L, Ctx, Lang: ?Sized>(
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  pub fn try_parse_sliced_of<'inp, L, Ctx, Lang: ?Sized, Cmpl>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     ParseAttempt<Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -137,6 +142,7 @@ impl Keyword<(), ()> {
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     inp
@@ -154,8 +160,8 @@ impl Keyword<(), ()> {
   /// Unlike [`try_parse_sliced`](Self::try_parse_sliced), a non-keyword token is
   /// converted into an [`UnexpectedToken`] error carrying the found token, and
   /// end of input into an [`UnexpectedEot`] error.
-  pub fn parse_sliced<'inp, L, Ctx>(
-    inp: &mut InputRef<'inp, '_, L, Ctx>,
+  pub fn parse_sliced<'inp, L, Ctx, Cmpl>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, (), Cmpl>,
   ) -> Result<
     Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error,
@@ -164,6 +170,7 @@ impl Keyword<(), ()> {
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, ()>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
       + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
   {
@@ -176,8 +183,8 @@ impl Keyword<(), ()> {
   /// Unlike [`try_parse_sliced_of`](Self::try_parse_sliced_of), a non-keyword
   /// token is converted into an [`UnexpectedToken`] error carrying the found
   /// token, and end of input into an [`UnexpectedEot`] error.
-  pub fn parse_sliced_of<'inp, L, Ctx, Lang: ?Sized>(
-    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  pub fn parse_sliced_of<'inp, L, Ctx, Lang: ?Sized, Cmpl>(
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<
     Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
@@ -186,6 +193,7 @@ impl Keyword<(), ()> {
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
       + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
   {
@@ -207,13 +215,14 @@ impl Keyword<(), ()> {
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not the expected keyword,
   /// and promises no valid token is consumed.
   #[must_use]
-  pub fn try_parse_exact<'inp, L, Ctx, Exp>(
+  pub fn try_parse_exact<'inp, L, Ctx, Exp, Cmpl>(
     expected: &Exp,
-  ) -> impl TryParseInput<'inp, L, Keyword<L::Token, L::Span>, Ctx>
+  ) -> impl TryParseInput<'inp, L, Keyword<L::Token, L::Span>, Ctx, (), Cmpl>
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, ()>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>,
     str: Equivalent<Exp>,
   {
@@ -225,17 +234,18 @@ impl Keyword<(), ()> {
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not the expected keyword,
   /// and promises no valid token is consumed.
   #[must_use]
-  pub fn try_parse_exact_of<'inp, L, Ctx, Exp, Lang: ?Sized>(
+  pub fn try_parse_exact_of<'inp, L, Ctx, Exp, Lang: ?Sized, Cmpl>(
     expected: &Exp,
-  ) -> impl TryParseInput<'inp, L, Keyword<L::Token, L::Span, Lang>, Ctx, Lang>
+  ) -> impl TryParseInput<'inp, L, Keyword<L::Token, L::Span, Lang>, Ctx, Lang, Cmpl>
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     str: Equivalent<Exp>,
   {
-    move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+    move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
       inp
         .try_expect(|t| {
           t.into_data()
@@ -260,13 +270,14 @@ impl Keyword<(), ()> {
   /// converted into an [`UnexpectedToken`] error carrying the found token, and
   /// end of input into an [`UnexpectedEot`] error.
   #[must_use]
-  pub fn parse_exact<'inp, L, Ctx, Exp>(
+  pub fn parse_exact<'inp, L, Ctx, Exp, Cmpl>(
     expected: &Exp,
-  ) -> impl ParseInput<'inp, L, Keyword<L::Token, L::Span>, Ctx>
+  ) -> impl ParseInput<'inp, L, Keyword<L::Token, L::Span>, Ctx, (), Cmpl>
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, ()>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
       + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
     str: Equivalent<Exp>,
@@ -281,18 +292,19 @@ impl Keyword<(), ()> {
   /// token is converted into an [`UnexpectedToken`] error carrying the found
   /// token, and end of input into an [`UnexpectedEot`] error.
   #[must_use]
-  pub fn parse_exact_of<'inp, L, Ctx, Exp, Lang: ?Sized>(
+  pub fn parse_exact_of<'inp, L, Ctx, Exp, Lang: ?Sized, Cmpl>(
     expected: &Exp,
-  ) -> impl ParseInput<'inp, L, Keyword<L::Token, L::Span, Lang>, Ctx, Lang>
+  ) -> impl ParseInput<'inp, L, Keyword<L::Token, L::Span, Lang>, Ctx, Lang, Cmpl>
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
       + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
     str: Equivalent<Exp>,
   {
-    move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| match inp.next()? {
+    move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| match inp.next()? {
       Some(spanned) => {
         if spanned
           .data()
@@ -315,13 +327,21 @@ impl Keyword<(), ()> {
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not the expected keyword,
   /// and promises no valid token is consumed.
   #[must_use]
-  pub fn try_parse_exact_sliced<'inp, L, Ctx, Exp>(
+  pub fn try_parse_exact_sliced<'inp, L, Ctx, Exp, Cmpl>(
     expected: &Exp,
-  ) -> impl TryParseInput<'inp, L, Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>, Ctx>
+  ) -> impl TryParseInput<
+    'inp,
+    L,
+    Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>,
+    Ctx,
+    (),
+    Cmpl,
+  >
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, ()>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>,
     str: Equivalent<Exp>,
   {
@@ -333,7 +353,7 @@ impl Keyword<(), ()> {
   /// If the function returns `Ok(ParseAttempt::Decline)`, it means the next token is not the expected keyword,
   /// and promises no valid token is consumed.
   #[must_use]
-  pub fn try_parse_exact_sliced_of<'inp, L, Ctx, Exp, Lang: ?Sized>(
+  pub fn try_parse_exact_sliced_of<'inp, L, Ctx, Exp, Lang: ?Sized, Cmpl>(
     expected: &Exp,
   ) -> impl TryParseInput<
     'inp,
@@ -341,15 +361,17 @@ impl Keyword<(), ()> {
     Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>,
     Ctx,
     Lang,
+    Cmpl,
   >
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
     str: Equivalent<Exp>,
   {
-    move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
+    move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
       inp
         .try_expect(|t| {
           t.into_data()
@@ -371,13 +393,21 @@ impl Keyword<(), ()> {
   /// unexpected token is converted into an [`UnexpectedToken`] error carrying
   /// the found token, and end of input into an [`UnexpectedEot`] error.
   #[must_use]
-  pub fn parse_exact_sliced<'inp, L, Ctx, Exp>(
+  pub fn parse_exact_sliced<'inp, L, Ctx, Exp, Cmpl>(
     expected: &Exp,
-  ) -> impl ParseInput<'inp, L, Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>, Ctx>
+  ) -> impl ParseInput<
+    'inp,
+    L,
+    Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span>,
+    Ctx,
+    (),
+    Cmpl,
+  >
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, ()>,
     <Ctx::Emitter as Emitter<'inp, L>>::Error: From<UnexpectedEot<L::Offset>>
       + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span>>,
     str: Equivalent<Exp>,
@@ -392,7 +422,7 @@ impl Keyword<(), ()> {
   /// unexpected token is converted into an [`UnexpectedToken`] error carrying
   /// the found token, and end of input into an [`UnexpectedEot`] error.
   #[must_use]
-  pub fn parse_exact_sliced_of<'inp, L, Ctx, Exp, Lang: ?Sized>(
+  pub fn parse_exact_sliced_of<'inp, L, Ctx, Exp, Lang: ?Sized, Cmpl>(
     expected: &Exp,
   ) -> impl ParseInput<
     'inp,
@@ -400,16 +430,18 @@ impl Keyword<(), ()> {
     Keyword<<L::Source as Source<L::Offset>>::Slice<'inp>, L::Span, Lang>,
     Ctx,
     Lang,
+    Cmpl,
   >
   where
     L: Lexer<'inp>,
     L::Token: KeywordToken<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>
       + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
     str: Equivalent<Exp>,
   {
-    move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| match inp.next()? {
+    move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| match inp.next()? {
       Some(spanned) => {
         if spanned
           .data()

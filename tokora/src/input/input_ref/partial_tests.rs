@@ -16,11 +16,11 @@ use core::cell::Cell;
 use std::rc::Rc;
 
 use crate::{
-  InputRef, Token,
+  InputRef, Parse, ParseInput, Parser, Token, TryParseInput,
   cache::DefaultCache,
   emitter::{Fatal, Verbose},
   error::{Incomplete, MaybeIncomplete, token::UnexpectedToken},
-  input::{Complete, Input, Partial, parse_partial},
+  input::{Complete, Input, Partial, SurfaceIncomplete, parse_partial},
   lexer::LogosLexer,
   state::State,
 };
@@ -62,6 +62,18 @@ impl MaybeIncomplete for PErr {
 
 impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, Lang>> for PErr {
   fn from(_: UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
+    PErr::Lex
+  }
+}
+
+impl<O, Lang: ?Sized> From<crate::error::UnexpectedEot<O, Lang>> for PErr {
+  fn from(_: crate::error::UnexpectedEot<O, Lang>) -> Self {
+    PErr::Lex
+  }
+}
+
+impl<S, Lang: ?Sized> From<crate::error::syntax::FullContainer<S, Lang>> for PErr {
+  fn from(_: crate::error::syntax::FullContainer<S, Lang>) -> Self {
     PErr::Lex
   }
 }
@@ -1108,5 +1120,647 @@ fn the_seal_is_monotone() {
   assert!(
     input.as_ref(&mut emitter).is_final(),
     "sealing an already-sealed stream is a no-op, never a toggle"
+  );
+}
+
+// ── Write once, run in both modes (0.3.0 §8.1/§8.2) ─────────────────────────────────
+//
+// ONE parser fn, generic over the completeness typestate, drives green under BOTH the
+// complete combinator driver (`Parser…parse_str`, `Cmpl = Complete`) and the Sans-I/O
+// partial driver (`parse_partial`, `Cmpl = Partial`) — the release's point, at runtime.
+
+/// The write-once parser: collects every token kind to end of input under a
+/// rollback-on-drop transaction. Generic over `Cmpl`; each drive site instantiates it.
+fn kinds_generic<'inp, Cmpl>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, PartialCtx<'inp>, (), Cmpl>,
+) -> Result<std::vec::Vec<PKind>, PErr>
+where
+  Cmpl: SurfaceIncomplete<'inp, Lex<'inp>, PartialCtx<'inp>, ()>,
+{
+  let mut txn = inp.begin();
+  let mut kinds = std::vec::Vec::new();
+  while let Some(t) = txn.next()? {
+    kinds.push(t.data().kind());
+  }
+  txn.commit();
+  Ok(kinds)
+}
+
+/// Drives `kinds_generic` COMPLETE through the public combinator driver.
+fn drive_complete(src: &str) -> std::vec::Vec<PKind> {
+  let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+  Parser::with_context(ctx)
+    .apply(kinds_generic)
+    .parse_str(src)
+    .expect("complete drive of the write-once parser succeeds")
+}
+
+/// Drives `kinds_generic` PARTIAL through `parse_partial` over a chunked buffer,
+/// returning the parsed kinds and how many rounds surfaced `Incomplete` (refills).
+fn drive_partial_chunked(chunks: &[&str]) -> (std::vec::Vec<PKind>, usize) {
+  let mut buffer = std::string::String::new();
+  let mut incompletes = 0;
+  for (i, chunk) in chunks.iter().enumerate() {
+    buffer.push_str(chunk);
+    let is_final = i + 1 == chunks.len();
+    let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+    match parse_partial(ctx, buffer.as_str(), (), is_final, kinds_generic) {
+      Ok(kinds) => return (kinds, incompletes),
+      Err(e) if e.is_incomplete() => incompletes += 1,
+      Err(e) => panic!("a real parse error: {e:?}"),
+    }
+  }
+  panic!("the final chunk must complete the parse");
+}
+
+#[test]
+fn write_once_runs_both_modes() {
+  // The probe's exact §10.3 shape: ["foo b", "ar ", "baz"] — the first two non-final
+  // rounds each cut a token at the frontier, the sealed round parses the whole sentence.
+  let complete = drive_complete("foo bar baz");
+  let (partial, incompletes) = drive_partial_chunked(&["foo b", "ar ", "baz"]);
+  assert_eq!(complete, std::vec![PKind::Word, PKind::Word, PKind::Word]);
+  assert_eq!(partial, complete, "one parser fn, two modes, one answer");
+  assert_eq!(
+    incompletes, 2,
+    "each non-final chunk surfaced exactly one Incomplete"
+  );
+}
+
+#[test]
+fn write_once_chunk_sweep_equivalence() {
+  // §8.2 as a deterministic sweep (the fuzz oracle's "chunked prefixes" shape): for EVERY
+  // cut point of the corpus, the two-chunk partial drive must (1) surface Incomplete on
+  // the non-final round — this parser drains to end of input, and rule 3 makes a
+  // non-final end Incomplete — and (2) end with output identical to the complete drive.
+  let corpus = "alpha beta42 gamma 7delta epsilon";
+  let oracle = drive_complete(corpus);
+  for cut in 1..corpus.len() {
+    let (kinds, incompletes) = drive_partial_chunked(&[&corpus[..cut], &corpus[cut..]]);
+    assert_eq!(
+      kinds, oracle,
+      "chunked equivalence must hold at cut point {cut}"
+    );
+    assert_eq!(
+      incompletes, 1,
+      "the non-final round at cut {cut} surfaces exactly one Incomplete"
+    );
+  }
+}
+
+#[test]
+fn typed_local_fn_at_parse_partial() {
+  // The concrete-`Partial` doctest pattern (a typed local fn, not a generic one) stays
+  // the supported spelling under the trait bound.
+  fn local<'inp>(
+    inp: &mut InputRef<'inp, '_, Lex<'inp>, PartialCtx<'inp>, (), Partial>,
+  ) -> Result<usize, PErr> {
+    let mut txn = inp.begin();
+    let mut n = 0;
+    while txn.next()?.is_some() {
+      n += 1;
+    }
+    txn.commit();
+    Ok(n)
+  }
+  let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+  assert_eq!(parse_partial(ctx, "foo bar", (), true, local), Ok(2));
+}
+
+// ── The §4 gate mechanism: `SurfaceIncomplete::is_incomplete_error` ──────────────────
+
+#[test]
+fn is_incomplete_error_constant_false_at_complete() {
+  // Complete's arm is a constant, bound-free `false` — even for an error value that
+  // *would* read incomplete: a complete input never constructs one, so the atom-layer
+  // gate `if Cmpl::is_incomplete_error(&err)` const-folds away on the complete path.
+  assert!(!<Complete as SurfaceIncomplete<
+    '_,
+    Lex<'_>,
+    PartialCtx<'_>,
+    (),
+  >>::is_incomplete_error(&PErr::Incomplete(0)));
+  assert!(!<Complete as SurfaceIncomplete<
+    '_,
+    Lex<'_>,
+    PartialCtx<'_>,
+    (),
+  >>::is_incomplete_error(&PErr::Lex));
+}
+
+#[test]
+fn is_incomplete_error_routes_through_maybe_incomplete_at_partial() {
+  // Partial routes through `MaybeIncomplete`: exactly the incomplete sentinel reads true;
+  // a plain error and a terminal limit trip both read false (terminal outranks incomplete
+  // and must never be re-raised as one).
+  assert!(<Partial as SurfaceIncomplete<
+    '_,
+    Lex<'_>,
+    PartialCtx<'_>,
+    (),
+  >>::is_incomplete_error(&PErr::Incomplete(3)));
+  assert!(!<Partial as SurfaceIncomplete<
+    '_,
+    Lex<'_>,
+    PartialCtx<'_>,
+    (),
+  >>::is_incomplete_error(&PErr::Lex));
+  assert!(!<Partial as SurfaceIncomplete<
+    '_,
+    Lex<'_>,
+    PartialCtx<'_>,
+    (),
+  >>::is_incomplete_error(&PErr::Limit));
+}
+
+// ── §8.5: the generalized scanner drivers under Partial ─────────────────────────────
+//
+// Each G-class driver (0.3.0: `try_expect`, `skip_while`, `sync_to`, `sync_through`,
+// `sync_balanced`, `fold`/`foldn`, `consume_cached_*`) runs under `Partial` through its
+// now-generic header. The matrix per driver: non-final ⇒ `Incomplete` at the frontier
+// (conservative — later input could extend what it stopped on); final ⇒ identical to the
+// complete-mode outcome. Plus the poison-at-frontier precedence case for `try_expect`.
+
+/// Inlines a partial-input drive: builds the input over `$src`, seals per `$is_final`,
+/// hands the handle to `$body`, and evaluates to `(body_output, emitted_diagnostics)`.
+macro_rules! with_partial {
+  ($src:expr, $is_final:expr, |$inp:ident| $body:expr) => {{
+    let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_cache(
+      $src,
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    if $is_final {
+      input.seal();
+    }
+    let mut emitter = Verbose::<PErr>::new();
+    let out = {
+      #[allow(unused_mut)]
+      let mut $inp = input.as_ref(&mut emitter);
+      $body
+    };
+    let emitted: usize = emitter.errors().values().map(|g| g.len()).sum();
+    (out, emitted)
+  }};
+}
+
+#[test]
+fn try_expect_partial_matrix() {
+  // Non-final, the only token touches the buffer end: withheld, Incomplete.
+  let (r, emitted) = with_partial!("foo", false, |inp| inp.try_expect(|_| true));
+  assert_eq!(r, Err(PErr::Incomplete(3)));
+  assert_eq!(emitted, 0);
+  // Final: consumed, exactly as complete mode.
+  let (r, _) = with_partial!("foo", true, |inp| {
+    inp.try_expect(|_| true).map(|t| t.map(|s| s.data().kind()))
+  });
+  assert_eq!(r, Ok(Some(PKind::Word)));
+  // The decline path puts a MID-BUFFER token back without any incomplete: "foo" ends
+  // strictly before the trailing space, so it lexes even non-final, and the declining
+  // predicate leaves it cached for the next consume.
+  let (r, emitted) = with_partial!("foo ", false, |inp| {
+    let declined = inp
+      .try_expect(|t| matches!(t.data(), PTok::Num))
+      .expect("the decline path is not an error");
+    assert!(declined.is_none(), "the word is not a number");
+    inp
+      .try_expect(|t| matches!(t.data(), PTok::Word))
+      .map(|t| t.map(|s| s.data().kind()))
+  });
+  assert_eq!(r, Ok(Some(PKind::Word)));
+  assert_eq!(emitted, 0);
+}
+
+#[test]
+fn try_expect_or_stop_partial_matrix() {
+  // Terminal beats incomplete ON THE ATTEMPT PATH: a limit trip at the attempt is a
+  // terminal stop, so `try_expect_or_stop` surfaces an error that is NOT Incomplete —
+  // even though the tripping token sits at the non-final frontier. ("a b c": the two
+  // words under the limit are consumed, then the attempt's scan trips on `c`.)
+  let tracker = LimitTracker::with_limit(2);
+  let mut input = Input::<LimLex<'_>, LimCtx<'_>, (), Partial>::with_state_and_cache(
+    "a b c",
+    tracker,
+    DefaultCache::<'_, LimLex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    assert!(inp.next().unwrap().is_some(), "first word under the limit");
+    assert!(inp.next().unwrap().is_some(), "second word under the limit");
+    let err = inp
+      .try_expect_or_stop(|_| true)
+      .expect_err("a trip at the attempt is an error, never a decline");
+    assert!(
+      !err.is_incomplete(),
+      "terminal beats incomplete on the attempt path, got {err:?}"
+    );
+  }
+  assert_eq!(
+    limit_diags(&emitter),
+    1,
+    "the trip's own diagnostic reached the emitter"
+  );
+
+  // A plain (non-terminal) frontier holdback at the attempt still surfaces
+  // Incomplete on the `Err` channel, exactly as `try_expect` — the unchanged
+  // `scan_with` routing.
+  let (r, emitted) = with_partial!("foo", false, |inp| inp.try_expect_or_stop(|_| true));
+  assert_eq!(r, Err(PErr::Incomplete(3)));
+  assert_eq!(emitted, 0);
+}
+
+#[test]
+fn skip_while_partial_matrix() {
+  // Non-final: the trivia run's last word touches the buffer end — it may extend, so the
+  // run is not finishable yet. (This is what hands `padded` its partial semantics.)
+  let (r, _) = with_partial!("foo bar", false, |inp| {
+    inp.skip_while(|t| matches!(t.data(), PTok::Word))
+  });
+  assert_eq!(r, Err(PErr::Incomplete(7)));
+  // Final: the run completes and the stopper is left at the cache front.
+  let (r, _) = with_partial!("foo 42", true, |inp| {
+    inp
+      .skip_while(|t| matches!(t.data(), PTok::Word))
+      .expect("the final-mode skip completes");
+    inp.next().map(|t| t.map(|s| s.data().kind()))
+  });
+  assert_eq!(r, Ok(Some(PKind::Num)));
+}
+
+#[test]
+fn sync_to_partial_matrix() {
+  // Non-final: the would-be sync token touches the buffer end — the next chunk could
+  // extend it ("42" → "425"), so recovery-sync is not decidable yet: Incomplete.
+  let (r, emitted) = with_partial!("foo bar 42", false, |inp| {
+    inp
+      .sync_to(|t| matches!(t.data(), PTok::Num), || None)
+      .map(|s| s.is_some())
+  });
+  assert_eq!(r, Err(PErr::Incomplete(10)));
+  assert_eq!(
+    emitted, 2,
+    "the mid-buffer skipped words are diagnosed as they settle (emit-as-you-go, exactly \
+     as complete mode); only the frontier item itself is withheld"
+  );
+  // Final: syncs to the number, diagnosing the two skipped words — complete-identical.
+  let (r, emitted) = with_partial!("foo bar 42", true, |inp| {
+    inp
+      .sync_to(|t| matches!(t.data(), PTok::Num), || None)
+      .map(|s| s.is_some())
+  });
+  assert_eq!(r, Ok(true));
+  assert_eq!(
+    emitted, 2,
+    "each skipped token is diagnosed, as in complete mode"
+  );
+}
+
+#[test]
+fn sync_through_partial_matrix() {
+  let (r, _) = with_partial!("foo bar 42", false, |inp| {
+    inp
+      .sync_through(|t| matches!(t.data(), PTok::Num), || None)
+      .map(|s| s.map(|t| t.data().kind()))
+  });
+  assert_eq!(r, Err(PErr::Incomplete(10)));
+  let (r, emitted) = with_partial!("foo bar 42", true, |inp| {
+    inp
+      .sync_through(|t| matches!(t.data(), PTok::Num), || None)
+      .map(|s| s.map(|t| t.data().kind()))
+  });
+  assert_eq!(
+    r,
+    Ok(Some(PKind::Num)),
+    "through-sync consumes the sync token"
+  );
+  assert_eq!(emitted, 2);
+}
+
+#[test]
+fn sync_balanced_partial_matrix() {
+  use crate::input::Balance;
+  // Non-final: same conservatism through the balanced scanner.
+  let (r, _) = with_partial!("foo bar 42", false, |inp| {
+    inp
+      .sync_balanced(
+        |_k: &PKind| Balance::<char>::Neutral,
+        |t| matches!(t.data(), PTok::Num),
+      )
+      .map(|h| h.is_some())
+  });
+  assert_eq!(r, Err(PErr::Incomplete(10)));
+  // Final: the hole over the skipped words is produced, with no per-token diagnostics.
+  let (r, _) = with_partial!("foo bar 42", true, |inp| {
+    inp
+      .sync_balanced(
+        |_k: &PKind| Balance::<char>::Neutral,
+        |t| matches!(t.data(), PTok::Num),
+      )
+      .map(|h| h.is_some())
+  });
+  assert_eq!(r, Ok(true));
+}
+
+#[test]
+fn fold_partial_matrix() {
+  // Non-final: the last folded word touches the end — the fold is not finishable.
+  let (r, _) = with_partial!("foo bar baz", false, |inp| {
+    inp.fold(|t| matches!(t.data(), PTok::Word), || 0usize, |n, _| n + 1)
+  });
+  assert_eq!(r, Err(PErr::Incomplete(11)));
+  // Final: all three words fold — complete-identical.
+  let (r, _) = with_partial!("foo bar baz", true, |inp| {
+    inp.fold(|t| matches!(t.data(), PTok::Word), || 0usize, |n, _| n + 1)
+  });
+  assert_eq!(r, Ok(3));
+}
+
+#[test]
+fn foldn_stops_mid_buffer_without_incomplete() {
+  // `foldn(2)` consumes exactly the two MID-BUFFER words and never reaches the frontier
+  // token, so even a non-final run completes: the frontier rules hold back only what the
+  // drive actually touches.
+  let (r, _) = with_partial!("foo bar baz", false, |inp| {
+    inp.foldn(|| 0usize, |n, _| n + 1, 2)
+  });
+  assert_eq!(r, Ok(2));
+}
+
+#[test]
+fn consume_cached_never_surfaces_incomplete() {
+  // `consume_cached_*` never lexes (bound-only generalization, no `SurfaceIncomplete`):
+  // it pops what peeking already cached, and the peek fill never caches a frontier token,
+  // so the mid-buffer word is consumable and the frontier word simply is not there.
+  let (r, emitted) = with_partial!("foo bar", false, |inp| {
+    let peeked = inp
+      .peek_one()
+      .expect("the partial peek never errs — a short window, not an error")
+      .is_some();
+    let first = inp.consume_cached_one().map(|t| t.data().kind());
+    let second = inp.consume_cached_one().map(|t| t.data().kind());
+    (peeked, first, second)
+  });
+  assert_eq!(r, (true, Some(PKind::Word), None));
+  assert_eq!(emitted, 0);
+}
+
+#[test]
+fn try_expect_poison_at_frontier_beats_incomplete() {
+  // Terminal beats incomplete THROUGH the generalized driver: "a b c" behind a 2-word
+  // limiter, non-final — the tripping third word ends exactly at the buffer end, and the
+  // trip must fire as `Limit` (diagnostic + latch), never be re-raised as `Incomplete`.
+  let tracker = LimitTracker::with_limit(2);
+  let mut input = Input::<LimLex<'_>, LimCtx<'_>, (), Partial>::with_state_and_cache(
+    "a b c",
+    tracker,
+    DefaultCache::<'_, LimLex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  let (results, poisoned) = {
+    let mut inp = input.as_ref(&mut emitter);
+    let a = inp.try_expect(|_| true).map(|t| t.is_some());
+    let b = inp.try_expect(|_| true).map(|t| t.is_some());
+    let c = inp.try_expect(|_| true).map(|t| t.is_some());
+    ((a, b, c), inp.is_poisoned())
+  };
+  assert_eq!(results.0, Ok(true));
+  assert_eq!(results.1, Ok(true));
+  // Under the collecting emitter the trip's diagnostic is EMITTED (not returned), the
+  // poison boundary latches, and the drive reads the terminal stop — a decline at the
+  // boundary, exactly as the `next()`-driven twin above — and NEVER `Incomplete`.
+  assert_eq!(
+    results.2,
+    Ok(false),
+    "the frontier-aligned trip is a terminal stop, never re-raised as incomplete"
+  );
+  assert!(poisoned, "the poison boundary latched at the trip");
+  assert_eq!(
+    limit_diags(&emitter),
+    1,
+    "the trip was diagnosed exactly once"
+  );
+}
+
+// ── §8.3: the combinator Lego under both modes (the T6 chain oracle) ─────────────────
+//
+// ONE `Cmpl`-generic CHAIN — free leaf atom → adapter → try-driven collection — assembled
+// once and driven under Complete AND Partial-chunked to equivalence. This is the test the
+// probe could not run: it needs the whole atoms wave (threaded builder returns, A-class
+// leaf impls, B-class collection impls) to compose.
+
+/// The write-once Lego chain, assembled INSIDE one `Cmpl`-generic fn (the corpus's
+/// parser-fn shape) and driven under both modes: `expect(word) → map(kind) → repeated →
+/// collect -> map`, crossing a leaf try-atom, the try-driven collection, and a
+/// threaded adapter — assembled once, driven in both modes.
+fn lego_chain<'inp, Ctx, Cmpl>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx, (), Cmpl>,
+) -> Result<std::vec::Vec<PKind>, PErr>
+where
+  Ctx: crate::ParseContext<'inp, Lex<'inp>>,
+  Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>
+    + crate::emitter::FullContainerEmitter<'inp, Lex<'inp>>,
+  Cmpl: SurfaceIncomplete<'inp, Lex<'inp>, Ctx, ()>,
+{
+  use crate::Accumulator as _;
+  try_word
+    .repeated()
+    .collect()
+    .map(|words: std::vec::Vec<PTok>| words.into_iter().map(|t| t.kind()).collect())
+    .parse_input(inp)
+}
+
+/// The chain's leaf: a `Cmpl`-generic try-atom over the scan chokepoint (the same
+/// decline-channel shape as the crate's `Ident::try_parse_of` leaf).
+fn try_word<'inp, Ctx, Cmpl>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx, (), Cmpl>,
+) -> Result<crate::try_parse_input::ParseAttempt<PTok>, PErr>
+where
+  Ctx: crate::ParseContext<'inp, Lex<'inp>>,
+  Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>,
+  Cmpl: SurfaceIncomplete<'inp, Lex<'inp>, Ctx, ()>,
+{
+  Ok(
+    inp
+      .try_expect(|t| matches!(t.data(), PTok::Word))?
+      .map(|s| s.into_data())
+      .into(),
+  )
+}
+
+#[test]
+fn lego_chain_runs_both_modes_to_equivalence() {
+  // Complete drive of the assembled chain.
+  let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+  let complete: std::vec::Vec<PKind> = Parser::with_context(ctx)
+    .apply(lego_chain)
+    .parse_str("foo bar baz")
+    .expect("the Complete drive of the chain succeeds");
+  assert_eq!(complete, std::vec![PKind::Word; 3]);
+
+  // Partial-chunked drive of the SAME chain fn, over the probe's cut shape and then a
+  // full deterministic sweep.
+  let mut buffer = std::string::String::new();
+  let mut incompletes = 0;
+  let chunks = ["foo b", "ar ", "baz"];
+  let mut parsed = None;
+  for (i, chunk) in chunks.iter().enumerate() {
+    buffer.push_str(chunk);
+    let is_final = i + 1 == chunks.len();
+    let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+    match parse_partial(ctx, buffer.as_str(), (), is_final, lego_chain) {
+      Ok(kinds) => {
+        parsed = Some(kinds);
+        break;
+      }
+      Err(e) if e.is_incomplete() => incompletes += 1,
+      Err(e) => panic!("a real parse error: {e:?}"),
+    }
+  }
+  assert_eq!(
+    parsed.as_ref(),
+    Some(&complete),
+    "one chain, two modes, one answer"
+  );
+  assert_eq!(incompletes, 2);
+
+  let corpus = "foo bar baz qux";
+  for cut in 1..corpus.len() {
+    let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+    let round1 = parse_partial(ctx, &corpus[..cut], (), false, lego_chain);
+    assert!(
+      matches!(&round1, Err(e) if e.is_incomplete()),
+      "a non-final prefix of a drain-all chain is Incomplete at cut {cut}"
+    );
+    let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+    let sealed =
+      parse_partial(ctx, corpus, (), true, lego_chain).expect("the sealed drive completes");
+    assert_eq!(
+      sealed,
+      std::vec![PKind::Word; 4],
+      "chunked equivalence at cut {cut}"
+    );
+  }
+}
+
+#[test]
+fn lego_chain_shape_at_a_partial_drive_is_annotation_free() {
+  // The T5 pin at crate level: the SAME chain shape spelled inline against a CONCRETE
+  // `Partial` handle — no `Cmpl` annotation and no turbofish anywhere in the chain.
+  use crate::Accumulator as _;
+  fn drive<'inp, Ctx>(
+    inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx, (), Partial>,
+  ) -> Result<std::vec::Vec<PKind>, PErr>
+  where
+    Ctx: crate::ParseContext<'inp, Lex<'inp>>,
+    Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>
+      + crate::emitter::FullContainerEmitter<'inp, Lex<'inp>>,
+  {
+    try_word
+      .repeated()
+      .collect()
+      .map(|words: std::vec::Vec<PTok>| words.into_iter().map(|t| t.kind()).collect())
+      .parse_input(inp)
+  }
+  let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+  let kinds =
+    parse_partial(ctx, "foo bar", (), true, drive).expect("the sealed partial drive completes");
+  assert_eq!(kinds, std::vec![PKind::Word; 2]);
+}
+
+// ── §8.4: the never-recoverable gate through the resilient collections ───────────────
+
+/// An element that CONSUMES a word and then requires a number: a missing number is a
+/// plain `Lex` error (the resilient arm's food), while a frontier-cut word surfaces
+/// `Incomplete` out of the scan (the gate's food).
+fn word_then_num<'inp, Ctx, Cmpl>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx, (), Cmpl>,
+) -> Result<crate::try_parse_input::ParseAttempt<PKind>, PErr>
+where
+  Ctx: crate::ParseContext<'inp, Lex<'inp>>,
+  Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>,
+  Cmpl: SurfaceIncomplete<'inp, Lex<'inp>, Ctx, ()>,
+{
+  use crate::try_parse_input::{Accept, Decline};
+  match inp.try_expect(|t| matches!(t.data(), PTok::Word))? {
+    None => Ok(Decline),
+    Some(_) => match inp.try_expect(|t| matches!(t.data(), PTok::Num))? {
+      Some(_) => Ok(Accept(PKind::Word)),
+      None => Err(PErr::Lex),
+    },
+  }
+}
+
+#[test]
+fn gate_propagates_frontier_incomplete_out_of_repeated() {
+  use crate::Accumulator as _;
+  // Non-final: element 1 completes mid-buffer; element 2's word is cut at the frontier.
+  // The collection loop's resilient arm must NOT spend that `Incomplete` as a diagnostic
+  // — the gate re-raises it, the loop stops, and the emitter log is untouched.
+  let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_cache(
+    "foo 1 ba",
+    (),
+    DefaultCache::<'_, Lex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  let out: Result<std::vec::Vec<PKind>, PErr> = {
+    let mut inp = input.as_ref(&mut emitter);
+    word_then_num.repeated().collect().parse_input(&mut inp)
+  };
+  assert_eq!(
+    out,
+    Err(PErr::Incomplete(8)),
+    "the frontier incomplete PROPAGATES"
+  );
+  let emitted: usize = emitter.errors().values().map(|g| g.len()).sum();
+  assert_eq!(emitted, 0, "no emit-and-continue: the log is clean");
+}
+
+#[test]
+fn gate_is_inert_when_final_and_matches_complete() {
+  use crate::Accumulator as _;
+  // The same input sealed: the missing number after "bar" is a genuine error and the
+  // resilient arm emits-and-continues — byte-for-byte the Complete-mode outcome.
+  fn drive_partial_final(src: &str) -> (Result<std::vec::Vec<PKind>, PErr>, usize) {
+    let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_cache(
+      src,
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    input.seal();
+    let mut emitter = Verbose::<PErr>::new();
+    let out = {
+      let mut inp = input.as_ref(&mut emitter);
+      word_then_num.repeated().collect().parse_input(&mut inp)
+    };
+    (out, emitter.errors().values().map(|g| g.len()).sum())
+  }
+  fn drive_complete(src: &str) -> (Result<std::vec::Vec<PKind>, PErr>, usize) {
+    let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+      src,
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    let mut emitter = Verbose::<PErr>::new();
+    let out = {
+      let mut inp = input.as_ref(&mut emitter);
+      word_then_num.repeated().collect().parse_input(&mut inp)
+    };
+    (out, emitter.errors().values().map(|g| g.len()).sum())
+  }
+  let sealed = drive_partial_final("foo 1 bar");
+  let complete = drive_complete("foo 1 bar");
+  assert_eq!(
+    sealed, complete,
+    "final-mode resilience is Complete-identical"
+  );
+  assert_eq!(
+    sealed.0,
+    Ok(std::vec![PKind::Word]),
+    "one full element collected"
+  );
+  assert_eq!(
+    sealed.1, 1,
+    "the missing number was diagnosed resiliently, once"
   );
 }
