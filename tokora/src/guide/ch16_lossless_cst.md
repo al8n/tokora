@@ -42,7 +42,7 @@ names both:
 
 ```toml
 [dependencies]
-tokora = { version = "0.2", features = ["logos", "rowan"] }
+tokora = { version = "0.3", features = ["logos", "rowan"] }
 rowan = "0.16"
 ```
 
