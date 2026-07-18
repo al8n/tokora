@@ -24,7 +24,10 @@
 
 use core::fmt::Debug;
 
-use crate::{Emitter, Lexer, ParseContext, error::Incomplete};
+use crate::{
+  Emitter, Lexer, ParseContext,
+  error::{Incomplete, MaybeIncomplete},
+};
 
 pub(crate) mod sealed {
   /// Seals [`Completeness`](super::Completeness): only [`Complete`](super::Complete) and
@@ -181,6 +184,23 @@ where
   /// Builds the emitter's error as an [`Incomplete`] at `offset` — the offset the input ran out
   /// at (the frontier). Called only in partial, non-final mode.
   fn surface_incomplete(offset: L::Offset) -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error;
+
+  /// Whether `err` is the partial-input [`Incomplete`] sentinel.
+  ///
+  /// The error-*interrogation* twin of [`surface_incomplete`](Self::surface_incomplete)'s
+  /// error-*construction*: the resilient collection loops (the `repeated`/`separated`
+  /// families) swallow an element parser's `Err` by design — emit a diagnostic, keep
+  /// looping. Under [`Partial`] non-final mode that `Err` can be the frontier `Incomplete`,
+  /// and spending an unfinished construct as a malformed one would violate the
+  /// never-recoverable law and break chunked equivalence. Their loop bodies therefore gate
+  /// on this method FIRST and re-raise the incomplete untouched.
+  ///
+  /// - A constant, bound-free `false` for [`Complete`] — the check const-folds away and the
+  ///   complete path stays exactly as compiled before.
+  /// - Routed through [`MaybeIncomplete`] for [`Partial`], whose implementation bound grows
+  ///   `+ MaybeIncomplete` beside the existing `From<Incomplete<L::Offset>>` (a correct
+  ///   refill loop already needed [`MaybeIncomplete::is_incomplete`] to detect refill).
+  fn is_incomplete_error(err: &<Ctx::Emitter as Emitter<'inp, L, Lang>>::Error) -> bool;
 }
 
 impl<'inp, L, Ctx, Lang: ?Sized> SurfaceIncomplete<'inp, L, Ctx, Lang> for Complete
@@ -195,16 +215,30 @@ where
     // an unconditional (bound-free) impl is what keeps `From<Incomplete>` off the complete path.
     unreachable!("Complete-mode input never surfaces Incomplete (PARTIAL == false)")
   }
+
+  #[inline(always)]
+  fn is_incomplete_error(_err: &<Ctx::Emitter as Emitter<'inp, L, Lang>>::Error) -> bool {
+    // Constant and bound-free: a complete input never constructs an incomplete, so no error can
+    // be one. The atom-layer gates written `if Cmpl::is_incomplete_error(&err)` const-fold to
+    // `if false` here — the complete path keeps its exact pre-0.3.0 codegen and picks up no
+    // `MaybeIncomplete` bound.
+    false
+  }
 }
 
 impl<'inp, L, Ctx, Lang: ?Sized> SurfaceIncomplete<'inp, L, Ctx, Lang> for Partial
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
-  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<Incomplete<L::Offset>>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<Incomplete<L::Offset>> + MaybeIncomplete,
 {
   #[inline(always)]
   fn surface_incomplete(offset: L::Offset) -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error {
     Incomplete::new(offset).into()
+  }
+
+  #[inline(always)]
+  fn is_incomplete_error(err: &<Ctx::Emitter as Emitter<'inp, L, Lang>>::Error) -> bool {
+    err.is_incomplete()
   }
 }

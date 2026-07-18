@@ -16,11 +16,11 @@ use core::cell::Cell;
 use std::rc::Rc;
 
 use crate::{
-  InputRef, Token,
+  InputRef, Parse, Parser, Token,
   cache::DefaultCache,
   emitter::{Fatal, Verbose},
   error::{Incomplete, MaybeIncomplete, token::UnexpectedToken},
-  input::{Complete, Input, Partial, parse_partial},
+  input::{Complete, Input, Partial, SurfaceIncomplete, parse_partial},
   lexer::LogosLexer,
   state::State,
 };
@@ -1109,4 +1109,154 @@ fn the_seal_is_monotone() {
     input.as_ref(&mut emitter).is_final(),
     "sealing an already-sealed stream is a no-op, never a toggle"
   );
+}
+
+// ── Write once, run in both modes (0.3.0 §8.1/§8.2) ─────────────────────────────────
+//
+// ONE parser fn, generic over the completeness typestate, drives green under BOTH the
+// complete combinator driver (`Parser…parse_str`, `Cmpl = Complete`) and the Sans-I/O
+// partial driver (`parse_partial`, `Cmpl = Partial`) — the release's point, at runtime.
+
+/// The write-once parser: collects every token kind to end of input under a
+/// rollback-on-drop transaction. Generic over `Cmpl`; each drive site instantiates it.
+fn kinds_generic<'inp, Cmpl>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, PartialCtx<'inp>, (), Cmpl>,
+) -> Result<std::vec::Vec<PKind>, PErr>
+where
+  Cmpl: SurfaceIncomplete<'inp, Lex<'inp>, PartialCtx<'inp>, ()>,
+{
+  let mut txn = inp.begin();
+  let mut kinds = std::vec::Vec::new();
+  while let Some(t) = txn.next()? {
+    kinds.push(t.data().kind());
+  }
+  txn.commit();
+  Ok(kinds)
+}
+
+/// Drives `kinds_generic` COMPLETE through the public combinator driver.
+fn drive_complete(src: &str) -> std::vec::Vec<PKind> {
+  let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+  Parser::with_context(ctx)
+    .apply(kinds_generic)
+    .parse_str(src)
+    .expect("complete drive of the write-once parser succeeds")
+}
+
+/// Drives `kinds_generic` PARTIAL through `parse_partial` over a chunked buffer,
+/// returning the parsed kinds and how many rounds surfaced `Incomplete` (refills).
+fn drive_partial_chunked(chunks: &[&str]) -> (std::vec::Vec<PKind>, usize) {
+  let mut buffer = std::string::String::new();
+  let mut incompletes = 0;
+  for (i, chunk) in chunks.iter().enumerate() {
+    buffer.push_str(chunk);
+    let is_final = i + 1 == chunks.len();
+    let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+    match parse_partial(ctx, buffer.as_str(), (), is_final, kinds_generic) {
+      Ok(kinds) => return (kinds, incompletes),
+      Err(e) if e.is_incomplete() => incompletes += 1,
+      Err(e) => panic!("a real parse error: {e:?}"),
+    }
+  }
+  panic!("the final chunk must complete the parse");
+}
+
+#[test]
+fn write_once_runs_both_modes() {
+  // The probe's exact §10.3 shape: ["foo b", "ar ", "baz"] — the first two non-final
+  // rounds each cut a token at the frontier, the sealed round parses the whole sentence.
+  let complete = drive_complete("foo bar baz");
+  let (partial, incompletes) = drive_partial_chunked(&["foo b", "ar ", "baz"]);
+  assert_eq!(complete, std::vec![PKind::Word, PKind::Word, PKind::Word]);
+  assert_eq!(partial, complete, "one parser fn, two modes, one answer");
+  assert_eq!(
+    incompletes, 2,
+    "each non-final chunk surfaced exactly one Incomplete"
+  );
+}
+
+#[test]
+fn write_once_chunk_sweep_equivalence() {
+  // §8.2 as a deterministic sweep (the fuzz oracle's "chunked prefixes" shape): for EVERY
+  // cut point of the corpus, the two-chunk partial drive must (1) surface Incomplete on
+  // the non-final round — this parser drains to end of input, and rule 3 makes a
+  // non-final end Incomplete — and (2) end with output identical to the complete drive.
+  let corpus = "alpha beta42 gamma 7delta epsilon";
+  let oracle = drive_complete(corpus);
+  for cut in 1..corpus.len() {
+    let (kinds, incompletes) = drive_partial_chunked(&[&corpus[..cut], &corpus[cut..]]);
+    assert_eq!(
+      kinds, oracle,
+      "chunked equivalence must hold at cut point {cut}"
+    );
+    assert_eq!(
+      incompletes, 1,
+      "the non-final round at cut {cut} surfaces exactly one Incomplete"
+    );
+  }
+}
+
+#[test]
+fn typed_local_fn_at_parse_partial() {
+  // The concrete-`Partial` doctest pattern (a typed local fn, not a generic one) stays
+  // the supported spelling under the trait bound.
+  fn local<'inp>(
+    inp: &mut InputRef<'inp, '_, Lex<'inp>, PartialCtx<'inp>, (), Partial>,
+  ) -> Result<usize, PErr> {
+    let mut txn = inp.begin();
+    let mut n = 0;
+    while txn.next()?.is_some() {
+      n += 1;
+    }
+    txn.commit();
+    Ok(n)
+  }
+  let ctx: PartialCtx<'_> = (Verbose::new(), DefaultCache::<'_, Lex<'_>>::default());
+  assert_eq!(parse_partial(ctx, "foo bar", (), true, local), Ok(2));
+}
+
+// ── The §4 gate mechanism: `SurfaceIncomplete::is_incomplete_error` ──────────────────
+
+#[test]
+fn is_incomplete_error_constant_false_at_complete() {
+  // Complete's arm is a constant, bound-free `false` — even for an error value that
+  // *would* read incomplete: a complete input never constructs one, so the atom-layer
+  // gate `if Cmpl::is_incomplete_error(&err)` const-folds away on the complete path.
+  assert!(!<Complete as SurfaceIncomplete<
+    '_,
+    Lex<'_>,
+    PartialCtx<'_>,
+    (),
+  >>::is_incomplete_error(&PErr::Incomplete(0)));
+  assert!(!<Complete as SurfaceIncomplete<
+    '_,
+    Lex<'_>,
+    PartialCtx<'_>,
+    (),
+  >>::is_incomplete_error(&PErr::Lex));
+}
+
+#[test]
+fn is_incomplete_error_routes_through_maybe_incomplete_at_partial() {
+  // Partial routes through `MaybeIncomplete`: exactly the incomplete sentinel reads true;
+  // a plain error and a terminal limit trip both read false (terminal outranks incomplete
+  // and must never be re-raised as one).
+  assert!(<Partial as SurfaceIncomplete<
+    '_,
+    Lex<'_>,
+    PartialCtx<'_>,
+    (),
+  >>::is_incomplete_error(&PErr::Incomplete(3)));
+  assert!(!<Partial as SurfaceIncomplete<
+    '_,
+    Lex<'_>,
+    PartialCtx<'_>,
+    (),
+  >>::is_incomplete_error(&PErr::Lex));
+  assert!(!<Partial as SurfaceIncomplete<
+    '_,
+    Lex<'_>,
+    PartialCtx<'_>,
+    (),
+  >>::is_incomplete_error(&PErr::Limit));
 }
