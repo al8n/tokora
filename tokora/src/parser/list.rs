@@ -61,6 +61,10 @@ pub type ListOf<'inp, L, Ctx, Lang, T> = Result<Vec<T>, ErrorOf<'inp, L, Ctx, La
 /// while a collecting emitter records them and the parse returns the items gathered so
 /// far.
 ///
+/// `item` may be any [`ParseInput`] — a closure or a named parser alike — and the
+/// returned closure is itself a `ParseInput` through the blanket impl; `peek` is a
+/// predicate, not a parser, and stays a plain closure.
+///
 /// # Examples
 ///
 /// ```rust
@@ -145,11 +149,12 @@ where
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
   Sep: Punctuator<'inp, L, Lang>,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   Peek: FnMut(&L::Token) -> bool,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
-    (&mut item)
+    item
+      .by_ref()
       .separated_while::<Sep, _, U1>(WhileNext(&mut peek))
       .allow_leading()
       .at_least(1)
@@ -166,6 +171,10 @@ where
 /// parses another `item`. There is no separator and no lower bound — an input that
 /// stops at once yields an empty `Vec` — so the only error surfaced is one an `item`
 /// itself propagates.
+///
+/// `item` may be any [`ParseInput`] — a closure or a named parser alike — and the
+/// returned closure is itself a `ParseInput` through the blanket impl; `until` is a
+/// predicate, not a parser, and stays a plain closure.
 ///
 /// # Examples
 ///
@@ -250,11 +259,12 @@ where
   L: Lexer<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   Until: FnMut(&L::Token) -> bool,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang>| {
-    (&mut item)
+    item
+      .by_ref()
       .repeated_while::<_, U1>(WhileNext(|tok: &L::Token| !until(tok)))
       .collect()
       .parse_input(inp)

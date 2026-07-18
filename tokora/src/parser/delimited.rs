@@ -4,9 +4,11 @@
 //! [`delimited`] is the generic form, taking the [`Delimiter`](crate::delimiter::Delimiter)
 //! pair as a type parameter through the [`TypedDelimiter`] capability; [`parens`],
 //! [`braces`], [`brackets`], and [`angles`] are the named conveniences fixing that pair
-//! to a built-in. Each returns a builder-form parser — a `for<'c> FnMut(&mut InputRef<…>)`
-//! closure — so it composes over every lexer, source, and emitter, and drops straight
-//! into another combinator with no adapter.
+//! to a built-in. Each takes its inner sub-parser as any [`ParseInput`] — a closure, a fn
+//! item, or a named implementor — and returns a builder-form parser — a
+//! `for<'c> FnMut(&mut InputRef<…>)` closure, itself a `ParseInput` through the blanket
+//! impl — so it composes over every lexer, source, and emitter, and drops straight into
+//! another combinator with no adapter.
 //!
 //! A missing closer is a hard error: the closer's unexpected-token or end-of-input error
 //! propagates rather than fabricating a delimiter, so an unterminated group fails under a
@@ -23,7 +25,7 @@
 //! opener alone, never the whole shape — see [`try_delimited`] for why.
 
 use crate::{
-  ErrorOf, Lexer, ParseCtx, Token,
+  ErrorOf, Lexer, ParseCtx, ParseInput, Token,
   delimiter::TypedDelimiter,
   error::{UnexpectedEot, token::UnexpectedToken},
   input::{Cursor, InputRef},
@@ -64,6 +66,10 @@ pub type DelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// `inner` runs between the committed delimiters and its output becomes the [`Delimited`]
 /// data. A missing closer is not recovered: the closer's error — an unexpected token or end
 /// of input — propagates, so an unterminated group fails rather than fabricating a delimiter.
+///
+/// `inner` may be any [`ParseInput`](crate::ParseInput) — a closure or a named parser alike
+/// — and the returned closure is itself a `ParseInput` through the blanket impl, so shapes
+/// nest and compose without adapters.
 ///
 /// # Examples
 ///
@@ -175,7 +181,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -205,13 +211,11 @@ where
   L: Lexer<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'cc> FnMut(
-    &mut InputRef<'inp, 'cc, L, Ctx, Lang>,
-  ) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  let data = inner(inp)?;
+  let data = inner.parse_input(inp)?;
   let close_span = match inp.next()? {
     Some(sp) if D::is_close(&sp.data().kind()) => sp.into_span(),
     Some(sp) => return Err(D::unexpected_close_token(sp).into()),
@@ -252,6 +256,9 @@ pub type TryDelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// an unclosed-delimiter error into a decline — for a generics-like grammar, `Ident<` at
 /// end of input must error as unclosed rather than silently decline and reparse. The
 /// attempt boundary is the opener alone.
+///
+/// `inner` may be any [`ParseInput`](crate::ParseInput); the returned closure is itself
+/// a `ParseInput` (yielding the `Option`) through the blanket impl.
 ///
 /// # Examples
 ///
@@ -349,7 +356,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -382,6 +389,10 @@ pub type ParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// [`Delimited`] data. A missing closer is not recovered: the closer atom's error
 /// — an unexpected token or end of input — propagates, so an unterminated `( …`
 /// fails rather than fabricating a paren.
+///
+/// `inner` may be any [`ParseInput`](crate::ParseInput) — a closure or a named parser alike
+/// — and the returned closure is itself a `ParseInput` through the blanket impl, so shapes
+/// nest and compose without adapters.
 ///
 /// # Examples
 ///
@@ -469,7 +480,7 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -495,13 +506,11 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'cc> FnMut(
-    &mut InputRef<'inp, 'cc, L, Ctx, Lang>,
-  ) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  let data = inner(inp)?;
+  let data = inner.parse_input(inp)?;
   let close = CloseParen::parse_of(inp)?;
   Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
 }
@@ -529,6 +538,9 @@ pub type TryParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// `inner`'s errors and the missing/wrong `)` closer's errors propagate exactly as
 /// [`parens`]' do, so an unterminated `( …` is an error, never a silent decline (see
 /// [`try_delimited`] for why the attempt boundary is the opener alone).
+///
+/// `inner` may be any [`ParseInput`](crate::ParseInput); the returned closure is itself
+/// a `ParseInput` (yielding the `Option`) through the blanket impl.
 ///
 /// # Examples
 ///
@@ -619,7 +631,7 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -651,6 +663,10 @@ pub type BracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// [`Delimited`] data. A missing closer is not recovered: the closer atom's error
 /// — an unexpected token or end of input — propagates, so an unterminated `{ …`
 /// fails rather than fabricating a brace.
+///
+/// `inner` may be any [`ParseInput`](crate::ParseInput) — a closure or a named parser alike
+/// — and the returned closure is itself a `ParseInput` through the blanket impl, so shapes
+/// nest and compose without adapters.
 ///
 /// # Examples
 ///
@@ -738,7 +754,7 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -764,13 +780,11 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'cc> FnMut(
-    &mut InputRef<'inp, 'cc, L, Ctx, Lang>,
-  ) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  let data = inner(inp)?;
+  let data = inner.parse_input(inp)?;
   let close = CloseBrace::parse_of(inp)?;
   Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
 }
@@ -798,6 +812,9 @@ pub type TryBracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// `inner`'s errors and the missing/wrong `}` closer's errors propagate exactly as
 /// [`braces`]' do, so an unterminated `{ …` is an error, never a silent decline (see
 /// [`try_delimited`] for why the attempt boundary is the opener alone).
+///
+/// `inner` may be any [`ParseInput`](crate::ParseInput); the returned closure is itself
+/// a `ParseInput` (yielding the `Option`) through the blanket impl.
 ///
 /// # Examples
 ///
@@ -888,7 +905,7 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -921,6 +938,10 @@ pub type BracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// [`Delimited`] data. A missing closer is not recovered: the closer atom's error
 /// — an unexpected token or end of input — propagates, so an unterminated `[ …`
 /// fails rather than fabricating a bracket.
+///
+/// `inner` may be any [`ParseInput`](crate::ParseInput) — a closure or a named parser alike
+/// — and the returned closure is itself a `ParseInput` through the blanket impl, so shapes
+/// nest and compose without adapters.
 ///
 /// # Examples
 ///
@@ -1008,7 +1029,7 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -1034,13 +1055,11 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'cc> FnMut(
-    &mut InputRef<'inp, 'cc, L, Ctx, Lang>,
-  ) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  let data = inner(inp)?;
+  let data = inner.parse_input(inp)?;
   let close = CloseBracket::parse_of(inp)?;
   Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
 }
@@ -1068,6 +1087,9 @@ pub type TryBracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// `inner`'s errors and the missing/wrong `]` closer's errors propagate exactly as
 /// [`brackets`]' do, so an unterminated `[ …` is an error, never a silent decline (see
 /// [`try_delimited`] for why the attempt boundary is the opener alone).
+///
+/// `inner` may be any [`ParseInput`](crate::ParseInput); the returned closure is itself
+/// a `ParseInput` (yielding the `Option`) through the blanket impl.
 ///
 /// # Examples
 ///
@@ -1158,7 +1180,7 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -1190,6 +1212,10 @@ pub type AnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// [`Delimited`] data. A missing closer is not recovered: the closer atom's error
 /// — an unexpected token or end of input — propagates, so an unterminated `< …`
 /// fails rather than fabricating an angle.
+///
+/// `inner` may be any [`ParseInput`](crate::ParseInput) — a closure or a named parser alike
+/// — and the returned closure is itself a `ParseInput` through the blanket impl, so shapes
+/// nest and compose without adapters.
 ///
 /// # Examples
 ///
@@ -1277,7 +1303,7 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
@@ -1303,13 +1329,11 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'cc> FnMut(
-    &mut InputRef<'inp, 'cc, L, Ctx, Lang>,
-  ) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
-  let data = inner(inp)?;
+  let data = inner.parse_input(inp)?;
   let close = CloseAngle::parse_of(inp)?;
   Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
 }
@@ -1337,6 +1361,9 @@ pub type TryAnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// `inner`'s errors and the missing/wrong `>` closer's errors propagate exactly as
 /// [`angles`]' do, so an unterminated `< …` is an error, never a silent decline (see
 /// [`try_delimited`] for why the attempt boundary is the opener alone).
+///
+/// `inner` may be any [`ParseInput`](crate::ParseInput); the returned closure is itself
+/// a `ParseInput` (yielding the `Option`) through the blanket impl.
 ///
 /// # Examples
 ///
@@ -1427,7 +1454,7 @@ where
   L::Token: PunctuatorToken<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
   Lang: ?Sized,
-  P: for<'c> FnMut(&mut InputRef<'inp, 'c, L, Ctx, Lang>) -> Result<T, ErrorOf<'inp, L, Ctx, Lang>>,
+  P: ParseInput<'inp, L, T, Ctx, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
 {
