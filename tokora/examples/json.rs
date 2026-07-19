@@ -16,11 +16,11 @@ use tokora::{
   Token as TokenT, TryParseInput,
   cache::Peeked,
   emitter::{
-    FullContainerEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
+    FullContainerEmitter, SeparatedEmitter, UnclosedEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    UnexpectedEot,
+    Unclosed, UnexpectedEot,
     syntax::{FullContainer, MissingSyntaxOf},
     token::{MissingTokenOf, SeparatedErrorOf, UnexpectedToken, UnexpectedTokenOf},
   },
@@ -68,6 +68,10 @@ enum JsonError<'a> {
   Separator(SeparatedErrorOf<'a, JsonLexer<'a>>),
   UnexpectedToken(UnexpectedTokenOf<'a, JsonLexer<'a>>),
   FullContainer(FullContainer),
+  // The migration arm: a delimited many-builder (`.delimited::<D>()`) now reports an
+  // unterminated list through the emitter as `Unclosed`, so a consuming error must absorb
+  // it. The delimiter identity rides the carried name; the type tag is the erased `()`.
+  Unclosed(Unclosed<()>),
   Eot(UnexpectedEot),
   Other(&'a str),
 }
@@ -106,6 +110,7 @@ impl core::fmt::Debug for JsonError<'_> {
       Self::MissingSeparator(err) => err.debug_fmt(f),
       Self::MissingElement(err) => write!(f, "{err:?}"),
       Self::FullContainer(err) => write!(f, "{err:?}"),
+      Self::Unclosed(err) => write!(f, "{err:?}"),
       Self::Other(msg) => write!(f, "{}", msg),
     }
   }
@@ -124,6 +129,9 @@ impl core::fmt::Display for JsonError<'_> {
       Self::MissingSeparator(err) => err.display_fmt(f),
       Self::MissingElement(err) => write!(f, "{err}"),
       Self::FullContainer(err) => write!(f, "{err}"),
+      // `Unclosed<()>` is not `Display` (its `()` tag is not), so format from the carried
+      // name — the delimiter that was opened but never closed.
+      Self::Unclosed(err) => write!(f, "unclosed delimiter {}", err.name_ref()),
       Self::Other(msg) => write!(f, "{}", msg),
     }
   }
@@ -449,6 +457,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: SeparatedEmitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>
     + FullContainerEmitter<'inp, JsonLexer<'inp>>
+    + UnclosedEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, JsonLexer<'inp>>,
 {
@@ -466,6 +475,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: SeparatedEmitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>
     + FullContainerEmitter<'inp, JsonLexer<'inp>>
+    + UnclosedEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, JsonLexer<'inp>>,
 {
@@ -482,6 +492,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: SeparatedEmitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>
     + FullContainerEmitter<'inp, JsonLexer<'inp>>
+    + UnclosedEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, JsonLexer<'inp>>,
 {
@@ -499,6 +510,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: SeparatedEmitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>
     + FullContainerEmitter<'inp, JsonLexer<'inp>>
+    + UnclosedEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, JsonLexer<'inp>>,
 {
@@ -543,6 +555,7 @@ where
   Ctx: ParseContext<'inp, JsonLexer<'inp>>,
   Ctx::Emitter: SeparatedEmitter<'inp, JsonLexer<'inp>, Error = JsonError<'inp>>
     + FullContainerEmitter<'inp, JsonLexer<'inp>>
+    + UnclosedEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, JsonLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, JsonLexer<'inp>>,
 {

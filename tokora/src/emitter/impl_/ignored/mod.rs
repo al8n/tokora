@@ -9,6 +9,7 @@ mod pratt;
 mod separator;
 mod too_few;
 mod too_many;
+mod unclosed;
 mod unexpected_leading_separator;
 mod unexpected_trailing_separator;
 

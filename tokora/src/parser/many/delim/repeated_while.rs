@@ -1,8 +1,10 @@
 use core::mem;
 
 use crate::{
-  container::Container as ContainerT, delimiter::Delimiter, emitter::FullContainerEmitter,
-  error::syntax::FullContainer,
+  container::Container as ContainerT,
+  delimiter::Delimiter,
+  emitter::{FullContainerEmitter, UnclosedEmitter},
+  error::{Unclosed, syntax::FullContainer},
 };
 
 use super::*;
@@ -34,8 +36,9 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
     Ctx: ParseContext<'inp, L, Lang>,
-    Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+    Ctx::Emitter: FullContainerEmitter<'inp, L, Lang> + UnclosedEmitter<'inp, L, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
@@ -55,6 +58,9 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       }
     })?;
 
+    // The opener's span, captured iff an opener is actually committed. It is the anchor of
+    // the `Unclosed` diagnostic below: no opener, no unclosed.
+    let mut open_span: Option<L::Span> = None;
     match left_delimiter {
       None if inp.is_eoi() => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
@@ -64,6 +70,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
         inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
       }
       Some(open) => {
+        open_span = Some(open.span_ref().clone());
         container.on_open_delimiter(open);
       }
     }
@@ -90,8 +97,19 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
           match self.parser.condition.decide(peeked, emitter)? {
             // missing ending delimiter
             Action::Stop => {
-              if let Some(err) = err {
-                inp.emitter().emit_unexpected_token(err)?;
+              match err {
+                // (b) a wrong token sits where the closer should: unexpected-token,
+                // expected-close (the existing vocabulary).
+                Some(err) => inp.emitter().emit_unexpected_token(err)?,
+                // (a) no token at all — end of input with the opener still open: the
+                // opener was never closed.
+                None => {
+                  if let Some(open_span) = open_span.clone() {
+                    inp
+                      .emitter()
+                      .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+                  }
+                }
               }
               return Ok(mem::take(container));
             }
@@ -137,7 +155,12 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
         inp.emitter().emit_unexpected_token(close_err.unwrap())?;
       }
       None => {
-        // EOI — no tokens left, no close delimiter
+        // EOI — no tokens left, no close delimiter: the opener was never closed.
+        if let Some(open_span) = open_span.clone() {
+          inp
+            .emitter()
+            .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+        }
       }
       Some(close) => {
         container.on_close_delimiter(close);

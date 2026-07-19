@@ -4,7 +4,8 @@ use crate::{
   TryParseInput,
   container::Container as ContainerT,
   delimiter::Delimiter,
-  emitter::{FullContainerEmitter, SeparatedEmitter},
+  emitter::{FullContainerEmitter, SeparatedEmitter, UnclosedEmitter},
+  error::Unclosed,
   punct::Punctuator,
   try_parse_input::{Accept, Decline},
 };
@@ -45,10 +46,13 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     Sep: Punctuator<'inp, L, Lang>,
     L: Lexer<'inp>,
     P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
-    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + FullContainerEmitter<'inp, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+      + FullContainerEmitter<'inp, L, Lang>
+      + UnclosedEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
     Container: DelimiterHandler<'inp, L> + SeparatorHandler<'inp, L> + ContainerT<O>,
     EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
@@ -72,6 +76,9 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
       }
     })?;
 
+    // The opener's span, captured iff an opener is actually committed. It is the anchor of
+    // the `Unclosed` diagnostic below: no opener, no unclosed.
+    let mut open_span: Option<L::Span> = None;
     match left_delimiter {
       None if inp.is_eoi() => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
@@ -81,6 +88,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
       }
       Some(open) => {
+        open_span = Some(open.span_ref().clone());
         container.on_open_delimiter(open);
       }
     }
@@ -91,7 +99,6 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
 
     let elems_start = inp.cursor().clone();
     let mut cursor = elems_start.clone();
-    let mut err = None;
     let (elems_span, right) = loop {
       let mut ps = None;
       let peek_span = match inp.try_expect_map(|t| {
@@ -102,7 +109,6 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
             true => Some(true),
             false => {
               ps = Some(t.span().clone());
-              err = Some(Delim::unexpected_close_token(t.cloned()));
               None
             }
           }
@@ -168,24 +174,33 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
       cursor = new_cursor;
     };
 
+    // A FRESH close-miss token, scanned here rather than carried out of the loop: the loop's
+    // last non-sep/non-close token must not masquerade as the wrong closer. `Some` ⇒ a real
+    // wrong token sits here; `None` ⇒ end of input.
+    let mut close_err = None;
     let right = match right {
       Some(tok) => Some(tok),
       None => inp.try_expect(|tok| match Delim::is_close(&tok.data.kind()) {
         true => true,
         false => {
-          err = Some(Delim::unexpected_close_token(tok.cloned()));
+          close_err = Some(Delim::unexpected_close_token(tok.cloned()));
           false
         }
       })?,
     };
 
     match right {
-      // no close delimiter
-      None if err.is_some() => {
-        inp.emitter().emit_unexpected_token(err.unwrap())?;
+      // (b) a wrong token sits where the closer should: unexpected-token, expected-close.
+      None if close_err.is_some() => {
+        inp.emitter().emit_unexpected_token(close_err.unwrap())?;
       }
+      // (a) EOI with the opener still open: the opener was never closed.
       None => {
-        // EOI — no close delimiter found
+        if let Some(open_span) = open_span.clone() {
+          inp
+            .emitter()
+            .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+        }
       }
       Some(right) => {
         container.on_close_delimiter(right);

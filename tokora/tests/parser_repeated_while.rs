@@ -22,9 +22,11 @@ use tokora::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
   Token as TokenTrait,
   cache::Peeked,
-  emitter::{FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter, Verbose},
+  emitter::{
+    FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter, Verbose,
+  },
   error::{
-    UnexpectedEot,
+    Unclosed, UnexpectedEot,
     syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
     token::{MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
   },
@@ -86,6 +88,12 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, La
 
 impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for RWError {
   fn from(_: MissingSyntax<O, Lang>) -> Self {
+    RWError
+  }
+}
+
+impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for RWError {
+  fn from(_: Unclosed<D, S, Lang>) -> Self {
     RWError
   }
 }
@@ -172,6 +180,19 @@ impl<'inp> FullContainerEmitter<'inp, TestLexer<'inp>> for RWEmitter {
   }
 }
 
+impl<'inp> UnclosedEmitter<'inp, TestLexer<'inp>> for RWEmitter {
+  fn emit_unclosed<Delimiter>(
+    &mut self,
+    _: Unclosed<Delimiter, <TestLexer<'inp> as Lexer<'inp>>::Span>,
+  ) -> Result<(), RWError>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+    RWError: From<Unclosed<Delimiter, <TestLexer<'inp> as Lexer<'inp>>::Span>>,
+  {
+    Err(RWError)
+  }
+}
+
 impl<'inp> TooFewEmitter<'inp, TestLexer<'inp>> for RWEmitter {
   fn emit_too_few(
     &mut self,
@@ -205,6 +226,7 @@ fn rw_ctx() -> ParserContext<'static, TestLexer<'static>, RWEmitter> {
 trait RWEmitterBound<'inp>:
   Emitter<'inp, TestLexer<'inp>, Error = RWError>
   + FullContainerEmitter<'inp, TestLexer<'inp>>
+  + UnclosedEmitter<'inp, TestLexer<'inp>>
   + SeparatedEmitter<'inp, TestLexer<'inp>>
 {
 }
@@ -212,6 +234,7 @@ trait RWEmitterBound<'inp>:
 impl<'inp, E> RWEmitterBound<'inp> for E where
   E: Emitter<'inp, TestLexer<'inp>, Error = RWError>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + SeparatedEmitter<'inp, TestLexer<'inp>>
 {
 }

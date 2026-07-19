@@ -11,9 +11,9 @@ mod common;
 use tokora::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
   Token as TokenTrait, TryParseInput,
-  emitter::{FullContainerEmitter, TooFewEmitter, TooManyEmitter},
+  emitter::{FullContainerEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter},
   error::{
-    UnexpectedEot,
+    Unclosed, UnexpectedEot,
     syntax::{FullContainer, TooFew, TooMany},
     token::{UnexpectedToken, UnexpectedTokenOf},
   },
@@ -62,6 +62,12 @@ impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for RDError {
 
 impl From<UnexpectedEot> for RDError {
   fn from(_: UnexpectedEot) -> Self {
+    RDError
+  }
+}
+
+impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for RDError {
+  fn from(_: Unclosed<D, S, Lang>) -> Self {
     RDError
   }
 }
@@ -149,6 +155,19 @@ impl<'inp> TooManyEmitter<'inp, TestLexer<'inp>> for RDEmitter {
   }
 }
 
+impl<'inp> UnclosedEmitter<'inp, TestLexer<'inp>> for RDEmitter {
+  fn emit_unclosed<Delimiter>(
+    &mut self,
+    _: Unclosed<Delimiter, <TestLexer<'inp> as Lexer<'inp>>::Span>,
+  ) -> Result<(), RDError>
+  where
+    TestLexer<'inp>: Lexer<'inp>,
+    RDError: From<Unclosed<Delimiter, <TestLexer<'inp> as Lexer<'inp>>::Span>>,
+  {
+    Err(RDError)
+  }
+}
+
 fn rd_ctx() -> ParserContext<'static, TestLexer<'static>, RDEmitter> {
   ParserContext::new(RDEmitter)
 }
@@ -180,8 +199,9 @@ fn parse_rd_list<'inp, Ctx>(
 ) -> Result<Vec<i64>, RDError>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter:
-    Emitter<'inp, TestLexer<'inp>, Error = RDError> + FullContainerEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RDError>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_rd
     .repeated()
@@ -223,6 +243,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RDError>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + TooFewEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_rd
@@ -258,6 +279,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RDError>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_rd
@@ -293,6 +315,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RDError>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
@@ -433,6 +456,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RDError>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
@@ -477,6 +501,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RDError>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
@@ -522,6 +547,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RDError>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
@@ -583,6 +609,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RDError>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_rd
@@ -626,6 +653,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = RDError>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + TooFewEmitter<'inp, TestLexer<'inp>>,
 {
   try_num_rd

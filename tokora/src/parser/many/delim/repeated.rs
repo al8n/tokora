@@ -4,8 +4,8 @@ use crate::{
   TryParseInput,
   container::Container as ContainerT,
   delimiter::Delimiter,
-  emitter::FullContainerEmitter,
-  error::syntax::FullContainer,
+  emitter::{FullContainerEmitter, UnclosedEmitter},
+  error::{Unclosed, syntax::FullContainer},
   try_parse_input::{Accept, Decline},
 };
 
@@ -38,8 +38,9 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Ctx: ParseContext<'inp, L, Lang>,
     Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
-    Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+    Ctx::Emitter: FullContainerEmitter<'inp, L, Lang> + UnclosedEmitter<'inp, L, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
@@ -60,6 +61,9 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
       }
     })?;
 
+    // The opener's span, captured iff an opener is actually committed. It is the anchor of
+    // the `Unclosed` diagnostic below: no opener, no unclosed.
+    let mut open_span: Option<L::Span> = None;
     match left_delimiter {
       None if inp.is_eoi() => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
@@ -69,6 +73,7 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
       }
       Some(open) => {
+        open_span = Some(open.span_ref().clone());
         container.on_open_delimiter(open);
       }
     };
@@ -112,7 +117,12 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
               inp.emitter().emit_unexpected_token(err.unwrap())?;
             }
             None => {
-              // EOI — no close delimiter found
+              // EOI — no close delimiter found: the opener was never closed.
+              if let Some(open_span) = open_span.clone() {
+                inp
+                  .emitter()
+                  .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+              }
             }
             Some(close) => {
               container.on_close_delimiter(close);
@@ -144,7 +154,12 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         inp.emitter().emit_unexpected_token(close_err.unwrap())?;
       }
       None => {
-        // EOI — no tokens left, no close delimiter
+        // EOI — no tokens left, no close delimiter: the opener was never closed.
+        if let Some(open_span) = open_span.clone() {
+          inp
+            .emitter()
+            .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+        }
       }
       Some(close) => {
         container.on_close_delimiter(close);
