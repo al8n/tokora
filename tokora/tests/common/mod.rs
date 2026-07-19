@@ -306,7 +306,7 @@ pub type TestLexer<'a> = tokora::lexer::LogosLexer<'a, Token>;
 // not every integration binary constructs it, hence the `allow(dead_code)`.
 
 use tokora::error::{
-  UnexpectedEot,
+  Unclosed, UnexpectedEot,
   syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
   token::{MissingToken, SeparatedError, UnexpectedToken},
 };
@@ -365,6 +365,12 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, Kind, S, La
 
 impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for E {
   fn from(_: MissingSyntax<O, Lang>) -> Self {
+    E
+  }
+}
+
+impl<Delimiter, S, Lang: ?Sized> From<Unclosed<Delimiter, S, Lang>> for E {
+  fn from(_: Unclosed<Delimiter, S, Lang>) -> Self {
     E
   }
 }

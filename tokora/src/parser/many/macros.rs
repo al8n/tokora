@@ -536,8 +536,10 @@ macro_rules! impl_separated_delim {
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
+        + UnclosedEmitter<'inp, L, Lang>
         $($emitters)*,
-      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+        From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
       Ctx: ParseContext<'inp, L, Lang>,
       Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
       Delim: Delimiter<'inp, L, Lang>,
@@ -563,8 +565,10 @@ macro_rules! impl_separated_delim {
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
+        + UnclosedEmitter<'inp, L, Lang>
         $($emitters)*,
-      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+        From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
       Ctx: ParseContext<'inp, L, Lang>,
       Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
       Delim: Delimiter<'inp, L, Lang>,
@@ -590,8 +594,10 @@ macro_rules! impl_separated_delim {
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
+        + UnclosedEmitter<'inp, L, Lang>
         $($emitters)*,
-      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+        From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
       Ctx: ParseContext<'inp, L, Lang>,
       Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
       Delim: Delimiter<'inp, L, Lang>,
@@ -622,8 +628,10 @@ macro_rules! impl_separated_delim {
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
+        + UnclosedEmitter<'inp, L, Lang>
         $($emitters)*,
-      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+        From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
       Ctx: ParseContext<'inp, L, Lang>,
       Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
       Delim: Delimiter<'inp, L, Lang>,
@@ -1240,8 +1248,10 @@ macro_rules! impl_separated_while_delim {
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
+        + UnclosedEmitter<'inp, L, Lang>
         $($emitters)*,
-      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+        From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
       Ctx: ParseContext<'inp, L, Lang>,
       Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
       Delim: Delimiter<'inp, L, Lang>,
@@ -1269,8 +1279,10 @@ macro_rules! impl_separated_while_delim {
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
+        + UnclosedEmitter<'inp, L, Lang>
         $($emitters)*,
-      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+        From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
       Ctx: ParseContext<'inp, L, Lang>,
       Container: Default + ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
       Delim: Delimiter<'inp, L, Lang>,
@@ -1298,8 +1310,10 @@ macro_rules! impl_separated_while_delim {
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
+        + UnclosedEmitter<'inp, L, Lang>
         $($emitters)*,
-      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+        From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
       Ctx: ParseContext<'inp, L, Lang>,
       Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
       Delim: Delimiter<'inp, L, Lang>,
@@ -1332,8 +1346,10 @@ macro_rules! impl_separated_while_delim {
       Sep: Punctuator<'inp, L, Lang>,
       Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
         + FullContainerEmitter<'inp, L, Lang>
+        + UnclosedEmitter<'inp, L, Lang>
         $($emitters)*,
-      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+      <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+        From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
       Ctx: ParseContext<'inp, L, Lang>,
       Container: ContainerT<O> + SeparatorHandler<'inp, L> + DelimiterHandler<'inp, L>,
       Delim: Delimiter<'inp, L, Lang>,

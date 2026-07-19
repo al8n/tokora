@@ -20,8 +20,8 @@ use tokora::{
   cache::Peeked,
   emitter::{
     FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
-    SeparatedEmitter, Silent, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
-    UnexpectedTrailingSeparatorEmitter,
+    SeparatedEmitter, Silent, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
     UnexpectedEot,
@@ -128,6 +128,7 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + SeparatedEmitter<'inp, TestLexer<'inp>>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
@@ -170,6 +171,7 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + SeparatedEmitter<'inp, TestLexer<'inp>>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
@@ -266,6 +268,7 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + SeparatedEmitter<'inp, TestLexer<'inp>>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>
@@ -328,6 +331,7 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + SeparatedEmitter<'inp, TestLexer<'inp>>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
@@ -415,6 +419,7 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + SeparatedEmitter<'inp, TestLexer<'inp>>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>
@@ -466,8 +471,9 @@ fn parse_rd_delim_unbounded<'inp, Ctx>(
 ) -> Result<Vec<i64>, E>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
-  Ctx::Emitter:
-    Emitter<'inp, TestLexer<'inp>, Error = E> + FullContainerEmitter<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>,
 {
   try_num
     .repeated()
@@ -541,6 +547,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + SeparatedEmitter<'inp, TestLexer<'inp>>,
 {
   parse_num
@@ -619,6 +626,7 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + SeparatedEmitter<'inp, TestLexer<'inp>>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
@@ -665,6 +673,7 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + SeparatedEmitter<'inp, TestLexer<'inp>>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
@@ -695,6 +704,7 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + SeparatedEmitter<'inp, TestLexer<'inp>>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
     + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
@@ -732,6 +742,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
   try_num
@@ -776,6 +787,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
     + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>
     + SeparatedEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {

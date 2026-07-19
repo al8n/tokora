@@ -4,8 +4,8 @@ use crate::{
   TryParseInput,
   container::Container as ContainerT,
   delimiter::Delimiter,
-  emitter::FullContainerEmitter,
-  error::syntax::FullContainer,
+  emitter::{FullContainerEmitter, UnclosedEmitter},
+  error::{Unclosed, syntax::FullContainer},
   try_parse_input::{Accept, Decline},
 };
 
@@ -38,8 +38,9 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     P: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
     Ctx: ParseContext<'inp, L, Lang>,
     Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
-    Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+    Ctx::Emitter: FullContainerEmitter<'inp, L, Lang> + UnclosedEmitter<'inp, L, Lang>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
@@ -60,6 +61,9 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
       }
     })?;
 
+    // The opener's span, captured iff an opener is actually committed. It is the anchor of
+    // the `Unclosed` diagnostic below: no opener, no unclosed.
+    let mut open_span: Option<L::Span> = None;
     match left_delimiter {
       None if inp.is_eoi() => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
@@ -69,6 +73,7 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
       }
       Some(open) => {
+        open_span = Some(open.span_ref().clone());
         container.on_open_delimiter(open);
       }
     };
@@ -100,22 +105,31 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         }
         // no more elemnts.
         Ok(Decline) => {
-          let mut err = None;
-          match inp.try_expect(|t| match Delim::is_close(&t.data.kind()) {
-            true => true,
-            false => {
-              err = Some(Delim::unexpected_close_token(t.cloned()));
-              false
+          // Classify the close position with the four-way probe so a terminal scanner
+          // stop is not misread as EOF and grown into a spurious `Unclosed`.
+          match inp.probe_close(|t| Delim::is_close(&t.data.kind()))? {
+            // The closer is at hand: commit it (the probe left it unconsumed).
+            CloseStatus::Close => {
+              if let Some(close) = inp.try_expect(|t| Delim::is_close(&t.data.kind()))? {
+                container.on_close_delimiter(close);
+              }
             }
-          })? {
-            None if err.is_some() => {
-              inp.emitter().emit_unexpected_token(err.unwrap())?;
+            // A wrong token where the closer belongs: unexpected-token, expected-close.
+            CloseStatus::WrongToken(tok) => inp
+              .emitter()
+              .emit_unexpected_token(Delim::unexpected_close_token(tok))?,
+            // EOI — no close delimiter found: the opener was never closed.
+            CloseStatus::Eof => {
+              if let Some(open_span) = open_span.clone() {
+                inp
+                  .emitter()
+                  .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+              }
             }
-            None => {
-              // EOI — no close delimiter found
-            }
-            Some(close) => {
-              container.on_close_delimiter(close);
+            // A terminal scanner stop: its own diagnostic already explains the halt —
+            // propagate it and add no `Unclosed`.
+            CloseStatus::Tripped => {
+              return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
             }
           }
 
@@ -131,23 +145,27 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
       elem_cur = new_cursor;
     }
 
-    // No progress was made — treat as end of elements
-    let mut close_err = None;
-    match inp.try_expect(|t| match Delim::is_close(&t.data.kind()) {
-      true => true,
-      false => {
-        close_err = Some(Delim::unexpected_close_token(t.cloned()));
-        false
+    // No progress was made — treat as end of elements. Classify the close position
+    // with the four-way probe so a terminal scanner stop is not misread as EOF.
+    match inp.probe_close(|t| Delim::is_close(&t.data.kind()))? {
+      CloseStatus::Close => {
+        if let Some(close) = inp.try_expect(|t| Delim::is_close(&t.data.kind()))? {
+          container.on_close_delimiter(close);
+        }
       }
-    })? {
-      None if close_err.is_some() => {
-        inp.emitter().emit_unexpected_token(close_err.unwrap())?;
+      CloseStatus::WrongToken(tok) => inp
+        .emitter()
+        .emit_unexpected_token(Delim::unexpected_close_token(tok))?,
+      CloseStatus::Eof => {
+        // EOI — no tokens left, no close delimiter: the opener was never closed.
+        if let Some(open_span) = open_span.clone() {
+          inp
+            .emitter()
+            .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+        }
       }
-      None => {
-        // EOI — no tokens left, no close delimiter
-      }
-      Some(close) => {
-        container.on_close_delimiter(close);
+      CloseStatus::Tripped => {
+        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
     }
 

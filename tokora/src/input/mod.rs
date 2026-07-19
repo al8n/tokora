@@ -204,6 +204,7 @@ use super::*;
 pub use checkpoint::Checkpoint;
 pub use completeness::{Complete, Completeness, Partial, SurfaceIncomplete};
 pub use cursor::Cursor;
+pub(crate) use input_ref::CloseStatus;
 pub(crate) use input_ref::Session;
 pub use input_ref::{
   Balance, Commit, DelimClass, DropPolicy, Hole, InputRef, Rollback, Transaction,

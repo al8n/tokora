@@ -2,7 +2,8 @@ use core::mem;
 
 use crate::{
   container::Container as ContainerT,
-  emitter::{FullContainerEmitter, SeparatedEmitter},
+  emitter::{FullContainerEmitter, SeparatedEmitter, UnclosedEmitter},
+  error::Unclosed,
 };
 
 use super::*;
@@ -42,9 +43,12 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     P: ParseInput<'inp, L, O, Ctx, Lang>,
     Condition: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang> + FullContainerEmitter<'inp, L, Lang>,
+    Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>
+      + FullContainerEmitter<'inp, L, Lang>
+      + UnclosedEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
     Container: DelimiterHandler<'inp, L> + SeparatorHandler<'inp, L> + ContainerT<O>,
     EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
@@ -68,6 +72,9 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       }
     })?;
 
+    // The opener's span, captured iff an opener is actually committed. It is the anchor of
+    // the `Unclosed` diagnostic below: no opener, no unclosed.
+    let mut open_span: Option<L::Span> = None;
     match left_delimiter {
       None if inp.is_eoi() => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
@@ -77,6 +84,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
         inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
       }
       Some(open) => {
+        open_span = Some(open.span_ref().clone());
         container.on_open_delimiter(open);
       }
     };
@@ -88,19 +96,12 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     let elems_start = inp.cursor().clone();
     loop {
       let mut is_sep = false;
-      let mut err = None;
       match inp.try_expect(|tok| {
         if Sep::eval(&tok.data.kind()) {
           is_sep = true;
           true
         } else {
-          match Delim::is_close(&tok.data.kind()) {
-            true => true,
-            false => {
-              err = Some(Delim::unexpected_close_token(tok.cloned()));
-              false
-            }
-          }
+          Delim::is_close(&tok.data.kind())
         }
       })? {
         Some(tok) => {
@@ -119,11 +120,45 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
           let front_span = match peeked.front() {
             None => {
               drop(peeked);
-              parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?;
 
-              if let Some(err) = err {
-                inp.emitter().emit_unexpected_token(err)?;
+              // Front is empty: reclassify the close position with the four-way probe so
+              // a terminal scanner stop is not misread as EOF (finding 1). A real
+              // non-sep/non-close token would have entered the cache and made `front()`
+              // non-empty, so only genuine EOF or a terminal stop reaches here.
+              //
+              // PRIMARY — the close-status diagnostic first: under a fail-fast emitter
+              // `handle_end`'s TooFew/trailing emission would otherwise short-circuit
+              // before an unterminated list could surface as `Unclosed`.
+              match inp.probe_close(|t| Delim::is_close(&t.data.kind()))? {
+                // The closer is at hand: commit it (the probe left it unconsumed).
+                CloseStatus::Close => {
+                  if let Some(closed) = inp.try_expect(|t| Delim::is_close(&t.data.kind()))? {
+                    container.on_close_delimiter(closed);
+                  }
+                }
+                // (b) a wrong token was seen where the closer should be.
+                CloseStatus::WrongToken(tok) => inp
+                  .emitter()
+                  .emit_unexpected_token(Delim::unexpected_close_token(tok))?,
+                // (a) end of input with the opener still open: the opener was never
+                // closed.
+                CloseStatus::Eof => {
+                  if let Some(open_span) = open_span.clone() {
+                    inp
+                      .emitter()
+                      .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+                  }
+                }
+                // A terminal scanner stop: its own diagnostic already explains the
+                // halt — propagate it and add no `Unclosed`.
+                CloseStatus::Tripped => {
+                  return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
+                }
               }
+
+              // SECONDARY — the end-state diagnostics (counts, separator policy),
+              // recorded after the primary under a recovering emitter.
+              parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?;
 
               return Ok(inp.span_since(&elems_start));
             }
@@ -137,26 +172,45 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
 
           match parser.condition.decide(peeked, emitter)? {
             Action::Stop => {
-              parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?;
-              let mut err = None;
-              return match inp.try_expect(|tok| match Delim::is_close(&tok.data.kind()) {
-                true => true,
-                false => {
-                  err = Some(Delim::unexpected_close_token(tok.cloned()));
-                  false
+              // PRIMARY — classify the close position WITHOUT consuming (`probe_close`
+              // leaves the scanned token cached) and emit the close-status diagnostic
+              // before the end-state secondaries: under a fail-fast emitter
+              // `handle_end`'s TooFew/trailing emission would otherwise short-circuit
+              // first and an unterminated list would never surface as `Unclosed`. The
+              // four-way probe also keeps a terminal scanner stop out of `Unclosed`.
+              let mut close_at_hand = false;
+              match inp.probe_close(|tok| Delim::is_close(&tok.data.kind()))? {
+                // The closer is at hand: committed after the end-state pass (below).
+                CloseStatus::Close => close_at_hand = true,
+                // (b) a wrong token sits where the closer should be.
+                CloseStatus::WrongToken(tok) => inp
+                  .emitter()
+                  .emit_unexpected_token(Delim::unexpected_close_token(tok))?,
+                // (a) end of input with the opener still open: never closed.
+                CloseStatus::Eof => {
+                  if let Some(open_span) = open_span.clone() {
+                    inp
+                      .emitter()
+                      .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+                  }
                 }
-              })? {
-                Some(closed) => {
-                  container.on_close_delimiter(closed);
-                  Ok(inp.span_since(&elems_start))
+                // A terminal scanner stop: its own diagnostic already explains the
+                // halt — propagate it and add no `Unclosed`.
+                CloseStatus::Tripped => {
+                  return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
                 }
-                None if err.is_some() => {
-                  inp.emitter().emit_unexpected_token(err.unwrap())?;
+              }
 
-                  Ok(inp.span_since(&elems_start))
+              // SECONDARY — the end-state diagnostics, after the primary.
+              parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?;
+
+              // Commit the closer if it is at hand (after the end-state pass, as before).
+              if close_at_hand {
+                if let Some(closed) = inp.try_expect(|tok| Delim::is_close(&tok.data.kind()))? {
+                  container.on_close_delimiter(closed);
                 }
-                None => Ok(inp.span_since(&elems_start)),
-              };
+              }
+              return Ok(inp.span_since(&elems_start));
             }
             Action::Continue => {
               // if the peeked token belongs to an element, check the current state

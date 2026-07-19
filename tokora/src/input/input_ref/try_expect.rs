@@ -5,6 +5,35 @@ use crate::{
   token::{PunctuatorToken, PunctuatorTokenExt, SpannedPunctuatorToken},
 };
 
+/// The four-way outcome of probing the close position of a delimited list — the
+/// structural fix for the fold where a close classifier built on
+/// [`try_expect`](InputRef::try_expect) reads `Ok(None)` as "no closer here" and the
+/// driver then emits `Unclosed`.
+///
+/// `try_expect`'s `Ok(None)` also covers a `Scan::Tripped` (a resource-limit trip)
+/// and a latched poison boundary — terminal stops whose own diagnostic already
+/// explains the halt, so an added `Unclosed` is spurious. [`probe_close`] keeps the
+/// four cases apart and the driver maps each to its own action (commit /
+/// unexpected-token / `Unclosed` / propagate).
+///
+/// [`probe_close`]: InputRef::probe_close
+pub(crate) enum CloseStatus<T, S> {
+  /// The closer is at hand. It is left **unconsumed** at the cache front for the
+  /// caller to commit with a follow-up [`try_expect`](InputRef::try_expect).
+  Close,
+  /// A non-closer token sits where the closer belongs. It is left **unconsumed**
+  /// (the downstream parse still sees it); the owned clone drives the
+  /// unexpected-token / expected-close diagnostic.
+  WrongToken(Spanned<T, S>),
+  /// Genuine end of input with the opener still open — the one and only `Unclosed`
+  /// path.
+  Eof,
+  /// A terminal scanner stop: a resource-limit trip on this scan, or an
+  /// already-latched poison boundary. The halt is already diagnosed, so the caller
+  /// propagates it and adds no `Unclosed` on top.
+  Tripped,
+}
+
 macro_rules! try_expect_punct {
   ($($punct:ident $(:$alias:ident)? :$punct_char:literal),+$(,)?) => {
     paste::paste! {
@@ -277,6 +306,79 @@ where
           Err(UnexpectedEot::eot_of(self.span().end()).into())
         } else {
           Ok(None) // E2: genuine end of input — the documented decline.
+        }
+      }
+    }
+  }
+
+  /// Classifies the close position of a delimited list **without consuming**,
+  /// distinguishing all four outcomes a delim driver must tell apart — see
+  /// [`CloseStatus`].
+  ///
+  /// `pred` decides whether the token at the cursor is the closer. The scanned (or
+  /// already-cached) token is left in place — a probe never advances — so on
+  /// [`Close`](CloseStatus::Close) the caller commits it with a follow-up
+  /// [`try_expect`](Self::try_expect), and on [`WrongToken`](CloseStatus::WrongToken)
+  /// it stays for the downstream parse.
+  ///
+  /// This is the structural counterpart to a close classifier built on `try_expect`,
+  /// whose `Ok(None)` folds a genuine end of input together with a terminal stop:
+  /// here a resource-limit trip or a latched poison boundary surfaces as
+  /// [`Tripped`](CloseStatus::Tripped) — the same Tripped/Eof split
+  /// [`try_expect_or_stop`](Self::try_expect_or_stop) draws — so it is never misread
+  /// as EOF and never grows a spurious `Unclosed`. A fatal emitter's rejection of the
+  /// trip diagnostic still propagates from the scan itself as `Err`.
+  pub(crate) fn probe_close<F>(
+    &mut self,
+    mut pred: F,
+  ) -> Result<CloseStatus<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
+  {
+    trace_event!(self, "probe_close");
+    if !self.cache.is_empty() {
+      // A cached token is a REAL token (the cache never holds errors). Classify the
+      // front WITHOUT consuming it — `Spanned<&_, &_>` is `Copy`, so `pred` and the
+      // owned clone both read the same peeked reference.
+      let peeked = self.cache.front().expect("cache is non-empty").token;
+      return Ok(if pred(peeked) {
+        CloseStatus::Close
+      } else {
+        CloseStatus::WrongToken(peeked.cloned())
+      });
+    }
+    // A latched poison boundary at the cursor is a terminal stop, not proof of
+    // absence — mirrors `try_expect_or_stop`'s E4.
+    if self.reached_boundary(self.offset()) {
+      return Ok(CloseStatus::Tripped);
+    }
+    let mut lex_at = self.offset().clone();
+    let mut lexer = self.lexer();
+    match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
+      Scan::Token(tok) => {
+        let is_close = pred(tok.as_ref());
+        // A probe never consumes: build the owned wrong-token (if any) before the
+        // token is moved back into the cache for a later commit or parse.
+        let status = if is_close {
+          CloseStatus::Close
+        } else {
+          CloseStatus::WrongToken(Spanned::new(tok.span_ref().clone(), tok.data().clone()))
+        };
+        let (span, token) = tok.into_components();
+        let ct = CachedToken::new(Spanned::new(span, token), lexer.state().clone());
+        let _ = self.cache_push_back(ct);
+        Ok(status)
+      }
+      // A fresh trip whose diagnostic a recovering emitter accepted. (A fatal emitter
+      // never reaches this arm — its rejection propagated out of `scan_with` above.)
+      Scan::Tripped => Ok(CloseStatus::Tripped),
+      Scan::Eof => {
+        // An exhaustion produced by refusing to cross a pre-latched boundary is
+        // terminal, not genuine end of input — mirrors `try_expect_or_stop`'s E5.
+        if self.reached_boundary(&lex_at) {
+          Ok(CloseStatus::Tripped)
+        } else {
+          Ok(CloseStatus::Eof)
         }
       }
     }

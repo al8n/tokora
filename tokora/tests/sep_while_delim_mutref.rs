@@ -14,8 +14,8 @@ use tokora::{
   cache::Peeked,
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
-    SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
-    UnexpectedTrailingSeparatorEmitter,
+    SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   parser::{
     Action, AllowLeading, AllowTrailing, AtLeast, AtMost, Bounded, Collect, DelimitedBy,
@@ -88,6 +88,7 @@ macro_rules! sw_delim_mutref_tests {
         Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = E>
           + SeparatedEmitter<'inp, TestLexer<'inp>>
           + FullContainerEmitter<'inp, TestLexer<'inp>>
+          + UnclosedEmitter<'inp, TestLexer<'inp>>
           + TooFewEmitter<'inp, TestLexer<'inp>>
           + TooManyEmitter<'inp, TestLexer<'inp>>
           + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>

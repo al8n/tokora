@@ -83,7 +83,7 @@ that attach position/text to the token. [`expect`](crate::parser::expect) is pre
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -99,6 +99,7 @@ that attach position/text to the token. [`expect`](crate::parser::expect) is pre
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
@@ -213,7 +214,7 @@ unwrap(self) -> Unwrapped<…>                          // where Self: ParseInpu
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -229,6 +230,7 @@ unwrap(self) -> Unwrapped<…>                          // where Self: ParseInpu
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
@@ -344,7 +346,7 @@ consumed. `spanned`/`sliced`/`located` are taught in [chapter 3](super::ch03_com
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -360,6 +362,7 @@ consumed. `spanned`/`sliced`/`located` are taught in [chapter 3](super::ch03_com
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
@@ -466,7 +469,7 @@ and_then<T, U>(self, f: T) -> AndThen<…>             // f: FnMut(O) -> Result<
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -482,6 +485,7 @@ and_then<T, U>(self, f: T) -> AndThen<…>             // f: FnMut(O) -> Result<
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
@@ -597,7 +601,7 @@ the bridges between the two trait worlds.
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -613,6 +617,7 @@ the bridges between the two trait worlds.
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
@@ -737,7 +742,7 @@ fold<Init, Acc>(self, init: Init, acc: Acc) -> Fold<…> // Init: FnMut() -> O, 
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -753,6 +758,7 @@ fold<Init, Acc>(self, init: Init, acc: Acc) -> Fold<…> // Init: FnMut() -> O, 
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
@@ -858,7 +864,7 @@ separated_while<Sep, Cond, W>(self, cond: Cond) -> SeparatedWhile<…>  // eleme
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -874,6 +880,7 @@ separated_while<Sep, Cond, W>(self, cond: Cond) -> SeparatedWhile<…>  // eleme
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
@@ -971,7 +978,7 @@ order is flexible.
 | [`require_trailing()`](crate::parser::Separated::require_trailing) | separated | require a trailing separator |
 | [`allow_leading()`](crate::parser::Separated::allow_leading) | separated | accept a leading separator |
 | [`require_leading()`](crate::parser::Separated::require_leading) | separated | require a leading separator |
-| [`delimited::<D>()`](crate::parser::Separated::delimited) | both | wrap in a [`Delimiter`](crate::delimiter::Delimiter) pair (`Paren`/`Bracket`/`Brace`/`Angle`); for a single region see the [`delimited`](crate::parser::delimited)/[`parens`](crate::parser::parens) free shapes |
+| [`delimited::<D>()`](crate::parser::Separated::delimited) | both | wrap in a [`Delimiter`](crate::delimiter::Delimiter) pair (`Paren`/`Bracket`/`Brace`/`Angle`); an unterminated list reports the opener as [`Unclosed`](crate::error::Unclosed) through [`UnclosedEmitter`](crate::emitter::UnclosedEmitter); for a single region see the [`delimited`](crate::parser::delimited)/[`parens`](crate::parser::parens) free shapes |
 
 Trailing/leading violations report through dedicated emitter capabilities
 ([`UnexpectedTrailingSeparatorEmitter`](crate::emitter::UnexpectedTrailingSeparatorEmitter), …).
@@ -993,7 +1000,7 @@ bounded(self, min, max)         delimited::<Delim>(self) -> DelimitedBy<Self, De
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -1009,6 +1016,7 @@ bounded(self, min, max)         delimited::<Delim>(self) -> DelimitedBy<Self, De
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
@@ -1089,6 +1097,10 @@ fn bracketed<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<V
     try_digit.repeated().delimited::<Bracket>().collect().parse_input(inp)
 }
 assert_eq!(Parser::with_parser(bracketed).parse_str("[1 2 3]").unwrap(), vec![1, 2, 3]);
+// An unterminated list reports the opener as `Unclosed` through the emitter — a hard
+// error under this fail-fast context; a recovering emitter (`Verbose`) records the
+// diagnostic and yields the elements collected so far.
+assert!(Parser::with_parser(bracketed).parse_str("[1 2").is_err());
 ```
 
 ---
@@ -1121,7 +1133,7 @@ list_of<…>(item: P, until: Until) -> impl FnMut(&mut InputRef) -> Result<Vec<T
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -1137,6 +1149,7 @@ list_of<…>(item: P, until: Until) -> impl FnMut(&mut InputRef) -> Result<Vec<T
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
@@ -1410,7 +1423,7 @@ node_at(mark: EventMark, kind: u16, p: P) -> NodeAt<P>
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -1426,6 +1439,7 @@ node_at(mark: EventMark, kind: u16, p: P) -> NodeAt<P>
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
@@ -1532,7 +1546,7 @@ no-op over a non-collecting emitter.
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -1548,6 +1562,7 @@ no-op over a non-collecting emitter.
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Ident(char), Comma, Semi, Plus, Star, LParen, RParen, LBracket, RBracket }
