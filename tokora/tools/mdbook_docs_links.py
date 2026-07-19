@@ -216,6 +216,7 @@ DOCS_RS_MAP = {
   "crate::emitter::TooManyEmitter": "emitter/trait.TooManyEmitter.html",
   "crate::emitter::UnexpectedLeadingSeparatorEmitter": "emitter/trait.UnexpectedLeadingSeparatorEmitter.html",
   "crate::emitter::UnexpectedTrailingSeparatorEmitter": "emitter/trait.UnexpectedTrailingSeparatorEmitter.html",
+  "crate::emitter::UnclosedEmitter": "emitter/trait.UnclosedEmitter.html",
   "crate::emitter::Verbose": "emitter/struct.Verbose.html",
   "crate::emitter::Verbose::diagnostics": "emitter/struct.Verbose.html#method.diagnostics",
   "crate::emitter::Verbose::errors": "emitter/struct.Verbose.html#method.errors",
