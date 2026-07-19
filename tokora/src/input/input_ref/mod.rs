@@ -46,6 +46,8 @@ pub use drop_policy::{Commit, DropPolicy, Rollback};
 pub use sync_balanced::{Balance, DelimClass, Hole};
 pub use transaction::Transaction;
 
+pub(crate) use try_expect::CloseStatus;
+
 #[cfg(any(feature = "std", feature = "alloc"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub use stacked::{SavepointId, StackedTransaction};

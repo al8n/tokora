@@ -164,34 +164,35 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
       cursor = new_cursor;
     };
 
-    // PRIMARY — classify the close position WITHOUT consuming (the always-false
-    // predicate leaves the scanned token cached), and emit the close-status diagnostic
-    // before the end-state secondaries: under a fail-fast emitter `handle_end`'s
-    // TooFew/trailing emission would otherwise short-circuit first and an unterminated
-    // list would never surface as `Unclosed`. A FRESH token is scanned here rather than
-    // carried out of the loop, so the loop's last non-sep/non-close token cannot
-    // masquerade as the wrong closer.
+    // PRIMARY — classify the close position WITHOUT consuming (`probe_close` leaves the
+    // scanned token cached) and emit the close-status diagnostic before the end-state
+    // secondaries: under a fail-fast emitter `handle_end`'s TooFew/trailing emission
+    // would otherwise short-circuit first and an unterminated list would never surface
+    // as `Unclosed`. A FRESH token is probed here rather than carried out of the loop,
+    // so the loop's last non-sep/non-close token cannot masquerade as the wrong closer.
+    // The four-way probe also keeps a terminal scanner stop out of the `Unclosed` path.
     let mut close_at_hand = false;
-    let mut close_err = None;
-    inp.try_expect(|tok| {
-      match Delim::is_close(&tok.data.kind()) {
-        true => close_at_hand = true,
-        false => close_err = Some(Delim::unexpected_close_token(tok.cloned())),
-      }
-      false
-    })?;
-    match close_err {
+    match inp.probe_close(|tok| Delim::is_close(&tok.data.kind()))? {
+      // The closer is at hand: no close miss. It is committed after the end-state pass.
+      CloseStatus::Close => close_at_hand = true,
       // (b) a wrong token sits where the closer should: unexpected-token, expected-close.
-      Some(err) => inp.emitter().emit_unexpected_token(err)?,
-      // (a) end of input with the opener still open: the opener was never closed.
-      None if !close_at_hand => {
+      CloseStatus::WrongToken(tok) => inp
+        .emitter()
+        .emit_unexpected_token(Delim::unexpected_close_token(tok))?,
+      // (a) genuine end of input with the opener still open: never closed — the ONE
+      // `Unclosed` path.
+      CloseStatus::Eof => {
         if let Some(open_span) = open_span.clone() {
           inp
             .emitter()
             .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
         }
       }
-      None => {}
+      // A terminal scanner stop (limit trip / latched poison): its own diagnostic
+      // already explains the halt — propagate it and add no `Unclosed` on top.
+      CloseStatus::Tripped => {
+        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
+      }
     }
 
     // SECONDARY — the end-state diagnostics (counts, separator policy), recorded after

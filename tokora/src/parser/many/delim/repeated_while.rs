@@ -79,31 +79,41 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     let mut elem_cur = inp.cursor().clone();
 
     loop {
-      let mut err = None;
-      match inp.try_expect(|tok| match Delim::is_close(&tok.kind()) {
-        true => true,
-        false => {
-          err = Some(Delim::unexpected_close_token(tok.cloned()));
-          false
-        }
-      })? {
-        Some(closed) => {
-          container.on_close_delimiter(closed);
+      // Probe the close position WITHOUT consuming, so a terminal scanner stop is not
+      // misread as EOF (finding 1). `Close` short-circuits before the stop condition is
+      // consulted, exactly as the consuming `try_expect` did.
+      match inp.probe_close(|tok| Delim::is_close(&tok.data.kind()))? {
+        CloseStatus::Close => {
+          // Commit the closer (the probe left it unconsumed) and run the end handler.
+          if let Some(closed) = inp.try_expect(|tok| Delim::is_close(&tok.data.kind()))? {
+            container.on_close_delimiter(closed);
+          }
           let span = inp.span_since(&anchor);
           return on_stop(nums, inp, &span).map(|_| mem::take(container));
         }
-        None => {
+        // A terminal scanner stop: its own diagnostic already explains the halt —
+        // propagate it and add no `Unclosed`.
+        CloseStatus::Tripped => {
+          return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
+        }
+        // The closer is absent (a wrong token or genuine EOF) — consult the stop
+        // condition to decide whether another element is expected.
+        close => {
           let (peeked, emitter) = inp.peek_with_emitter::<W>()?;
           match self.parser.condition.decide(peeked, emitter)? {
             // missing ending delimiter
             Action::Stop => {
-              match err {
+              // PRIMARY — the close-miss diagnostic first: under a fail-fast emitter
+              // this short-circuits, so `Unclosed` (not the secondary bounds) surfaces.
+              match close {
                 // (b) a wrong token sits where the closer should: unexpected-token,
                 // expected-close (the existing vocabulary).
-                Some(err) => inp.emitter().emit_unexpected_token(err)?,
-                // (a) no token at all — end of input with the opener still open: the
-                // opener was never closed.
-                None => {
+                CloseStatus::WrongToken(tok) => inp
+                  .emitter()
+                  .emit_unexpected_token(Delim::unexpected_close_token(tok))?,
+                // (a) end of input with the opener still open: the opener was never
+                // closed.
+                _ => {
                   if let Some(open_span) = open_span.clone() {
                     inp
                       .emitter()
@@ -111,7 +121,13 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                   }
                 }
               }
-              return Ok(mem::take(container));
+              // SECONDARY (finding 2) — the delimited driver used to return here WITHOUT
+              // running the repeated end handler, silently dropping the `TooFew`/bounds
+              // diagnostic under a recovering emitter (the plain `Repeated` driver runs
+              // it). Run it after the primary, matching the primary-then-secondary order
+              // the separated drivers established.
+              let span = inp.span_since(&anchor);
+              return on_stop(nums, inp, &span).map(|_| mem::take(container));
             }
             Action::Continue => {
               // TODO(al8n): tracing dropped element
@@ -142,19 +158,18 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
 
     // No progress was made — treat as end of elements (the same epilogue as
     // `DelimitedBy<Repeated>`): accept a close delimiter if it is at hand, report it
-    // otherwise, then run the stop handler on the delimited span.
-    let mut close_err = None;
-    match inp.try_expect(|t| match Delim::is_close(&t.data.kind()) {
-      true => true,
-      false => {
-        close_err = Some(Delim::unexpected_close_token(t.cloned()));
-        false
+    // otherwise, then run the stop handler on the delimited span. The four-way probe
+    // keeps a terminal scanner stop out of the `Unclosed` path.
+    match inp.probe_close(|t| Delim::is_close(&t.data.kind()))? {
+      CloseStatus::Close => {
+        if let Some(close) = inp.try_expect(|t| Delim::is_close(&t.data.kind()))? {
+          container.on_close_delimiter(close);
+        }
       }
-    })? {
-      None if close_err.is_some() => {
-        inp.emitter().emit_unexpected_token(close_err.unwrap())?;
-      }
-      None => {
+      CloseStatus::WrongToken(tok) => inp
+        .emitter()
+        .emit_unexpected_token(Delim::unexpected_close_token(tok))?,
+      CloseStatus::Eof => {
         // EOI — no tokens left, no close delimiter: the opener was never closed.
         if let Some(open_span) = open_span.clone() {
           inp
@@ -162,8 +177,8 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
             .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
         }
       }
-      Some(close) => {
-        container.on_close_delimiter(close);
+      CloseStatus::Tripped => {
+        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
     }
 

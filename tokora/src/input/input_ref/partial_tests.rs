@@ -20,7 +20,7 @@ use crate::{
   cache::DefaultCache,
   emitter::{Fatal, Verbose},
   error::{Incomplete, MaybeIncomplete, token::UnexpectedToken},
-  input::{Complete, Input, Partial, SurfaceIncomplete, parse_partial},
+  input::{CloseStatus, Complete, Input, Partial, SurfaceIncomplete, parse_partial},
   lexer::LogosLexer,
   state::State,
 };
@@ -1762,5 +1762,103 @@ fn gate_is_inert_when_final_and_matches_complete() {
   assert_eq!(
     sealed.1, 1,
     "the missing number was diagnosed resiliently, once"
+  );
+}
+
+// ── The close-status probe: EOF vs a terminal stop, and no-consume ────────────────────
+//
+// `InputRef::probe_close` is the structural fix for the fold where a delimited driver's
+// `try_expect`-based close classifier read `Ok(None)` as "no closer here" and emitted
+// `Unclosed` — even when the `None` was really a terminal scanner stop (a limit trip or a
+// latched poison boundary), which already carries its own diagnostic. The probe keeps
+// `Eof` and `Tripped` apart, so a terminal stop never grows a spurious `Unclosed`; all
+// four delimited drivers route their close classification through it.
+
+#[test]
+fn probe_close_at_genuine_eof_is_eof() {
+  // A complete input drained to exhaustion: the probe reports genuine end of input as
+  // `Eof` — the delimited drivers' one and only `Unclosed` path.
+  let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+    "a b",
+    (),
+    DefaultCache::<'_, Lex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+  assert!(matches!(inp.next(), Ok(Some(_))));
+  assert!(matches!(inp.next(), Ok(Some(_))));
+  assert!(matches!(inp.next(), Ok(None)), "the input is exhausted");
+  assert!(
+    matches!(inp.probe_close(|_| false), Ok(CloseStatus::Eof)),
+    "genuine end of input probes as `Eof`"
+  );
+}
+
+#[test]
+fn probe_close_at_a_terminal_trip_is_tripped_not_eof() {
+  // "a b c" behind a 2-token limiter: the third word trips. After the two under-limit
+  // tokens drain — the trip latches the poison boundary — `probe_close` must report a
+  // terminal stop as `Tripped`, NOT `Eof`, which a delimited driver would otherwise grow
+  // into a spurious `Unclosed`. The probe emits nothing itself: the trip's own limit
+  // diagnostic stays the only one recorded.
+  let mut input = Input::<LimLex<'_>, LimCtx<'_>, (), Partial>::with_state_and_cache(
+    "a b c",
+    LimitTracker::with_limit(2),
+    DefaultCache::<'_, LimLex<'_>>::default(),
+  );
+  input.seal();
+  let mut emitter = Verbose::<PErr>::new();
+  let status = {
+    let mut inp = input.as_ref(&mut emitter);
+    assert!(matches!(inp.next(), Ok(Some(_))), "first under-limit word");
+    assert!(matches!(inp.next(), Ok(Some(_))), "second under-limit word");
+    assert!(
+      matches!(inp.next(), Ok(None)),
+      "the third word trips the limiter — a terminal stop, not more tokens"
+    );
+    inp
+      .probe_close(|_| false)
+      .expect("a recovering emitter never fails the probe")
+  };
+  assert!(
+    matches!(status, CloseStatus::Tripped),
+    "a terminal scanner stop must probe as `Tripped`, never `Eof`"
+  );
+  assert_eq!(
+    limit_diags(&emitter),
+    1,
+    "only the limit trip's own diagnostic is recorded — the probe adds none"
+  );
+}
+
+#[test]
+fn probe_close_classifies_the_front_without_consuming() {
+  // The probe is a peek: it classifies the front token (closer vs not) but never
+  // advances, so a follow-up `next()` still yields that token.
+  let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+    "a",
+    (),
+    DefaultCache::<'_, Lex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  // A predicate that accepts the front token classifies it as the closer, unconsumed…
+  assert!(
+    matches!(inp.probe_close(|_| true), Ok(CloseStatus::Close)),
+    "an accepted front token is `Close`"
+  );
+  // …and one that rejects it classifies it as a wrong token, still unconsumed.
+  assert!(
+    matches!(inp.probe_close(|_| false), Ok(CloseStatus::WrongToken(_))),
+    "a rejected front token is `WrongToken`"
+  );
+  assert!(
+    matches!(inp.next(), Ok(Some(_))),
+    "probe_close must not consume: the token is still there"
+  );
+  assert!(
+    matches!(inp.next(), Ok(None)),
+    "and then the input is exhausted"
   );
 }

@@ -960,3 +960,62 @@ fn rw_at_least_zero_fatal_is_unclosed() {
     "plain repeated_while: `[` + at_least must fail with Unclosed, got {err:?}"
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Finding 2 — delimited `repeated_while`, `Action::Stop`, RECOVERING emitter.
+//
+// The delimited `repeated_while` driver used to emit the primary close diagnostic on
+// the `Action::Stop` path and then return WITHOUT running the repeated end handler
+// (`on_stop`). Under a fail-fast emitter the primary short-circuits, so the omission
+// was invisible; under a RECOVERING emitter it silently dropped the secondary
+// `TooFew`/bounds diagnostic (the plain, non-delimited `repeated_while` driver runs
+// it). The fix runs `on_stop` after the primary — the same primary-then-secondary
+// order the separated drivers established. `assert_unclosed_first` requires BOTH an
+// `Unclosed` (first) AND at least one secondary, so it was red before the fix
+// (no secondary) and is green after.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// at_least with ZERO elements: `[` at EOF ⇒ Unclosed FIRST, then TooFew(0, 1).
+#[test]
+fn rw_delim_at_least_zero_verbose_unclosed_then_toofew() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, SeqVerboseCtx<'inp>>,
+  ) -> Result<(Vec<i64>, Vec<SeqE>), SeqE> {
+    let items: Vec<i64> = seq_parse_num
+      .repeated_while::<_, U1>(seq_decide_num::<SeqVerboseCtx<'inp>>)
+      .at_least(1)
+      .delimited::<Bracket<(), (), ()>>()
+      .collect()
+      .parse_input(inp)?;
+    Ok((items, seq_recorded(inp.emitter())))
+  }
+  let (items, diags) = Parser::with_context(seq_verbose_ctx())
+    .apply(go)
+    .parse_str("[")
+    .unwrap();
+  assert_eq!(items, Vec::<i64>::new(), "zero elements collected");
+  assert_unclosed_first(&diags, "[]");
+}
+
+// bounded, too-few elements: `[1` at EOF with a min of 2 ⇒ Unclosed FIRST, then
+// TooFew(1, 2). `[1` reaches the same `Action::Stop` branch (one element, then EOF).
+#[test]
+fn rw_delim_bounded_too_few_verbose_unclosed_then_toofew() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, SeqVerboseCtx<'inp>>,
+  ) -> Result<(Vec<i64>, Vec<SeqE>), SeqE> {
+    let items: Vec<i64> = seq_parse_num
+      .repeated_while::<_, U1>(seq_decide_num::<SeqVerboseCtx<'inp>>)
+      .bounded(2, 4)
+      .delimited::<Bracket<(), (), ()>>()
+      .collect()
+      .parse_input(inp)?;
+    Ok((items, seq_recorded(inp.emitter())))
+  }
+  let (items, diags) = Parser::with_context(seq_verbose_ctx())
+    .apply(go)
+    .parse_str("[1")
+    .unwrap();
+  assert_eq!(items, vec![1], "the one element before EOF is collected");
+  assert_unclosed_first(&diags, "[]");
+}
