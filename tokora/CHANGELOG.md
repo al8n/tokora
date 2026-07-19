@@ -24,6 +24,13 @@ versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change
   at end-of-input, but with a stale unexpected-token pointing at the last element rather than at
   the opener — now reports `Unclosed` at the opener like the other three drivers.
 
+  The close-status diagnostic is the **primary**: the `separated`/`separated_while` delimited
+  drivers emit it **before** the end-state secondaries (`TooFew`, separator policy), so a
+  fail-fast emitter fails with `Unclosed` on e.g. `[` under `at_least(1)` or `[1,2,` at
+  end-of-input rather than letting the secondary short-circuit it, and a recovering emitter
+  records primary-then-secondaries in order. The plain `repeated`/`repeated_while` delimited
+  drivers already ordered the close-status diagnostic before their bound checks.
+
 ### Changed (breaking)
 
 - Added `UnclosedEmitter`, a new atomically-composable emitter sub-trait

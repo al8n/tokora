@@ -465,3 +465,498 @@ fn sw_bracket_verbose_records_and_recovers() {
   assert_eq!(items, vec![1, 2]);
   assert_eq!(diags, vec![("[]".to_string(), 0)]);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Ordering: the close-status diagnostic is PRIMARY — emitted before the end-state
+// secondaries (TooFew / trailing-separator), which under a fail-fast emitter would
+// otherwise short-circuit first and bypass `Unclosed` entirely (the separated
+// drivers used to run `handle_end` before the close-miss classification).
+//
+// `SeqE` stamps every `From` conversion with a process-wide sequence number at
+// emission time (`Fatal` and `Verbose` both convert at the emit call), so a
+// recovering run can assert primary-before-secondary order without reaching into
+// the emitter's internals. Stamps are only compared within one parse (one thread),
+// so cross-test interleaving of the shared counter is harmless.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use tokora::emitter::TooFewEmitter;
+
+static SEQ: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Debug, Clone, PartialEq)]
+enum SeqKind {
+  Unclosed { name: String, start: usize },
+  Secondary,
+}
+
+#[derive(Debug, Clone)]
+struct SeqE {
+  kind: SeqKind,
+  seq: usize,
+}
+
+impl SeqE {
+  fn secondary() -> Self {
+    SeqE {
+      kind: SeqKind::Secondary,
+      seq: SEQ.fetch_add(1, Ordering::Relaxed),
+    }
+  }
+}
+
+// The migration arm, span-specific so the opener offset is captured for the asserts.
+impl<D, Lang: ?Sized> From<Unclosed<D, SimpleSpan, Lang>> for SeqE {
+  fn from(err: Unclosed<D, SimpleSpan, Lang>) -> Self {
+    SeqE {
+      kind: SeqKind::Unclosed {
+        name: err.name_ref().to_string(),
+        start: err.span().start(),
+      },
+      seq: SEQ.fetch_add(1, Ordering::Relaxed),
+    }
+  }
+}
+
+impl From<()> for SeqE {
+  fn from(_: ()) -> Self {
+    SeqE::secondary()
+  }
+}
+impl<'a, T, K: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, K, S, Lang>> for SeqE {
+  fn from(_: UnexpectedToken<'a, T, K, S, Lang>) -> Self {
+    SeqE::secondary()
+  }
+}
+impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for SeqE {
+  fn from(_: FullContainer<S, Lang>) -> Self {
+    SeqE::secondary()
+  }
+}
+impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for SeqE {
+  fn from(_: TooFew<S, Lang>) -> Self {
+    SeqE::secondary()
+  }
+}
+impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for SeqE {
+  fn from(_: TooMany<S, Lang>) -> Self {
+    SeqE::secondary()
+  }
+}
+impl From<UnexpectedEot> for SeqE {
+  fn from(_: UnexpectedEot) -> Self {
+    SeqE::secondary()
+  }
+}
+impl<'a, K: Clone, O, Lang: ?Sized> From<MissingToken<'a, K, O, Lang>> for SeqE {
+  fn from(_: MissingToken<'a, K, O, Lang>) -> Self {
+    SeqE::secondary()
+  }
+}
+impl<'a, T, K: Clone, S, Lang: ?Sized> From<SeparatedError<'a, T, K, S, Lang>> for SeqE {
+  fn from(_: SeparatedError<'a, T, K, S, Lang>) -> Self {
+    SeqE::secondary()
+  }
+}
+impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for SeqE {
+  fn from(_: MissingSyntax<O, Lang>) -> Self {
+    SeqE::secondary()
+  }
+}
+
+type SeqVerboseCtx<'inp> = ParserContext<'inp, TestLexer<'inp>, Verbose<SeqE>>;
+
+fn seq_fatal_ctx() -> ParserContext<'static, TestLexer<'static>, Fatal<SeqE>> {
+  ParserContext::new(Fatal::new())
+}
+fn seq_verbose_ctx() -> SeqVerboseCtx<'static> {
+  ParserContext::new(Verbose::new())
+}
+
+/// Flattened recorded diagnostics of a `Verbose<SeqE>` sink.
+fn seq_recorded(em: &Verbose<SeqE>) -> Vec<SeqE> {
+  em.errors().values().flatten().cloned().collect()
+}
+
+/// Asserts exactly one `Unclosed` (with `name`, at the opener) plus at least one
+/// secondary were recorded, the `Unclosed` stamped strictly BEFORE every secondary.
+fn assert_unclosed_first(diags: &[SeqE], name: &str) {
+  let unclosed: Vec<&SeqE> = diags
+    .iter()
+    .filter(|e| matches!(&e.kind, SeqKind::Unclosed { .. }))
+    .collect();
+  let secondaries: Vec<&SeqE> = diags
+    .iter()
+    .filter(|e| e.kind == SeqKind::Secondary)
+    .collect();
+  assert_eq!(
+    unclosed.len(),
+    1,
+    "exactly one Unclosed recorded: {diags:?}"
+  );
+  assert_eq!(
+    unclosed[0].kind,
+    SeqKind::Unclosed {
+      name: name.to_string(),
+      start: 0
+    }
+  );
+  assert!(
+    !secondaries.is_empty(),
+    "the end-state secondary must still be recorded after recovery: {diags:?}"
+  );
+  for s in &secondaries {
+    assert!(
+      unclosed[0].seq < s.seq,
+      "Unclosed (seq {}) must be emitted before the secondary (seq {}): {diags:?}",
+      unclosed[0].seq,
+      s.seq
+    );
+  }
+}
+
+// ── SeqE element parsers / condition ──────────────────────────────────────────
+
+fn seq_try_num<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<ParseAttempt<i64>, SeqE>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = SeqE>,
+{
+  inp
+    .try_expect(|t| matches!(t.data(), Token::Num(_)))
+    .map(|opt| match opt {
+      None => ParseAttempt::Decline,
+      Some(tok) => ParseAttempt::Accept(match tok.into_data() {
+        Token::Num(n) => n,
+        _ => unreachable!(),
+      }),
+    })
+}
+
+fn seq_parse_num<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, SeqE>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = SeqE>,
+{
+  match inp.next()? {
+    None => Err(SeqE::secondary()),
+    Some(tok) => match tok.into_data() {
+      Token::Num(n) => Ok(n),
+      _ => Err(SeqE::secondary()),
+    },
+  }
+}
+
+fn seq_decide_num<'inp, Ctx>(
+  mut peeked: Peeked<'_, 'inp, TestLexer<'inp>, U1>,
+  _: &mut Ctx::Emitter,
+) -> Result<Action, <Ctx::Emitter as Emitter<'inp, TestLexer<'inp>>>::Error>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+{
+  Ok(match peeked.pop_front() {
+    None => Action::Stop,
+    Some(tok) => {
+      let tok = tok
+        .as_maybe_ref()
+        .map(|t| t.token().copied(), |t| t.token())
+        .into_inner();
+      if matches!(**tok.data(), Token::Num(_)) {
+        Action::Continue
+      } else {
+        Action::Stop
+      }
+    }
+  })
+}
+
+// ── separated (`separated_by_comma`) ──────────────────────────────────────────
+
+fn sep_at_least_zero<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, SeqE>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = SeqE>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>,
+{
+  seq_try_num
+    .separated_by_comma()
+    .at_least(1)
+    .delimited::<Bracket<(), (), ()>>()
+    .collect()
+    .parse_input(inp)
+}
+
+fn sep_trailing_eof<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, SeqE>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = SeqE>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>,
+{
+  seq_try_num
+    .separated_by_comma()
+    .delimited::<Bracket<(), (), ()>>()
+    .collect()
+    .parse_input(inp)
+}
+
+// Fatal, zero elements under at_least: `[` at EOF ⇒ the error IS Unclosed (the
+// primary), not the TooFew the end-state handler would raise.
+#[test]
+fn sep_at_least_zero_fatal_is_unclosed() {
+  let r: Result<Vec<i64>, SeqE> = Parser::with_context(seq_fatal_ctx())
+    .apply(sep_at_least_zero)
+    .parse_str("[");
+  let err = r.unwrap_err();
+  assert_eq!(
+    err.kind,
+    SeqKind::Unclosed {
+      name: "[]".to_string(),
+      start: 0
+    },
+    "at_least/zero-element `[` at EOF must fail with Unclosed, got {err:?}"
+  );
+}
+
+// Fatal, trailing separator at EOF: `[1,2,` ⇒ Unclosed (primary), not the
+// trailing-separator diagnostic.
+#[test]
+fn sep_trailing_eof_fatal_is_unclosed() {
+  let r: Result<Vec<i64>, SeqE> = Parser::with_context(seq_fatal_ctx())
+    .apply(sep_trailing_eof)
+    .parse_str("[1,2,");
+  let err = r.unwrap_err();
+  assert_eq!(
+    err.kind,
+    SeqKind::Unclosed {
+      name: "[]".to_string(),
+      start: 0
+    },
+    "trailing-separator `[1,2,` at EOF must fail with Unclosed, got {err:?}"
+  );
+}
+
+// Recovering twins: Unclosed recorded FIRST, then the secondary, then the elements.
+#[test]
+fn sep_at_least_zero_verbose_unclosed_first() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, SeqVerboseCtx<'inp>>,
+  ) -> Result<(Vec<i64>, Vec<SeqE>), SeqE> {
+    let items = sep_at_least_zero(inp)?;
+    Ok((items, seq_recorded(inp.emitter())))
+  }
+  let (items, diags) = Parser::with_context(seq_verbose_ctx())
+    .apply(go)
+    .parse_str("[")
+    .unwrap();
+  assert_eq!(items, Vec::<i64>::new());
+  assert_unclosed_first(&diags, "[]");
+}
+
+#[test]
+fn sep_trailing_eof_verbose_unclosed_first() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, SeqVerboseCtx<'inp>>,
+  ) -> Result<(Vec<i64>, Vec<SeqE>), SeqE> {
+    let items = sep_trailing_eof(inp)?;
+    Ok((items, seq_recorded(inp.emitter())))
+  }
+  let (items, diags) = Parser::with_context(seq_verbose_ctx())
+    .apply(go)
+    .parse_str("[1,2,")
+    .unwrap();
+  assert_eq!(items, vec![1, 2]);
+  assert_unclosed_first(&diags, "[]");
+}
+
+// ── separated_while (`separated_by_comma_while`) ──────────────────────────────
+
+fn sw_at_least_zero<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, SeqE>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = SeqE>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>,
+{
+  seq_parse_num
+    .separated_by_comma_while::<_, U1>(seq_decide_num::<Ctx>)
+    .at_least(1)
+    .delimited::<Bracket<(), (), ()>>()
+    .collect()
+    .parse_input(inp)
+}
+
+fn sw_trailing_eof<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Vec<i64>, SeqE>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = SeqE>
+    + SeparatedEmitter<'inp, TestLexer<'inp>>
+    + FullContainerEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedLeadingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + UnexpectedTrailingSeparatorEmitter<'inp, TestLexer<'inp>>
+    + TooFewEmitter<'inp, TestLexer<'inp>>
+    + TooManyEmitter<'inp, TestLexer<'inp>>
+    + UnclosedEmitter<'inp, TestLexer<'inp>>,
+{
+  seq_parse_num
+    .separated_by_comma_while::<_, U1>(seq_decide_num::<Ctx>)
+    .delimited::<Bracket<(), (), ()>>()
+    .collect()
+    .parse_input(inp)
+}
+
+#[test]
+fn sw_at_least_zero_fatal_is_unclosed() {
+  let r: Result<Vec<i64>, SeqE> = Parser::with_context(seq_fatal_ctx())
+    .apply(sw_at_least_zero)
+    .parse_str("[");
+  let err = r.unwrap_err();
+  assert_eq!(
+    err.kind,
+    SeqKind::Unclosed {
+      name: "[]".to_string(),
+      start: 0
+    },
+    "at_least/zero-element `[` at EOF must fail with Unclosed, got {err:?}"
+  );
+}
+
+#[test]
+fn sw_trailing_eof_fatal_is_unclosed() {
+  let r: Result<Vec<i64>, SeqE> = Parser::with_context(seq_fatal_ctx())
+    .apply(sw_trailing_eof)
+    .parse_str("[1,2,");
+  let err = r.unwrap_err();
+  assert_eq!(
+    err.kind,
+    SeqKind::Unclosed {
+      name: "[]".to_string(),
+      start: 0
+    },
+    "trailing-separator `[1,2,` at EOF must fail with Unclosed, got {err:?}"
+  );
+}
+
+#[test]
+fn sw_at_least_zero_verbose_unclosed_first() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, SeqVerboseCtx<'inp>>,
+  ) -> Result<(Vec<i64>, Vec<SeqE>), SeqE> {
+    let items = sw_at_least_zero(inp)?;
+    Ok((items, seq_recorded(inp.emitter())))
+  }
+  let (items, diags) = Parser::with_context(seq_verbose_ctx())
+    .apply(go)
+    .parse_str("[")
+    .unwrap();
+  assert_eq!(items, Vec::<i64>::new());
+  assert_unclosed_first(&diags, "[]");
+}
+
+#[test]
+fn sw_trailing_eof_verbose_unclosed_first() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, SeqVerboseCtx<'inp>>,
+  ) -> Result<(Vec<i64>, Vec<SeqE>), SeqE> {
+    let items = sw_trailing_eof(inp)?;
+    Ok((items, seq_recorded(inp.emitter())))
+  }
+  let (items, diags) = Parser::with_context(seq_verbose_ctx())
+    .apply(go)
+    .parse_str("[1,2,")
+    .unwrap();
+  assert_eq!(items, vec![1, 2]);
+  assert_unclosed_first(&diags, "[]");
+}
+
+// ── plain drivers: ordering pins (already correct — Unclosed before on_stop) ──
+
+#[test]
+fn rd_at_least_zero_fatal_is_unclosed() {
+  fn go<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, SeqE>
+  where
+    Ctx: ParseContext<'inp, TestLexer<'inp>>,
+    Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = SeqE>
+      + FullContainerEmitter<'inp, TestLexer<'inp>>
+      + TooFewEmitter<'inp, TestLexer<'inp>>
+      + UnclosedEmitter<'inp, TestLexer<'inp>>,
+  {
+    seq_try_num
+      .repeated()
+      .at_least(1)
+      .delimited::<Bracket<(), (), ()>>()
+      .collect()
+      .parse_input(inp)
+  }
+  let r: Result<Vec<i64>, SeqE> = Parser::with_context(seq_fatal_ctx())
+    .apply(go)
+    .parse_str("[");
+  let err = r.unwrap_err();
+  assert_eq!(
+    err.kind,
+    SeqKind::Unclosed {
+      name: "[]".to_string(),
+      start: 0
+    },
+    "plain repeated: `[` + at_least must fail with Unclosed, got {err:?}"
+  );
+}
+
+#[test]
+fn rw_at_least_zero_fatal_is_unclosed() {
+  fn go<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, SeqE>
+  where
+    Ctx: ParseContext<'inp, TestLexer<'inp>>,
+    Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = SeqE>
+      + FullContainerEmitter<'inp, TestLexer<'inp>>
+      + SeparatedEmitter<'inp, TestLexer<'inp>>
+      + TooFewEmitter<'inp, TestLexer<'inp>>
+      + UnclosedEmitter<'inp, TestLexer<'inp>>,
+  {
+    seq_parse_num
+      .repeated_while::<_, U1>(seq_decide_num::<Ctx>)
+      .at_least(1)
+      .delimited::<Bracket<(), (), ()>>()
+      .collect()
+      .parse_input(inp)
+  }
+  let r: Result<Vec<i64>, SeqE> = Parser::with_context(seq_fatal_ctx())
+    .apply(go)
+    .parse_str("[");
+  let err = r.unwrap_err();
+  assert_eq!(
+    err.kind,
+    SeqKind::Unclosed {
+      name: "[]".to_string(),
+      start: 0
+    },
+    "plain repeated_while: `[` + at_least must fail with Unclosed, got {err:?}"
+  );
+}
