@@ -186,3 +186,33 @@ fn str_empty_slice() {
   let result = Source::slice(src, 1..1);
   assert_eq!(result, Some(""));
 }
+
+// --- as_slice tests ---
+
+#[test]
+fn u8_slice_as_slice_returns_whole_source() {
+  let src: &[u8] = b"abcde";
+  assert_eq!(Source::as_slice(src), b"abcde".as_slice());
+  // Documented equivalence: `as_slice()` == `slice(..)`.
+  assert_eq!(Source::as_slice(src), Source::slice(src, ..).unwrap());
+}
+
+#[test]
+fn u8_slice_as_slice_empty() {
+  let src: &[u8] = b"";
+  assert_eq!(Source::as_slice(src), b"".as_slice());
+}
+
+#[test]
+fn str_as_slice_returns_whole_source() {
+  let src: &str = "abcde";
+  assert_eq!(Source::as_slice(src), "abcde");
+  // Documented equivalence: `as_slice()` == `slice(..)`.
+  assert_eq!(Source::as_slice(src), Source::slice(src, ..).unwrap());
+}
+
+#[test]
+fn str_as_slice_empty() {
+  let src: &str = "";
+  assert_eq!(Source::as_slice(src), "");
+}

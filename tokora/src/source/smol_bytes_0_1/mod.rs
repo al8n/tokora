@@ -21,6 +21,11 @@ impl Source<usize> for shared::Bytes {
   }
 
   #[inline(always)]
+  fn as_slice(&self) -> Self::Slice<'_> {
+    self.clone()
+  }
+
+  #[inline(always)]
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
     R: RangeBounds<usize>,
@@ -71,6 +76,11 @@ impl Source<usize> for compact::Bytes {
   }
 
   #[inline(always)]
+  fn as_slice(&self) -> Self::Slice<'_> {
+    self.clone()
+  }
+
+  #[inline(always)]
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
     R: RangeBounds<usize>,
@@ -118,6 +128,11 @@ impl Source<usize> for Utf8Bytes {
   #[inline(always)]
   fn len(&self) -> usize {
     <Utf8Bytes>::len(self)
+  }
+
+  #[inline(always)]
+  fn as_slice(&self) -> Self::Slice<'_> {
+    self.clone()
   }
 
   #[inline(always)]

@@ -31,6 +31,9 @@ pub trait Source<Cursor>: core::fmt::Debug {
   /// Length of the source
   fn len(&self) -> Cursor;
 
+  /// Returns the entire source as a slice — the same contents as `slice(..)`.
+  fn as_slice(&self) -> Self::Slice<'_>;
+
   /// Get a slice of the source at given range. This is analogous to
   /// `slice::get(range)`.
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
@@ -70,6 +73,11 @@ impl Source<usize> for [u8] {
   }
 
   #[inline(always)]
+  fn as_slice(&self) -> Self::Slice<'_> {
+    self
+  }
+
+  #[inline(always)]
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
     R: RangeBounds<usize>,
@@ -100,6 +108,11 @@ impl Source<usize> for str {
   #[inline(always)]
   fn len(&self) -> usize {
     <str>::len(self)
+  }
+
+  #[inline(always)]
+  fn as_slice(&self) -> Self::Slice<'_> {
+    self
   }
 
   #[inline(always)]

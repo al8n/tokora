@@ -19,6 +19,11 @@ impl Source<usize> for BStr {
   }
 
   #[inline(always)]
+  fn as_slice(&self) -> Self::Slice<'_> {
+    BStr::as_ref(self)
+  }
+
+  #[inline(always)]
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
     R: core::ops::RangeBounds<usize>,
