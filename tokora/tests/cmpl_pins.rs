@@ -189,6 +189,11 @@ impl From<()> for PinErr {
     PinErr::Other
   }
 }
+impl<D, S, Lang: ?Sized> From<tokora::error::Unclosed<D, S, Lang>> for PinErr {
+  fn from(_: tokora::error::Unclosed<D, S, Lang>) -> Self {
+    PinErr::Other
+  }
+}
 impl<'a, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, Token, TokenKind, S, Lang>>
   for PinErr
 {

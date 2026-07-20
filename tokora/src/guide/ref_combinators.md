@@ -1234,11 +1234,15 @@ assert_eq!(Parser::with_parser(run).parse_str("123]").unwrap(), vec![1, 2, 3]);
 
 A committed single-region shape: commit the opener, run the inner sub-parser, commit the
 closer, and return a span-carrying [`Delimited`](crate::utils::Delimited) — the open value,
-the close value, the inner output, and the whole-construct span. A missing closer is a hard
-error: the closer's unexpected-token or end-of-input error propagates rather than fabricating
-a delimiter, and this family never fires the `Unclosed`/`Unopened`/`Undelimited` recovery
-vocabulary (see [*Error taxonomy*](#error-taxonomy)) — a recovery-oriented caller holds the
-region's start cursor and can map at the call site.
+the close value, the inner output, and the whole-construct span. A missing closer reports the
+opener as [`Unclosed`](crate::error::Unclosed) through the emitter — the same four-way
+close-miss law the many-builders follow: end of input with the opener still open fires
+`Unclosed` (a fail-fast emitter turns it into `Err`, a recovering one records it and yields the
+construct recovered with a synthesized closer); a wrong token where the closer belongs stays
+the unexpected-token (expected-close) diagnostic; a terminal scanner stop surfaces the
+committed form's end-of-input error. This family fires only `Unclosed`, never the
+`Unopened`/`Undelimited` half of the recovery vocabulary (see
+[*Error taxonomy*](#error-taxonomy)).
 
 [`delimited::<D, …>(inner)`](crate::parser::delimited) takes the delimiter pair as its first
 type parameter through the [`TypedDelimiter`](crate::delimiter::TypedDelimiter) capability;
@@ -1251,10 +1255,11 @@ which instead wraps a *repetition* and hands its delimiter tokens to a handler.
 
 Every shape has an **attempt twin** that declines — `Ok(None)`, zero consumption — **iff the
 opener is absent**: a wrong token or end of input at entry. The moment the opener is consumed
-the parse is committed and every later error propagates exactly as the committed form's. The
-attempt boundary is deliberately the opener alone, not the whole shape: `opt(parens(inner))`
-would swallow an unclosed group into a decline, where `Ident<` at end of input must error as
-unclosed rather than silently disappear.
+the parse is committed and every later diagnostic behaves exactly as the committed form's — an
+unterminated group reports the opener as `Unclosed` through the emitter, never a silent decline.
+The attempt boundary is deliberately the opener alone, not the whole shape: `opt(parens(inner))`
+would swallow an unclosed group into a decline, where `Ident<` at end of input must report
+`Unclosed` rather than silently disappear.
 
 | Atom | One-liner |
 |------|-----------|
@@ -1276,7 +1281,7 @@ try_delimited<D, …>(inner) / try_parens(inner) / … -> the same, wrapped in O
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 #   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, OpenBrace, CloseBrace, OpenAngle, CloseAngle, Semicolon},
 #   span::Span as _,
 #   token::PunctuatorToken,
@@ -1292,6 +1297,7 @@ try_delimited<D, …>(inner) / try_parens(inner) / … -> the same, wrapped in O
 # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
 # impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Error { fn from(_: TooMany<S, Lang>) -> Self { Error } }
+# impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 # impl tokora::error::MaybeIncomplete for Error {}
 # #[derive(Debug, Clone, PartialEq)]
 # enum Tok { Digit(u32), Comma, Semi, LParen, RParen, LBracket, RBracket, LBrace, RBrace, LAngle, RAngle }

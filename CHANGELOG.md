@@ -1,3 +1,26 @@
+# Unreleased (0.4.0)
+
+## Changed (breaking)
+
+- **Delimited parsers report a missing closer as `Unclosed` through the emitter.** Both
+  delimited families now share one close-miss law. Classifying the close position four ways:
+  end of input with the opener still open emits `Unclosed` (anchored at the opener, carrying
+  the delimiter pair's name) through the `UnclosedEmitter` capability — a fail-fast `Fatal`
+  emitter turns it into `Err`, a recovering `Verbose` emitter records it and recovers; a wrong
+  token where the closer belongs stays the unexpected-token (expected-close) diagnostic, not
+  `Unclosed`; a terminal scanner stop surfaces the committed form's end-of-input error, adding
+  no `Unclosed`.
+  - The delimited **many-builders** (`.repeated()` / `.repeated_while()` /
+    `.separated_*()` + `.delimited::<D>().collect()`) since 0.3.1's fix.
+  - The delimited **shape** parsers (`delimited::<D>` / `parens` / `braces` / `brackets` /
+    `angles` and their `try_` twins) now match: previously a missing closer raised a plain
+    unexpected-token / end-of-input error. Each shape gains a `Ctx::Emitter: UnclosedEmitter`
+    bound and a `From<Unclosed<(), _, _>>` requirement on the error type (breaking; mirrors the
+    many-builders). Under a recovering emitter the shape yields the construct with a closer
+    synthesized at the insertion point (a zero-width span). The `try_` twins keep their decline
+    law (absent opener ⇒ `Ok(None)`, zero consumption) and, once the opener is committed,
+    report `Unclosed` on an unterminated group — never a silent decline.
+
 # 0.3.1 (2026-07-19)
 
 ## Fixed

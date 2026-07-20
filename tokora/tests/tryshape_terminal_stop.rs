@@ -18,15 +18,15 @@ use std::rc::Rc;
 
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, Token as TokenT,
-  emitter::{Fatal, Silent, Verbose},
+  emitter::{Fatal, Silent, UnclosedEmitter, Verbose},
   error::{
-    UnexpectedEot,
+    Unclosed, UnexpectedEot,
     syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
     token::{MissingToken, SeparatedError, UnexpectedToken},
   },
   lexer::LogosLexer,
   logos::{self, Logos},
-  parser::{try_angles, try_braces, try_brackets, try_delimited, try_parens},
+  parser::{parens, try_angles, try_braces, try_brackets, try_delimited, try_parens},
   punct::{
     CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen,
     Paren,
@@ -91,11 +91,20 @@ enum TErr {
   Limit,
   /// The committed form's end-of-input error — what a terminal stop must surface.
   Eot,
+  /// An unclosed-delimiter diagnostic — distinct so a trip-at-close test can assert it is
+  /// *not* raised (the Tripped arm adds no `Unclosed`).
+  Unclosed,
 }
 
 impl From<()> for TErr {
   fn from(_: ()) -> Self {
     TErr::Lex
+  }
+}
+
+impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for TErr {
+  fn from(_: Unclosed<D, S, Lang>) -> Self {
+    TErr::Unclosed
   }
 }
 
@@ -343,7 +352,7 @@ fn drive<'inp, O, Em>(
   input: &'inp str,
 ) -> Result<O, TErr>
 where
-  Em: Emitter<'inp, TLexer<'inp>, Error = TErr>,
+  Em: Emitter<'inp, TLexer<'inp>, Error = TErr> + UnclosedEmitter<'inp, TLexer<'inp>>,
 {
   let ctx: ParserContext<'inp, TLexer<'inp>, Em> = ParserContext::new(emitter);
   Parser::with_parser_and_context(f, ctx).parse_str_with_state(input, state)
@@ -636,4 +645,47 @@ fn try_parens_still_declines_on_genuine_eoi_under_recovering_emitter() {
   );
   let total: usize = verbose.errors().values().map(|g| g.len()).sum();
   assert_eq!(total, 0, "a genuine end-of-input decline emits nothing");
+}
+
+// ── The close-position twin: a terminal trip at the CLOSER ────────────────────
+//
+// The committed shapes now classify the close position with the same four-way `probe_close`
+// as the many-builders. A resource-limit trip there is `Tripped`, not `Eof`: it surfaces the
+// committed form's end-of-input error and adds NO `Unclosed`. `(a)` under a limit of 2 trips
+// while scanning the closing `)` (the opener + inner ident spend the budget), so the closer
+// is never reached as a token.
+#[test]
+fn committed_shape_trip_at_close_surfaces_eot_not_unclosed() {
+  let mut verbose = Verbose::<TErr>::new();
+  let limiter = ScanLimiter::with_limit(2);
+  let scanned = limiter.counter();
+  let out = drive(
+    &mut verbose,
+    limiter,
+    |inp| parens(ident_inner)(inp).map(|_| ()),
+    "(a)",
+  );
+  assert_eq!(
+    out,
+    Err(TErr::Eot),
+    "a trip at the closer surfaces the committed form's end-of-input error, not Unclosed"
+  );
+  assert_eq!(
+    scanned.get(),
+    3,
+    "scanned the opener, the inner ident, and the tripping closer"
+  );
+  assert_eq!(
+    limit_diags(&verbose),
+    1,
+    "the trip's own diagnostic reached the recovering emitter"
+  );
+  assert!(
+    !verbose
+      .errors()
+      .values()
+      .flatten()
+      .any(|e| matches!(e, TErr::Unclosed)),
+    "no spurious Unclosed on the Tripped path"
+  );
 }

@@ -17,9 +17,11 @@ use common::{E, TestLexer, Token, TokenKind};
 
 use tokora::{
   Emitter, FatalContext, InputRef, Lexer, Parse, ParseCtx, Parser, ParserContext, SimpleSpan,
-  emitter::{Fatal, FullContainerEmitter, SeparatedEmitter, TooFewEmitter, Verbose},
+  emitter::{
+    Fatal, FullContainerEmitter, SeparatedEmitter, TooFewEmitter, UnclosedEmitter, Verbose,
+  },
   error::{
-    UnexpectedEot,
+    Unclosed, UnexpectedEot,
     syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
     token::{MissingToken, SeparatedError, UnexpectedToken},
   },
@@ -125,7 +127,7 @@ fn drive<'inp, O, Em>(
   input: &'inp str,
 ) -> Result<O, E>
 where
-  Em: Emitter<'inp, TestLexer<'inp>, Error = E>,
+  Em: Emitter<'inp, TestLexer<'inp>, Error = E> + UnclosedEmitter<'inp, TestLexer<'inp>>,
 {
   let ctx: ParserContext<'inp, TestLexer<'inp>, Em> = ParserContext::new(emitter);
   Parser::with_parser_and_context(f, ctx).parse_str(input)
@@ -459,57 +461,58 @@ fn braces_empty_with_opt_inner_yields_none() {
   assert!(out.is_ok());
 }
 
-// Unterminated groups: the inner consumes the `a` ident, then the missing closer makes
-// the committed closer atom error on end of input. That error propagates identically
-// under a fail-fast and a collecting emitter — a missing closer is not recovered into a
-// fabricated delimiter — so both modes return `Err`.
+// Unterminated groups: the inner consumes the `a` ident, then the missing closer reports the
+// opener as `Unclosed` through the emitter. A fail-fast emitter turns it into `Err`; a
+// collecting emitter records it and recovers, yielding the group with a synthesized closer —
+// so Fatal returns `Err` and Verbose returns `Ok`. (Before the shape-Unclosed fix both modes
+// returned `Err`.)
 
 #[test]
-fn braces_unterminated_errors() {
+fn braces_unterminated_reports_unclosed() {
   let out = drive(
     Fatal::<E>::new(),
     |inp| braces(Ident::parse)(inp).map(|_| ()),
     "{a",
   );
-  assert!(out.is_err());
+  assert!(out.is_err(), "fatal: Unclosed becomes Err");
   let out = drive(
     Verbose::<E>::new(),
     |inp| braces(Ident::parse)(inp).map(|_| ()),
     "{a",
   );
-  assert!(out.is_err());
+  assert!(out.is_ok(), "verbose: records Unclosed and recovers");
 }
 
 #[test]
-fn parens_unterminated_errors() {
+fn parens_unterminated_reports_unclosed() {
   let out = drive(
     Fatal::<E>::new(),
     |inp| parens(Ident::parse)(inp).map(|_| ()),
     "(a",
   );
-  assert!(out.is_err());
+  assert!(out.is_err(), "fatal: Unclosed becomes Err");
   let out = drive(
     Verbose::<E>::new(),
     |inp| parens(Ident::parse)(inp).map(|_| ()),
     "(a",
   );
-  assert!(out.is_err());
+  assert!(out.is_ok(), "verbose: records Unclosed and recovers");
 }
 
 #[test]
-fn brackets_unterminated_errors() {
+fn brackets_unterminated_reports_unclosed() {
   let out = drive(
     Fatal::<E>::new(),
     |inp| brackets(Ident::parse)(inp).map(|_| ()),
     "[a",
   );
-  assert!(out.is_err());
+  assert!(out.is_err(), "fatal: Unclosed becomes Err");
   let out = drive(
     Verbose::<E>::new(),
     |inp| brackets(Ident::parse)(inp).map(|_| ()),
     "[a",
   );
-  assert!(out.is_err());
+  assert!(out.is_ok(), "verbose: records Unclosed and recovers");
 }
 
 // The collecting-mode recovery continuation: an inner sub-parser that records a non-fatal
@@ -560,19 +563,19 @@ fn angles_wrap_ident() {
 }
 
 #[test]
-fn angles_unterminated_errors() {
+fn angles_unterminated_reports_unclosed() {
   let out = drive(
     Fatal::<E>::new(),
     |inp| angles(Ident::parse)(inp).map(|_| ()),
     "<a",
   );
-  assert!(out.is_err());
+  assert!(out.is_err(), "fatal: Unclosed becomes Err");
   let out = drive(
     Verbose::<E>::new(),
     |inp| angles(Ident::parse)(inp).map(|_| ()),
     "<a",
   );
-  assert!(out.is_err());
+  assert!(out.is_ok(), "verbose: records Unclosed and recovers");
 }
 
 // The `≡` proof: the generic `delimited::<Paren, …>` over `(x)` yields the same data and
@@ -615,10 +618,12 @@ fn delimited_wrong_close_reports_unexpected_token() {
   ));
 }
 
-// A missing closer at end of input is an `UnexpectedEot`, pinned distinct from the
-// unexpected-token path by the same local discriminating error.
+// A missing closer at end of input reports the opener as `Unclosed` through the emitter (a
+// fail-fast context turns it into `Err`), pinned distinct from the wrong-closer
+// unexpected-token path by the same local discriminating error. (Before the shape-Unclosed
+// fix this was an `UnexpectedEot`.)
 #[test]
-fn delimited_eof_reports_unexpected_eot() {
+fn delimited_eof_reports_unclosed() {
   fn unterminated<'a>(
     inp: &mut InputRef<'a, '_, TestLexer<'a>, FatalContext<'a, TestLexer<'a>, ShapeError>>,
   ) -> Result<(), ShapeError> {
@@ -627,7 +632,13 @@ fn delimited_eof_reports_unexpected_eot() {
   let err = Parser::with_parser(unterminated)
     .parse_str("(a")
     .unwrap_err();
-  assert!(matches!(err, ShapeError::Eot));
+  match err {
+    ShapeError::Unclosed { name, start } => {
+      assert_eq!(name, "()", "the opener's delimiter-pair name");
+      assert_eq!(start, 0, "anchored at the opener");
+    }
+    other => panic!("missing closer at EOF must be Unclosed, got {other:?}"),
+  }
 }
 
 // Nesting composes: `braces(brackets(ident))` over `{[x]}` wraps the bracket construct as
@@ -683,15 +694,20 @@ fn try_parens_declines_on_wrong_opener_and_leaves_it() {
 }
 
 #[test]
-fn try_parens_after_opener_is_committed_unterminated_errors() {
+fn try_parens_after_opener_is_committed_unterminated_never_declines() {
+  // Fatal: committed-then-unterminated reports Unclosed as an `Err`.
   let out = drive(Fatal::<E>::new(), |inp| try_parens(Ident::parse)(inp), "(a");
   assert!(out.is_err());
+  // Verbose: it records the Unclosed and recovers with the construct — NOT a silent decline.
   let out = drive(
     Verbose::<E>::new(),
     |inp| try_parens(Ident::parse)(inp),
     "(a",
   );
-  assert!(out.is_err());
+  assert!(
+    matches!(out, Ok(Some(_))),
+    "committed shape recovers under a recovering emitter, never Ok(None)"
+  );
 }
 
 #[test]
@@ -713,7 +729,7 @@ fn try_braces_declines_on_wrong_opener_and_leaves_it() {
 }
 
 #[test]
-fn try_braces_after_opener_is_committed_unterminated_errors() {
+fn try_braces_after_opener_is_committed_unterminated_never_declines() {
   let out = drive(Fatal::<E>::new(), |inp| try_braces(Ident::parse)(inp), "{a");
   assert!(out.is_err());
   let out = drive(
@@ -721,7 +737,10 @@ fn try_braces_after_opener_is_committed_unterminated_errors() {
     |inp| try_braces(Ident::parse)(inp),
     "{a",
   );
-  assert!(out.is_err());
+  assert!(
+    matches!(out, Ok(Some(_))),
+    "committed shape recovers under a recovering emitter, never Ok(None)"
+  );
 }
 
 #[test]
@@ -743,7 +762,7 @@ fn try_brackets_declines_on_wrong_opener_and_leaves_it() {
 }
 
 #[test]
-fn try_brackets_after_opener_is_committed_unterminated_errors() {
+fn try_brackets_after_opener_is_committed_unterminated_never_declines() {
   let out = drive(
     Fatal::<E>::new(),
     |inp| try_brackets(Ident::parse)(inp),
@@ -755,7 +774,10 @@ fn try_brackets_after_opener_is_committed_unterminated_errors() {
     |inp| try_brackets(Ident::parse)(inp),
     "[a",
   );
-  assert!(out.is_err());
+  assert!(
+    matches!(out, Ok(Some(_))),
+    "committed shape recovers under a recovering emitter, never Ok(None)"
+  );
 }
 
 #[test]
@@ -777,7 +799,7 @@ fn try_angles_declines_on_wrong_opener_and_leaves_it() {
 }
 
 #[test]
-fn try_angles_after_opener_is_committed_unterminated_errors() {
+fn try_angles_after_opener_is_committed_unterminated_never_declines() {
   let out = drive(Fatal::<E>::new(), |inp| try_angles(Ident::parse)(inp), "<a");
   assert!(out.is_err());
   let out = drive(
@@ -785,7 +807,10 @@ fn try_angles_after_opener_is_committed_unterminated_errors() {
     |inp| try_angles(Ident::parse)(inp),
     "<a",
   );
-  assert!(out.is_err());
+  assert!(
+    matches!(out, Ok(Some(_))),
+    "committed shape recovers under a recovering emitter, never Ok(None)"
+  );
 }
 
 #[test]
@@ -811,7 +836,7 @@ fn try_delimited_generic_declines_on_wrong_opener_and_leaves_it() {
 }
 
 #[test]
-fn try_delimited_generic_after_opener_is_committed_unterminated_errors() {
+fn try_delimited_generic_after_opener_is_committed_unterminated_never_declines() {
   let out = drive(
     Fatal::<E>::new(),
     |inp| try_delimited::<Paren, _, _, _, _, _, _>(Ident::parse)(inp),
@@ -823,7 +848,10 @@ fn try_delimited_generic_after_opener_is_committed_unterminated_errors() {
     |inp| try_delimited::<Paren, _, _, _, _, _, _>(Ident::parse)(inp),
     "(a",
   );
-  assert!(out.is_err());
+  assert!(
+    matches!(out, Ok(Some(_))),
+    "committed shape recovers under a recovering emitter, never Ok(None)"
+  );
 }
 
 // ── Local discriminating error for the generic error-path tests ──────────────
@@ -838,6 +866,8 @@ enum ShapeError {
   Unexpected(Option<TokenKind>),
   /// End of input where a delimiter was required.
   Eot,
+  /// An unclosed delimiter, carrying the opener's name and start offset.
+  Unclosed { name: String, start: usize },
   /// Any other diagnostic family (unexercised by these tests).
   Other,
 }
@@ -845,6 +875,15 @@ enum ShapeError {
 impl From<()> for ShapeError {
   fn from(_: ()) -> Self {
     ShapeError::Other
+  }
+}
+
+impl<D, Lang: ?Sized> From<Unclosed<D, SimpleSpan, Lang>> for ShapeError {
+  fn from(e: Unclosed<D, SimpleSpan, Lang>) -> Self {
+    ShapeError::Unclosed {
+      name: e.name_ref().to_string(),
+      start: e.span().start(),
+    }
   }
 }
 
