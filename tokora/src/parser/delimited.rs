@@ -10,12 +10,16 @@
 //! impl — so it composes over every lexer, source, and emitter, and drops straight into
 //! another combinator with no adapter.
 //!
-//! A missing closer is a hard error: the closer's unexpected-token or end-of-input error
-//! propagates rather than fabricating a delimiter, so an unterminated group fails under a
-//! fail-fast and a collecting emitter alike. This family never fires the
-//! [`Unclosed`](crate::error::Unclosed)/[`Unopened`](crate::error::Unopened)/
-//! [`Undelimited`](crate::error::Undelimited) recovery vocabulary — a caller that wants it
-//! holds the region's start cursor and can map at the call site.
+//! A missing closer reports the opener as [`Unclosed`](crate::error::Unclosed) **through the
+//! emitter** — the same four-way close-miss law the delimited many-builders
+//! (`.delimited::<D>().collect()`) follow: end of input with the opener still open fires
+//! `Unclosed` (a fail-fast emitter turns it into `Err`, a recovering emitter records it and
+//! yields the construct recovered with a synthesized closer); a wrong token where the closer
+//! belongs is the existing unexpected-token (expected-close) diagnostic, **not** `Unclosed`;
+//! and a terminal scanner stop surfaces the committed form's end-of-input error, adding no
+//! `Unclosed`. This family fires only `Unclosed`, never the
+//! [`Unopened`](crate::error::Unopened)/[`Undelimited`](crate::error::Undelimited) half of the
+//! recovery vocabulary.
 //!
 //! Every shape has an **attempt twin** — [`try_delimited`], [`try_parens`], [`try_braces`],
 //! [`try_brackets`], [`try_angles`] — that declines (`Ok(None)`, zero consumption) **iff
@@ -29,17 +33,21 @@
 //! opener alone, never the whole shape — see [`try_delimited`] for why.
 
 use crate::{
-  ErrorOf, Lexer, ParseCtx, ParseInput, Token,
+  Emitter, ErrorOf, Lexer, ParseCtx, ParseInput, Token,
   delimiter::TypedDelimiter,
-  error::{UnexpectedEot, token::UnexpectedToken},
-  input::{Cursor, InputRef, SurfaceIncomplete},
+  emitter::UnclosedEmitter,
+  error::{
+    Unclosed, UnexpectedEot,
+    token::{UnexpectedToken, UnexpectedTokenOf},
+  },
+  input::{CloseStatus, Cursor, InputRef, SurfaceIncomplete},
   punct::{
     CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen,
   },
-  span::Span as _,
-  token::PunctuatorToken,
+  span::{Span as _, Spanned},
+  token::{PunctuatorToken, PunctuatorTokenExt, SpannedPunctuatorToken},
   try_parse_input::ParseAttempt,
-  utils::Delimited,
+  utils::{CowStr, Delimited},
 };
 
 /// The result the parser [`delimited`] builds yields: `inner`'s output wrapped in a
@@ -68,8 +76,10 @@ pub type DelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// agree, as all the built-in fixtures do.
 ///
 /// `inner` runs between the committed delimiters and its output becomes the [`Delimited`]
-/// data. A missing closer is not recovered: the closer's error — an unexpected token or end
-/// of input — propagates, so an unterminated group fails rather than fabricating a delimiter.
+/// data. A missing closer reports the opener as [`Unclosed`] through the emitter: a fail-fast
+/// emitter turns it into `Err`, a recovering emitter records it and yields the group recovered
+/// with a synthesized closer. A wrong token where the closer belongs stays the unexpected-token
+/// (expected-close) diagnostic instead.
 ///
 /// `inner` may be any [`ParseInput`](crate::ParseInput) — a closure or a named parser alike
 /// — and the returned closure is itself a `ParseInput` through the blanket impl, so shapes
@@ -81,7 +91,7 @@ pub type DelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// # use core::{convert::Infallible, fmt};
 /// # use tokora::{
 /// #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-/// #   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+/// #   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 /// #   punct::{CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen},
 /// #   span::Span as _,
 /// #   token::PunctuatorToken,
@@ -96,6 +106,7 @@ pub type DelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// # impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+/// # impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 /// # #[derive(Debug, Clone, PartialEq)]
 /// # enum Tok { Digit(u32), LParen, RParen, LBracket, RBracket, LBrace, RBrace, LAngle, RAngle }
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -189,8 +200,10 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -203,8 +216,102 @@ where
   }
 }
 
+/// The one close-miss law every delimited shape shares — the shape-family twin of the
+/// delimited many-builder's [`probe_close`](InputRef::probe_close) mapping (see
+/// `parser::many::delim`). With the inner sub-parser already run, classify the close
+/// position four ways and either commit the closer or diagnose the miss **through the
+/// emitter** and recover:
+///
+/// - [`Close`](CloseStatus::Close): the closer is at hand — commit the probed token by value
+///   with [`commit_probed`](InputRef::commit_probed), re-scanning nothing in any cache
+///   capacity, and return its materialized value;
+/// - [`WrongToken`](CloseStatus::WrongToken): a non-closer sits where the closer belongs —
+///   `expect_close` turns it into the expected-close [`UnexpectedToken`], emitted through the
+///   emitter (a fail-fast emitter turns it into `Err`, a recovering one records it), then the
+///   shape recovers with a closer synthesized at the current cursor (the committed frontier /
+///   the wrong token's start, per cache);
+/// - [`Eof`](CloseStatus::Eof): end of input with the opener still open — the one and only
+///   [`Unclosed`] path: emit it anchored at `open_span`, then recover with a synthesized
+///   closer;
+/// - [`Tripped`](CloseStatus::Tripped): a terminal scanner stop whose own diagnostic already
+///   explains the halt — surface the committed form's end-of-input error, adding no
+///   `Unclosed`.
+///
+/// Returns the close value together with the whole-construct span (from `cursor`, captured
+/// before the opener, to the close position). The recovering paths synthesize the close as a
+/// zero-width span at `inp.cursor()` and span the construct via `inp.span_since(cursor)`,
+/// exactly as the delimited many-builder does; both end at the live cursor, so
+/// `close.span().end() == <shape>.span().end() == inp.cursor()` and the recovered shape never
+/// outruns the cursor (an enclosing parent's span always contains it). Cache capacity only
+/// moves the cursor within the trailing-trivia gap — the committed frontier under the blackhole
+/// `()`, the wrong token's start under a retaining cache — matching the many-builder in every
+/// capacity.
+#[inline]
+fn commit_delim_close<'inp, 'c, L, Ctx, Lang, Cmpl, CV>(
+  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
+  cursor: &Cursor<'inp, 'c, L>,
+  open_span: &L::Span,
+  name: CowStr,
+  is_close: impl Fn(&L::Token) -> bool,
+  expect_close: impl FnOnce(
+    Spanned<L::Token, L::Span>,
+  ) -> Result<Spanned<L::Token, L::Span>, UnexpectedTokenOf<'inp, L, Lang>>,
+  make_close: impl Fn(L::Span) -> CV,
+) -> Result<(CV, L::Span), ErrorOf<'inp, L, Ctx, Lang>>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseCtx<'inp, L, Lang>,
+  Lang: ?Sized,
+  Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
+  ErrorOf<'inp, L, Ctx, Lang>:
+    From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
+{
+  match inp.probe_close(|t| is_close(t.data))? {
+    // The closer is at hand: commit the probed token by value via `commit_probed` — no
+    // re-scan, and cache-independent (a blackhole `()` would drop a pushed-back closer) — and
+    // span the construct to its committed end.
+    CloseStatus::Close(payload) => {
+      let closer = inp.commit_probed(payload);
+      Ok((make_close(closer.into_span()), inp.span_since(cursor)))
+    }
+    // A non-closer where the closer belongs: the existing expected-close diagnostic (unchanged
+    // in kind), routed through the emitter so a recovering emitter records it. Then recover at
+    // the LIVE cursor — the committed frontier under the blackhole `()`, the wrong token's start
+    // under a retaining cache — exactly as the delimited many-builder's `span_since(cursor)`. The
+    // recovered span never outruns the cursor, so an enclosing parent contains the shape and
+    // `close.end() == shape.end() == inp.cursor()`.
+    CloseStatus::WrongToken(tok) => match expect_close(tok) {
+      // Unreachable — the probe reported `WrongToken` — but commit it if it is the closer.
+      Ok(closer) => Ok((make_close(closer.into_span()), inp.span_since(cursor))),
+      Err(err) => {
+        inp.emitter().emit_unexpected_token(err)?;
+        Ok((
+          make_close(inp.span_since(inp.cursor())),
+          inp.span_since(cursor),
+        ))
+      }
+    },
+    // End of input with the opener still open: the one and only `Unclosed` path. Nothing is
+    // cached at EOF (no token), so the live cursor already is the committed frontier.
+    CloseStatus::Eof => {
+      inp
+        .emitter()
+        .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span.clone(), name))?;
+      Ok((
+        make_close(inp.span_since(inp.cursor())),
+        inp.span_since(cursor),
+      ))
+    }
+    // A terminal scanner stop already carries its own diagnostic: surface the committed form's
+    // end-of-input error and add no `Unclosed`.
+    CloseStatus::Tripped => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
+  }
+}
+
 /// The shared post-open body of [`delimited`] and [`try_delimited`]: from here the parse
-/// is committed — runs `inner`, commits the `D` closer, and builds the [`Delimited`]
+/// is committed — runs `inner`, commits the `D` closer (or reports the close-miss through
+/// the emitter and recovers — see [`commit_delim_close`]), and builds the [`Delimited`]
 /// whose span runs from `cursor` (captured before the opener) to the closer.
 #[inline]
 fn finish_delimited<'inp, 'c, D, L, Ctx, Lang, P, T, Cmpl>(
@@ -220,21 +327,22 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let close_span = match inp.next()? {
-    Some(sp) if D::is_close(&sp.data().kind()) => sp.into_span(),
-    Some(sp) => return Err(D::unexpected_close_token(sp).into()),
-    None => return Err(UnexpectedEot::eot_of(inp.span().end()).into()),
-  };
-  Ok(Delimited::new(
-    D::open_value(open_span),
-    D::close_value(close_span),
-    data,
-    inp.span_since(cursor),
-  ))
+  let (close, span) = commit_delim_close(
+    inp,
+    cursor,
+    &open_span,
+    D::name(),
+    |t| D::is_close(&t.kind()),
+    |tok| Err(D::unexpected_close_token(tok)),
+    D::close_value,
+  )?;
+  Ok(Delimited::new(D::open_value(open_span), close, data, span))
 }
 
 /// The result the parser [`try_delimited`] builds yields: `Some` of the `D`-delimited
@@ -262,8 +370,9 @@ pub type TryDelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// committed form raises there (the trip's own diagnostic having already reached the
 /// emitter), so an optional construct can never be silently skipped because the lexer was
 /// stopped rather than satisfied. The moment the opener is consumed the parse is
-/// **committed**: `inner`'s errors and the missing/wrong-closer errors propagate exactly
-/// as [`delimited`]'s do, so an unterminated group is an error, never a silent decline.
+/// **committed**: `inner`'s errors and the missing/wrong-closer diagnostics behave exactly
+/// as [`delimited`]'s do — an unterminated group reports the opener as [`Unclosed`] through
+/// the emitter (a fail-fast `Err`, a recovering record), never a silent decline.
 ///
 /// This is deliberately not `opt(delimited(inner))`: a whole-shape attempt would swallow
 /// an unclosed-delimiter error into a decline — for a generics-like grammar, `Ident<` at
@@ -279,7 +388,7 @@ pub type TryDelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// # use core::{convert::Infallible, fmt};
 /// # use tokora::{
 /// #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-/// #   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+/// #   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 /// #   punct::{CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen},
 /// #   span::Span as _,
 /// #   token::PunctuatorToken,
@@ -294,6 +403,7 @@ pub type TryDelimitedOf<'inp, D, L, Ctx, Lang, T> = Result<
 /// # impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+/// # impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 /// # #[derive(Debug, Clone, PartialEq)]
 /// # enum Tok { Ident(char), LAngle, RAngle }
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -373,8 +483,10 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -402,9 +514,10 @@ pub type ParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// three as a [`Delimited`] whose span covers the whole `( … )`.
 ///
 /// `inner` runs between the committed delimiters and its output becomes the
-/// [`Delimited`] data. A missing closer is not recovered: the closer atom's error
-/// — an unexpected token or end of input — propagates, so an unterminated `( …`
-/// fails rather than fabricating a paren.
+/// [`Delimited`] data. A missing closer reports the opener as [`Unclosed`] through the
+/// emitter — a fail-fast emitter turns it into `Err`, a recovering emitter records it and
+/// yields the `( …` group recovered with a synthesized `)`. A wrong token where `)` belongs
+/// stays the unexpected-token (expected-close) diagnostic.
 ///
 /// `inner` may be any [`ParseInput`](crate::ParseInput) — a closure or a named parser alike
 /// — and the returned closure is itself a `ParseInput` through the blanket impl, so shapes
@@ -416,7 +529,7 @@ pub type ParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// # use core::{convert::Infallible, fmt};
 /// # use tokora::{
 /// #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-/// #   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+/// #   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 /// #   punct::{CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen},
 /// #   span::Span as _,
 /// #   token::PunctuatorToken,
@@ -431,6 +544,7 @@ pub type ParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// # impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+/// # impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 /// # #[derive(Debug, Clone, PartialEq)]
 /// # enum Tok { Digit(u32), LParen, RParen }
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -498,8 +612,10 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -525,12 +641,22 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let close = CloseParen::parse_of(inp)?;
-  Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
+  let (close, span) = commit_delim_close(
+    inp,
+    cursor,
+    open.span(),
+    CowStr::from_static("()"),
+    |t| t.is_close_paren(),
+    |tok| SpannedPunctuatorToken::<'inp, L, Lang>::expect_close_paren(tok),
+    |s| CloseParen::new(s).change_language::<Lang>(),
+  )?;
+  Ok(Delimited::new(open, close, data, span))
 }
 
 /// The result the parser [`try_parens`] builds yields: `Some` of the paren-delimited
@@ -558,9 +684,10 @@ pub type TryParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// raises there (the trip's own diagnostic having already reached the emitter), so an
 /// optional construct can never be silently skipped because the lexer was stopped rather
 /// than satisfied. The moment the `(` opener is consumed the parse is **committed**:
-/// `inner`'s errors and the missing/wrong `)` closer's errors propagate exactly as
-/// [`parens`]' do, so an unterminated `( …` is an error, never a silent decline (see
-/// [`try_delimited`] for why the attempt boundary is the opener alone).
+/// `inner`'s errors and the missing/wrong `)` closer's diagnostics behave exactly as
+/// [`parens`]' do — an unterminated `( …` reports the opener as [`Unclosed`] through the
+/// emitter, never a silent decline (see [`try_delimited`] for why the attempt boundary is the
+/// opener alone).
 ///
 /// `inner` may be any [`ParseInput`](crate::ParseInput); the returned closure is itself
 /// a `ParseInput` (yielding the `Option`) through the blanket impl.
@@ -571,7 +698,7 @@ pub type TryParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// # use core::{convert::Infallible, fmt};
 /// # use tokora::{
 /// #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-/// #   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+/// #   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 /// #   punct::{CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen},
 /// #   span::Span as _,
 /// #   token::PunctuatorToken,
@@ -586,6 +713,7 @@ pub type TryParensOf<'inp, L, Ctx, Lang, T> = Result<
 /// # impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+/// # impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 /// # #[derive(Debug, Clone, PartialEq)]
 /// # enum Tok { Digit(u32), LParen, RParen }
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -656,8 +784,10 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -684,9 +814,10 @@ pub type BracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// three as a [`Delimited`] whose span covers the whole `{ … }`.
 ///
 /// `inner` runs between the committed delimiters and its output becomes the
-/// [`Delimited`] data. A missing closer is not recovered: the closer atom's error
-/// — an unexpected token or end of input — propagates, so an unterminated `{ …`
-/// fails rather than fabricating a brace.
+/// [`Delimited`] data. A missing closer reports the opener as [`Unclosed`] through the
+/// emitter — a fail-fast emitter turns it into `Err`, a recovering emitter records it and
+/// yields the `{ …` group recovered with a synthesized `}`. A wrong token where `}` belongs
+/// stays the unexpected-token (expected-close) diagnostic.
 ///
 /// `inner` may be any [`ParseInput`](crate::ParseInput) — a closure or a named parser alike
 /// — and the returned closure is itself a `ParseInput` through the blanket impl, so shapes
@@ -698,7 +829,7 @@ pub type BracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// # use core::{convert::Infallible, fmt};
 /// # use tokora::{
 /// #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-/// #   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+/// #   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 /// #   punct::{CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen},
 /// #   span::Span as _,
 /// #   token::PunctuatorToken,
@@ -713,6 +844,7 @@ pub type BracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// # impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+/// # impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 /// # #[derive(Debug, Clone, PartialEq)]
 /// # enum Tok { Digit(u32), LBrace, RBrace }
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -780,8 +912,10 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -807,12 +941,22 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let close = CloseBrace::parse_of(inp)?;
-  Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
+  let (close, span) = commit_delim_close(
+    inp,
+    cursor,
+    open.span(),
+    CowStr::from_static("{}"),
+    |t| t.is_close_brace(),
+    |tok| SpannedPunctuatorToken::<'inp, L, Lang>::expect_close_brace(tok),
+    |s| CloseBrace::new(s).change_language::<Lang>(),
+  )?;
+  Ok(Delimited::new(open, close, data, span))
 }
 
 /// The result the parser [`try_braces`] builds yields: `Some` of the brace-delimited
@@ -840,9 +984,10 @@ pub type TryBracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// raises there (the trip's own diagnostic having already reached the emitter), so an
 /// optional construct can never be silently skipped because the lexer was stopped rather
 /// than satisfied. The moment the `{` opener is consumed the parse is **committed**:
-/// `inner`'s errors and the missing/wrong `}` closer's errors propagate exactly as
-/// [`braces`]' do, so an unterminated `{ …` is an error, never a silent decline (see
-/// [`try_delimited`] for why the attempt boundary is the opener alone).
+/// `inner`'s errors and the missing/wrong `}` closer's diagnostics behave exactly as
+/// [`braces`]' do — an unterminated `{ …` reports the opener as [`Unclosed`] through the
+/// emitter, never a silent decline (see [`try_delimited`] for why the attempt boundary is the
+/// opener alone).
 ///
 /// `inner` may be any [`ParseInput`](crate::ParseInput); the returned closure is itself
 /// a `ParseInput` (yielding the `Option`) through the blanket impl.
@@ -853,7 +998,7 @@ pub type TryBracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// # use core::{convert::Infallible, fmt};
 /// # use tokora::{
 /// #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-/// #   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+/// #   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 /// #   punct::{CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen},
 /// #   span::Span as _,
 /// #   token::PunctuatorToken,
@@ -868,6 +1013,7 @@ pub type TryBracesOf<'inp, L, Ctx, Lang, T> = Result<
 /// # impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+/// # impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 /// # #[derive(Debug, Clone, PartialEq)]
 /// # enum Tok { Digit(u32), LBrace, RBrace }
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -938,8 +1084,10 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -967,9 +1115,10 @@ pub type BracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// three as a [`Delimited`] whose span covers the whole `[ … ]`.
 ///
 /// `inner` runs between the committed delimiters and its output becomes the
-/// [`Delimited`] data. A missing closer is not recovered: the closer atom's error
-/// — an unexpected token or end of input — propagates, so an unterminated `[ …`
-/// fails rather than fabricating a bracket.
+/// [`Delimited`] data. A missing closer reports the opener as [`Unclosed`] through the
+/// emitter — a fail-fast emitter turns it into `Err`, a recovering emitter records it and
+/// yields the `[ …` group recovered with a synthesized `]`. A wrong token where `]` belongs
+/// stays the unexpected-token (expected-close) diagnostic.
 ///
 /// `inner` may be any [`ParseInput`](crate::ParseInput) — a closure or a named parser alike
 /// — and the returned closure is itself a `ParseInput` through the blanket impl, so shapes
@@ -981,7 +1130,7 @@ pub type BracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// # use core::{convert::Infallible, fmt};
 /// # use tokora::{
 /// #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-/// #   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+/// #   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 /// #   punct::{CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen},
 /// #   span::Span as _,
 /// #   token::PunctuatorToken,
@@ -996,6 +1145,7 @@ pub type BracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// # impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+/// # impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 /// # #[derive(Debug, Clone, PartialEq)]
 /// # enum Tok { Digit(u32), LBracket, RBracket }
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1063,8 +1213,10 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -1090,12 +1242,22 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let close = CloseBracket::parse_of(inp)?;
-  Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
+  let (close, span) = commit_delim_close(
+    inp,
+    cursor,
+    open.span(),
+    CowStr::from_static("[]"),
+    |t| t.is_close_bracket(),
+    |tok| SpannedPunctuatorToken::<'inp, L, Lang>::expect_close_bracket(tok),
+    |s| CloseBracket::new(s).change_language::<Lang>(),
+  )?;
+  Ok(Delimited::new(open, close, data, span))
 }
 
 /// The result the parser [`try_brackets`] builds yields: `Some` of the bracket-delimited
@@ -1123,9 +1285,10 @@ pub type TryBracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// raises there (the trip's own diagnostic having already reached the emitter), so an
 /// optional construct can never be silently skipped because the lexer was stopped rather
 /// than satisfied. The moment the `[` opener is consumed the parse is **committed**:
-/// `inner`'s errors and the missing/wrong `]` closer's errors propagate exactly as
-/// [`brackets`]' do, so an unterminated `[ …` is an error, never a silent decline (see
-/// [`try_delimited`] for why the attempt boundary is the opener alone).
+/// `inner`'s errors and the missing/wrong `]` closer's diagnostics behave exactly as
+/// [`brackets`]' do — an unterminated `[ …` reports the opener as [`Unclosed`] through the
+/// emitter, never a silent decline (see [`try_delimited`] for why the attempt boundary is the
+/// opener alone).
 ///
 /// `inner` may be any [`ParseInput`](crate::ParseInput); the returned closure is itself
 /// a `ParseInput` (yielding the `Option`) through the blanket impl.
@@ -1136,7 +1299,7 @@ pub type TryBracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// # use core::{convert::Infallible, fmt};
 /// # use tokora::{
 /// #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-/// #   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+/// #   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 /// #   punct::{CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen},
 /// #   span::Span as _,
 /// #   token::PunctuatorToken,
@@ -1151,6 +1314,7 @@ pub type TryBracketsOf<'inp, L, Ctx, Lang, T> = Result<
 /// # impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+/// # impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 /// # #[derive(Debug, Clone, PartialEq)]
 /// # enum Tok { Digit(u32), LBracket, RBracket }
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1223,8 +1387,10 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -1251,9 +1417,10 @@ pub type AnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// three as a [`Delimited`] whose span covers the whole `< … >`.
 ///
 /// `inner` runs between the committed delimiters and its output becomes the
-/// [`Delimited`] data. A missing closer is not recovered: the closer atom's error
-/// — an unexpected token or end of input — propagates, so an unterminated `< …`
-/// fails rather than fabricating an angle.
+/// [`Delimited`] data. A missing closer reports the opener as [`Unclosed`] through the
+/// emitter — a fail-fast emitter turns it into `Err`, a recovering emitter records it and
+/// yields the `< …` group recovered with a synthesized `>`. A wrong token where `>` belongs
+/// stays the unexpected-token (expected-close) diagnostic.
 ///
 /// `inner` may be any [`ParseInput`](crate::ParseInput) — a closure or a named parser alike
 /// — and the returned closure is itself a `ParseInput` through the blanket impl, so shapes
@@ -1265,7 +1432,7 @@ pub type AnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// # use core::{convert::Infallible, fmt};
 /// # use tokora::{
 /// #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-/// #   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+/// #   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 /// #   punct::{CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen},
 /// #   span::Span as _,
 /// #   token::PunctuatorToken,
@@ -1280,6 +1447,7 @@ pub type AnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// # impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+/// # impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 /// # #[derive(Debug, Clone, PartialEq)]
 /// # enum Tok { Digit(u32), LAngle, RAngle }
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1347,8 +1515,10 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -1374,12 +1544,22 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let close = CloseAngle::parse_of(inp)?;
-  Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
+  let (close, span) = commit_delim_close(
+    inp,
+    cursor,
+    open.span(),
+    CowStr::from_static("<>"),
+    |t| t.is_close_angle(),
+    |tok| SpannedPunctuatorToken::<'inp, L, Lang>::expect_close_angle(tok),
+    |s| CloseAngle::new(s).change_language::<Lang>(),
+  )?;
+  Ok(Delimited::new(open, close, data, span))
 }
 
 /// The result the parser [`try_angles`] builds yields: `Some` of the angle-delimited
@@ -1407,9 +1587,10 @@ pub type TryAnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// raises there (the trip's own diagnostic having already reached the emitter), so an
 /// optional construct can never be silently skipped because the lexer was stopped rather
 /// than satisfied. The moment the `<` opener is consumed the parse is **committed**:
-/// `inner`'s errors and the missing/wrong `>` closer's errors propagate exactly as
-/// [`angles`]' do, so an unterminated `< …` is an error, never a silent decline (see
-/// [`try_delimited`] for why the attempt boundary is the opener alone).
+/// `inner`'s errors and the missing/wrong `>` closer's diagnostics behave exactly as
+/// [`angles`]' do — an unterminated `< …` reports the opener as [`Unclosed`] through the
+/// emitter, never a silent decline (see [`try_delimited`] for why the attempt boundary is the
+/// opener alone).
 ///
 /// `inner` may be any [`ParseInput`](crate::ParseInput); the returned closure is itself
 /// a `ParseInput` (yielding the `Option`) through the blanket impl.
@@ -1420,7 +1601,7 @@ pub type TryAnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// # use core::{convert::Infallible, fmt};
 /// # use tokora::{
 /// #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-/// #   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
+/// #   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
 /// #   punct::{CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen},
 /// #   span::Span as _,
 /// #   token::PunctuatorToken,
@@ -1435,6 +1616,7 @@ pub type TryAnglesOf<'inp, L, Ctx, Lang, T> = Result<
 /// # impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for Error { fn from(_: MissingSyntax<O, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<FullContainer<S, Lang>> for Error { fn from(_: FullContainer<S, Lang>) -> Self { Error } }
 /// # impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for Error { fn from(_: TooFew<S, Lang>) -> Self { Error } }
+/// # impl<D, S, Lang: ?Sized> From<Unclosed<D, S, Lang>> for Error { fn from(_: Unclosed<D, S, Lang>) -> Self { Error } }
 /// # #[derive(Debug, Clone, PartialEq)]
 /// # enum Tok { Digit(u32), LAngle, RAngle }
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1505,8 +1687,10 @@ where
   Lang: ?Sized,
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   P: ParseInput<'inp, L, T, Ctx, Lang, Cmpl>,
+  Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
-    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>,
+    + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+    + From<Unclosed<(), L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
