@@ -21,10 +21,7 @@ impl Source<usize> for shared::Bytes {
   }
 
   #[inline(always)]
-  fn as_slice(&self) -> Self::Slice<'_>
-  where
-    Self: Sized,
-  {
+  fn as_slice(&self) -> Self::Slice<'_> {
     self.clone()
   }
 
@@ -79,10 +76,7 @@ impl Source<usize> for compact::Bytes {
   }
 
   #[inline(always)]
-  fn as_slice(&self) -> Self::Slice<'_>
-  where
-    Self: Sized,
-  {
+  fn as_slice(&self) -> Self::Slice<'_> {
     self.clone()
   }
 
@@ -137,10 +131,7 @@ impl Source<usize> for Utf8Bytes {
   }
 
   #[inline(always)]
-  fn as_slice(&self) -> Self::Slice<'_>
-  where
-    Self: Sized,
-  {
+  fn as_slice(&self) -> Self::Slice<'_> {
     self.clone()
   }
 

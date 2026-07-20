@@ -19,10 +19,7 @@ impl<'h> Source<usize> for HipStr<'h> {
   }
 
   #[inline(always)]
-  fn as_slice(&self) -> Self::Slice<'_>
-  where
-    Self: Sized,
-  {
+  fn as_slice(&self) -> Self::Slice<'_> {
     self.clone()
   }
 
@@ -77,10 +74,7 @@ impl Source<usize> for HipByt<'_> {
   }
 
   #[inline(always)]
-  fn as_slice(&self) -> Self::Slice<'_>
-  where
-    Self: Sized,
-  {
+  fn as_slice(&self) -> Self::Slice<'_> {
     self.clone()
   }
 

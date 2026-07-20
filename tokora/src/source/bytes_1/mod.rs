@@ -21,10 +21,7 @@ impl Source<usize> for Bytes {
   }
 
   #[inline(always)]
-  fn as_slice(&self) -> Self::Slice<'_>
-  where
-    Self: Sized,
-  {
+  fn as_slice(&self) -> Self::Slice<'_> {
     self.clone()
   }
 

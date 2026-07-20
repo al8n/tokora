@@ -19,10 +19,7 @@ impl Source<usize> for BStr {
   }
 
   #[inline(always)]
-  fn as_slice(&self) -> Self::Slice<'_>
-  where
-    Self: Sized,
-  {
+  fn as_slice(&self) -> Self::Slice<'_> {
     BStr::as_ref(self)
   }
 

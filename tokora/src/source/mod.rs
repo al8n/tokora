@@ -73,10 +73,7 @@ impl Source<usize> for [u8] {
   }
 
   #[inline(always)]
-  fn as_slice(&self) -> Self::Slice<'_>
-  where
-    Self: Sized,
-  {
+  fn as_slice(&self) -> Self::Slice<'_> {
     self
   }
 
@@ -114,10 +111,7 @@ impl Source<usize> for str {
   }
 
   #[inline(always)]
-  fn as_slice(&self) -> Self::Slice<'_>
-  where
-    Self: Sized,
-  {
+  fn as_slice(&self) -> Self::Slice<'_> {
     self
   }
 
