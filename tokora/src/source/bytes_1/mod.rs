@@ -21,6 +21,14 @@ impl Source<usize> for Bytes {
   }
 
   #[inline(always)]
+  fn as_slice(&self) -> Self::Slice<'_>
+  where
+    Self: Sized,
+  {
+    self.clone()
+  }
+
+  #[inline(always)]
   fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
   where
     R: RangeBounds<usize>,
