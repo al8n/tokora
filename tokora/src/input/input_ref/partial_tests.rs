@@ -20,7 +20,7 @@ use crate::{
   cache::DefaultCache,
   emitter::{Fatal, Verbose},
   error::{Incomplete, MaybeIncomplete, token::UnexpectedToken},
-  input::{CloseStatus, Complete, Input, Partial, SurfaceIncomplete, parse_partial},
+  input::{ClosePayload, CloseStatus, Complete, Input, Partial, SurfaceIncomplete, parse_partial},
   lexer::LogosLexer,
   state::State,
 };
@@ -1950,4 +1950,117 @@ fn commit_probed_lexes_the_closer_once_under_every_cache() {
     1,
     "DefaultCache: the closer is lexed exactly once"
   );
+}
+
+#[test]
+fn probe_close_cache_front_is_cursor_neutral_and_recovery_safe() {
+  // Codex R1 regression: the cache holds the closer PLUS a trailing lookahead token. On the
+  // cache path `probe_close` must classify the closer at the FRONT by peek — NOT pop it — so
+  // the probe stays cursor-neutral until the caller's real commit point. This matters for the
+  // deferred (`separated`/`separated_while`) drivers, whose `handle_end` runs BETWEEN the probe
+  // and the commit and spans the elements off `cursor()` (which reads the cache front).
+  //
+  // A word lexer stands in: "a b" caches the closer `a` (offset 0) plus the trailing `b`
+  // (offset 2). Popping the closer eagerly at probe time would advance `cursor()` from 0 to 2
+  // (over-including the closer in a `span_since`) and, if the caller errors before committing,
+  // drop the popped closer while `b` survives (recovery would skip the closer).
+  use generic_arraydeque::typenum::U2;
+
+  // ── (a) cursor-neutral: probe_close must not advance over the cached closer ──
+  {
+    let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+      "a b",
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    let mut emitter = Verbose::<PErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+    // Fill the cache with BOTH tokens: [closer `a`, trailing `b`].
+    assert_eq!(
+      inp
+        .peek::<U2>()
+        .expect("a peek never surfaces Incomplete here")
+        .len(),
+      2,
+      "the cache now holds [closer, trailing]"
+    );
+    let at_closer = *inp.cursor().as_inner();
+    let payload = match inp.probe_close(|_| true) {
+      Ok(CloseStatus::Close(p)) => p,
+      _ => panic!("a cached front closer must probe as `Close`"),
+    };
+    assert!(
+      matches!(payload, ClosePayload::CacheFront),
+      "the cache path classifies the closer by PEEK (CacheFront), never popping it at probe time"
+    );
+    assert_eq!(
+      inp.cursor().as_inner(),
+      &at_closer,
+      "probe_close(CacheFront) must not advance cursor() — the closer stays at the front \
+       (span_since(anchor), whose end IS cursor(), must not over-include the closer)"
+    );
+  }
+
+  // ── (b) recovery-safe: an error before commit leaves the closer in the cache ──
+  {
+    let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+      "a b",
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    let mut emitter = Verbose::<PErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+    inp.peek::<U2>().expect("peek");
+    // Classify the closer, then simulate the deferred driver erroring out of `handle_end`
+    // before committing: the `Close` payload is discarded uncommitted (dropping it is a no-op —
+    // on the cache path it holds no owned closer, only the `CacheFront` marker). The closer must
+    // still be at the cache front (not popped-and-dropped while the trailing token survives).
+    match inp.probe_close(|_| true) {
+      Ok(CloseStatus::Close(_)) => {}
+      _ => panic!("cached front closer must probe as `Close`"),
+    }
+    let mut remaining = 0;
+    while inp
+      .next()
+      .expect("recovering emitter never fails here")
+      .is_some()
+    {
+      remaining += 1;
+    }
+    assert_eq!(
+      remaining, 2,
+      "closer retained for recovery: BOTH closer and trailing remain (pre-fix: 1 — the eager \
+       pop dropped the closer and recovery skipped it)"
+    );
+  }
+
+  // ── (c) commit-once: commit_probed pops+settles the cached closer exactly once ──
+  {
+    let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+      "a b",
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    let mut emitter = Verbose::<PErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+    inp.peek::<U2>().expect("peek");
+    let payload = match inp.probe_close(|_| true) {
+      Ok(CloseStatus::Close(p)) => p,
+      _ => panic!("cached front closer must probe as `Close`"),
+    };
+    let committed = inp.commit_probed(payload);
+    assert_eq!(
+      committed.data().kind(),
+      PKind::Word,
+      "commit_probed returns the closer"
+    );
+    let mut after = 0;
+    while inp.next().expect("exhaust").is_some() {
+      after += 1;
+    }
+    assert_eq!(
+      after, 1,
+      "the closer committed exactly once; only the trailing token remains"
+    );
+  }
 }

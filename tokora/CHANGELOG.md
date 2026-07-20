@@ -38,14 +38,16 @@ versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change
   blackhole cache `()` the push-back is a no-op, so the closer was dropped and the follow-up
   `try_expect` **re-scanned** it. That second scan is observable to a stateful or
   resource-limited lexer — a valid delimited list (e.g. `(a)`) could trip its limiter, or hit
-  the "unreachable" recovery path, on otherwise-valid input. `probe_close` now carries the
-  classified closer out of the input (popping it from the cache, or carrying the scanned token
-  together with its post-token lexer state), and a new by-value commit primitive advances the
-  cursor over it once, with zero re-scans, in every cache capacity. All four delimited
-  many-builders (`repeated`, `repeated_while`, `separated_by_*`, `separated_by_*_while`) adopt
-  it; the `DefaultCache` path is unchanged (it already scanned the closer exactly once). This
-  also removes the same latent double-scan from the `Unclosed` fix above, which shipped the
-  identical push-back pattern.
+  the "unreachable" recovery path, on otherwise-valid input. `probe_close` now classifies the
+  closer without consuming it — carrying the scanned token out by value, or leaving a cached
+  closer at the front — and a new by-value commit primitive advances the cursor over it once, at
+  the driver's own commit point, with zero re-scans in every cache capacity. Because the probe
+  stays cursor-neutral until that commit, the deferred (`separated`/`separated_while`) drivers
+  span their elements correctly and an error before the commit leaves the closer available for
+  recovery. All four delimited many-builders (`repeated`, `repeated_while`, `separated_by_*`,
+  `separated_by_*_while`) adopt it; the `DefaultCache` path is unchanged (it already scanned the
+  closer exactly once). This also removes the same latent double-scan from the `Unclosed` fix
+  above, which shipped the identical push-back pattern.
 
 ### Changed (breaking)
 

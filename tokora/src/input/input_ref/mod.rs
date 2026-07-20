@@ -47,6 +47,11 @@ pub use sync_balanced::{Balance, DelimClass, Hole};
 pub use transaction::Transaction;
 
 pub(crate) use try_expect::CloseStatus;
+// `ClosePayload` is threaded through the delimited drivers without being named there (the
+// `Close(payload)` arm passes it straight to `commit_probed`); only the tests name the origin,
+// so the re-export is gated to exactly the cfg that compiles `partial_tests`.
+#[cfg(all(test, feature = "logos", feature = "std"))]
+pub(crate) use try_expect::ClosePayload;
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
