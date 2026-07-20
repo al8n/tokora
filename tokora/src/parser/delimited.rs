@@ -258,17 +258,19 @@ where
   ErrorOf<'inp, L, Ctx, Lang>:
     From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
 {
-  // The closer's would-be insertion point — a zero-width span at the current position —
-  // used to synthesize a closer on the two recovering paths. `probe_close` never consumes,
-  // so this stays the insertion point through the `WrongToken` / `Eof` arms.
-  let insertion = inp.span_since(inp.cursor());
+  // On the recovering paths the synthesized closer is a zero-width span at the current cursor
+  // **after** the probe. `probe_close` leaves a cached wrong token at the close position, so
+  // `inp.cursor()` is that token's start (past any trivia) on `WrongToken`, and the last
+  // committed position on `Eof` (nothing cached) — the very point the caller's
+  // `span_since(cursor)` ends at, so `close.span().end() == <shape>.span().end()` holds even
+  // with trivia before the wrong token. (Captured lazily per arm, never before the probe.)
   match inp.probe_close(|t| is_close(t.data))? {
     // The closer is at hand: commit the token the probe left at the cache front.
     CloseStatus::Close => match inp.try_expect(|t| is_close(t.data))? {
       Some(closer) => Ok(make_close(closer.into_span())),
       // Unreachable — the probe reported `Close` — but recover with a synthesized closer
       // rather than panicking.
-      None => Ok(make_close(insertion)),
+      None => Ok(make_close(inp.span_since(inp.cursor()))),
     },
     // A non-closer where the closer belongs: the existing expected-close diagnostic
     // (unchanged in kind), routed through the emitter so a recovering emitter records it and
@@ -278,7 +280,7 @@ where
       Ok(closer) => Ok(make_close(closer.into_span())),
       Err(err) => {
         inp.emitter().emit_unexpected_token(err)?;
-        Ok(make_close(insertion))
+        Ok(make_close(inp.span_since(inp.cursor())))
       }
     },
     // End of input with the opener still open: the one and only `Unclosed` path.
@@ -286,7 +288,7 @@ where
       inp
         .emitter()
         .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span.clone(), name))?;
-      Ok(make_close(insertion))
+      Ok(make_close(inp.span_since(inp.cursor())))
     }
     // A terminal scanner stop already carries its own diagnostic: surface the committed
     // form's end-of-input error and add no `Unclosed`.

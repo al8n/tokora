@@ -228,6 +228,43 @@ macro_rules! shape_matrix {
         let r = drive_fatal(|inp| $shape(parse_num)(inp), concat!($open, "1", $close));
         assert_eq!(r.map(|d| *d.data()), Ok(1));
       }
+
+      // Recovery span invariant with trivia BEFORE a wrong closer: `probe_close` caches the
+      // wrong token past the space, so the recovered shape's span ends at that token's start;
+      // the synthesized closer must end there too — `close.span().end() == shape.span().end()`
+      // — never at the stale pre-trivia offset.
+      #[test]
+      fn verbose_wrong_close_with_trivia_span_invariant() {
+        fn go<'inp>(
+          inp: &mut InputRef<'inp, '_, TestLexer<'inp>, VerboseCtx<'inp>>,
+        ) -> Result<(SimpleSpan, SimpleSpan), SE> {
+          let d = $shape(parse_num)(inp)?;
+          Ok((d.span(), *d.close_ref().span()))
+        }
+        let (span, close_span) = Parser::with_context(verbose_ctx())
+          .apply(go)
+          .parse_str(concat!($open, "1 ", $wrong))
+          .unwrap();
+        assert!(
+          span.start() <= span.end(),
+          "overall span is well-formed (not reversed)"
+        );
+        assert_eq!(
+          close_span.end(),
+          span.end(),
+          "synthesized closer must end where the recovered shape ends"
+        );
+        assert_eq!(
+          span.end(),
+          3,
+          "shape ends at the wrong token's start, past the trivia"
+        );
+        assert_eq!(
+          close_span,
+          SimpleSpan::new(3, 3),
+          "zero-width closer at the insertion point"
+        );
+      }
     }
   };
 }
@@ -279,6 +316,26 @@ fn generic_delimited_wrong_close_is_unexpected_token() {
     "(1]",
   );
   assert_eq!(r.map(|d| *d.data()), Err(SE::Other));
+}
+
+#[test]
+fn generic_delimited_verbose_wrong_close_with_trivia_span_invariant() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, VerboseCtx<'inp>>,
+  ) -> Result<(SimpleSpan, SimpleSpan), SE> {
+    let d = delimited::<Paren, _, _, _, _, _, _>(parse_num)(inp)?;
+    Ok((d.span(), *d.close_ref().span()))
+  }
+  let (span, close_span) = Parser::with_context(verbose_ctx())
+    .apply(go)
+    .parse_str("(1 ]")
+    .unwrap();
+  assert_eq!(
+    close_span.end(),
+    span.end(),
+    "synthesized closer must end where the recovered shape ends"
+  );
+  assert_eq!(close_span, SimpleSpan::new(3, 3));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
