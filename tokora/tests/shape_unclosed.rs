@@ -103,6 +103,9 @@ impl<O, Lang: ?Sized> From<MissingSyntax<O, Lang>> for SE {
 
 type FatalCtx<'inp> = ParserContext<'inp, TestLexer<'inp>, Fatal<SE>>;
 type VerboseCtx<'inp> = ParserContext<'inp, TestLexer<'inp>, Verbose<SE>>;
+// The blackhole cache `()` — zero capacity, so `probe_close` cannot cache the wrong token and
+// `inp.cursor()` never advances past it. Pins the recovery span's cache-independence.
+type NoCacheVerboseCtx<'inp> = ParserContext<'inp, TestLexer<'inp>, Verbose<SE>, ()>;
 
 /// Drives a shape parser under a fail-fast `Fatal<SE>` context. The concrete context in the
 /// closure's `inp` type pins inference for the generic inner sub-parser.
@@ -115,6 +118,10 @@ fn drive_fatal<'inp, O>(
 }
 
 fn verbose_ctx() -> VerboseCtx<'static> {
+  ParserContext::new(Verbose::new())
+}
+
+fn no_cache_verbose_ctx() -> NoCacheVerboseCtx<'static> {
   ParserContext::new(Verbose::new())
 }
 
@@ -265,6 +272,36 @@ macro_rules! shape_matrix {
           "zero-width closer at the insertion point"
         );
       }
+
+      // Cache-INDEPENDENCE (Codex R2): the same wrong-closer-with-trivia case under the
+      // blackhole cache `()`. `probe_close` cannot cache the wrong token, so `inp.cursor()`
+      // stays at the pre-trivia committed end (offset 2); the recovery must instead derive the
+      // insertion from the wrong token's own span, keeping close.end() == shape.end() == the
+      // wrong token's start (offset 3), never the stale 2.
+      #[test]
+      fn no_cache_verbose_wrong_close_span_invariant() {
+        fn go<'inp>(
+          inp: &mut InputRef<'inp, '_, TestLexer<'inp>, NoCacheVerboseCtx<'inp>>,
+        ) -> Result<(SimpleSpan, SimpleSpan), SE> {
+          let d = $shape(parse_num)(inp)?;
+          Ok((d.span(), *d.close_ref().span()))
+        }
+        let (span, close_span) = Parser::with_context(no_cache_verbose_ctx())
+          .apply(go)
+          .parse_str(concat!($open, "1 ", $wrong))
+          .unwrap();
+        assert_eq!(
+          close_span.end(),
+          span.end(),
+          "close ends where the shape ends, independent of cache capacity"
+        );
+        assert_eq!(
+          span.end(),
+          3,
+          "ends at the wrong token's start past the trivia, even with no cache"
+        );
+        assert_eq!(close_span, SimpleSpan::new(3, 3));
+      }
     }
   };
 }
@@ -335,6 +372,61 @@ fn generic_delimited_verbose_wrong_close_with_trivia_span_invariant() {
     span.end(),
     "synthesized closer must end where the recovered shape ends"
   );
+  assert_eq!(close_span, SimpleSpan::new(3, 3));
+}
+
+// Cache-INDEPENDENCE (Codex R2), generic path under the blackhole cache `()`.
+#[test]
+fn generic_delimited_no_cache_wrong_close_span_invariant() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, NoCacheVerboseCtx<'inp>>,
+  ) -> Result<(SimpleSpan, SimpleSpan), SE> {
+    let d = delimited::<Paren, _, _, _, _, _, _>(parse_num)(inp)?;
+    Ok((d.span(), *d.close_ref().span()))
+  }
+  let (span, close_span) = Parser::with_context(no_cache_verbose_ctx())
+    .apply(go)
+    .parse_str("(1 ]")
+    .unwrap();
+  assert_eq!(close_span.end(), span.end());
+  assert_eq!(close_span, SimpleSpan::new(3, 3));
+}
+
+// Eof arm cache-independence (Codex R2 asked to confirm): `(1` at EOF under the blackhole cache
+// recovers with a zero-width closer at the committed frontier (offset 2), same as any cache —
+// nothing is cached at EOF, so there is no cursor staleness.
+#[test]
+fn parens_no_cache_eof_recovers_zero_width_close() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, NoCacheVerboseCtx<'inp>>,
+  ) -> Result<(SimpleSpan, SimpleSpan), SE> {
+    let d = parens(parse_num)(inp)?;
+    Ok((d.span(), *d.close_ref().span()))
+  }
+  let (span, close_span) = Parser::with_context(no_cache_verbose_ctx())
+    .apply(go)
+    .parse_str("(1")
+    .unwrap();
+  assert_eq!(close_span.end(), span.end());
+  assert_eq!(span, SimpleSpan::new(0, 2));
+  assert_eq!(close_span, SimpleSpan::new(2, 2));
+}
+
+// Cache-INDEPENDENCE (Codex R2), try-twin path: committed-then-wrong-closer recovers under the
+// blackhole cache and the synthesized closer still ends at the wrong token's start.
+#[test]
+fn try_parens_no_cache_committed_wrong_close_span_invariant() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, NoCacheVerboseCtx<'inp>>,
+  ) -> Result<(SimpleSpan, SimpleSpan), SE> {
+    let d = try_parens(parse_num)(inp)?.expect("committed shape recovers, not a decline");
+    Ok((d.span(), *d.close_ref().span()))
+  }
+  let (span, close_span) = Parser::with_context(no_cache_verbose_ctx())
+    .apply(go)
+    .parse_str("(1 ]")
+    .unwrap();
+  assert_eq!(close_span.end(), span.end());
   assert_eq!(close_span, SimpleSpan::new(3, 3));
 }
 

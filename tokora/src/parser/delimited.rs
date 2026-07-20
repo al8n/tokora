@@ -44,7 +44,7 @@ use crate::{
   punct::{
     CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen,
   },
-  span::{Span as _, Spanned},
+  span::{Span, Spanned},
   token::{PunctuatorToken, PunctuatorTokenExt, SpannedPunctuatorToken},
   try_parse_input::ParseAttempt,
   utils::{CowStr, Delimited},
@@ -222,12 +222,12 @@ where
 /// position four ways and either commit the closer or diagnose the miss **through the
 /// emitter** and recover:
 ///
-/// - [`Close`](CloseStatus::Close): the closer is at hand — commit the token the probe left
-///   cached and return its materialized value;
+/// - [`Close`](CloseStatus::Close): the closer is at hand — commit it (re-scanning if a
+///   zero-capacity cache dropped the probe's token) and return its materialized value;
 /// - [`WrongToken`](CloseStatus::WrongToken): a non-closer sits where the closer belongs —
 ///   `expect_close` turns it into the expected-close [`UnexpectedToken`], emitted through the
 ///   emitter (a fail-fast emitter turns it into `Err`, a recovering one records it), then the
-///   shape recovers with a closer synthesized at the insertion point;
+///   shape recovers with a closer synthesized at the wrong token's start;
 /// - [`Eof`](CloseStatus::Eof): end of input with the opener still open — the one and only
 ///   [`Unclosed`] path: emit it anchored at `open_span`, then recover with a synthesized
 ///   closer;
@@ -235,12 +235,17 @@ where
 ///   explains the halt — surface the committed form's end-of-input error, adding no
 ///   `Unclosed`.
 ///
-/// On the two recovering paths the synthesized closer carries a zero-width span at the
-/// current position (the closer's would-be insertion point); the shape's overall span, which
-/// the caller computes from its own start cursor, is unaffected.
+/// Returns the close value together with the whole-construct span (from `cursor`, captured
+/// before the opener, to the close position). The recovering paths derive the insertion point
+/// **cache-independently**: on `WrongToken` from the wrong token's own carried span, on `Eof`
+/// from the committed frontier — never from `inp.cursor()`, which a zero-capacity cache (the
+/// blackhole `()`) leaves at the pre-trivia committed end because the probe's `cache_push_back`
+/// is rejected there. Both the synthesized closer and the returned construct span end at that
+/// same point, so `close.span().end() == <shape>.span().end()` holds for every cache capacity.
 #[inline]
-fn commit_delim_close<'inp, L, Ctx, Lang, Cmpl, CV>(
-  inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
+fn commit_delim_close<'inp, 'c, L, Ctx, Lang, Cmpl, CV>(
+  inp: &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
+  cursor: &Cursor<'inp, 'c, L>,
   open_span: &L::Span,
   name: CowStr,
   is_close: impl Fn(&L::Token) -> bool,
@@ -248,7 +253,7 @@ fn commit_delim_close<'inp, L, Ctx, Lang, Cmpl, CV>(
     Spanned<L::Token, L::Span>,
   ) -> Result<Spanned<L::Token, L::Span>, UnexpectedTokenOf<'inp, L, Lang>>,
   make_close: impl Fn(L::Span) -> CV,
-) -> Result<CV, ErrorOf<'inp, L, Ctx, Lang>>
+) -> Result<(CV, L::Span), ErrorOf<'inp, L, Ctx, Lang>>
 where
   L: Lexer<'inp>,
   Ctx: ParseCtx<'inp, L, Lang>,
@@ -258,40 +263,52 @@ where
   ErrorOf<'inp, L, Ctx, Lang>:
     From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
 {
-  // On the recovering paths the synthesized closer is a zero-width span at the current cursor
-  // **after** the probe. `probe_close` leaves a cached wrong token at the close position, so
-  // `inp.cursor()` is that token's start (past any trivia) on `WrongToken`, and the last
-  // committed position on `Eof` (nothing cached) — the very point the caller's
-  // `span_since(cursor)` ends at, so `close.span().end() == <shape>.span().end()` holds even
-  // with trivia before the wrong token. (Captured lazily per arm, never before the probe.)
   match inp.probe_close(|t| is_close(t.data))? {
-    // The closer is at hand: commit the token the probe left at the cache front.
+    // The closer is at hand: commit it (re-scanned if the probe could not cache it) and span
+    // the construct to its committed end.
     CloseStatus::Close => match inp.try_expect(|t| is_close(t.data))? {
-      Some(closer) => Ok(make_close(closer.into_span())),
-      // Unreachable — the probe reported `Close` — but recover with a synthesized closer
-      // rather than panicking.
-      None => Ok(make_close(inp.span_since(inp.cursor()))),
-    },
-    // A non-closer where the closer belongs: the existing expected-close diagnostic
-    // (unchanged in kind), routed through the emitter so a recovering emitter records it and
-    // the shape recovers.
-    CloseStatus::WrongToken(tok) => match expect_close(tok) {
-      // Unreachable — the probe reported `WrongToken` — but commit it if it is the closer.
-      Ok(closer) => Ok(make_close(closer.into_span())),
-      Err(err) => {
-        inp.emitter().emit_unexpected_token(err)?;
-        Ok(make_close(inp.span_since(inp.cursor())))
+      Some(closer) => Ok((make_close(closer.into_span()), inp.span_since(cursor))),
+      // Unreachable — the probe reported `Close` — but recover at the committed frontier.
+      None => {
+        let at = inp.span().end();
+        Ok((
+          make_close(<L::Span as Span>::new(at.clone(), at.clone())),
+          <L::Span as Span>::new(cursor.as_inner().clone(), at),
+        ))
       }
     },
-    // End of input with the opener still open: the one and only `Unclosed` path.
+    // A non-closer where the closer belongs: the existing expected-close diagnostic (unchanged
+    // in kind), routed through the emitter so a recovering emitter records it. The wrong token
+    // carries its own span, so anchor BOTH the synthesized closer and the recovered construct
+    // end at its start — cache-independent, unlike `inp.cursor()`.
+    CloseStatus::WrongToken(tok) => {
+      let at = tok.span_ref().start();
+      let close = <L::Span as Span>::new(at.clone(), at.clone());
+      let span = <L::Span as Span>::new(cursor.as_inner().clone(), at);
+      match expect_close(tok) {
+        // Unreachable — the probe reported `WrongToken` — but commit it if it is the closer.
+        Ok(closer) => Ok((make_close(closer.into_span()), inp.span_since(cursor))),
+        Err(err) => {
+          inp.emitter().emit_unexpected_token(err)?;
+          Ok((make_close(close), span))
+        }
+      }
+    }
+    // End of input with the opener still open: the one and only `Unclosed` path. Nothing is
+    // cached at EOF (no token), so the committed frontier is the insertion point for every
+    // cache capacity.
     CloseStatus::Eof => {
       inp
         .emitter()
         .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span.clone(), name))?;
-      Ok(make_close(inp.span_since(inp.cursor())))
+      let at = inp.span().end();
+      Ok((
+        make_close(<L::Span as Span>::new(at.clone(), at.clone())),
+        <L::Span as Span>::new(cursor.as_inner().clone(), at),
+      ))
     }
-    // A terminal scanner stop already carries its own diagnostic: surface the committed
-    // form's end-of-input error and add no `Unclosed`.
+    // A terminal scanner stop already carries its own diagnostic: surface the committed form's
+    // end-of-input error and add no `Unclosed`.
     CloseStatus::Tripped => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
   }
 }
@@ -320,20 +337,16 @@ where
     + From<Unclosed<(), L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let close = commit_delim_close(
+  let (close, span) = commit_delim_close(
     inp,
+    cursor,
     &open_span,
     D::name(),
     |t| D::is_close(&t.kind()),
     |tok| Err(D::unexpected_close_token(tok)),
     D::close_value,
   )?;
-  Ok(Delimited::new(
-    D::open_value(open_span),
-    close,
-    data,
-    inp.span_since(cursor),
-  ))
+  Ok(Delimited::new(D::open_value(open_span), close, data, span))
 }
 
 /// The result the parser [`try_delimited`] builds yields: `Some` of the `D`-delimited
@@ -638,15 +651,16 @@ where
     + From<Unclosed<(), L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let close = commit_delim_close(
+  let (close, span) = commit_delim_close(
     inp,
+    cursor,
     open.span(),
     CowStr::from_static("()"),
     |t| t.is_close_paren(),
     |tok| SpannedPunctuatorToken::<'inp, L, Lang>::expect_close_paren(tok),
-    |span| CloseParen::new(span).change_language::<Lang>(),
+    |s| CloseParen::new(s).change_language::<Lang>(),
   )?;
-  Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
+  Ok(Delimited::new(open, close, data, span))
 }
 
 /// The result the parser [`try_parens`] builds yields: `Some` of the paren-delimited
@@ -937,15 +951,16 @@ where
     + From<Unclosed<(), L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let close = commit_delim_close(
+  let (close, span) = commit_delim_close(
     inp,
+    cursor,
     open.span(),
     CowStr::from_static("{}"),
     |t| t.is_close_brace(),
     |tok| SpannedPunctuatorToken::<'inp, L, Lang>::expect_close_brace(tok),
-    |span| CloseBrace::new(span).change_language::<Lang>(),
+    |s| CloseBrace::new(s).change_language::<Lang>(),
   )?;
-  Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
+  Ok(Delimited::new(open, close, data, span))
 }
 
 /// The result the parser [`try_braces`] builds yields: `Some` of the brace-delimited
@@ -1237,15 +1252,16 @@ where
     + From<Unclosed<(), L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let close = commit_delim_close(
+  let (close, span) = commit_delim_close(
     inp,
+    cursor,
     open.span(),
     CowStr::from_static("[]"),
     |t| t.is_close_bracket(),
     |tok| SpannedPunctuatorToken::<'inp, L, Lang>::expect_close_bracket(tok),
-    |span| CloseBracket::new(span).change_language::<Lang>(),
+    |s| CloseBracket::new(s).change_language::<Lang>(),
   )?;
-  Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
+  Ok(Delimited::new(open, close, data, span))
 }
 
 /// The result the parser [`try_brackets`] builds yields: `Some` of the bracket-delimited
@@ -1538,15 +1554,16 @@ where
     + From<Unclosed<(), L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let close = commit_delim_close(
+  let (close, span) = commit_delim_close(
     inp,
+    cursor,
     open.span(),
     CowStr::from_static("<>"),
     |t| t.is_close_angle(),
     |tok| SpannedPunctuatorToken::<'inp, L, Lang>::expect_close_angle(tok),
-    |span| CloseAngle::new(span).change_language::<Lang>(),
+    |s| CloseAngle::new(s).change_language::<Lang>(),
   )?;
-  Ok(Delimited::new(open, close, data, inp.span_since(cursor)))
+  Ok(Delimited::new(open, close, data, span))
 }
 
 /// The result the parser [`try_angles`] builds yields: `Some` of the angle-delimited
