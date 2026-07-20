@@ -31,7 +31,7 @@ pub trait Source<Cursor>: core::fmt::Debug {
   /// Length of the source
   fn len(&self) -> Cursor;
 
-  /// Returns a slice of the entire source. This is equivalent to `slice(0..len())`.
+  /// Returns the entire source as a slice — the same contents as `slice(..)`.
   fn as_slice(&self) -> Self::Slice<'_>;
 
   /// Get a slice of the source at given range. This is analogous to
