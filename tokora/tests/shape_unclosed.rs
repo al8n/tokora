@@ -273,11 +273,12 @@ macro_rules! shape_matrix {
         );
       }
 
-      // Cache-INDEPENDENCE (Codex R2): the same wrong-closer-with-trivia case under the
-      // blackhole cache `()`. `probe_close` cannot cache the wrong token, so `inp.cursor()`
-      // stays at the pre-trivia committed end (offset 2); the recovery must instead derive the
-      // insertion from the wrong token's own span, keeping close.end() == shape.end() == the
-      // wrong token's start (offset 3), never the stale 2.
+      // Model B, cursor-anchored (matching the many-builder): the same wrong-closer-with-trivia
+      // case under the blackhole cache `()`. `probe_close` cannot cache the wrong token, so
+      // `inp.cursor()` stays at the pre-trivia committed frontier (offset 2); the recovery spans
+      // the shape via `span_since(cursor)`, so close.end() == shape.end() == the cursor (offset
+      // 2), never outrunning it. A retaining cache would land at the wrong token's start (offset
+      // 3) instead — see the retaining-cache test above.
       #[test]
       fn no_cache_verbose_wrong_close_span_invariant() {
         fn go<'inp>(
@@ -293,14 +294,14 @@ macro_rules! shape_matrix {
         assert_eq!(
           close_span.end(),
           span.end(),
-          "close ends where the shape ends, independent of cache capacity"
+          "close ends where the shape ends"
         );
         assert_eq!(
           span.end(),
-          3,
-          "ends at the wrong token's start past the trivia, even with no cache"
+          2,
+          "ends at the committed frontier under the blackhole cache, never outrunning the cursor"
         );
-        assert_eq!(close_span, SimpleSpan::new(3, 3));
+        assert_eq!(close_span, SimpleSpan::new(2, 2));
       }
     }
   };
@@ -375,7 +376,8 @@ fn generic_delimited_verbose_wrong_close_with_trivia_span_invariant() {
   assert_eq!(close_span, SimpleSpan::new(3, 3));
 }
 
-// Cache-INDEPENDENCE (Codex R2), generic path under the blackhole cache `()`.
+// Model B (cursor-anchored), generic path under the blackhole cache `()`: the recovered span
+// ends at the committed frontier (offset 2), never outrunning the cursor.
 #[test]
 fn generic_delimited_no_cache_wrong_close_span_invariant() {
   fn go<'inp>(
@@ -389,7 +391,7 @@ fn generic_delimited_no_cache_wrong_close_span_invariant() {
     .parse_str("(1 ]")
     .unwrap();
   assert_eq!(close_span.end(), span.end());
-  assert_eq!(close_span, SimpleSpan::new(3, 3));
+  assert_eq!(close_span, SimpleSpan::new(2, 2));
 }
 
 // Eof arm cache-independence (Codex R2 asked to confirm): `(1` at EOF under the blackhole cache
@@ -412,8 +414,9 @@ fn parens_no_cache_eof_recovers_zero_width_close() {
   assert_eq!(close_span, SimpleSpan::new(2, 2));
 }
 
-// Cache-INDEPENDENCE (Codex R2), try-twin path: committed-then-wrong-closer recovers under the
-// blackhole cache and the synthesized closer still ends at the wrong token's start.
+// Model B (cursor-anchored), try-twin path: committed-then-wrong-closer recovers under the
+// blackhole cache and the synthesized closer ends at the committed frontier (offset 2), matching
+// the many-builder.
 #[test]
 fn try_parens_no_cache_committed_wrong_close_span_invariant() {
   fn go<'inp>(
@@ -427,7 +430,106 @@ fn try_parens_no_cache_committed_wrong_close_span_invariant() {
     .parse_str("(1 ]")
     .unwrap();
   assert_eq!(close_span.end(), span.end());
-  assert_eq!(close_span, SimpleSpan::new(3, 3));
+  assert_eq!(close_span, SimpleSpan::new(2, 2));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Enclosing-parent containment (Codex R3): a recovered shape parsed INSIDE an enclosing parser
+// under the blackhole cache `()` must never outrun the enclosing cursor. Before the cursor-
+// anchored fix the child was anchored at the wrong token's start (offset 3) while the parent's
+// `span_since(cursor)` ended at the committed frontier (offset 2) — the child outran the parent.
+// Model B spans the child via `span_since(cursor)` too, so parent ⊇ child and
+// close.end() == shape.end() == cursor for the generic, named, and try_ forms alike.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn generic_delimited_no_cache_enclosing_parent_contains_recovered_shape() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, NoCacheVerboseCtx<'inp>>,
+  ) -> Result<(SimpleSpan, SimpleSpan, SimpleSpan), SE> {
+    let outer = *inp.cursor();
+    let d = delimited::<Paren, _, _, _, _, _, _>(parse_num)(inp)?;
+    let child = d.span();
+    let close = *d.close_ref().span();
+    let parent = inp.span_since(&outer);
+    Ok((child, close, parent))
+  }
+  let (child, close, parent) = Parser::with_context(no_cache_verbose_ctx())
+    .apply(go)
+    .parse_str("(1 ]")
+    .unwrap();
+  assert!(
+    parent.end() >= child.end(),
+    "enclosing parent must contain the recovered child shape"
+  );
+  assert_eq!(child.end(), parent.end(), "shape ends at the live cursor");
+  assert_eq!(close.end(), child.end(), "close ends where the shape ends");
+  assert_eq!(
+    child.end(),
+    2,
+    "child ends at the committed frontier under the blackhole cache"
+  );
+  assert_eq!(close, SimpleSpan::new(2, 2));
+}
+
+#[test]
+fn parens_no_cache_enclosing_parent_contains_recovered_shape() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, NoCacheVerboseCtx<'inp>>,
+  ) -> Result<(SimpleSpan, SimpleSpan, SimpleSpan), SE> {
+    let outer = *inp.cursor();
+    let d = parens(parse_num)(inp)?;
+    let child = d.span();
+    let close = *d.close_ref().span();
+    let parent = inp.span_since(&outer);
+    Ok((child, close, parent))
+  }
+  let (child, close, parent) = Parser::with_context(no_cache_verbose_ctx())
+    .apply(go)
+    .parse_str("(1 ]")
+    .unwrap();
+  assert!(
+    parent.end() >= child.end(),
+    "enclosing parent must contain the recovered child shape"
+  );
+  assert_eq!(child.end(), parent.end(), "shape ends at the live cursor");
+  assert_eq!(close.end(), child.end(), "close ends where the shape ends");
+  assert_eq!(
+    child.end(),
+    2,
+    "child ends at the committed frontier under the blackhole cache"
+  );
+  assert_eq!(close, SimpleSpan::new(2, 2));
+}
+
+#[test]
+fn try_parens_no_cache_enclosing_parent_contains_recovered_shape() {
+  fn go<'inp>(
+    inp: &mut InputRef<'inp, '_, TestLexer<'inp>, NoCacheVerboseCtx<'inp>>,
+  ) -> Result<(SimpleSpan, SimpleSpan, SimpleSpan), SE> {
+    let outer = *inp.cursor();
+    let d = try_parens(parse_num)(inp)?.expect("committed shape recovers, not a decline");
+    let child = d.span();
+    let close = *d.close_ref().span();
+    let parent = inp.span_since(&outer);
+    Ok((child, close, parent))
+  }
+  let (child, close, parent) = Parser::with_context(no_cache_verbose_ctx())
+    .apply(go)
+    .parse_str("(1 ]")
+    .unwrap();
+  assert!(
+    parent.end() >= child.end(),
+    "enclosing parent must contain the recovered child shape"
+  );
+  assert_eq!(child.end(), parent.end(), "shape ends at the live cursor");
+  assert_eq!(close.end(), child.end(), "close ends where the shape ends");
+  assert_eq!(
+    child.end(),
+    2,
+    "child ends at the committed frontier under the blackhole cache"
+  );
+  assert_eq!(close, SimpleSpan::new(2, 2));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
