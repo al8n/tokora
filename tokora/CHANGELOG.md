@@ -49,6 +49,20 @@ versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change
   closer exactly once). This also removes the same latent double-scan from the `Unclosed` fix
   above, which shipped the identical push-back pattern.
 
+- **Unterminated delimited shape parsers now report the opener as `Unclosed` through the
+  emitter, matching the many-builders.** The delimited shape parsers (`delimited::<D>`,
+  `parens`, `braces`, `brackets`, `angles`, and their `try_` twins) used to raise a plain
+  unexpected-token / end-of-input error when the closing delimiter never arrived; they now
+  follow the same four-way close-miss law as the delimited many-builders above. End of input
+  with the opener still open emits an `Unclosed` diagnostic carrying the **opener's span** and
+  the delimiter pair's name (a fail-fast `Fatal` emitter fails with it; a recovering `Verbose`
+  emitter records it and recovers, yielding the construct with a closer synthesized at the
+  insertion point — a zero-width span); a wrong token where the closer belongs stays the
+  existing unexpected-token (expected-close) diagnostic, not `Unclosed`; and a terminal scanner
+  stop surfaces the committed form's end-of-input error, adding no `Unclosed`. The `try_` twins
+  keep their decline law (absent opener ⇒ `Ok(None)`, zero consumption) and, once the opener is
+  committed, report `Unclosed` on an unterminated group — never a silent decline.
+
 ### Changed (breaking)
 
 - Added `UnclosedEmitter`, a new atomically-composable emitter sub-trait
@@ -65,6 +79,11 @@ versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change
   `Unclosed`'s name (`CowStr`); the type-level delimiter tag is the erased `()` (the builder
   reborrows the delimiter internally, so a `Delim`-parameterized bound would not unify across the
   builder's own indirection).
+- The delimited **shape** parsers (`delimited`/`parens`/`braces`/`brackets`/`angles` and their
+  `try_` twins) gained the same two bounds as the many-builders — `Ctx::Emitter:
+  UnclosedEmitter<'inp, L, Lang>` and `<Ctx::Emitter as Emitter<…>>::Error: From<Unclosed<(),
+  L::Span, Lang>>`. Source-breaking for shape-parser consumers whose emitter or error types do
+  not already satisfy them, on the same footing as the many-builder change above.
 
 ### Migration
 
@@ -75,3 +94,6 @@ versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change
   `UnclosedEmitter` for it, mirroring your `FullContainerEmitter` impl: a fail-fast emitter
   converts the `Unclosed` to `Err` via `From`; a recovering emitter records it on its diagnostic
   log and returns `Ok(())`; a dropping emitter returns `Ok(())`.
+- The same two migration steps apply to the delimited **shape** parsers (`delimited`/`parens`/
+  `braces`/`brackets`/`angles` and their `try_` twins): add a `From<Unclosed<…>>` arm to the
+  error type, and implement `UnclosedEmitter` for a custom emitter.

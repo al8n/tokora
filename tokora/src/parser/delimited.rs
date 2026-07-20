@@ -222,8 +222,9 @@ where
 /// position four ways and either commit the closer or diagnose the miss **through the
 /// emitter** and recover:
 ///
-/// - [`Close`](CloseStatus::Close): the closer is at hand — commit it (re-scanning if a
-///   zero-capacity cache dropped the probe's token) and return its materialized value;
+/// - [`Close`](CloseStatus::Close): the closer is at hand — commit the probed token by value
+///   with [`commit_probed`](InputRef::commit_probed), re-scanning nothing in any cache
+///   capacity, and return its materialized value;
 /// - [`WrongToken`](CloseStatus::WrongToken): a non-closer sits where the closer belongs —
 ///   `expect_close` turns it into the expected-close [`UnexpectedToken`], emitted through the
 ///   emitter (a fail-fast emitter turns it into `Err`, a recovering one records it), then the
@@ -267,16 +268,13 @@ where
     From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
 {
   match inp.probe_close(|t| is_close(t.data))? {
-    // The closer is at hand: commit it (re-scanned if the probe could not cache it) and span
-    // the construct to its committed end.
-    CloseStatus::Close => match inp.try_expect(|t| is_close(t.data))? {
-      Some(closer) => Ok((make_close(closer.into_span()), inp.span_since(cursor))),
-      // Unreachable — the probe reported `Close` — but recover at the live cursor.
-      None => Ok((
-        make_close(inp.span_since(inp.cursor())),
-        inp.span_since(cursor),
-      )),
-    },
+    // The closer is at hand: commit the probed token by value via `commit_probed` — no
+    // re-scan, and cache-independent (a blackhole `()` would drop a pushed-back closer) — and
+    // span the construct to its committed end.
+    CloseStatus::Close(payload) => {
+      let closer = inp.commit_probed(payload);
+      Ok((make_close(closer.into_span()), inp.span_since(cursor)))
+    }
     // A non-closer where the closer belongs: the existing expected-close diagnostic (unchanged
     // in kind), routed through the emitter so a recovering emitter records it. Then recover at
     // the LIVE cursor — the committed frontier under the blackhole `()`, the wrong token's start
