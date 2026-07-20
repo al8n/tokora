@@ -83,11 +83,9 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       // misread as EOF (finding 1). `Close` short-circuits before the stop condition is
       // consulted, exactly as the consuming `try_expect` did.
       match inp.probe_close(|tok| Delim::is_close(&tok.data.kind()))? {
-        CloseStatus::Close => {
-          // Commit the closer (the probe left it unconsumed) and run the end handler.
-          if let Some(closed) = inp.try_expect(|tok| Delim::is_close(&tok.data.kind()))? {
-            container.on_close_delimiter(closed);
-          }
+        CloseStatus::Close(ct) => {
+          // Commit the carried closer by value (no re-scan) and run the end handler.
+          container.on_close_delimiter(inp.commit_probed(ct));
           let span = inp.span_since(&anchor);
           return on_stop(nums, inp, &span).map(|_| mem::take(container));
         }
@@ -161,11 +159,8 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     // otherwise, then run the stop handler on the delimited span. The four-way probe
     // keeps a terminal scanner stop out of the `Unclosed` path.
     match inp.probe_close(|t| Delim::is_close(&t.data.kind()))? {
-      CloseStatus::Close => {
-        if let Some(close) = inp.try_expect(|t| Delim::is_close(&t.data.kind()))? {
-          container.on_close_delimiter(close);
-        }
-      }
+      // The closer is at hand: commit the carried token by value — no re-scan.
+      CloseStatus::Close(ct) => container.on_close_delimiter(inp.commit_probed(ct)),
       CloseStatus::WrongToken(tok) => inp
         .emitter()
         .emit_unexpected_token(Delim::unexpected_close_token(tok))?,

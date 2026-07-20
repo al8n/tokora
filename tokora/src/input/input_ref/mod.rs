@@ -528,7 +528,7 @@ where
   ///
   /// A token is *committed* the instant no continuation of the current lineage can yield it
   /// again — popped off the cache front by a consume, or accepted straight off the lexer. All
-  /// thirteen 1:1 consume settles route through here (the census in `census_tests.rs` holds the
+  /// fourteen 1:1 consume settles route through here (the census in `census_tests.rs` holds the
   /// list and fails on drift), so a side channel that must observe committed tokens exactly
   /// once has exactly one home on the consume surface — plus the scanner's skip settle
   /// ([`AtFrontier::adopt`], its own censused site) — instead of a dozen.

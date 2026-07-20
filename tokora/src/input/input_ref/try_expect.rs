@@ -17,14 +17,21 @@ use crate::{
 /// unexpected-token / `Unclosed` / propagate).
 ///
 /// [`probe_close`]: InputRef::probe_close
-pub(crate) enum CloseStatus<T, S> {
-  /// The closer is at hand. It is left **unconsumed** at the cache front for the
-  /// caller to commit with a follow-up [`try_expect`](InputRef::try_expect).
-  Close,
+pub(crate) enum CloseStatus<'inp, L>
+where
+  L: Lexer<'inp>,
+{
+  /// The closer, taken **out of the input** — popped from the cache, or carried out
+  /// of the scan (its post-token lexer state included) — and ready to commit by value
+  /// with [`commit_probed`](InputRef::commit_probed). The committed cursor has **not**
+  /// advanced yet: the caller commits it at its own program point (immediately, or
+  /// deferred past an end-of-list pass), and the commit re-lexes nothing in any cache
+  /// capacity — including the blackhole `()`.
+  Close(CachedTokenOf<'inp, L>),
   /// A non-closer token sits where the closer belongs. It is left **unconsumed**
   /// (the downstream parse still sees it); the owned clone drives the
   /// unexpected-token / expected-close diagnostic.
-  WrongToken(Spanned<T, S>),
+  WrongToken(Spanned<L::Token, L::Span>),
   /// Genuine end of input with the opener still open — the one and only `Unclosed`
   /// path.
   Eof,
@@ -311,15 +318,18 @@ where
     }
   }
 
-  /// Classifies the close position of a delimited list **without consuming**,
-  /// distinguishing all four outcomes a delim driver must tell apart — see
-  /// [`CloseStatus`].
+  /// Classifies the close position of a delimited list, distinguishing all four
+  /// outcomes a delim driver must tell apart — see [`CloseStatus`].
   ///
-  /// `pred` decides whether the token at the cursor is the closer. The scanned (or
-  /// already-cached) token is left in place — a probe never advances — so on
-  /// [`Close`](CloseStatus::Close) the caller commits it with a follow-up
-  /// [`try_expect`](Self::try_expect), and on [`WrongToken`](CloseStatus::WrongToken)
-  /// it stays for the downstream parse.
+  /// `pred` decides whether the token at the cursor is the closer. On
+  /// [`Close`](CloseStatus::Close) the closer is **taken out of the input** — popped
+  /// from the cache, or carried out of the scan together with its post-token lexer
+  /// state — but the committed cursor does **not** advance: the caller settles it by
+  /// value with [`commit_probed`](Self::commit_probed) at its own program point, so
+  /// the commit re-lexes nothing even under the blackhole `()` cache (where pushing a
+  /// scanned closer back would be dropped and force a re-scan). On
+  /// [`WrongToken`](CloseStatus::WrongToken) the token is left in place for the
+  /// downstream parse; the committed cursor never advances there either.
   ///
   /// This is the structural counterpart to a close classifier built on `try_expect`,
   /// whose `Ok(None)` folds a genuine end of input together with a terminal stop:
@@ -331,21 +341,24 @@ where
   pub(crate) fn probe_close<F>(
     &mut self,
     mut pred: F,
-  ) -> Result<CloseStatus<L::Token, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  ) -> Result<CloseStatus<'inp, L>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     F: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
     trace_event!(self, "probe_close");
     if !self.cache.is_empty() {
-      // A cached token is a REAL token (the cache never holds errors). Classify the
-      // front WITHOUT consuming it — `Spanned<&_, &_>` is `Copy`, so `pred` and the
-      // owned clone both read the same peeked reference.
+      // A cached token is a REAL token (the cache never holds errors). On a match, pop
+      // the closer OUT (lineage-neutral — `cache_pushes` counts only pushes, and
+      // `restore` absorbs an already-popped front) so the caller commits it by value
+      // through the same `commit_probed` path as the scan branch — one caller idiom for
+      // every cache capacity.
+      if let Some(carried) = self.cache.pop_front_if(|t| pred(t.token)) {
+        return Ok(CloseStatus::Close(carried));
+      }
+      // Not the closer: leave it at the front for the downstream parse; the owned clone
+      // drives the diagnostic.
       let peeked = self.cache.front().expect("cache is non-empty").token;
-      return Ok(if pred(peeked) {
-        CloseStatus::Close
-      } else {
-        CloseStatus::WrongToken(peeked.cloned())
-      });
+      return Ok(CloseStatus::WrongToken(peeked.cloned()));
     }
     // A latched poison boundary at the cursor is a terminal stop, not proof of
     // absence — mirrors `try_expect_or_stop`'s E4.
@@ -356,18 +369,26 @@ where
     let mut lexer = self.lexer();
     match self.scan_with(&mut lexer, &mut lex_at, &AtCursor)? {
       Scan::Token(tok) => {
-        let is_close = pred(tok.as_ref());
-        // A probe never consumes: build the owned wrong-token (if any) before the
-        // token is moved back into the cache for a later commit or parse.
-        let status = if is_close {
-          CloseStatus::Close
+        if pred(tok.as_ref()) {
+          // Close: carry the scanned closer OUT (token + post-token state) rather than
+          // push it to a cache the blackhole `()` would drop — `commit_probed` then
+          // commits it with no second scan, in every cache capacity.
+          let (span, token) = tok.into_components();
+          Ok(CloseStatus::Close(CachedToken::new(
+            Spanned::new(span, token),
+            lexer.into_state(),
+          )))
         } else {
-          CloseStatus::WrongToken(Spanned::new(tok.span_ref().clone(), tok.data().clone()))
-        };
-        let (span, token) = tok.into_components();
-        let ct = CachedToken::new(Spanned::new(span, token), lexer.state().clone());
-        let _ = self.cache_push_back(ct);
-        Ok(status)
+          // WrongToken: unchanged — best-effort push-back, owned clone for the
+          // diagnostic. (The push-back is still a no-op under `()`; that is the
+          // downstream parse's re-scan of the wrong token, not the close commit's — see
+          // the out-of-scope note in the spec.)
+          let wrong = Spanned::new(tok.span_ref().clone(), tok.data().clone());
+          let (span, token) = tok.into_components();
+          let ct = CachedToken::new(Spanned::new(span, token), lexer.state().clone());
+          let _ = self.cache_push_back(ct);
+          Ok(CloseStatus::WrongToken(wrong))
+        }
       }
       // A fresh trip whose diagnostic a recovering emitter accepted. (A fatal emitter
       // never reaches this arm — its rejection propagated out of `scan_with` above.)
@@ -382,6 +403,27 @@ where
         }
       }
     }
+  }
+
+  /// Commits a closer carried out of [`probe_close`](Self::probe_close) — its post-token
+  /// lexer state included — advancing the cursor over it **without re-lexing**.
+  ///
+  /// The by-value twin of [`try_expect`](Self::try_expect)'s cache-pop arm: the same
+  /// [`commit_token`](Self::commit_token) settle plus the per-site state write, but the
+  /// token arrives by value instead of from the cache, so it is **cache-independent** — a
+  /// blackhole `()` commits the probed closer exactly once, with no second scan. This is
+  /// the settle a delimited driver runs on [`CloseStatus::Close`], immediately (Shape A)
+  /// or deferred past the end-of-list pass (Shape B).
+  #[inline]
+  pub(crate) fn commit_probed(
+    &mut self,
+    carried: CachedTokenOf<'inp, L>,
+  ) -> Spanned<L::Token, L::Span> {
+    let (lexed, state) = carried.into_components();
+    let (span, tok) = lexed.into_components();
+    self.commit_token(&tok, &span);
+    *self.state = state;
+    Spanned::new(span, tok)
   }
 
   /// Advances to the next valid token and expects it to satisfy the predicate.

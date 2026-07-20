@@ -108,12 +108,9 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
           // Classify the close position with the four-way probe so a terminal scanner
           // stop is not misread as EOF and grown into a spurious `Unclosed`.
           match inp.probe_close(|t| Delim::is_close(&t.data.kind()))? {
-            // The closer is at hand: commit it (the probe left it unconsumed).
-            CloseStatus::Close => {
-              if let Some(close) = inp.try_expect(|t| Delim::is_close(&t.data.kind()))? {
-                container.on_close_delimiter(close);
-              }
-            }
+            // The closer is at hand: commit the carried token by value — no re-scan,
+            // and cache-independent (a blackhole `()` would drop a pushed-back closer).
+            CloseStatus::Close(ct) => container.on_close_delimiter(inp.commit_probed(ct)),
             // A wrong token where the closer belongs: unexpected-token, expected-close.
             CloseStatus::WrongToken(tok) => inp
               .emitter()
@@ -148,11 +145,8 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     // No progress was made — treat as end of elements. Classify the close position
     // with the four-way probe so a terminal scanner stop is not misread as EOF.
     match inp.probe_close(|t| Delim::is_close(&t.data.kind()))? {
-      CloseStatus::Close => {
-        if let Some(close) = inp.try_expect(|t| Delim::is_close(&t.data.kind()))? {
-          container.on_close_delimiter(close);
-        }
-      }
+      // The closer is at hand: commit the carried token by value — no re-scan.
+      CloseStatus::Close(ct) => container.on_close_delimiter(inp.commit_probed(ct)),
       CloseStatus::WrongToken(tok) => inp
         .emitter()
         .emit_unexpected_token(Delim::unexpected_close_token(tok))?,

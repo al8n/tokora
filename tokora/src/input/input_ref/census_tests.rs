@@ -23,11 +23,12 @@
 //!
 //! # The census (what must stay true)
 //!
-//! **Every 1:1 consume settle goes through `commit_token`** — the thirteen sites:
+//! **Every 1:1 consume settle goes through `commit_token`** — the fourteen sites:
 //! `next()`'s cached and fresh-lex arms (2), `consume_cached_one` and
 //! `consume_cached_to`'s loop body (2 — `consume_all_cached` drains *through*
 //! `consume_cached_to`, per token), the `try_expect`/`try_expect_map`/
-//! `try_expect_and_then`/`try_expect_or_stop` cached and accept arms (8), and
+//! `try_expect_and_then`/`try_expect_or_stop` cached and accept arms (8), the
+//! by-value `commit_probed` settle of a probed closer (1), and
 //! `SyncThrough::on_stop` (1).
 //!
 //! **The one skip settle is `AtFrontier::adopt`**, called only by `skip_and_report`: a
@@ -100,7 +101,7 @@ fn calls(hay: &str, name: &str) -> usize {
   count(hay, &self_form) + count(hay, &ir_form)
 }
 
-/// SETTLE_CENSUS — the thirteen 1:1 consume settles, each a `commit_token` call, and no
+/// SETTLE_CENSUS — the fourteen 1:1 consume settles, each a `commit_token` call, and no
 /// call anywhere else. A new consume path must route through the primitive **and** bump
 /// its file's expected count here, in the same commit.
 #[test]
@@ -112,8 +113,9 @@ fn settle_census_commit_token_routes_every_consume_settle() {
     // `SyncThrough::on_stop`: the consumed stopper.
     ("scan.rs", 1),
     // The cached and on-input accept arms of `try_expect`/`_map`/`_and_then`, plus
-    // `try_expect_or_stop`'s cached and accept arms.
-    ("try_expect.rs", 8),
+    // `try_expect_or_stop`'s cached and accept arms, plus `commit_probed`'s by-value
+    // settle of a closer carried out of `probe_close`.
+    ("try_expect.rs", 9),
     // `consume_cached_one` + `consume_cached_to`'s loop body; `consume_all_cached`
     // drains through `consume_cached_to`, so every cached token settles per token.
     ("consume_cached/mod.rs", 2),
@@ -200,7 +202,7 @@ fn settle_census_span_funnel_callers_are_locked() {
 
 /// SETTLE_CENSUS — the committed-token side channel (`Emitter::commit_token`, the CST
 /// auto-emission hook) rides exactly the two settle surfaces and nothing else: once
-/// inside `InputRef::commit_token`'s body (the thirteen consume settles arrive through it)
+/// inside `InputRef::commit_token`'s body (the fourteen consume settles arrive through it)
 /// and once inside `skip_and_report` beside the `adopt` skip settle. Peeks, declines,
 /// `unconsume`, `settle_fatal`, `SyncTo::on_eof`, and `commit_at` never reach the
 /// emitter's token channel — a hook appearing anywhere else double-emits or
