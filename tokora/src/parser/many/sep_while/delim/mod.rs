@@ -130,12 +130,8 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
               // `handle_end`'s TooFew/trailing emission would otherwise short-circuit
               // before an unterminated list could surface as `Unclosed`.
               match inp.probe_close(|t| Delim::is_close(&t.data.kind()))? {
-                // The closer is at hand: commit it (the probe left it unconsumed).
-                CloseStatus::Close => {
-                  if let Some(closed) = inp.try_expect(|t| Delim::is_close(&t.data.kind()))? {
-                    container.on_close_delimiter(closed);
-                  }
-                }
+                // The closer is at hand: commit the carried token by value — no re-scan.
+                CloseStatus::Close(ct) => container.on_close_delimiter(inp.commit_probed(ct)),
                 // (b) a wrong token was seen where the closer should be.
                 CloseStatus::WrongToken(tok) => inp
                   .emitter()
@@ -178,10 +174,10 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
               // `handle_end`'s TooFew/trailing emission would otherwise short-circuit
               // first and an unterminated list would never surface as `Unclosed`. The
               // four-way probe also keeps a terminal scanner stop out of `Unclosed`.
-              let mut close_at_hand = false;
+              let mut close_carrier = None;
               match inp.probe_close(|tok| Delim::is_close(&tok.data.kind()))? {
-                // The closer is at hand: committed after the end-state pass (below).
-                CloseStatus::Close => close_at_hand = true,
+                // The closer is at hand: carry it out; committed by value below.
+                CloseStatus::Close(ct) => close_carrier = Some(ct),
                 // (b) a wrong token sits where the closer should be.
                 CloseStatus::WrongToken(tok) => inp
                   .emitter()
@@ -204,11 +200,10 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
               // SECONDARY — the end-state diagnostics, after the primary.
               parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?;
 
-              // Commit the closer if it is at hand (after the end-state pass, as before).
-              if close_at_hand {
-                if let Some(closed) = inp.try_expect(|tok| Delim::is_close(&tok.data.kind()))? {
-                  container.on_close_delimiter(closed);
-                }
+              // Commit the carried closer by value (no re-scan) at the same program
+              // point as the old deferred `try_expect` — after the end-state pass.
+              if let Some(ct) = close_carrier {
+                container.on_close_delimiter(inp.commit_probed(ct));
               }
               return Ok(inp.span_since(&elems_start));
             }

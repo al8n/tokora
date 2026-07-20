@@ -204,6 +204,8 @@ use super::*;
 pub use checkpoint::Checkpoint;
 pub use completeness::{Complete, Completeness, Partial, SurfaceIncomplete};
 pub use cursor::Cursor;
+#[cfg(all(test, feature = "logos", feature = "std"))]
+pub(crate) use input_ref::ClosePayload;
 pub(crate) use input_ref::CloseStatus;
 pub(crate) use input_ref::Session;
 pub use input_ref::{

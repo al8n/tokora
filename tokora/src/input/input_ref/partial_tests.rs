@@ -20,7 +20,7 @@ use crate::{
   cache::DefaultCache,
   emitter::{Fatal, Verbose},
   error::{Incomplete, MaybeIncomplete, token::UnexpectedToken},
-  input::{CloseStatus, Complete, Input, Partial, SurfaceIncomplete, parse_partial},
+  input::{ClosePayload, CloseStatus, Complete, Input, Partial, SurfaceIncomplete, parse_partial},
   lexer::LogosLexer,
   state::State,
 };
@@ -1832,9 +1832,9 @@ fn probe_close_at_a_terminal_trip_is_tripped_not_eof() {
 }
 
 #[test]
-fn probe_close_classifies_the_front_without_consuming() {
-  // The probe is a peek: it classifies the front token (closer vs not) but never
-  // advances, so a follow-up `next()` still yields that token.
+fn probe_close_wrong_token_leaves_the_front_in_place() {
+  // A rejecting probe is a peek: it classifies the front token as a wrong token but
+  // never advances the committed cursor, so a follow-up `next()` still yields that token.
   let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
     "a",
     (),
@@ -1843,22 +1843,224 @@ fn probe_close_classifies_the_front_without_consuming() {
   let mut emitter = Verbose::<PErr>::new();
   let mut inp = input.as_ref(&mut emitter);
 
-  // A predicate that accepts the front token classifies it as the closer, unconsumed…
-  assert!(
-    matches!(inp.probe_close(|_| true), Ok(CloseStatus::Close)),
-    "an accepted front token is `Close`"
-  );
-  // …and one that rejects it classifies it as a wrong token, still unconsumed.
   assert!(
     matches!(inp.probe_close(|_| false), Ok(CloseStatus::WrongToken(_))),
-    "a rejected front token is `WrongToken`"
+    "a rejected front token is `WrongToken`, left in place"
   );
   assert!(
     matches!(inp.next(), Ok(Some(_))),
-    "probe_close must not consume: the token is still there"
+    "WrongToken must not consume: the token is still there"
   );
   assert!(
     matches!(inp.next(), Ok(None)),
     "and then the input is exhausted"
   );
+}
+
+#[test]
+fn probe_close_carries_the_closer_out_and_commit_probed_advances() {
+  // An accepting probe takes the closer OUT of the input (carried in the `Close`
+  // payload), and `commit_probed` settles it by value — advancing the cursor over it
+  // with no re-scan. After the commit a follow-up `next()` sees the input exhausted: the
+  // closer is not left behind for a re-lex (the blackhole-cache double-scan the fix
+  // removes). This replaces the old "probe never advances / follow-up next() re-yields
+  // the closer" contract, which the carry-out changes for the `Close` case.
+  let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+    "a",
+    (),
+    DefaultCache::<'_, Lex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  let carried = match inp.probe_close(|_| true) {
+    Ok(CloseStatus::Close(ct)) => ct,
+    _ => panic!("an accepted front token must probe as `Close`"),
+  };
+  let committed = inp.commit_probed(carried);
+  assert_eq!(
+    committed.data().kind(),
+    PKind::Word,
+    "commit_probed returns the carried closer"
+  );
+  assert!(
+    matches!(inp.next(), Ok(None)),
+    "commit_probed advanced the cursor over the closer: the input is now exhausted"
+  );
+}
+
+#[test]
+fn commit_probed_lexes_the_closer_once_under_every_cache() {
+  // The `separated_while` fallback (spec §6): its delimited driver commits the closer via
+  // the in-loop `try_expect` whenever it is at the cursor, so the `probe_close` Close arm —
+  // the Shape-B site this fix changes — is not reachable through the driver on a valid list.
+  // Pin the arm's *mechanism* directly instead, with a shared scan counter: `probe_close`
+  // classifies the closer by lexing it ONCE, and `commit_probed` settles that carried token
+  // by value with no re-lex, under the blackhole `()` cache and `DefaultCache` alike. (The
+  // `sep` family reaches the identical Shape-B site through the driver — see
+  // `tests/probe_close_no_rescan.rs`; pre-fix, `()` re-lexed the closer for a tally of 2.)
+
+  // Blackhole `()` cache: the pre-fix push-back-then-`try_expect` re-lexed the closer.
+  let tracker = LimitTracker::with_limit(usize::MAX);
+  let scanned = tracker.counter();
+  let mut input =
+    Input::<LimLex<'_>, (Verbose<PErr>, ()), (), Complete>::with_state_and_cache("b", tracker, ());
+  let mut emitter = Verbose::<PErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    let carried = match inp.probe_close(|_| true) {
+      Ok(CloseStatus::Close(ct)) => ct,
+      _ => panic!("the front word must probe as `Close`"),
+    };
+    let _ = inp.commit_probed(carried);
+    assert!(
+      matches!(inp.next(), Ok(None)),
+      "commit_probed committed the closer: the input is exhausted"
+    );
+  }
+  assert_eq!(
+    scanned.get(),
+    1,
+    "blackhole `()`: the closer is lexed exactly once (pre-fix: 2)"
+  );
+
+  // DefaultCache twin: capacity-independent — also exactly once.
+  let tracker = LimitTracker::with_limit(usize::MAX);
+  let scanned = tracker.counter();
+  let mut input = Input::<LimLex<'_>, LimCtx<'_>, (), Complete>::with_state_and_cache(
+    "b",
+    tracker,
+    DefaultCache::<'_, LimLex<'_>>::default(),
+  );
+  let mut emitter = Verbose::<PErr>::new();
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    let carried = match inp.probe_close(|_| true) {
+      Ok(CloseStatus::Close(ct)) => ct,
+      _ => panic!("the front word must probe as `Close`"),
+    };
+    let _ = inp.commit_probed(carried);
+    assert!(
+      matches!(inp.next(), Ok(None)),
+      "commit_probed committed the closer: the input is exhausted"
+    );
+  }
+  assert_eq!(
+    scanned.get(),
+    1,
+    "DefaultCache: the closer is lexed exactly once"
+  );
+}
+
+#[test]
+fn probe_close_cache_front_is_cursor_neutral_and_recovery_safe() {
+  // Codex R1 regression: the cache holds the closer PLUS a trailing lookahead token. On the
+  // cache path `probe_close` must classify the closer at the FRONT by peek — NOT pop it — so
+  // the probe stays cursor-neutral until the caller's real commit point. This matters for the
+  // deferred (`separated`/`separated_while`) drivers, whose `handle_end` runs BETWEEN the probe
+  // and the commit and spans the elements off `cursor()` (which reads the cache front).
+  //
+  // A word lexer stands in: "a b" caches the closer `a` (offset 0) plus the trailing `b`
+  // (offset 2). Popping the closer eagerly at probe time would advance `cursor()` from 0 to 2
+  // (over-including the closer in a `span_since`) and, if the caller errors before committing,
+  // drop the popped closer while `b` survives (recovery would skip the closer).
+  use generic_arraydeque::typenum::U2;
+
+  // ── (a) cursor-neutral: probe_close must not advance over the cached closer ──
+  {
+    let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+      "a b",
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    let mut emitter = Verbose::<PErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+    // Fill the cache with BOTH tokens: [closer `a`, trailing `b`].
+    assert_eq!(
+      inp
+        .peek::<U2>()
+        .expect("a peek never surfaces Incomplete here")
+        .len(),
+      2,
+      "the cache now holds [closer, trailing]"
+    );
+    let at_closer = *inp.cursor().as_inner();
+    let payload = match inp.probe_close(|_| true) {
+      Ok(CloseStatus::Close(p)) => p,
+      _ => panic!("a cached front closer must probe as `Close`"),
+    };
+    assert!(
+      matches!(payload, ClosePayload::CacheFront),
+      "the cache path classifies the closer by PEEK (CacheFront), never popping it at probe time"
+    );
+    assert_eq!(
+      inp.cursor().as_inner(),
+      &at_closer,
+      "probe_close(CacheFront) must not advance cursor() — the closer stays at the front \
+       (span_since(anchor), whose end IS cursor(), must not over-include the closer)"
+    );
+  }
+
+  // ── (b) recovery-safe: an error before commit leaves the closer in the cache ──
+  {
+    let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+      "a b",
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    let mut emitter = Verbose::<PErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+    inp.peek::<U2>().expect("peek");
+    // Classify the closer, then simulate the deferred driver erroring out of `handle_end`
+    // before committing: the `Close` payload is discarded uncommitted (dropping it is a no-op —
+    // on the cache path it holds no owned closer, only the `CacheFront` marker). The closer must
+    // still be at the cache front (not popped-and-dropped while the trailing token survives).
+    match inp.probe_close(|_| true) {
+      Ok(CloseStatus::Close(_)) => {}
+      _ => panic!("cached front closer must probe as `Close`"),
+    }
+    let mut remaining = 0;
+    while inp
+      .next()
+      .expect("recovering emitter never fails here")
+      .is_some()
+    {
+      remaining += 1;
+    }
+    assert_eq!(
+      remaining, 2,
+      "closer retained for recovery: BOTH closer and trailing remain (pre-fix: 1 — the eager \
+       pop dropped the closer and recovery skipped it)"
+    );
+  }
+
+  // ── (c) commit-once: commit_probed pops+settles the cached closer exactly once ──
+  {
+    let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_cache(
+      "a b",
+      (),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    );
+    let mut emitter = Verbose::<PErr>::new();
+    let mut inp = input.as_ref(&mut emitter);
+    inp.peek::<U2>().expect("peek");
+    let payload = match inp.probe_close(|_| true) {
+      Ok(CloseStatus::Close(p)) => p,
+      _ => panic!("cached front closer must probe as `Close`"),
+    };
+    let committed = inp.commit_probed(payload);
+    assert_eq!(
+      committed.data().kind(),
+      PKind::Word,
+      "commit_probed returns the closer"
+    );
+    let mut after = 0;
+    while inp.next().expect("exhaust").is_some() {
+      after += 1;
+    }
+    assert_eq!(
+      after, 1,
+      "the closer committed exactly once; only the trailing token remains"
+    );
+  }
 }

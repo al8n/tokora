@@ -171,10 +171,11 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     // as `Unclosed`. A FRESH token is probed here rather than carried out of the loop,
     // so the loop's last non-sep/non-close token cannot masquerade as the wrong closer.
     // The four-way probe also keeps a terminal scanner stop out of the `Unclosed` path.
-    let mut close_at_hand = false;
+    let mut close_carrier = None;
     match inp.probe_close(|tok| Delim::is_close(&tok.data.kind()))? {
-      // The closer is at hand: no close miss. It is committed after the end-state pass.
-      CloseStatus::Close => close_at_hand = true,
+      // The closer is at hand: no close miss. Carry it out; committed by value after the
+      // end-state pass.
+      CloseStatus::Close(ct) => close_carrier = Some(ct),
       // (b) a wrong token sits where the closer should: unexpected-token, expected-close.
       CloseStatus::WrongToken(tok) => inp
         .emitter()
@@ -199,11 +200,10 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     // the primary under a recovering emitter.
     let elems_span = parser.handle_end(state, inp, &anchor, num_elems, end_state_handler)?;
 
-    // Commit the closer if it is at hand (after the end-state pass, as before).
-    if close_at_hand {
-      if let Some(right) = inp.try_expect(|tok| Delim::is_close(&tok.data.kind()))? {
-        container.on_close_delimiter(right);
-      }
+    // Commit the carried closer by value (no re-scan) at the same program point as the
+    // old deferred `try_expect` — after the end-state pass.
+    if let Some(ct) = close_carrier {
+      container.on_close_delimiter(inp.commit_probed(ct));
     }
 
     Ok(elems_span)
