@@ -33,7 +33,7 @@ Most applications use the maintained Logos adapter:
 
 ```toml
 [dependencies]
-tokora = { version = "0.4", features = ["logos"] }
+tokora = { version = "0.5", features = ["logos"] }
 ```
 
 `logos` is the alias for the current `logos_0_16` integration. The default `std` feature remains
@@ -151,14 +151,14 @@ Allocator-free `no_std`:
 
 ```toml
 [dependencies]
-tokora = { version = "0.4", default-features = false }
+tokora = { version = "0.5", default-features = false }
 ```
 
 `no_std` with `alloc`:
 
 ```toml
 [dependencies]
-tokora = { version = "0.4", default-features = false, features = ["alloc"] }
+tokora = { version = "0.5", default-features = false, features = ["alloc"] }
 ```
 
 ## Design philosophy and inspirations
