@@ -570,3 +570,95 @@ fn hipstr_equivalent_both_directions() {
   assert!(equiv::<[u8], HipByt<'_>>(b"hello", &hb));
   assert!(equiv::<str, HipByt<'_>>("hello", &hb));
 }
+
+// ── smol-bytes `Equivalent` (both directions) ───────────────────────────────
+
+#[cfg(feature = "smol_bytes_0_1")]
+#[test]
+fn smol_bytes_equivalent_both_directions() {
+  use smol_bytes_0_1::{Utf8Bytes, compact, shared};
+  use tokora::utils::cmp::Equivalent;
+
+  // Same rationale as `hipstr_equivalent_both_directions` above: this helper
+  // forces the *impl* to be resolved for the concrete `A`, so method-call
+  // syntax can't silently deref-coerce past a missing `A: Equivalent<B>` impl.
+  fn equiv<A, B>(a: &A, b: &B) -> bool
+  where
+    A: Equivalent<B> + ?Sized,
+    B: ?Sized,
+  {
+    a.equivalent(b)
+  }
+
+  let sb = shared::Bytes::copy_from_slice(b"hello");
+  // shared::Bytes on the left (the previously-missing direction).
+  assert!(equiv::<shared::Bytes, str>(&sb, "hello"));
+  assert!(!equiv::<shared::Bytes, str>(&sb, "world"));
+  assert!(equiv::<shared::Bytes, [u8]>(&sb, b"hello"));
+  assert!(!equiv::<shared::Bytes, [u8]>(&sb, b"world"));
+  assert!(equiv::<shared::Bytes, shared::Bytes>(
+    &sb,
+    &shared::Bytes::copy_from_slice(b"hello")
+  ));
+  assert!(!equiv::<shared::Bytes, shared::Bytes>(
+    &sb,
+    &shared::Bytes::copy_from_slice(b"world")
+  ));
+  // str/[u8] on the left (existing blanket direction).
+  assert!(equiv::<str, shared::Bytes>("hello", &sb));
+  assert!(equiv::<[u8], shared::Bytes>(b"hello", &sb));
+
+  let cb = compact::Bytes::copy_from_slice(b"hello");
+  // compact::Bytes on the left (the previously-missing direction).
+  assert!(equiv::<compact::Bytes, str>(&cb, "hello"));
+  assert!(!equiv::<compact::Bytes, str>(&cb, "world"));
+  assert!(equiv::<compact::Bytes, [u8]>(&cb, b"hello"));
+  assert!(!equiv::<compact::Bytes, [u8]>(&cb, b"world"));
+  assert!(equiv::<compact::Bytes, compact::Bytes>(
+    &cb,
+    &compact::Bytes::copy_from_slice(b"hello")
+  ));
+  assert!(!equiv::<compact::Bytes, compact::Bytes>(
+    &cb,
+    &compact::Bytes::copy_from_slice(b"world")
+  ));
+  // str/[u8] on the left (existing blanket direction).
+  assert!(equiv::<str, compact::Bytes>("hello", &cb));
+  assert!(equiv::<[u8], compact::Bytes>(b"hello", &cb));
+
+  let ub = Utf8Bytes::from("hello");
+  // Utf8Bytes on the left (the previously-missing direction).
+  assert!(equiv::<Utf8Bytes, str>(&ub, "hello"));
+  assert!(!equiv::<Utf8Bytes, str>(&ub, "world"));
+  assert!(equiv::<Utf8Bytes, [u8]>(&ub, b"hello"));
+  assert!(!equiv::<Utf8Bytes, [u8]>(&ub, b"world"));
+  assert!(equiv::<Utf8Bytes, Utf8Bytes>(
+    &ub,
+    &Utf8Bytes::from("hello")
+  ));
+  assert!(!equiv::<Utf8Bytes, Utf8Bytes>(
+    &ub,
+    &Utf8Bytes::from("world")
+  ));
+  // str/[u8] on the left (existing blanket direction).
+  assert!(equiv::<str, Utf8Bytes>("hello", &ub));
+  assert!(equiv::<[u8], Utf8Bytes>(b"hello", &ub));
+
+  let cub = compact::Utf8Bytes::from("hello");
+  // compact::Utf8Bytes on the left (the previously-missing direction).
+  assert!(equiv::<compact::Utf8Bytes, str>(&cub, "hello"));
+  assert!(!equiv::<compact::Utf8Bytes, str>(&cub, "world"));
+  assert!(equiv::<compact::Utf8Bytes, [u8]>(&cub, b"hello"));
+  assert!(!equiv::<compact::Utf8Bytes, [u8]>(&cub, b"world"));
+  assert!(equiv::<compact::Utf8Bytes, compact::Utf8Bytes>(
+    &cub,
+    &compact::Utf8Bytes::from("hello")
+  ));
+  assert!(!equiv::<compact::Utf8Bytes, compact::Utf8Bytes>(
+    &cub,
+    &compact::Utf8Bytes::from("world")
+  ));
+  // str/[u8] on the left (existing blanket direction).
+  assert!(equiv::<str, compact::Utf8Bytes>("hello", &cub));
+  assert!(equiv::<[u8], compact::Utf8Bytes>(b"hello", &cub));
+}
