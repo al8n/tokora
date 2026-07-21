@@ -75,6 +75,13 @@ where
 {
 }
 
+fn requires_unclosed<'inp, L, Em>()
+where
+  L: Lexer<'inp>,
+  Em: UnclosedEmitter<'inp, L>,
+{
+}
+
 fn elaborates<'inp, L, Ctx>()
 where
   L: Lexer<'inp>,
@@ -83,6 +90,7 @@ where
   requires_separated::<L, Ctx::Emitter>();
   requires_too_few::<L, Ctx::Emitter>();
   requires_full_container::<L, Ctx::Emitter>();
+  requires_unclosed::<L, Ctx::Emitter>();
 }
 
 // Smear's `ctx_bundle_holds_for_both_dialects_and_sources`: two dialects over two

@@ -48,7 +48,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       + UnclosedEmitter<'inp, L, Lang>,
     Ctx: ParseContext<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
-      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
+      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<Delim, L::Span, Lang>>,
     Container: DelimiterHandler<'inp, L> + SeparatorHandler<'inp, L> + ContainerT<O>,
     EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang>,
@@ -142,7 +142,10 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                   if let Some(open_span) = open_span.clone() {
                     inp
                       .emitter()
-                      .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+                      .emit_unclosed(Unclosed::<Delim, L::Span, Lang>::of(
+                        open_span,
+                        Delim::name(),
+                      ))?;
                   }
                 }
                 // A terminal scanner stop: its own diagnostic already explains the
@@ -187,7 +190,10 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                   if let Some(open_span) = open_span.clone() {
                     inp
                       .emitter()
-                      .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span, Delim::name()))?;
+                      .emit_unclosed(Unclosed::<Delim, L::Span, Lang>::of(
+                        open_span,
+                        Delim::name(),
+                      ))?;
                   }
                 }
                 // A terminal scanner stop: its own diagnostic already explains the

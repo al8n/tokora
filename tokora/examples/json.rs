@@ -68,10 +68,11 @@ enum JsonError<'a> {
   Separator(SeparatedErrorOf<'a, JsonLexer<'a>>),
   UnexpectedToken(UnexpectedTokenOf<'a, JsonLexer<'a>>),
   FullContainer(FullContainer),
-  // The migration arm: a delimited many-builder (`.delimited::<D>()`) now reports an
-  // unterminated list through the emitter as `Unclosed`, so a consuming error must absorb
-  // it. The delimiter identity rides the carried name; the type tag is the erased `()`.
-  Unclosed(Unclosed<()>),
+  // Typed migration arms preserve the concrete delimiter marker the parser emitted.
+  // JSON arrays and objects use distinct `Unclosed` types, so a consuming error needs
+  // one conversion for each delimiter pair it parses.
+  UnclosedBracket(Unclosed<Bracket>),
+  UnclosedBrace(Unclosed<Brace>),
   Eot(UnexpectedEot),
   Other(&'a str),
 }
@@ -110,7 +111,8 @@ impl core::fmt::Debug for JsonError<'_> {
       Self::MissingSeparator(err) => err.debug_fmt(f),
       Self::MissingElement(err) => write!(f, "{err:?}"),
       Self::FullContainer(err) => write!(f, "{err:?}"),
-      Self::Unclosed(err) => write!(f, "{err:?}"),
+      Self::UnclosedBracket(err) => write!(f, "{err:?}"),
+      Self::UnclosedBrace(err) => write!(f, "{err:?}"),
       Self::Other(msg) => write!(f, "{}", msg),
     }
   }
@@ -129,9 +131,9 @@ impl core::fmt::Display for JsonError<'_> {
       Self::MissingSeparator(err) => err.display_fmt(f),
       Self::MissingElement(err) => write!(f, "{err}"),
       Self::FullContainer(err) => write!(f, "{err}"),
-      // `Unclosed<()>` is not `Display` (its `()` tag is not), so format from the carried
-      // name — the delimiter that was opened but never closed.
-      Self::Unclosed(err) => write!(f, "unclosed delimiter {}", err.name_ref()),
+      // Both typed variants are formatted from their carried delimiter name.
+      Self::UnclosedBracket(err) => write!(f, "unclosed delimiter {}", err.name_ref()),
+      Self::UnclosedBrace(err) => write!(f, "unclosed delimiter {}", err.name_ref()),
       Self::Other(msg) => write!(f, "{}", msg),
     }
   }

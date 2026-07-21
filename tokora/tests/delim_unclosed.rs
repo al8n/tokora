@@ -49,8 +49,8 @@ enum RE {
   Other,
 }
 
-// The migration arm: the delimited many-builders now require `From<Unclosed<…>>`. The tag is
-// the erased `()`; the delimiter identity rides the carried name.
+// The migration arm: delimited many-builders emit `Unclosed<Delim, …>` with the concrete
+// delimiter marker, while the carried name remains available for diagnostics.
 impl<D, Lang: ?Sized> From<Unclosed<D, SimpleSpan, Lang>> for RE {
   fn from(err: Unclosed<D, SimpleSpan, Lang>) -> Self {
     RE::Unclosed {

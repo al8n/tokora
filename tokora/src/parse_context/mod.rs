@@ -198,12 +198,17 @@ pub type ErrorOf<'inp, L, Ctx, Lang> =
 ///
 /// ```rust
 /// use tokora::{Lexer, ParseCtx};
-/// use tokora::emitter::{SeparatedEmitter, TooFewEmitter, UnexpectedTrailingSeparatorEmitter};
+/// use tokora::emitter::{
+///   SeparatedEmitter, TooFewEmitter, UnclosedEmitter, UnexpectedTrailingSeparatorEmitter,
+/// };
 ///
 /// fn needs_diagnostics<'inp, L, E>()
 /// where
 ///   L: Lexer<'inp>,
-///   E: SeparatedEmitter<'inp, L> + TooFewEmitter<'inp, L> + UnexpectedTrailingSeparatorEmitter<'inp, L>,
+///   E: SeparatedEmitter<'inp, L>
+///     + TooFewEmitter<'inp, L>
+///     + UnexpectedTrailingSeparatorEmitter<'inp, L>
+///     + UnclosedEmitter<'inp, L>,
 /// {
 /// }
 ///

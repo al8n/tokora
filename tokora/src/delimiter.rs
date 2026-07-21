@@ -85,7 +85,8 @@ where
 macro_rules! impl_builtin_delimiter {
   ($($name:ident { description: $description:literal, open: $open:ident, close: $close:ident $(,)? }),+$(,)?) => {
     $(
-      impl<'inp, S, C, L, Lang: ?Sized> Delimiter<'inp, L, Lang> for $name<S, C, Lang>
+      impl<'inp, S, C, MarkerLang: ?Sized, L, Lang: ?Sized> Delimiter<'inp, L, Lang>
+        for $name<S, C, MarkerLang>
       where
         L: Lexer<'inp>,
         $open<S, C, Lang>: Punctuator<'inp, L, Lang>,
@@ -101,7 +102,8 @@ macro_rules! impl_builtin_delimiter {
         }
       }
 
-      impl<'inp, S, C, L, Lang: ?Sized> TypedDelimiter<'inp, L, Lang> for $name<S, C, Lang>
+      impl<'inp, S, C, MarkerLang: ?Sized, L, Lang: ?Sized> TypedDelimiter<'inp, L, Lang>
+        for $name<S, C, MarkerLang>
       where
         L: Lexer<'inp>,
         $open<S, C, Lang>: Punctuator<'inp, L, Lang>,

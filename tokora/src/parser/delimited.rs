@@ -42,7 +42,8 @@ use crate::{
   },
   input::{CloseStatus, Cursor, InputRef, SurfaceIncomplete},
   punct::{
-    CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen,
+    Angle, Brace, Bracket, CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace,
+    OpenBracket, OpenParen, Paren,
   },
   span::{Span as _, Spanned},
   token::{PunctuatorToken, PunctuatorTokenExt, SpannedPunctuatorToken},
@@ -203,7 +204,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<D, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -247,7 +248,7 @@ where
 /// `()`, the wrong token's start under a retaining cache — matching the many-builder in every
 /// capacity.
 #[inline]
-fn commit_delim_close<'inp, 'c, L, Ctx, Lang, Cmpl, CV>(
+fn commit_delim_close<'inp, 'c, D, L, Ctx, Lang, Cmpl, CV>(
   inp: &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
   cursor: &Cursor<'inp, 'c, L>,
   open_span: &L::Span,
@@ -265,7 +266,7 @@ where
   Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>:
-    From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<(), L::Span, Lang>>,
+    From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<D, L::Span, Lang>>,
 {
   match inp.probe_close(|t| is_close(t.data))? {
     // The closer is at hand: commit the probed token by value via `commit_probed` — no
@@ -297,7 +298,7 @@ where
     CloseStatus::Eof => {
       inp
         .emitter()
-        .emit_unclosed(Unclosed::<(), L::Span, Lang>::of(open_span.clone(), name))?;
+        .emit_unclosed(Unclosed::<D, L::Span, Lang>::of(open_span.clone(), name))?;
       Ok((
         make_close(inp.span_since(inp.cursor())),
         inp.span_since(cursor),
@@ -330,10 +331,10 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<D, L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let (close, span) = commit_delim_close(
+  let (close, span) = commit_delim_close::<D, _, _, _, _, _>(
     inp,
     cursor,
     &open_span,
@@ -486,7 +487,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<D, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -615,7 +616,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Paren, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -644,10 +645,10 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Paren, L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let (close, span) = commit_delim_close(
+  let (close, span) = commit_delim_close::<Paren, _, _, _, _, _>(
     inp,
     cursor,
     open.span(),
@@ -787,7 +788,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Paren, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -915,7 +916,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Brace, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -944,10 +945,10 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Brace, L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let (close, span) = commit_delim_close(
+  let (close, span) = commit_delim_close::<Brace, _, _, _, _, _>(
     inp,
     cursor,
     open.span(),
@@ -1087,7 +1088,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Brace, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -1216,7 +1217,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Bracket, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -1245,10 +1246,10 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Bracket, L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let (close, span) = commit_delim_close(
+  let (close, span) = commit_delim_close::<Bracket, _, _, _, _, _>(
     inp,
     cursor,
     open.span(),
@@ -1390,7 +1391,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Bracket, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -1518,7 +1519,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Angle, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -1547,10 +1548,10 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Angle, L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let (close, span) = commit_delim_close(
+  let (close, span) = commit_delim_close::<Angle, _, _, _, _, _>(
     inp,
     cursor,
     open.span(),
@@ -1690,7 +1691,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<(), L::Span, Lang>>,
+    + From<Unclosed<Angle, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
