@@ -65,6 +65,14 @@ fn to_equivalent_smol_bytes_utf8() {
 
 #[cfg(feature = "smol_bytes_0_1")]
 #[test]
+fn to_equivalent_smol_bytes_compact_utf8() {
+  let s: &str = "hello";
+  let result: compact::Utf8Bytes = ToEquivalent::<compact::Utf8Bytes>::to_equivalent(s);
+  assert_eq!(result, s);
+}
+
+#[cfg(feature = "smol_bytes_0_1")]
+#[test]
 fn into_equivalent_smol_bytes_shared() {
   let data: &[u8] = b"world";
   let result: shared::Bytes = IntoEquivalent::<shared::Bytes>::into_equivalent(data);
@@ -84,5 +92,13 @@ fn into_equivalent_smol_bytes_compact() {
 fn into_equivalent_smol_bytes_utf8() {
   let s: &str = "world";
   let result: Utf8Bytes = IntoEquivalent::<Utf8Bytes>::into_equivalent(s);
+  assert_eq!(result, s);
+}
+
+#[cfg(feature = "smol_bytes_0_1")]
+#[test]
+fn into_equivalent_smol_bytes_compact_utf8() {
+  let s: &str = "world";
+  let result: compact::Utf8Bytes = IntoEquivalent::<compact::Utf8Bytes>::into_equivalent(s);
   assert_eq!(result, s);
 }

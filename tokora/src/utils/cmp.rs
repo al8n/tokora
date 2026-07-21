@@ -332,6 +332,30 @@ const _: () = {
     }
   }
 
+  impl Equivalent<str> for compact::Utf8Bytes {
+    #[cfg_attr(test, inline)]
+    #[cfg_attr(not(test), inline(always))]
+    fn equivalent(&self, other: &str) -> bool {
+      AsRef::<[u8]>::as_ref(self).eq(other.as_bytes())
+    }
+  }
+
+  impl Equivalent<[u8]> for compact::Utf8Bytes {
+    #[cfg_attr(test, inline)]
+    #[cfg_attr(not(test), inline(always))]
+    fn equivalent(&self, other: &[u8]) -> bool {
+      AsRef::<[u8]>::as_ref(self).eq(other)
+    }
+  }
+
+  impl Equivalent<compact::Utf8Bytes> for compact::Utf8Bytes {
+    #[cfg_attr(test, inline)]
+    #[cfg_attr(not(test), inline(always))]
+    fn equivalent(&self, other: &compact::Utf8Bytes) -> bool {
+      AsRef::<[u8]>::as_ref(self).eq(AsRef::<[u8]>::as_ref(other))
+    }
+  }
+
   __assert_equivalent_impl::<shared::Bytes, str>();
   __assert_equivalent_impl::<shared::Bytes, [u8]>();
   __assert_equivalent_impl::<str, shared::Bytes>();
@@ -346,4 +370,9 @@ const _: () = {
   __assert_equivalent_impl::<Utf8Bytes, [u8]>();
   __assert_equivalent_impl::<str, Utf8Bytes>();
   __assert_equivalent_impl::<[u8], Utf8Bytes>();
+
+  __assert_equivalent_impl::<compact::Utf8Bytes, str>();
+  __assert_equivalent_impl::<compact::Utf8Bytes, [u8]>();
+  __assert_equivalent_impl::<str, compact::Utf8Bytes>();
+  __assert_equivalent_impl::<[u8], compact::Utf8Bytes>();
 };

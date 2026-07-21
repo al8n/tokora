@@ -89,3 +89,33 @@ fn utf8_bytes_slice_positioned_iter() {
   let items: std::vec::Vec<(usize, char)> = Slice::positioned_iter(&s).collect();
   assert_eq!(items, std::vec![(0, 'a'), (1, 'b')]);
 }
+
+// ── compact::Utf8Bytes Slice tests ─────────────────────────────────
+
+#[test]
+fn compact_utf8_bytes_slice_len() {
+  let s = compact::Utf8Bytes::from_static("hello");
+  assert_eq!(Slice::len(&s), 5);
+}
+
+#[test]
+fn compact_utf8_bytes_slice_is_empty() {
+  let empty = compact::Utf8Bytes::new();
+  assert!(Slice::is_empty(&empty));
+  let non_empty = compact::Utf8Bytes::from_static("a");
+  assert!(!Slice::is_empty(&non_empty));
+}
+
+#[test]
+fn compact_utf8_bytes_slice_iter() {
+  let s = compact::Utf8Bytes::from_static("abc");
+  let chars: std::vec::Vec<char> = Slice::iter(&s).collect();
+  assert_eq!(chars, std::vec!['a', 'b', 'c']);
+}
+
+#[test]
+fn compact_utf8_bytes_slice_positioned_iter() {
+  let s = compact::Utf8Bytes::from_static("ab");
+  let items: std::vec::Vec<(usize, char)> = Slice::positioned_iter(&s).collect();
+  assert_eq!(items, std::vec![(0, 'a'), (1, 'b')]);
+}

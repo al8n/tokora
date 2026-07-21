@@ -643,4 +643,22 @@ fn smol_bytes_equivalent_both_directions() {
   // str/[u8] on the left (existing blanket direction).
   assert!(equiv::<str, Utf8Bytes>("hello", &ub));
   assert!(equiv::<[u8], Utf8Bytes>(b"hello", &ub));
+
+  let cub = compact::Utf8Bytes::from("hello");
+  // compact::Utf8Bytes on the left (the previously-missing direction).
+  assert!(equiv::<compact::Utf8Bytes, str>(&cub, "hello"));
+  assert!(!equiv::<compact::Utf8Bytes, str>(&cub, "world"));
+  assert!(equiv::<compact::Utf8Bytes, [u8]>(&cub, b"hello"));
+  assert!(!equiv::<compact::Utf8Bytes, [u8]>(&cub, b"world"));
+  assert!(equiv::<compact::Utf8Bytes, compact::Utf8Bytes>(
+    &cub,
+    &compact::Utf8Bytes::from("hello")
+  ));
+  assert!(!equiv::<compact::Utf8Bytes, compact::Utf8Bytes>(
+    &cub,
+    &compact::Utf8Bytes::from("world")
+  ));
+  // str/[u8] on the left (existing blanket direction).
+  assert!(equiv::<str, compact::Utf8Bytes>("hello", &cub));
+  assert!(equiv::<[u8], compact::Utf8Bytes>(b"hello", &cub));
 }
