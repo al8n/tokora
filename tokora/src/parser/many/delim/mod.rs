@@ -157,7 +157,7 @@ impl<P, Delim> DelimitedBy<P, Delim> {
 
   /// Maps the inner parser via a mutable reference, returning a new `DelimitedBy`.
   #[inline(always)]
-  pub fn map_parser_mut<'a, Q, F>(&'a mut self, f: F) -> DelimitedBy<Q, &'a Delim>
+  pub fn map_parser_mut<'a, Q, F>(&'a mut self, f: F) -> DelimitedBy<Q, Delim>
   where
     F: FnOnce(&'a mut P) -> Q,
     Q: 'a,

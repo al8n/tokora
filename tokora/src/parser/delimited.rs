@@ -204,7 +204,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<D::ErrorTag, L::Span, Lang>>,
+    + From<Unclosed<D, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();
@@ -331,10 +331,10 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<D::ErrorTag, L::Span, Lang>>,
+    + From<Unclosed<D, L::Span, Lang>>,
 {
   let data = inner.parse_input(inp)?;
-  let (close, span) = commit_delim_close::<D::ErrorTag, _, _, _, _, _>(
+  let (close, span) = commit_delim_close::<D, _, _, _, _, _>(
     inp,
     cursor,
     &open_span,
@@ -487,7 +487,7 @@ where
   Ctx::Emitter: UnclosedEmitter<'inp, L, Lang>,
   ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
     + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
-    + From<Unclosed<D::ErrorTag, L::Span, Lang>>,
+    + From<Unclosed<D, L::Span, Lang>>,
 {
   move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
     let cursor = inp.cursor().clone();

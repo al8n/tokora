@@ -7,7 +7,7 @@ versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change
 
 ### Changed (breaking)
 
-- **Delimiter-specific `Unclosed` diagnostics.** Delimited shape and many parsers now emit `Unclosed<D::ErrorTag, …>`; built-in shapes use their concrete `Paren`, `Brace`, `Bracket`, or `Angle` tag. `Delimiter` now requires `ErrorTag`, so consumer error types should provide the corresponding `From<Unclosed<…>>` conversions.
+- **Delimiter-specific `Unclosed` diagnostics.** Delimited shape and many parsers now emit `Unclosed<D, …>` using the delimiter marker directly; built-in shapes use their concrete `Paren`, `Brace`, `Bracket`, or `Angle` tag. Consumer error types should provide the corresponding `From<Unclosed<…>>` conversions.
 - **Composable emitter bundle includes unclosed diagnostics.** `ComposableEmitter`, and therefore `ParseCtx`, now includes `UnclosedEmitter`; custom composite emitters must implement it.
 - **Built-in delimiter markers are language-neutral.** Bare `Paren`, `Brace`, `Bracket`, and `Angle` work with any parser `Lang`; the marker language no longer has to match the parse language.
 

@@ -7,22 +7,38 @@ use generic_arraydeque::typenum::U1;
 use tokora::{
   Accumulator, FatalContext, InputRef, Parse, ParseContext, ParseInput, Parser, SimpleSpan,
   cache::Peeked,
+  delimiter::Delimiter,
   error::{
     Unclosed, UnexpectedEot,
     syntax::{FullContainer, MissingSyntax, TooFew},
     token::{MissingToken, SeparatedError, UnexpectedToken},
   },
-  parser::{Action, delimited},
+  parser::{Action, DelimitedBy, delimited},
   punct::{Brace, Bracket, CloseBrace, CloseBracket, OpenBrace, OpenBracket},
+  utils::CowStr,
 };
 
 #[derive(Debug)]
 enum CustomLang {}
 
+/// A deliberately non-`Clone`, non-`Copy`, non-`Default` delimiter marker.
+#[derive(Debug)]
+struct CustomMarker;
+
+impl<'inp> Delimiter<'inp, TestLexer<'inp>, CustomLang> for CustomMarker {
+  type Open = OpenBracket<(), (), CustomLang>;
+  type Close = CloseBracket<(), (), CustomLang>;
+
+  fn name() -> CowStr {
+    CowStr::from_static("custom brackets")
+  }
+}
+
 #[derive(Debug)]
 enum TypedError {
   Bracket(Unclosed<Bracket, SimpleSpan, CustomLang>),
   Brace(Unclosed<Brace, SimpleSpan, CustomLang>),
+  CustomMarker(Unclosed<CustomMarker, SimpleSpan, CustomLang>),
   Other,
 }
 
@@ -41,6 +57,12 @@ impl From<Unclosed<Bracket, SimpleSpan, CustomLang>> for TypedError {
 impl From<Unclosed<Brace, SimpleSpan, CustomLang>> for TypedError {
   fn from(err: Unclosed<Brace, SimpleSpan, CustomLang>) -> Self {
     Self::Brace(err)
+  }
+}
+
+impl From<Unclosed<CustomMarker, SimpleSpan, CustomLang>> for TypedError {
+  fn from(err: Unclosed<CustomMarker, SimpleSpan, CustomLang>) -> Self {
+    Self::CustomMarker(err)
   }
 }
 
@@ -154,6 +176,16 @@ fn bare_bracket_many<'inp>(
     .parse_input(inp)
 }
 
+fn custom_marker_many<'inp>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx<'inp>, CustomLang>,
+) -> Result<Vec<i64>, TypedError> {
+  number
+    .repeated_while::<_, U1>(decide_number)
+    .delimited::<CustomMarker>()
+    .collect()
+    .parse_input(inp)
+}
+
 fn bare_bracket<'inp>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx<'inp>, CustomLang>,
 ) -> Result<i64, TypedError> {
@@ -199,4 +231,24 @@ fn bare_bracket_many_builder_preserves_typed_unclosed_under_custom_language() {
     Err(other) => panic!("expected Unclosed<Bracket, _, CustomLang>, got {other:?}"),
     Ok(value) => panic!("expected unclosed bracket, parsed {value:?}"),
   }
+}
+
+#[test]
+fn non_clone_custom_marker_preserves_typed_unclosed_in_delimited_many() {
+  let result = Parser::with_parser_of::<'_, TestLexer<'_>, Vec<i64>, TypedError, _, CustomLang>(
+    custom_marker_many,
+  )
+  .parse_str("[1 2");
+
+  match result {
+    Err(TypedError::CustomMarker(err)) => assert_eq!(err.name_ref(), "custom brackets"),
+    Err(other) => panic!("expected Unclosed<CustomMarker, _, CustomLang>, got {other:?}"),
+    Ok(value) => panic!("expected unclosed custom marker, parsed {value:?}"),
+  }
+}
+
+#[test]
+fn map_parser_mut_preserves_non_clone_custom_marker_type() {
+  let mut delimited = DelimitedBy::<_, CustomMarker>::new(());
+  let _: DelimitedBy<&mut (), CustomMarker> = delimited.map_parser_mut(|parser| parser);
 }

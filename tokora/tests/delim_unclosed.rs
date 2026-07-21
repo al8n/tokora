@@ -49,8 +49,8 @@ enum RE {
   Other,
 }
 
-// The migration arm: delimited many-builders emit their delimiter's normalized `ErrorTag`
-// through `Unclosed<…>`; the carried name remains available for diagnostics.
+// The migration arm: delimited many-builders emit `Unclosed<Delim, …>` with the concrete
+// delimiter marker, while the carried name remains available for diagnostics.
 impl<D, Lang: ?Sized> From<Unclosed<D, SimpleSpan, Lang>> for RE {
   fn from(err: Unclosed<D, SimpleSpan, Lang>) -> Self {
     RE::Unclosed {

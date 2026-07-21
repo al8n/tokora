@@ -52,7 +52,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     Ctx: ParseContext<'inp, L, Lang>,
     Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
-      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<Delim::ErrorTag, L::Span, Lang>>,
+      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<Delim, L::Span, Lang>>,
     Container: DelimiterHandler<'inp, L> + SeparatorHandler<'inp, L> + ContainerT<O>,
     EH: EndStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
     CH: ContinueStateHandler<'inp, 'closure, Sep, O, L, Ctx, Lang, Cmpl>,
@@ -186,7 +186,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         if let Some(open_span) = open_span.clone() {
           inp
             .emitter()
-            .emit_unclosed(Unclosed::<Delim::ErrorTag, L::Span, Lang>::of(
+            .emit_unclosed(Unclosed::<Delim, L::Span, Lang>::of(
               open_span,
               Delim::name(),
             ))?;

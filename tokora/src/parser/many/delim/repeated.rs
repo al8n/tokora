@@ -40,7 +40,7 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     Cmpl: crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
     Ctx::Emitter: FullContainerEmitter<'inp, L, Lang> + UnclosedEmitter<'inp, L, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
-      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<Delim::ErrorTag, L::Span, Lang>>,
+      From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<Delim, L::Span, Lang>>,
     Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
   {
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
@@ -120,7 +120,7 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
               if let Some(open_span) = open_span.clone() {
                 inp
                   .emitter()
-                  .emit_unclosed(Unclosed::<Delim::ErrorTag, L::Span, Lang>::of(
+                  .emit_unclosed(Unclosed::<Delim, L::Span, Lang>::of(
                     open_span,
                     Delim::name(),
                   ))?;
@@ -158,7 +158,7 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         if let Some(open_span) = open_span.clone() {
           inp
             .emitter()
-            .emit_unclosed(Unclosed::<Delim::ErrorTag, L::Span, Lang>::of(
+            .emit_unclosed(Unclosed::<Delim, L::Span, Lang>::of(
               open_span,
               Delim::name(),
             ))?;

@@ -34,7 +34,7 @@ where
     + UnclosedEmitter<'inp, L, Lang>,
   Ctx: ParseContext<'inp, L, Lang>,
   <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
-    From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<Delim::ErrorTag, L::Span, Lang>>,
+    From<UnexpectedEot<L::Offset, Lang>> + From<Unclosed<Delim, L::Span, Lang>>,
   Container: Default + ContainerT<O> + DelimiterHandler<'inp, L>,
 {
   fn parse_input(
