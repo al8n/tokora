@@ -3,6 +3,12 @@
 All notable changes to this crate are documented here. The project follows semantic
 versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change.
 
+## 0.5.1 (2026-07-21)
+
+### Added
+
+- **Full smol-bytes integration** — `Source`, `Slice`, `Equivalent`, and `ToEquivalent`/`IntoEquivalent` impls for all four `smol-bytes` types: `shared::Bytes`, `compact::Bytes`, `Utf8Bytes` (`shared::Utf8Bytes`), and `compact::Utf8Bytes`. `Source`/`Slice` treat the byte types as `u8` sequences and the UTF-8 types as `char` sequences with UTF-8-boundary-aware indexing; `Equivalent` compares all four types via their byte view, mirroring the existing `bytes`/`hipstr` impls; `ToEquivalent`/`IntoEquivalent` convert the byte types from `[u8]`/`&[u8]` and the UTF-8 types from `str`/`&str`. Feature-gated behind `smol_bytes_0_1`.
+
 ## 0.5.0 (2026-07-20)
 
 ### Added
