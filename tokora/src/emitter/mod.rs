@@ -529,10 +529,10 @@ where
 ///
 /// The atomic emitter design splits diagnostics across a family of focused traits, and a
 /// parser that drives the separated/repeated machinery ends up needing most of them at
-/// once — a six-line where-clause ladder repeated at every generic parser an author
+/// once — a seven-line where-clause ladder repeated at every generic parser an author
 /// writes. `ComposableEmitter` is that ladder as a single name: it is
 /// blanket-implemented for every emitter satisfying the whole family, so a bound of
-/// `E: ComposableEmitter<'inp, L, Lang>` is interchangeable with spelling out all six
+/// `E: ComposableEmitter<'inp, L, Lang>` is interchangeable with spelling out all seven
 /// sub-traits. The pre-built [`Fatal`], [`Verbose`], and [`Silent`] emitters all qualify
 /// whenever their error type absorbs the corresponding error families.
 ///
@@ -543,13 +543,13 @@ where
 /// # Examples
 ///
 /// The bundle elaborates back to the entire family — the one-bound function can call
-/// into the six-bound ladder:
+/// into the seven-bound ladder:
 ///
 /// ```rust
 /// use tokora::{ComposableEmitter, Emitter, Lexer};
 /// use tokora::emitter::{
 ///   FullContainerEmitter, SeparatedEmitter, TooFewEmitter, UnexpectedLeadingSeparatorEmitter,
-///   UnexpectedTrailingSeparatorEmitter,
+///   UnexpectedTrailingSeparatorEmitter, UnclosedEmitter,
 /// };
 ///
 /// // The where-clause ladder an atom would otherwise carry…
@@ -561,7 +561,8 @@ where
 ///     + SeparatedEmitter<'inp, L>
 ///     + UnexpectedLeadingSeparatorEmitter<'inp, L>
 ///     + UnexpectedTrailingSeparatorEmitter<'inp, L>
-///     + TooFewEmitter<'inp, L>,
+///     + TooFewEmitter<'inp, L>
+///     + UnclosedEmitter<'inp, L>,
 /// {
 /// }
 ///
@@ -581,6 +582,7 @@ pub trait ComposableEmitter<'inp, L, Lang: ?Sized = ()>:
   + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
   + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
   + TooFewEmitter<'inp, L, Lang>
+  + UnclosedEmitter<'inp, L, Lang>
 where
   L: Lexer<'inp>,
 {
@@ -594,6 +596,7 @@ where
     + SeparatedEmitter<'inp, L, Lang>
     + UnexpectedLeadingSeparatorEmitter<'inp, L, Lang>
     + UnexpectedTrailingSeparatorEmitter<'inp, L, Lang>
-    + TooFewEmitter<'inp, L, Lang>,
+    + TooFewEmitter<'inp, L, Lang>
+    + UnclosedEmitter<'inp, L, Lang>,
 {
 }

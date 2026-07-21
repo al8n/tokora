@@ -3,6 +3,14 @@
 All notable changes to this crate are documented here. The project follows semantic
 versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change.
 
+## 0.6.0 (2026-07-22)
+
+### Changed (breaking)
+
+- **Delimiter-specific `Unclosed` diagnostics.** Delimited shape and many parsers now emit `Unclosed<D::ErrorTag, …>`; built-in shapes use their concrete `Paren`, `Brace`, `Bracket`, or `Angle` tag. `Delimiter` now requires `ErrorTag`, so consumer error types should provide the corresponding `From<Unclosed<…>>` conversions.
+- **Composable emitter bundle includes unclosed diagnostics.** `ComposableEmitter`, and therefore `ParseCtx`, now includes `UnclosedEmitter`; custom composite emitters must implement it.
+- **Built-in delimiter markers are language-neutral.** Bare `Paren`, `Brace`, `Bracket`, and `Angle` work with any parser `Lang`; the marker language no longer has to match the parse language.
+
 ## 0.5.1 (2026-07-21)
 
 ### Added

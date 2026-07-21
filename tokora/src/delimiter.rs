@@ -2,6 +2,14 @@ use crate::{Lexer, Token, error::token::UnexpectedToken, punct::*, span::Spanned
 
 /// A trait for any delimiter consisting of an opening and a closing punctuator.
 pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
+  /// The stable type-level identity carried by delimiter diagnostics.
+  ///
+  /// Delimited parser adapters may reborrow their marker while they drive an inner parser.
+  /// `ErrorTag` preserves the original delimiter identity across those `&D`/`&mut D`
+  /// wrappers, so an unclosed built-in bracket always reports `Unclosed<Bracket, …>`
+  /// rather than a reference-shaped tag.
+  type ErrorTag;
+
   /// The opening punctuator.
   type Open: Punctuator<'inp, L, Lang>;
   /// The closing punctuator.
@@ -85,12 +93,15 @@ where
 macro_rules! impl_builtin_delimiter {
   ($($name:ident { description: $description:literal, open: $open:ident, close: $close:ident $(,)? }),+$(,)?) => {
     $(
-      impl<'inp, S, C, L, Lang: ?Sized> Delimiter<'inp, L, Lang> for $name<S, C, Lang>
+      impl<'inp, S, C, MarkerLang: ?Sized, L, Lang: ?Sized> Delimiter<'inp, L, Lang>
+        for $name<S, C, MarkerLang>
       where
         L: Lexer<'inp>,
         $open<S, C, Lang>: Punctuator<'inp, L, Lang>,
         $close<S, C, Lang>: Punctuator<'inp, L, Lang>,
       {
+        type ErrorTag = $name;
+
         type Open = $open<S, C, Lang>;
 
         type Close = $close<S, C, Lang>;
@@ -101,7 +112,8 @@ macro_rules! impl_builtin_delimiter {
         }
       }
 
-      impl<'inp, S, C, L, Lang: ?Sized> TypedDelimiter<'inp, L, Lang> for $name<S, C, Lang>
+      impl<'inp, S, C, MarkerLang: ?Sized, L, Lang: ?Sized> TypedDelimiter<'inp, L, Lang>
+        for $name<S, C, MarkerLang>
       where
         L: Lexer<'inp>,
         $open<S, C, Lang>: Punctuator<'inp, L, Lang>,
@@ -134,6 +146,7 @@ impl_builtin_delimiter! {
 
 macro_rules! impl_deref {
   (@impl<$ty:ty>) => {
+    type ErrorTag = <$ty>::ErrorTag;
     type Open = <$ty>::Open;
     type Close = <$ty>::Close;
 
