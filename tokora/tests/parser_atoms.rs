@@ -624,6 +624,27 @@ fn delimited_method_wraps_ident() {
   assert!(out.is_ok());
 }
 
+#[test]
+fn delimited_convenience_methods_wrap_idents() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let parens = Ident::parse.delimited_by_parens().parse_input(inp)?;
+      let braces = Ident::parse.delimited_by_braces().parse_input(inp)?;
+      let brackets = Ident::parse.delimited_by_brackets().parse_input(inp)?;
+      let angles = Ident::parse.delimited_by_angles().parse_input(inp)?;
+
+      assert_eq!(parens.data().source_ref(), &"a");
+      assert_eq!(braces.data().source_ref(), &"b");
+      assert_eq!(brackets.data().source_ref(), &"c");
+      assert_eq!(angles.data().source_ref(), &"d");
+      Ok::<_, E>(())
+    },
+    "(a){b}[c]<d>",
+  );
+  assert!(out.is_ok());
+}
+
 #[derive(Debug, PartialEq)]
 enum Nested<'inp> {
   Name(&'inp str),
@@ -650,8 +671,18 @@ where
 }
 
 #[test]
-fn delimited_method_supports_recursive_generic_parsers() {
-  let out = drive(Fatal::<E>::new(), nested, "[[x]]").unwrap();
+fn delimited_by_brackets_supports_recursive_generic_parsers() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      nested
+        .delimited_by_brackets()
+        .parse_input(inp)
+        .map(|d| Nested::List(Box::new(d.into_data())))
+    },
+    "[[x]]",
+  )
+  .unwrap();
   assert_eq!(
     out,
     Nested::List(Box::new(Nested::List(Box::new(Nested::Name("x")))))
