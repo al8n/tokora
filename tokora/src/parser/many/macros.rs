@@ -1,3 +1,45 @@
+macro_rules! define_many_delimited_methods {
+  () => {
+    /// Delimits the parser with the given delimiter.
+    #[inline(always)]
+    pub const fn delimited<Delim>(self) -> $crate::parser::DelimitedBy<Self, Delim> {
+      $crate::parser::DelimitedBy::<Self, Delim>::new(self)
+    }
+
+    /// Delimits the parser with parentheses.
+    #[inline(always)]
+    pub const fn delimited_by_parens(
+      self,
+    ) -> $crate::parser::DelimitedBy<Self, $crate::punct::Paren> {
+      self.delimited::<$crate::punct::Paren>()
+    }
+
+    /// Delimits the parser with braces.
+    #[inline(always)]
+    pub const fn delimited_by_braces(
+      self,
+    ) -> $crate::parser::DelimitedBy<Self, $crate::punct::Brace> {
+      self.delimited::<$crate::punct::Brace>()
+    }
+
+    /// Delimits the parser with brackets.
+    #[inline(always)]
+    pub const fn delimited_by_brackets(
+      self,
+    ) -> $crate::parser::DelimitedBy<Self, $crate::punct::Bracket> {
+      self.delimited::<$crate::punct::Bracket>()
+    }
+
+    /// Delimits the parser with angle brackets.
+    #[inline(always)]
+    pub const fn delimited_by_angles(
+      self,
+    ) -> $crate::parser::DelimitedBy<Self, $crate::punct::Angle> {
+      self.delimited::<$crate::punct::Angle>()
+    }
+  };
+}
+
 /// Generates 4 `ParseInput` impl blocks for `sep/parse/` leaf files.
 ///
 /// Due to `macro_rules!` hygiene, `self` cannot be passed through call-site token trees.

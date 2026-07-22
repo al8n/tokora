@@ -16,7 +16,8 @@ mod common;
 use common::{E, TestLexer, Token, TokenKind};
 
 use tokora::{
-  Emitter, FatalContext, InputRef, Lexer, Parse, ParseCtx, Parser, ParserContext, SimpleSpan,
+  Emitter, ErrorOf, FatalContext, InputRef, Lexer, Parse, ParseCtx, ParseInput, Parser,
+  ParserContext, SimpleSpan,
   emitter::{
     Fatal, FullContainerEmitter, SeparatedEmitter, TooFewEmitter, UnclosedEmitter, Verbose,
   },
@@ -29,7 +30,7 @@ use tokora::{
     angles, braces, brackets, delimited, list_of, opt, parens, peek_kind, separated1, try_angles,
     try_braces, try_brackets, try_delimited, try_parens,
   },
-  punct::{Brace, CloseBrace, Comma, Paren, Semicolon},
+  punct::{Brace, Bracket, CloseBrace, Comma, Paren, Semicolon},
   span::Spanned,
   token::IdentifierToken,
   types::Ident,
@@ -605,6 +606,107 @@ fn delimited_generic_paren_equals_parens() {
     "(x)",
   );
   assert!(out.is_ok());
+}
+
+#[test]
+fn delimited_method_wraps_ident() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let d = Ident::parse.delimited::<Paren>().parse_input(inp)?;
+      assert_eq!(*d.data().source_ref(), "x");
+      assert_eq!(d.data().span(), SimpleSpan::new(1, 2));
+      assert_eq!(d.span(), SimpleSpan::new(0, 3));
+      Ok::<_, E>(())
+    },
+    "(x)",
+  );
+  assert!(out.is_ok());
+}
+
+#[test]
+fn delimited_convenience_methods_wrap_idents() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      let parens = Ident::parse.delimited_by_parens().parse_input(inp)?;
+      let braces = Ident::parse.delimited_by_braces().parse_input(inp)?;
+      let brackets = Ident::parse.delimited_by_brackets().parse_input(inp)?;
+      let angles = Ident::parse.delimited_by_angles().parse_input(inp)?;
+
+      assert_eq!(parens.data().source_ref(), &"a");
+      assert_eq!(braces.data().source_ref(), &"b");
+      assert_eq!(brackets.data().source_ref(), &"c");
+      assert_eq!(angles.data().source_ref(), &"d");
+      Ok::<_, E>(())
+    },
+    "(a){b}[c]<d>",
+  );
+  assert!(out.is_ok());
+}
+
+#[derive(Debug, PartialEq)]
+enum Nested<'inp> {
+  Name(&'inp str),
+  List(Box<Nested<'inp>>),
+}
+
+fn nested<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<Nested<'inp>, ErrorOf<'inp, TestLexer<'inp>, Ctx, ()>>
+where
+  Ctx: ParseCtx<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: UnclosedEmitter<'inp, TestLexer<'inp>>,
+  ErrorOf<'inp, TestLexer<'inp>, Ctx, ()>: From<UnexpectedEot>
+    + From<UnexpectedToken<'inp, Token, TokenKind, SimpleSpan>>
+    + From<Unclosed<Bracket, SimpleSpan>>,
+{
+  match peek_kind(inp)? {
+    Some(TokenKind::LBracket) => nested
+      .delimited::<Bracket>()
+      .parse_input(inp)
+      .map(|d| Nested::List(Box::new(d.into_data()))),
+    _ => Ident::parse(inp).map(|ident| Nested::Name(ident.source_ref())),
+  }
+}
+
+#[test]
+fn delimited_by_brackets_supports_recursive_generic_parsers() {
+  let out = drive(
+    Fatal::<E>::new(),
+    |inp| {
+      nested
+        .delimited_by_brackets()
+        .parse_input(inp)
+        .map(|d| Nested::List(Box::new(d.into_data())))
+    },
+    "[[x]]",
+  )
+  .unwrap();
+  assert_eq!(
+    out,
+    Nested::List(Box::new(Nested::List(Box::new(Nested::Name("x")))))
+  );
+}
+
+#[test]
+fn delimited_method_eof_reports_typed_unclosed() {
+  fn unterminated<'a>(
+    inp: &mut InputRef<'a, '_, TestLexer<'a>, FatalContext<'a, TestLexer<'a>, ShapeError>>,
+  ) -> Result<(), ShapeError> {
+    Ident::parse
+      .delimited::<Paren>()
+      .parse_input(inp)
+      .map(|_| ())
+  }
+
+  let err = Parser::with_parser(unterminated)
+    .parse_str("(a")
+    .unwrap_err();
+  assert!(matches!(
+    err,
+    ShapeError::Unclosed { ref name, start: 0 } if name == "()"
+  ));
 }
 
 // A wrong closer is a hard error carrying the expected close kind. `ShapeError` (local,

@@ -4,6 +4,7 @@ use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray, ty
 
 use crate::{
   cache::Peeked,
+  error::{Unclosed, UnexpectedEot, token::UnexpectedToken},
   input::{DelimClass, InputRef},
   located::Located,
   parser::*,
@@ -146,6 +147,37 @@ macro_rules! define_separated_by {
   };
 }
 
+macro_rules! define_delimited_by {
+  ($($method:ident => $delimiter:ident),+$(,)?) => {
+    $(
+      #[doc = concat!(
+        "Wraps this parser in a committed `",
+        stringify!($delimiter),
+        "` delimiter pair by delegating to `ParseInput::delimited`."
+      )]
+      #[inline(always)]
+      fn $method(
+        self,
+      ) -> impl for<'c> FnMut(
+        &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
+      ) -> crate::parser::DelimitedOf<'inp, $delimiter, L, Ctx, Lang, O>
+      where
+        Self: Sized,
+        $delimiter: crate::delimiter::TypedDelimiter<'inp, L, Lang>,
+        L: Lexer<'inp>,
+        Ctx: ParseCtx<'inp, L, Lang>,
+        Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+        Ctx::Emitter: crate::emitter::UnclosedEmitter<'inp, L, Lang>,
+        ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
+          + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+          + From<Unclosed<$delimiter, L::Span, Lang>>,
+      {
+        self.delimited::<$delimiter>()
+      }
+    )+
+  };
+}
+
 /// Core trait implemented by every parser combinator.
 ///
 /// This mirrors the ergonomics of libraries like `winnow`: a parser is
@@ -169,6 +201,37 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Cmpl: Completeness;
+
+  /// Wraps this parser in a committed delimiter pair.
+  ///
+  /// This is the method form of [`delimited`]. The delimiter type
+  /// selects the opener and closer, while this parser produces the enclosed data.
+  #[inline(always)]
+  fn delimited<D>(
+    self,
+  ) -> impl for<'c> FnMut(
+    &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
+  ) -> crate::parser::DelimitedOf<'inp, D, L, Ctx, Lang, O>
+  where
+    Self: Sized,
+    D: crate::delimiter::TypedDelimiter<'inp, L, Lang>,
+    L: Lexer<'inp>,
+    Ctx: ParseCtx<'inp, L, Lang>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+    Ctx::Emitter: crate::emitter::UnclosedEmitter<'inp, L, Lang>,
+    ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+      + From<Unclosed<D, L::Span, Lang>>,
+  {
+    crate::parser::delimited::<D, L, Ctx, Lang, Self, O, Cmpl>(self)
+  }
+
+  define_delimited_by! {
+    delimited_by_parens => Paren,
+    delimited_by_braces => Brace,
+    delimited_by_brackets => Bracket,
+    delimited_by_angles => Angle,
+  }
 
   /// Wraps the output of this parser in a `Spanned` with the span of the parsed input.
   #[inline(always)]

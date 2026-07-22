@@ -422,7 +422,7 @@ where
 {
   parse_num_rw
     .repeated_while::<_, U1>(decide_num_rw::<Ctx>)
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }

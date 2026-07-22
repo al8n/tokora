@@ -201,7 +201,7 @@ where
 {
   try_num_delim
     .separated_by_comma()
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }
@@ -1425,7 +1425,7 @@ where
 {
   parse_num_while_delim
     .separated_by_comma_while::<_, U1>(decide_num_delim::<Ctx>)
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }
