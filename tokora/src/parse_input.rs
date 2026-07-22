@@ -4,6 +4,7 @@ use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray, ty
 
 use crate::{
   cache::Peeked,
+  error::{Unclosed, UnexpectedEot, token::UnexpectedToken},
   input::{DelimClass, InputRef},
   located::Located,
   parser::*,
@@ -169,6 +170,30 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,
     Cmpl: Completeness;
+
+  /// Wraps this parser in a committed delimiter pair.
+  ///
+  /// This is the method form of [`delimited`]. The delimiter type
+  /// selects the opener and closer, while this parser produces the enclosed data.
+  #[inline(always)]
+  fn delimited<D>(
+    self,
+  ) -> impl for<'c> FnMut(
+    &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
+  ) -> crate::parser::DelimitedOf<'inp, D, L, Ctx, Lang, O>
+  where
+    Self: Sized,
+    D: crate::delimiter::TypedDelimiter<'inp, L, Lang>,
+    L: Lexer<'inp>,
+    Ctx: ParseCtx<'inp, L, Lang>,
+    Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
+    Ctx::Emitter: crate::emitter::UnclosedEmitter<'inp, L, Lang>,
+    ErrorOf<'inp, L, Ctx, Lang>: From<UnexpectedEot<L::Offset, Lang>>
+      + From<UnexpectedToken<'inp, L::Token, <L::Token as Token<'inp>>::Kind, L::Span, Lang>>
+      + From<Unclosed<D, L::Span, Lang>>,
+  {
+    crate::parser::delimited::<D, L, Ctx, Lang, Self, O, Cmpl>(self)
+  }
 
   /// Wraps the output of this parser in a `Spanned` with the span of the parsed input.
   #[inline(always)]
