@@ -1,16 +1,3 @@
-# 0.6.1 (2026-07-22)
-
-## Added
-
-- **Method-form delimiter combinators.** Every `ParseInput` parser can now use
-  `delimited::<D>()` directly, with `delimited_by_parens`, `delimited_by_braces`,
-  `delimited_by_brackets`, and `delimited_by_angles` as named conveniences.
-- **Named delimiters for many-builders.** The same delimiter method family is available on
-  `Repeated`, `RepeatedWhile`, `Separated`, `SeparatedWhile`, `AtLeast`, `AtMost`, `Bounded`,
-  `AllowLeading`, `AllowTrailing`, `RequireLeading`, and `RequireTrailing`. Existing
-  repeated/separated `delimited::<D>()` chains remain source-compatible, including nested
-  cardinality and separator-policy wrappers.
-
 # 0.3.1 (2026-07-19)
 
 ## Fixed
