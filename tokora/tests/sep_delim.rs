@@ -65,7 +65,7 @@ where
   try_num
     .separated_by_comma()
     .allow_leading()
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }
@@ -224,7 +224,7 @@ where
   try_num
     .separated_by_comma()
     .allow_trailing()
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }
@@ -384,7 +384,7 @@ where
   try_num
     .separated_by_comma()
     .require_leading()
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }
@@ -549,7 +549,7 @@ where
   try_num
     .separated_by_comma()
     .require_trailing()
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }

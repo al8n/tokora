@@ -63,11 +63,7 @@ impl<P> RequireTrailing<P> {
     }
   }
 
-  /// Delimits the parser with the given open and close classifiers and delimiter.
-  #[inline(always)]
-  pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::<_, Delim>::new(self)
-  }
+  define_many_delimited_methods!();
 
   /// Maps the inner parser to a new parser using the given function.
   #[inline(always)]

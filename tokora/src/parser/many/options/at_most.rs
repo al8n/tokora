@@ -32,11 +32,7 @@ impl<P> AtMost<P> {
     self.maximum
   }
 
-  /// Delimits the parser with the given open and close classifiers and delimiter.
-  #[inline(always)]
-  pub const fn delimited<Delim>(self) -> DelimitedBy<Self, Delim> {
-    DelimitedBy::<_, Delim>::new(self)
-  }
+  define_many_delimited_methods!();
 
   /// Returns a mutable reference to the inner parser.
   #[inline(always)]

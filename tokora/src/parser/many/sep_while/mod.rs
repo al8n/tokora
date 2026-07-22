@@ -293,14 +293,7 @@ impl<F, Sep, Condition, O, Window, L, Ctx, Lang: ?Sized, Cmpl>
     RequireLeading::new(self)
   }
 
-  /// Creates a new `Delimited` parser with the given delimiters and separator.
-  #[inline(always)]
-  pub const fn delimited<'inp, Delim>(self) -> DelimitedBy<Self, Delim>
-  where
-    Delim: Delimiter<'inp, L, Lang>,
-  {
-    DelimitedBy::<_, Delim>::new(self)
-  }
+  define_many_delimited_methods!();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant)]

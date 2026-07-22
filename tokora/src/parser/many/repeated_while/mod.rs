@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::{delimiter::Delimiter, emitter::FullContainerEmitter, error::syntax::FullContainer};
+use crate::{emitter::FullContainerEmitter, error::syntax::FullContainer};
 
 use super::*;
 
@@ -182,14 +182,7 @@ impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl>
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl>
   RepeatedWhile<F, Condition, O, W, L, Ctx, Lang, Cmpl>
 {
-  /// Delimits the parser with the given open and close classifiers and delimiter.
-  #[inline(always)]
-  pub const fn delimited<'inp, Delim>(self) -> DelimitedBy<Self, Delim>
-  where
-    Delim: Delimiter<'inp, L, Lang>,
-  {
-    DelimitedBy::<_, Delim>::new(self)
-  }
+  define_many_delimited_methods!();
 }
 
 impl<F, Condition, O, W, L, Ctx, Lang: ?Sized, Cmpl>

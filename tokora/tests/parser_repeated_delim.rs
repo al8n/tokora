@@ -205,7 +205,7 @@ where
 {
   try_num_rd
     .repeated()
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }
@@ -249,7 +249,7 @@ where
   try_num_rd
     .repeated()
     .at_least(2)
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }
@@ -285,7 +285,7 @@ where
   try_num_rd
     .repeated()
     .at_most(3)
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }
@@ -322,7 +322,7 @@ where
   try_num_rd
     .repeated()
     .bounded(2, 4)
-    .delimited::<Bracket<(), (), ()>>()
+    .delimited_by_brackets()
     .collect()
     .parse_input(inp)
 }
