@@ -17,7 +17,12 @@ mod hipstr_0_8;
 mod smol_bytes_0_1;
 
 /// The slice type returned by lexers' sources.
-pub trait Slice<'source>: PartialEq + Eq + core::fmt::Debug {
+///
+/// `'source` is the lifetime for which a slice's contents must remain valid.
+/// Shared references forward [`Slice`] when their borrow outlives `'source`, so
+/// additional immutable reference layers preserve the underlying representation
+/// and iteration behavior.
+pub trait Slice<'source>: PartialEq + Eq + core::fmt::Debug + 'source {
   /// The character type used by the lexer.
   ///
   /// - Use `char` for text-based lexers processing UTF-8 strings
@@ -56,7 +61,46 @@ pub trait Slice<'source>: PartialEq + Eq + core::fmt::Debug {
   }
 }
 
-impl<'source> Slice<'source> for &'source [u8] {
+impl<'source, 'data, T> Slice<'source> for &'data T
+where
+  'data: 'source,
+  T: Slice<'source> + ?Sized,
+{
+  type Char = T::Char;
+
+  type Iter<'a>
+    = T::Iter<'a>
+  where
+    Self: 'a;
+
+  type PositionedIter<'a>
+    = T::PositionedIter<'a>
+  where
+    Self: 'a;
+
+  #[inline(always)]
+  fn iter<'a>(&'a self) -> Self::Iter<'a>
+  where
+    Self: 'a,
+  {
+    <T as Slice<'source>>::iter(*self)
+  }
+
+  #[inline(always)]
+  fn positioned_iter<'a>(&'a self) -> Self::PositionedIter<'a>
+  where
+    Self: 'a,
+  {
+    <T as Slice<'source>>::positioned_iter(*self)
+  }
+
+  #[inline(always)]
+  fn len(&self) -> usize {
+    <T as Slice<'source>>::len(*self)
+  }
+}
+
+impl Slice<'_> for [u8] {
   type Char = u8;
 
   type Iter<'a>
@@ -91,7 +135,7 @@ impl<'source> Slice<'source> for &'source [u8] {
   }
 }
 
-impl<'source> Slice<'source> for &'source str {
+impl Slice<'_> for str {
   type Char = char;
 
   type Iter<'a>

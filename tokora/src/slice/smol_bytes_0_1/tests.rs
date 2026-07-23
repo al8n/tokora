@@ -119,3 +119,24 @@ fn compact_utf8_bytes_slice_positioned_iter() {
   let items: std::vec::Vec<(usize, char)> = Slice::positioned_iter(&s).collect();
   assert_eq!(items, std::vec![(0, 'a'), (1, 'b')]);
 }
+
+#[test]
+fn all_smol_bytes_borrowed_slice_forwarding() {
+  macro_rules! assert_borrowed_slice {
+    ($type:ty, $value:expr, $len:expr) => {{
+      let slice: $type = $value;
+      let slice_ref = &slice;
+
+      assert_eq!(<&$type as Slice<'_>>::len(&slice_ref), $len);
+    }};
+  }
+
+  assert_borrowed_slice!(shared::Bytes, shared::Bytes::from_static(b"abc"), 3);
+  assert_borrowed_slice!(compact::Bytes, compact::Bytes::from_static(b"abc"), 3);
+  assert_borrowed_slice!(Utf8Bytes, Utf8Bytes::from_static("abc"), 3);
+  assert_borrowed_slice!(
+    compact::Utf8Bytes,
+    compact::Utf8Bytes::from_static("abc"),
+    3
+  );
+}

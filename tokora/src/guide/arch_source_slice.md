@@ -48,6 +48,18 @@ They are bound together by one associated type: `Source::Slice<'a>: Slice<'a>`. 
 [`SliceOf<'inp, L>`](crate::SliceOf) — the projection `<L::Source as Source>::Slice<'inp>` — is
 the type generic parser code reaches for whenever it wants the raw text of a token.
 
+`'a` is a validity requirement, not merely a label on that projection:
+`Slice<'a>: 'a` means that both the slice value and the data it represents remain valid for at
+least `'a`. The canonical `Slice` implementations therefore live on the representations
+themselves — `str`, `[u8]`, `BStr`, and the optional backend values — rather than on a selected
+set of reference spellings. In particular, the lifetime-carrying `HipStr<'data>` and
+`HipByt<'data>` implement `Slice<'source>` when `'data: 'source`.
+
+Shared references are forwarded uniformly. If `T: Slice<'source>` and a reference to `T` lives
+for `'data: 'source`, then `&'data T: Slice<'source>`; the same law applies repeatedly to nested
+references. That makes `&str`, `&&str`, `&[u8]`, and borrowed backend values retain the
+representation, character type, and iterator behavior of their underlying `T`.
+
 ### `Source`: addressing the medium
 
 ```rust,ignore
@@ -56,6 +68,7 @@ pub trait Source<Cursor>: core::fmt::Debug {
 
     fn is_empty(&self) -> bool;
     fn len(&self) -> Cursor;
+    fn as_slice(&self) -> Self::Slice<'_>;
     fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
     where R: RangeBounds<Cursor>;
 
@@ -72,11 +85,24 @@ Three things are worth reading closely.
   offset arithmetic the engine does and the addressing the source understands are the same type by
   construction.
 - **`slice` is fallible and zero-copy.** It returns `Option<Self::Slice<'_>>` — `None` for an
-  out-of-range or (for text) boundary-splitting range, mirroring `slice::get`. The `'_` ties the
-  returned slice to the borrow of `self`, which is exactly what lets a token's payload be a view
-  into the source rather than a fresh allocation.
+  out-of-range or (for text) boundary-splitting range, mirroring `slice::get`. The `'_` selects
+  the associated slice for that call. Borrowing sources such as `str` tie it to the borrow of
+  `self`; explicit reference sources such as `&'data str` may preserve their longer carried
+  lifetime instead. Either way, a token payload can remain a view into the source rather than a
+  fresh allocation.
 - **`find_boundary` and `is_boundary` are the entire text/byte distinction.** This is the design
   decision that keeps the rest of the engine shape-blind.
+
+`Source` deliberately does **not** have a blanket implementation for `&T`. Such an implementation
+can only select `T::Slice` using the lifetime of the outer borrow, which shortens source-carried
+lifetimes: slicing a briefly borrowed `&'data str` would produce a slice tied to the brief borrow
+instead of `'data`.
+
+The borrowed core media therefore have explicit implementations: `&'data str`, `&'data [u8]`,
+and (with `bstr_1`) `&'data BStr` all return slices that preserve `'data`. Owned backends such as
+`Bytes`, `HipStr`, and the smol-bytes types implement `Source` on the owner itself. They can still
+be borrowed normally to call source methods, but `&Bytes` is intentionally not a distinct source
+type. This keeps the associated lifetime truthful rather than trading it for blanket convenience.
 
 ### The boundary discipline
 
@@ -102,7 +128,7 @@ backend of the same shape.
 ### `Slice`: reading a span
 
 ```rust,ignore
-pub trait Slice<'source>: PartialEq + Eq + core::fmt::Debug {
+pub trait Slice<'source>: PartialEq + Eq + core::fmt::Debug + 'source {
     type Char: Copy + core::fmt::Debug + PartialEq + Eq + core::hash::Hash;
     type Iter<'a>: Iterator<Item = Self::Char> where Self: 'a;
     type PositionedIter<'a>: Iterator<Item = (usize, Self::Char)> where Self: 'a;
@@ -117,10 +143,11 @@ pub trait Slice<'source>: PartialEq + Eq + core::fmt::Debug {
 `Slice::Char` is the shape marker in the type system: `char` for a text slice, `u8` for a byte
 slice, and it must match the character type the underlying lexer works in. The two iterators are
 the whole reading interface — `iter` for the characters, `positioned_iter` for
-`(offset, character)` pairs — and the core impls simply forward to the standard-library iterators
-that already do the right thing: `str::Chars` / `str::CharIndices` for `&str`, and
-`Copied<slice::Iter>` / `Enumerate<…>` for `&[u8]`. There is no bespoke UTF-8 decoding in tokora;
-`Slice` is a thin, uniform face over machinery `core` already ships.
+`(offset, character)` pairs — and the canonical core impls forward to the standard-library
+iterators that already do the right thing: `str::Chars` / `str::CharIndices` for `str`, and
+`Copied<slice::Iter>` / `Enumerate<…>` for `[u8]`. Shared-reference forwarding supplies their
+usual `&str` and `&[u8]` forms without separate implementations. There is no bespoke UTF-8
+decoding in tokora; `Slice` is a thin, uniform face over machinery `core` already ships.
 
 (Do not confuse [`Slice`](crate::Slice) with the [`Sliced<D, Src>`](crate::slice::Sliced) struct
 that lives in the same module. `Slice` is the *span of a source*; `Sliced` is an unrelated
@@ -141,7 +168,7 @@ delegate `is_boundary` straight to the `[u8]` rule (`i <= len`); the text-shaped
 | core text | *(always on)* | `str` | borrowed | text — `char` | `&str` |
 | core bytes | *(always on)* | `[u8]` | borrowed | bytes — `u8` | `&[u8]` |
 | [`bytes`](https://docs.rs/bytes) | `bytes_1` | `Bytes` | owned (ref-counted) | bytes — `u8` | `Bytes` |
-| [`bstr`](https://docs.rs/bstr) | `bstr_1` | `BStr` | borrowed | bytes — `u8` | `&[u8]` |
+| [`bstr`](https://docs.rs/bstr) | `bstr_1` | `BStr` | borrowed | bytes — `u8` | `&'a BStr` |
 | [`hipstr`](https://docs.rs/hipstr) | `hipstr_0_8` | `HipStr<'_>` | owned *or* borrowed | text — `char` | `HipStr<'_>` |
 | [`hipstr`](https://docs.rs/hipstr) | `hipstr_0_8` | `HipByt<'_>` | owned *or* borrowed | bytes — `u8` | `HipByt<'_>` |
 | [`smol-bytes`](https://docs.rs/smol-bytes) | `smol_bytes_0_1` | `shared::Bytes` | owned (ref-counted, ≤62 B inline) | bytes — `u8` | `shared::Bytes` |
@@ -164,8 +191,9 @@ A quick tour of what each backend is *for*:
   already arrived as a `Bytes` and you want to keep token slices alive past the parse without
   copying.
 - **`bstr_1`** exposes [`bstr::BStr`](https://docs.rs/bstr), a borrowed, byte-shaped view whose
-  slices are `&[u8]`. It is the "bytes that are *conventionally* text but not guaranteed UTF-8"
-  case; the impl is a thin forward to the `[u8]` behavior.
+  slices are `&BStr`. It is the "bytes that are *conventionally* text but not guaranteed UTF-8"
+  case; it retains that byte-string representation while forwarding its byte iteration and
+  boundary behavior to the same underlying rules as `[u8]`.
 - **`hipstr_0_8`** exposes the [`hipstr`](https://docs.rs/hipstr) inline-or-shared-or-borrowed
   hybrids in *both* shapes: `HipStr` (text) and `HipByt` (bytes). A `HipStr` may be a small string
   stored inline, a reference-counted heap share, or a borrow — and slicing it preserves whichever
@@ -243,6 +271,12 @@ you owned, refcount-sliced tokens.
 ## The abstraction, exercised
 
 Nothing above needs a lexer to demonstrate — the `Source` and `Slice` traits stand on their own.
+The behavior starts with canonical `str` and `[u8]` implementations. `Slice` behavior is inherited
+through its shared-reference forwarding law, while `Source` additionally has explicit `&str` and
+`&[u8]` implementations that preserve the input reference's lifetime. The distinction is
+intentional: `Slice` only reads an already-produced span, while `Source::Slice<'a>` must accurately
+describe how long a newly produced span remains valid.
+
 Here is one function generic over `Source` and one generic over `Slice`, each run over both a
 text source and a byte source, with the boundary discipline doing its job:
 

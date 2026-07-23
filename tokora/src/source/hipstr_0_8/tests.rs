@@ -183,3 +183,36 @@ fn hipbyt_is_boundary_beyond_len() {
   let src = HipByt::from(b"abc" as &[u8]);
   assert!(!Source::is_boundary(&src, 4));
 }
+
+#[test]
+fn hipstr_and_hipbyt_sources_preserve_data_lifetime() {
+  fn text_as_slice<'data>(source: &HipStr<'data>) -> HipStr<'data> {
+    <HipStr<'data> as Source<usize>>::as_slice(source)
+  }
+
+  fn text_slice<'data>(source: &HipStr<'data>) -> Option<HipStr<'data>> {
+    <HipStr<'data> as Source<usize>>::slice(source, 0..2)
+  }
+
+  fn bytes_as_slice<'data>(source: &HipByt<'data>) -> HipByt<'data> {
+    <HipByt<'data> as Source<usize>>::as_slice(source)
+  }
+
+  fn bytes_slice<'data>(source: &HipByt<'data>) -> Option<HipByt<'data>> {
+    <HipByt<'data> as Source<usize>>::slice(source, 1..3)
+  }
+
+  let text_data = std::string::String::from("\u{00E9}a");
+  let text = HipStr::from(text_data.as_str());
+
+  assert_eq!(text_as_slice(&text).as_str(), "\u{00E9}a");
+  assert_eq!(text_slice(&text).as_deref(), Some("\u{00E9}"));
+  assert_eq!(<HipStr<'_> as Source<usize>>::find_boundary(&text, 1), 0);
+
+  let byte_data = std::vec![b'a', b'b', b'c'];
+  let bytes = HipByt::from(byte_data.as_slice());
+
+  assert_eq!(bytes_as_slice(&bytes).as_ref(), b"abc");
+  assert_eq!(bytes_slice(&bytes).as_deref(), Some(b"bc".as_slice()));
+  assert!(<HipByt<'_> as Source<usize>>::is_boundary(&bytes, 3));
+}

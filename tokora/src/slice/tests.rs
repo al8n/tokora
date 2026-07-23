@@ -81,6 +81,67 @@ fn str_slice_positioned_iter_multibyte() {
   assert_eq!(items, vec![(0, '\u{00E9}'), (2, 'a')]);
 }
 
+#[test]
+fn slice_reference_forwarding_preserves_core_slice_behavior() {
+  let text: &str = "\u{00E9}a";
+  let text_ref = &text;
+  let expected_text = (3, vec!['\u{00E9}', 'a'], vec![(0, '\u{00E9}'), (2, 'a')]);
+
+  assert_eq!(
+    (
+      <str as Slice<'_>>::len(text),
+      <str as Slice<'_>>::iter(text).collect::<Vec<_>>(),
+      <str as Slice<'_>>::positioned_iter(text).collect::<Vec<_>>(),
+    ),
+    expected_text
+  );
+  assert_eq!(
+    (
+      <&str as Slice<'_>>::len(&text),
+      <&str as Slice<'_>>::iter(&text).collect::<Vec<_>>(),
+      <&str as Slice<'_>>::positioned_iter(&text).collect::<Vec<_>>(),
+    ),
+    expected_text
+  );
+  assert_eq!(
+    (
+      <&&str as Slice<'_>>::len(&text_ref),
+      <&&str as Slice<'_>>::iter(&text_ref).collect::<Vec<_>>(),
+      <&&str as Slice<'_>>::positioned_iter(&text_ref).collect::<Vec<_>>(),
+    ),
+    expected_text
+  );
+
+  let bytes: &[u8] = b"ab";
+  let bytes_ref = &bytes;
+  let expected_bytes = (2, vec![b'a', b'b'], vec![(0, b'a'), (1, b'b')]);
+
+  assert_eq!(
+    (
+      <[u8] as Slice<'_>>::len(bytes),
+      <[u8] as Slice<'_>>::iter(bytes).collect::<Vec<_>>(),
+      <[u8] as Slice<'_>>::positioned_iter(bytes).collect::<Vec<_>>(),
+    ),
+    expected_bytes
+  );
+  assert_eq!(
+    (
+      <&[u8] as Slice<'_>>::len(&bytes),
+      <&[u8] as Slice<'_>>::iter(&bytes).collect::<Vec<_>>(),
+      <&[u8] as Slice<'_>>::positioned_iter(&bytes).collect::<Vec<_>>(),
+    ),
+    expected_bytes
+  );
+  assert_eq!(
+    (
+      <&&[u8] as Slice<'_>>::len(&bytes_ref),
+      <&&[u8] as Slice<'_>>::iter(&bytes_ref).collect::<Vec<_>>(),
+      <&&[u8] as Slice<'_>>::positioned_iter(&bytes_ref).collect::<Vec<_>>(),
+    ),
+    expected_bytes
+  );
+}
+
 // --- Sliced tests ---
 
 #[test]
