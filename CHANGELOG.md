@@ -3,6 +3,17 @@
 All notable changes to this crate are documented here. The project follows semantic
 versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change.
 
+## Unreleased
+
+### Changed
+
+- `Ident`, `Keyword`, and the literal carriers now accept unsized source/data types.
+  Borrowed accessors are available for carriers such as `Ident<str>`, `Keyword<str>`, and
+  `LitDecimal<str>`; construction and other by-value operations remain limited to sized
+  source/data types. Unsized language markers are now supported consistently by generated
+  literals, `Ident` recovery, and `IdentList` APIs; the established public generic order is
+  unchanged.
+
 ## 0.6.1 (2026-07-22)
 
 ### Added

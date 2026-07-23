@@ -109,7 +109,8 @@ macro_rules! define_literal {
       ///
       /// # Type Parameters
       ///
-      /// - `S`: The source string type (`&str`, `String`, interned string, etc.)
+      /// - `D`: The literal data type (`&str`, `String`, a parsed value, etc.)
+      /// - `Span`: The span type tracking the literal's source location
       /// - `Lang`: Language marker type for type safety
       ///
       /// # Examples
@@ -139,22 +140,28 @@ macro_rules! define_literal {
       #[doc = "let bad_lit = " $name "::<String, SimpleSpan, YulLang>::error(span);"]
       /// ```
       #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-      pub struct $name<D $( = $default)?, S = $crate::__private::span::SimpleSpan, Lang = ()> {
-        span: S,
-        data: D,
+      pub struct $name<
+        D: ?::core::marker::Sized $( = $default)?,
+        Span = $crate::__private::span::SimpleSpan,
+        Lang: ?::core::marker::Sized = (),
+      > {
         _lang: PhantomData<Lang>,
+        span: Span,
+        data: D,
       }
     }
 
-    impl<D, S, Lang> AsSpan<S> for $name<D, S, Lang> {
+    impl<D: ?::core::marker::Sized, Span, Lang: ?::core::marker::Sized> AsSpan<Span>
+      for $name<D, Span, Lang>
+    {
       #[inline(always)]
-      fn as_span(&self) -> &S {
+      fn as_span(&self) -> &Span {
         self.span_ref()
       }
     }
 
-    impl<D, S, Lang> IntoComponents for $name<D, S, Lang> {
-      type Components = (S, D);
+    impl<D, Span, Lang: ?::core::marker::Sized> IntoComponents for $name<D, Span, Lang> {
+      type Components = (Span, D);
 
       #[inline(always)]
       fn into_components(self) -> Self::Components {
@@ -162,45 +169,30 @@ macro_rules! define_literal {
       }
     }
 
-    impl<D, S, Lang> $name<D, S, Lang> {
-      /// Creates a new literal with the given span and source string.
-      ///
-      /// # Parameters
-      ///
-      /// - `span`: The source location of this literal
-      /// - `data`: The literal's data
-      #[inline(always)]
-      pub const fn new(span: S, data: D) -> Self {
-        Self {
-          span,
-          data,
-          _lang: PhantomData,
-        }
-      }
-
+    impl<D: ?::core::marker::Sized, Span, Lang: ?::core::marker::Sized> $name<D, Span, Lang> {
       /// Returns the span (source location) of this literal.
       #[inline(always)]
-      pub const fn span(&self) -> S where S: ::core::marker::Copy {
+      pub const fn span(&self) -> Span where Span: ::core::marker::Copy {
         self.span
       }
 
       /// Returns an immutable reference to the span.
       #[inline(always)]
-      pub const fn span_ref(&self) -> &S {
+      pub const fn span_ref(&self) -> &Span {
         &self.span
       }
 
       /// Returns a mutable reference to the span.
       #[inline(always)]
-      pub const fn span_mut(&mut self) -> &mut S {
+      pub const fn span_mut(&mut self) -> &mut Span {
         &mut self.span
       }
 
       /// Bumps the span to of this literal by the specified offset.
       #[inline(always)]
-      pub fn bump(&mut self, by: &S::Offset) -> &mut Self
+      pub fn bump(&mut self, by: &Span::Offset) -> &mut Self
       where
-        S: $crate::__private::span::Span,
+        Span: $crate::__private::span::Span,
       {
         self.span.bump(by);
         self
@@ -219,6 +211,23 @@ macro_rules! define_literal {
       pub const fn data_ref(&self) -> &D {
         &self.data
       }
+    }
+
+    impl<D, Span, Lang: ?::core::marker::Sized> $name<D, Span, Lang> {
+      /// Creates a new literal with the given span and source string.
+      ///
+      /// # Parameters
+      ///
+      /// - `span`: The source location of this literal
+      /// - `data`: The literal's data
+      #[inline(always)]
+      pub const fn new(span: Span, data: D) -> Self {
+        Self {
+          span,
+          data,
+          _lang: PhantomData,
+        }
+      }
 
       /// Returns a copy of the source string by value.
       ///
@@ -232,20 +241,20 @@ macro_rules! define_literal {
       }
     }
 
-    impl<D, S, Lang> ErrorNode<S> for $name<D, S, Lang>
+    impl<D, Span, Lang: ?::core::marker::Sized> ErrorNode<Span> for $name<D, Span, Lang>
     where
-      D: ErrorNode<S>,
-      S: Clone,
+      D: ErrorNode<Span>,
+      Span: Clone,
     {
       /// Creates a placeholder literal for **malformed content**.
       #[inline(always)]
-      fn error(span: S) -> Self {
+      fn error(span: Span) -> Self {
         Self::new(span.clone(), D::error(span))
       }
 
       /// Creates a placeholder literal for **missing required content**.
       #[inline(always)]
-      fn missing(span: S) -> Self {
+      fn missing(span: Span) -> Self {
         Self::new(span.clone(), D::missing(span))
       }
     }

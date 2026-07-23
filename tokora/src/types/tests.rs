@@ -234,6 +234,84 @@ fn lit_into_components() {
   assert_eq!(data, "42");
 }
 
+#[test]
+fn unsized_carriers_expose_borrowed_accessors() {
+  trait TestLang {}
+
+  fn ident_accessors(ident: &Ident<str>) {
+    let _: SimpleSpan = ident.span();
+    let _: &SimpleSpan = ident.span_ref();
+    let _: &str = ident.source_ref();
+    let _: &SimpleSpan = ident.as_span();
+    let _ = (ident.is_valid(), ident.is_error(), ident.is_missing());
+  }
+
+  fn ident_mut_accessors(ident: &mut Ident<str>) {
+    let _: &mut SimpleSpan = ident.span_mut();
+    let _: &mut str = ident.source_mut();
+  }
+
+  fn keyword_accessors(keyword: &Keyword<str>) {
+    let _: SimpleSpan = keyword.span();
+    let _: &SimpleSpan = keyword.span_ref();
+    let _: &str = keyword.source_ref();
+    let _: &SimpleSpan = keyword.as_span();
+  }
+
+  fn keyword_mut_accessors(keyword: &mut Keyword<str>) {
+    let _: &mut SimpleSpan = keyword.span_mut();
+    let _: &mut str = keyword.source_mut();
+  }
+
+  fn literal_accessors(literal: &LitDecimal<str>) {
+    let _: SimpleSpan = literal.span();
+    let _: &SimpleSpan = literal.span_ref();
+    let _: &str = literal.data_ref();
+    let _: &SimpleSpan = literal.as_span();
+  }
+
+  fn literal_mut_accessors(literal: &mut LitDecimal<str>) {
+    let _: &mut SimpleSpan = literal.span_mut();
+    let _: &mut str = literal.data_mut();
+  }
+
+  fn unsized_language_markers(
+    _: &Ident<str, SimpleSpan, dyn TestLang>,
+    _: &Keyword<str, SimpleSpan, dyn TestLang>,
+    _: &LitDecimal<str, SimpleSpan, dyn TestLang>,
+  ) {
+  }
+
+  type DynLangIdentList = IdentList<
+    &'static str,
+    SimpleSpan,
+    Vec<Ident<&'static str, SimpleSpan, dyn TestLang>>,
+    dyn TestLang,
+  >;
+
+  fn ident_list_accessors(list: &DynLangIdentList) {
+    let _: SimpleSpan = list.span();
+    let _: &SimpleSpan = list.span_ref();
+    let _: &SimpleSpan = list.as_span();
+    let _ = (list.is_valid(), list.is_error(), list.is_missing());
+    let _: &[Ident<&str, SimpleSpan, dyn TestLang>] = list.identifiers_slice();
+  }
+
+  let _ = ident_accessors as fn(&Ident<str>);
+  let _ = ident_mut_accessors as fn(&mut Ident<str>);
+  let _ = keyword_accessors as fn(&Keyword<str>);
+  let _ = keyword_mut_accessors as fn(&mut Keyword<str>);
+  let _ = literal_accessors as fn(&LitDecimal<str>);
+  let _ = literal_mut_accessors as fn(&mut LitDecimal<str>);
+  let _ = ident_list_accessors as fn(&DynLangIdentList);
+  let _ = unsized_language_markers
+    as fn(
+      &Ident<str, SimpleSpan, dyn TestLang>,
+      &Keyword<str, SimpleSpan, dyn TestLang>,
+      &LitDecimal<str, SimpleSpan, dyn TestLang>,
+    );
+}
+
 // --- IdentList tests ---
 
 #[test]
