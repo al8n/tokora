@@ -59,3 +59,26 @@ fn hipbyt_slice_positioned_iter() {
   let items: std::vec::Vec<(usize, u8)> = Slice::positioned_iter(&s).collect();
   assert_eq!(items, std::vec![(0, b'a'), (1, b'b')]);
 }
+
+#[test]
+fn hipstr_and_hipbyt_borrowed_slice_forwarding() {
+  let text_data = std::string::String::from("\u{00E9}a");
+  let text = HipStr::from(text_data.as_str());
+  let text_ref = &text;
+
+  assert_eq!(<&HipStr<'_> as Slice<'_>>::len(&text_ref), 3);
+  assert_eq!(
+    <&HipStr<'_> as Slice<'_>>::iter(&text_ref).collect::<std::vec::Vec<_>>(),
+    std::vec!['\u{00E9}', 'a']
+  );
+
+  let byte_data = std::vec![b'a', b'b'];
+  let bytes = HipByt::from(byte_data.as_slice());
+  let bytes_ref = &bytes;
+
+  assert_eq!(<&HipByt<'_> as Slice<'_>>::len(&bytes_ref), 2);
+  assert_eq!(
+    <&HipByt<'_> as Slice<'_>>::positioned_iter(&bytes_ref).collect::<std::vec::Vec<_>>(),
+    std::vec![(0, b'a'), (1, b'b')]
+  );
+}

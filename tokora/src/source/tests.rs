@@ -187,6 +187,63 @@ fn str_empty_slice() {
   assert_eq!(result, Some(""));
 }
 
+#[test]
+fn borrowed_core_sources_preserve_behavior_and_data_lifetime() {
+  fn text_as_slice<'data>(source: &'data str) -> &'data str {
+    <&'data str as Source<usize>>::as_slice(&source)
+  }
+
+  fn text_slice<'data>(source: &'data str) -> Option<&'data str> {
+    <&'data str as Source<usize>>::slice(&source, 0..2)
+  }
+
+  fn bytes_as_slice<'data>(source: &'data [u8]) -> &'data [u8] {
+    <&'data [u8] as Source<usize>>::as_slice(&source)
+  }
+
+  fn bytes_slice<'data>(source: &'data [u8]) -> Option<&'data [u8]> {
+    <&'data [u8] as Source<usize>>::slice(&source, 1..3)
+  }
+
+  let text: &str = "\u{00E9}a";
+  let expected_text = (3, Some("\u{00E9}"), text, false, true);
+
+  assert_eq!(
+    (
+      <&str as Source<usize>>::len(&text),
+      text_slice(text),
+      text_as_slice(text),
+      <&str as Source<usize>>::is_boundary(&text, 1),
+      <&str as Source<usize>>::is_boundary(&text, 2),
+    ),
+    expected_text
+  );
+
+  fn find_boundary<S>(source: &S, index: usize) -> usize
+  where
+    S: Source<usize> + ?Sized,
+  {
+    <S as Source<usize>>::find_boundary(source, index)
+  }
+
+  assert_eq!(<&str as Source<usize>>::find_boundary(&text, 1), 0);
+  assert_eq!(find_boundary::<&str>(&text, 1), 0);
+
+  let bytes: &[u8] = b"abc";
+  let expected_bytes = (3, Some(b"bc".as_slice()), bytes, true, false);
+
+  assert_eq!(
+    (
+      <&[u8] as Source<usize>>::len(&bytes),
+      bytes_slice(bytes),
+      bytes_as_slice(bytes),
+      <&[u8] as Source<usize>>::is_boundary(&bytes, 3),
+      <&[u8] as Source<usize>>::is_boundary(&bytes, 4),
+    ),
+    expected_bytes
+  );
+}
+
 // --- as_slice tests ---
 
 #[test]

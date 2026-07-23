@@ -2,7 +2,7 @@ use hipstr_0_8::{HipByt, HipStr};
 
 use super::Slice;
 
-impl<'source> Slice<'source> for HipStr<'source> {
+impl<'source, 'data: 'source> Slice<'source> for HipStr<'data> {
   type Char = char;
 
   type Iter<'a>
@@ -33,11 +33,11 @@ impl<'source> Slice<'source> for HipStr<'source> {
 
   #[inline(always)]
   fn len(&self) -> usize {
-    <HipStr<'source>>::len(self)
+    <HipStr<'data>>::len(self)
   }
 }
 
-impl<'source> Slice<'source> for HipByt<'source> {
+impl<'source, 'data: 'source> Slice<'source> for HipByt<'data> {
   type Char = u8;
 
   type Iter<'a>
@@ -68,7 +68,7 @@ impl<'source> Slice<'source> for HipByt<'source> {
 
   #[inline(always)]
   fn len(&self) -> usize {
-    <HipByt<'source>>::len(self)
+    <HipByt<'data>>::len(self)
   }
 }
 

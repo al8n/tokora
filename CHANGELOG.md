@@ -3,6 +3,39 @@
 All notable changes to this crate are documented here. The project follows semantic
 versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change.
 
+## 0.7.0 (2026-07-23)
+
+### Added
+
+- **Lifetime-preserving borrowed sources.** `Source<usize>` is now implemented explicitly for
+  `&'data str`, `&'data [u8]`, and (with `bstr_1`) `&'data BStr`. Their associated slices retain
+  `'data` even when the source value itself is borrowed for a shorter call.
+
+### Changed (breaking)
+
+- **`Slice<'source>` now guarantees validity for `'source`.** The trait has a
+  `+ 'source` supertrait requirement. Canonical implementations live on `str`, `[u8]`, `BStr`,
+  and the optional backend value types; a shared-reference blanket implementation forwards
+  `&T`, including nested references, without changing the representation or iterator behavior.
+  External `Slice` implementations must ensure that the slice value and its represented data
+  outlive `'source`.
+- **Borrowed backend slices preserve their representation and longest available lifetime.**
+  `BStr` sources now yield `&BStr` instead of `&[u8]`. `HipStr<'data>` and `HipByt<'data>`
+  sources now yield `HipStr<'data>` and `HipByt<'data>` rather than shortening the associated
+  lifetime to the method borrow.
+- **`Source` references are intentionally explicit rather than blanket-forwarded.** This avoids
+  shortening a lifetime carried by the source through an unrelated outer borrow. Owned backends
+  such as `Bytes`, `HipStr`, and the smol-bytes types remain `Source` implementations on their
+  owner types; borrowing an owner to call its methods remains unchanged.
+
+### Migration
+
+- Update custom `Slice<'source>` implementations so the implementing type satisfies
+  `'source`. Prefer implementing `Slice` on the canonical representation and let the shared
+  reference blanket provide `&T`.
+- Code that names `<BStr as Source<usize>>::Slice<'a>` as `&'a [u8]` should use `&'a BStr`
+  instead; call `AsRef::<[u8]>::as_ref` when a byte slice is specifically required.
+
 ## 0.6.2 (2026-07-23)
 
 ### Changed

@@ -18,7 +18,7 @@ mod hipstr_0_8;
 #[cfg_attr(docsrs, doc(cfg(feature = "smol_bytes_0_1")))]
 mod smol_bytes_0_1;
 
-/// The source trait for lexers
+/// The source trait for lexers.
 pub trait Source<Cursor>: core::fmt::Debug {
   /// A type this `Source` can be sliced into.
   type Slice<'source>: Slice<'source>
@@ -146,6 +146,53 @@ impl Source<usize> for str {
     self.is_char_boundary(index)
   }
 }
+
+macro_rules! impl_source_for_borrowed {
+  ($target:ty) => {
+    impl<'data> Source<usize> for &'data $target {
+      type Slice<'source>
+        = <$target as Source<usize>>::Slice<'data>
+      where
+        Self: 'source;
+
+      #[inline(always)]
+      fn is_empty(&self) -> bool {
+        <$target as Source<usize>>::is_empty(*self)
+      }
+
+      #[inline(always)]
+      fn len(&self) -> usize {
+        <$target as Source<usize>>::len(*self)
+      }
+
+      #[inline(always)]
+      fn as_slice(&self) -> Self::Slice<'_> {
+        <$target as Source<usize>>::as_slice(*self)
+      }
+
+      #[inline(always)]
+      fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
+      where
+        R: RangeBounds<usize>,
+      {
+        <$target as Source<usize>>::slice(*self, range)
+      }
+
+      #[inline(always)]
+      fn find_boundary(&self, index: usize) -> usize {
+        <$target as Source<usize>>::find_boundary(*self, index)
+      }
+
+      #[inline(always)]
+      fn is_boundary(&self, index: usize) -> bool {
+        <$target as Source<usize>>::is_boundary(*self, index)
+      }
+    }
+  };
+}
+
+impl_source_for_borrowed!([u8]);
+impl_source_for_borrowed!(str);
 
 #[cfg(test)]
 #[cfg(any(feature = "std", feature = "alloc"))]

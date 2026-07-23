@@ -4,7 +4,7 @@ use super::Source;
 
 impl Source<usize> for BStr {
   type Slice<'a>
-    = &'a [u8]
+    = &'a BStr
   where
     Self: 'a;
 
@@ -20,7 +20,7 @@ impl Source<usize> for BStr {
 
   #[inline(always)]
   fn as_slice(&self) -> Self::Slice<'_> {
-    BStr::as_ref(self)
+    self
   }
 
   #[inline(always)]
@@ -28,12 +28,52 @@ impl Source<usize> for BStr {
   where
     R: core::ops::RangeBounds<usize>,
   {
-    <[u8]>::slice(self, range)
+    <[u8]>::slice(self, range).map(BStr::new)
   }
 
   #[inline(always)]
   fn is_boundary(&self, index: usize) -> bool {
     <[u8]>::is_boundary(self, index)
+  }
+}
+
+impl<'data> Source<usize> for &'data BStr {
+  type Slice<'source>
+    = &'data BStr
+  where
+    Self: 'source;
+
+  #[inline(always)]
+  fn is_empty(&self) -> bool {
+    <BStr as Source<usize>>::is_empty(*self)
+  }
+
+  #[inline(always)]
+  fn len(&self) -> usize {
+    <BStr as Source<usize>>::len(*self)
+  }
+
+  #[inline(always)]
+  fn as_slice(&self) -> Self::Slice<'_> {
+    <BStr as Source<usize>>::as_slice(*self)
+  }
+
+  #[inline(always)]
+  fn slice<R>(&self, range: R) -> Option<Self::Slice<'_>>
+  where
+    R: core::ops::RangeBounds<usize>,
+  {
+    <BStr as Source<usize>>::slice(*self, range)
+  }
+
+  #[inline(always)]
+  fn find_boundary(&self, index: usize) -> usize {
+    <BStr as Source<usize>>::find_boundary(*self, index)
+  }
+
+  #[inline(always)]
+  fn is_boundary(&self, index: usize) -> bool {
+    <BStr as Source<usize>>::is_boundary(*self, index)
   }
 }
 

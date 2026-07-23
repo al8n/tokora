@@ -3,10 +3,10 @@ use hipstr_0_8::{HipByt, HipStr};
 use super::Source;
 
 impl<'h> Source<usize> for HipStr<'h> {
-  type Slice<'a>
-    = HipStr<'a>
+  type Slice<'source>
+    = HipStr<'h>
   where
-    Self: 'a;
+    Self: 'source;
 
   #[inline(always)]
   fn is_empty(&self) -> bool {
@@ -57,11 +57,11 @@ impl<'h> Source<usize> for HipStr<'h> {
   }
 }
 
-impl Source<usize> for HipByt<'_> {
-  type Slice<'a>
-    = HipByt<'a>
+impl<'h> Source<usize> for HipByt<'h> {
+  type Slice<'source>
+    = HipByt<'h>
   where
-    Self: 'a;
+    Self: 'source;
 
   #[inline(always)]
   fn is_empty(&self) -> bool {
