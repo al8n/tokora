@@ -157,14 +157,14 @@ enum Status {
 /// assert_eq!(ident.span(), SimpleSpan::new(10, 18));
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Ident<S, Span = SimpleSpan, Lang: ?Sized = ()> {
+pub struct Ident<S: ?Sized, Span = SimpleSpan, Lang: ?Sized = ()> {
+  _lang: PhantomData<Lang>,
+  status: Status,
   span: Span,
   ident: S,
-  status: Status,
-  _lang: PhantomData<Lang>,
 }
 
-impl<S, Span, Lang: ?Sized> AsSpan<Span> for Ident<S, Span, Lang> {
+impl<S: ?Sized, Span, Lang: ?Sized> AsSpan<Span> for Ident<S, Span, Lang> {
   #[inline(always)]
   fn as_span(&self) -> &Span {
     self.span_ref()
@@ -180,42 +180,7 @@ impl<S, Span, Lang: ?Sized> IntoComponents for Ident<S, Span, Lang> {
   }
 }
 
-impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
-  /// Creates a new identifier with the given span and source string.
-  ///
-  /// # Parameters
-  ///
-  /// - `span`: The source location of this identifier
-  /// - `source`: The identifier string (can be `&str`, `String`, or custom type)
-  ///
-  /// # Examples
-  ///
-  /// ```rust
-  /// use tokora::types::Ident;
-  /// use tokora::SimpleSpan;
-  /// # struct YulLang;
-  ///
-  /// let span = SimpleSpan::new(10, 15);
-  /// let ident = Ident::<&str, SimpleSpan, YulLang>::new(span, "count");
-  ///
-  /// assert_eq!(ident.span(), span);
-  /// assert_eq!(ident.source_ref(), &"count");
-  /// ```
-  #[inline(always)]
-  pub const fn new(span: Span, source: S) -> Self {
-    Self::with_status(span, source, Status::Valid)
-  }
-
-  #[inline(always)]
-  const fn with_status(span: Span, source: S, status: Status) -> Self {
-    Self {
-      span,
-      ident: source,
-      status,
-      _lang: PhantomData,
-    }
-  }
-
+impl<S: ?Sized, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   /// Returns the span (source location) of this identifier.
   ///
   /// # Examples
@@ -329,14 +294,69 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
     &self.ident
   }
 
+  /// Returns `true` is this identifier represents an error identifier.
+  #[inline(always)]
+  pub const fn is_error(&self) -> bool {
+    matches!(self.status, Status::Error)
+  }
+
+  /// Returns `true` is this identifier represents a missing identifier.
+  #[inline(always)]
+  pub const fn is_missing(&self) -> bool {
+    matches!(self.status, Status::Missing)
+  }
+
+  /// Returns `true` is this identifier is valid (not error or missing).
+  #[inline(always)]
+  pub const fn is_valid(&self) -> bool {
+    matches!(self.status, Status::Valid)
+  }
+}
+
+impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
+  /// Creates a new identifier with the given span and source string.
+  ///
+  /// # Parameters
+  ///
+  /// - `span`: The source location of this identifier
+  /// - `source`: The identifier string (can be `&str`, `String`, or custom type)
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// use tokora::types::Ident;
+  /// use tokora::SimpleSpan;
+  /// # struct YulLang;
+  ///
+  /// let span = SimpleSpan::new(10, 15);
+  /// let ident = Ident::<&str, SimpleSpan, YulLang>::new(span, "count");
+  ///
+  /// assert_eq!(ident.span(), span);
+  /// assert_eq!(ident.source_ref(), &"count");
+  /// ```
+  #[inline(always)]
+  pub const fn new(span: Span, source: S) -> Self {
+    Self::with_status(span, source, Status::Valid)
+  }
+
+  #[inline(always)]
+  const fn with_status(span: Span, source: S, status: Status) -> Self {
+    Self {
+      span,
+      ident: source,
+      status,
+      _lang: PhantomData,
+    }
+  }
+
   /// Returns a copy of the source string by value.
   ///
   /// This method is only available when the source type `S` implements [`Copy`].
   /// Useful for types like `&str` or interned string handles.
   ///
-  /// For owned types like `String`, use [`source_ref`](Self::source_ref) to
+  /// For owned types like `String`, use [`Self::source_ref`] to
   /// avoid cloning, or consume the identifier with
-  /// [`into_components`](crate::utils::IntoComponents::into_components).
+  /// [`crate::utils::IntoComponents::into_components`].
   ///
   /// # Examples
   ///
@@ -359,24 +379,6 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
     self.ident
   }
 
-  /// Returns `true` is this identifier represents an error identifier.
-  #[inline(always)]
-  pub const fn is_error(&self) -> bool {
-    matches!(self.status, Status::Error)
-  }
-
-  /// Returns `true` is this identifier represents a missing identifier.
-  #[inline(always)]
-  pub const fn is_missing(&self) -> bool {
-    matches!(self.status, Status::Missing)
-  }
-
-  /// Returns `true` is this identifier is valid (not error or missing).
-  #[inline(always)]
-  pub const fn is_valid(&self) -> bool {
-    matches!(self.status, Status::Valid)
-  }
-
   /// Maps the source string to a new type, preserving the span and language.
   #[inline(always)]
   pub fn map<U>(self, f: impl FnOnce(S) -> U) -> Ident<U, Span, Lang> {
@@ -384,7 +386,7 @@ impl<S, Span, Lang: ?Sized> Ident<S, Span, Lang> {
   }
 }
 
-impl<S, Span, Lang> ErrorNode<Span> for Ident<S, Span, Lang>
+impl<S, Span, Lang: ?Sized> ErrorNode<Span> for Ident<S, Span, Lang>
 where
   S: ErrorNode<Span>,
   Span: Clone,

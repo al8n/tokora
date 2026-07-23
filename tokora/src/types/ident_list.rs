@@ -3,6 +3,9 @@ use core::marker::PhantomData;
 use crate::{span::AsSpan, types::Ident};
 
 /// A list of identifiers.
+///
+/// `S` remains sized because the default container stores `Ident<S, Span>` values
+/// inline in a `Vec`; use the individual [`Ident`] carrier for an unsized source.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg(any(feature = "alloc", feature = "std"))]
 pub struct IdentList<
@@ -18,6 +21,9 @@ pub struct IdentList<
 }
 
 /// A list of identifiers.
+///
+/// `S` remains sized to keep this type's API consistent with its `Vec`-backed
+/// form; use the individual [`Ident`] carrier for an unsized source.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg(not(any(feature = "alloc", feature = "std")))]
 pub struct IdentList<S, Span, Container, Lang: ?Sized = ()> {
@@ -27,14 +33,14 @@ pub struct IdentList<S, Span, Container, Lang: ?Sized = ()> {
   _lang: PhantomData<Lang>,
 }
 
-impl<S, Span, Container, Lang> AsSpan<Span> for IdentList<S, Span, Container, Lang> {
+impl<S, Span, Container, Lang: ?Sized> AsSpan<Span> for IdentList<S, Span, Container, Lang> {
   #[inline(always)]
   fn as_span(&self) -> &Span {
     self.span_ref()
   }
 }
 
-impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
+impl<S, Span, Container, Lang: ?Sized> IdentList<S, Span, Container, Lang> {
   /// Returns `true` if all identifiers in the path are valid.
   #[inline(always)]
   pub fn is_valid(&self) -> bool
@@ -63,7 +69,7 @@ impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
   }
 }
 
-impl<S, Span, Container, Lang> IdentList<S, Span, Container, Lang> {
+impl<S, Span, Container, Lang: ?Sized> IdentList<S, Span, Container, Lang> {
   /// Create a new path.
   #[inline(always)]
   pub const fn new(span: Span, identifiers: Container) -> Self {

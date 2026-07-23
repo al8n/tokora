@@ -154,10 +154,10 @@ use crate::{
 /// assert_eq!(ident.span(), SimpleSpan::new(10, 18));
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Keyword<S, Span = SimpleSpan, Lang: ?Sized = ()> {
+pub struct Keyword<S: ?Sized, Span = SimpleSpan, Lang: ?Sized = ()> {
+  _lang: PhantomData<Lang>,
   span: Span,
   ident: S,
-  _lang: PhantomData<Lang>,
 }
 
 impl<S, Span, Lang: ?Sized> From<Keyword<S, Span, Lang>> for super::Ident<S, Span, Lang> {
@@ -167,7 +167,7 @@ impl<S, Span, Lang: ?Sized> From<Keyword<S, Span, Lang>> for super::Ident<S, Spa
   }
 }
 
-impl<S, Span, Lang: ?Sized> AsSpan<Span> for Keyword<S, Span, Lang> {
+impl<S: ?Sized, Span, Lang: ?Sized> AsSpan<Span> for Keyword<S, Span, Lang> {
   #[inline(always)]
   fn as_span(&self) -> &Span {
     self.span_ref()
@@ -212,7 +212,9 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
       _lang: PhantomData,
     }
   }
+}
 
+impl<S: ?Sized, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   /// Returns the span (source location) of this identifier.
   ///
   /// # Examples
@@ -315,15 +317,17 @@ impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   pub const fn source_ref(&self) -> &S {
     &self.ident
   }
+}
 
+impl<S, Span, Lang: ?Sized> Keyword<S, Span, Lang> {
   /// Returns a copy of the source string by value.
   ///
   /// This method is only available when the source type `S` implements [`Copy`].
   /// Useful for types like `&str` or interned string handles.
   ///
-  /// For owned types like `String`, use [`source_ref`](Self::source_ref) to
+  /// For owned types like `String`, use [`Self::source_ref`] to
   /// avoid cloning, or consume the identifier with
-  /// [`into_components`](crate::utils::IntoComponents::into_components).
+  /// [`crate::utils::IntoComponents::into_components`].
   ///
   /// # Examples
   ///
