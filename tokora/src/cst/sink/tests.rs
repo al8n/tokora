@@ -516,8 +516,10 @@ fn abandoned_session_points_release_their_emitter_marks() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// F-A1 / D14 (#98-C1, SR2-A3) — orphan finish (true global underflow) vs a legal
-// close that crosses a live checkpoint (narrowed assert; see `Sink::cst_finish`)
+// F-A1 / D14 (#98-C1, SR2-A3) — the narrowed cst_finish assert: true global underflow
+// still panics; the genuinely-legal cross-checkpoint close no longer does; and the
+// leaked-finish misuse shape is a documented, depth-indistinguishable limitation
+// (see the `Sink::cst_finish` contract comment)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// A finish with no open node anywhere is true global underflow: detect at cause in
@@ -532,38 +534,43 @@ fn orphan_finish_debug_asserts_at_emission() {
   sink.cst_finish();
 }
 
-/// D14 (#98-C1, SR2-A3): a finish that closes a node opened *before* a live checkpoint —
-/// with an unrelated speculative nested start rolled back in between — is legal, not an
-/// orphan: K_NODE is still open globally when the finish runs. Before the fix this
-/// panicked, because the old assert compared current depth against the checkpoint's
-/// *frozen* baseline (1, captured while K_NODE was already open) instead of zero: closing
-/// K_NODE with no *additional* open node since the checkpoint read as underflow under
-/// that predicate, even though K_NODE itself was never in doubt. The narrowed assert
-/// checks only true global underflow, so this now passes in both debug and release, and
-/// materializes a balanced `Root[Node]` tree.
+/// D14 (#98-C1, SR2-A3) — the KNOWN LIMITATION, not a legality guarantee. This is the
+/// leaked-finish MISUSE shape: `cst_start(A); checkpoint m; cst_start(B); rewind(m);
+/// cst_token; cst_finish`. The finish was meant for B, but B's start died with the rewind,
+/// so it silently closes ancestor A. After the rewind the event buffer is IDENTICAL to a
+/// legal `A`-close (`cst_finish_across_a_live_checkpoint_is_legal_and_materializes`) —
+/// depth cannot tell them apart, nor can the whole buffer; only the intended opener's
+/// identity on `cst_finish` could. So this builds a balanced (wrong-node) tree with no
+/// error: `FinishError::OrphanFinish` fires only on TRUE underflow, never on this shape.
+/// This test characterizes that gap: the narrowed `> 0` assert (correctly) no longer
+/// panics here, and materialization (correctly, given depth-only info) does not wall it.
+/// The old assert happened to trap it — but only as a side effect of also rejecting the
+/// legal history above, which is the #98a defect. Catching the misuse at cause needs an
+/// opener-identity API change (deferred).
 #[test]
-fn finish_crossing_a_dead_checkpoint_closes_the_enclosing_node_legally() {
+fn finish_after_a_rewound_start_closes_the_ancestor_indistinguishably() {
   let mut sink = verbose_sink();
   sink.cst_start(K_NODE);
   let ckp = Emitter::<MiniLexer<'_>>::checkpoint(&sink);
-  sink.cst_start(K_LIST); // speculative nested start …
+  sink.cst_start(K_LIST); // the start this finish was meant to close …
   rewind(&mut sink, ckp); //  … rolled back: K_LIST never existed
-  let _ckp2 = Emitter::<MiniLexer<'_>>::checkpoint(&sink);
   sink.cst_token(&MiniTok(b'a'), &span(0, 1));
-  sink.cst_finish(); // closes K_NODE — legal, not an orphan
+  sink.cst_finish(); // leaked: silently closes the ancestor K_NODE instead
   let (green, _emitter) = sink.finish(K_ROOT, "a");
-  let root = tree(green.expect("a balanced stream materializes"));
+  // No error, and the tree is balanced-but-wrong: the finish closed K_NODE, which reads
+  // exactly like a legal K_NODE close. The misuse-detection gap, pinned.
+  let root = tree(green.expect("balanced (wrong-node) tree — the misuse is not walled"));
   assert_eq!(root.first_child().expect("Root[Node]").kind(), K_NODE);
 }
 
-/// D14 (#98-C1, SR2-A3): the exact minimal legal-committed-close history from the audit —
-/// `StartNode(A); checkpoint m; FinishNode(A)` — panicked in debug before the fix (the old
-/// assert rejected *every* finish of a node opened at or before the newest live capture,
-/// balanced or not — `emitter/cst.rs`'s own documented example). Under commit/release both
-/// events survive balanced; under a rewind of `m` this very finish is what gets truncated
-/// and `A` reopens instead (the contract's blessed truncate-and-reopen semantics — not
-/// exercised here, see the rewind-recovery tests elsewhere in this file). Must pass in
-/// both debug and release.
+/// D14 (#98-C1, SR2-A3) — the genuinely-legal case that must not panic (#98a). A node
+/// whose start was emitted and NEVER rolled back, closed across a still-live checkpoint:
+/// `cst_start(A); checkpoint m; cst_token; cst_finish` (balanced, non-leaked). Under
+/// commit/release both events survive balanced; under a rewind of `m` this very finish is
+/// what truncates and `A` reopens (the contract's blessed truncate-and-reopen semantics —
+/// not exercised here, see the rewind-recovery tests elsewhere in this file). The old
+/// assert panicked on it (the #98a defect); the narrowed assert must pass in both debug
+/// and release and materialize `Root[Node]`.
 #[test]
 fn cst_finish_across_a_live_checkpoint_is_legal_and_materializes() {
   let mut sink = verbose_sink();
