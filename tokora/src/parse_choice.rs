@@ -155,11 +155,14 @@ pub trait ParseTokenChoice<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> 
   /// `table[i]` is the viable first-token [`Kind`](Token::Kind) for branch `i`, in branch
   /// order. The combinator lexes a single token **once**, looks its kind up in the table,
   /// and on a hit hands the already-lexed token to the matching branch — no peek round
-  /// trip through the cache. On a miss or at end of input it fails exactly like
-  /// [`dispatch_on_kind`](ParseChoice::dispatch_on_kind): the same
+  /// trip through the cache. When driven as [`ParseInput`], a miss or end of input fails
+  /// exactly like [`dispatch_on_kind`](ParseChoice::dispatch_on_kind): the same
   /// [`UnexpectedToken`](crate::error::token::UnexpectedToken) /
   /// [`UnexpectedEot`](crate::error::UnexpectedEot) carrying the whole table as the
-  /// expected set, with the missed token put back for whatever runs next. See
+  /// expected set, with the missed token put back for whatever runs next. When driven as
+  /// [`TryParseInput`], a table miss or end of input instead returns
+  /// [`ParseAttempt::Decline`] without consuming valid input; an error from a selected arm
+  /// remains an `Err`. See
   /// [`FusedDispatchOnKind`] for the full shape comparison and the equivalence contract.
   #[inline(always)]
   fn fused_dispatch_on_kind(

@@ -8,11 +8,12 @@ mod common;
 use common::{TestLexer, Token, TokenKind};
 use tokora::{
   InputRef, Parse, ParseChoice, ParseContext, ParseInput, ParseTokenChoice, Parser, ParserContext,
-  SimpleSpan, Token as TokenTrait,
+  SimpleSpan, Token as TokenTrait, TryParseInput,
   emitter::Verbose,
   error::{UnexpectedEot, token::UnexpectedToken},
   parser::Any,
   span::Spanned,
+  try_parse_input::ParseAttempt,
   utils::Expected,
 };
 
@@ -29,6 +30,7 @@ enum DispatchError {
   Eot {
     expected: Vec<TokenKind>,
   },
+  Branch,
   Lexer,
 }
 
@@ -238,6 +240,17 @@ where
   Ok(head.data.kind())
 }
 
+fn rejecting_arm<'inp, Ctx>(
+  _head: Spanned<Token, SimpleSpan>,
+  _inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<TokenKind, DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokora::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  Err(DispatchError::Branch)
+}
+
 /// The fused twin of [`dispatch3`].
 fn fused3<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
@@ -260,6 +273,46 @@ where
   Ctx::Emitter: tokora::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
 {
   (kind_arm,).fused_dispatch_on_kind(TABLE1).parse_input(inp)
+}
+
+/// The tentative fused dispatcher. A table miss or EOT is a decline instead of a diagnostic.
+fn fused3_try<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<ParseAttempt<TokenKind>, DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokora::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  (kind_arm, kind_arm, kind_arm)
+    .fused_dispatch_on_kind(TABLE3)
+    .try_parse_input(inp)
+}
+
+/// The same tentative parser followed by one token read, exposing the position it leaves behind.
+fn fused3_try_probe<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<(ParseAttempt<TokenKind>, Option<TokenKind>), DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokora::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  let outcome = (kind_arm, kind_arm, kind_arm)
+    .fused_dispatch_on_kind(TABLE3)
+    .try_parse_input(inp)?;
+  let leftover = inp.next()?.map(|t| t.data.kind());
+  Ok((outcome, leftover))
+}
+
+fn fused3_try_rejecting<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
+) -> Result<ParseAttempt<TokenKind>, DispatchError>
+where
+  Ctx: ParseContext<'inp, TestLexer<'inp>>,
+  Ctx::Emitter: tokora::Emitter<'inp, TestLexer<'inp>, Error = DispatchError>,
+{
+  (rejecting_arm, rejecting_arm, rejecting_arm)
+    .fused_dispatch_on_kind(TABLE3)
+    .try_parse_input(inp)
 }
 
 /// Runs the peek-shape dispatcher, then reads the next token — the stream state the *following*
@@ -387,6 +440,40 @@ fn fused_single_alternative_dispatch() {
       expected: vec![TokenKind::Num],
       found: Some(TokenKind::Semi),
     })
+  );
+}
+
+#[test]
+fn fused_try_hit_consumes_once_and_hands_head_to_the_arm() {
+  // `kind_arm` reports its supplied head; the following read must therefore start after it.
+  assert_eq!(
+    Parser::new().apply(fused3_try_probe).parse_str("42 foo"),
+    Ok((ParseAttempt::Accept(TokenKind::Num), Some(TokenKind::Ident)))
+  );
+}
+
+#[test]
+fn fused_try_miss_declines_and_leaves_the_token() {
+  // A miss returns the tentative result and the next parser still sees the same head token.
+  assert_eq!(
+    Parser::new().apply(fused3_try_probe).parse_str("; foo"),
+    Ok((ParseAttempt::Decline, Some(TokenKind::Semi)))
+  );
+}
+
+#[test]
+fn fused_try_eot_declines() {
+  assert_eq!(
+    Parser::new().apply(fused3_try).parse_str(""),
+    Ok(ParseAttempt::Decline)
+  );
+}
+
+#[test]
+fn fused_try_propagates_selected_arm_error() {
+  assert_eq!(
+    Parser::new().apply(fused3_try_rejecting).parse_str("42"),
+    Err(DispatchError::Branch)
   );
 }
 

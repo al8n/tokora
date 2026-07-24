@@ -5,6 +5,11 @@ versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change
 
 ## Unreleased
 
+### Added
+
+- `FusedDispatchOnKind` now implements `TryParseInput`: a table hit remains lex-once, while a
+  table miss or end-of-input returns `ParseAttempt::Decline` without consuming valid input.
+
 ## 0.7.2 (2026-07-24)
 
 ### Added
