@@ -2,7 +2,9 @@ use core::marker::PhantomData;
 
 use crate::{
   Branch, Emitter, InputRef, Lexer, ParseContext, ParseInput, ParseTokenChoice, Span, Token,
+  TryParseInput,
   error::{UnexpectedEnd, UnexpectedEot, token::UnexpectedToken},
+  try_parse_input::ParseAttempt,
 };
 
 /// The **fused** sibling of [`DispatchOnKind`](super::DispatchOnKind): table-driven
@@ -48,6 +50,19 @@ use crate::{
 /// a peeked token), and span ordering is untouched because the scan position never
 /// advanced past it. A full cache simply drops the put-back — the cursor did not move,
 /// so the next operation re-lexes the same token, exactly as an overflowed peek would.
+///
+/// # Committed and tentative dispatch
+///
+/// `FusedDispatchOnKind` implements both [`ParseInput`] and [`TryParseInput`]. Calling
+/// [`ParseInput::parse_input`] retains the committed behavior above: a table miss returns
+/// [`UnexpectedToken`] and end-of-input returns [`UnexpectedEot`]. Calling
+/// [`TryParseInput::try_parse_input`] instead returns
+/// [`ParseAttempt::Decline`] for a table miss or end-of-input, leaving all valid tokens
+/// unconsumed. A hit still commits the head and returns [`ParseAttempt::Accept`]; an error
+/// from the selected branch remains an `Err`.
+///
+/// Both routes use [`try_expect_map`](InputRef::try_expect_map), so lexer errors keep the
+/// existing emission behavior even if the dispatch ultimately declines.
 ///
 /// # Why this combinator can never meet a partial-input frontier token
 ///
@@ -176,6 +191,45 @@ where
         // the whole table as the expected set, exactly as `DispatchOnKind`'s `Eot` arm.
         None => Err(UnexpectedEnd::eot_expected_one_of(inp.span().end(), table).into()),
       },
+    }
+  }
+}
+
+impl<'inp, P, L, O, Ctx, Lang, const N: usize> TryParseInput<'inp, L, O, Ctx, Lang>
+  for FusedDispatchOnKind<P, <L::Token as Token<'inp>>::Kind, L, Ctx, Lang>
+where
+  P: ParseTokenChoice<'inp, L, O, Ctx, Lang, Id = Branch<N>>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  <L::Token as Token<'inp>>::Kind: 'static,
+  Lang: ?Sized,
+{
+  #[inline(always)]
+  fn try_parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
+  ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    // As in the committed implementation, never route a table entry to an arm that
+    // does not exist. The check preserves the established debug misuse diagnostic.
+    debug_assert!(
+      self.table.len() <= N + 1,
+      "dispatch table has more entries than branches",
+    );
+
+    // `try_expect_map` commits only hits. Its miss/EOT path leaves valid input in place
+    // (while preserving lexer-error emission), which is exactly a tentative decline.
+    let table = self.table;
+    match inp.try_expect_map(|tok| {
+      table
+        .iter()
+        .position(|candidate| *candidate == tok.data.kind())
+        .filter(|&index| index <= N)
+    })? {
+      Some((index, head)) => self
+        .parser
+        .parse_token_choice(inp, &Branch::from_index(index), head)
+        .map(ParseAttempt::Accept),
+      None => Ok(ParseAttempt::Decline),
     }
   }
 }
