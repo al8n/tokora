@@ -305,8 +305,12 @@ where
       ))
     }
     // A terminal scanner stop already carries its own diagnostic: surface the committed form's
-    // end-of-input error and add no `Unclosed`.
-    CloseStatus::Tripped => Err(UnexpectedEot::eot_of(inp.span().end()).into()),
+    // end-of-input error, marked terminal so recovery re-raises it, and add no `Unclosed`.
+    CloseStatus::Tripped => Err(
+      UnexpectedEot::eot_of(inp.span().end())
+        .into_terminal()
+        .into(),
+    ),
   }
 }
 

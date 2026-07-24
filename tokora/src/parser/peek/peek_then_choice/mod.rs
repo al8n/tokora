@@ -1,4 +1,4 @@
-use crate::{ParseChoice, TryParseInput, try_parse_input::ParseAttempt};
+use crate::{ParseChoice, TryParseInput, span::Span as _, try_parse_input::ParseAttempt};
 
 use super::*;
 
@@ -132,14 +132,27 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+    From<crate::error::UnexpectedEot<L::Offset, Lang>>,
 {
   #[inline(always)]
   fn try_parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    // A dispatch window truncated by a terminal scanner stop is not a definite decline: surface
+    // the committed end-of-input error rather than letting the handler read the short window as
+    // "no branch applies".
+    let end = inp.span().end();
     let id = {
-      let (output, emitter) = inp.peek_with_emitter::<W>()?;
+      let (output, terminal, emitter) = inp.peek_with_emitter_terminal::<W>()?;
+      if terminal {
+        return Err(
+          crate::error::UnexpectedEot::eot_of(end)
+            .into_terminal()
+            .into(),
+        );
+      }
       (self.handler)(output, emitter)?
     };
     self.parser.try_parse_choice(inp, id.as_ref())

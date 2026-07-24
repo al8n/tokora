@@ -200,7 +200,7 @@ macro_rules! keyword {
               ::core::convert::From<$crate::error::UnexpectedEot<L::Offset, Lang>>,
           {
             inp
-              .try_expect(|t| ::core::cmp::PartialEq::eq(
+              .try_expect_or_stop(|t| ::core::cmp::PartialEq::eq(
                 &$crate::__private::token::KeywordToken::keyword(t.into_data()),
                 &::core::option::Option::Some($kw),
               ))

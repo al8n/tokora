@@ -46,7 +46,7 @@ impl Keyword<(), ()> {
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     inp
-      .try_expect(|t| t.into_data().is_keyword())
+      .try_expect_or_stop(|t| t.into_data().is_keyword())
       .map(|opt_tok| {
         opt_tok
           .map(|tok| {
@@ -146,7 +146,7 @@ impl Keyword<(), ()> {
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
     inp
-      .try_expect(|t| t.into_data().is_keyword())
+      .try_expect_or_stop(|t| t.into_data().is_keyword())
       .map(|opt_tok| {
         opt_tok
           .map(|tok| Keyword::new(tok.into_span(), inp.slice()))
@@ -247,7 +247,7 @@ impl Keyword<(), ()> {
   {
     move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
       inp
-        .try_expect(|t| {
+        .try_expect_or_stop(|t| {
           t.into_data()
             .keyword()
             .is_some_and(|k| k.equivalent(expected))
@@ -373,7 +373,7 @@ impl Keyword<(), ()> {
   {
     move |inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>| {
       inp
-        .try_expect(|t| {
+        .try_expect_or_stop(|t| {
           t.into_data()
             .keyword()
             .is_some_and(|k| k.equivalent(expected))

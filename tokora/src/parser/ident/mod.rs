@@ -46,11 +46,13 @@ impl Ident<(), ()> {
     Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
   {
-    inp.try_expect(|t| t.data.is_identifier()).map(|res| {
-      res
-        .map(|tok| Ident::new(tok.into_span(), inp.slice()))
-        .into()
-    })
+    inp
+      .try_expect_or_stop(|t| t.data.is_identifier())
+      .map(|res| {
+        res
+          .map(|tok| Ident::new(tok.into_span(), inp.slice()))
+          .into()
+      })
   }
 
   /// A parser that parses an identifier, erroring when the next token is not an

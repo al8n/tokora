@@ -370,6 +370,72 @@ fn try_expect_or_stop_consumes_match() {
   assert_eq!(*tok.span_ref(), SimpleSpan::new(2, 3));
 }
 
+// ── `try_expect_map_or_stop`: the map-shaped attempt primitive (the token-pratt path) ──
+//
+// The same terminal-stop law as `try_expect_or_stop`, for a mapping predicate: a fresh trip is the
+// committed forms' terminal end-of-input error, never a decline, while a non-matching token and a
+// genuine end of input still decline.
+
+#[test]
+fn try_expect_map_or_stop_errs_on_fresh_trip() {
+  let (mut input, scanned) = probe_input("1 2 3 4 5 6");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  assert!(
+    inp.try_expect_map_or_stop(|_| Some(())).unwrap().is_some(),
+    "first token maps"
+  );
+  assert!(
+    inp.try_expect_map_or_stop(|_| Some(())).unwrap().is_some(),
+    "second token maps"
+  );
+  assert!(
+    matches!(inp.try_expect_map_or_stop(|_| Some(())), Err(ProbeErr::Eot)),
+    "a fresh trip surfaces the committed forms' end-of-input error, never a decline"
+  );
+  assert_eq!(scanned.get(), 3, "scanned exactly 1, 2, and the tripping 3");
+}
+
+#[test]
+fn try_expect_map_or_stop_declines_on_non_matching_and_genuine_eoi() {
+  use crate::span::SimpleSpan;
+
+  // A `None` map is definite absence: `Ok(None)`, token put back at the cache front.
+  let (mut input, scanned) = probe_input("1 2");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+  assert!(
+    inp
+      .try_expect_map_or_stop(|_| None::<()>)
+      .unwrap()
+      .is_none(),
+    "a non-matching token declines"
+  );
+  assert_eq!(scanned.get(), 1, "one scan staged the declined token");
+  let tok = inp
+    .next()
+    .unwrap()
+    .expect("the declined token is still next");
+  assert_eq!(
+    *tok.span_ref(),
+    SimpleSpan::new(0, 1),
+    "the cache-front put-back is intact"
+  );
+
+  // Genuine end of input under a roomy limit declines.
+  let limiter = ProbeLimiter::with_limit(usize::MAX);
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut input =
+    Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_cache("", limiter, cache);
+  let mut inp = input.as_ref(&mut emitter);
+  assert!(
+    inp.try_expect_map_or_stop(|_| Some(())).unwrap().is_none(),
+    "empty input declines"
+  );
+}
+
 #[test]
 fn poisoned_input_latches_no_rescan_across_skip_while() {
   // `skip_while(|_| true)` drains every matching token in a single call, so the
