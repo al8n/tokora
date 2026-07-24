@@ -291,6 +291,32 @@ fn try_expect_or_stop_errs_on_latched_boundary_without_rescan() {
 }
 
 #[test]
+fn at_latched_boundary_witnesses_a_trip_at_the_cursor() {
+  // The input-state witness the resilient collection loops re-raise on: a trip latches the poison
+  // boundary at the cursor it scans from, so `at_latched_boundary` reports a terminal element
+  // failure without inspecting the error type (no `MaybeTerminal` bound on the driver).
+  let (mut input, _scanned) = probe_input("1 2 3 4 5 6");
+  let mut emitter = Silent::<ProbeErr>::new();
+  let mut inp = input.as_ref(&mut emitter);
+
+  assert!(!inp.at_latched_boundary(), "no trip before any scan");
+  assert!(inp.next().unwrap().is_some(), "first token under the limit");
+  assert!(inp.next().unwrap().is_some(), "second token under the limit");
+  assert!(
+    !inp.at_latched_boundary(),
+    "still no trip while under the limit"
+  );
+  assert!(
+    inp.next().unwrap().is_none(),
+    "the third scan trips and latches"
+  );
+  assert!(
+    inp.at_latched_boundary(),
+    "the trip is witnessed at the cursor"
+  );
+}
+
+#[test]
 fn try_expect_or_stop_declines_on_non_matching_token() {
   use crate::span::SimpleSpan;
 
