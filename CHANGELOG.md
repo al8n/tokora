@@ -3,6 +3,18 @@
 All notable changes to this crate are documented here. The project follows semantic
 versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change.
 
+## Unreleased
+
+### Fixed
+
+- **Wrong opening delimiter at end of input is no longer misreported as end-of-input.** The
+  delimited many-drivers (`repeated`, `repeated-while`, `separated`, and `separated-while`
+  `…delimited::<D>()`) now report a wrong opening delimiter as the expected-open unexpected-token
+  diagnostic carrying that token, even when it is the final token — instead of `UnexpectedEot`.
+  The wrong token stays unconsumed, and the diagnostic no longer depends on whether another
+  token happens to follow it. `UnexpectedEot` is now reserved for a genuinely empty opener
+  position. Fixes issue #85.
+
 ## 0.7.0 (2026-07-23)
 
 ### Added

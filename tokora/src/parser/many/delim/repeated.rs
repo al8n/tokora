@@ -64,17 +64,24 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     // The opener's span, captured iff an opener is actually committed. It is the anchor of
     // the `Unclosed` diagnostic below: no opener, no unclosed.
     let mut open_span: Option<L::Span> = None;
-    match left_delimiter {
-      None if inp.is_eoi() => {
-        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
-      }
-      None => {
-        // safe unwrap as we know when left_delimiter is None, first_kind is Some
-        inp.emitter().emit_unexpected_token(first_kind.unwrap())?;
-      }
-      Some(open) => {
+    // Discriminate on the captured evidence, NOT on `is_eoi`: the opener predicate lexes the
+    // candidate token, so a wrong FINAL token leaves the lexer at EOI even though a real token
+    // sat at the opener position (issue #85). `first_kind` records that observation.
+    match (left_delimiter, first_kind) {
+      // An opener is committed — behavior unchanged.
+      (Some(open), _) => {
         open_span = Some(open.span_ref().clone());
         container.on_open_delimiter(open);
+      }
+      // A wrong opener was observed: emit the captured unexpected-open-token regardless of the
+      // lexer's EOI state. The token stays cached/unconsumed, exactly like the non-EOI path.
+      (None, Some(wrong)) => {
+        inp.emitter().emit_unexpected_token(wrong)?;
+      }
+      // Nothing was observed at the opener position: a genuinely empty opener slot (a terminal
+      // scanner stop lands here too — its predicate never ran) — the one EOI path.
+      (None, None) => {
+        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
     };
 
