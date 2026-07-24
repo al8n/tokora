@@ -3,7 +3,7 @@
 All notable changes to this crate are documented here. The project follows semantic
 versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change.
 
-## Unreleased
+## 0.7.3 (2026-07-24)
 
 ### Added
 
