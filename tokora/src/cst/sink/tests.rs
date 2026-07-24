@@ -544,9 +544,15 @@ fn orphan_finish_debug_asserts_at_emission() {
 /// error: `FinishError::OrphanFinish` fires only on TRUE underflow, never on this shape.
 /// This test characterizes that gap: the narrowed `> 0` assert (correctly) no longer
 /// panics here, and materialization (correctly, given depth-only info) does not wall it.
-/// The old assert happened to trap it — but only as a side effect of also rejecting the
-/// legal history above, which is the #98a defect. Catching the misuse at cause needs an
-/// opener-identity API change (deferred).
+/// In this coded scenario the rewind spends the only checkpoint, so at finish time no
+/// mark row is live: baseline reads 0 and both the old (> innermost-live-frozen-baseline)
+/// and the new (> 0) predicates pass it. The two asserts differ ONLY when a checkpoint row
+/// is still LIVE at finish — the legal cross-checkpoint close in
+/// `cst_finish_across_a_live_checkpoint_is_legal_and_materializes`, the #98a case. This
+/// test therefore characterizes the balanced-wrong-node materialization outcome and the
+/// depth-indistinguishability principle, not a behavior the old assert uniquely caught.
+/// Catching the misuse at cause needs an opener-identity API change on `cst_finish`
+/// (deferred).
 #[test]
 fn finish_after_a_rewound_start_closes_the_ancestor_indistinguishably() {
   let mut sink = verbose_sink();
