@@ -44,7 +44,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let anchor = inp.cursor().clone();
     let mut first_kind = None;
-    let left_delimiter = inp.try_expect(|tok| {
+    let left_delimiter = inp.try_expect_or_stop(|tok| {
       let (span, tok) = tok.into_components();
       match Delim::is_open(&tok.kind()) {
         false => {
@@ -75,8 +75,9 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
       (None, Some(wrong)) => {
         inp.emitter().emit_unexpected_token(wrong)?;
       }
-      // Nothing was observed at the opener position: a genuinely empty opener slot (a terminal
-      // scanner stop lands here too — its predicate never ran) — the one EOI path.
+      // Nothing was observed at the opener position: a genuinely empty opener slot — the one
+      // genuine EOI path. A terminal scanner stop no longer lands here — `try_expect_or_stop`
+      // surfaces it directly above — so this end-of-input error stays recoverable.
       (None, None) => {
         return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
       }
@@ -99,7 +100,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
         // A terminal scanner stop: its own diagnostic already explains the halt —
         // propagate it and add no `Unclosed`.
         CloseStatus::Tripped => {
-          return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
+          return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into_terminal().into());
         }
         // The closer is absent (a wrong token or genuine EOF) — consult the stop
         // condition to decide whether another element is expected.
@@ -186,7 +187,7 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
         }
       }
       CloseStatus::Tripped => {
-        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
+        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into_terminal().into());
       }
     }
 
