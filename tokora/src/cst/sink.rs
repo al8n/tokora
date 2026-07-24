@@ -756,9 +756,10 @@ where
   }
 
   /// One positional mark over one unified log: the event-buffer length. The capture also
-  /// pushes a mark-stack row freezing the derived depth, so
-  /// [`cst_finish`](CstEmitter::cst_finish) can assert against the innermost live capture
-  /// and [`release`](Emitter::release) has a row to reclaim.
+  /// pushes a mark-stack row freezing the derived depth, so the depth recount — consulted
+  /// by [`cst_finish`](CstEmitter::cst_finish)'s global-underflow assert, among others —
+  /// has a short anchor to start from instead of rescanning the log from its start, and so
+  /// [`release`](Emitter::release) has a row to reclaim.
   ///
   /// The row additionally captures the inner emitter's **own** checkpoint reading, handed
   /// back at the matching [`rewind`](Emitter::rewind) so the inner is restored to exactly
@@ -992,18 +993,38 @@ where
   where
     L: Lexer<'inp>,
   {
-    // Detect-at-cause for the orphan-finish class: a finish must close a node opened
-    // above the innermost LIVE capture (a finish crossing a live save boundary would be
-    // truncated apart from its start by that capture's rewind). Debug-only — the raw
-    // surface is sharp by contract, and materialization is the every-build wall.
+    // Detect-at-cause for TRUE GLOBAL underflow only: a finish must close *some* node
+    // that is open anywhere in the buffer (`derived_depth() > 0`). This is the soundest
+    // invariant a DEPTH-ONLY predicate can enforce; it is deliberately no stricter,
+    // because depth cannot separate the two histories that reach this call with a node
+    // still open:
+    //
+    //   - LEGAL cross-checkpoint close — `cst_start(A); checkpoint m; cst_token; cst_finish`:
+    //     A was opened, never rolled back, and this finish closes it. Under commit/release
+    //     both events survive balanced; under a rewind of `m` the finish truncates and A
+    //     reopens (the truncate-and-reopen semantics the CstEmitter contract blesses, see
+    //     `emitter/cst.rs`). The OLD assert compared depth against the innermost live
+    //     capture's *frozen* baseline and panicked on this legal history — the defect
+    //     this narrowing fixes (see issue #98).
+    //
+    //   - LEAKED-FINISH misuse — `cst_start(A); checkpoint m; cst_start(B); rewind(m);
+    //     cst_token; cst_finish`: the finish was meant for B, but B's start died with the
+    //     rewind, so it silently closes ancestor A instead. After the rewind this leaves an
+    //     event buffer IDENTICAL to the legal case above — nothing, not depth and not the
+    //     whole buffer, can tell them apart; only the opener's identity on `cst_finish`
+    //     could. Materialization therefore does NOT wall it: it builds a balanced
+    //     (wrong-node) tree with no error. `FinishError::OrphanFinish` fires only on TRUE
+    //     underflow (a finish arriving with the stack already empty), NEVER on this
+    //     balanced-wrong-node shape. Catching the misuse at cause would require adding the
+    //     intended opener's identity as an argument to `cst_finish` (a raw-emitter API
+    //     change); recorded as a known, deferred limitation.
+    //
+    // Debug-only — the raw surface is sharp by contract.
     debug_assert!(
-      {
-        let baseline = self.rows.borrow().last().map_or(0, |row| row.depth);
-        self.derived_depth() > baseline
-      },
-      "cst_finish with no open node above the innermost live checkpoint: the matching \
-       start was rolled back (or never emitted), so this finish would close an enclosing \
-       node instead"
+      self.derived_depth() > 0,
+      "cst_finish with no open node anywhere in the buffer (global underflow): the \
+       matching start was rolled back (or never emitted), and no enclosing node is open \
+       to close instead"
     );
     self.events.push(Event::FinishNode);
   }
