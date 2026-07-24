@@ -96,7 +96,9 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         // never spent as a diagnostic, since no further input clears either. A trip latches the
         // poison boundary at the cursor, so `at_latched_boundary` witnesses it without a
         // `MaybeTerminal` bound on the error type.
-        Err(err) if Cmpl::is_incomplete_error(&err) || inp.at_latched_boundary() => return Err(err),
+        Err(err) if Cmpl::is_incomplete_error(&err) || inp.at_latched_boundary() => {
+          return Err(err);
+        }
         Err(err) => {
           let span = inp.span_since(&elem_cur);
           inp.emitter().emit_error(Spanned::new(span, err))?;
@@ -139,7 +141,11 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
             // A terminal scanner stop: its own diagnostic already explains the halt —
             // propagate it and add no `Unclosed`.
             CloseStatus::Tripped => {
-              return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into_terminal().into());
+              return Err(
+                UnexpectedEot::eot_of(inp.cursor().as_inner().clone())
+                  .into_terminal()
+                  .into(),
+              );
             }
           }
 
@@ -175,7 +181,11 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         }
       }
       CloseStatus::Tripped => {
-        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into_terminal().into());
+        return Err(
+          UnexpectedEot::eot_of(inp.cursor().as_inner().clone())
+            .into_terminal()
+            .into(),
+        );
       }
     }
 

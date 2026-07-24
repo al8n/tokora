@@ -205,7 +205,11 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
       // A terminal scanner stop (limit trip / latched poison): its own diagnostic
       // already explains the halt — propagate it and add no `Unclosed` on top.
       CloseStatus::Tripped => {
-        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into_terminal().into());
+        return Err(
+          UnexpectedEot::eot_of(inp.cursor().as_inner().clone())
+            .into_terminal()
+            .into(),
+        );
       }
     }
 

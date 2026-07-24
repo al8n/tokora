@@ -277,7 +277,9 @@ impl<'inp, 'c, L, F, O, Ctx, Lang: ?Sized, Cmpl> Repeated<F, O, L, Ctx, Lang, Cm
         // terminal scanner stop (a tripped limit, witnessed by the poison boundary it latches at
         // the cursor). Neither is malformed, so re-raise it untouched instead of spending it as a
         // diagnostic.
-        Err(err) if Cmpl::is_incomplete_error(&err) || inp.at_latched_boundary() => return Err(err),
+        Err(err) if Cmpl::is_incomplete_error(&err) || inp.at_latched_boundary() => {
+          return Err(err);
+        }
         Err(err) => {
           let span = inp.span_since(&cursor);
           inp.emitter().emit_error(Spanned::new(span, err))?;

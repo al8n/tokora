@@ -159,7 +159,11 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                 // A terminal scanner stop: its own diagnostic already explains the
                 // halt — propagate it and add no `Unclosed`.
                 CloseStatus::Tripped => {
-                  return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into_terminal().into());
+                  return Err(
+                    UnexpectedEot::eot_of(inp.cursor().as_inner().clone())
+                      .into_terminal()
+                      .into(),
+                  );
                 }
               }
 
@@ -207,7 +211,11 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                 // A terminal scanner stop: its own diagnostic already explains the
                 // halt — propagate it and add no `Unclosed`.
                 CloseStatus::Tripped => {
-                  return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into_terminal().into());
+                  return Err(
+                    UnexpectedEot::eot_of(inp.cursor().as_inner().clone())
+                      .into_terminal()
+                      .into(),
+                  );
                 }
               }
 

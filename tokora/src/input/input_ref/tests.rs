@@ -301,7 +301,10 @@ fn at_latched_boundary_witnesses_a_trip_at_the_cursor() {
 
   assert!(!inp.at_latched_boundary(), "no trip before any scan");
   assert!(inp.next().unwrap().is_some(), "first token under the limit");
-  assert!(inp.next().unwrap().is_some(), "second token under the limit");
+  assert!(
+    inp.next().unwrap().is_some(),
+    "second token under the limit"
+  );
   assert!(
     !inp.at_latched_boundary(),
     "still no trip while under the limit"
