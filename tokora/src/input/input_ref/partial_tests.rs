@@ -253,14 +253,14 @@ fn nonfinal_eof_surfaces_incomplete() {
   // frontier token and yields normally. The whitespace tail then exhausts the lexer at a non-final
   // EOF, which surfaces Incomplete rather than genuine end of input.
   //
-  // BUG D37 (#89-F6): the pin below is the offset the crate ACTUALLY reports today,
-  // `Incomplete(3)` — not `Incomplete(4)`, the true frontier (the buffer end, after the
-  // trailing space the lexer skipped before hitting EOF). `lex_at` only advances when the
-  // lexer yields an item (`mod.rs`'s `lex_within_boundary`), so bytes it skips before a
-  // non-final EOF advance the real position but not the reported one — a stale fact for a
-  // refill driver deciding how much of its buffer was consumed. R5/R9 flips this pin to
-  // `Incomplete(4)`. This used to be a wildcard (`Err(PErr::Incomplete(_))`), which is
-  // exactly what hid the staleness (SR-A6/#89-F6).
+  // This pins the CURRENT (incorrect) behavior: the offset the crate actually reports
+  // today is `Incomplete(3)`, not `Incomplete(4)`, the true frontier (the buffer end,
+  // after the trailing space the lexer skipped before hitting EOF). `lex_at` only
+  // advances when the lexer yields an item (`mod.rs`'s `lex_within_boundary`), so bytes
+  // it skips before a non-final EOF advance the real position but not the reported one —
+  // a stale fact for a refill driver deciding how much of its buffer was consumed. Issue
+  // #89 tracks this; update the pin to `Incomplete(4)` when it is fixed. This used to be
+  // a wildcard (`Err(PErr::Incomplete(_))`), which is exactly what hid the staleness.
   let run = run_partial("foo ", false);
   assert_eq!(
     run.kinds,
@@ -270,20 +270,20 @@ fn nonfinal_eof_surfaces_incomplete() {
   assert_eq!(
     run.result,
     Err(PErr::Incomplete(3)),
-    "BUG D37 (#89-F6): stale offset — the true frontier is 4 (the buffer end); the \
+    "pinned stale offset (issue #89) — the true frontier is 4 (the buffer end); the \
      skipped trailing space is not reflected"
   );
   assert_eq!(run.emitted, 0);
 }
 
-/// BUG D37 (#89-F6): asserts CURRENT WRONG behavior; R5/R9 flips this pin to
+/// Pins CURRENT (incorrect) behavior tracked by issue #89: the pin should become
 /// `Incomplete(3)` (the true frontier — every byte of `"   "` was consumed by the lexer
-/// before the non-final EOF). Companion to `nonfinal_eof_surfaces_incomplete`, at the
-/// staleness's sharpest: an all-skipped buffer reports offset `0` — `lex_at` never
+/// before the non-final EOF) once it is fixed. Companion to `nonfinal_eof_surfaces_incomplete`,
+/// at the staleness's sharpest: an all-skipped buffer reports offset `0` — `lex_at` never
 /// advances past its initial value because the lexer never yields a single item, even
 /// though it scanned every byte.
 #[test]
-fn characterize_d37_nonfinal_eof_after_an_all_skipped_buffer_reports_a_stale_offset() {
+fn nonfinal_eof_after_an_all_skipped_buffer_reports_a_stale_offset() {
   let run = run_partial("   ", false);
   assert!(
     run.kinds.is_empty(),
@@ -292,7 +292,7 @@ fn characterize_d37_nonfinal_eof_after_an_all_skipped_buffer_reports_a_stale_off
   assert_eq!(
     run.result,
     Err(PErr::Incomplete(0)),
-    "BUG D37 (#89-F6): stale offset — the true frontier is 3 (every byte was consumed); \
+    "pinned stale offset (issue #89) — the true frontier is 3 (every byte was consumed); \
      lex_at never advanced because the lexer never yielded an item"
   );
   assert_eq!(run.emitted, 0);
@@ -301,8 +301,8 @@ fn characterize_d37_nonfinal_eof_after_an_all_skipped_buffer_reports_a_stale_off
 #[test]
 fn nonfinal_eof_on_empty_buffer() {
   // An empty non-final chunk is entirely Incomplete: nothing to yield, more may arrive.
-  // (Not a D37 instance: with zero bytes total, the stale-vs-true frontier distinction
-  // collapses — both are 0.)
+  // (The staleness pinned above does not apply here: with zero bytes total, the
+  // stale-vs-true frontier distinction collapses — both are 0.)
   let run = run_partial("", false);
   assert!(run.kinds.is_empty());
   assert_eq!(run.result, Err(PErr::Incomplete(0)));

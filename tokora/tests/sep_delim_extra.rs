@@ -174,28 +174,28 @@ sep_delim_tests!(rlat_max, { .allow_trailing().at_most(3).require_leading() }, "
 sep_delim_tests!(rlat_bnd, { .allow_trailing().bounded(2, 4).require_leading() }, "[,1,2,3,]");
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// D2 (#90/S2-F1, fixed R7) — bounds-VIOLATING inputs inside the delim family
+// Bounds-VIOLATING inputs inside the delim family (issue #90)
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // Every case above feeds an input that already SATISFIES its configured bounds/policy,
 // so the 64-test matrix asserts only non-emptiness and never exercises the try-driven
-// `sep/delim` closer on a violation. D2 (#90/S2-F1) is exactly that: the mid-scan-closer
+// `sep/delim` closer on a violation. Issue #90 is exactly that: the mid-scan-closer
 // arm (`sep/delim/mod.rs`) returns as soon as the closer is found, without ever reaching
 // the post-loop `handle_end` pass that enforces count bounds and separator policy — so on
-// a well-formed, properly-closed list the bound/policy check never runs. These two
-// characterize what the driver ACTUALLY does today on inputs that violate their own
-// configured bounds: a clean `Ok`, with zero diagnostics recorded. R7 (D2's fix wave)
-// flips both assertions to the diagnostic the sibling drivers already emit for the same
-// shape (S2-F1, probe-confirmed: non-delim and `sep_while`-delim both report it).
+// a well-formed, properly-closed list the bound/policy check never runs. These two pin
+// what the driver ACTUALLY does today on inputs that violate their own configured bounds:
+// a clean `Ok`, with zero diagnostics recorded. Fixing this should flip both assertions to
+// the diagnostic the sibling drivers already emit for the same shape (non-delim and
+// `sep_while`-delim both report it).
 
-/// BUG D2 (#90/S2-F1): asserts CURRENT WRONG behavior; R7 flips this to a recorded
+/// Pins CURRENT WRONG behavior (issue #90): once fixed, this should record a
 /// `TooFew(1, 2)` on the `[1]` parse.
 ///
 /// `[1]` under `.at_least(2)`: the closer is found mid-scan on this already-well-formed,
 /// properly-closed list, so the driver returns through the `is_closed` arm without ever
 /// reaching `handle_end`, and the `at_least(2)` bound is never checked.
 #[test]
-fn characterize_d2_at_least_violation_inside_delim_returns_clean_ok() {
+fn at_least_violation_inside_delim_returns_clean_ok() {
   fn parse<'inp>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, Verbose<E>>>,
   ) -> Result<Vec<i64>, E> {
@@ -208,8 +208,9 @@ fn characterize_d2_at_least_violation_inside_delim_returns_clean_ok() {
     let errs = inp.emitter().errors();
     assert!(
       errs.is_empty(),
-      "BUG D2: today `handle_end` never runs on this path, so no `TooFew` is recorded \
-       (found {errs:?}) — R7 must flip this to exactly one TooFew(1, 2)"
+      "pinned bug (issue #90): today `handle_end` never runs on this path, so no \
+       `TooFew` is recorded (found {errs:?}) — fixing it must record exactly one \
+       TooFew(1, 2)"
     );
     Ok(out)
   }
@@ -221,12 +222,12 @@ fn characterize_d2_at_least_violation_inside_delim_returns_clean_ok() {
   assert_eq!(
     r,
     vec![1],
-    "BUG D2: a bounds-violating list (1 element under at_least(2)) still parses clean — \
-     the count bound never fires on the try-driven delim path"
+    "pinned bug (issue #90): a bounds-violating list (1 element under at_least(2)) \
+     still parses clean — the count bound never fires on the try-driven delim path"
   );
 }
 
-/// BUG D2 (#90/S2-F1): asserts CURRENT WRONG behavior; R7 flips this to a recorded
+/// Pins CURRENT WRONG behavior (issue #90): once fixed, this should record an
 /// unexpected-trailing-separator diagnostic on the `[1,]` parse.
 ///
 /// `[1,]` under the **default** policy (no `.allow_trailing()`/`.require_trailing()` at
@@ -235,7 +236,7 @@ fn characterize_d2_at_least_violation_inside_delim_returns_clean_ok() {
 /// comma ever runs, regardless of which policy is configured — the bug is dead code on
 /// this path, not a specific policy's gap.
 #[test]
-fn characterize_d2_default_policy_trailing_separator_inside_delim_returns_clean_ok() {
+fn default_policy_trailing_separator_inside_delim_returns_clean_ok() {
   fn parse<'inp>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, Verbose<E>>>,
   ) -> Result<Vec<i64>, E> {
@@ -247,8 +248,9 @@ fn characterize_d2_default_policy_trailing_separator_inside_delim_returns_clean_
     let errs = inp.emitter().errors();
     assert!(
       errs.is_empty(),
-      "BUG D2: today `handle_end` never runs on this path, so no trailing-separator \
-       diagnostic is recorded (found {errs:?}) — R7 must flip this to a recorded error"
+      "pinned bug (issue #90): today `handle_end` never runs on this path, so no \
+       trailing-separator diagnostic is recorded (found {errs:?}) — fixing it must \
+       record an error"
     );
     Ok(out)
   }
@@ -260,7 +262,7 @@ fn characterize_d2_default_policy_trailing_separator_inside_delim_returns_clean_
   assert_eq!(
     r,
     vec![1],
-    "BUG D2: a trailing separator the default policy should reject still parses clean — \
-     no leading/trailing allowance was ever configured"
+    "pinned bug (issue #90): a trailing separator the default policy should reject \
+     still parses clean — no leading/trailing allowance was ever configured"
   );
 }

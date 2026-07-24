@@ -1500,11 +1500,11 @@ fn sync_through_then_peek_trip_after_skips_commits_the_diagnosed_prefix() {
   assert_eq!(limit, 1, "the limit trip is diagnosed exactly once (`3`)");
 }
 
-/// BUG D10 (#89-F1): asserts CURRENT WRONG behavior; R1 flips `consumed`/`limit_diags`
-/// below to the disciplined values (stop at 2, one diagnostic at the 3rd).
+/// Pins CURRENT WRONG behavior (issue #89): `consumed`/`limit_diags` below should read
+/// the disciplined values (stop at 2, one diagnostic at the 3rd) once it is fixed.
 ///
 /// Repeated widen-then-drain rounds (`peek::<U1>` → `peek::<U2>` → `peek::<U3>`, then
-/// consume the window), by-value limit 2 — SR-A1/#89-F1's exact reproduction shape and
+/// consume the window), by-value limit 2 — this reproduces the bug at its exact shape and
 /// numbers. `lexer()` pairs COMMITTED state with the cache-back offset
 /// (`input_ref/mod.rs`), and each top-level `peek` call that widens an already-nonempty
 /// cache re-derives its fill's starting state from that pair instead of the cache's
@@ -1513,11 +1513,10 @@ fn sync_through_then_peek_trip_after_skips_commits_the_diagnosed_prefix() {
 /// token 2 as if token 1 had never been scanned. Consuming then adopts each entry's own
 /// (wrongly resumed) state, so the by-value limiter's committed count silently falls
 /// behind the true number of tokens consumed. This is the by-value counterpart to
-/// `ProbeLimiter`'s `Rc`-shared tally (SR-A1's campaign-integrity note: a shared tally
-/// can never go "missing" the way committed STATE can, so it cannot see this class) —
-/// the infra R1/R5 oracles need.
+/// `ProbeLimiter`'s `Rc`-shared tally: a shared tally can never go "missing" the way
+/// committed STATE can, so it cannot see this class of bug.
 #[test]
-fn characterize_d10_widen_then_drain_repeated_bypasses_the_by_value_limit() {
+fn widen_then_drain_repeated_bypasses_the_by_value_limit() {
   use generic_arraydeque::typenum::{U1, U2, U3};
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
@@ -1579,12 +1578,13 @@ fn characterize_d10_widen_then_drain_repeated_bypasses_the_by_value_limit() {
 
   assert_eq!(
     consumed, 6,
-    "BUG D10: a limit of 2 should stop consumption at 2 tokens; the widen-then-drain \
-     pattern instead lets 3x the configured budget through before the limiter trips"
+    "pinned bug (issue #89): a limit of 2 should stop consumption at 2 tokens; the \
+     widen-then-drain pattern instead lets 3x the configured budget through before the \
+     limiter trips"
   );
   assert_eq!(
     limit_diags, 1,
-    "BUG D10: exactly one Limit diagnostic fires — three rounds late"
+    "pinned bug (issue #89): exactly one Limit diagnostic fires — three rounds late"
   );
 }
 

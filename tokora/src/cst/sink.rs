@@ -1004,8 +1004,8 @@ where
     //     both events survive balanced; under a rewind of `m` the finish truncates and A
     //     reopens (the truncate-and-reopen semantics the CstEmitter contract blesses, see
     //     `emitter/cst.rs`). The OLD assert compared depth against the innermost live
-    //     capture's *frozen* baseline and panicked on this legal history — the #98a defect
-    //     this narrowing fixes.
+    //     capture's *frozen* baseline and panicked on this legal history — the defect
+    //     this narrowing fixes (see issue #98).
     //
     //   - LEAKED-FINISH misuse — `cst_start(A); checkpoint m; cst_start(B); rewind(m);
     //     cst_token; cst_finish`: the finish was meant for B, but B's start died with the
