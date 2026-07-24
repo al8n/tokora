@@ -965,3 +965,123 @@ fn ident_try_leaf_still_declines_on_genuine_eoi() {
   );
   assert_eq!(out, Ok(None), "genuine end of input declines, no error");
 }
+
+// ── The committed peek combinators: a trip-truncated window must surface, not route to a branch ──
+//
+// The committed `peek_then` / `peek_then_choice` pass their scrutinee window to the handler and run
+// the chosen branch. A window truncated by a terminal scanner stop is not a definite decision, so —
+// like the try flavors — the committed impls surface the stop before the handler can route the short
+// window to a branch that succeeds without consuming. A genuine short window (no trip) still reaches
+// the handler unchanged.
+
+use tokora::{
+  Branch, ParseChoice, ParseInput,
+  input::Completeness,
+  utils::typenum::{U1, U2},
+};
+
+// An epsilon parser: succeeds without consuming, producing `()`. Its `ParseInput` impl is pinned to
+// the one concrete context the committed-path tests drive over, so `peek_then`/`peek_then_choice`
+// resolve a unique context at method resolution — a generic base parser leaves it ambiguous between
+// the `ParserContext` and tuple `(E, C)` context impls.
+struct Eps;
+
+impl<'inp, Cmpl>
+  ParseInput<'inp, TLexer<'inp>, (), ParserContext<'inp, TLexer<'inp>, Silent<TErr>>, (), Cmpl>
+  for Eps
+where
+  Cmpl: Completeness,
+{
+  fn parse_input(
+    &mut self,
+    _inp: &mut InputRef<'inp, '_, TLexer<'inp>, ParserContext<'inp, TLexer<'inp>, Silent<TErr>>, (), Cmpl>,
+  ) -> Result<
+    (),
+    <<ParserContext<'inp, TLexer<'inp>, Silent<TErr>> as ParseContext<'inp, TLexer<'inp>>>::Emitter as Emitter<'inp, TLexer<'inp>>>::Error,
+  >{
+    Ok(())
+  }
+}
+
+// Drives a committed parser as the top-level parse over a concrete context, so the parser's context
+// is pinned here (avoiding the tuple-vs-`ParserContext` ambiguity that a generic base parser hits at
+// method resolution). Limits are chosen so the trip lands at the first/second scan — no pre-parse
+// consumption is needed.
+fn drive_committed<'inp, P>(parser: P, limit: usize, input: &'inp str) -> Result<(), TErr>
+where
+  P: ParseInput<'inp, TLexer<'inp>, (), ParserContext<'inp, TLexer<'inp>, Silent<TErr>>, ()>,
+{
+  let ctx = ParserContext::new(Silent::<TErr>::new());
+  Parser::with_parser_and_context(parser, ctx)
+    .parse_str_with_state(input, ScanLimiter::with_limit(limit))
+}
+
+#[test]
+fn committed_peek_then_surfaces_a_trip_not_a_branch() {
+  // First-slot trip (W = 1, limit 0): the first scan trips, so the window is empty.
+  assert_eq!(
+    drive_committed(Eps.peek_then::<_, U1>(|_peeked, _emitter| Ok(())), 0, "(x)"),
+    Err(TErr::Eot),
+    "a first-slot trip surfaces terminal, not the handler's Ok branch"
+  );
+
+  // Mid-window trip (W = 2, limit 1): slot 0 scans, slot 1 trips; the handler would otherwise route
+  // the one-token window to a branch that succeeds without consuming.
+  assert_eq!(
+    drive_committed(Eps.peek_then::<_, U2>(|_peeked, _emitter| Ok(())), 1, "(x)"),
+    Err(TErr::Eot),
+    "a mid-window trip (W>1) surfaces terminal, not the handler's Ok branch"
+  );
+
+  // A genuine short window (no trip) still reaches the handler and runs the branch.
+  let reached = Cell::new(false);
+  let out = drive_committed(
+    Eps.peek_then::<_, U2>(|_peeked, _emitter| {
+      reached.set(true);
+      Ok(())
+    }),
+    usize::MAX,
+    "a",
+  );
+  assert_eq!(out, Ok(()), "a genuine short window reaches the handler");
+  assert!(reached.get(), "the handler ran on the genuine short window");
+}
+
+#[test]
+fn committed_peek_then_choice_surfaces_a_trip_not_a_branch() {
+  // First-slot trip (W = 1, limit 0).
+  assert_eq!(
+    drive_committed(
+      (Eps, Eps).peek_then_choice::<_, U1>(|_peeked, _emitter| Ok(Branch::B0)),
+      0,
+      "(x)",
+    ),
+    Err(TErr::Eot),
+    "a first-slot trip surfaces terminal, not branch B0"
+  );
+
+  // Mid-window trip (W = 2, limit 1): slot 0 scans, slot 1 trips; B0 would otherwise succeed
+  // without consuming.
+  assert_eq!(
+    drive_committed(
+      (Eps, Eps).peek_then_choice::<_, U2>(|_peeked, _emitter| Ok(Branch::B0)),
+      1,
+      "(x)",
+    ),
+    Err(TErr::Eot),
+    "a mid-window trip surfaces terminal, not branch B0"
+  );
+
+  // A genuine short window still reaches the handler and runs the chosen branch.
+  let reached = Cell::new(false);
+  let out = drive_committed(
+    (Eps, Eps).peek_then_choice::<_, U2>(|_peeked, _emitter| {
+      reached.set(true);
+      Ok(Branch::B0)
+    }),
+    usize::MAX,
+    "a",
+  );
+  assert_eq!(out, Ok(()), "a genuine short window reaches the handler");
+  assert!(reached.get(), "the handler ran on the genuine short window");
+}

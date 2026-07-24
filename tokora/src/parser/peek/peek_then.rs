@@ -139,13 +139,26 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Lang: ?Sized,
   W: Window,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+    From<crate::error::UnexpectedEot<L::Offset, Lang>>,
 {
   #[inline(always)]
   fn parse_input(
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let (output, emitter) = inp.peek_with_emitter::<W>()?;
+    // A scrutinee window truncated by a terminal scanner stop is not evidence the construct is
+    // absent: surface the committed end-of-input error before the handler can route the short
+    // window to a branch that succeeds without consuming.
+    let end = inp.span().end();
+    let (output, terminal, emitter) = inp.peek_with_emitter_terminal::<W>()?;
+    if terminal {
+      return Err(
+        crate::error::UnexpectedEot::eot_of(end)
+          .into_terminal()
+          .into(),
+      );
+    }
     (self.handler)(output, emitter).and_then(|_| self.parser.parse_input(inp))
   }
 }
