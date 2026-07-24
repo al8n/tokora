@@ -1,4 +1,5 @@
 pub use delimited::*;
+pub use downcast::*;
 pub use escaped::*;
 pub use expected::*;
 pub use generic_arraydeque::GenericArrayDeque;
@@ -30,6 +31,7 @@ pub mod knowledge;
 pub mod marker;
 
 mod delimited;
+mod downcast;
 mod escaped;
 mod expected;
 mod lexeme;
