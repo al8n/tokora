@@ -5,6 +5,14 @@ versioning; before 1.0, a minor bump (0.x → 0.(x+1)) signals a breaking change
 
 ## Unreleased
 
+## 0.7.2 (2026-07-24)
+
+### Added
+
+- **Fallible projection traits.** `tokora::utils::Downcast<T>` and
+  `DowncastRef<T>` provide owned and borrowed `Option<T>` projections for domain
+  types without imposing blanket implementations or a concrete conversion model.
+
 ### Fixed
 
 - **Wrong opening delimiter at end of input is no longer misreported as end-of-input.** The
