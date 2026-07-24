@@ -516,11 +516,13 @@ fn abandoned_session_points_release_their_emitter_marks() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// F-A1 — the orphan finish is detected at cause (debug) and never absorbed
+// F-A1 / D14 (#98-C1, SR2-A3) — orphan finish (true global underflow) vs a legal
+// close that crosses a live checkpoint (narrowed assert; see `Sink::cst_finish`)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// A finish with no open node above the innermost live capture is the combo-C shape at
-/// the moment it happens: detect at cause in debug builds.
+/// A finish with no open node anywhere is true global underflow: detect at cause in
+/// debug builds. D14 leaves this case unchanged — baseline and global depth already
+/// agreed at zero here, with no live checkpoint in play.
 #[cfg(debug_assertions)]
 #[test]
 #[should_panic(expected = "no open node")]
@@ -530,21 +532,61 @@ fn orphan_finish_debug_asserts_at_emission() {
   sink.cst_finish();
 }
 
-/// The same shape across a live checkpoint: the start was rolled back, the leaked finish
-/// would close the enclosing node — the innermost-live-row baseline catches it.
-#[cfg(debug_assertions)]
+/// D14 (#98-C1, SR2-A3): a finish that closes a node opened *before* a live checkpoint —
+/// with an unrelated speculative nested start rolled back in between — is legal, not an
+/// orphan: K_NODE is still open globally when the finish runs. Before the fix this
+/// panicked, because the old assert compared current depth against the checkpoint's
+/// *frozen* baseline (1, captured while K_NODE was already open) instead of zero: closing
+/// K_NODE with no *additional* open node since the checkpoint read as underflow under
+/// that predicate, even though K_NODE itself was never in doubt. The narrowed assert
+/// checks only true global underflow, so this now passes in both debug and release, and
+/// materializes a balanced `Root[Node]` tree.
 #[test]
-#[should_panic(expected = "no open node")]
-fn finish_crossing_a_live_capture_debug_asserts() {
+fn finish_crossing_a_dead_checkpoint_closes_the_enclosing_node_legally() {
   let mut sink = verbose_sink();
   sink.cst_start(K_NODE);
   let ckp = Emitter::<MiniLexer<'_>>::checkpoint(&sink);
-  sink.cst_start(K_LIST);
-  rewind(&mut sink, ckp);
+  sink.cst_start(K_LIST); // speculative nested start …
+  rewind(&mut sink, ckp); //  … rolled back: K_LIST never existed
   let _ckp2 = Emitter::<MiniLexer<'_>>::checkpoint(&sink);
-  // The List start died with the rewind; this finish would cross the live capture and
-  // close K_NODE instead.
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  sink.cst_finish(); // closes K_NODE — legal, not an orphan
+  let (green, _emitter) = sink.finish(K_ROOT, "a");
+  let root = tree(green.expect("a balanced stream materializes"));
+  assert_eq!(root.first_child().expect("Root[Node]").kind(), K_NODE);
+}
+
+/// D14 (#98-C1, SR2-A3): the exact minimal legal-committed-close history from the audit —
+/// `StartNode(A); checkpoint m; FinishNode(A)` — panicked in debug before the fix (the old
+/// assert rejected *every* finish of a node opened at or before the newest live capture,
+/// balanced or not — `emitter/cst.rs`'s own documented example). Under commit/release both
+/// events survive balanced; under a rewind of `m` this very finish is what gets truncated
+/// and `A` reopens instead (the contract's blessed truncate-and-reopen semantics — not
+/// exercised here, see the rewind-recovery tests elsewhere in this file). Must pass in
+/// both debug and release.
+#[test]
+fn cst_finish_across_a_live_checkpoint_is_legal_and_materializes() {
+  let mut sink = verbose_sink();
+  sink.cst_start(K_NODE);
+  let _ckp = Emitter::<MiniLexer<'_>>::checkpoint(&sink);
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
   sink.cst_finish();
+  let (green, _emitter) = sink.finish(K_ROOT, "a");
+  let root = tree(green.expect("a balanced stream materializes"));
+  assert_eq!(root.first_child().expect("Root[Node]").kind(), K_NODE);
+}
+
+/// D14 (#98-C1, SR2-A3): the narrowing must still catch a *genuine* global underflow —
+/// closing when nothing is open anywhere — in every debug build, checkpoint or not (the
+/// protection the narrowing must preserve).
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(expected = "global underflow")]
+fn cst_finish_debug_asserts_on_genuine_global_underflow_across_a_checkpoint() {
+  let mut sink = verbose_sink();
+  let _ckp = Emitter::<MiniLexer<'_>>::checkpoint(&sink);
+  sink.cst_token(&MiniTok(b'a'), &span(0, 1));
+  sink.cst_finish(); // nothing was ever open — global underflow, checkpoint or not
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -1500,6 +1500,94 @@ fn sync_through_then_peek_trip_after_skips_commits_the_diagnosed_prefix() {
   assert_eq!(limit, 1, "the limit trip is diagnosed exactly once (`3`)");
 }
 
+/// BUG D10 (#89-F1): asserts CURRENT WRONG behavior; R1 flips `consumed`/`limit_diags`
+/// below to the disciplined values (stop at 2, one diagnostic at the 3rd).
+///
+/// Repeated widen-then-drain rounds (`peek::<U1>` → `peek::<U2>` → `peek::<U3>`, then
+/// consume the window), by-value limit 2 — SR-A1/#89-F1's exact reproduction shape and
+/// numbers. `lexer()` pairs COMMITTED state with the cache-back offset
+/// (`input_ref/mod.rs`), and each top-level `peek` call that widens an already-nonempty
+/// cache re-derives its fill's starting state from that pair instead of the cache's
+/// newest entry's own stored state — so a *separate* `peek::<U2>` call made after
+/// `peek::<U1>` (nothing consumed in between, so committed state is unchanged) re-fills
+/// token 2 as if token 1 had never been scanned. Consuming then adopts each entry's own
+/// (wrongly resumed) state, so the by-value limiter's committed count silently falls
+/// behind the true number of tokens consumed. This is the by-value counterpart to
+/// `ProbeLimiter`'s `Rc`-shared tally (SR-A1's campaign-integrity note: a shared tally
+/// can never go "missing" the way committed STATE can, so it cannot see this class) —
+/// the infra R1/R5 oracles need.
+#[test]
+fn characterize_d10_widen_then_drain_repeated_bypasses_the_by_value_limit() {
+  use generic_arraydeque::typenum::{U1, U2, U3};
+
+  let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
+  let mut emitter = Verbose::<ByValErr>::new();
+  let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_cache(
+    "1 2 3 4 5 6 7",
+    TokenLimiter::with_limitation(2),
+    cache,
+  );
+
+  let mut consumed = 0usize;
+  {
+    let mut inp = input.as_ref(&mut emitter);
+    // Rounds 0 and 1 each widen 1→2→3 and drain all three — every fill and every drain
+    // succeeds, even though the limit is 2: the committed count never truly reaches 3.
+    for round in 0..2 {
+      assert_eq!(
+        inp.peek::<U1>().map(|w| w.len()),
+        Ok(1),
+        "round {round}: U1 fill"
+      );
+      assert_eq!(
+        inp.peek::<U2>().map(|w| w.len()),
+        Ok(2),
+        "round {round}: U2 fill"
+      );
+      assert_eq!(
+        inp.peek::<U3>().map(|w| w.len()),
+        Ok(3),
+        "round {round}: U3 fill"
+      );
+      for i in 0..3 {
+        match inp.next() {
+          Ok(Some(_)) => consumed += 1,
+          other => panic!("round {round} token {i}: expected a token, got {other:?}"),
+        }
+      }
+    }
+    // Round 2: the 7th scanned token finally trips — a single-shot fill session (unlike
+    // the separate top-level calls above) threads state correctly within itself, so the
+    // trip is exact once it is reached at all.
+    assert_eq!(
+      inp.peek::<U1>().map(|w| w.len()),
+      Ok(0),
+      "round 2: the trip empties the fill"
+    );
+    assert!(
+      inp.next().unwrap().is_none(),
+      "the boundary the trip latched stops next() at the same point"
+    );
+  }
+
+  let limit_diags: usize = emitter
+    .errors()
+    .values()
+    .flatten()
+    .filter(|e| **e == ByValErr::Limit)
+    .count();
+
+  assert_eq!(
+    consumed, 6,
+    "BUG D10: a limit of 2 should stop consumption at 2 tokens; the widen-then-drain \
+     pattern instead lets 3x the configured budget through before the limiter trips"
+  );
+  assert_eq!(
+    limit_diags, 1,
+    "BUG D10: exactly one Limit diagnostic fires — three rounds late"
+  );
+}
+
 #[test]
 fn failed_sync_through_leaves_no_diagnostics() {
   // A `sync_through` whose predicate never matches scans every valid token to EOF,
