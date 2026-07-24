@@ -90,10 +90,12 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
 
     loop {
       match self.parser.f.try_parse_input(inp) {
-        // The never-recoverable gate (0.3.0): a frontier `Incomplete` from the element
-        // parser re-raises untouched — never spent as a diagnostic. Constant-false under
-        // `Complete`.
-        Err(err) if Cmpl::is_incomplete_error(&err) => return Err(err),
+        // The never-recoverable gate and its terminal dual: a frontier `Incomplete` (const-false
+        // under `Complete`) or a terminal scanner stop from the element parser re-raises untouched —
+        // never spent as a diagnostic, since no further input clears either. A trip latches the
+        // poison boundary at the cursor, so `at_latched_boundary` witnesses it without a
+        // `MaybeTerminal` bound on the error type.
+        Err(err) if Cmpl::is_incomplete_error(&err) || inp.at_latched_boundary() => return Err(err),
         Err(err) => {
           let span = inp.span_since(&elem_cur);
           inp.emitter().emit_error(Spanned::new(span, err))?;

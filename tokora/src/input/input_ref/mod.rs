@@ -398,6 +398,19 @@ where
     matches!(self.poison_boundary.as_ref(), Some(b) if pos >= b)
   }
 
+  /// Returns whether a terminal scanner stop — a resource-limit trip, or the poison boundary it
+  /// latches — sits at or before the committed cursor.
+  ///
+  /// A trip latches at the cursor it scans from ([`AtCursor`]), so once an element parser returns to
+  /// a resilient collection loop, this is the input-state witness that its failure was **terminal**
+  /// (a tripped limit) rather than a malformed construct. Those loops re-raise on it instead of
+  /// spending the element error as a diagnostic — the input-side twin of an error's
+  /// [`MaybeTerminal::is_terminal`](crate::error::MaybeTerminal), needing no bound on the error type.
+  #[inline(always)]
+  pub(crate) fn at_latched_boundary(&self) -> bool {
+    self.reached_boundary(self.offset())
+  }
+
   /// Lexes the next token unless doing so would cross the poison boundary.
   ///
   /// Once the position the next token would be lexed at (`lex_at`, threaded by the
