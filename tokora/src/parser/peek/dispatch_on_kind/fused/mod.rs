@@ -187,9 +187,18 @@ where
             .with_found(found)
             .into(),
         ),
-        // End of input (or a latched limit boundary) at a committed dispatch point:
-        // the whole table as the expected set, exactly as `DispatchOnKind`'s `Eot` arm.
-        None => Err(UnexpectedEnd::eot_expected_one_of(inp.span().end(), table).into()),
+        // End of input (or a latched limit boundary) at a committed dispatch point: the whole
+        // table as the expected set, exactly as `DispatchOnKind`'s `Eot` arm. A terminal scanner
+        // stop maps to `None` here too, so mark it terminal — an enclosing recovery re-raises it —
+        // while a genuine end of input stays recoverable.
+        None => {
+          let eot = UnexpectedEnd::eot_expected_one_of(inp.span().end(), table);
+          if inp.at_latched_boundary() {
+            Err(eot.into_terminal().into())
+          } else {
+            Err(eot.into())
+          }
+        }
       },
     }
   }
@@ -203,6 +212,8 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   <L::Token as Token<'inp>>::Kind: 'static,
   Lang: ?Sized,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error:
+    From<UnexpectedEot<L::Offset, Lang, <L::Token as Token<'inp>>::Kind>>,
 {
   #[inline(always)]
   fn try_parse_input(
@@ -229,7 +240,20 @@ where
         .parser
         .parse_token_choice(inp, &Branch::from_index(index), head)
         .map(ParseAttempt::Accept),
-      None => Ok(ParseAttempt::Decline),
+      // A terminal scanner stop maps to `None` here too, but it is not a decline: surface it as
+      // the committed dispatch failure's terminal end-of-input error so a choice caller does not
+      // commit a different alternative on a tripped limit. A genuine miss / end of input declines.
+      None => {
+        if inp.at_latched_boundary() {
+          Err(
+            UnexpectedEnd::eot_expected_one_of(inp.span().end(), table)
+              .into_terminal()
+              .into(),
+          )
+        } else {
+          Ok(ParseAttempt::Decline)
+        }
+      }
     }
   }
 }

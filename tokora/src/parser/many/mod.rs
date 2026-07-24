@@ -33,10 +33,12 @@ mod gate_census {
   //! GATE_CENSUS — the section-4 never-recoverable gate sites, locked by count.
   //!
   //! Every resilient emit-and-continue loop body in the try-driven collection families
-  //! must gate on `Cmpl::is_incomplete_error` FIRST, so a frontier `Incomplete` from the
-  //! element parser re-raises instead of being spent as a diagnostic. One gate per
-  //! swallow site; the census pins both the total and the per-file placement so a new
-  //! resilient loop cannot land ungated (extend the list, then gate it).
+  //! must gate on `Cmpl::is_incomplete_error` FIRST, and re-raise a terminal scanner stop
+  //! (`inp.at_latched_boundary()`) alongside it, so neither a frontier `Incomplete` nor a
+  //! tripped limit from the element parser is spent as a diagnostic. One gate per swallow
+  //! site; the census pins the total, the per-file placement, and the terminal re-raise so a
+  //! new resilient loop cannot land ungated or without the terminal dual (extend the list,
+  //! then gate it both ways).
 
   #[test]
   fn every_resilient_swallow_site_is_gated() {
@@ -53,6 +55,14 @@ mod gate_census {
       assert_eq!(
         swallows, gated,
         "{name}: every emit-and-continue swallow needs exactly one incomplete gate"
+      );
+      // The terminal dual: every incomplete gate carries the terminal re-raise in the same
+      // guard, so a tripped limit re-raises instead of being emitted-and-continued.
+      let terminal = src.matches("|| inp.at_latched_boundary()").count();
+      assert_eq!(
+        gated, terminal,
+        "{name}: every incomplete gate must re-raise a terminal stop too \
+         (`|| inp.at_latched_boundary()`)"
       );
       gates += gated;
     }
