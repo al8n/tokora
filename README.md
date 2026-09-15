@@ -39,10 +39,6 @@ tokora = { version = "0.10", features = ["logos"] }
 `logos` is the alias for the `logos_0_16` integration, the only Logos major tokora supports. The
 default `std` feature remains enabled unless you set `default-features = false`.
 
-> **Which version this describes.** Every `[dependencies]` snippet in this README resolves against
-> the latest release, **0.10.0**. A feature that `main` has grown since is named with the version it
-> will arrive in, rather than put in a copyable block you cannot resolve.
-
 ## Capabilities
 
 - On-demand token flow through `InputRef`, with explicit cache-backed lookahead and transactions.
@@ -233,17 +229,6 @@ still ends the process with nothing on any `Result` channel.
 
 A lossless sink requires a trivia-surfacing lexer (`Lexer::SURFACES_TRIVIA`). Add
 `rowan = "0.17"` directly when implementing `rowan::Language`.
-
-**Safety disclosure: `rowan 0.17.0` executes known undefined behaviour on the ordinary
-construct-and-drop path** — Stacked Borrows at `arc.rs:264`, reached from building any green tree,
-and Tree Borrows at `cursor.rs:136`, reached from dropping any red-tree `SyntaxNode`. tokora's own
-`src/cst` contains no `unsafe`; the defects are upstream and unfixed since 2021
-(rust-analyzer/rowan [#108](https://github.com/rust-analyzer/rowan/issues/108),
-[#163](https://github.com/rust-analyzer/rowan/issues/163),
-[#192](https://github.com/rust-analyzer/rowan/issues/192)), so raising the requirement is not an
-exit. Both Miri matrices exclude this feature for that reason, which means the shipped lossless
-path has **zero** Miri coverage rather than a green result. Tracked at
-[al8n/tokora#252](https://github.com/al8n/tokora/issues/252).
 
 ## Platform support
 
