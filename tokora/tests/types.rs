@@ -9,7 +9,7 @@ use tokora::{
   slice::Sliced,
   syntax::{Language, Syntax},
   utils::{
-    Expected, GenericArrayDeque, OneOf,
+    ArrayDeque, Expected, OneOf,
     marker::{Ignored, PhantomDelimited, PhantomLocated, PhantomSliced, PhantomSpan},
     typenum::{U0, U1, U2, U3},
   },
@@ -59,14 +59,12 @@ impl Syntax for MySyntax2 {
   type Component = Component;
   type COMPONENTS = U2;
   type REQUIRED = U2;
-  fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-    const C: &GenericArrayDeque<Component, U2> =
-      &GenericArrayDeque::from_array([Component::A, Component::B]);
+  fn possible_components() -> &'static ArrayDeque<Component, U2> {
+    const C: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
     C
   }
-  fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-    const C: &GenericArrayDeque<Component, U2> =
-      &GenericArrayDeque::from_array([Component::A, Component::B]);
+  fn required_components() -> &'static ArrayDeque<Component, U2> {
+    const C: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
     C
   }
 }
@@ -80,14 +78,14 @@ impl Syntax for MySyntax3 {
   type Component = Component;
   type COMPONENTS = U3;
   type REQUIRED = U3;
-  fn possible_components() -> &'static GenericArrayDeque<Component, U3> {
-    const C: &GenericArrayDeque<Component, U3> =
-      &GenericArrayDeque::from_array([Component::A, Component::B, Component::C]);
+  fn possible_components() -> &'static ArrayDeque<Component, U3> {
+    const C: &ArrayDeque<Component, U3> =
+      &ArrayDeque::from_array([Component::A, Component::B, Component::C]);
     C
   }
-  fn required_components() -> &'static GenericArrayDeque<Component, U3> {
-    const C: &GenericArrayDeque<Component, U3> =
-      &GenericArrayDeque::from_array([Component::A, Component::B, Component::C]);
+  fn required_components() -> &'static ArrayDeque<Component, U3> {
+    const C: &ArrayDeque<Component, U3> =
+      &ArrayDeque::from_array([Component::A, Component::B, Component::C]);
     C
   }
 }
@@ -101,12 +99,12 @@ impl Syntax for MySyntax1 {
   type Component = Component;
   type COMPONENTS = U1;
   type REQUIRED = U1;
-  fn possible_components() -> &'static GenericArrayDeque<Component, U1> {
-    const C: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
+  fn possible_components() -> &'static ArrayDeque<Component, U1> {
+    const C: &ArrayDeque<Component, U1> = &ArrayDeque::from_array([Component::A]);
     C
   }
-  fn required_components() -> &'static GenericArrayDeque<Component, U1> {
-    const C: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
+  fn required_components() -> &'static ArrayDeque<Component, U1> {
+    const C: &ArrayDeque<Component, U1> = &ArrayDeque::from_array([Component::A]);
     C
   }
 }
@@ -122,12 +120,12 @@ impl Syntax for MySyntax0 {
   type Component = Component;
   type COMPONENTS = U0;
   type REQUIRED = U0;
-  fn possible_components() -> &'static GenericArrayDeque<Component, U0> {
-    const C: &GenericArrayDeque<Component, U0> = &GenericArrayDeque::from_array([]);
+  fn possible_components() -> &'static ArrayDeque<Component, U0> {
+    const C: &ArrayDeque<Component, U0> = &ArrayDeque::from_array([]);
     C
   }
-  fn required_components() -> &'static GenericArrayDeque<Component, U0> {
-    const C: &GenericArrayDeque<Component, U0> = &GenericArrayDeque::from_array([]);
+  fn required_components() -> &'static ArrayDeque<Component, U0> {
+    const C: &ArrayDeque<Component, U0> = &ArrayDeque::from_array([]);
     C
   }
 }
@@ -552,10 +550,10 @@ fn incomplete_syntax_interior_mutable_component_defeats_uniqueness_but_not_sound
 
     // `IncompleteSyntax::new`/`push`/`try_push`/`as_slice` — everything this test calls —
     // never call either accessor, so neither body runs here.
-    fn possible_components() -> &'static GenericArrayDeque<MutableComponent, U2> {
+    fn possible_components() -> &'static ArrayDeque<MutableComponent, U2> {
       unimplemented!("not exercised by this test")
     }
-    fn required_components() -> &'static GenericArrayDeque<MutableComponent, U2> {
+    fn required_components() -> &'static ArrayDeque<MutableComponent, U2> {
       unimplemented!("not exercised by this test")
     }
   }

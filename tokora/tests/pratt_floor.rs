@@ -192,7 +192,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = FloorError>,
 {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
   let _ = inp.peek::<U3>()?;
   sum_expr(inp)
 }

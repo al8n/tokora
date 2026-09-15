@@ -367,10 +367,10 @@ trait Syntax {
     type Lang: Language;
     const KIND: <Self::Lang as Language>::SyntaxKind;
     type Component: Display + Debug + Clone + PartialEq + Eq + Hash;   // usually an enum
-    type COMPONENTS: ArrayLength + Debug + Eq + Hash;   // type-level count (typenum, via generic-arraydeque)
-    type REQUIRED:   ArrayLength + Debug + Eq + Hash;   // type-level count of the required subset
-    fn possible_components() -> &'static GenericArrayDeque<Self::Component, Self::COMPONENTS>;
-    fn required_components() -> &'static GenericArrayDeque<Self::Component, Self::REQUIRED>;
+    type COMPONENTS: ArraySize + Debug + Eq + Hash;   // type-level count (typenum, via hybrid-arraydeque)
+    type REQUIRED:   ArraySize + Debug + Eq + Hash;   // type-level count of the required subset
+    fn possible_components() -> &'static ArrayDeque<Self::Component, Self::COMPONENTS>;
+    fn required_components() -> &'static ArrayDeque<Self::Component, Self::REQUIRED>;
 }
 trait AstNode<Lang> { type Syntax: Syntax<Lang = Lang>; }  // bridge: AST node type -> its Syntax
 ```
@@ -385,7 +385,7 @@ use tokora::{
     SimpleSpan,
     error::IncompleteSyntax,
     syntax::{Language, Syntax},
-    utils::{GenericArrayDeque, typenum::U2},
+    utils::{ArrayDeque, typenum::U2},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -415,12 +415,12 @@ impl Syntax for IfExpr {
     type COMPONENTS = U2;
     type REQUIRED = U2;
 
-    fn possible_components() -> &'static GenericArrayDeque<IfComponent, U2> {
-        const ALL: &GenericArrayDeque<IfComponent, U2> =
-            &GenericArrayDeque::from_array([IfComponent::Condition, IfComponent::ThenBranch]);
+    fn possible_components() -> &'static ArrayDeque<IfComponent, U2> {
+        const ALL: &ArrayDeque<IfComponent, U2> =
+            &ArrayDeque::from_array([IfComponent::Condition, IfComponent::ThenBranch]);
         ALL
     }
-    fn required_components() -> &'static GenericArrayDeque<IfComponent, U2> {
+    fn required_components() -> &'static ArrayDeque<IfComponent, U2> {
         Self::possible_components()
     }
 }

@@ -91,7 +91,7 @@ fn peek_one_empty_input() {
 #[test]
 fn peek_window() {
   parse_with("abc 123 def", |inp| {
-    use generic_arraydeque::typenum::U2;
+    use hybrid_arraydeque::typenum::U2;
     let peeked = inp.peek::<U2>()?;
     assert_eq!(peeked.len(), 2);
     Ok(())
@@ -102,7 +102,7 @@ fn peek_window() {
 #[test]
 fn peek_with_emitter_test() {
   parse_with("abc 123", |inp| {
-    use generic_arraydeque::typenum::U2;
+    use hybrid_arraydeque::typenum::U2;
     let (peeked, _emitter) = inp.peek_with_emitter::<U2>()?;
     assert_eq!(peeked.len(), 2);
     Ok(())
@@ -113,7 +113,7 @@ fn peek_with_emitter_test() {
 #[test]
 fn peek_window_larger_than_input() {
   parse_with("abc", |inp| {
-    use generic_arraydeque::typenum::U3;
+    use hybrid_arraydeque::typenum::U3;
     let peeked = inp.peek::<U3>()?;
     assert_eq!(peeked.len(), 1);
     Ok(())
@@ -124,7 +124,7 @@ fn peek_window_larger_than_input() {
 #[test]
 fn peek_does_not_consume() {
   parse_with("abc 123", |inp| {
-    use generic_arraydeque::typenum::U1;
+    use hybrid_arraydeque::typenum::U1;
     {
       let peeked = inp.peek::<U1>()?;
       assert_eq!(peeked.len(), 1);
@@ -142,7 +142,7 @@ fn peek_does_not_consume() {
 fn peek_window_exceeds_cache_capacity() {
   // U4 window on default U3 cache — triggers overflow path (lines 76-126)
   parse_with("abc 123 def ghi", |inp| {
-    use generic_arraydeque::typenum::U4;
+    use hybrid_arraydeque::typenum::U4;
     let peeked = inp.peek::<U4>()?;
     // Should see all 4 tokens even though cache can only hold 3
     assert_eq!(peeked.len(), 4);
@@ -155,7 +155,7 @@ fn peek_window_exceeds_cache_capacity() {
 fn peek_overflow_tokens_correct() {
   // Verify overflowed tokens have correct data
   parse_with("abc 123 def ghi jkl", |inp| {
-    use generic_arraydeque::typenum::U4;
+    use hybrid_arraydeque::typenum::U4;
     {
       let peeked = inp.peek::<U4>()?;
       assert_eq!(peeked.len(), 4);
@@ -174,7 +174,7 @@ fn peek_overflow_tokens_correct() {
 fn peek_overflow_then_consume() {
   // Peek with overflow, then consume tokens normally
   parse_with("abc 123 def ghi", |inp| {
-    use generic_arraydeque::typenum::U4;
+    use hybrid_arraydeque::typenum::U4;
     {
       let peeked = inp.peek::<U4>()?;
       assert_eq!(peeked.len(), 4);
@@ -204,7 +204,7 @@ fn slice_after_peek_returns_consumed_token() {
 
 #[test]
 fn cursor_targets_first_cached_token_start() {
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
   // "a1" lexes to two adjacent tokens: Word(0..1), Num(1..2).
   parse_with("a1", |inp| {
     {
@@ -221,7 +221,7 @@ fn cursor_targets_first_cached_token_start() {
 
 #[test]
 fn save_restore_preserves_front_token_with_multi_cache() {
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
   // Fill the cache with two tokens, checkpoint, consume one, then restore.
   // The next token must be the FIRST one again (no silent token loss).
   parse_with("a1", |inp| {
@@ -242,7 +242,7 @@ fn save_restore_preserves_front_token_with_multi_cache() {
 
 #[test]
 fn attempt_over_prefilled_cache_preserves_first_token() {
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
   // A rollback attempt over a pre-filled cache must not skip a token.
   parse_with("a1", |inp| {
     {
@@ -291,7 +291,7 @@ fn span_and_slice_report_consumed_token_after_multi_peek() {
   // reporting the JUST-CONSUMED token, not the remaining front cached token.
   parse_with("a1", |inp| {
     {
-      let peeked = inp.peek::<generic_arraydeque::typenum::U2>()?;
+      let peeked = inp.peek::<hybrid_arraydeque::typenum::U2>()?;
       assert_eq!(peeked.len(), 2);
     }
     let first = inp.next()?.expect("first token");
@@ -306,7 +306,7 @@ fn span_and_slice_report_consumed_token_after_multi_peek() {
 #[test]
 fn token_accessor_reads_ref_arm() {
   use crate::{cache::PeekedTokenExt, span::SimpleSpan};
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
   // A U2 window fits the default U3 cache, so both peeked tokens are the
   // borrowed (`Ref`) arm. The accessor reaches token + span without matching.
   parse_with("abc 123", |inp| {
@@ -326,7 +326,7 @@ fn token_accessor_reads_ref_arm() {
 #[test]
 fn token_accessor_reads_owned_arm() {
   use crate::{cache::PeekedTokenExt, span::SimpleSpan};
-  use generic_arraydeque::typenum::U4;
+  use hybrid_arraydeque::typenum::U4;
   // A U4 window exceeds the default U3 cache; the 4th token overflows and is
   // materialized as the owned (`Owned`) arm. The same accessor reaches it.
   parse_with("abc 123 def ghi", |inp| {
@@ -428,7 +428,7 @@ fn consume_direct_single_lexer_error() {
 fn peek_then_consume_single_lexer_error() {
   // Error precedes a cached token; peek seals it, consume must not re-emit.
   let n = count_lexer_errors("@ a b", |inp| {
-    use generic_arraydeque::typenum::U2;
+    use hybrid_arraydeque::typenum::U2;
     {
       let _ = inp.peek::<U2>()?;
     }
@@ -441,7 +441,7 @@ fn peek_then_consume_single_lexer_error() {
 fn peek_trailing_then_consume_single_lexer_error() {
   // Error trails the cached token (no later cached token). Consume re-lexes it.
   let n = count_lexer_errors("a @", |inp| {
-    use generic_arraydeque::typenum::U2;
+    use hybrid_arraydeque::typenum::U2;
     {
       let _ = inp.peek::<U2>()?;
     }
@@ -454,7 +454,7 @@ fn peek_trailing_then_consume_single_lexer_error() {
 fn peek_overflow_then_consume_single_lexer_error() {
   // Cache holds 3; window 5. Error sits in the overflow region.
   let n = count_lexer_errors("a b c @ d", |inp| {
-    use generic_arraydeque::typenum::U5;
+    use hybrid_arraydeque::typenum::U5;
     {
       let _ = inp.peek::<U5>()?;
     }
@@ -468,7 +468,7 @@ fn peek_overflow_stop_records_lexer_error() {
   // Peek over the overflow region then STOP without consuming: the error in
   // the overflow region must still have been recorded at peek time.
   let n = count_lexer_errors("a b c @ d", |inp| {
-    use generic_arraydeque::typenum::U5;
+    use hybrid_arraydeque::typenum::U5;
     let _ = inp.peek::<U5>()?;
     Ok(())
   });
@@ -655,7 +655,7 @@ fn fatal_overflow_peek_drops_staged_tokens_no_leak() {
   // U6 window over the default U3 cache: tokens 1..=3 fill the cache, 4 and 5
   // overflow into staging, then `@` is an invalid lexeme whose fatal emit
   // `?`-returns while 4 and 5 are still staged.
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
 
   // Each phase gets its own ledger, threaded in as the lexer state: phase 1's input
   // is still holding its three cache-resident tokens while phase 2 runs, and no
@@ -933,7 +933,7 @@ where
 
 #[test]
 fn overflow_peek_trip_truncates_phantom_tokens() {
-  use generic_arraydeque::typenum::{U4, U5, U6};
+  use hybrid_arraydeque::typenum::{U4, U5, U6};
 
   // Trip mid-overflow with SEVERAL staged: 1..=3 cached, 4 & 5 staged, 6 trips.
   assert_trip_truncates::<U6>("1 2 3 4 5 6", 5, 2);
@@ -949,7 +949,7 @@ fn overflow_peek_trip_truncates_phantom_tokens() {
 // combinators surface a trip rather than read the short window as a decline.
 #[test]
 fn peek_with_emitter_terminal_flags_a_trip_but_not_eof() {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let peek3 = |src: &'static str, limit: usize| {
     let cache = crate::cache::DefaultCache::<'_, TripLexer<'_>>::default();
@@ -1024,7 +1024,7 @@ where
 #[test]
 fn peek_reports_stream_order_across_the_cache_boundary() {
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
 
   // Six one-character tokens at known offsets. The default cache holds three, so
   // the window is `[cache: a b c][staged: d e f]` — and the staged half was lexed
@@ -1053,7 +1053,7 @@ fn peek_reports_stream_order_across_the_cache_boundary() {
 #[test]
 fn peek_reports_stream_order_with_a_single_staged_token() {
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U4;
+  use hybrid_arraydeque::typenum::U4;
 
   // The smallest overflow: one staged token behind a full cache. A rotation off by
   // one in either direction is visible here and nowhere else.
@@ -1076,7 +1076,7 @@ fn peek_reports_stream_order_with_a_single_staged_token() {
 fn peek_reports_stream_order_with_a_prefilled_cache() {
   use crate::cache::PeekedTokenExt as _;
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::{U2, U5};
+  use hybrid_arraydeque::typenum::{U2, U5};
 
   // A narrow peek first, so the cache is already partly full when the wide peek
   // runs: the wide fill then appends to a non-empty cache before it starts staging,
@@ -1135,7 +1135,7 @@ where
 fn peek_over_a_non_retaining_cache_reports_stream_order() {
   use crate::cache::PeekedTokenExt as _;
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   // No cache at all: all three window slots are staged. The rotation degenerates to
   // a full-length rotate, which must be the identity.
@@ -1161,7 +1161,7 @@ fn peek_over_a_non_retaining_cache_reports_stream_order() {
 fn peek_over_a_parked_front_reports_the_parked_token_first() {
   use crate::cache::PeekedTokenExt as _;
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   // `sync_to` stops before the first number and, with nothing able to retain it,
   // parks it at the front of the stream. The peek that follows must head its window
@@ -1347,7 +1347,7 @@ where
 
   fn peek<'p, W>(
     &'p self,
-    buf: &mut generic_arraydeque::GenericArrayDeque<
+    buf: &mut hybrid_arraydeque::ArrayDeque<
       crate::cache::MaybeRefCachedTokenOf<'p, 'a, L>,
       W::CAPACITY,
     >,
@@ -1402,7 +1402,7 @@ where
 #[test]
 #[should_panic(expected = "did not copy the cache's whole resident run")]
 fn peek_over_an_under_reporting_cache_fails_fast_instead_of_holing_the_window() {
-  use generic_arraydeque::typenum::{U3, U4};
+  use hybrid_arraydeque::typenum::{U3, U4};
 
   with_misreporting_cache::<{ lie::UNDER_BY_ONE }, _, _>("a b c d e", |inp| {
     // Warm-up. The cache is empty, so `len()` tells the truth and the fill's own
@@ -1426,7 +1426,7 @@ fn peek_over_an_under_reporting_cache_fails_fast_instead_of_holing_the_window() 
 #[test]
 #[should_panic(expected = "and `Cache::peek` appended 3")]
 fn peek_over_an_over_reporting_cache_fails_fast_instead_of_shortening_the_window() {
-  use generic_arraydeque::typenum::{U3, U5};
+  use hybrid_arraydeque::typenum::{U3, U5};
 
   with_misreporting_cache::<{ lie::OVER_BY_ONE }, _, _>("a b c d e", |inp| {
     {
@@ -1448,7 +1448,7 @@ fn peek_over_an_over_reporting_cache_fails_fast_instead_of_shortening_the_window
 #[test]
 #[should_panic(expected = "did not copy the cache's whole resident run")]
 fn peek_over_a_cache_under_reporting_to_zero_fails_fast_instead_of_holing_the_window() {
-  use generic_arraydeque::typenum::{U2, U3};
+  use hybrid_arraydeque::typenum::{U2, U3};
 
   with_misreporting_cache::<{ lie::UNDER_TO_ZERO }, _, _>("a b c d e", |inp| {
     // Warm-up, honest: the cache is empty so 0 IS the resident count, and the fill's own
@@ -1488,7 +1488,7 @@ fn peek_over_a_cache_under_reporting_to_zero_fails_fast_instead_of_holing_the_wi
 #[test]
 fn peek_hit_exit_is_unchecked_and_unchanged_by_the_reordering() {
   use crate::cache::PeekedTokenExt as _;
-  use generic_arraydeque::typenum::{U3, U4};
+  use hybrid_arraydeque::typenum::{U3, U4};
 
   let starts = |peeked: &crate::cache::Peeked<'_, '_, TestLexer<'_>, U3>| {
     peeked
@@ -1552,7 +1552,7 @@ fn peek_hit_exit_is_unchecked_and_unchanged_by_the_reordering() {
 #[test]
 fn successful_overflow_peek_frees_every_staged_token_exactly_once() {
   use crate::cache::PeekedTokenExt as _;
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
 
   // A limit no scan can reach: this cell is about the keeping exit, not the trip.
   // Its ledger is this cell's own, so the counts below see only its own tokens.
@@ -1723,7 +1723,7 @@ type BigCtx<'a> = (
 type BigEntry<'r, 'a> = crate::cache::MaybeRefCachedTokenOf<'r, 'a, BigLexer<'a>>;
 /// The widest window the crate offers, over the oversized fixture.
 type BigWindow<'r, 'a> =
-  crate::cache::Peeked<'r, 'a, BigLexer<'a>, generic_arraydeque::typenum::U32>;
+  crate::cache::Peeked<'r, 'a, BigLexer<'a>, hybrid_arraydeque::typenum::U32>;
 /// The span this fixture's lexer carries, per entry.
 type BigSpan = <BigLexer<'static> as crate::Lexer<'static>>::Span;
 
@@ -1760,7 +1760,7 @@ const BIG_SRC: &str = "1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 \
 #[test]
 fn widest_peek_over_oversized_token_and_state_stays_in_stream_order() {
   use crate::cache::PeekedTokenExt as _;
-  use generic_arraydeque::typenum::U32;
+  use hybrid_arraydeque::typenum::U32;
 
   // The widest window the crate allows, over a 1 KiB token payload and a 1 KiB lexer
   // state, against the three-slot default cache: 3 cache-resident entries and 29

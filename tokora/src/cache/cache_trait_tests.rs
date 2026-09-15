@@ -1,9 +1,9 @@
 use super::*;
 use crate::lexer::{DummyLexer, DummyToken};
 use crate::span::{SimpleSpan, Span, Spanned};
-use ::generic_arraydeque::typenum::U3;
+use ::hybrid_arraydeque::typenum::U3;
 
-type DequeCache = GenericArrayDeque<CachedToken<DummyToken, (), SimpleSpan>, U3>;
+type DequeCache = ArrayDeque<CachedToken<DummyToken, (), SimpleSpan>, U3>;
 type OptionCache = Option<CachedToken<DummyToken, (), SimpleSpan>>;
 
 fn make_token(start: usize, end: usize) -> CachedToken<DummyToken, (), SimpleSpan> {

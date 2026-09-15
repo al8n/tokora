@@ -67,6 +67,12 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
+## 0.11.0 (2026-09-15)
+
+### Breaking
+
+- Switch from `generic-arraydeque` to `hybrid-arraydeque`
+
 ## 0.10.0 (2026-08-29)
 
 ### Added
@@ -1617,7 +1623,7 @@ and will red until they do.
   `overflowed()` at all, only the shared views. Those build with
   `Errors::from_container(iter.collect())`, one line and no loss. In the other direction it
   *gains* the containers with no `FromIterator` of their own, which is both of this crate's
-  bounded ones — `Option<E>` and `GenericArrayDeque<E, N>`, so `DefaultContainer` in a no-alloc
+  bounded ones — `Option<E>` and `ArrayDeque<E, N>`, so `DefaultContainer` in a no-alloc
   build had no `collect()` before this and has an accounting one now.
 
   The reservation the funnel makes is taken **after the first error is observed**, not from the
@@ -2671,7 +2677,7 @@ and will red until they do.
   zero-width span and a spinning scanner was the per-`next()` budget this replaces.
 
 - **`IncompleteSyntax::as_slice` no longer stops at the ring boundary** (#245). The components
-  live in a `GenericArrayDeque`, and a deque is not one physical slice: `push_front` moves the
+  live in a `ArrayDeque`, and a deque is not one physical slice: `push_front` moves the
   head off zero, after which `as_slices()` has two segments. The accessor returned the first
   one. So a two-component error built as `new(B)` then `push_front(A)` reported `len() == 2`,
   iterated `A, B`, and handed `AsRef` and `Display` only `[A]` — and because `Display` branches
@@ -2774,7 +2780,7 @@ and will red until they do.
   unwound the parser instead of returning `Err(item)` and reaching the `FullContainer` path the
   `Container` trait exposes a refusal channel for. Nothing unusual was needed to reach it: safe
   public API, an ordinary element parser, and an element count the *input* chooses. Every other
-  fixed-capacity adapter — `Option`, `GenericArrayDeque`, `tinyvec::ArrayVec`, both `heapless`
+  fixed-capacity adapter — `Option`, `ArrayDeque`, `tinyvec::ArrayVec`, both `heapless`
   containers — already refused through `Err`, so the behaviour also depended on which backend a
   grammar happened to name. The adapter now tests the bound itself and hands the item back
   unchanged; `SliceVec` still cannot grow, and the refusal is `FullContainer` naming the slice's
@@ -3173,7 +3179,7 @@ and will red until they do.
 
 - **`#![recursion_limit = "256"]` in `tokora/src/lib.rs`, and two new CI jobs so a publish-time
   failure surfaces at merge time instead.** `cargo +nightly package -p tokora` failed at "failed
-  to verify package tarball": `generic_arraydeque::generic_array::IsWithinUsizeBound` proves a
+  to verify package tarball": `hybrid_arraydeque::generic_array::IsWithinUsizeBound` proves a
   typenum integer fits `usize` through a type-level `Shl` chain whose depth tracks the 64-bit
   word width rather than the deque's own capacity, and against typenum < 1.20.1 that chain
   overflows the default 128-frame limit while checking the blanket `impl Default for Parser<(),
@@ -7054,7 +7060,7 @@ member, so a hand-written `FromPrattError` impl compiles unchanged.
   the addition is semver-compatible and an existing implementation keeps working unchanged. A cache
   that declares `true` lets the input layer prove its parked-front slot statically unreachable, so
   every probe of it folds away at monomorphization; the shipped caches declare it accordingly
-  (`Option` `true`, `GenericArrayDeque<_, N>` `N != 0`, the black holes `false`). A cache that
+  (`Option` `true`, `ArrayDeque<_, N>` `N != 0`, the black holes `false`). A cache that
   declares `true` and then refuses a front push into an empty cache is violating the contract, and
   now panics at the refusal rather than losing the token.
   — *(R5, #116)*
@@ -8417,7 +8423,7 @@ member, so a hand-written `FromPrattError` impl compiles unchanged.
    `peek` bound it enforces only where a violation is *observable*: a `peek` that clobbers or
    misorders what `buf` already holds is caught, at every residency and every prefill depth, but a
    silent total-capacity `peek` — one that computes the wrong bound and drops the surplus without
-   trace — is **provably invisible** from outside, because a full `GenericArrayDeque::push_back`
+   trace — is **provably invisible** from outside, because a full `ArrayDeque::push_back`
    returns the value and leaves the deque untouched, and `min(min(len, W), R)` equals `min(len, R)`
    for every width and prefill. That one is not rejected; it is *pinned*, by a test asserting the
    kit accepts it, which fails the day the blind spot closes. And `len`'s panic clause the kit

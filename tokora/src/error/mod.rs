@@ -24,7 +24,7 @@ pub use unknown_lexeme::*;
 pub use unopened::*;
 pub use unterminated::*;
 
-use generic_arraydeque::{ArrayLength, GenericArrayDeque};
+use hybrid_arraydeque::{ArrayDeque, ArraySize};
 
 use crate::span::SimpleSpan;
 
@@ -604,11 +604,11 @@ impl<E> ErrorContainer<E> for Option<E> {
   }
 }
 
-impl<E, N: ArrayLength> ErrorContainer<E> for GenericArrayDeque<E, N> {
-  type IntoIter = generic_arraydeque::IntoIter<E, N>;
+impl<E, N: ArraySize> ErrorContainer<E> for ArrayDeque<E, N> {
+  type IntoIter = hybrid_arraydeque::IntoIter<E, N>;
 
   type Iter<'a>
-    = generic_arraydeque::Iter<'a, E>
+    = hybrid_arraydeque::Iter<'a, E>
   where
     Self: 'a,
     E: 'a;

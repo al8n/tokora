@@ -36,7 +36,7 @@ use tokora::{
   punct::Bracket,
   try_parse_input::ParseAttempt,
   utils::{
-    GenericArrayDeque,
+    ArrayDeque,
     typenum::{U1, U2},
   },
 };
@@ -138,8 +138,8 @@ fn verbose_ctx() -> VCtx<'static> {
   ParserContext::new(Verbose::new())
 }
 
-type Cap1 = GenericArrayDeque<i64, U1>;
-type Cap2 = GenericArrayDeque<i64, U2>;
+type Cap1 = ArrayDeque<i64, U1>;
+type Cap2 = ArrayDeque<i64, U2>;
 
 fn try_num<'inp>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, VCtx<'inp>>,

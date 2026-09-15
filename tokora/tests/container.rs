@@ -430,7 +430,7 @@ fn test_fold_stops_on_non_num() {
 // Cache tests - exercises cache code paths via different parser constructions
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// The default cache (DefaultCache = GenericArrayDeque<..., U3>) is exercised
+// The default cache (DefaultCache = ArrayDeque<..., U3>) is exercised
 // by all tests above. Here we test with an Option cache (single-slot).
 
 fn option_cache_ctx() -> ParserContext<
@@ -510,7 +510,7 @@ fn test_blackhole_cache_error() {
 
 #[test]
 fn test_default_cache_collect_vec() {
-  // This exercises the GenericArrayDeque cache with multiple tokens
+  // This exercises the ArrayDeque cache with multiple tokens
   let r: Vec<i64> = Parser::with_context(container_ctx())
     .apply(collect_into_vec)
     .parse_str("1,2,3,4,5,6,7,8,9,10")

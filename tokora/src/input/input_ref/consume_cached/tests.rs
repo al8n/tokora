@@ -71,7 +71,7 @@ where
 #[test]
 fn consume_cached_one_after_peek() {
   parse_with("abc 123", |inp| {
-    use generic_arraydeque::typenum::U2;
+    use hybrid_arraydeque::typenum::U2;
     let peeked = inp.peek::<U2>()?;
     drop(peeked);
     let tok = inp.consume_cached_one();
@@ -96,7 +96,7 @@ fn consume_cached_one_empty_cache() {
 #[test]
 fn consume_cached_to_predicate() {
   parse_with("abc 123 def", |inp| {
-    use generic_arraydeque::typenum::U3;
+    use hybrid_arraydeque::typenum::U3;
     let peeked = inp.peek::<U3>()?;
     drop(peeked);
     let last = inp.consume_cached_to(|t| matches!(t.token().data(), Tok::Num));
@@ -111,7 +111,7 @@ fn consume_cached_to_predicate() {
 #[test]
 fn consume_cached_while_predicate() {
   parse_with("abc 123 def", |inp| {
-    use generic_arraydeque::typenum::U3;
+    use hybrid_arraydeque::typenum::U3;
     let peeked = inp.peek::<U3>()?;
     drop(peeked);
     let last = inp.consume_cached_while(|t| matches!(t.token().data(), Tok::Word));
@@ -126,7 +126,7 @@ fn consume_cached_while_predicate() {
 #[test]
 fn consume_all_cached() {
   parse_with("abc 123 def", |inp| {
-    use generic_arraydeque::typenum::U3;
+    use hybrid_arraydeque::typenum::U3;
     let peeked = inp.peek::<U3>()?;
     drop(peeked);
     let last = inp.consume_all_cached();

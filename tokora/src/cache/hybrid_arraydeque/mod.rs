@@ -4,13 +4,13 @@ use crate::lexer::Lexer;
 
 use super::{Cache, CachedToken, CachedTokenOf, CachedTokenRefOf, MaybeRefCachedTokenOf};
 
-use generic_arraydeque::{ArrayLength, GenericArrayDeque};
+use hybrid_arraydeque::{ArrayDeque, ArraySize};
 
 impl<'a, L, Lang: ?Sized, N> Cache<'a, L, Lang>
-  for GenericArrayDeque<CachedToken<L::Token, L::State, L::Span>, N>
+  for ArrayDeque<CachedToken<L::Token, L::State, L::Span>, N>
 where
   L: Lexer<'a>,
-  N: ArrayLength,
+  N: ArraySize,
 {
   type Options = ();
 
@@ -84,10 +84,8 @@ where
   }
 
   #[inline(always)]
-  fn peek<'p, W>(
-    &'p self,
-    buf: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
-  ) where
+  fn peek<'p, W>(&'p self, buf: &mut ArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>)
+  where
     W: crate::Window,
   {
     let fill = buf.remaining_capacity().min(self.len());

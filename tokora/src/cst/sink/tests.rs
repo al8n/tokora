@@ -4321,7 +4321,7 @@ type SinkCtx<'inp> = (VerboseSink<'inp>, DefaultCache<'inp, MiniLexer<'inp>>);
 /// Consume settles flow to the tree as they commit; peeks and declines emit nothing.
 #[test]
 fn auto_emission_settles_flow_peeks_and_declines_do_not() {
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   let mut input = Input::<MiniLexer<'_>, SinkCtx<'_>>::with_state_and_context(
     "abc",

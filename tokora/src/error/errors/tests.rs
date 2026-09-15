@@ -1,6 +1,6 @@
 use super::*;
 use crate::error::ErrorContainer;
-use generic_arraydeque::ConstGenericArrayDeque;
+use hybrid_arraydeque::ArrayDequeN;
 
 /// A container whose [`FromIterator`] keeps what fits and drops the rest — the only thing a
 /// fixed-capacity `collect` can do, because `FromIterator` has no channel for reporting a value
@@ -113,8 +113,8 @@ fn test_iteration() {
 
 #[test]
 fn test_overflow_tracking() {
-  type SmallErrors<'a> = Errors<&'a str, ConstGenericArrayDeque<&'a str, 1>>;
-  let mut errors: SmallErrors<'_> = Errors::from_container(ConstGenericArrayDeque::<_, 1>::new());
+  type SmallErrors<'a> = Errors<&'a str, ArrayDequeN<&'a str, 1>>;
+  let mut errors: SmallErrors<'_> = Errors::from_container(ArrayDequeN::<_, 1>::new());
 
   assert!(!errors.overflowed());
   errors.push("first");
@@ -129,8 +129,8 @@ fn test_overflow_tracking() {
 
 #[test]
 fn test_try_push_reports_error() {
-  type SmallErrors<'a> = Errors<&'a str, ConstGenericArrayDeque<&'a str, 1>>;
-  let mut errors: SmallErrors<'_> = Errors::from_container(ConstGenericArrayDeque::<_, 1>::new());
+  type SmallErrors<'a> = Errors<&'a str, ArrayDequeN<&'a str, 1>>;
+  let mut errors: SmallErrors<'_> = Errors::from_container(ArrayDequeN::<_, 1>::new());
 
   assert!(errors.try_push("first").is_ok());
   assert!(errors.try_push("second").is_err());
@@ -165,8 +165,8 @@ fn test_pop() {
 /// step.
 #[test]
 fn every_insertion_door_maintains_the_overflow_flag() {
-  type SmallErrors<'a> = Errors<&'a str, ConstGenericArrayDeque<&'a str, 1>>;
-  let mut errors: SmallErrors<'_> = Errors::from_container(ConstGenericArrayDeque::<_, 1>::new());
+  type SmallErrors<'a> = Errors<&'a str, ArrayDequeN<&'a str, 1>>;
+  let mut errors: SmallErrors<'_> = Errors::from_container(ArrayDequeN::<_, 1>::new());
 
   // `try_push` — the door that reports.
   assert!(errors.try_push("first").is_ok());
@@ -180,7 +180,7 @@ fn every_insertion_door_maintains_the_overflow_flag() {
   assert_eq!(errors.len(), 1, "and it is not in the container");
 
   // `push` — the same gateway with the report discarded.
-  let mut errors: SmallErrors<'_> = Errors::from_container(ConstGenericArrayDeque::<_, 1>::new());
+  let mut errors: SmallErrors<'_> = Errors::from_container(ArrayDequeN::<_, 1>::new());
   errors.push("first");
   assert!(!errors.overflowed());
   errors.push("dropped");
@@ -191,8 +191,8 @@ fn every_insertion_door_maintains_the_overflow_flag() {
 /// clear it — and a container with room again does not mean the dropped one came back.
 #[test]
 fn removal_and_reinsertion_leave_the_historical_overflow_flag_set() {
-  type SmallErrors<'a> = Errors<&'a str, ConstGenericArrayDeque<&'a str, 1>>;
-  let mut errors: SmallErrors<'_> = Errors::from_container(ConstGenericArrayDeque::<_, 1>::new());
+  type SmallErrors<'a> = Errors<&'a str, ArrayDequeN<&'a str, 1>>;
+  let mut errors: SmallErrors<'_> = Errors::from_container(ArrayDequeN::<_, 1>::new());
 
   errors.push("first");
   errors.push("dropped");
@@ -220,7 +220,7 @@ fn removal_and_reinsertion_leave_the_historical_overflow_flag_set() {
 /// could not see it.
 #[test]
 fn collecting_more_errors_than_fit_latches_the_flag() {
-  type Small<'a> = Errors<&'a str, Truncating<ConstGenericArrayDeque<&'a str, 1>>>;
+  type Small<'a> = Errors<&'a str, Truncating<ArrayDequeN<&'a str, 1>>>;
 
   let errors: Small<'_> = ["kept", "dropped", "also dropped"].into_iter().collect();
   assert_eq!(errors.len(), 1, "the container kept what fits");
@@ -302,7 +302,7 @@ fn the_bulk_hook_defaults_to_the_funnel_and_the_unbounded_containers_override_it
 
   // Defaulted: a bounded container reports what it refused, through the funnel.
   let (container, overflowed) =
-    <ConstGenericArrayDeque<&str, 1> as ErrorContainer<&str>>::from_errors(["kept", "dropped"]);
+    <ArrayDequeN<&str, 1> as ErrorContainer<&str>>::from_errors(["kept", "dropped"]);
   assert_eq!(ErrorContainer::len(&container), 1);
   assert!(
     overflowed,
@@ -310,7 +310,7 @@ fn the_bulk_hook_defaults_to_the_funnel_and_the_unbounded_containers_override_it
   );
 
   let (container, overflowed) =
-    <ConstGenericArrayDeque<&str, 2> as ErrorContainer<&str>>::from_errors(["a", "b"]);
+    <ArrayDequeN<&str, 2> as ErrorContainer<&str>>::from_errors(["a", "b"]);
   assert_eq!(ErrorContainer::len(&container), 2);
   assert!(!overflowed);
 
@@ -331,9 +331,7 @@ fn the_bulk_hook_defaults_to_the_funnel_and_the_unbounded_containers_override_it
   assert!(!overflowed);
 
   let (container, overflowed) =
-    <ConstGenericArrayDeque<&str, 1> as ErrorContainer<&str>>::from_errors(
-      core::iter::empty::<&str>(),
-    );
+    <ArrayDequeN<&str, 1> as ErrorContainer<&str>>::from_errors(core::iter::empty::<&str>());
   assert_eq!(ErrorContainer::len(&container), 0);
   assert!(!overflowed);
 }
@@ -423,11 +421,11 @@ fn a_container_that_lies_through_the_bulk_hook_fails_exactly_as_one_that_lies_th
 /// `Result`.
 #[test]
 fn a_single_error_into_a_zero_capacity_container_latches_the_flag() {
-  let errors: Errors<&str, Truncating<ConstGenericArrayDeque<&str, 0>>> = Errors::from("dropped");
+  let errors: Errors<&str, Truncating<ArrayDequeN<&str, 0>>> = Errors::from("dropped");
   assert_eq!(errors.len(), 0, "the sole error did not fit");
   assert!(errors.overflowed(), "and it is not silently gone");
 
-  let errors: Errors<&str, Truncating<ConstGenericArrayDeque<&str, 1>>> = Errors::from("kept");
+  let errors: Errors<&str, Truncating<ArrayDequeN<&str, 1>>> = Errors::from("kept");
   assert_eq!(errors.len(), 1);
   assert!(!errors.overflowed());
 }
@@ -441,8 +439,7 @@ fn the_bounded_containers_that_had_no_from_iterator_can_now_be_collected_into() 
   assert_eq!(errors.len(), 1);
   assert!(errors.overflowed());
 
-  let errors: Errors<&str, ConstGenericArrayDeque<&str, 2>> =
-    ["a", "b", "dropped"].into_iter().collect();
+  let errors: Errors<&str, ArrayDequeN<&str, 2>> = ["a", "b", "dropped"].into_iter().collect();
   assert_eq!(errors.len(), 2);
   assert!(errors.overflowed());
 }
@@ -453,9 +450,9 @@ fn the_bounded_containers_that_had_no_from_iterator_can_now_be_collected_into() 
 /// therefore owe the accounting.
 #[test]
 fn from_container_adopts_and_starts_the_accounting_from_there() {
-  type Small<'a> = Errors<&'a str, ConstGenericArrayDeque<&'a str, 1>>;
+  type Small<'a> = Errors<&'a str, ArrayDequeN<&'a str, 1>>;
 
-  let mut prefilled = ConstGenericArrayDeque::<&str, 1>::new();
+  let mut prefilled = ArrayDequeN::<&str, 1>::new();
   assert!(prefilled.push_back("already here").is_none());
 
   let mut errors: Small<'_> = Errors::from_container(prefilled);

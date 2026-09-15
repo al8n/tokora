@@ -16,7 +16,7 @@ use core::cell::Cell;
 use std::rc::Rc;
 use tokora::EmitterView;
 
-use generic_arraydeque::typenum::U2;
+use hybrid_arraydeque::typenum::U2;
 use tokora::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseInput, Parser, ParserContext,
   Token as TokenTrait,

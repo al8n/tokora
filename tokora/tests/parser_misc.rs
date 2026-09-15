@@ -26,7 +26,7 @@ use tokora::{
   utils::Expected,
 };
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 
 // ── Error types ─────────────────────────────────────────────────────────────
 

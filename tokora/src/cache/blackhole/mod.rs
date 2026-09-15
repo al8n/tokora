@@ -1,6 +1,4 @@
-use super::{
-  Cache, CachedTokenOf, CachedTokenRefOf, GenericArrayDeque, Lexer, MaybeRefCachedTokenOf,
-};
+use super::{ArrayDeque, Cache, CachedTokenOf, CachedTokenRefOf, Lexer, MaybeRefCachedTokenOf};
 
 macro_rules! blackhole {
   ($ty:ty) => {
@@ -66,10 +64,8 @@ macro_rules! blackhole {
       fn clear(&mut self) {}
 
       #[inline(always)]
-      fn peek<'p, W>(
-        &'p self,
-        _: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
-      ) where
+      fn peek<'p, W>(&'p self, _: &mut ArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>)
+      where
         W: crate::Window,
       {
       }

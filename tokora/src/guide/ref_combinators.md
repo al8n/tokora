@@ -1144,7 +1144,7 @@ The **separator and delimiter hooks** —
 [`SeparatorHandler`](crate::parser::SeparatorHandler) and
 [`DelimiterHandler`](crate::parser::DelimiterHandler) — are how a container observes the
 separators/brackets it stepped over: they are blanket-implemented as no-ops for every standard
-container (`Vec`, `GenericArrayDeque`, `heapless`, `smallvec`, `tinyvec`), so a plain `collect()`
+container (`Vec`, `ArrayDeque`, `heapless`, `smallvec`, `tinyvec`), so a plain `collect()`
 never has to mention them. Implement them on a custom accumulator to retain separator spans.
 
 ```text

@@ -155,12 +155,12 @@ fn vecdeque_push_and_accessors() {
   assert_eq!(Container::max_capacity(&c), usize::MAX);
 }
 
-// --- GenericArrayDeque tests ---
+// --- ArrayDeque tests ---
 
 #[test]
-fn generic_arraydeque_push_and_accessors() {
-  use generic_arraydeque::typenum::U4;
-  let mut c: GenericArrayDeque<i32, U4> = GenericArrayDeque::new();
+fn hybrid_arraydeque_push_and_accessors() {
+  use hybrid_arraydeque::typenum::U4;
+  let mut c: ArrayDeque<i32, U4> = ArrayDeque::new();
   assert!(Container::is_empty(&c));
   assert!(Container::first(&c).is_none());
   assert!(Container::last(&c).is_none());
@@ -173,9 +173,9 @@ fn generic_arraydeque_push_and_accessors() {
 }
 
 #[test]
-fn generic_arraydeque_push_overflow() {
-  use generic_arraydeque::typenum::U2;
-  let mut c: GenericArrayDeque<i32, U2> = GenericArrayDeque::new();
+fn hybrid_arraydeque_push_overflow() {
+  use hybrid_arraydeque::typenum::U2;
+  let mut c: ArrayDeque<i32, U2> = ArrayDeque::new();
   assert!(Container::push(&mut c, 1).is_ok());
   assert!(Container::push(&mut c, 2).is_ok());
   assert_eq!(Container::push(&mut c, 3), Err(3));

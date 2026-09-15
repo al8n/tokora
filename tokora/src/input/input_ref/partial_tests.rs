@@ -931,7 +931,7 @@ fn frontier_limit_trip_is_terminal_on_the_peek_fill() {
     ),
   );
   let (peeked, poisoned, after) = {
-    use generic_arraydeque::typenum::U4;
+    use hybrid_arraydeque::typenum::U4;
 
     // Born open: a fresh `Partial` input is non-final until a driver seals it.
     let mut inp = input.as_ref();
@@ -2282,9 +2282,9 @@ fn commit_probed_lexes_the_closer_once_under_every_cache() {
     LimLex<'_>,
     (
       Verbose<PErr>,
-      ::generic_arraydeque::GenericArrayDeque<
+      ::hybrid_arraydeque::ArrayDeque<
         crate::cache::CachedTokenOf<'_, LimLex<'_>>,
-        ::generic_arraydeque::typenum::U8,
+        ::hybrid_arraydeque::typenum::U8,
       >,
     ),
     (),
@@ -2325,7 +2325,7 @@ fn probe_close_cache_front_is_cursor_neutral_and_recovery_safe() {
   // (offset 2). Popping the closer eagerly at probe time would advance `cursor()` from 0 to 2
   // (over-including the closer in a `span_since`) and, if the caller errors before committing,
   // drop the popped closer while `b` survives (recovery would skip the closer).
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   // ── (a) cursor-neutral: probe_close must not advance over the cached closer ──
   {
@@ -2744,7 +2744,7 @@ fn commit_probed_rejects_a_rewound_payload() {
   );
   let mut inp = input.as_ref();
 
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   assert_eq!(
     inp

@@ -28,7 +28,7 @@ use super::*;
 ///
 /// ```ignore
 /// use tokora::parser::{ParseInput, Action};
-/// use generic_arraydeque::typenum::U1;
+/// use hybrid_arraydeque::typenum::U1;
 ///
 /// // Only parse identifier if it doesn't start with underscore
 /// let parser = identifier_parser()
@@ -43,7 +43,7 @@ use super::*;
 /// ## Multi-Token Validation
 ///
 /// ```ignore
-/// use generic_arraydeque::typenum::U2;
+/// use hybrid_arraydeque::typenum::U2;
 ///
 /// // Parse function only if next two tokens are "fn" and an identifier
 /// let parser = function_parser()

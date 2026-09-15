@@ -2,7 +2,6 @@ pub use delimited::*;
 pub use downcast::*;
 pub use escaped::*;
 pub use expected::*;
-pub use generic_arraydeque::GenericArrayDeque;
 pub use lexeme::*;
 
 pub use mayber::{Maybe, MaybeMut, MaybeRef, Owned, Ref};
@@ -12,8 +11,8 @@ pub use positioned_char::*;
 
 pub use to_equivalent::*;
 
-/// Re-export of generic-arraydeque for direct access.
-pub use generic_arraydeque::{self, typenum};
+/// Re-export of hybrid-arraydeque for direct access.
+pub use hybrid_arraydeque::{self as arraydeque, ArrayDeque, typenum};
 
 /// A module for custom comparing traits.
 pub mod cmp;

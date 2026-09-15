@@ -16,7 +16,7 @@
 //! part of the compared tuple: a capacity that drops a token and re-lexes it later shows up
 //! there as well as in the positions.
 
-use generic_arraydeque::typenum::{U1, U3};
+use hybrid_arraydeque::typenum::{U1, U3};
 
 use crate::{
   InputRef, Token, Window,

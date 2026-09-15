@@ -10,7 +10,7 @@
 mod common;
 
 use common::{TestLexer, Token, TokenKind};
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, cache::DefaultCache,
   emitter::Ignored, span::Spanned, utils::Expected,

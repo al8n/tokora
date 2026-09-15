@@ -28,7 +28,7 @@ use tokora::{
   input::Cursor,
   span::{SimpleSpan, Spanned},
   try_parse_input::ParseAttempt,
-  utils::{CowStr, GenericArrayDeque, marker::Ignored, typenum::U2},
+  utils::{ArrayDeque, CowStr, marker::Ignored, typenum::U2},
 };
 
 use common::{TestLexer, Token, TokenKind};
@@ -1708,7 +1708,7 @@ fn repeated_at_least_too_few_recovery() {
 // 33. handler/mod.rs — SeparatorHandler coverage for blackhole impls
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// The PhantomData and GenericArrayDeque SeparatorHandler impls (lines 47-49, 57-59, 75)
+// The PhantomData and ArrayDeque SeparatorHandler impls (lines 47-49, 57-59, 75)
 // are covered transitively via the separated parser collecting into Vec (which
 // uses Vec's SeparatorHandler). These are no-op impls invoked during parsing.
 
@@ -2080,7 +2080,7 @@ fn rlat_at_least_empty_input_recovery() {
 // Coverage tests for:
 // - `parser/many/handler/mod.rs` lines 47-49, 57-59, 75, 228-237, 245-254, 270, 277
 //   — SeparatorHandler and DelimiterHandler impls on `()`, `PhantomData<T>`,
-//     and `GenericArrayDeque` (exercised by running parsers that collect into those types)
+//     and `ArrayDeque` (exercised by running parsers that collect into those types)
 // - `emitter/mod.rs` lines 170, 177, 181, 188, 192, 196, 200, 204
 //   — `&mut U` delegation impl for `Emitter`
 // - `emitter/pratt.rs` lines 30, 37, 41, 48
@@ -2704,15 +2704,15 @@ fn separator_handler_phantom_data_via_parser() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// parser/many/handler/mod.rs — SeparatorHandler impl for GenericArrayDeque
+// parser/many/handler/mod.rs — SeparatorHandler impl for ArrayDeque
 // (line 75)
 //
-// Collect into GenericArrayDeque<i64, U2>.
+// Collect into ArrayDeque<i64, U2>.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 fn sep_into_gad<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-) -> Result<GenericArrayDeque<i64, U2>, Err>
+) -> Result<ArrayDeque<i64, U2>, Err>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = Err>
@@ -2733,7 +2733,7 @@ where
 #[test]
 fn separator_handler_gad_via_parser() {
   // Parse 2 elements (capacity of U2 GAD)
-  let r: Result<GenericArrayDeque<i64, U2>, _> = Parser::with_context(tracking_ctx())
+  let r: Result<ArrayDeque<i64, U2>, _> = Parser::with_context(tracking_ctx())
     .apply(sep_into_gad)
     .parse_str("1,2");
   assert!(r.is_ok());
@@ -2844,7 +2844,7 @@ fn delimiter_handler_phantom_data_via_parser() {
 
 fn delim_into_gad<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-) -> Result<GenericArrayDeque<i64, U2>, Err>
+) -> Result<ArrayDeque<i64, U2>, Err>
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = Err>
@@ -2866,7 +2866,7 @@ where
 
 #[test]
 fn delimiter_handler_gad_via_parser() {
-  let r: Result<GenericArrayDeque<i64, U2>, _> = Parser::with_context(tracking_ctx())
+  let r: Result<ArrayDeque<i64, U2>, _> = Parser::with_context(tracking_ctx())
     .apply(delim_into_gad)
     .parse_str("[1,2]");
   assert!(r.is_ok());

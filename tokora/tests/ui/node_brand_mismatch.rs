@@ -18,7 +18,7 @@
 
 use tokora::cst::{Element, Node, error::SyntaxError};
 use tokora::syntax::Syntax;
-use tokora::utils::{GenericArrayDeque, typenum::U0};
+use tokora::utils::{ArrayDeque, typenum::U0};
 
 use rowan::{Language, SyntaxNode};
 
@@ -72,12 +72,12 @@ impl Syntax for Crossed {
   type COMPONENTS = U0;
   type REQUIRED = U0;
 
-  fn possible_components() -> &'static GenericArrayDeque<Self::Component, U0> {
-    const C: &GenericArrayDeque<NoComponent, U0> = &GenericArrayDeque::from_array([]);
+  fn possible_components() -> &'static ArrayDeque<Self::Component, U0> {
+    const C: &ArrayDeque<NoComponent, U0> = &ArrayDeque::from_array([]);
     C
   }
-  fn required_components() -> &'static GenericArrayDeque<Self::Component, U0> {
-    const C: &GenericArrayDeque<NoComponent, U0> = &GenericArrayDeque::from_array([]);
+  fn required_components() -> &'static ArrayDeque<Self::Component, U0> {
+    const C: &ArrayDeque<NoComponent, U0> = &ArrayDeque::from_array([]);
     C
   }
 }

@@ -36,8 +36,8 @@ use std::rc::Rc;
 use std::vec::Vec;
 use tokora::EmitterView;
 
-use generic_arraydeque::GenericArrayDeque;
-use generic_arraydeque::typenum::{U1, U8};
+use hybrid_arraydeque::ArrayDeque;
+use hybrid_arraydeque::typenum::{U1, U8};
 use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, State,
   Token as TokenTrait, TryParseInput,
@@ -285,7 +285,7 @@ fn wide_cache_ctx() -> ParserContext<
   'static,
   PcLex<'static>,
   Fatal<PcErr>,
-  GenericArrayDeque<CachedTokenOf<'static, PcLex<'static>>, U8>,
+  ArrayDeque<CachedTokenOf<'static, PcLex<'static>>, U8>,
 > {
   ParserContext::new(Fatal::new())
 }

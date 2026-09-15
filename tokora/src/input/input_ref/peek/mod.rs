@@ -1,4 +1,4 @@
-use generic_arraydeque::GenericArrayDeque;
+use hybrid_arraydeque::ArrayDeque;
 
 use super::*;
 
@@ -56,10 +56,7 @@ fn cache_copy_endpoint_violation(copied: usize, staged: usize) -> ! {
 /// capacity branch inlined into the fill loop shape the register allocation of the arm that
 /// runs on every ordinary fill.
 #[inline(never)]
-fn stage_overflow<T, N: generic_arraydeque::ArrayLength>(
-  buf: &mut GenericArrayDeque<T, N>,
-  value: T,
-) {
+fn stage_overflow<T, N: hybrid_arraydeque::ArraySize>(buf: &mut ArrayDeque<T, N>, value: T) {
   // The fill's accounting proves the push is always accepted (see PEEK_FOOTPRINT); assert the
   // room in debug builds so a future change to it cannot silently drop a token. The predicate
   // is the window's own two numbers, not the cache's.
@@ -97,7 +94,7 @@ where
     Option<MaybeRefCachedTokenOf<'_, 'inp, L>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   > {
-    let mut buf = GenericArrayDeque::<_, U1>::new();
+    let mut buf = ArrayDeque::<_, U1>::new();
     self
       .peek_with_emitter_inner::<U1>(&mut buf, &mut false)
       .map(|_| buf.pop_front())
@@ -216,7 +213,7 @@ where
   where
     W: Window,
   {
-    let mut peeked = GenericArrayDeque::new();
+    let mut peeked = ArrayDeque::new();
     self
       .peek_with_emitter_inner::<W>(&mut peeked, &mut false)
       .map(|emitter| (peeked, EmitterView::new(emitter)))
@@ -254,7 +251,7 @@ where
   where
     W: Window,
   {
-    let mut peeked = GenericArrayDeque::new();
+    let mut peeked = ArrayDeque::new();
     let mut terminal = false;
     self
       .peek_with_emitter_inner::<W>(&mut peeked, &mut terminal)
@@ -888,7 +885,7 @@ where
   /// served whatever the poison latch says), and [`Cache::peek`](crate::cache::Cache::peek) is a
   /// `&self` read the trait documents as logically pure. All the shared route adds under that
   /// condition is arithmetic over the window slots, an overflow guard that stages nothing, and a
-  /// copy of the entry into a `GenericArrayDeque` that is popped straight back out — and the
+  /// copy of the entry into a `ArrayDeque` that is popped straight back out — and the
   /// token that copy denotes is the one handed over here.
   ///
   /// The end-of-input offset the fill's `None` arms need is not read on this route because those
@@ -1001,7 +998,7 @@ where
     // the window borrow (`peeked` ties to `&mut self`) must not overlap the read.
     let end = self.span().end();
     let (mut peeked, terminal, _emitter) =
-      self.peek_with_emitter_terminal::<generic_arraydeque::typenum::U1>()?;
+      self.peek_with_emitter_terminal::<hybrid_arraydeque::typenum::U1>()?;
     match peeked.pop_front() {
       Some(head) => {
         let out = f(Spanned::new(head.span(), head.token()));

@@ -1,4 +1,4 @@
-use generic_arraydeque::typenum::Unsigned;
+use hybrid_arraydeque::typenum::Unsigned;
 
 use super::*;
 
@@ -88,7 +88,7 @@ where
     Pred: FnMut(Spanned<&L::Token, &L::Span>) -> bool,
   {
     let mut output = init();
-    let mut buf = GenericArrayDeque::<_, W::CAPACITY>::new();
+    let mut buf = ArrayDeque::<_, W::CAPACITY>::new();
 
     loop {
       if buf.len() >= <W::CAPACITY as Unsigned>::USIZE {

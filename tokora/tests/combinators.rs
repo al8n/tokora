@@ -6,7 +6,7 @@ use common::E;
 use tokora::EmitterView;
 
 use common::{TestLexer, Token, TokenKind};
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Accumulator, Branch, Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput,
   Parser, ParserContext, Token as TokenTrait, TryParseInput,

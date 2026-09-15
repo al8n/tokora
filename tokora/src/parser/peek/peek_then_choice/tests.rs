@@ -1,4 +1,4 @@
-use generic_arraydeque::typenum::U2;
+use hybrid_arraydeque::typenum::U2;
 
 use crate::{
   Branch,

@@ -171,7 +171,7 @@
 use core::fmt::Write as _;
 use std::hint::black_box;
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Accumulator, Emitter, EmitterView, InputRef, Parse, ParseContext, ParseInput, Parser,
   TryParseInput,

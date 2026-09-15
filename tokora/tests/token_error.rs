@@ -254,7 +254,7 @@ fn recoverable_as_span_missing_branch() {
 
 use tokora::{
   syntax::{Language, Syntax},
-  utils::{GenericArrayDeque, typenum::U2},
+  utils::{ArrayDeque, typenum::U2},
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -288,9 +288,9 @@ impl Syntax for TestSyntaxNode {
   type COMPONENTS = U2;
   type REQUIRED = U2;
 
-  fn possible_components() -> &'static GenericArrayDeque<Self::Component, Self::COMPONENTS> {
-    static COMPONENTS: GenericArrayDeque<TestComponent, U2> = {
-      let mut deque = GenericArrayDeque::new();
+  fn possible_components() -> &'static ArrayDeque<Self::Component, Self::COMPONENTS> {
+    static COMPONENTS: ArrayDeque<TestComponent, U2> = {
+      let mut deque = ArrayDeque::new();
       deque.push_back(TestComponent::First);
       deque.push_back(TestComponent::Second);
       deque
@@ -298,9 +298,9 @@ impl Syntax for TestSyntaxNode {
     &COMPONENTS
   }
 
-  fn required_components() -> &'static GenericArrayDeque<Self::Component, Self::REQUIRED> {
-    static REQUIRED: GenericArrayDeque<TestComponent, U2> = {
-      let mut deque = GenericArrayDeque::new();
+  fn required_components() -> &'static ArrayDeque<Self::Component, Self::REQUIRED> {
+    static REQUIRED: ArrayDeque<TestComponent, U2> = {
+      let mut deque = ArrayDeque::new();
       deque.push_back(TestComponent::First);
       deque.push_back(TestComponent::Second);
       deque

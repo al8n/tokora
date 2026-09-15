@@ -194,7 +194,7 @@ fn txn_rollback_restores_everything() {
   // emitting the diagnostic); `rollback` un-latches it, and the committed path re-trips
   // — the diagnostic surviving exactly once, never a diagnostic-less latch.
   {
-    use generic_arraydeque::typenum::U6;
+    use hybrid_arraydeque::typenum::U6;
     let cache = DefaultCache::<'_, NumLexer<'_>>::default();
     let mut input = Input::<NumLexer<'_>, NumVerboseCtx<'_>, ()>::with_state_and_context(
       "1 2 3 4 5 6",
@@ -315,7 +315,7 @@ fn txn_over_limit_trip_rollback_reemits_exactly_once() {
   // rolling back un-emits it, and the committed path re-reaches the trip and re-emits —
   // exactly once in total, never zero.
   //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
 
   let cache = DefaultCache::<'_, NumLexer<'_>>::default();
   let mut input = Input::<NumLexer<'_>, NumVerboseCtx<'_>, ()>::with_state_and_context(
@@ -596,7 +596,7 @@ fn txn_drop_and_explicit_rollback_agree_after_state_surgery() {
   // debug-panicked as non-LIFO. Post-fix both restore identically, undoing the surgery: the
   // pre-surgery regime, poison boundary, dedup watermark, and position all return.
   //   "1 @ 3 4": `@` is a plain lexer error; the limit-2 limiter trips on the 3rd number.
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
 
   // Everything observable about the input after the enclosing transaction rolls back.
   #[derive(Debug, PartialEq)]

@@ -14,7 +14,7 @@ use tokora::EmitterView;
 // Uses a recovering emitter (returns Ok(())) so the parser continues past
 // errors and exercises recovery code paths.
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
   SimpleSpan, Token as TokenTrait, TryParseInput,

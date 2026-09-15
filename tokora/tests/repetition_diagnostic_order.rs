@@ -85,7 +85,7 @@ use tokora::{
   punct::Bracket,
   try_parse_input::ParseAttempt,
   utils::{
-    GenericArrayDeque,
+    ArrayDeque,
     typenum::{U1, U2},
   },
 };
@@ -179,8 +179,8 @@ impl<S, Lang: ?Sized> From<TooMany<S, Lang>> for Diag {
 type VCtx<'inp> = ParserContext<'inp, TestLexer<'inp>, Verbose<Diag>>;
 type FCtx<'inp> = ParserContext<'inp, TestLexer<'inp>, Fatal<Diag>>;
 
-type Cap1 = GenericArrayDeque<i64, U1>;
-type Cap2 = GenericArrayDeque<i64, U2>;
+type Cap1 = ArrayDeque<i64, U1>;
+type Cap2 = ArrayDeque<i64, U2>;
 
 fn try_num<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,

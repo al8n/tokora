@@ -486,7 +486,7 @@ assert_eq!(Punct::Comma.require(), Err(Punct::Comma));
 | [`sdl_display`](crate::utils::sdl_display) | `DisplaySDL` / `DisplayCompact` / `DisplayPretty` — schema-style rendering |
 | [`syntax_tree_display`](crate::utils::syntax_tree_display) | `DisplaySyntaxTree` — S-expression-style tree rendering |
 | [`IntoComponents`](crate::utils::IntoComponents) / [`IsAsciiChar`](crate::utils::IsAsciiChar) / [`CharLen`](crate::utils::CharLen) | decompose a parsed element / classify a byte-or-char / byte-length of a char |
-| [`GenericArrayDeque`](crate::utils::GenericArrayDeque) + [`typenum`](crate::utils::typenum) | the const-capacity ring buffer used by the bounded caches/containers |
+| [`ArrayDeque`](crate::utils::ArrayDeque) + [`typenum`](crate::utils::typenum) | the const-capacity ring buffer used by the bounded caches/containers |
 | `Maybe` / `MaybeRef` / `MaybeMut` / `Owned` / `Ref` | owned-or-borrowed helpers (re-exported from `mayber`) |
 
 Every punctuator and keyword type implements the three display traits, so a vocabulary node renders
@@ -536,8 +536,8 @@ currently-supported versioned feature (`bytes_1`), which pulls the optional depe
 
 | Feature | Enables | Implies (per `Cargo.toml`) | no_std posture |
 |---------|---------|----------------------------|----------------|
-| `std` *(default)* | the `std` library and the `default` features of every active dependency | `generic-arraydeque/default`, `thiserror/default`, `mayber/default`, and `<dep>?/default` for each active backend/logos version | requires `std` |
-| `alloc` | `Vec`/`String`-backed containers and drivers without `std` — **not** a dynamic cache: every cache is compile-time bounded and `Window` is sealed at U1–U32, so lookahead past 32 is a transaction's job, not a buffer's | `generic-arraydeque/alloc`, `mayber/alloc`, `tinyvec_1?/alloc` | no_std **+ allocator** |
+| `std` *(default)* | the `std` library and the `default` features of every active dependency | `hybrid-arraydeque/default`, `thiserror/default`, `mayber/default`, and `<dep>?/default` for each active backend/logos version | requires `std` |
+| `alloc` | `Vec`/`String`-backed containers and drivers without `std` — **not** a dynamic cache: every cache is compile-time bounded and `Window` is sealed at U1–U32, so lookahead past 32 is a transaction's job, not a buffer's | `hybrid-arraydeque/alloc`, `mayber/alloc`, `tinyvec_1?/alloc` | no_std **+ allocator** |
 | *(neither)* | core-only parsing with bounded (array) caches/containers | — | no_std, **no alloc** |
 | `default` | what a plain dependency line gets | `std`, `combinators` | requires `std` |
 

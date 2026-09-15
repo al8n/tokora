@@ -10,8 +10,8 @@
 //!   in two chapters;
 //! * the same line written **with a body**, which asserts a default the trait does not have —
 //!   the half that costs somebody writing a custom lexer;
-//! * `Syntax::{COMPONENTS, REQUIRED}` written `: ArrayLength` where both carry
-//!   `ArrayLength + Debug + Eq + Hash`.
+//! * `Syntax::{COMPONENTS, REQUIRED}` written `: ArraySize` where both carry
+//!   `ArraySize + Debug + Eq + Hash`.
 //!
 //! `GUIDE_EVENT_CENSUS` (`cst/event.rs`) is the shape that closes this class, and this module is
 //! that shape generalised. The generalisation is one change: **the coupling moves out of Rust and

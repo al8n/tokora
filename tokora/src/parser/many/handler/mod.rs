@@ -1,4 +1,4 @@
-use generic_arraydeque::{ArrayLength, GenericArrayDeque};
+use hybrid_arraydeque::{ArrayDeque, ArraySize};
 
 use crate::{
   Emitter, Lexer, ParseContext,
@@ -106,9 +106,9 @@ blackhole_separator_handler!(());
 blackhole_separator_handler!(@generic core::marker::PhantomData<T>);
 blackhole_separator_handler!(@generic crate::utils::marker::Ignored<T>);
 
-impl<'inp, L, T, N> SeparatorHandler<'inp, L> for GenericArrayDeque<T, N>
+impl<'inp, L, T, N> SeparatorHandler<'inp, L> for ArrayDeque<T, N>
 where
-  N: ArrayLength,
+  N: ArraySize,
 {
   const OBSERVES_SEPARATORS: bool = false;
 
@@ -319,9 +319,9 @@ blackhole_delimiter_handler!(());
 blackhole_delimiter_handler!(@generic core::marker::PhantomData<T>);
 blackhole_delimiter_handler!(@generic crate::utils::marker::Ignored<T>);
 
-impl<'inp, L, T, N> DelimiterHandler<'inp, L> for GenericArrayDeque<T, N>
+impl<'inp, L, T, N> DelimiterHandler<'inp, L> for ArrayDeque<T, N>
 where
-  N: ArrayLength,
+  N: ArraySize,
 {
   #[inline(always)]
   fn on_open_delimiter(&mut self, _: Spanned<L::Token, L::Span>)

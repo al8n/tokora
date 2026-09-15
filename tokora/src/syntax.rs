@@ -17,7 +17,7 @@
 //!
 //! ```rust
 //! # {
-//! use tokora::{SimpleSpan, utils::{typenum::{self, U3}, GenericArrayDeque}, syntax::{Syntax, Language}, error::IncompleteSyntax};
+//! use tokora::{SimpleSpan, utils::{typenum::{self, U3}, ArrayDeque}, syntax::{Syntax, Language}, error::IncompleteSyntax};
 //! use core::fmt;
 //!
 //! #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -53,9 +53,9 @@
 //!     type COMPONENTS = U3;
 //!     type REQUIRED = U3;
 //!
-//!     fn possible_components() -> &'static GenericArrayDeque<Self::Component, U3> {
-//!         static COMPONENTS: GenericArrayDeque<WhileComponent, U3> = {
-//!             let mut deque = GenericArrayDeque::new();
+//!     fn possible_components() -> &'static ArrayDeque<Self::Component, U3> {
+//!         static COMPONENTS: ArrayDeque<WhileComponent, U3> = {
+//!             let mut deque = ArrayDeque::new();
 //!             deque.push_back(WhileComponent::WhileKeyword);
 //!             deque.push_back(WhileComponent::Condition);
 //!             deque.push_back(WhileComponent::Body);
@@ -64,9 +64,9 @@
 //!         &COMPONENTS
 //!     }
 //!
-//!     fn required_components() -> &'static GenericArrayDeque<Self::Component, Self::REQUIRED> {
-//!         static REQUIRED: GenericArrayDeque<WhileComponent, U3> = {
-//!             let mut deque = GenericArrayDeque::new();
+//!     fn required_components() -> &'static ArrayDeque<Self::Component, Self::REQUIRED> {
+//!         static REQUIRED: ArrayDeque<WhileComponent, U3> = {
+//!             let mut deque = ArrayDeque::new();
 //!             deque.push_back(WhileComponent::WhileKeyword);
 //!             deque.push_back(WhileComponent::Condition);
 //!             deque.push_back(WhileComponent::Body);
@@ -80,7 +80,7 @@
 //! assert_eq!(error.len(), 1);
 //! # }
 //! ```
-use generic_arraydeque::ArrayLength;
+use hybrid_arraydeque::ArraySize;
 
 use core::{
   fmt::{Debug, Display},
@@ -96,13 +96,13 @@ use core::{
 /// # Type Parameters
 ///
 /// - `Component`: The type representing individual syntax components (usually an enum)
-/// - `COMPONENTS`: A type-level unsigned integer (via `ArrayLength`) specifying component count
+/// - `COMPONENTS`: A type-level unsigned integer (via `ArraySize`) specifying component count
 ///
 /// # Examples
 ///
 /// ```rust
 /// # {
-/// use tokora::{utils::{typenum, GenericArrayDeque}, syntax::{Syntax, Language}};
+/// use tokora::{utils::{typenum, ArrayDeque}, syntax::{Syntax, Language}};
 /// use typenum::U5;
 /// use core::fmt;
 ///
@@ -143,9 +143,9 @@ use core::{
 ///     type COMPONENTS = U5;
 ///     type REQUIRED = U5;
 ///
-///     fn possible_components() -> &'static GenericArrayDeque<Self::Component, Self::COMPONENTS> {
-///         static COMPONENTS: GenericArrayDeque<LetStatementComponent, typenum::U5> = {
-///             let mut deque = GenericArrayDeque::new();
+///     fn possible_components() -> &'static ArrayDeque<Self::Component, Self::COMPONENTS> {
+///         static COMPONENTS: ArrayDeque<LetStatementComponent, typenum::U5> = {
+///             let mut deque = ArrayDeque::new();
 ///             deque.push_back(LetStatementComponent::LetKeyword);
 ///             deque.push_back(LetStatementComponent::Identifier);
 ///             deque.push_back(LetStatementComponent::Equals);
@@ -156,9 +156,9 @@ use core::{
 ///         &COMPONENTS
 ///     }
 ///
-///     fn required_components() -> &'static GenericArrayDeque<Self::Component, Self::REQUIRED> {
-///         static REQUIRED: GenericArrayDeque<LetStatementComponent, typenum::U5> = {
-///             let mut deque = GenericArrayDeque::new();
+///     fn required_components() -> &'static ArrayDeque<Self::Component, Self::REQUIRED> {
+///         static REQUIRED: ArrayDeque<LetStatementComponent, typenum::U5> = {
+///             let mut deque = ArrayDeque::new();
 ///             deque.push_back(LetStatementComponent::LetKeyword);
 ///             deque.push_back(LetStatementComponent::Identifier);
 ///             deque.push_back(LetStatementComponent::Equals);
@@ -208,7 +208,7 @@ pub trait Syntax {
   ///     // ...
   /// }
   /// ```
-  type COMPONENTS: ArrayLength + Debug + Eq + Hash;
+  type COMPONENTS: ArraySize + Debug + Eq + Hash;
 
   /// The number of required components in this syntax, represented as a type-level unsigned integer.
   ///
@@ -225,7 +225,7 @@ pub trait Syntax {
   ///     // ...
   /// }
   /// ```
-  type REQUIRED: ArrayLength + Debug + Eq + Hash;
+  type REQUIRED: ArraySize + Debug + Eq + Hash;
 
   /// Returns a static reference to all possible components for this syntax.
   ///
@@ -238,9 +238,9 @@ pub trait Syntax {
   /// Implementations should use a `static` item initialized in a const context:
   ///
   /// ```rust,ignore
-  /// fn possible_components() -> &'static GenericArrayDeque<Self::Component, Self::COMPONENTS> {
-  ///     static COMPONENTS: GenericArrayDeque<MyComponent, U3> = {
-  ///         let mut deque = GenericArrayDeque::new();
+  /// fn possible_components() -> &'static ArrayDeque<Self::Component, Self::COMPONENTS> {
+  ///     static COMPONENTS: ArrayDeque<MyComponent, U3> = {
+  ///         let mut deque = ArrayDeque::new();
   ///         // Push components in const context
   ///         deque.push_back(MyComponent::Foo);
   ///         deque.push_back(MyComponent::Bar);
@@ -260,7 +260,7 @@ pub trait Syntax {
   /// }
   /// ```
   fn possible_components()
-  -> &'static generic_arraydeque::GenericArrayDeque<Self::Component, Self::COMPONENTS>;
+  -> &'static hybrid_arraydeque::ArrayDeque<Self::Component, Self::COMPONENTS>;
 
   /// Returns a static reference to all required components for this syntax.
   ///
@@ -273,9 +273,9 @@ pub trait Syntax {
   /// Implementations should use a `static` item initialized in a const context:
   ///
   /// ```rust,ignore
-  /// fn required_components() -> &'static GenericArrayDeque<Self::Component, Self::REQUIRED> {
-  ///     static REQUIRED: GenericArrayDeque<MyComponent, U2> = {
-  ///         let mut deque = GenericArrayDeque::new();
+  /// fn required_components() -> &'static ArrayDeque<Self::Component, Self::REQUIRED> {
+  ///     static REQUIRED: ArrayDeque<MyComponent, U2> = {
+  ///         let mut deque = ArrayDeque::new();
   ///         deque.push_back(MyComponent::Foo);
   ///         deque.push_back(MyComponent::Bar);
   ///         deque
@@ -290,8 +290,7 @@ pub trait Syntax {
   /// let required = MySyntax::required_components();
   /// assert_eq!(required.len(), 2);
   /// ```
-  fn required_components()
-  -> &'static generic_arraydeque::GenericArrayDeque<Self::Component, Self::REQUIRED>;
+  fn required_components() -> &'static hybrid_arraydeque::ArrayDeque<Self::Component, Self::REQUIRED>;
 }
 
 /// A trait representing an AST node associated with a syntax definition.
@@ -332,7 +331,7 @@ pub trait Syntax {
 ///
 /// ```rust
 /// # {
-/// use tokora::{SimpleSpan, utils::{GenericArrayDeque, typenum::U2}, syntax::{Syntax, AstNode, Language}, error::IncompleteSyntax};
+/// use tokora::{SimpleSpan, utils::{ArrayDeque, typenum::U2}, syntax::{Syntax, AstNode, Language}, error::IncompleteSyntax};
 /// use core::fmt;
 ///
 /// // Define a language
@@ -369,13 +368,13 @@ pub trait Syntax {
 ///     type COMPONENTS = U2;
 ///     type REQUIRED = U2;
 ///
-///     fn possible_components() -> &'static GenericArrayDeque<Self::Component, Self::COMPONENTS> {
-///         const COMPONENTS: &GenericArrayDeque<VariableComponent, U2> = &GenericArrayDeque::from_array([VariableComponent::Dollar, VariableComponent::Name]);
+///     fn possible_components() -> &'static ArrayDeque<Self::Component, Self::COMPONENTS> {
+///         const COMPONENTS: &ArrayDeque<VariableComponent, U2> = &ArrayDeque::from_array([VariableComponent::Dollar, VariableComponent::Name]);
 ///         COMPONENTS
 ///     }
 ///
-///     fn required_components() -> &'static GenericArrayDeque<Self::Component, Self::REQUIRED> {
-///         const REQUIRED: &GenericArrayDeque<VariableComponent, U2> = &GenericArrayDeque::from_array([VariableComponent::Dollar, VariableComponent::Name]);
+///     fn required_components() -> &'static ArrayDeque<Self::Component, Self::REQUIRED> {
+///         const REQUIRED: &ArrayDeque<VariableComponent, U2> = &ArrayDeque::from_array([VariableComponent::Dollar, VariableComponent::Name]);
 ///         REQUIRED
 ///     }
 /// }

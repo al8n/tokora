@@ -37,7 +37,7 @@ use tokora::{
     token::{MissingToken, SeparatedError, UnexpectedToken},
   },
   try_parse_input::ParseAttempt,
-  utils::{GenericArrayDeque, typenum::U1},
+  utils::{ArrayDeque, typenum::U1},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -130,7 +130,7 @@ fn fatal_ctx<'inp>() -> FCtx<'inp> {
   ParserContext::new(Fatal::new())
 }
 
-type Cap1 = GenericArrayDeque<i64, U1>;
+type Cap1 = ArrayDeque<i64, U1>;
 
 thread_local! {
   /// How many times the element parser was entered in the current parse.

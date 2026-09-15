@@ -26,7 +26,7 @@
 
 use std::{vec, vec::Vec};
 
-use generic_arraydeque::typenum::U4;
+use hybrid_arraydeque::typenum::U4;
 
 use super::{
   fixtures::{FuzzCtx, FuzzError, FuzzKind, FuzzTok, ScriptLexer, kind_of},

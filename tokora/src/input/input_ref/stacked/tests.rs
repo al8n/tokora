@@ -252,7 +252,7 @@ fn stacked_savepoint_over_limit_trip_reemits_exactly_once() {
   // A savepoint taken before an overflow trip, rolled back to, then re-reached on the
   // committed path: the limit diagnostic is emitted exactly once in total, never zero.
   //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
 
   let cache = DefaultCache::<'_, NumLexer<'_>>::default();
   let mut input = Input::<NumLexer<'_>, NumVerboseCtx<'_>, ()>::with_state_and_context(
@@ -519,7 +519,7 @@ fn stacked_savepoint_survives_state_surgery() {
   // it restores the regime, the poison boundary, the dedup watermark, and the position, and
   // scanning resumes under the OLD regime.
   //   "1 @ 3 4": `@` is a plain lexer error; the limit-2 limiter trips on the 3rd number.
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
 
   let cache = DefaultCache::<'_, NumLexer<'_>>::default();
   let mut input = Input::<NumLexer<'_>, NumVerboseCtx<'_>, ()>::with_state_and_context(
