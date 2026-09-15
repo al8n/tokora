@@ -3,7 +3,7 @@
 //! This module provides the `Errors` type for collecting multiple errors during parsing
 //! or validation. The container automatically adapts based on available features:
 //!
-//! - **no_std (no alloc)**: Uses `ConstArrayDeque<E, 2>` with fixed capacity of 2 errors
+//! - **no_std (no alloc)**: Uses `ArrayDequeN<E, 2>` with fixed capacity of 2 errors
 //! - **alloc/std**: Uses `VecDeque<E>` for unlimited error collection
 //!
 //! # Examples
@@ -37,18 +37,18 @@
 use core::fmt::{Debug, Display};
 
 #[cfg(not(any(feature = "alloc", feature = "std")))]
-use hybrid_arraydeque::ConstArrayDeque;
+use hybrid_arraydeque::ArrayDequeN;
 
 #[cfg(any(feature = "alloc", feature = "std"))]
 use std::collections::VecDeque;
 
 /// Default error container for no-alloc environments.
 ///
-/// Uses a stack-allocated `ConstArrayDeque` with capacity for 2 errors.
+/// Uses a stack-allocated `ArrayDequeN` with capacity for 2 errors.
 /// When the capacity is exceeded, additional errors are dropped and
 /// [`Errors::overflowed`](Errors::overflowed) becomes `true`.
 #[cfg(not(any(feature = "alloc", feature = "std")))]
-pub type DefaultContainer<E> = ConstArrayDeque<E, 2>;
+pub type DefaultContainer<E> = ArrayDequeN<E, 2>;
 
 /// Default error container for alloc/std environments.
 ///
@@ -60,7 +60,7 @@ pub type DefaultContainer<E> = VecDeque<E>;
 ///
 /// This type is generic over both the error type `E` and the container `C`.
 /// By default:
-/// - In no-alloc environments: Uses `ConstArrayDeque<E, 2>` (capacity of 2)
+/// - In no-alloc environments: Uses `ArrayDequeN<E, 2>` (capacity of 2)
 /// - In alloc/std environments: Uses `VecDeque<E>` (unlimited capacity)
 ///
 /// # Type Parameters
@@ -153,12 +153,12 @@ pub struct Errors<E, C = DefaultContainer<E>> {
   _phantom: core::marker::PhantomData<E>,
 }
 
-// Implementation for no-alloc environments (ConstArrayDeque)
+// Implementation for no-alloc environments (ArrayDequeN)
 #[cfg(not(any(feature = "alloc", feature = "std")))]
 impl<E> Errors<E> {
   /// Creates a new empty error collection.
   ///
-  /// In no-alloc environments, this creates a `ConstArrayDeque` with capacity 2.
+  /// In no-alloc environments, this creates a `ArrayDequeN` with capacity 2.
   ///
   /// # Examples
   ///
