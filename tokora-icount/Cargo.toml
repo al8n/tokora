@@ -57,17 +57,9 @@ tokora = { path = "../tokora", default-features = false, features = [
   "combinators",
 ] }
 
-# `src/workloads.rs` names `generic_arraydeque::typenum::U1` directly, to size the peek window
-# the `*_while` families' `Decision` callback is handed. It is a public dependency of tokora —
-# the window type appears in tokora's own signatures — and the requirement here is the same
-# `0.2` with the same features, so cargo resolves ONE copy and the typenum types match.
-generic-arraydeque = { version = "0.2", default-features = false, features = ["unstable"] }
-
-# `logos` itself is NOT a dependency: the workloads reach it as `tokora::logos`, the re-export
-# tokora publishes for whichever logos major its features select, and the `#[logos(crate =
-# logos)]` attribute resolves against that import. Depending on logos here would let this
-# package's copy drift from the one tokora derives against — and on the base side of a
-# comparison, "the two sides linked different logos versions" would read as a regression.
+hybrid-arraydeque = { version = "0.1", default-features = false, features = [
+  "unstable",
+] }
 
 [lints]
 workspace = true

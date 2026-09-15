@@ -4,14 +4,6 @@
 #![cfg_attr(docsrs, allow(unused_attributes))]
 #![allow(clippy::double_parens, clippy::type_complexity)]
 #![deny(missing_docs, warnings)]
-// `generic_arraydeque`'s capacity bound is proved through `IsWithinUsizeBound`, a type-level
-// `Shl` chain whose depth tracks the 64-bit word width, not the deque's own capacity — a fixed
-// cost of that bound, not a defect here, and the standard remedy for typenum-bounded code.
-// `recursion_depth_exceeding_limit` (rust-lang/rust#159228) is future-incompat and becomes a
-// hard error; it fires against typenum < 1.20.1 (bisected floor: 137), which a resolver can
-// still land on since neither this crate nor `generic-arraydeque` pins the fix directly. 256
-// keeps a comfortable margin over that floor.
-#![recursion_limit = "256"]
 // With `unstable-raw` off, `InputRef::{save, restore, commit}` are `pub(crate)`, so the many
 // public items documenting the raw checkpoint contract (the `Checkpoint` type, the transaction
 // guards, `ParseState`, `attempt`) link to crate-private methods. Those links are intentionally
@@ -125,7 +117,7 @@ pub mod syntax;
 /// Utility types and helpers for lexing and parsing.
 ///
 /// Contains common utilities including:
-/// - Generic array deque and type-level numbers (re-exported from `generic-arraydeque`)
+/// - Generic array deque and type-level numbers (re-exported from `hybrid-arraydeque`)
 /// - Delimited and escaped sequence helpers
 /// - Display traits for human-readable, SDL, and syntax tree output
 /// - Positioned character iterators
@@ -136,7 +128,7 @@ pub mod utils;
 ///
 /// Defines the [`Container`](container::Container) trait for types that can accumulate
 /// parsing results. Implemented for standard collections like `Vec`, arrays, and
-/// `GenericArrayDeque`, enabling parsers to collect multiple elements into containers.
+/// `ArrayDeque`, enabling parsers to collect multiple elements into containers.
 pub mod container;
 
 /// Atomically composable error handling and reporting.
@@ -243,7 +235,7 @@ pub mod state;
 /// Defines the [`Cache`] trait for buffering tokens to enable lookahead
 /// and backtracking operations. The complete set of implementations is three, all
 /// bounded at compile time:
-/// - `GenericArrayDeque<_, N>`: a fixed-capacity ring (`DefaultCache` is this at `U3`)
+/// - `ArrayDeque<_, N>`: a fixed-capacity ring (`DefaultCache` is this at `U3`)
 /// - `Option<CachedToken<..>>`: capacity 1
 /// - `()`: capacity 0 — no caching, for streaming-only scenarios
 ///

@@ -27,7 +27,7 @@ mod common;
 use common::E;
 use tokora::EmitterView;
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
   SimpleSpan, TryParseInput,

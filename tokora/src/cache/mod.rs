@@ -1,4 +1,4 @@
-use ::generic_arraydeque::{GenericArrayDeque, typenum::U1};
+use ::hybrid_arraydeque::{ArrayDeque, typenum::U1};
 use mayber::Maybe;
 
 use crate::{
@@ -8,24 +8,22 @@ use crate::{
 };
 
 mod blackhole;
-mod generic_arraydeque;
+mod hybrid_arraydeque;
 mod option;
 
 /// A peeked buffer of tokens from the lexer.
-pub type Peeked<'p, 'inp, L, W> = ::generic_arraydeque::GenericArrayDeque<
-  MaybeRefCachedTokenOf<'p, 'inp, L>,
-  <W as Window>::CAPACITY,
->;
+pub type Peeked<'p, 'inp, L, W> =
+  ::hybrid_arraydeque::ArrayDeque<MaybeRefCachedTokenOf<'p, 'inp, L>, <W as Window>::CAPACITY>;
 
 /// A peeked buffer of tokens from the lexer.
-pub type PeekedToken<'p, 'inp, L, W> = ::generic_arraydeque::GenericArrayDeque<
+pub type PeekedToken<'p, 'inp, L, W> = ::hybrid_arraydeque::ArrayDeque<
   MaybeRefCachedTokenOf<'p, 'inp, L, <L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
   <W as Window>::CAPACITY,
 >;
 
 /// The default cache type used by the lexer.
 pub type DefaultCache<'a, L> =
-  ::generic_arraydeque::GenericArrayDeque<CachedTokenOf<'a, L>, ::generic_arraydeque::typenum::U3>;
+  ::hybrid_arraydeque::ArrayDeque<CachedTokenOf<'a, L>, ::hybrid_arraydeque::typenum::U3>;
 
 /// A trait for caching lookahead tokens in the tokenizer.
 ///
@@ -45,7 +43,7 @@ pub type DefaultCache<'a, L> =
 ///
 /// The complete inventory is three, all bounded at compile time:
 ///
-/// - `GenericArrayDeque<_, N>` — a fixed-capacity ring, `N` a `typenum` bound.
+/// - `ArrayDeque<_, N>` — a fixed-capacity ring, `N` a `typenum` bound.
 ///   [`DefaultCache`] is this at `U3`.
 /// - `Option<CachedToken<..>>` — capacity 1, the smallest cache that can still retain the front.
 /// - `()` — capacity 0: no caching at all, for streaming-only use without lookahead.
@@ -346,7 +344,7 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
     'a: 'c,
     L: Lexer<'a>,
   {
-    let mut buf = GenericArrayDeque::new();
+    let mut buf = ArrayDeque::new();
     self.peek::<U1>(&mut buf);
     buf.pop_front()
   }
@@ -380,10 +378,8 @@ pub trait Cache<'a, L, Lang: ?Sized = ()>: 'a {
   ///   `buf.capacity()` on the paths that reach this call already holding the parked token or
   ///   staged overflow, and equal to it on a cache hit or an overflow-free fill, where `buf`
   ///   arrives empty.
-  fn peek<'p, W>(
-    &'p self,
-    buf: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
-  ) where
+  fn peek<'p, W>(&'p self, buf: &mut ArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>)
+  where
     W: Window,
     L: Lexer<'a>;
 

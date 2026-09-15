@@ -483,7 +483,7 @@ DOCS_RS_MAP = {
   "crate::utils::Expected": "utils/enum.Expected.html",
   "crate::utils::Expected::one": "utils/enum.Expected.html#method.one",
   "crate::utils::Expected::one_of": "utils/enum.Expected.html#method.one_of",
-  "crate::utils::GenericArrayDeque": "utils/struct.GenericArrayDeque.html",
+  "crate::utils::ArrayDeque": "utils/struct.ArrayDeque.html",
   "crate::utils::IntoComponents": "utils/trait.IntoComponents.html",
   "crate::utils::IsAsciiChar": "utils/trait.IsAsciiChar.html",
   "crate::utils::Lexeme": "utils/enum.Lexeme.html",

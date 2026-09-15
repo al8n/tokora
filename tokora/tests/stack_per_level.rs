@@ -45,7 +45,7 @@ mod common;
 
 use core::cell::RefCell;
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Accumulator, Emitter, EmitterView, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser,
   ParserContext, Token as TokenTrait,

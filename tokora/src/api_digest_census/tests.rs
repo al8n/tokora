@@ -141,13 +141,13 @@ fn the_census_reds_on_the_drift_it_claims() {
   for member in ["COMPONENTS", "REQUIRED"] {
     let real = if member == "COMPONENTS" {
       (
-        "type COMPONENTS: ArrayLength + Debug + Eq + Hash;   // type-level count (typenum, via generic-arraydeque)",
-        "type COMPONENTS: ArrayLength;   // type-level count (typenum, via generic-arraydeque)",
+        "type COMPONENTS: ArraySize + Debug + Eq + Hash;   // type-level count (typenum, via hybrid-arraydeque)",
+        "type COMPONENTS: ArraySize;   // type-level count (typenum, via hybrid-arraydeque)",
       )
     } else {
       (
-        "type REQUIRED:   ArrayLength + Debug + Eq + Hash;   // type-level count of the required subset",
-        "type REQUIRED:   ArrayLength;   // type-level count of the required subset",
+        "type REQUIRED:   ArraySize + Debug + Eq + Hash;   // type-level count of the required subset",
+        "type REQUIRED:   ArraySize;   // type-level count of the required subset",
       )
     };
     let planted = patch(&files, "guide/ref_types_syntax.md", real.0, real.1);

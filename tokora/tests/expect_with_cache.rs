@@ -14,7 +14,7 @@ mod common;
 use common::E;
 use tokora::EmitterView;
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
   Token as TokenTrait, TryParseInput,
@@ -766,7 +766,7 @@ fn consume_cached_multiple_sequential() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    use generic_arraydeque::typenum::U3;
+    use hybrid_arraydeque::typenum::U3;
     // Populate cache with 3 tokens
     let _ = inp.peek::<U3>()?;
     let mut results = Vec::new();
@@ -792,7 +792,7 @@ fn consume_cached_to_stops_at_predicate() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    use generic_arraydeque::typenum::U3;
+    use hybrid_arraydeque::typenum::U3;
     // Populate cache: 1, 2, 3
     let _ = inp.peek::<U3>()?;
     // consume_cached_to: consume until we hit Num(3) — stop AT 3
@@ -822,7 +822,7 @@ fn consume_cached_while_consumes_matching() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    use generic_arraydeque::typenum::U3;
+    use hybrid_arraydeque::typenum::U3;
     // Fill cache: 1, ,, 3
     let _ = inp.peek::<U3>()?;
     // consume while Num
@@ -847,7 +847,7 @@ fn consume_all_cached_multiple_tokens() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
   {
-    use generic_arraydeque::typenum::U3;
+    use hybrid_arraydeque::typenum::U3;
     // Populate cache with 3 tokens
     let _ = inp.peek::<U3>()?;
     // consume_all_cached returns the last token

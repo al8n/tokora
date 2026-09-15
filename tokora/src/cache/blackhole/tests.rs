@@ -81,9 +81,9 @@ fn unit_cache_push_back_returns_err() {
 
 #[test]
 fn unit_cache_peek_is_noop() {
-  use generic_arraydeque::typenum::U1;
+  use hybrid_arraydeque::typenum::U1;
   let cache: () = ();
-  let mut buf = GenericArrayDeque::new();
+  let mut buf = ArrayDeque::new();
   <() as Cache<'_, crate::lexer::DummyLexer>>::peek::<U1>(&cache, &mut buf);
   assert!(buf.is_empty());
 }

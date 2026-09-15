@@ -651,7 +651,7 @@ fn restore_after_peek_across_lexer_error_reemits_error_exactly_once() {
   );
 
   {
-    use generic_arraydeque::typenum::U2;
+    use hybrid_arraydeque::typenum::U2;
     let mut inp = input.as_ref();
 
     // Peek a window that crosses the malformed `@`; this emits (seals) its lexer
@@ -698,7 +698,7 @@ fn restore_drops_cache_entries_from_abandoned_lineage() {
   //   1 @ 2 3
   //   0 . 4 6      (`@` spans [2, 3); high limit so only the plain lexer error is in play)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::{U1, U3};
+  use hybrid_arraydeque::typenum::{U1, U3};
 
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_context(
@@ -766,7 +766,7 @@ fn restore_option_cache_capacity_one_reemits_error_once() {
   // surviving pre-save entry.
   //   1 @ 2 3      (`@` spans [2, 3))
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::{U1, U2};
+  use hybrid_arraydeque::typenum::{U1, U2};
 
   let cache: ProbeOptionCache<'_> = None;
   let mut input = Input::<ProbeLexer<'_>, ProbeOptionVerboseCtx<'_>, ()>::with_state_and_context(
@@ -829,7 +829,7 @@ fn nested_restore_retains_pre_save_cache_entries() {
   // observes every scan, makes that re-lex visible as a nonzero delta across one `next()`.
   //   1 2 3 4 5   (all valid Nums; a `usize::MAX` limit never trips)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::{U1, U3};
+  use hybrid_arraydeque::typenum::{U1, U3};
 
   let limiter = ProbeLimiter::with_limit(usize::MAX);
   let scanned = limiter.counter();
@@ -910,7 +910,7 @@ fn nested_restore_with_shared_limiter_no_spurious_poison() {
   // and a limit diagnostic this checkpoint's lineage never produced.
   //   1 2 3 4 5   (limit 7)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::{U1, U3};
+  use hybrid_arraydeque::typenum::{U1, U3};
 
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_context(
@@ -982,7 +982,7 @@ fn consumed_pre_save_cache_entry_relexes_identically_on_restore() {
   // skip the re-lex would alter the scan counts or the stream below and trip it.
   //   1 @ 2 3      (`@` is a lexer error spanning [2, 3); the limit never trips)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U1;
+  use hybrid_arraydeque::typenum::U1;
 
   const SRC: &str = "1 @ 2 3";
 
@@ -1177,7 +1177,7 @@ fn consume_all_cached_then_restore_replays_faithfully() {
   // the re-lex would alter the stream, the diagnostics, or the recount below and trip it.
   //   1 @ 2 3 4 5      (`@` is a lexer error spanning [2, 3))
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   const SRC: &str = "1 @ 2 3 4 5";
 
@@ -1267,7 +1267,7 @@ fn non_lifo_watermark_restore_is_rejected_in_debug() {
     crate::input::InputContext::new(Verbose::<ProbeErr>::new(), cache),
   );
 
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
   let mut inp = input.as_ref();
 
   let a = inp.save(); // older, predates the sealed `@`
@@ -1297,7 +1297,7 @@ fn restore_before_overflow_trip_reemits_limit_diagnostic_exactly_once() {
   );
 
   {
-    use generic_arraydeque::typenum::U6;
+    use hybrid_arraydeque::typenum::U6;
     let mut inp = input.as_ref();
 
     // save BEFORE the speculative peek: the checkpoint is clean (poisoned = false).
@@ -1355,7 +1355,7 @@ fn non_lifo_poison_boundary_restore_is_rejected_in_debug() {
     crate::input::InputContext::new(Verbose::<ProbeErr>::new(), cache),
   );
 
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
   let mut inp = input.as_ref();
 
   let a = inp.save(); // older, clean
@@ -1476,7 +1476,7 @@ fn overflow_trip_peek_save_drain_restore_replays_prefix_and_stops_at_boundary() 
   //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
   //   ^0 ^2 ^4      (token 3 spans [4, 5): the durable frontier is offset 5)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -1674,7 +1674,7 @@ fn sync_through_then_peek_trip_after_skips_commits_the_diagnosed_prefix() {
   // an empty peek — committing the diagnosed prefix at the durable frontier (offset 3).
   //   1 2 3 4 5 6   (limit 2 → the 3rd scanned token trips; `2` ends at offset 3)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U1;
+  use hybrid_arraydeque::typenum::U1;
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -1758,7 +1758,7 @@ fn sync_through_then_peek_trip_after_skips_commits_the_diagnosed_prefix() {
 /// never go "missing" the way committed STATE can, so it cannot see this class of bug.
 #[test]
 fn widen_then_drain_holds_the_by_value_limit() {
-  use generic_arraydeque::typenum::{U1, U2, U3};
+  use hybrid_arraydeque::typenum::{U1, U2, U3};
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2006,7 +2006,7 @@ fn failed_sync_through_then_peek_leaves_no_diagnostics_and_position() {
   // lookahead keeps the original position and carries no stale noise.
   //   1 2 3   (high limit: the scan reaches EOF and never trips)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U1;
+  use hybrid_arraydeque::typenum::U1;
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2087,7 +2087,7 @@ fn failed_sync_through_then_peek_leaves_no_diagnostics_and_position() {
 #[test]
 fn failed_sync_through_then_peek_reemits_crossed_lexer_error_once() {
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U1;
+  use hybrid_arraydeque::typenum::U1;
   // The peek-variant sibling of `failed_sync_through_reemits_scanned_lexer_error_once`: a
   // `sync_through_then_peek` whose predicate never matches scans a region containing a lexer
   // error (`@`) to EOF. Crossing `@` emits it and lifts the dedup watermark past it; the
@@ -2160,7 +2160,7 @@ fn successful_sync_through_then_peek_retains_skipped_token_diagnostics() {
   // the no-trace change to the failure path only.
   //   1 2 3   (match the third scanned token; `1` and `2` are skipped and diagnosed)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U1;
+  use hybrid_arraydeque::typenum::U1;
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2227,7 +2227,7 @@ fn failed_sync_through_with_prefilled_cache_leaves_no_trace() {
   // position — the regression this pins.
   //   1 2 3   (high limit: the scan reaches EOF and never trips)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2310,7 +2310,7 @@ fn failed_sync_through_then_peek_with_prefilled_cache_leaves_no_trace() {
   // peek. A later drain re-lexes the formerly-cached tokens faithfully with no noise.
   //   1 2 3   (high limit: the scan reaches EOF and never trips)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::{U1, U3};
+  use hybrid_arraydeque::typenum::{U1, U3};
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2396,7 +2396,7 @@ fn successful_sync_through_after_cache_drain_commits_and_persists() {
   //   1 2 3   (prefill `1`; match the third scanned token — `1` drained from cache, `2`
   //            scanned — so the match lies beyond the cached prefix)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U1;
+  use hybrid_arraydeque::typenum::U1;
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2460,7 +2460,7 @@ fn sync_through_over_a_prefilled_cache_evaluates_the_predicate_once() {
   // (`None`) with the drained prefix already gone from the stream.
   //   1 2 3 4 5   (prefill `1 2 3`; the predicate matches the SECOND token it examines)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2542,7 +2542,7 @@ fn sync_through_then_peek_over_a_prefilled_cache_evaluates_the_predicate_once() 
   // cached token and no committed diagnostic behind it.
   //   1 2 3 4 5   (prefill `1 2 3`; the predicate matches the SECOND token it examines)
   use crate::{cache::PeekedTokenExt, span::SimpleSpan};
-  use generic_arraydeque::typenum::{U2, U3};
+  use hybrid_arraydeque::typenum::{U2, U3};
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2610,7 +2610,7 @@ fn sync_through_never_scans_past_a_cached_match() {
   // predicate accepts the cached `2` on its only examination, so the scanner never runs at all.
   //   1 2 3 4 5   (prefill `1 2 3`; the predicate accepts the 2nd AND the 4th token it examines)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2683,7 +2683,7 @@ fn sync_to_returning_a_cached_match_is_not_a_cache_push() {
   // can spend a scan the limiter's budget did not have, spuriously poisoning the input.)
   //   ; 1 2 3   (the sync point is the very first token — a zero-skip match, straight from cache)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let mut input = bal_input("; 1 2 3", usize::MAX);
 
@@ -2814,7 +2814,7 @@ fn failed_sync_through_with_prefilled_cache_reemits_crossed_error_once() {
   // this pins.
   //   1 @ 2 3   (`@` is a lexer error spanning [2, 3); high limit so no trip)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U1;
+  use hybrid_arraydeque::typenum::U1;
 
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2900,7 +2900,7 @@ fn alias_interleave_stale_restore_detected() {
     crate::input::InputContext::new(Verbose::<ProbeErr>::new(), cache),
   );
 
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
   let mut inp = input.as_ref();
 
   let a = inp.save(); // older, clean, mark 0
@@ -2924,7 +2924,7 @@ fn stale_poisoned_restore_never_exposes_tokens_past_saved_boundary() {
   // destroyed; the witness rejects the restore rather than exposing tokens between
   // the two frontiers.
   //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -3131,7 +3131,7 @@ fn attempt_backtrack_over_trip_reemits_diagnostic_exactly_once() {
   // the closure declines, rolling the speculative diagnostic back. The committed path
   // then re-reaches the trip and re-emits — exactly once in total, never zero.
   //   1 2 3 4 5 6   (limit 5 → the 6th scanned token trips; U6 window > U3 cache)
-  use generic_arraydeque::typenum::U6;
+  use hybrid_arraydeque::typenum::U6;
 
   let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
   let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
@@ -3220,7 +3220,7 @@ fn restore_after_interleaved_emissions_keeps_rewound_lexer_error_reemittable() {
 #[cfg(debug_assertions)]
 fn property_random_lifo_scripts_stay_faithful_and_bounded() {
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::{U1, U2, U3};
+  use hybrid_arraydeque::typenum::{U1, U2, U3};
 
   const SRC: &str = "1 @ 2 3 @ 4"; // Num tokens at 0,4,6,10; `@` errors at [2,3),[8,9)
 
@@ -3504,7 +3504,7 @@ fn try_attempt_err_rolls_back_everything() {
   // path re-trips — the diagnostic surviving exactly once, never a diagnostic-less
   // latch.
   {
-    use generic_arraydeque::typenum::U6;
+    use hybrid_arraydeque::typenum::U6;
     let cache = DefaultCache::<'_, ByValLexer<'_>>::default();
     let mut input = Input::<ByValLexer<'_>, ByValVerboseCtx<'_>, ()>::with_state_and_context(
       "1 2 3 4 5 6",
@@ -3981,7 +3981,7 @@ fn set_state_clears_stale_cache() {
   // counter does not move.
   //   1 2 3 4   (high limit: never trips; the point is the cache clear)
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let limiter = ProbeLimiter::with_limit(usize::MAX);
   let scanned = limiter.counter();
@@ -4047,7 +4047,7 @@ fn set_state_clears_stale_cache() {
 #[test]
 fn dedup_watermark_survives_a_reborrow_of_one_input() {
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   let cache: ProbeOptionCache<'_> = None;
   let mut input = Input::<ProbeLexer<'_>, ProbeOptionVerboseCtx<'_>, ()>::with_state_and_context(
@@ -4117,7 +4117,7 @@ fn set_state_resets_watermark_to_cursor() {
   // second report, so only one entry survives.
   //   1 @ 2 3
   //   0 2 4 6      (`@` spans [2, 3))
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_context(
@@ -4585,7 +4585,7 @@ fn sync_balanced_finds_sync_point_in_prefilled_cache() {
   //   1 ;
   //   0 2
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   let mut input = bal_input("1 ;", usize::MAX);
   {
@@ -4675,7 +4675,7 @@ fn failed_sync_balanced_with_prefilled_cache_leaves_no_trace() {
   // too, and the next read re-lexes it identically.
   //   1 2 3
   use crate::span::SimpleSpan;
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   let mut input = bal_input("1 2 3", usize::MAX);
   {
@@ -5037,7 +5037,7 @@ fn try_attempt_closure_panic_releases_the_pinned_begin_point() {
 //
 // Adding a cell is one row in `CELLS`; every cell runs against every entry point.
 
-use generic_arraydeque::typenum::{U1 as W1, U2 as W2, U3 as W3};
+use hybrid_arraydeque::typenum::{U1 as W1, U2 as W2, U3 as W3};
 
 use crate::{
   InputRef, ParseInput, Window,
@@ -6079,7 +6079,7 @@ fn drain_under_lookahead(
   limit: usize,
   pattern: Lookahead,
 ) -> (std::vec::Vec<SimpleSpan>, usize, std::vec::Vec<ByValErr>) {
-  use generic_arraydeque::typenum::{U1, U2, U3};
+  use hybrid_arraydeque::typenum::{U1, U2, U3};
 
   let mut input = Input::<BalLexer<'_>, BalVerboseCtx<'_>, ()>::with_state_and_context(
     src,
@@ -6120,7 +6120,7 @@ fn drain_under_lookahead(
 
 #[test]
 fn widening_peek_does_not_resume_under_stale_state() {
-  use generic_arraydeque::typenum::{U1, U2, U3};
+  use hybrid_arraydeque::typenum::{U1, U2, U3};
 
   // "1 2 3 4 5 6 7" behind a two-token limit. Every widening step lexes exactly one more
   // token, so the newest retained token must carry the tally of the whole retained run.
@@ -6186,7 +6186,7 @@ fn widening_peek_does_not_resume_under_stale_state() {
 
 #[test]
 fn resume_frontier_pairs_state_with_offset() {
-  use generic_arraydeque::typenum::{U1, U2, U3};
+  use hybrid_arraydeque::typenum::{U1, U2, U3};
 
   // The pairing law, read directly off the cache: the state a retained token carries is the
   // state that produced it, so a run of `k` retained tokens ends on a tally of `k`. Nothing
@@ -7043,7 +7043,7 @@ fn f2_sync_to_run(
   exp_panics_on: Option<usize>,
   limit: usize,
 ) -> AfterUnwind {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let tally = ScanTally::with_limit(limit);
   let odometer = tally.odometer();
@@ -7197,7 +7197,7 @@ fn f2_sync_through_run(
   panic_on: usize,
   limit: usize,
 ) -> AfterUnwind {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let tally = ScanTally::with_limit(limit);
   let odometer = tally.odometer();
@@ -8179,7 +8179,7 @@ fn r9_settle_path_span_clone_inventory() {
   // snapshot's span instead of borrowing it — that is what deleted a caller-code step from inside
   // an exit settle rather than defending it. A count rail that only fired on growth would let
   // that regress silently the day someone reintroduces `(&snapshot.span).into()`.
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let cache = DefaultCache::<'_, BombLexer<'_>>::default();
   let mut input = Input::<BombLexer<'_>, BombCtx<'_>, ()>::with_state_and_context(
@@ -8257,7 +8257,7 @@ fn panicking_report_span_clone_does_not_lose_a_token() {
   //
   // The armed clone is #3, which the probe above identifies as the report clone of the SECOND
   // skipped token: #1 is `skip_until`'s entry frontier and #2 the first token's report.
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let tally = BombTally::default();
   let cache = DefaultCache::<'_, BombLexer<'_>>::default();
@@ -8541,7 +8541,7 @@ where
 
   fn peek<'p, W>(
     &'p self,
-    buf: &mut generic_arraydeque::GenericArrayDeque<
+    buf: &mut hybrid_arraydeque::ArrayDeque<
       crate::cache::MaybeRefCachedTokenOf<'p, 'a, L>,
       W::CAPACITY,
     >,
@@ -8583,7 +8583,7 @@ fn r9_stop_exit_panic_still_commits_the_diagnosed_prefix() {
   // The stopping token is swallowed by the panicking `push_front` and nothing can un-swallow it.
   // What must survive is everything else: the two diagnosed skips stay committed, so the retry
   // resumes AFTER them, re-lexes the stopper, and adds no second copy of their diagnostics.
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let cache = <BombCache<'_, BombLexer<'_>> as crate::cache::Cache<'_, BombLexer<'_>, ()>>::new();
   let mut input = Input::<BombLexer<'_>, BombCacheCtx<'_>, ()>::with_state_and_context(
@@ -8736,7 +8736,7 @@ fn r9_balanced_stop_exit_panic_keeps_the_prefix_like_its_own_stop_does() {
   //
   // Disposition belongs to the EXIT, not the mode, and this is the mode that proves it.
   use crate::input::Balance;
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let cache = <BombCache<'_, BombLexer<'_>> as crate::cache::Cache<'_, BombLexer<'_>, ()>>::new();
   let mut input = Input::<BombLexer<'_>, BombCacheCtx<'_>, ()>::with_state_and_context(
@@ -8797,7 +8797,7 @@ fn r9_balanced_stop_exit_panic_keeps_the_prefix_like_its_own_stop_does() {
 /// token is skipped with no signal at all. The earlier cells stopped on the last entry, which is
 /// exactly the position where the hole cannot manifest.
 fn stop_mid_cache_then_drain(balanced: bool) -> ((usize, usize), std::vec::Vec<(usize, usize)>) {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let cache = <BombCache<'_, BombLexer<'_>> as crate::cache::Cache<'_, BombLexer<'_>, ()>>::new();
   let mut input = Input::<BombLexer<'_>, BombCacheCtx<'_>, ()>::with_state_and_context(
@@ -8872,7 +8872,7 @@ fn frontier_commit_interrupted_in(
   at: usize,
   balanced: bool,
 ) -> (((usize, usize), usize, usize, usize), usize) {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let cache = <BombCache<'_, BombLexer<'_>> as crate::cache::Cache<'_, BombLexer<'_>, ()>>::new();
   let mut input = Input::<BombLexer<'_>, BombCacheCtx<'_>, ()>::with_state_and_context(
@@ -9311,7 +9311,7 @@ fn the_two_completeness_routes_are_pinned_apart_on_an_interrupted_eof_settle() {
 /// A consume whose committed-token **observer** panics, on a warm cache. `driver` picks which
 /// consume surface. Returns the tokens the input can still reach afterwards.
 fn observer_panic_then_drain(driver: u8) -> (std::vec::Vec<(usize, usize)>, (usize, usize)) {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let cache = DefaultCache::<'_, BombLexer<'_>>::default();
   let emitter = BombEmitter {
@@ -9445,7 +9445,7 @@ fn r9_adopt_pair_is_never_published_half_written() {
 /// A warm-cache consume with the drop of the span it REPLACES armed. Returns
 /// `(committed span, tokens the observer saw)`.
 fn consume_replaced_span_drop(at: usize) -> ((usize, usize), usize) {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   let cache = DefaultCache::<'_, BombLexer<'_>>::default();
   let mut input = Input::<BombLexer<'_>, BombCtx<'_>, ()>::with_state_and_context(
@@ -9535,7 +9535,7 @@ fn r9_skip_notifies_the_observer_before_the_adopted_pair_drops() {
 /// surgery is all-or-nothing no matter which caller `Drop` fails.
 #[test]
 fn r9_set_state_is_atomic_at_every_caller_drop() {
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   // One scenario, replayed. `run(None)` counts the caller drops a whole `set_state` performs;
   // `run(Some(n))` detonates the n-th and returns what a host that caught it can observe.
@@ -9999,7 +9999,7 @@ fn r9_restore_entry_is_atomic_at_every_offset_clone() {
 ///   `Checkpoint` drops, which need a nested point stack this fixture does not build.
 #[test]
 fn r9_restore_unchecked_is_all_or_nothing_at_every_caller_drop() {
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   /// `(state_ops, span_ops, cursor, rewinds, poisoned)` — the cache length is deliberately NOT
   /// observed: a cache is a pure memo, so a partly-evicted one is indistinguishable from a full
@@ -10103,7 +10103,7 @@ fn r9_restore_unchecked_is_all_or_nothing_at_every_caller_drop() {
 /// with re-keyed facts. Either both moved or neither did.
 #[test]
 fn r9_set_state_is_atomic_at_every_offset_clone() {
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   /// `(clones, scanned, cache_len)`
   fn run(bomb_at: usize) -> (usize, usize, usize) {
@@ -10472,7 +10472,7 @@ fn d50_input(src: &str) -> Input<'_, BombLexer<'_>, BombCtx<'_>, ()> {
 
 #[test]
 fn d50_capture_survives_a_panicking_span_clone() {
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   let mut input = d50_input("ab cd ef gh");
   {
@@ -10524,7 +10524,7 @@ fn d50_capture_survives_a_panicking_span_clone() {
 
 #[test]
 fn d50_capture_survives_a_panicking_state_clone() {
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   let mut input = d50_input("ab cd ef gh");
   {
@@ -10567,7 +10567,7 @@ fn d50_capture_survives_a_panicking_state_clone() {
 
 #[test]
 fn d50_capture_survives_a_panicking_foreign_emitter_checkpoint() {
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   let mut input = d50_input("ab cd ef gh");
   {
@@ -11487,18 +11487,18 @@ fn refusal_after_the_probe_is_spent(
   // reaches the ceiling, runs the one-shot probe, and refuses. Nothing is consumed, so the
   // rollback route has nothing to put back.
   let _ = inp
-    .peek::<generic_arraydeque::typenum::U2>()
+    .peek::<hybrid_arraydeque::typenum::U2>()
     .expect("the recording emitter accepts every fill");
   match how {
     Reopened::Rollback => {
       let declined: Option<()> = inp.attempt(|txn| {
-        let _ = txn.peek::<generic_arraydeque::typenum::U3>();
+        let _ = txn.peek::<hybrid_arraydeque::typenum::U3>();
         None
       });
       assert!(declined.is_none(), "the prologue attempt declines");
     }
     Reopened::Rekey => {
-      let _ = inp.peek::<generic_arraydeque::typenum::U3>();
+      let _ = inp.peek::<hybrid_arraydeque::typenum::U3>();
       inp.set_state(BombTally::default());
     }
   }
@@ -11758,18 +11758,18 @@ fn truncation_under_a_panicking_front_drain(how: Reopened, bomb_at: usize) -> Re
   // PROLOGUE, identical in shape to `refusal_after_the_probe_is_spent`: fill the two items the
   // ceiling authorizes, reach the ceiling, run the one-shot probe, refuse — then clear the memo.
   let _ = inp
-    .peek::<generic_arraydeque::typenum::U2>()
+    .peek::<hybrid_arraydeque::typenum::U2>()
     .expect("the recording emitter accepts every fill");
   match how {
     Reopened::Rollback => {
       let declined: Option<()> = inp.attempt(|txn| {
-        let _ = txn.peek::<generic_arraydeque::typenum::U3>();
+        let _ = txn.peek::<hybrid_arraydeque::typenum::U3>();
         None
       });
       assert!(declined.is_none(), "the prologue attempt declines");
     }
     Reopened::Rekey => {
-      let _ = inp.peek::<generic_arraydeque::typenum::U3>();
+      let _ = inp.peek::<hybrid_arraydeque::typenum::U3>();
       inp.set_state(BombTally::default());
     }
   }

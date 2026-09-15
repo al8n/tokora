@@ -4,8 +4,8 @@
 //! of components, and errors for tracking missing components during parsing.
 //!
 //! There is **one** implementation and no feature selects between them. The component count is
-//! the type-level `Syntax::COMPONENTS`, a `typenum` `ArrayLength`, and the components live in a
-//! `generic_arraydeque::GenericArrayDeque` sized by it. This header used to advertise a
+//! the type-level `Syntax::COMPONENTS`, a `typenum` `ArraySize`, and the components live in a
+//! `hybrid_arraydeque::ArrayDeque` sized by it. This header used to advertise a
 //! const-generic alternative chosen by a `generic-array` feature: the crate declares no such
 //! feature, this file carries no `cfg`, and `const COMPONENTS: usize` appears nowhere in it.
 //!
@@ -24,7 +24,7 @@
 //! ```rust
 //! # {
 //! use tokora::{
-//!     utils::{typenum::U3, GenericArrayDeque},
+//!     utils::{typenum::U3, ArrayDeque},
 //!     syntax::{Syntax, Language},
 //!     error::IncompleteSyntax
 //! };
@@ -68,8 +68,8 @@
 //!     type Lang = MyLanguage;
 //!     const KIND: MySyntaxKind = MySyntaxKind::WhileLoop;
 //!
-//!     fn possible_components() -> &'static GenericArrayDeque<Self::Component, U3> {
-//!         const COMPONENTS: &GenericArrayDeque<WhileComponent, U3> = &GenericArrayDeque::from_array([
+//!     fn possible_components() -> &'static ArrayDeque<Self::Component, U3> {
+//!         const COMPONENTS: &ArrayDeque<WhileComponent, U3> = &ArrayDeque::from_array([
 //!             WhileComponent::WhileKeyword,
 //!             WhileComponent::Condition,
 //!             WhileComponent::Body,
@@ -77,8 +77,8 @@
 //!         COMPONENTS
 //!     }
 //!
-//!     fn required_components() -> &'static GenericArrayDeque<Self::Component, U3> {
-//!         const REQUIRED: &GenericArrayDeque<WhileComponent, U3> = &GenericArrayDeque::from_array([
+//!     fn required_components() -> &'static ArrayDeque<Self::Component, U3> {
+//!         const REQUIRED: &ArrayDeque<WhileComponent, U3> = &ArrayDeque::from_array([
 //!             WhileComponent::WhileKeyword,
 //!             WhileComponent::Condition,
 //!             WhileComponent::Body,
@@ -99,7 +99,7 @@ use crate::{
   span::{SimpleSpan, Span},
   syntax::Syntax,
 };
-use generic_arraydeque::{GenericArrayDeque, typenum::Unsigned};
+use hybrid_arraydeque::{ArrayDeque, typenum::Unsigned};
 
 use core::{
   fmt::{Debug, Display},
@@ -190,7 +190,7 @@ use core::{
 ///
 /// ```rust
 /// # {
-/// use tokora::{utils::{typenum, GenericArrayDeque}, syntax::{Language, Syntax}, error::IncompleteSyntax};
+/// use tokora::{utils::{typenum, ArrayDeque}, syntax::{Language, Syntax}, error::IncompleteSyntax};
 /// use typenum::U3;
 /// use core::fmt;
 ///
@@ -232,8 +232,8 @@ use core::{
 ///     type REQUIRED = U3;
 ///     const KIND: MySyntaxKind = MySyntaxKind::IfStatement;
 ///
-///     fn possible_components() -> &'static GenericArrayDeque<Self::Component, U3> {
-///         const COMPONENTS: &GenericArrayDeque<IfStatementComponent, U3> = &GenericArrayDeque::from_array([
+///     fn possible_components() -> &'static ArrayDeque<Self::Component, U3> {
+///         const COMPONENTS: &ArrayDeque<IfStatementComponent, U3> = &ArrayDeque::from_array([
 ///            IfStatementComponent::IfKeyword,
 ///            IfStatementComponent::Condition,
 ///            IfStatementComponent::ThenBlock,
@@ -241,8 +241,8 @@ use core::{
 ///         COMPONENTS
 ///     }
 ///
-///     fn required_components() -> &'static GenericArrayDeque<Self::Component, U3> {
-///         const REQUIRED: &GenericArrayDeque<IfStatementComponent, U3> = &GenericArrayDeque::from_array([
+///     fn required_components() -> &'static ArrayDeque<Self::Component, U3> {
+///         const REQUIRED: &ArrayDeque<IfStatementComponent, U3> = &ArrayDeque::from_array([
 ///             IfStatementComponent::IfKeyword,
 ///             IfStatementComponent::Condition,
 ///             IfStatementComponent::ThenBlock,
@@ -269,7 +269,7 @@ use core::{
 ///
 /// ```rust
 /// # {
-/// # use tokora::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+/// # use tokora::{utils::{typenum, ArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
 /// # use typenum::U2;
 /// # use core::fmt;
 /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -291,12 +291,12 @@ use core::{
 /// #     type REQUIRED = U2;
 /// #     type Lang = MyLang;
 /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-/// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-/// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+/// #     fn possible_components() -> &'static ArrayDeque<Component, U2> {
+/// #         const COMPONENTS: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
 /// #         COMPONENTS
 /// #     }
-/// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-/// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+/// #     fn required_components() -> &'static ArrayDeque<Component, U2> {
+/// #         const REQUIRED: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
 /// #         REQUIRED
 /// #     }
 /// # }
@@ -313,7 +313,7 @@ use core::{
 #[derive(Debug, Clone)]
 pub struct IncompleteSyntax<S: Syntax, Sp = SimpleSpan> {
   span: Sp,
-  components: GenericArrayDeque<S::Component, S::COMPONENTS>,
+  components: ArrayDeque<S::Component, S::COMPONENTS>,
 }
 
 impl<S, Sp> PartialEq for IncompleteSyntax<S, Sp>
@@ -377,7 +377,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, GenericArrayDeque}};
+  /// # use tokora::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, ArrayDeque}};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -397,13 +397,13 @@ where
   /// #     type REQUIRED = U1;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U1> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U1> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U1> = &ArrayDeque::from_array([Component::A]);
   /// #         COMPONENTS
   /// #     }
   /// #
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U1> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U1> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U1> = &ArrayDeque::from_array([Component::A]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -417,7 +417,7 @@ where
     if S::COMPONENTS::USIZE == 0 {
       panic!("IncompleteSyntax requires S::COMPONENTS to be non-zero");
     }
-    let mut components = GenericArrayDeque::new();
+    let mut components = ArrayDeque::new();
     // The contiguity discipline the two `try_push_*_impl` doors maintain has nothing to do
     // here: a single `push_back` into a freshly created deque leaves the head at zero, which
     // is one physical segment by construction.
@@ -443,7 +443,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, GenericArrayDeque}};
+  /// # use tokora::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, ArrayDeque}};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -465,12 +465,12 @@ where
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         &COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -502,7 +502,7 @@ where
   #[inline]
   #[allow(clippy::should_implement_trait)]
   pub fn from_iter(span: Sp, iter: impl IntoIterator<Item = S::Component>) -> Option<Self> {
-    let mut components = GenericArrayDeque::new();
+    let mut components = ArrayDeque::new();
     for component in iter {
       // `try_push_impl` answers `Some` only for a component that is new and did not fit, which
       // is exactly the overflow this method's `Option` was documented to report. Discarding it
@@ -530,7 +530,7 @@ where
   /// to rediscover why the invariant used to hold.
   #[inline]
   fn try_push_impl(
-    components: &mut GenericArrayDeque<S::Component, S::COMPONENTS>,
+    components: &mut ArrayDeque<S::Component, S::COMPONENTS>,
     component: S::Component,
   ) -> Option<S::Component> {
     if components.contains(&component) {
@@ -550,7 +550,7 @@ where
   /// the ring wrapped; `make_contiguous` is what stops it, and is not optional here.
   #[inline]
   fn try_push_front_impl(
-    components: &mut GenericArrayDeque<S::Component, S::COMPONENTS>,
+    components: &mut ArrayDeque<S::Component, S::COMPONENTS>,
     component: S::Component,
   ) -> Option<S::Component> {
     if components.contains(&component) {
@@ -569,7 +569,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokora::{utils::{typenum, ArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -591,12 +591,12 @@ where
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -621,7 +621,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokora::{utils::{typenum, ArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U3;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -641,12 +641,12 @@ where
   /// #     type REQUIRED = U3;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U3> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U3> = &GenericArrayDeque::from_array([Component::A, Component::B, Component::C]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U3> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U3> = &ArrayDeque::from_array([Component::A, Component::B, Component::C]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U3> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U3> = &GenericArrayDeque::from_array([Component::A, Component::B, Component::C]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U3> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U3> = &ArrayDeque::from_array([Component::A, Component::B, Component::C]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -668,7 +668,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokora::{utils::{typenum, ArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -690,12 +690,12 @@ where
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -726,7 +726,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokora::{utils::{typenum, ArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -748,12 +748,12 @@ where
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -787,7 +787,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokora::{utils::{typenum, ArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -809,12 +809,12 @@ where
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -845,7 +845,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokora::{utils::{typenum, ArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -865,12 +865,12 @@ where
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -897,7 +897,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokora::{utils::{typenum, ArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -917,12 +917,12 @@ where
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -963,7 +963,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{utils::{typenum, GenericArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
+  /// # use tokora::{utils::{typenum, ArrayDeque}, syntax::Syntax, error::IncompleteSyntax};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -985,12 +985,12 @@ where
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -1029,7 +1029,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, GenericArrayDeque}};
+  /// # use tokora::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, ArrayDeque}};
   /// # use typenum::U2;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1051,12 +1051,12 @@ where
   /// #     type REQUIRED = U2;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U2> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U2> = &GenericArrayDeque::from_array([Component::A, Component::B]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U2> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U2> = &ArrayDeque::from_array([Component::A, Component::B]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -1067,7 +1067,7 @@ where
   /// # }
   /// ```
   #[inline]
-  pub fn iter(&self) -> generic_arraydeque::Iter<'_, S::Component> {
+  pub fn iter(&self) -> hybrid_arraydeque::Iter<'_, S::Component> {
     self.components.iter()
   }
 
@@ -1077,7 +1077,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, GenericArrayDeque}};
+  /// # use tokora::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, ArrayDeque}};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1097,12 +1097,12 @@ where
   /// #     type REQUIRED = U1;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U1> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U1> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U1> = &ArrayDeque::from_array([Component::A]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U1> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U1> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U1> = &ArrayDeque::from_array([Component::A]);
   /// #         REQUIRED
   /// #     }
   /// # }
@@ -1139,7 +1139,7 @@ where
   ///
   /// ```rust
   /// # {
-  /// # use tokora::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, GenericArrayDeque}};
+  /// # use tokora::{SimpleSpan, syntax::Syntax, error::IncompleteSyntax, utils::{typenum, ArrayDeque}};
   /// # use typenum::U1;
   /// # use core::fmt;
   /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1159,12 +1159,12 @@ where
   /// #     type REQUIRED = U1;
   /// #     type Lang = MyLang;
   /// #     const KIND: MySyntaxKind = MySyntaxKind::Syntax;
-  /// #     fn possible_components() -> &'static GenericArrayDeque<Component, U1> {
-  /// #         const COMPONENTS: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
+  /// #     fn possible_components() -> &'static ArrayDeque<Component, U1> {
+  /// #         const COMPONENTS: &ArrayDeque<Component, U1> = &ArrayDeque::from_array([Component::A]);
   /// #         COMPONENTS
   /// #     }
-  /// #     fn required_components() -> &'static GenericArrayDeque<Component, U1> {
-  /// #         const REQUIRED: &GenericArrayDeque<Component, U1> = &GenericArrayDeque::from_array([Component::A]);
+  /// #     fn required_components() -> &'static ArrayDeque<Component, U1> {
+  /// #         const REQUIRED: &ArrayDeque<Component, U1> = &ArrayDeque::from_array([Component::A]);
   /// #         REQUIRED
   /// #     }
   /// # }

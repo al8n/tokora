@@ -11,7 +11,7 @@ use super::*;
 /// positions, and driving one at `Partial` fails to compile:
 ///
 /// ```compile_fail,E0277
-/// use generic_arraydeque::typenum::U1;
+/// use hybrid_arraydeque::typenum::U1;
 /// use tokora::{InputRef, Lexer, ParseContext, ParseInput, Partial, parser::FoldWhile};
 ///
 /// fn wall<'inp, L, Ctx, P, C, I, A>(

@@ -237,7 +237,7 @@ path_segments_iter/later_pick_discarded
 # tokora's is `fn clear(&mut self)`, defaulted on the `ErrorContainer` trait. The subject is
 # `Option::<PErr>::None`, one of the four types tokora implements the trait for, chosen over
 # `Vec`/`VecDeque` because those carry an inherent `clear` of their own that would confound the
-# walk, and over a `GenericArrayDeque` because it needs construction. `Option` derefs to
+# walk, and over a `ArrayDeque` because it needs construction. `Option` derefs to
 # nothing, so there is exactly one step and three picks on it: by value, `&`, then `&mut`. The
 # `trait_method` template's consumer is `impl<T> ConsumerComb for T`, supplying a candidate at
 # every pick, and its three spellings declare `self` or `&self` — the first and second picks.

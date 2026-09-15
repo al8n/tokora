@@ -30,7 +30,7 @@
 //! witness back to the watermark, and equally if someone makes it so conservative that it stops
 //! suppressing anything.
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::EmitterView;
 use tokora::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,

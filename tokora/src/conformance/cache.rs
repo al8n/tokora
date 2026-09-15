@@ -196,7 +196,7 @@
 //! cache that reads the wrong one and then simply ignores what `push_back` hands back is
 //! **provably invisible** to this kit, and to any caller of the `Cache` trait.
 //!
-//! Two facts make it so. `GenericArrayDeque::push_back` on a full deque returns the value and
+//! Two facts make it so. `ArrayDeque::push_back` on a full deque returns the value and
 //! leaves the deque *unmodified*, so an over-count leaves no trace in the buffer; and the
 //! arithmetic collapses — with `W` the buffer's capacity, `P` what it already holds and
 //! `R = W - P` the room left, a `peek` that pushes the oldest `min(len, W)` entries in order
@@ -260,8 +260,8 @@ use std::{format, vec::Vec};
 
 use core::{cell::Cell, marker::PhantomData};
 
-use generic_arraydeque::{
-  GenericArrayDeque,
+use hybrid_arraydeque::{
+  ArrayDeque,
   typenum::{U1, U3, U4, Unsigned},
 };
 use mayber::Maybe;
@@ -2926,7 +2926,7 @@ where
     // `peek` bounded by the buffer's TOTAL capacity that pushes the oldest entries in order and
     // silently discards what `push_back` refuses lands exactly the entries a correct one would,
     // in every configuration. `min(min(len, W), W - P) == min(len, W - P)`, and a refused
-    // `GenericArrayDeque::push_back` returns the value and leaves the deque untouched. That
+    // `ArrayDeque::push_back` returns the value and leaves the deque untouched. That
     // defect has no observable consequence through the `Cache` surface at all, so no assertion
     // below is aimed at it.
     //
@@ -3195,8 +3195,7 @@ where
   where
     W: Window,
   {
-    let mut buf: GenericArrayDeque<MaybeRefCachedTokenOf<'_, 'inp, L>, W::CAPACITY> =
-      GenericArrayDeque::new();
+    let mut buf: ArrayDeque<MaybeRefCachedTokenOf<'_, 'inp, L>, W::CAPACITY> = ArrayDeque::new();
     // CACHE_CALL_CENSUS: routed
     cache.peek::<W>(&mut buf);
     buf.iter().map(Self::triple).collect()
@@ -3216,10 +3215,8 @@ where
     prefill: Vec<CachedTokenOf<'inp, L>>,
   ) -> (Vec<PeekedTriple<'inp, L>>, Vec<PeekedTriple<'inp, L>>) {
     let prefill_len = prefill.len();
-    let mut buf: GenericArrayDeque<
-      MaybeRefCachedTokenOf<'_, 'inp, L>,
-      <PeekWindow as Window>::CAPACITY,
-    > = GenericArrayDeque::new();
+    let mut buf: ArrayDeque<MaybeRefCachedTokenOf<'_, 'inp, L>, <PeekWindow as Window>::CAPACITY> =
+      ArrayDeque::new();
     for tok in prefill {
       assert!(
         // CACHE_CALL_CENSUS: not-a-cache-call

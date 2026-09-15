@@ -1,4 +1,4 @@
-use generic_arraydeque::{ArrayLength, GenericArrayDeque};
+use hybrid_arraydeque::{ArrayDeque, ArraySize};
 
 /// Trait for container types used in parsers.
 ///
@@ -149,9 +149,9 @@ impl<T> Container<T> for Option<T> {
   }
 }
 
-impl<T, N> Container<T> for GenericArrayDeque<T, N>
+impl<T, N> Container<T> for ArrayDeque<T, N>
 where
-  N: ArrayLength,
+  N: ArraySize,
 {
   #[inline(always)]
   fn max_capacity(&self) -> usize {
@@ -160,7 +160,7 @@ where
 
   #[inline(always)]
   fn push(&mut self, item: T) -> Result<(), T> {
-    match GenericArrayDeque::push_back(self, item) {
+    match ArrayDeque::push_back(self, item) {
       None => Ok(()),
       Some(e) => Err(e),
     }
@@ -168,17 +168,17 @@ where
 
   #[inline(always)]
   fn first(&self) -> Option<&T> {
-    GenericArrayDeque::front(self)
+    ArrayDeque::front(self)
   }
 
   #[inline(always)]
   fn last(&self) -> Option<&T> {
-    GenericArrayDeque::back(self)
+    ArrayDeque::back(self)
   }
 
   #[inline(always)]
   fn len(&self) -> usize {
-    GenericArrayDeque::len(self)
+    ArrayDeque::len(self)
   }
 }
 

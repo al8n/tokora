@@ -341,7 +341,7 @@ fn sync_through_then_peek_match() {
       ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
     >,
   ) -> Result<bool, E> {
-    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, generic_arraydeque::typenum::U1>(
+    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, hybrid_arraydeque::typenum::U1>(
       |t| matches!(t.data(), Token::Num(_)),
       || None,
     )?;
@@ -363,7 +363,7 @@ fn sync_through_then_peek_no_match() {
       ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
     >,
   ) -> Result<bool, E> {
-    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, generic_arraydeque::typenum::U1>(
+    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, hybrid_arraydeque::typenum::U1>(
       |t| matches!(t.data(), Token::Num(_)),
       || None,
     )?;
@@ -389,7 +389,7 @@ fn sync_through_then_peek_cached_non_matching() {
   ) -> Result<bool, E> {
     // peek to fill cache with comma (non-matching)
     let _ = inp.peek_one()?;
-    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, generic_arraydeque::typenum::U1>(
+    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, hybrid_arraydeque::typenum::U1>(
       |t| matches!(t.data(), Token::Num(_)),
       || None,
     )?;
@@ -411,7 +411,7 @@ fn sync_through_then_peek_skip_and_find() {
       ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
     >,
   ) -> Result<bool, E> {
-    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, generic_arraydeque::typenum::U1>(
+    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, hybrid_arraydeque::typenum::U1>(
       |t| matches!(t.data(), Token::Num(_)),
       || None,
     )?;
@@ -433,7 +433,7 @@ fn sync_through_then_peek_lexer_error() {
       ParserContext<'inp, TestLexer<'inp>, RecoveringEm>,
     >,
   ) -> Result<bool, E> {
-    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, generic_arraydeque::typenum::U1>(
+    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, hybrid_arraydeque::typenum::U1>(
       |t| matches!(t.data(), Token::Num(_)),
       || None,
     )?;
@@ -450,7 +450,7 @@ fn sync_through_then_peek_lexer_error_fatal() {
   fn parse<'inp>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, ParserContext<'inp, TestLexer<'inp>, FatalEm>>,
   ) -> Result<bool, E> {
-    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, generic_arraydeque::typenum::U1>(
+    let (tok, _peeked) = inp.sync_through_then_peek::<_, _, hybrid_arraydeque::typenum::U1>(
       |t| matches!(t.data(), Token::Num(_)),
       || None,
     )?;

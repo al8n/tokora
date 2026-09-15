@@ -521,7 +521,7 @@ where
   Ctx::Emitter:
     Emitter<'inp, TestLexer<'inp>, Error = PrattError> + PrattEmitter<'inp, TestLexer<'inp>>,
 {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
   // "1 + 2" is exactly 3 tokens: a U3 fill caches all of them, hitting EOI.
   let _ = inp.peek::<U3>()?;
   calc_token(inp)

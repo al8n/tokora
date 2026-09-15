@@ -1,4 +1,4 @@
-use generic_arraydeque::GenericArrayDeque;
+use hybrid_arraydeque::ArrayDeque;
 use mayber::Maybe;
 
 use crate::lexer::Lexer;
@@ -78,10 +78,8 @@ where
   }
 
   #[inline(always)]
-  fn peek<'p, W>(
-    &'p self,
-    buf: &mut GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
-  ) where
+  fn peek<'p, W>(&'p self, buf: &mut ArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>)
+  where
     W: crate::Window,
   {
     if let Some(tok) = self.as_ref() {

@@ -52,16 +52,9 @@ tokora = { path = "../tokora", default-features = false, features = [
   "combinators",
 ] }
 
-# `benches/input_scan.rs` names `generic_arraydeque::typenum::{U3, U8}` directly, to size the
-# peek window against `tokora::DefaultCache`'s capacity. It is a public dependency of tokora —
-# the window type appears in tokora's own signatures — and the requirement here is the same
-# `0.2` with the same features, so cargo resolves ONE copy and the typenum types match.
-generic-arraydeque = { version = "0.2", default-features = false, features = ["unstable"] }
-
-# `logos` itself is NOT a dependency: the benches reach it as `tokora::logos`, the re-export
-# tokora publishes for whichever logos major its features select, and their `#[logos(crate =
-# logos)]` attributes resolve against that import. Depending on logos here would let this
-# package's copy drift from the one tokora derives against.
+hybrid-arraydeque = { version = "0.1", default-features = false, features = [
+  "unstable",
+] }
 
 [dev-dependencies]
 criterion = "0.8"

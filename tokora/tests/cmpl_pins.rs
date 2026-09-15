@@ -163,7 +163,7 @@ fn t9_written_type_default_position() {
 // flows through the pinned layer at a Complete drive.
 #[test]
 fn t10_s_class_atop_generic_subchain() {
-  use generic_arraydeque::typenum::U1;
+  use hybrid_arraydeque::typenum::U1;
   use tokora::parser::Action;
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, L<'inp>, Ctx>) -> Result<i64, ()>
   where

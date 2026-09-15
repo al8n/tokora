@@ -1,6 +1,6 @@
 use std::vec::Vec;
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 
 use crate::{
   Accumulator, ComposableParseContext, Decision, Emitter, ErrorOf, Lexer, ParseInput, Window,

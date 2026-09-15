@@ -5,7 +5,7 @@ use core::{
   ops::{Range, RangeBounds},
 };
 
-use generic_arraydeque::{GenericArrayDeque, typenum::U1};
+use hybrid_arraydeque::{ArrayDeque, typenum::U1};
 use mayber::{Maybe, MaybeRef};
 
 use crate::{

@@ -82,6 +82,7 @@ use crate::{
   syntax::{Language, Syntax},
 };
 
+use hybrid_arraydeque::ArrayDeque;
 pub use ident::*;
 pub use ident_list::*;
 pub use keyword::*;
@@ -144,13 +145,11 @@ where
 
   type REQUIRED = T::REQUIRED;
 
-  fn possible_components()
-  -> &'static generic_arraydeque::GenericArrayDeque<Self::Component, Self::COMPONENTS> {
+  fn possible_components() -> &'static ArrayDeque<Self::Component, Self::COMPONENTS> {
     T::possible_components()
   }
 
-  fn required_components()
-  -> &'static generic_arraydeque::GenericArrayDeque<Self::Component, Self::REQUIRED> {
+  fn required_components() -> &'static ArrayDeque<Self::Component, Self::REQUIRED> {
     T::required_components()
   }
 }

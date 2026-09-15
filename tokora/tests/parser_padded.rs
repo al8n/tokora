@@ -7,7 +7,7 @@
 //!   - parser/any.rs      (Any -- spanned, sliced, located, EOI)
 //!   - parser/expect.rs   (Expect -- spanned, sliced, located, try_expect variants)
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::slice::Sliced;
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, Token as TokenT,

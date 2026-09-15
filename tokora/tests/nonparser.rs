@@ -3,7 +3,7 @@
 mod common;
 
 use common::{TestLexer, Token, TokenKind};
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Branch, Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput, Parser,
   TryParseInput,
@@ -467,7 +467,7 @@ fn peek_does_not_consume() {
 
 #[test]
 fn peek_window_larger_than_input() {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<usize, ()>
   where

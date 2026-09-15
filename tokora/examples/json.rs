@@ -9,7 +9,7 @@
 use std::num::ParseFloatError;
 
 use derive_more::{Display, From, Unwrap};
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 
 use tokora::{
   Accumulator, Branch, Emitter, EmitterView, InputRef, Parse, ParseChoice, ParseContext,

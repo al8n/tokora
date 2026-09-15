@@ -10,7 +10,7 @@
 //! - Fixed unicode escapes (`\uXXXX`): 4 digits
 //!
 //! This generic container can be specialized for each format while sharing
-//! the same implementation. Internally, it uses [`GenericArrayDeque`] for efficient
+//! the same implementation. Internally, it uses [`ArrayDeque`] for efficient
 //! stack-based storage.
 //!
 //! # Examples
@@ -29,7 +29,7 @@
 
 use core::ops::AddAssign;
 
-use generic_arraydeque::{GenericArrayDeque, IntoArrayLength, typenum::Const};
+use hybrid_arraydeque::{ArrayDeque, AssocArraySize};
 
 use crate::utils::{PositionedChar, human_display::DisplayHuman};
 
@@ -64,9 +64,7 @@ pub use store::InvalidHexDigits;
 /// reaches for `self.0.pop_front()` in the parent module gets a private-field error rather than
 /// a latent reintroduction of #245.
 mod store {
-  use generic_arraydeque::{
-    ArrayLength, ConstArrayLength, GenericArrayDeque, IntoArrayLength, typenum::Const,
-  };
+  use hybrid_arraydeque::{ArrayDeque, ArrayDequeN, ArraySize, AssocArraySize};
 
   use crate::utils::PositionedChar;
 
@@ -79,7 +77,7 @@ mod store {
   ///
   /// # Design
   ///
-  /// The container wraps [`GenericArrayDeque`] which provides stack-based storage optimized
+  /// The container wraps [`ArrayDeque`] which provides stack-based storage optimized
   /// for small sizes. It implements `Deref<Target = [PositionedChar<Char>]>` for
   /// convenient access to the stored characters, and that accessor reports **every** stored
   /// character rather than a physical prefix of them — see the module this type is declared in
@@ -114,10 +112,10 @@ mod store {
   /// ```
   #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
   pub struct InvalidHexDigits<Char, const N: usize, O = usize>(
-    GenericArrayDeque<PositionedChar<Char, O>, ConstArrayLength<N>>,
+    ArrayDequeN<PositionedChar<Char, O>, N>,
   )
   where
-    Const<N>: IntoArrayLength;
+    [PositionedChar<Char, O>; N]: AssocArraySize;
 
   /// Restores contiguity when an exclusive borrow of the ring ends, on **every** exit path.
   ///
@@ -125,9 +123,9 @@ mod store {
   /// an unwind out of a caller-supplied closure — a panicking `retain` predicate, say — would
   /// leave the ring wrapped and every later shared read silently short. `Drop` is what makes
   /// the two paths the same path.
-  struct Normalized<'ring, T, N: ArrayLength>(&'ring mut GenericArrayDeque<T, N>);
+  struct Normalized<'ring, T, N: ArraySize>(&'ring mut ArrayDeque<T, N>);
 
-  impl<T, N: ArrayLength> Drop for Normalized<'_, T, N> {
+  impl<T, N: ArraySize> Drop for Normalized<'_, T, N> {
     #[inline]
     fn drop(&mut self) {
       self.0.make_contiguous();
@@ -136,13 +134,11 @@ mod store {
 
   impl<Char, const N: usize, O> InvalidHexDigits<Char, N, O>
   where
-    Const<N>: IntoArrayLength,
+    [PositionedChar<Char, O>; N]: AssocArraySize,
   {
     /// Wraps a ring, contiguous, whatever the caller handed over.
     #[inline]
-    pub(super) fn from_ring(
-      ring: GenericArrayDeque<PositionedChar<Char, O>, ConstArrayLength<N>>,
-    ) -> Self {
+    pub(super) fn from_ring(ring: ArrayDequeN<PositionedChar<Char, O>, N>) -> Self {
       let mut this = Self(ring);
       this.0.make_contiguous();
       this
@@ -156,7 +152,7 @@ mod store {
     #[inline]
     pub(super) fn with_ring<R>(
       &mut self,
-      f: impl FnOnce(&mut GenericArrayDeque<PositionedChar<Char, O>, ConstArrayLength<N>>) -> R,
+      f: impl FnOnce(&mut ArrayDequeN<PositionedChar<Char, O>, N>) -> R,
     ) -> R {
       let guard = Normalized(&mut self.0);
       f(&mut *guard.0)
@@ -208,7 +204,7 @@ mod store {
 impl<Char, const N: usize, O> core::fmt::Display for InvalidHexDigits<Char, N, O>
 where
   Char: DisplayHuman,
-  Const<N>: IntoArrayLength,
+  [PositionedChar<Char, O>; N]: AssocArraySize,
   O: core::fmt::Display,
 {
   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -231,7 +227,7 @@ where
 
 impl<Char, const N: usize, O> From<PositionedChar<Char, O>> for InvalidHexDigits<Char, N, O>
 where
-  Const<N>: IntoArrayLength,
+  [PositionedChar<Char, O>; N]: AssocArraySize,
 {
   #[inline]
   fn from(c: PositionedChar<Char, O>) -> Self {
@@ -241,7 +237,7 @@ where
 
 impl<Char, const N: usize, O> From<[PositionedChar<Char, O>; 1]> for InvalidHexDigits<Char, N, O>
 where
-  Const<N>: IntoArrayLength,
+  [PositionedChar<Char, O>; N]: AssocArraySize,
 {
   #[inline]
   fn from(c: [PositionedChar<Char, O>; 1]) -> Self {
@@ -250,9 +246,9 @@ where
   }
 }
 
-impl<Char, const N: usize, O> InvalidHexDigits<Char, N, O>
+impl<Char, O, const N: usize> InvalidHexDigits<Char, N, O>
 where
-  Const<N>: IntoArrayLength,
+  [PositionedChar<Char, O>; N]: AssocArraySize,
 {
   /// Creates a new `InvalidHexDigits` containing a single invalid digit.
   ///
@@ -271,7 +267,7 @@ where
   pub fn from_positioned_char(ch: PositionedChar<Char, O>) -> Self {
     assert!(N > 0, "InvalidHexDigits capacity must be > 0");
 
-    let mut vec = GenericArrayDeque::new();
+    let mut vec = ArrayDeque::new();
     vec.push_back(ch);
     Self::from_ring(vec)
   }
@@ -307,8 +303,11 @@ where
   /// ]);
   /// assert_eq!(digits.len(), 2);
   /// ```
-  pub fn from_array(chars: [PositionedChar<Char, O>; N]) -> Self {
-    Self::from_ring(GenericArrayDeque::from_array(chars))
+  pub fn from_array(chars: [PositionedChar<Char, O>; N]) -> Self
+// where
+  //   N: ArraySize<ArrayType<MaybeUninit<PositionedChar<Char, O>>> = [MaybeUninit<PositionedChar<Char, O>>; N]>,
+  {
+    Self::from_ring(ArrayDeque::from_array(chars))
   }
 
   /// Creates a new `InvalidHexDigits` from an iterator.
@@ -335,9 +334,7 @@ where
   where
     I: IntoIterator<Item = PositionedChar<Char, O>>,
   {
-    GenericArrayDeque::try_from_iter(iter)
-      .map(Self::from_ring)
-      .ok()
+    ArrayDeque::try_from_iter(iter).map(Self::from_ring).ok()
   }
 
   /// Pushes an invalid hex digit to the container.
@@ -452,7 +449,7 @@ where
 
 impl<Char, const N: usize, O> AsRef<[PositionedChar<Char, O>]> for InvalidHexDigits<Char, N, O>
 where
-  Const<N>: IntoArrayLength,
+  [PositionedChar<Char, O>; N]: AssocArraySize,
 {
   #[inline]
   fn as_ref(&self) -> &[PositionedChar<Char, O>] {
@@ -462,7 +459,7 @@ where
 
 impl<Char, const N: usize, O> AsMut<[PositionedChar<Char, O>]> for InvalidHexDigits<Char, N, O>
 where
-  Const<N>: IntoArrayLength,
+  [PositionedChar<Char, O>; N]: AssocArraySize,
 {
   #[inline]
   fn as_mut(&mut self) -> &mut [PositionedChar<Char, O>] {
@@ -472,7 +469,7 @@ where
 
 impl<Char, const N: usize, O> core::ops::Deref for InvalidHexDigits<Char, N, O>
 where
-  Const<N>: IntoArrayLength,
+  [PositionedChar<Char, O>; N]: AssocArraySize,
 {
   type Target = [PositionedChar<Char, O>];
 
@@ -484,7 +481,7 @@ where
 
 impl<Char, const N: usize, O> core::ops::DerefMut for InvalidHexDigits<Char, N, O>
 where
-  Const<N>: IntoArrayLength,
+  [PositionedChar<Char, O>; N]: AssocArraySize,
 {
   #[inline]
   fn deref_mut(&mut self) -> &mut Self::Target {

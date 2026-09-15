@@ -1,6 +1,6 @@
 [package]
 name = "tokora"
-version = "0.10.0"
+version = "0.11.0"
 edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
@@ -13,9 +13,9 @@ keywords = ["parser", "combinator", "token", "logos", "error-recovery"]
 
 [features]
 default = ["std", "combinators"]
-alloc = ["generic-arraydeque/alloc", "mayber/alloc", "tinyvec_1?/alloc"]
+alloc = ["hybrid-arraydeque/alloc", "mayber/alloc", "tinyvec_1?/alloc"]
 std = [
-  "generic-arraydeque/default",
+  "hybrid-arraydeque/default",
   "thiserror/default",
 
   "bytes_1?/default",
@@ -161,7 +161,7 @@ derive_more = { version = "2", default-features = false, features = [
   "try_unwrap",
   "is_variant",
 ] }
-generic-arraydeque = { version = "0.2", default-features = false, features = ["unstable"] }
+hybrid-arraydeque = { version = "0.1", default-features = false, features = ["unstable"] }
 paste = "1"
 stacker = { version = "0.1", optional = true }
 seq-macro = { version = "0.3", default-features = false }

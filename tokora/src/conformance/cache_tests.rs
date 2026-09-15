@@ -16,7 +16,7 @@
 use core::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 
-use generic_arraydeque::typenum::Unsigned;
+use hybrid_arraydeque::typenum::Unsigned;
 use mayber::Maybe;
 
 use super::cache::CacheHarness;
@@ -161,10 +161,10 @@ fn cache_kit_accepts_the_default_ring() {
 
 #[test]
 fn cache_kit_accepts_a_wider_ring() {
-  use generic_arraydeque::{GenericArrayDeque, typenum::U8};
-  type Wide<'a> = GenericArrayDeque<CachedTokenOf<'a, CLex<'a>>, U8>;
+  use hybrid_arraydeque::{ArrayDeque, typenum::U8};
+  type Wide<'a> = ArrayDeque<CachedTokenOf<'a, CLex<'a>>, U8>;
   CacheHarness::<CLex<'_>, Wide<'_>>::new(SRC)
-    .named("GenericArrayDeque<_, U8>")
+    .named("ArrayDeque<_, U8>")
     .also_built_by(|| <Wide<'_> as Cache<'_, CLex<'_>, ()>>::with_options(()))
     .run();
 }
@@ -1162,7 +1162,7 @@ where
 
   fn peek<'p, W>(
     &'p self,
-    buf: &mut generic_arraydeque::GenericArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
+    buf: &mut hybrid_arraydeque::ArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
   ) where
     W: crate::Window,
   {
@@ -2101,7 +2101,7 @@ fn cache_kit_drives_peek_with_less_room_than_the_buffer_has_slots() {
 /// what `push_back` refuses, which is what a cache written against the wrong bound actually
 /// does. It passes every check, and must: with `W` the buffer's capacity and `P` what it already
 /// holds, it lands `min(min(len, W), W - P)` entries, and that is `min(len, W - P)`, the correct
-/// count, for every `len`, `W` and `P`. `GenericArrayDeque::push_back` returns the value and
+/// count, for every `len`, `W` and `P`. `ArrayDeque::push_back` returns the value and
 /// leaves the deque unmodified when full, so the overflow attempts leave no trace either.
 ///
 /// This test is therefore an inverted one: it passes while the kit is blind and fails the moment
@@ -2866,7 +2866,7 @@ const CALL_SITES: &[(&str, &str, &str, usize, &str, &str)] = &[
     "buf",
     1,
     NOT_A_CACHE_CALL,
-    "`GenericArrayDeque::push_back` on the kit's OWN peek buffer, loading the prefill before `peek` is invoked. Registered rather than special-cased in the scanner, because a scanner that guessed at receivers would be the kind of check that passes by not looking.",
+    "`ArrayDeque::push_back` on the kit's OWN peek buffer, loading the prefill before `peek` is invoked. Registered rather than special-cased in the scanner, because a scanner that guessed at receivers would be the kind of check that passes by not looking.",
   ),
   // ── absence is the law under test ───────────────────────────────────────────────
   (

@@ -24,7 +24,7 @@
 use core::cell::Cell;
 use std::rc::Rc;
 
-use generic_arraydeque::typenum::U4;
+use hybrid_arraydeque::typenum::U4;
 use tokora::{
   Emitter, InputRef, Parse, ParseChoice, ParseContext, ParseInput, ParseTokenChoice, Parser,
   ParserContext, SimpleSpan, Token as TokenTrait, TryParseInput,

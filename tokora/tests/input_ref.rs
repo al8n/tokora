@@ -486,7 +486,7 @@ fn foldrn_fewer_than_n() {
 
 #[test]
 fn foldr_within_reverses_order() {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
@@ -508,7 +508,7 @@ fn foldr_within_reverses_order() {
 
 #[test]
 fn foldr_within_empty() {
-  use generic_arraydeque::typenum::U4;
+  use hybrid_arraydeque::typenum::U4;
 
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where
@@ -535,7 +535,7 @@ fn foldr_within_empty() {
 
 #[test]
 fn foldr_within_short_run_folds_every_consumed_token() {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<(i64, bool), ()>
   where
@@ -567,7 +567,7 @@ fn foldr_within_short_run_folds_every_consumed_token() {
 
 #[test]
 fn foldr_within_decline_after_partial_run() {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<(i64, i64), ()>
   where
@@ -602,7 +602,7 @@ fn foldr_within_decline_after_partial_run() {
 
 #[test]
 fn foldr_within_every_length_below_capacity() {
-  use generic_arraydeque::typenum::U4;
+  use hybrid_arraydeque::typenum::U4;
 
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>
   where

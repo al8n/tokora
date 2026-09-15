@@ -70,7 +70,7 @@
 //! from shipped code, over the same stream, in the same residency, with nothing varying but the
 //! entry point.
 
-use generic_arraydeque::typenum::{U1, U2, U3, U4};
+use hybrid_arraydeque::typenum::{U1, U2, U3, U4};
 
 use crate::{
   InputRef, Token,
@@ -1961,7 +1961,7 @@ where
 struct LedgerCache<'a>(Inner<'a>);
 
 /// The cache the wrapper delegates to. Every delegation below is fully qualified through
-/// [`Cache`]: `GenericArrayDeque` has inherent methods of the same names, and an unqualified call
+/// [`Cache`]: `ArrayDeque` has inherent methods of the same names, and an unqualified call
 /// would silently reach those instead of the trait's.
 type Inner<'a> = DefaultCache<'a, LedgerLexer<'a>>;
 
@@ -2024,7 +2024,7 @@ impl<'a> Cache<'a, LedgerLexer<'a>, ()> for LedgerCache<'a> {
 
   fn peek<'p, W>(
     &'p self,
-    buf: &mut generic_arraydeque::GenericArrayDeque<
+    buf: &mut hybrid_arraydeque::ArrayDeque<
       crate::cache::MaybeRefCachedTokenOf<'p, 'a, LedgerLexer<'a>>,
       W::CAPACITY,
     >,

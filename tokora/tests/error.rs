@@ -1041,7 +1041,7 @@ fn simple_span_ordering() {
 // ── Missing ───────────────────────────────────────────────────────────────────
 
 use tokora::syntax::{Language, Syntax};
-use tokora::utils::{GenericArrayDeque, typenum::U0};
+use tokora::utils::{ArrayDeque, typenum::U0};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct TestLang;
@@ -1076,12 +1076,12 @@ impl Syntax for ExprSyntax {
   type Component = Unit;
   type COMPONENTS = U0;
   type REQUIRED = U0;
-  fn possible_components() -> &'static GenericArrayDeque<Unit, tokora::utils::typenum::UTerm> {
-    const C: &GenericArrayDeque<Unit, U0> = &GenericArrayDeque::from_array([]);
+  fn possible_components() -> &'static ArrayDeque<Unit, tokora::utils::typenum::UTerm> {
+    const C: &ArrayDeque<Unit, U0> = &ArrayDeque::from_array([]);
     C
   }
-  fn required_components() -> &'static GenericArrayDeque<Unit, tokora::utils::typenum::UTerm> {
-    const C: &GenericArrayDeque<Unit, U0> = &GenericArrayDeque::from_array([]);
+  fn required_components() -> &'static ArrayDeque<Unit, tokora::utils::typenum::UTerm> {
+    const C: &ArrayDeque<Unit, U0> = &ArrayDeque::from_array([]);
     C
   }
 }

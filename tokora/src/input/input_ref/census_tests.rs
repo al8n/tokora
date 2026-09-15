@@ -2643,7 +2643,7 @@ fn front_census_every_probe_is_const_gated() {
 ///   *single* correct window for a large-token monomorphization.
 ///
 /// So this stays a syntactic guard that is honest about being one, rather than a
-/// structural guard that is not structural. The `GenericArrayDeque::` and `.rotate_left(`
+/// structural guard that is not structural. The `ArrayDeque::` and `.rotate_left(`
 /// counts below are the file-scoped half, and they do bite an alias: whatever it is named,
 /// a second window still has to be *constructed*, and the deque count is the shape a
 /// construction in this file takes.
@@ -2662,7 +2662,7 @@ fn peek_footprint_census_the_fill_owns_no_store() {
   for needle in [
     "MaybeUninit",
     "GenericArray<",
-    "GenericArrayDeque",
+    "ArrayDeque",
     "uninit(",
     "W::array",
     "W::deque",
@@ -2692,7 +2692,7 @@ fn peek_footprint_census_the_fill_owns_no_store() {
   );
 
   // One window per public entry point — the buffer each hands back — and no fourth.
-  let built = count(peek, "GenericArrayDeque::");
+  let built = count(peek, "ArrayDeque::");
   assert!(
     built == 3,
     "PEEK_FOOTPRINT drift: `peek/mod.rs` builds {built} deque(s), expected 3 — one per \

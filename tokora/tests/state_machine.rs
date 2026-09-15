@@ -13,7 +13,7 @@ use tokora::EmitterView;
 // emitter that returns `Ok(())`, we let parsing continue through all the
 // error-recovery branches.
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
   Token as TokenTrait, TryParseInput,

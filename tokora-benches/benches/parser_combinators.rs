@@ -41,7 +41,7 @@ use core::{fmt::Write as _, time::Duration};
 use std::hint::black_box;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 
 use tokora::{
   Accumulator, Balance, Emitter, EmitterView, InputRef, Parse, ParseChoice, ParseContext,

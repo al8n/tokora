@@ -29,7 +29,7 @@ use core::cell::Cell;
 use std::rc::Rc;
 use tokora::EmitterView;
 
-use generic_arraydeque::typenum::{U1, U2, U4};
+use hybrid_arraydeque::typenum::{U1, U2, U4};
 use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
   Token as TokenTrait, TryParseInput,

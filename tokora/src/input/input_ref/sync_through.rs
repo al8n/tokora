@@ -246,7 +246,7 @@ where
       }
       // The exhausted outcomes — a poison trip committed at the durable frontier, or a
       // no-match run to end of input rewound to `snapshot` — yield no match and an empty peek.
-      Scanned::Exhausted => Ok((None, GenericArrayDeque::new(), self.emitter_view())),
+      Scanned::Exhausted => Ok((None, ArrayDeque::new(), self.emitter_view())),
     }
   }
 }

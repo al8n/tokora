@@ -123,7 +123,7 @@ mod common;
 use core::cell::Cell;
 use tokora::EmitterView;
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
   TryParseInput,

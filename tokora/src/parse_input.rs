@@ -1,6 +1,6 @@
 use core::mem::MaybeUninit;
 
-use generic_arraydeque::{ArrayLength, GenericArrayDeque, array::GenericArray, typenum};
+use hybrid_arraydeque::{ArrayDeque, ArraySize, array::Array, typenum};
 
 use crate::{
   cache::Peeked,
@@ -30,18 +30,18 @@ mod sealed {
 /// `typenum::U1` through `typenum::U32` only.
 pub trait Window: sealed::Sealed {
   /// The capacity of the peek buffer.
-  type CAPACITY: ArrayLength;
+  type CAPACITY: ArraySize;
 
   /// Create an uninitialized array of the specified capacity.
   #[inline(always)]
-  fn array<T>() -> GenericArray<MaybeUninit<T>, Self::CAPACITY> {
-    GenericArray::uninit()
+  fn array<T>() -> Array<MaybeUninit<T>, Self::CAPACITY> {
+    Array::uninit()
   }
 
   /// Create a deque of the specified capacity.
   #[inline(always)]
-  fn deque<T>() -> GenericArrayDeque<MaybeUninit<T>, Self::CAPACITY> {
-    GenericArrayDeque::new()
+  fn deque<T>() -> ArrayDeque<MaybeUninit<T>, Self::CAPACITY> {
+    ArrayDeque::new()
   }
 }
 

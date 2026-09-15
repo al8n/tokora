@@ -12,7 +12,7 @@ use tokora::EmitterView;
 // Every test input ends with `+` so the condition closure always sees a stop
 // token instead of hitting the debug_assert at EOF.
 
-use generic_arraydeque::typenum::U1;
+use hybrid_arraydeque::typenum::U1;
 use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
   cache::Peeked,

@@ -1620,7 +1620,7 @@ fn a_refusal_on_record_still_has_cached_tokens_in_front_of_it() {
   {
     // The fill produces two items against a ceiling of two and refuses the third, which latches
     // the durable one-shot probe while the two it produced sit at the cache front.
-    let filled = inp.peek::<generic_arraydeque::typenum::U4>().is_ok();
+    let filled = inp.peek::<hybrid_arraydeque::typenum::U4>().is_ok();
     let stop = inp.at_scanner_stop();
     let next = match inp.try_expect_or_stop(|_| true) {
       Ok(Some(_)) => NextAnswer::Token,
@@ -1746,7 +1746,7 @@ fn the_attempt_relative_verdict_answers_where_the_positional_reading_is_blind() 
     let scan = inp.scanner_trip_snapshot();
 
     // 1 — a lookahead trips and latches AHEAD of the cursor, returning a short window.
-    let _ = inp.peek::<generic_arraydeque::typenum::U4>();
+    let _ = inp.peek::<hybrid_arraydeque::typenum::U4>();
     rows.push((
       inp.at_scanner_stop(),
       inp.scanner_stopped_during_attempt(scan),

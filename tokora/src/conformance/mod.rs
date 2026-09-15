@@ -4612,7 +4612,7 @@ fn check_integration<'inp, L>(
   L::Token: PartialEq,
   <L::Token as Token<'inp>>::Error: PartialEq,
 {
-  use generic_arraydeque::typenum::U3;
+  use hybrid_arraydeque::typenum::U3;
 
   // ONE tally for all five schedules on this input, and it is the bound. Each `out.len() > budget`
   // guard here, and each fixed `for _ in 0..n` prefix consume, is keyed on `next()` — a loop that

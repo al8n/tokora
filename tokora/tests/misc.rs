@@ -40,7 +40,7 @@ mod cst_coverage {
   use tokora::{
     cst::{Element, Node, NodeChildren, SyntaxTreeBuilder, cast, error::NodeMismatch},
     syntax::Syntax,
-    utils::{GenericArrayDeque, typenum::U0},
+    utils::{ArrayDeque, typenum::U0},
   };
 
   // ── Minimal test language ────────────────────────────────────────────────────
@@ -104,12 +104,12 @@ mod cst_coverage {
     type COMPONENTS = U0;
     type REQUIRED = U0;
 
-    fn possible_components() -> &'static GenericArrayDeque<Self::Component, U0> {
-      const C: &GenericArrayDeque<NoComponent, U0> = &GenericArrayDeque::from_array([]);
+    fn possible_components() -> &'static ArrayDeque<Self::Component, U0> {
+      const C: &ArrayDeque<NoComponent, U0> = &ArrayDeque::from_array([]);
       C
     }
-    fn required_components() -> &'static GenericArrayDeque<Self::Component, U0> {
-      const C: &GenericArrayDeque<NoComponent, U0> = &GenericArrayDeque::from_array([]);
+    fn required_components() -> &'static ArrayDeque<Self::Component, U0> {
+      const C: &ArrayDeque<NoComponent, U0> = &ArrayDeque::from_array([]);
       C
     }
   }
@@ -517,7 +517,7 @@ fn inputref_foldn_zero_limit() {
 #[test]
 fn inputref_foldr_within_hits_capacity() {
   // Covers fold.rs line 85: `if buf.len() >= CAPACITY { break; }`
-  use generic_arraydeque::typenum::U2;
+  use hybrid_arraydeque::typenum::U2;
 
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Vec<i64>, ()>
   where

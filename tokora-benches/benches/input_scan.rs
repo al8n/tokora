@@ -33,7 +33,7 @@ use core::{fmt::Write as _, time::Duration};
 use std::hint::black_box;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use generic_arraydeque::typenum::{U3, U8};
+use hybrid_arraydeque::typenum::{U3, U8};
 
 use tokora::{
   Cache, Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput, ParseTokenChoice,
@@ -721,7 +721,7 @@ fn dispatch_bench(c: &mut Criterion) {
 //   * the **staged region and the rotation that lands it**. A window wider than the
 //     cache can hold makes the fill retain what fits and stage the rest at the tail of
 //     the caller's own window, then copy the cache region in and `rotate_left` the
-//     staged run behind it. `DefaultCache` is `GenericArrayDeque<_, U3>`, so nothing
+//     staged run behind it. `DefaultCache` is `ArrayDeque<_, U3>`, so nothing
 //     narrower than a width-4 peek can reach any of it. That path also carries
 //     `assert_cache_copy`'s **release-active endpoint witness**, which exists because a
 //     `Cache::len` that under-reports clips the copy and the rotation then closes the
