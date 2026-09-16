@@ -69,9 +69,48 @@ and will red until they do.
 
 ## 0.11.0 (2026-09-15)
 
-### Breaking
+### Changed (breaking)
 
-- Switch from `generic-arraydeque` to `hybrid-arraydeque`
+- **The token caches, the `Container` ring and the `Syntax` component lists are backed by
+  `hybrid-arraydeque` instead of `generic-arraydeque`, and `#![recursion_limit = "256"]` leaves
+  with the proof chain that needed it** (#346; the attribute arrived in #345). `generic-array`
+  proves that a `typenum` capacity fits `usize` through `IsWithinUsizeBound`, a type-level `Shl`
+  chain whose depth tracks the 64-bit word width rather than the deque's own capacity, and against
+  `typenum < 1.20.1` that chain overflows rustc's default 128-frame limit while checking the
+  blanket `impl Default for Parser<(), …>` — which is how `cargo package` came to refuse the
+  tarball. `hybrid-array` implements `ArraySize` per size, by macro, with `ArrayType<T> = [T; N]`
+  and nothing to unfold, so the limit is retired for a structural reason rather than raised: at
+  `e7973fa` with `typenum` pinned to 1.20.0 and no attribute, `cargo +stable check -p tokora` is
+  green and the log carries no recursion diagnostic. `hybrid-array` requires `typenum ^1.20`, so a
+  resolver may still land on 1.20.0, and now that is harmless.
+
+  What a consumer renames — every one of them mechanical, and `tokora::utils::typenum` still
+  names the same `typenum`:
+
+  | 0.10 | 0.11 |
+  |---|---|
+  | `tokora::utils::GenericArrayDeque<T, N>` | `tokora::utils::ArrayDeque<T, N>` |
+  | `tokora::utils::generic_arraydeque` (the crate re-export) | `tokora::utils::arraydeque` |
+  | `ConstGenericArrayDeque<T, N>` | `ArrayDequeN<T, N>` |
+  | the `ArrayLength` bound on `Window::CAPACITY`, `Syntax::COMPONENTS` and `Syntax::REQUIRED`, and on every `Container`, `ErrorContainer` and `Cache` impl over the ring | `ArraySize` |
+  | `Window::array()` returning `GenericArray<MaybeUninit<T>, CAPACITY>` | `hybrid_array::Array<MaybeUninit<T>, CAPACITY>` |
+  | `InvalidHexDigits<Char, N, O>` where `Const<N>: IntoArrayLength` | where `[PositionedChar<Char, O>; N]: AssocArraySize` |
+
+  One thing narrows, and it is the same recursion seen from the other side. **`N` ranges over
+  the sizes `hybrid-array` implements, not over every `typenum` unsigned**: `ArraySize` is
+  effectively sealed and implemented for `U0` through `U513` contiguously and for thirty-nine
+  sizes above that, sparsely, from `U521` to `U8192` (the `extra-sizes` feature, not enabled here,
+  adds more). `generic-array 1` admitted any `UInt` by the recursion this change retires. The
+  largest size this crate names is `U32`; smear's is `U2`.
+
+  The deque is the same code ported onto `hybrid_array::Array` — the `unsafe` ring over
+  `MaybeUninit`, the drain and `extract_if` guards, the `io` adapters — and its own CI runs Miri
+  under Stacked and Tree Borrows on x86_64, i686 and powerpc64, valgrind, and the 1.85 MSRV.
+  `push_back` on a full deque still returns the value and leaves the deque untouched, which the
+  cache conformance kit's invisibility argument rests on. The requirement is
+  `hybrid-arraydeque = "0.1"`; 0.1.0 through 0.1.3 are yanked, because `from_array`'s bound
+  before 0.1.4 cannot type `InvalidHexDigits::from_ring` (#347), so a fresh or a minimal-versions
+  resolve can land only on 0.1.4.
 
 ## 0.10.0 (2026-08-29)
 
@@ -1623,7 +1662,7 @@ and will red until they do.
   `overflowed()` at all, only the shared views. Those build with
   `Errors::from_container(iter.collect())`, one line and no loss. In the other direction it
   *gains* the containers with no `FromIterator` of their own, which is both of this crate's
-  bounded ones — `Option<E>` and `ArrayDeque<E, N>`, so `DefaultContainer` in a no-alloc
+  bounded ones — `Option<E>` and `GenericArrayDeque<E, N>`, so `DefaultContainer` in a no-alloc
   build had no `collect()` before this and has an accounting one now.
 
   The reservation the funnel makes is taken **after the first error is observed**, not from the
@@ -2677,7 +2716,7 @@ and will red until they do.
   zero-width span and a spinning scanner was the per-`next()` budget this replaces.
 
 - **`IncompleteSyntax::as_slice` no longer stops at the ring boundary** (#245). The components
-  live in a `ArrayDeque`, and a deque is not one physical slice: `push_front` moves the
+  live in a `GenericArrayDeque`, and a deque is not one physical slice: `push_front` moves the
   head off zero, after which `as_slices()` has two segments. The accessor returned the first
   one. So a two-component error built as `new(B)` then `push_front(A)` reported `len() == 2`,
   iterated `A, B`, and handed `AsRef` and `Display` only `[A]` — and because `Display` branches
@@ -2780,7 +2819,7 @@ and will red until they do.
   unwound the parser instead of returning `Err(item)` and reaching the `FullContainer` path the
   `Container` trait exposes a refusal channel for. Nothing unusual was needed to reach it: safe
   public API, an ordinary element parser, and an element count the *input* chooses. Every other
-  fixed-capacity adapter — `Option`, `ArrayDeque`, `tinyvec::ArrayVec`, both `heapless`
+  fixed-capacity adapter — `Option`, `GenericArrayDeque`, `tinyvec::ArrayVec`, both `heapless`
   containers — already refused through `Err`, so the behaviour also depended on which backend a
   grammar happened to name. The adapter now tests the bound itself and hands the item back
   unchanged; `SliceVec` still cannot grow, and the refusal is `FullContainer` naming the slice's
@@ -3179,7 +3218,7 @@ and will red until they do.
 
 - **`#![recursion_limit = "256"]` in `tokora/src/lib.rs`, and two new CI jobs so a publish-time
   failure surfaces at merge time instead.** `cargo +nightly package -p tokora` failed at "failed
-  to verify package tarball": `hybrid_arraydeque::generic_array::IsWithinUsizeBound` proves a
+  to verify package tarball": `generic_arraydeque::generic_array::IsWithinUsizeBound` proves a
   typenum integer fits `usize` through a type-level `Shl` chain whose depth tracks the 64-bit
   word width rather than the deque's own capacity, and against typenum < 1.20.1 that chain
   overflows the default 128-frame limit while checking the blanket `impl Default for Parser<(),
@@ -7060,7 +7099,7 @@ member, so a hand-written `FromPrattError` impl compiles unchanged.
   the addition is semver-compatible and an existing implementation keeps working unchanged. A cache
   that declares `true` lets the input layer prove its parked-front slot statically unreachable, so
   every probe of it folds away at monomorphization; the shipped caches declare it accordingly
-  (`Option` `true`, `ArrayDeque<_, N>` `N != 0`, the black holes `false`). A cache that
+  (`Option` `true`, `GenericArrayDeque<_, N>` `N != 0`, the black holes `false`). A cache that
   declares `true` and then refuses a front push into an empty cache is violating the contract, and
   now panics at the refusal rather than losing the token.
   — *(R5, #116)*
@@ -8423,7 +8462,7 @@ member, so a hand-written `FromPrattError` impl compiles unchanged.
    `peek` bound it enforces only where a violation is *observable*: a `peek` that clobbers or
    misorders what `buf` already holds is caught, at every residency and every prefill depth, but a
    silent total-capacity `peek` — one that computes the wrong bound and drops the surplus without
-   trace — is **provably invisible** from outside, because a full `ArrayDeque::push_back`
+   trace — is **provably invisible** from outside, because a full `GenericArrayDeque::push_back`
    returns the value and leaves the deque untouched, and `min(min(len, W), R)` equals `min(len, R)`
    for every width and prefill. That one is not rejected; it is *pinned*, by a test asserting the
    kit accepts it, which fails the day the blind spot closes. And `len`'s panic clause the kit
