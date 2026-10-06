@@ -14,6 +14,7 @@ use crate::{
   emitter::{Emitter, EmitterView},
   error::{UnexpectedEot, token::UnexpectedToken},
   span::Spanned,
+  try_parse::input::ParseAttempt,
   utils::Expected,
 };
 
@@ -292,32 +293,11 @@ pub(crate) use try_expect::ClosePayload;
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 pub use stacked::{SavepointId, StackedTransaction};
 
-/// SETTLE_CENSUS / RELEASE_CENSUS — source-census tests over `include_str!` snapshots.
-/// The census greps the same source bytes in every configuration, so one allocator-enabled
-/// run locks it for all of them; the string-building the checks use needs `format!`, which
-/// the allocator-less build lacks.
-#[cfg(all(test, any(feature = "std", feature = "alloc")))]
-mod census_tests;
-
 #[cfg(all(test, feature = "logos_0_16", feature = "std"))]
 mod tests;
 
-#[cfg(all(test, feature = "logos_0_16", feature = "std", feature = "combinators"))]
-mod partial_tests;
-
-#[cfg(all(test, feature = "logos_0_16", feature = "std"))]
-mod capacity_tests;
-
-#[cfg(all(test, feature = "logos_0_16", feature = "std"))]
-mod session_tests;
-
-#[cfg(all(test, feature = "logos_0_16", feature = "std"))]
-mod fast_path_tests;
-
-/// What holds a recursion level and what silently gives it back — the runtime half of the table on
-/// [`Descent`]. Needs `std` for the unwind cell's `catch_unwind`.
-#[cfg(all(test, feature = "logos_0_16", feature = "std"))]
-mod descent_tests;
+// #[cfg(all(test, feature = "logos_0_16", feature = "std"))]
+// mod session_tests;
 
 /// A reference to an `Input` instance.
 pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = (), Cmpl = Complete>
@@ -2365,7 +2345,7 @@ where
   ///
   /// For a three-way flow — accept, decline, or a real error — reach for
   /// [`attempt_parse`](Self::attempt_parse), which speaks the crate's
-  /// [`ParseAttempt`](crate::try_parse_input::ParseAttempt) vocabulary instead of making a
+  /// [`ParseAttempt`](crate::ParseAttempt) vocabulary instead of making a
   /// decline borrow `Option`'s or `Result`'s.
   ///
   /// # Contract: the closure owns its span of the timeline
@@ -2564,14 +2544,10 @@ where
   /// The unwind settles the transaction as a **decline** — roll back, unpin, release the
   /// lineage id — so a host that catches the panic keeps a consistent input with nothing
   /// pinned on its behalf.
-  pub fn attempt_parse<F, T, E>(
-    &mut self,
-    f: F,
-  ) -> Result<crate::try_parse_input::ParseAttempt<T>, E>
+  pub fn attempt_parse<F, T, E>(&mut self, f: F) -> Result<ParseAttempt<T>, E>
   where
-    F: FnOnce(&mut Self) -> Result<crate::try_parse_input::ParseAttempt<T>, E>,
+    F: FnOnce(&mut Self) -> Result<ParseAttempt<T>, E>,
   {
-    use crate::try_parse_input::ParseAttempt;
     trace_event!(self, "attempt_parse");
     let mut txn = self.guard_with::<Rollback>();
     match f(&mut txn) {

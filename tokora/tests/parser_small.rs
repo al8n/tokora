@@ -10,10 +10,10 @@ use common::{TestLexer, Token, TokenKind};
 use hybrid_arraydeque::typenum::U1;
 use tokora::EmitterView;
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, ParseInput, ParseInputUnwrapExt, Parser, TryParseInput,
+  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, ParseInputUnwrapExt, Parser,
+  TryParseInput,
   cache::Peeked,
   parser::{Action, Any, Empty, Todo, expect, fail, fail_with, try_expect},
-  try_parse_input::ParseAttempt,
   utils::Expected,
 };
 

@@ -1,4 +1,4 @@
-use super::{input::Cursor, span::Spanned, *};
+use super::super::{input::Cursor, span::Spanned, *};
 
 /// The view of a parse a state-carrying combinator callback is handed: the `*_with` family —
 #[cfg_attr(feature = "map", doc = " [`map_with`](crate::ParseInput::map_with),")]
@@ -76,7 +76,7 @@ where
 {
   /// Create a new `ParseState`.
   #[inline(always)]
-  pub(super) const fn new(
+  pub(crate) const fn new(
     inp: &'a mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
     start: Cursor<'inp, 'closure, L>,
   ) -> Self {

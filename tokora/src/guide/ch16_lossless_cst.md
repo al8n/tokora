@@ -300,7 +300,7 @@ use tokora::{
   cst::{CstProfile, KindValidator, parse_lossless},
   emitter::{CstEmitter, Fatal},
   parser::{node, node_at},
-  try_parse_input::ParseAttempt,
+  ParseAttempt,
 };
 
 /// Chapter shorthand for the input reference.
@@ -646,7 +646,7 @@ the mark, including tokens committed before the wrap was conceivable.
 #   cst::{CstProfile, KindValidator, parse_lossless},
 #   emitter::{CstEmitter, Fatal},
 #   parser::{node, node_at},
-#   try_parse_input::ParseAttempt,
+#   ParseAttempt,
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
 # #[allow(dead_code)]
@@ -940,7 +940,7 @@ formatting data *without* a tree in the dependency closure; under a sink they ar
 #   cst::{CstProfile, KindValidator, parse_lossless},
 #   emitter::{CstEmitter, Fatal},
 #   parser::{node, node_at},
-#   try_parse_input::ParseAttempt,
+#   ParseAttempt,
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
 # #[allow(dead_code)]
@@ -1208,7 +1208,7 @@ nothing.
 #   Emitter, InputRef, ParseContext, ParseInput, TryParseInput,
 #   emitter::CstEmitter,
 #   parser::{node, node_at},
-#   try_parse_input::ParseAttempt,
+#   ParseAttempt,
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
 # #[derive(Debug, Clone, PartialEq)]
@@ -1457,7 +1457,7 @@ branch is abandoned, its events are truncated as if they never happened.
 #   cst::{CstProfile, KindValidator, parse_lossless},
 #   emitter::{CstEmitter, Fatal},
 #   parser::{node, node_at},
-#   try_parse_input::ParseAttempt,
+#   ParseAttempt,
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
 # #[allow(dead_code)]
@@ -1754,7 +1754,7 @@ scan — no sync point found — rewinds its speculative events entirely.)
 #   cst::{CstProfile, KindValidator, parse_lossless},
 #   emitter::CstEmitter,
 #   parser::{node, node_at},
-#   try_parse_input::ParseAttempt,
+#   ParseAttempt,
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
 # #[allow(dead_code)]
@@ -2319,7 +2319,7 @@ Reading this chapter's tree wants the second position:
 #   cst::{CstProfile, KindValidator, parse_lossless},
 #   emitter::{CstEmitter, Fatal},
 #   parser::{node, node_at},
-#   try_parse_input::ParseAttempt,
+#   ParseAttempt,
 # };
 #
 # /// Chapter shorthand for the input reference.

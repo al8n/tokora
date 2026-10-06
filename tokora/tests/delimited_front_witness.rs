@@ -33,8 +33,8 @@
 use hybrid_arraydeque::typenum::U1;
 use tokora::EmitterView;
 use tokora::{
-  Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  SimpleSpan, Token, TryParseInput,
+  Accumulator, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, SimpleSpan, Token, TryParseInput,
   cache::Peeked,
   emitter::Verbose,
   error::{
@@ -46,7 +46,6 @@ use tokora::{
   punct::{Bracket, CloseBracket, Comma, OpenBracket},
   state::State,
   token::PunctuatorToken,
-  try_parse_input::ParseAttempt,
   utils::Expected,
 };
 

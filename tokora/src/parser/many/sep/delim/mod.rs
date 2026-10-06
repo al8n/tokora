@@ -5,7 +5,7 @@ use crate::{
   emitter::{FullContainerEmitter, SeparatedEmitter, UnclosedEmitter},
   error::Unclosed,
   punct::Punctuator,
-  try_parse_input::{Accept, Decline},
+  try_parse::input::{Accept, Decline},
 };
 
 use super::*;

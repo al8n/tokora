@@ -125,8 +125,8 @@ use tokora::EmitterView;
 
 use hybrid_arraydeque::typenum::U1;
 use tokora::{
-  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  TryParseInput,
+  Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, TryParseInput,
   cache::Peeked,
   emitter::{
     FromUnclosed, FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
@@ -141,7 +141,6 @@ use tokora::{
   parser::Action,
   punct::Paren,
   state::recursion_tracker::RecursionLimiter,
-  try_parse_input::ParseAttempt,
 };
 
 use common::{TestLexer, Token};

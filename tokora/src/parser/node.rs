@@ -190,7 +190,7 @@
 
 use crate::{
   Emitter, InputRef, Lexer, ParseContext, ParseInput, TryParseInput, cst::event::EventMark,
-  emitter::CstEmitter, try_parse_input::ParseAttempt,
+  emitter::CstEmitter, try_parse::input::ParseAttempt,
 };
 
 /// Wraps `parser` in a syntax node of `kind`: on success, everything the sub-parse

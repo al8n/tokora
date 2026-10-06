@@ -30,7 +30,7 @@ use crate::{
   input::{Input, Partial},
   lexer::LogosLexer,
   state::State,
-  try_parse_input::ParseAttempt,
+  try_parse::input::ParseAttempt,
 };
 
 // ── A limiter whose scan counter is SHARED across every cloned lexer ──────────

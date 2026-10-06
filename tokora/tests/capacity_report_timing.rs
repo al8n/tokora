@@ -29,14 +29,13 @@ mod common;
 use common::{TestLexer, Token};
 use std::cell::Cell;
 use tokora::{
-  Accumulator, InputRef, Parse, ParseInput, Parser, ParserContext, TryParseInput,
+  Accumulator, InputRef, Parse, ParseAttempt, ParseInput, Parser, ParserContext, TryParseInput,
   emitter::Fatal,
   error::{
     Unclosed, UnexpectedEot,
     syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
     token::{MissingToken, SeparatedError, UnexpectedToken},
   },
-  try_parse_input::ParseAttempt,
   utils::{ArrayDeque, typenum::U1},
 };
 

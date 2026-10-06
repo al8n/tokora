@@ -13,6 +13,21 @@ use crate::{
   state::State,
 };
 
+#[cfg(all(feature = "logos_0_16", feature = "std"))]
+mod capacity;
+#[cfg(all(feature = "logos_0_16", feature = "std", feature = "combinators"))]
+mod partial;
+
+/// SETTLE_CENSUS / RELEASE_CENSUS — source-census tests over `include_str!` snapshots.
+/// The census greps the same source bytes in every configuration, so one allocator-enabled
+/// run locks it for all of them; the string-building the checks use needs `format!`, which
+/// the allocator-less build lacks.
+#[cfg(any(feature = "std", feature = "alloc"))]
+mod census;
+
+#[cfg(all(feature = "logos_0_16", feature = "std"))]
+mod fast_path;
+
 // ── A limiter whose scan counter is SHARED across every cloned lexer ──────────
 //
 // `InputRef` builds a fresh lexer per operation by cloning the state, so a

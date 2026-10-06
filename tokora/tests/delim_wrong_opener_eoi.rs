@@ -36,8 +36,8 @@ use common::{TestLexer, Token, TokenKind};
 use hybrid_arraydeque::typenum::U1;
 use tokora::EmitterView;
 use tokora::{
-  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  SimpleSpan, TryParseInput,
+  Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, SimpleSpan, TryParseInput,
   cache::Peeked,
   emitter::{
     Fatal, FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
@@ -49,7 +49,6 @@ use tokora::{
     token::{MissingToken, SeparatedError, UnexpectedToken},
   },
   parser::Action,
-  try_parse_input::ParseAttempt,
 };
 
 // ── A rich error type that distinguishes the opener-probe outcomes ─────────────

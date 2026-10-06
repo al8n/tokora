@@ -8,7 +8,8 @@
 mod common;
 
 use tokora::{
-  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
+  Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  TryParseInput,
   emitter::{
     FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
@@ -18,7 +19,6 @@ use tokora::{
     syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
     token::{MissingToken, SeparatedError, UnexpectedToken},
   },
-  try_parse_input::ParseAttempt,
 };
 
 use common::{TestLexer, Token};

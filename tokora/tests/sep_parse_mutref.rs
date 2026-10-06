@@ -11,7 +11,7 @@ mod common;
 use common::E;
 
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
+  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
@@ -22,7 +22,6 @@ use tokora::{
     RequireTrailing, Separated,
   },
   punct::Comma,
-  try_parse_input::ParseAttempt,
 };
 
 use common::{TestLexer, Token};

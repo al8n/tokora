@@ -336,7 +336,7 @@ unwrap(self) -> Unwrapped<…>                          // where Self: ParseInpu
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
 use tokora::{Parse, Parser, ParseInput as _, ParseInputUnwrapExt as _, parser::{expect, opt}, utils::Expected};
-use tokora::try_parse_input::ParseAttempt;
+use tokora::ParseAttempt;
 
 fn a_digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<Tok, Error> {
     expect(|t: &Tok| if matches!(t, Tok::Digit(_)) { Ok(()) } else { Err(Expected::one(Kind::Digit)) })
@@ -660,7 +660,7 @@ both run under either [`Completeness`](crate::Completeness).
 [`opt`](crate::parser::opt) and [`.accepted()`](crate::try_parse_input::TryParseInput::accepted)
 (which turns a `TryParseInput` into a `ParseInput<ParseAttempt<O>>`/`ParseInput<Option<O>>`) are
 the bridges between the two trait worlds. On the value side,
-[`ParseAttempt::into_option`](crate::try_parse_input::ParseAttempt::into_option) is the same
+[`ParseAttempt::into_option`](crate::ParseAttempt::into_option) is the same
 `Accept`/`Decline` → `Some`/`None` projection with a name — and it is the composition point
 for the rest of `Option`'s vocabulary (`ok_or`, `filter`, `unwrap_or_default`), which is why
 no aliases for those ship beside it.
@@ -763,7 +763,7 @@ try_dispatch_take(inp, table, project)                        -> Result<ParseAtt
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
 use tokora::{Parse, ParseChoice as _, ParseInput as _, Parser, parser::opt};
-use tokora::try_parse_input::ParseAttempt;
+use tokora::ParseAttempt;
 
 fn try_digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<ParseAttempt<u32>, Error> {
     Ok(match inp.try_expect(|t| matches!(t.data(), Tok::Digit(_)))? {
@@ -951,7 +951,7 @@ an impl-side `Fn` bound; a named function needs none, and `while_kind` needs nei
 use tokora::{
     Accumulator as _, Parse, ParseInput as _, Parser, TryParseInput as _, while_head, while_kind,
 };
-use tokora::try_parse_input::ParseAttempt;
+use tokora::ParseAttempt;
 
 fn try_digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<ParseAttempt<u32>, Error> {
     Ok(match inp.try_expect(|t| matches!(t.data(), Tok::Digit(_)))? {
@@ -1099,7 +1099,7 @@ separated_while<Sep, Cond, W>(self, cond: Cond) -> SeparatedWhile<…>  // eleme
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
 use tokora::{Accumulator as _, Parse, ParseInput as _, Parser, TryParseInput as _};
-use tokora::try_parse_input::ParseAttempt;
+use tokora::ParseAttempt;
 
 fn try_digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<ParseAttempt<u32>, Error> {
     Ok(match inp.try_expect(|t| matches!(t.data(), Tok::Digit(_)))? {
@@ -1239,7 +1239,7 @@ bounded(self, min, max)         delimited::<Delim>(self) -> DelimitedBy<Self, De
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
 use tokora::{Accumulator as _, Parse, ParseInput as _, Parser, TryParseInput as _, punct::Bracket};
-use tokora::try_parse_input::ParseAttempt;
+use tokora::ParseAttempt;
 
 fn try_digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<ParseAttempt<u32>, Error> {
     Ok(match inp.try_expect(|t| matches!(t.data(), Tok::Digit(_)))? {
@@ -1704,7 +1704,7 @@ node_at(mark: EventMark, kind: u16, p: P) -> NodeAt<P>
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
 use tokora::{Parse, ParseInput as _, Parser, parser::{node, node_opt}};
-use tokora::try_parse_input::ParseAttempt;
+use tokora::ParseAttempt;
 
 const NUMBER: u16 = 1;
 

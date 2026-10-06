@@ -55,7 +55,7 @@ use crate::{
     OpenBracket, OpenParen, Paren,
   },
   token::{PunctuatorToken, PunctuatorTokenExt, SpannedPunctuatorToken},
-  try_parse_input::ParseAttempt,
+  try_parse::input::ParseAttempt,
 };
 
 /// The result the parser [`delimited`] builds yields: `inner`'s output wrapped in a

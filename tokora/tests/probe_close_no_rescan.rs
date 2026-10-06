@@ -39,8 +39,8 @@ use tokora::EmitterView;
 use hybrid_arraydeque::ArrayDeque;
 use hybrid_arraydeque::typenum::{U1, U8};
 use tokora::{
-  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, State,
-  Token as TokenTrait, TryParseInput,
+  Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, State, Token as TokenTrait, TryParseInput,
   cache::{CachedTokenOf, Peeked},
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
@@ -57,7 +57,6 @@ use tokora::{
   parser::Action,
   punct::{CloseParen, Comma, OpenParen, Paren},
   token::PunctuatorToken,
-  try_parse_input::ParseAttempt,
 };
 
 // ── Scan-counting lexer state ──────────────────────────────────────────────────

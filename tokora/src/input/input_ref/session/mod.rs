@@ -38,6 +38,9 @@ use crate::emitter::Emitter;
 
 use super::{Checkpoint, Lexer, Lineage};
 
+#[cfg(test)]
+mod tests;
+
 /// An opaque handle to one open [session point](super::InputRef::begin_point).
 ///
 /// Returned by [`begin_point`](super::InputRef::begin_point) and required by

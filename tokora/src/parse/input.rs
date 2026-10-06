@@ -3,6 +3,7 @@ use core::mem::MaybeUninit;
 use hybrid_arraydeque::{ArrayDeque, ArraySize, array::Array, typenum};
 
 use crate::{
+  Complete, Completeness, Emitter, Lexer, Source, SurfaceIncomplete, Token, TryParseInput,
   cache::Peeked,
   emitter::EmitterView,
   input::{DelimClass, InputRef},
@@ -11,6 +12,7 @@ use crate::{
   punct::*,
   slice::Sliced,
   span::Spanned,
+  try_parse::input::ParseAttempt,
   utils::marker::{PhantomLocated, PhantomSliced, PhantomSpan},
 };
 
@@ -293,10 +295,7 @@ where
   fn try_parse_input(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
-  ) -> Result<
-    crate::try_parse_input::ParseAttempt<O>,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
-  >
+  ) -> Result<ParseAttempt<O>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,
     Ctx: ParseContext<'inp, L, Lang>,

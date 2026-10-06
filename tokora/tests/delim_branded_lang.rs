@@ -30,8 +30,8 @@ mod common;
 use common::{TestLexer, Token};
 
 use tokora::{
-  Accumulator, ComposableParseContext, Emitter, InputRef, Lexer, Parse, ParseInput, Parser,
-  ParserContext, TryParseInput,
+  Accumulator, ComposableParseContext, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseInput,
+  Parser, ParserContext, TryParseInput,
   cache::DefaultCache,
   delimiter::TypedDelimiter,
   emitter::Fatal,
@@ -41,7 +41,6 @@ use tokora::{
     token::{MissingToken, SeparatedError, UnexpectedToken},
   },
   punct::Bracket,
-  try_parse_input::ParseAttempt,
 };
 
 /// A branded language marker, in the shape a real grammar declares one.

@@ -167,7 +167,7 @@ macro_rules! keyword {
           pub fn try_parse<'inp, L, Ctx, Lang: ?::core::marker::Sized, Cmpl>(
             inp: &mut $crate::InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
           ) -> ::core::result::Result<
-            $crate::try_parse_input::ParseAttempt<$name<L::Span, (), Lang>>,
+            $crate::__private::try_parse::input::ParseAttempt<$name<L::Span, (), Lang>>,
             <Ctx::Emitter as $crate::Emitter<'inp, L, Lang>>::Error,
           >
           where

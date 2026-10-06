@@ -5,11 +5,10 @@
 //! try_parse_exact, try_parse_exact_sliced and their _of variants.
 
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, Parser, Token as TokenT, TryParseInput,
+  Emitter, InputRef, Parse, ParseAttempt, ParseContext, Parser, Token as TokenT, TryParseInput,
   error::UnexpectedEot,
   logos::{self, Logos},
   token::{KeywordToken, PunctuatorToken},
-  try_parse_input::ParseAttempt,
   types::{Keyword, recovery::Components},
 };
 

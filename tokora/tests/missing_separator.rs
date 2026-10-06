@@ -6,8 +6,8 @@
 mod common;
 
 use tokora::{
-  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  TryParseInput,
+  Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, TryParseInput,
   emitter::{
     Fatal, FullContainerEmitter, MissingTrailingSeparatorEmitter, SeparatedEmitter,
     UnexpectedLeadingSeparatorEmitter, Verbose,
@@ -18,7 +18,6 @@ use tokora::{
     token::{MissingToken, MissingTokenOf, SeparatedError, UnexpectedToken},
   },
   span::SimpleSpan,
-  try_parse_input::ParseAttempt,
   utils::CowStr,
 };
 

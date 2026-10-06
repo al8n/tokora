@@ -20,8 +20,8 @@ mod common;
 use common::{TestLexer, Token};
 
 use tokora::{
-  Accumulator, ComposableEmitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser,
-  ParserContext, SimpleSpan, TryParseInput,
+  Accumulator, ComposableEmitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput,
+  Parser, ParserContext, SimpleSpan, TryParseInput,
   delimiter::DelimiterKind,
   emitter::{Emitter, Fatal, FromUnclosed, FullContainerEmitter, UnclosedEmitter, Verbose},
   error::{
@@ -29,7 +29,6 @@ use tokora::{
     syntax::{FullContainer, MissingSyntaxOf, TooFew},
     token::{UnexpectedToken, UnexpectedTokenOf},
   },
-  try_parse_input::ParseAttempt,
   utils::CowStr,
 };
 

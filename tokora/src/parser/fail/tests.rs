@@ -46,14 +46,14 @@ fn fail_with_copy() {
 #[test]
 fn fail_free_fn_lang_inferred() {
   use crate::lexer::DummyLexer;
-  use crate::parse_context::FatalContext;
+  use crate::parse::context::FatalContext;
   let _f = fail::<'_, fn() -> (), DummyLexer, (), FatalContext<'_, DummyLexer, ()>, _>(|| ());
 }
 
 #[test]
 fn fail_free_fn_lang_named() {
   use crate::lexer::DummyLexer;
-  use crate::parse_context::FatalContext;
+  use crate::parse::context::FatalContext;
   let _f = fail::<'_, fn() -> (), DummyLexer, (), FatalContext<'_, DummyLexer, (), ()>, ()>(|| ());
 }
 

@@ -26,15 +26,14 @@ use std::rc::Rc;
 
 use hybrid_arraydeque::typenum::U4;
 use tokora::{
-  Emitter, InputRef, Parse, ParseChoice, ParseContext, ParseInput, ParseTokenChoice, Parser,
-  ParserContext, SimpleSpan, Token as TokenTrait, TryParseInput,
+  Emitter, InputRef, Parse, ParseAttempt, ParseChoice, ParseContext, ParseInput, ParseTokenChoice,
+  Parser, ParserContext, SimpleSpan, Token as TokenTrait, TryParseInput,
   error::{MaybeIncomplete, MaybeTerminal, UnexpectedEot, token::UnexpectedToken},
   lexer::LogosLexer,
   logos::{self, Logos},
   parser::Any,
   span::Spanned,
   state::State,
-  try_parse_input::ParseAttempt,
 };
 
 // ── Scan limiter whose counter is shared across every cloned lexer ────────────

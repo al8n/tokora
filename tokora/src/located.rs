@@ -4,6 +4,12 @@ use super::{
   utils::IntoComponents,
 };
 
+use core::{
+  error::Error,
+  fmt,
+  ops::{Deref, DerefMut},
+};
+
 /// A value with complete location information: both which source and where in that source.
 ///
 /// `Located<D, Sp, Sl>` combines a value of type `D` with:
@@ -47,7 +53,7 @@ use super::{
 ///
 /// fn report_error<T>(loc: &Located<T, SimpleSpan, PathBuf>, message: &str)
 /// where
-///     T: core::fmt::Debug
+///     T: fmt::Debug
 /// {
 ///     eprintln!(
 ///         "Error in {}:{}:{}: {}\n  {:?}",
@@ -251,7 +257,7 @@ pub struct Located<D, Sp = SimpleSpan, Sl = ()> {
   pub(crate) data: D,
 }
 
-impl<D, Sp, Sl> core::ops::Deref for Located<D, Sp, Sl> {
+impl<D, Sp, Sl> Deref for Located<D, Sp, Sl> {
   type Target = D;
 
   #[inline(always)]
@@ -260,28 +266,28 @@ impl<D, Sp, Sl> core::ops::Deref for Located<D, Sp, Sl> {
   }
 }
 
-impl<D, Sp, Sl> core::ops::DerefMut for Located<D, Sp, Sl> {
+impl<D, Sp, Sl> DerefMut for Located<D, Sp, Sl> {
   #[inline(always)]
   fn deref_mut(&mut self) -> &mut Self::Target {
     &mut self.data
   }
 }
 
-impl<D, Sp, Sl> core::fmt::Display for Located<D, Sp, Sl>
+impl<D, Sp, Sl> fmt::Display for Located<D, Sp, Sl>
 where
-  D: core::fmt::Display,
+  D: fmt::Display,
 {
   #[inline(always)]
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     self.data.fmt(f)
   }
 }
 
-impl<D, Sp, Sl> core::error::Error for Located<D, Sp, Sl>
+impl<D, Sp, Sl> Error for Located<D, Sp, Sl>
 where
-  D: core::error::Error,
-  Sp: core::fmt::Debug,
-  Sl: core::fmt::Debug,
+  D: Error,
+  Sp: fmt::Debug,
+  Sl: fmt::Debug,
 {
 }
 

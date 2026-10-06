@@ -808,7 +808,7 @@ fn taxonomy_census_action_column_names_only_live_mechanisms() {
   const LINEAGE: &str = include_str!("lineage.rs");
   const CACHE: &str = include_str!("../cache/mod.rs");
   const INPUT_REF: &str = include_str!("input_ref/mod.rs");
-  const SESSION: &str = include_str!("input_ref/session.rs");
+  const SESSION: &str = include_str!("input_ref/session/mod.rs");
 
   let defined = std::format!("{LINEAGE}{CACHE}{INPUT_REF}{SESSION}");
   let mut checked = 0usize;

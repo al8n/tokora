@@ -81,7 +81,7 @@ use crate::{
   state::token_tracker::TokenLimiter,
 };
 
-use super::{
+use super::super::{
   scan::SkipWhile,
   tests::{BalKind, BalLexer, ByValErr},
 };

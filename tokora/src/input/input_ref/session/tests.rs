@@ -18,6 +18,7 @@ use crate::{
   lexer::LogosLexer,
   span::{SimpleSpan, Spanned},
   state::token_tracker::{TokenLimitExceeded, TokenLimiter},
+  try_parse::input::ParseAttempt,
 };
 
 // ── Fixture: a number lexer over a by-value token limiter (as in the guard tests) ──────────────
@@ -94,7 +95,7 @@ type NumVerboseCtx<'a> = (Verbose<NumErr>, DefaultCache<'a, NumLexer<'a>>);
 
 /// The input reference the session runs on, over the verbose (collecting) context.
 type VerboseIr<'inp, 'closure> =
-  super::InputRef<'inp, 'closure, NumLexer<'inp>, NumVerboseCtx<'inp>>;
+  crate::InputRef<'inp, 'closure, NumLexer<'inp>, NumVerboseCtx<'inp>>;
 
 /// Builds a `Silent` input over `src` with a limit high enough never to trip.
 fn silent_input(src: &str) -> Input<'_, NumLexer<'_>, NumCtx<'_>, ()> {
@@ -692,7 +693,7 @@ fn the_explicit_reconciling_rollback_abandons_the_open_session_point() {
     let baseline = ir.live_checkpoints_len();
 
     {
-      let mut guard = ir.begin_with::<super::Commit>();
+      let mut guard = ir.begin_with::<super::super::Commit>();
       let _point = guard.begin_point();
       let _ = guard
         .next()
@@ -861,8 +862,6 @@ fn try_attempt_erring_across_an_abandoned_point_reconciles() {
 
 #[test]
 fn attempt_parse_declining_across_an_abandoned_point_reconciles() {
-  use crate::try_parse_input::ParseAttempt;
-
   let mut input = silent_input("1 2 3 4 5");
   {
     let mut ir = input.as_ref();
@@ -903,8 +902,6 @@ fn attempt_parse_declining_across_an_abandoned_point_reconciles() {
 
 #[test]
 fn attempt_parse_erring_across_an_abandoned_point_reconciles() {
-  use crate::try_parse_input::ParseAttempt;
-
   let mut input = silent_input("1 2 3 4 5");
   {
     let mut ir = input.as_ref();

@@ -2,7 +2,7 @@ use super::*;
 use crate::cache::DefaultCache;
 use crate::emitter::Fatal;
 use crate::lexer::DummyLexer;
-use crate::parse_context::FatalContext;
+use crate::parse::context::FatalContext;
 
 /// The emitter/cache pair an `Input` binds, spelled the way `ParseContext::provide` spells it.
 fn dummy_context() -> InputContext<Fatal<()>, DefaultCache<'static, DummyLexer>> {

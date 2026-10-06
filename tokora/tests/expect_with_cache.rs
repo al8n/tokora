@@ -16,8 +16,8 @@ use tokora::EmitterView;
 
 use hybrid_arraydeque::typenum::U1;
 use tokora::{
-  Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  Token as TokenTrait, TryParseInput,
+  Accumulator, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, Token as TokenTrait, TryParseInput,
   cache::{DefaultCache, Peeked},
   emitter::{
     FullContainerEmitter, Ignored, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
@@ -32,7 +32,6 @@ use tokora::{
   input::Cursor,
   parser::Action,
   span::Spanned,
-  try_parse_input::ParseAttempt,
   utils::{CowStr, Expected},
 };
 

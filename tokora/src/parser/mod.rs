@@ -184,8 +184,10 @@ use crate::{
   emitter::{Fatal, FromTokenErrors},
   input::{Complete, Completeness, Input, InputRef, SurfaceIncomplete},
   located::Located,
-  parse_context::{ErrorOf, FatalContext, ParseContext, ParserContext},
-  parse_input::*,
+  parse::{
+    context::{ErrorOf, FatalContext, ParseContext, ParserContext},
+    input::*,
+  },
   slice::Sliced,
   span::Spanned,
   utils::{
