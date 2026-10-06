@@ -85,8 +85,8 @@ use core::cell::RefCell;
 
 use common::{TestLexer, Token, TokenKind};
 use tokora::{
-  Emitter, EmitterView, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  TryParseInput,
+  Emitter, EmitterView, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, TryParseInput,
   cache::Peeked,
   emitter::{Fatal, FromUnclosed, Verbose},
   error::{
@@ -98,7 +98,6 @@ use tokora::{
   parser::{Action, Collect},
   punct::Bracket,
   span::SimpleSpan,
-  try_parse_input::ParseAttempt,
   utils::typenum::U1,
 };
 

@@ -15,7 +15,7 @@
 
 use crate::{
   Emitter, InputRef, Lexer, ParseContext, ParseInput, TryParseInput, input::Completeness,
-  try_parse_input::ParseAttempt,
+  try_parse::input::ParseAttempt,
 };
 
 /// Wraps `parser` with the diagnostic context `name`: for the duration of the sub-parse, `name`

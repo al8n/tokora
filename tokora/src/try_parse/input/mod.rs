@@ -35,7 +35,7 @@ use crate::parser::{Fold, TryFold, TryFoldWith};
 #[cfg(all(feature = "fold", any(feature = "alloc", feature = "std")))]
 use crate::parser::RFold;
 
-use super::*;
+use super::super::*;
 
 pub use ParseAttempt::{Accept, Decline};
 
@@ -153,9 +153,11 @@ impl<O> ParseAttempt<O> {
 macro_rules! attempt {
   ($expr:expr) => {
     match $expr? {
-      $crate::try_parse_input::ParseAttempt::Accept(value) => value,
-      $crate::try_parse_input::ParseAttempt::Decline => {
-        return ::core::result::Result::Ok($crate::try_parse_input::ParseAttempt::Decline);
+      $crate::__private::try_parse::input::ParseAttempt::Accept(value) => value,
+      $crate::__private::try_parse::input::ParseAttempt::Decline => {
+        return ::core::result::Result::Ok(
+          $crate::__private::try_parse::input::ParseAttempt::Decline,
+        );
       }
     }
   };

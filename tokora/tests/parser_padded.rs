@@ -10,8 +10,8 @@
 use hybrid_arraydeque::typenum::U1;
 use tokora::slice::Sliced;
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, Token as TokenT,
-  TryParseInput,
+  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
+  Token as TokenT, TryParseInput,
   cache::DefaultCache,
   emitter::{Fatal, Ignored, Verbose},
   error::UnexpectedEot,
@@ -19,7 +19,6 @@ use tokora::{
   logos::{self, Logos},
   parser::{Action, Any, expect},
   span::Spanned,
-  try_parse_input::ParseAttempt,
   utils::Expected,
 };
 

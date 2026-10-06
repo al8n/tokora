@@ -3,7 +3,7 @@ use crate::{
   error::{UnexpectedEot, token::UnexpectedToken},
   span::Span,
   token::KeywordToken,
-  try_parse_input::ParseAttempt,
+  try_parse::input::ParseAttempt,
   types::Keyword,
   utils::cmp::Equivalent,
 };

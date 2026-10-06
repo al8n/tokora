@@ -7,8 +7,8 @@ mod common;
 use hybrid_arraydeque::typenum::U1;
 use tokora::EmitterView;
 use tokora::{
-  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  TryParseInput,
+  Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, TryParseInput,
   cache::Peeked,
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
@@ -21,7 +21,6 @@ use tokora::{
     token::{MissingToken, SeparatedError, UnexpectedToken},
   },
   parser::Action,
-  try_parse_input::ParseAttempt,
 };
 
 use common::{TestLexer, Token};

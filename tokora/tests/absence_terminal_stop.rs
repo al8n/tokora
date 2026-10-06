@@ -31,8 +31,8 @@ use tokora::EmitterView;
 
 use hybrid_arraydeque::typenum::{U1, U2, U4};
 use tokora::{
-  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  Token as TokenTrait, TryParseInput,
+  Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, Token as TokenTrait, TryParseInput,
   cache::{Peeked, PeekedTokenExt},
   emitter::{
     FullContainerEmitter, SeparatedEmitter, Silent, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
@@ -49,7 +49,6 @@ use tokora::{
   punct::{CloseParen, Comma, OpenParen, Paren},
   state::State,
   token::PunctuatorToken,
-  try_parse_input::ParseAttempt,
 };
 
 // ── A scan limiter whose counter is shared across every cloned lexer ──────────

@@ -131,7 +131,7 @@ mod delim;
 /// #   fn bump(&mut self, n: &usize) { self.pos += n; }
 /// # }
 /// # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-/// # use tokora::try_parse_input::ParseAttempt;
+/// # use tokora::ParseAttempt;
 /// # fn try_num<'a>(
 /// #   inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>,
 /// # ) -> Result<ParseAttempt<i64>, Error> {
@@ -246,7 +246,7 @@ mod delim;
 /// #   fn bump(&mut self, n: &usize) { self.pos += n; }
 /// # }
 /// # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-/// # use tokora::try_parse_input::ParseAttempt;
+/// # use tokora::ParseAttempt;
 /// # fn try_num<'a>(
 /// #   inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>,
 /// # ) -> Result<ParseAttempt<i64>, Error> {
@@ -361,7 +361,7 @@ mod delim;
 /// #   fn bump(&mut self, n: &usize) { self.pos += n; }
 /// # }
 /// # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-/// # use tokora::try_parse_input::ParseAttempt;
+/// # use tokora::ParseAttempt;
 /// # fn try_num<'a>(
 /// #   inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>,
 /// # ) -> Result<ParseAttempt<i64>, Error> {
@@ -479,7 +479,7 @@ mod delim;
 /// #   fn bump(&mut self, n: &usize) { self.pos += n; }
 /// # }
 /// # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-/// # use tokora::try_parse_input::ParseAttempt;
+/// # use tokora::ParseAttempt;
 /// # fn try_num<'a>(
 /// #   inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>,
 /// # ) -> Result<ParseAttempt<i64>, Error> {
@@ -594,7 +594,7 @@ mod delim;
 /// #   fn bump(&mut self, n: &usize) { self.pos += n; }
 /// # }
 /// # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-/// # use tokora::try_parse_input::ParseAttempt;
+/// # use tokora::ParseAttempt;
 /// # fn try_num<'a>(
 /// #   inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>,
 /// # ) -> Result<ParseAttempt<i64>, Error> {

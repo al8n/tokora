@@ -23,7 +23,7 @@ Three surfaces, one decision rule:
   [`dispatch_take`](crate::parser::dispatch_take), and the declining twin
   [`try_select!`](crate::try_select) /
   [`try_dispatch_take`](crate::parser::try_dispatch_take) is the same shape that returns
-  [`Decline`](crate::try_parse_input::ParseAttempt::Decline) on a head outside the table
+  [`Decline`](crate::ParseAttempt::Decline) on a head outside the table
   instead of committing.
 
 ## Peeked versus fused

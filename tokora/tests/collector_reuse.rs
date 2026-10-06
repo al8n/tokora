@@ -30,13 +30,13 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use common::{E, TestLexer, Token};
 use tokora::{
-  Accumulator, EmitterView, InputRef, Parse, ParseInput, Parser, ParserContext, TryParseInput,
+  Accumulator, EmitterView, InputRef, Parse, ParseAttempt, ParseInput, Parser, ParserContext,
+  TryParseInput,
   cache::Peeked,
   emitter::Fatal,
   parser::{Action, With},
   punct::Bracket,
   span::Spanned,
-  try_parse_input::ParseAttempt,
   utils::{marker::PhantomSpan, typenum::U1},
 };
 

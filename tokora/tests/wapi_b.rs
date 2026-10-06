@@ -175,7 +175,7 @@ fn peek_then_head_sees_the_head_by_reference_or_none_at_end_of_input() {
 
 #[test]
 fn attempt_parse_rolls_a_decline_back_so_the_token_is_seen_again() {
-  use tokora::try_parse_input::ParseAttempt;
+  use tokora::ParseAttempt;
 
   fn parse<'inp>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx<'inp>>,
@@ -203,7 +203,7 @@ fn attempt_parse_rolls_a_decline_back_so_the_token_is_seen_again() {
 
 #[test]
 fn attempt_parse_keeps_an_accept_and_propagates_an_error_after_rolling_back() {
-  use tokora::try_parse_input::ParseAttempt;
+  use tokora::ParseAttempt;
 
   // Accept commits: the follow-up parse reads the second number.
   fn accept<'inp>(
@@ -319,7 +319,7 @@ fn spanning_agrees_with_the_spanned_combinator() {
 
 #[test]
 fn into_option_projects_both_arms() {
-  use tokora::try_parse_input::ParseAttempt;
+  use tokora::ParseAttempt;
 
   assert_eq!(ParseAttempt::Accept(7i64).into_option(), Some(7));
   assert_eq!(ParseAttempt::<i64>::Decline.into_option(), None);
@@ -333,7 +333,7 @@ fn into_option_projects_both_arms() {
 
 #[test]
 fn attempt_macro_propagates_a_decline_and_carries_an_accept() {
-  use tokora::try_parse_input::ParseAttempt;
+  use tokora::ParseAttempt;
 
   fn try_num<'inp>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx<'inp>>,
@@ -630,15 +630,15 @@ fn fluent_opt_matches_the_free_function() {
 
   fn try_num<'inp>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx<'inp>>,
-  ) -> Result<tokora::try_parse_input::ParseAttempt<i64>, E> {
+  ) -> Result<tokora::ParseAttempt<i64>, E> {
     inp
       .try_expect(|t| matches!(t.data(), Token::Num(_)))
       .map(|o| {
         o.map(|tok| match tok.into_data() {
-          Token::Num(n) => tokora::try_parse_input::ParseAttempt::Accept(n),
+          Token::Num(n) => tokora::ParseAttempt::Accept(n),
           _ => unreachable!(),
         })
-        .unwrap_or(tokora::try_parse_input::ParseAttempt::Decline)
+        .unwrap_or(tokora::ParseAttempt::Decline)
       })
   }
 

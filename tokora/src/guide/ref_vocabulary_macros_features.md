@@ -177,7 +177,7 @@ Comma::try_parse(inp)  -> Result<ParseAttempt<Comma<L::Span, (), Lang>>, Error>/
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
 use tokora::{Parse, Parser, parser::opt, punct::Paren, delimiter::Delimiter};
-use tokora::try_parse_input::ParseAttempt;
+use tokora::ParseAttempt;
 
 // `Comma::parse` — consume a comma, else `UnexpectedToken` / `UnexpectedEot`.
 fn a_comma<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<Comma<SimpleSpan, ()>, Error> {
@@ -377,7 +377,7 @@ one-character keyword, so the spelling is `"i"`; a real lexer reports the full w
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
 use tokora::{Parse, Parser, keyword, parser::opt};
-use tokora::try_parse_input::ParseAttempt;
+use tokora::ParseAttempt;
 
 keyword! {
     /// The `i` keyword (one character, for the byte-per-char scaffold).

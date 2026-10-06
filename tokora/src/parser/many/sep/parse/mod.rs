@@ -6,7 +6,7 @@ use crate::{
   input::Cursor,
   punct::Punctuator,
   span::Span,
-  try_parse_input::{Accept, Decline},
+  try_parse::input::{Accept, Decline},
 };
 
 use super::*;

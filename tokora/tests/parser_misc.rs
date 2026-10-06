@@ -12,7 +12,8 @@ mod common;
 use common::{Power, TestLexer, Token, TokenKind};
 use tokora::EmitterView;
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, TryParseInput,
+  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
+  TryParseInput,
   cache::{DefaultCache, Peeked},
   emitter::Ignored,
   error::{
@@ -22,7 +23,6 @@ use tokora::{
   parser::{Action, PrattInfix, PrattLHS, PrattRHS, Precedenced, expect, pratt},
   punct::{CloseParen, Comma, OpenParen, Semicolon},
   span::Spanned,
-  try_parse_input::ParseAttempt,
   utils::Expected,
 };
 

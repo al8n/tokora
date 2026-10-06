@@ -1,10 +1,10 @@
 use core::marker::PhantomData;
 
-use crate::{TryParseInput, try_parse_input::ParseAttempt};
+use crate::{TryParseInput, try_parse::input::ParseAttempt};
 
 // Only `map_with` below names it, and that method is `map`'s.
 #[cfg(feature = "map")]
-use crate::parse_state::ParseState;
+use crate::parse::state::ParseState;
 
 use super::*;
 

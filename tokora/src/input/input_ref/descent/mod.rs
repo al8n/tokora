@@ -8,6 +8,9 @@ use crate::{
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 /// The baseline half of the **descent-trip witness** — what
 /// [`InputRef::trip_snapshot`](InputRef::trip_snapshot) hands out, and the only thing
 /// [`InputRef::tripped_during_attempt`](InputRef::tripped_during_attempt) accepts.

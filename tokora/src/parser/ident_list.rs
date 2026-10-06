@@ -9,7 +9,7 @@ use crate::{
   punct::Punctuator,
   span::Spanned,
   token::IdentifierToken,
-  try_parse_input::Accept,
+  try_parse::input::Accept,
   types::{Ident, IdentList},
 };
 

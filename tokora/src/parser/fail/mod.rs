@@ -1,4 +1,4 @@
-use crate::{TryParseInput, parse_state::ParseState, try_parse_input::ParseAttempt};
+use crate::{TryParseInput, parse::state::ParseState, try_parse::input::ParseAttempt};
 
 use super::*;
 

@@ -7,14 +7,13 @@ use common::E;
 // combined with every count modifier (at_least, at_most, bounded).
 
 use tokora::{
-  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  TryParseInput,
+  Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, TryParseInput,
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
   },
-  try_parse_input::ParseAttempt,
 };
 
 use common::{TestLexer, Token};

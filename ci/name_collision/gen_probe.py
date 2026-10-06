@@ -42,7 +42,7 @@ use tokora::{
   error::{Unclosed, UnexpectedEot, token::UnexpectedToken},
   lexer::LogosLexer,
   logos::{self, Logos},
-  try_parse_input::ParseAttempt,
+  ParseAttempt,
   types::Ident,
 };
 

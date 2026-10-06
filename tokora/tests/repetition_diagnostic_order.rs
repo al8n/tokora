@@ -67,8 +67,8 @@ mod common;
 
 use common::{TestLexer, Token};
 use tokora::{
-  Accumulator, Emitter, EmitterView, InputRef, Parse, ParseContext, ParseInput, Parser,
-  ParserContext, TryParseInput,
+  Accumulator, Emitter, EmitterView, InputRef, Parse, ParseAttempt, ParseContext, ParseInput,
+  Parser, ParserContext, TryParseInput,
   cache::Peeked,
   emitter::{
     Fatal, FromUnclosed, FullContainerEmitter, MissingLeadingSeparatorEmitter,
@@ -83,7 +83,6 @@ use tokora::{
   },
   parser::Action,
   punct::Bracket,
-  try_parse_input::ParseAttempt,
   utils::{
     ArrayDeque,
     typenum::{U1, U2},

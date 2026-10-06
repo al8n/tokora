@@ -12,8 +12,8 @@ use common::E;
 //   - Empty input, 0-element, exactly-at-boundary scenarios
 
 use tokora::{
-  Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  Token as TokenTrait, TryParseInput,
+  Accumulator, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, Token as TokenTrait, TryParseInput,
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
@@ -26,7 +26,6 @@ use tokora::{
   },
   input::Cursor,
   span::Spanned,
-  try_parse_input::ParseAttempt,
   utils::CowStr,
 };
 

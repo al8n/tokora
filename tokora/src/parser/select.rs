@@ -11,7 +11,7 @@ use crate::{
   error::{UnexpectedEnd, UnexpectedEot, token::UnexpectedToken},
   input::{InputRef, SurfaceIncomplete},
   span::{Span as _, Spanned},
-  try_parse_input::ParseAttempt,
+  try_parse::input::ParseAttempt,
 };
 
 /// Committed match-first dispatch: classify the head against `table` once, commit it,

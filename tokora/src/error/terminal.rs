@@ -76,7 +76,7 @@
 /// code that catches a stop, consumes, and still yields a value has **answered** it, where code
 /// that catches one and then declines has **swallowed** it, asserting an absence built on a stop
 /// nothing else can see. An element that catches a trip, still consumes, and returns
-/// [`ParseAttempt::Accept`](crate::try_parse_input::ParseAttempt) is the first: it hands the driver
+/// [`ParseAttempt::Accept`](crate::ParseAttempt) is the first: it hands the driver
 /// a value, and the driver collects it exactly as it would from an element no budget ever touched.
 /// The collection then closes normally — the delimited `separated` driver commits a real closer
 /// left at the following slot straight from its own mid-scan arm, one of the two **direct** closers

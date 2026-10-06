@@ -13,8 +13,8 @@ mod common;
 
 use common::{TestLexer, Token, TokenKind};
 use tokora::{
-  Emitter, InputRef, Located, Parse, ParseContext, ParseInput, Parser, parser::expect,
-  slice::Sliced, span::Spanned, try_parse_input::ParseAttempt, utils::Expected,
+  Emitter, InputRef, Located, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  parser::expect, slice::Sliced, span::Spanned, utils::Expected,
 };
 
 // ── helper parsers ──────────────────────────────────────────────────────────

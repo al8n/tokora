@@ -1,7 +1,7 @@
 use crate::{
   Check, Span, TryParseInput,
   error::{UnexpectedEot, token::UnexpectedToken},
-  try_parse_input::ParseAttempt,
+  try_parse::input::ParseAttempt,
 };
 
 use super::*;

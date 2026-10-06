@@ -7,7 +7,7 @@ three shapes recur in every grammar — *A then B*, *zero or more A*, *A separat
 - [`ParseInput`](crate::ParseInput) — a parser that must produce a value or fail. Every
   `fn(&mut InputRef<…>) -> Result<O, E>` implements it for free.
 - [`TryParseInput`](crate::TryParseInput) — a parser that may also **decline**: its
-  [`ParseAttempt`](crate::try_parse_input::ParseAttempt) result is either
+  [`ParseAttempt`](crate::ParseAttempt) result is either
   `Accept(value)` or `Decline`, and a decline consumes **no valid tokens** — the input is
   rewound so whatever comes next can look at the same tokens. (Lexer-*error* tokens and
   already-emitted diagnostics are not rolled back; see the
@@ -123,7 +123,7 @@ the token `until` accepts, so the caller's next step still sees it.
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, Parser, TryParseInput,
   emitter::FullContainerEmitter,
-  try_parse_input::ParseAttempt,
+  ParseAttempt,
 };
 
 /// A `let` binding as a *try*-shaped element: decline unless the next token is
@@ -307,7 +307,7 @@ refused, collected into a `Vec`, with the whole policy already chosen.)
 # }
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseContext, Parser, TryParseInput,
-#   try_parse_input::ParseAttempt,
+#   ParseAttempt,
 # };
 use tokora::{
   Accumulator, ParseInput,

@@ -56,13 +56,12 @@ use core::cell::Cell;
 use tokora::EmitterView;
 
 use tokora::{
-  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  TryParseInput,
+  Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, TryParseInput,
   emitter::{Fatal, FullContainerEmitter, PrattEmitter},
   parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
   state::recursion_tracker::RecursionLimiter,
   token::PrattToken,
-  try_parse_input::ParseAttempt,
   utils::typenum::U4,
 };
 

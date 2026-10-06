@@ -1,5 +1,5 @@
 use crate::{
-  ParseChoice, TryParseInput, emitter::EmitterView, span::Span as _, try_parse_input::ParseAttempt,
+  ParseChoice, TryParseInput, emitter::EmitterView, span::Span as _, try_parse::input::ParseAttempt,
 };
 
 use super::*;

@@ -14,7 +14,7 @@
 use core::fmt;
 
 use tokora::{
-  InputRef, Lexer, Parse, ParseInput, Parser, SimpleSpan, Token, TryParseInput,
+  InputRef, Lexer, Parse, ParseAttempt, ParseInput, Parser, SimpleSpan, Token, TryParseInput,
   cache::DefaultCache,
   cst::{CstProfile, FinishError, parse_lossless},
   emitter::Verbose,
@@ -22,7 +22,6 @@ use tokora::{
   parser::{
     Empty, PrattFoldOp, PrattInfix, PrattLHS, PrattRHS, Precedenced, node, node_at, node_opt, pratt,
   },
-  try_parse_input::ParseAttempt,
 };
 
 // ── A tiny real lexer: one byte per token ──────────────────────────────────────

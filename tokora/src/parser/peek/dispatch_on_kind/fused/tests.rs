@@ -3,7 +3,7 @@ use crate::{
   lexer::{DummyLexer, DummyToken},
   parser::{Parse, Parser},
   span::Spanned,
-  try_parse_input::ParseAttempt,
+  try_parse::input::ParseAttempt,
 };
 
 use super::*;

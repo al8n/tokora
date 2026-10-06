@@ -6,7 +6,7 @@
 //! `scan_drain` control, which measures exactly that share.
 
 use tokora::{
-  Emitter, InputRef, ParseContext, ScanLookahead, Token,
+  Emitter, InputRef, ParseAttempt, ParseContext, ScanLookahead, Token,
   error::{
     MaybeIncomplete, MaybeTerminal, UnexpectedEnd,
     syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
@@ -15,7 +15,6 @@ use tokora::{
   lexer::LogosLexer,
   logos::{self, Logos},
   punct::{CloseParen, Comma, OpenParen},
-  try_parse_input::ParseAttempt,
 };
 
 /// Dense discriminants, so a kind match beside a dispatch table compiles to a jump table.

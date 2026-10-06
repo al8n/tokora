@@ -4,7 +4,7 @@ use crate::{
   delimiter::Delimiter,
   emitter::{FullContainerEmitter, UnclosedEmitter},
   error::Unclosed,
-  try_parse_input::{Accept, Decline},
+  try_parse::input::{Accept, Decline},
 };
 
 use super::*;

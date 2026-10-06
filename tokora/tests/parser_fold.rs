@@ -8,10 +8,9 @@ use common::{TestLexer, Token, TokenKind};
 use hybrid_arraydeque::typenum::U1;
 use tokora::EmitterView;
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
+  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
   cache::Peeked,
   parser::{Action, expect},
-  try_parse_input::ParseAttempt,
   utils::Expected,
 };
 

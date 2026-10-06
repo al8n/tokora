@@ -1,4 +1,4 @@
-use crate::{TryParseInput, emitter::EmitterView, span::Span as _, try_parse_input::ParseAttempt};
+use crate::{TryParseInput, emitter::EmitterView, span::Span as _, try_parse::input::ParseAttempt};
 
 use super::*;
 

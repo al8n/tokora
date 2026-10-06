@@ -46,12 +46,7 @@ pub use input::{
 pub use input::{SavepointId, SessionPointId, StackedTransaction};
 pub use lexer::{Lexed, Lexer, ReadFrontier, ScanLookahead, SliceOf};
 pub use located::*;
-pub use parse_choice::*;
-pub use parse_context::{
-  ComposableParseContext, ErrorOf, FatalContext, ParseContext, ParserContext, PolicyParseContext,
-};
-pub use parse_input::*;
-pub use parse_state::ParseState;
+pub use parse::*;
 pub use parser::{Labelled, Parse, Parser, labelled, parse, parse_with, parse_with_state};
 pub use require::Require;
 pub use slice::Slice;
@@ -59,7 +54,7 @@ pub use source::Source;
 pub use span::{SimpleSpan, Span};
 pub use state::{Probe, State};
 pub use token::Token;
-pub use try_parse_input::TryParseInput;
+pub use try_parse::input::{Accept, Decline, ParseAttempt, TryParseInput};
 
 #[cfg(feature = "trace")]
 #[cfg_attr(docsrs, doc(cfg(feature = "trace")))]
@@ -312,8 +307,8 @@ pub mod guide;
 /// Convenience re-exports for common usage.
 pub mod prelude;
 
-/// Tentative parsing trait
-pub mod try_parse_input;
+mod parse;
+mod try_parse;
 
 /// API_DIGEST_CENSUS — the guide's re-declarations of public items, read against the items.
 ///
@@ -337,15 +332,16 @@ mod located;
 /// entry is what additionally compiles the suites that exercise them.
 #[cfg(feature = "pratt")]
 mod native_stack;
-mod parse_choice;
-mod parse_context;
-mod parse_input;
-mod parse_state;
+
 mod require;
 
 #[doc(hidden)]
 pub mod __private {
   pub use super::{check::Check, error, lexer::*, require::Require, span, syntax, token, utils};
+
+  pub mod try_parse {
+    pub use crate::try_parse::*;
+  }
 
   // Same re-export as the crate-level `tokora::logos` alias above; the macro expansions that
   // name `$crate::__private::logos` must resolve to the same version a user derive does.

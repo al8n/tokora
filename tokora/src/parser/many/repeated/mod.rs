@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use crate::{
   TryParseInput,
   emitter::FullContainerEmitter,
-  try_parse_input::{Accept, Decline},
+  try_parse::input::{Accept, Decline},
 };
 
 use super::*;
@@ -17,7 +17,7 @@ mod unbounded;
 ///
 /// This combinator repeatedly parses elements **without separators**. The element itself owns
 /// the stopping decision: it peeks, and returns
-/// [`ParseAttempt::Decline`](crate::try_parse_input::ParseAttempt::Decline) — consuming nothing
+/// [`ParseAttempt::Decline`](crate::ParseAttempt::Decline) — consuming nothing
 /// — when the next token is not one of its own. On top of that it provides:
 /// - **Repetition bounds**: Minimum and maximum number of elements
 /// - **Delimiters**: Can wrap in delimiters like `[...]` or `{...}`
@@ -132,7 +132,7 @@ mod unbounded;
 /// #   fn bump(&mut self, n: &usize) { self.pos += n; }
 /// # }
 /// # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-/// # use tokora::try_parse_input::ParseAttempt;
+/// # use tokora::ParseAttempt;
 /// # fn try_num<'a>(
 /// #   inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>,
 /// # ) -> Result<ParseAttempt<i64>, Error> {
@@ -247,7 +247,7 @@ mod unbounded;
 /// #   fn bump(&mut self, n: &usize) { self.pos += n; }
 /// # }
 /// # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-/// # use tokora::try_parse_input::ParseAttempt;
+/// # use tokora::ParseAttempt;
 /// # fn try_num<'a>(
 /// #   inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>,
 /// # ) -> Result<ParseAttempt<i64>, Error> {
@@ -367,7 +367,7 @@ mod unbounded;
 /// #   fn bump(&mut self, n: &usize) { self.pos += n; }
 /// # }
 /// # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-/// # use tokora::try_parse_input::ParseAttempt;
+/// # use tokora::ParseAttempt;
 /// # fn try_num<'a>(
 /// #   inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>,
 /// # ) -> Result<ParseAttempt<i64>, Error> {
@@ -486,7 +486,7 @@ mod unbounded;
 /// # }
 /// # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
 /// use tokora::{
-///   Accumulator, Parse, ParseInput, Parser, TryParseInput, try_parse_input::ParseAttempt,
+///   Accumulator, Parse, ParseInput, Parser, TryParseInput, ParseAttempt,
 /// };
 ///
 /// // Take tokens until we see a semicolon.

@@ -29,6 +29,7 @@ use crate::{
   input::{ClosePayload, CloseStatus, Complete, Input, Partial, SurfaceIncomplete, parse_partial},
   lexer::LogosLexer,
   state::State,
+  try_parse::input::ParseAttempt,
 };
 
 // An error type that can carry the partial-input incomplete sentinel. `From<Incomplete>` is the
@@ -1833,7 +1834,7 @@ where
 /// decline-channel shape as the crate's `Ident::try_parse` leaf).
 fn try_word<'inp, Ctx, Cmpl>(
   inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx, (), Cmpl>,
-) -> Result<crate::try_parse_input::ParseAttempt<PTok>, PErr>
+) -> Result<ParseAttempt<PTok>, PErr>
 where
   Ctx: crate::ParseContext<'inp, Lex<'inp>>,
   Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>,
@@ -1934,13 +1935,13 @@ fn lego_chain_shape_at_a_partial_drive_is_annotation_free() {
 /// `Incomplete` out of the scan (the gate's food).
 fn word_then_num<'inp, Ctx, Cmpl>(
   inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx, (), Cmpl>,
-) -> Result<crate::try_parse_input::ParseAttempt<PKind>, PErr>
+) -> Result<ParseAttempt<PKind>, PErr>
 where
   Ctx: crate::ParseContext<'inp, Lex<'inp>>,
   Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>,
   Cmpl: SurfaceIncomplete<'inp, Lex<'inp>, Ctx, ()>,
 {
-  use crate::try_parse_input::{Accept, Decline};
+  use crate::try_parse::input::{Accept, Decline};
   match inp.try_expect(|t| matches!(t.data(), PTok::Word))? {
     None => Ok(Decline),
     Some(_) => match inp.try_expect(|t| matches!(t.data(), PTok::Num))? {

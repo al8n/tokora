@@ -724,7 +724,7 @@ fn committed_shape_trip_at_close_surfaces_eot_not_unclosed() {
 // a fresh trip at the would-be leaf surfaces the committed end-of-input error, a genuine decline
 // (wrong token or real end of input) still declines.
 
-use tokora::{TryParseInput, parser::peek_kind, parser::try_expect, try_parse_input::ParseAttempt};
+use tokora::{ParseAttempt, TryParseInput, parser::peek_kind, parser::try_expect};
 
 #[test]
 fn expect_try_leaf_does_not_decline_on_trip() {
@@ -741,8 +741,8 @@ fn expect_try_leaf_does_not_decline_on_trip() {
       let attempt = try_expect::<_, TLexer<'_>, _, ()>(|t: &Tok| matches!(t, Tok::LParen))
         .try_parse_input(inp)?;
       Ok(match attempt {
-        tokora::try_parse_input::ParseAttempt::Accept(_) => Some(()),
-        tokora::try_parse_input::ParseAttempt::Decline => None,
+        tokora::ParseAttempt::Accept(_) => Some(()),
+        tokora::ParseAttempt::Decline => None,
       })
     },
     "a b (x)",
@@ -760,10 +760,7 @@ fn expect_try_leaf_still_declines_on_wrong_token_and_eoi() {
     |inp| {
       let attempt = try_expect::<_, TLexer<'_>, _, ()>(|t: &Tok| matches!(t, Tok::LParen))
         .try_parse_input(inp)?;
-      Ok(matches!(
-        attempt,
-        tokora::try_parse_input::ParseAttempt::Accept(_)
-      ))
+      Ok(matches!(attempt, tokora::ParseAttempt::Accept(_)))
     },
     "a",
   );
@@ -776,10 +773,7 @@ fn expect_try_leaf_still_declines_on_wrong_token_and_eoi() {
     |inp| {
       let attempt = try_expect::<_, TLexer<'_>, _, ()>(|t: &Tok| matches!(t, Tok::LParen))
         .try_parse_input(inp)?;
-      Ok(matches!(
-        attempt,
-        tokora::try_parse_input::ParseAttempt::Accept(_)
-      ))
+      Ok(matches!(attempt, tokora::ParseAttempt::Accept(_)))
     },
     "",
   );

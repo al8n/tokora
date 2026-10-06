@@ -1813,7 +1813,7 @@ const VIEW_SOURCE: &str = include_str!("../src/emitter/view.rs");
 #[cfg(feature = "pratt")]
 const HANDLE_SOURCE: &str = include_str!("../src/input/input_ref/emit.rs");
 #[cfg(feature = "pratt")]
-const STATE_SOURCE: &str = include_str!("../src/parse_state/mod.rs");
+const STATE_SOURCE: &str = include_str!("../src/parse/state/mod.rs");
 
 /// The rows this suite carries for `EmitterView`.
 #[cfg(feature = "pratt")]

@@ -24,7 +24,7 @@ mod common;
 use common::{TestLexer, Token};
 use tokora::EmitterView;
 use tokora::{
-  Accumulator, InputRef, Parse, ParseInput, Parser, ParserContext, TryParseInput,
+  Accumulator, InputRef, Parse, ParseAttempt, ParseInput, Parser, ParserContext, TryParseInput,
   cache::Peeked,
   emitter::Verbose,
   error::{
@@ -34,7 +34,6 @@ use tokora::{
   },
   parser::Action,
   punct::Bracket,
-  try_parse_input::ParseAttempt,
   utils::{
     ArrayDeque,
     typenum::{U1, U2},

@@ -2,7 +2,7 @@ use crate::{
   error::{UnexpectedEot, token::UnexpectedToken},
   span::Span,
   token::IdentifierToken,
-  try_parse_input::ParseAttempt,
+  try_parse::input::ParseAttempt,
   types::Ident,
 };
 

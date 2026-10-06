@@ -132,7 +132,7 @@ use core::cell::Cell;
 use std::rc::Rc;
 
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, Token as TokenTrait,
+  Emitter, InputRef, Parse, ParseAttempt, ParseContext, Parser, ParserContext, Token as TokenTrait,
   emitter::{Fatal, Ignored, Silent},
   error::MaybeTerminal,
   input::{ScannerAttempt, ScannerOutcome, ScannerTripBaseline, TokenBudget},
@@ -143,7 +143,6 @@ use tokora::{
     recursion_tracker::RecursionLimiter,
     token_tracker::{TokenLimitExceeded, TokenLimiter},
   },
-  try_parse_input::ParseAttempt,
 };
 
 use common::{TestLexer, Token};

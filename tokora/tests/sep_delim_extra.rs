@@ -11,8 +11,8 @@ mod common;
 use common::E;
 
 use tokora::{
-  Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  SimpleSpan, TryParseInput,
+  Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, SimpleSpan, TryParseInput,
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
@@ -21,7 +21,6 @@ use tokora::{
   parser::With,
   punct::Bracket,
   span::Spanned,
-  try_parse_input::ParseAttempt,
   utils::marker::PhantomSpan,
 };
 

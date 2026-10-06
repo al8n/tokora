@@ -199,7 +199,7 @@ siblings):
 #   logos::{self, Logos},
 #   punct::{CloseBracket, Comma, OpenBracket},
 #   token::PunctuatorToken,
-#   try_parse_input::ParseAttempt,
+#   ParseAttempt,
 # };
 # #[derive(Clone, Debug, Logos)]
 # #[logos(crate = logos, skip r"[ \t\r\n]+")]
@@ -306,7 +306,7 @@ field.
 
 The six value branches are selected with [`ParseChoice::peek_then_try_choice`](crate::ParseChoice::peek_then_try_choice).
 The chooser returns `Ok(None)` for a token that cannot begin a JSON value, which becomes a
-[`try_parse_input::ParseAttempt`](crate::try_parse_input::ParseAttempt) decline. That is the
+[`ParseAttempt`](crate::ParseAttempt) decline. That is the
 right behavior for an array element when the next token is a delimiter.
 
 ## Implement committed `json_value` with an expected-kind diagnostic

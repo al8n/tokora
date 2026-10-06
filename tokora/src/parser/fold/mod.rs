@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-  TryParseInput, parse_state::ParseState, span::Span as _, try_parse_input::ParseAttempt,
+  TryParseInput, parse::state::ParseState, span::Span as _, try_parse::input::ParseAttempt,
 };
 
 use super::*;

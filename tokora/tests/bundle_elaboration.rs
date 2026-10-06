@@ -25,7 +25,8 @@ mod common;
 use common::{E, TestLexer, Token, TokenKind};
 
 use tokora::{
-  Accumulator, ComposableParseContext, FatalContext, InputRef, Lexer, Parse, ParseInput, Parser,
+  Accumulator, ComposableParseContext, FatalContext, InputRef, Lexer, Parse, ParseAttempt,
+  ParseInput, Parser, TryParseInput,
   error::{
     Unclosed, UnexpectedEot,
     syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
@@ -35,7 +36,6 @@ use tokora::{
   parser::peek_kind,
   punct::Brace,
   token::IdentifierToken,
-  try_parse_input::{ParseAttempt, TryParseInput},
   types::Ident,
 };
 

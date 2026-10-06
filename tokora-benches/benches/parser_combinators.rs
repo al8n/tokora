@@ -44,8 +44,8 @@ use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use hybrid_arraydeque::typenum::U1;
 
 use tokora::{
-  Accumulator, Balance, Emitter, EmitterView, InputRef, Parse, ParseChoice, ParseContext,
-  ParseInput, ParseTokenChoice, Parser, SimpleSpan, Token, TryParseInput,
+  Accumulator, Balance, Emitter, EmitterView, InputRef, Parse, ParseAttempt, ParseChoice,
+  ParseContext, ParseInput, ParseTokenChoice, Parser, SimpleSpan, Token, TryParseInput,
   cache::{Peeked, PeekedTokenExt},
   emitter::{
     FullContainerEmitter, PrattEmitter, SeparatedEmitter, TooManyEmitter,
@@ -62,7 +62,6 @@ use tokora::{
   punct::Comma,
   span::Spanned,
   token::{PrattToken, PunctuatorToken},
-  try_parse_input::ParseAttempt,
   utils::Expected,
 };
 

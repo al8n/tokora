@@ -86,40 +86,40 @@
 /// neighbour impossible to miss in review.
 const SOURCES: &[(&str, &str)] = &[
   ("mod.rs", include_str!("mod.rs")),
-  ("scan.rs", include_str!("scan.rs")),
-  ("try_expect.rs", include_str!("try_expect.rs")),
+  ("scan.rs", include_str!("../scan.rs")),
+  ("try_expect.rs", include_str!("../try_expect.rs")),
   (
     "consume_cached/mod.rs",
-    include_str!("consume_cached/mod.rs"),
+    include_str!("../consume_cached/mod.rs"),
   ),
-  ("peek/mod.rs", include_str!("peek/mod.rs")),
-  ("sync_to.rs", include_str!("sync_to.rs")),
-  ("sync_through.rs", include_str!("sync_through.rs")),
-  ("sync_balanced.rs", include_str!("sync_balanced.rs")),
-  ("skip_while.rs", include_str!("skip_while.rs")),
-  ("fold.rs", include_str!("fold.rs")),
-  ("pratt.rs", include_str!("pratt.rs")),
+  ("peek/mod.rs", include_str!("../peek/mod.rs")),
+  ("sync_to.rs", include_str!("../sync_to.rs")),
+  ("sync_through.rs", include_str!("../sync_through.rs")),
+  ("sync_balanced.rs", include_str!("../sync_balanced.rs")),
+  ("skip_while.rs", include_str!("../skip_while.rs")),
+  ("fold.rs", include_str!("../fold.rs")),
+  ("pratt.rs", include_str!("../pratt.rs")),
   // Added by 0.8.0's recursion budget and unregistered until R23 — the one non-test neighbour the
   // list had fallen behind. Every count it contributes is zero (it settles nothing, reaches no
   // front, captures no checkpoint), which is exactly what registering it pins: a settle or a front
   // read added here would now move a count instead of arriving unseen.
-  ("descent.rs", include_str!("descent.rs")),
+  ("descent.rs", include_str!("../descent/mod.rs")),
   // Added by the emitter-forwarding wall: the handle's `emit_*` / `cst_*` surface. Every count
   // it contributes is **zero**, and that is exactly what registering it pins — the four members
   // the input layer owns (`checkpoint`, `rewind`, `release`, `commit_token`) are deliberately not
   // forwarded, so a forwarder added for one of them would move a count here instead of arriving
   // unseen.
-  ("emit.rs", include_str!("emit.rs")),
-  ("session.rs", include_str!("session.rs")),
+  ("emit.rs", include_str!("../emit.rs")),
+  ("session.rs", include_str!("../session/mod.rs")),
   // Added by R25's seal of the staged-stop carrier. Every count it contributes is **zero** — it
   // settles nothing, reaches no front, captures no checkpoint and names no `InputRef` field — and
   // registering it is what pins that: it exists to hold a representation out of reach, so a line
   // in it that touched the input's state would be the seal leaking.
-  ("staged_trip.rs", include_str!("staged_trip.rs")),
-  ("drop_policy.rs", include_str!("drop_policy.rs")),
-  ("trace.rs", include_str!("trace.rs")),
-  ("transaction/mod.rs", include_str!("transaction/mod.rs")),
-  ("stacked/mod.rs", include_str!("stacked/mod.rs")),
+  ("staged_trip.rs", include_str!("../staged_trip.rs")),
+  ("drop_policy.rs", include_str!("../drop_policy.rs")),
+  ("trace.rs", include_str!("../trace.rs")),
+  ("transaction/mod.rs", include_str!("../transaction/mod.rs")),
+  ("stacked/mod.rs", include_str!("../stacked/mod.rs")),
 ];
 
 /// Fetches a censused source by name.
@@ -1045,7 +1045,7 @@ fn lexer_error_census_the_evidence_door_is_the_input_layers_alone() {
   }
   // The callback surface withholds it too, for the same reason it withholds `commit_token`:
   // the view is what a downstream crate can wrap under the orphan rules.
-  const VIEW: &str = include_str!("../../emitter/view.rs");
+  const VIEW: &str = include_str!("../../../emitter/view.rs");
   assert!(
     count(VIEW, "commit_lexer_error") == 0,
     "LEXER_ERROR_CENSUS drift: `EmitterView` forwards the gap-evidence door. A wrapper built \
@@ -1125,7 +1125,7 @@ fn settle_census_adopt_is_the_single_skip_settle() {
 // ─────────────────────────────────────────────────────────────────────────────────────
 
 /// The emitter trait source, censused for the `release` surface itself.
-const EMITTER_MOD: &str = include_str!("../../emitter/mod.rs");
+const EMITTER_MOD: &str = include_str!("../../../emitter/mod.rs");
 
 /// RELEASE_CENSUS — the checkpoint captures and both settle verbs are locked, file by
 /// file. A new `Emitter::checkpoint()` caller must pair every exit path with a `rewind`
@@ -1453,7 +1453,7 @@ fn release_census_trait_declares_and_blanket_forwards() {
 
 /// The lineage module source, censused for the two preflight-reservation primitives
 /// `reserve_open` and `reserve_pin`.
-const LINEAGE_MOD: &str = include_str!("../lineage.rs");
+const LINEAGE_MOD: &str = include_str!("../../lineage.rs");
 
 /// The code lines of `hay` rejoined without its `//`-prefixed lines — the same filter [`count`]
 /// applies, kept as text rather than a count so a capture site's ordering can be checked

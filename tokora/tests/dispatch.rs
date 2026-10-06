@@ -7,13 +7,12 @@ mod common;
 
 use common::{TestLexer, Token, TokenKind};
 use tokora::{
-  InputRef, Parse, ParseChoice, ParseContext, ParseInput, ParseTokenChoice, Parser, ParserContext,
-  SimpleSpan, Token as TokenTrait, TryParseInput,
+  InputRef, Parse, ParseAttempt, ParseChoice, ParseContext, ParseInput, ParseTokenChoice, Parser,
+  ParserContext, SimpleSpan, Token as TokenTrait, TryParseInput,
   emitter::Verbose,
   error::{UnexpectedEot, token::UnexpectedToken},
   parser::Any,
   span::Spanned,
-  try_parse_input::ParseAttempt,
   utils::Expected,
 };
 
