@@ -8,13 +8,14 @@ use tokora::EmitterView;
 use common::{TestLexer, Token, TokenKind};
 use hybrid_arraydeque::typenum::U1;
 use tokora::{
-  Accumulator, Branch, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseChoice, ParseContext,
+  Accumulator, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseChoice, ParseContext,
   ParseInput, Parser, ParserContext, Token as TokenTrait, TryParseInput,
   cache::Peeked,
+  combinator::{Any, Empty, expect, try_expect},
   emitter::FullContainerEmitter,
-  error::{UnexpectedEot, syntax::FullContainer, token::UnexpectedToken},
+  error::{FullContainer, UnexpectedEot, UnexpectedToken},
   input::Cursor,
-  parser::{Action, Any, Empty, expect, try_expect},
+  parse::{Action, Branch},
   span::Spanned,
   utils::Expected,
 };
@@ -41,7 +42,7 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for FullEmitter {
 
   fn emit_unexpected_token(
     &mut self,
-    _: tokora::error::token::UnexpectedTokenOf<'inp, TestLexer<'inp>>,
+    _: tokora::error::UnexpectedTokenOf<'inp, TestLexer<'inp>>,
   ) -> Result<(), E>
   where
     TestLexer<'inp>: Lexer<'inp>,
@@ -604,11 +605,11 @@ fn repeated_while_stops_on_non_num() {
   assert_eq!(result, vec![1, 2]);
 }
 
-// ── parser/mod.rs: builder methods ──────────────────────────────────────────
+// ── parse/driver.rs: builder methods ────────────────────────────────────────────
 
 #[test]
 fn parser_default() {
-  let p: tokora::parser::Parser<
+  let p: tokora::parse::Parser<
     (),
     TestLexer<'_>,
     Token,

@@ -27,7 +27,7 @@ use super::{
 /// ## Pattern Matching
 ///
 /// ```rust
-/// use tokora::state::tracker::{Limiter, LimitExceeded};
+/// use tokora::state::{LimitExceeded, Limiter};
 ///
 /// let mut tracker = Limiter::new();
 /// // ... use tracker ...
@@ -47,8 +47,8 @@ use super::{
 /// ## Using Derived Methods
 ///
 /// ```rust
-/// use tokora::state::tracker::{Limiter, LimitExceeded};
-/// use tokora::state::recursion_tracker::RecursionLimiter;
+/// use tokora::state::{LimitExceeded, Limiter};
+/// use tokora::state::RecursionLimiter;
 ///
 /// let mut tracker = Limiter::with_recursion_tracker(
 ///     RecursionLimiter::with_limitation(2)
@@ -122,7 +122,7 @@ pub enum LimitExceeded {
 /// `Extras` state, providing automatic limit checking during lexing — a position where nesting
 /// costs no native stack. That is exactly why its recursion component defaults to the
 /// general-purpose **500** and not the
-/// [`PARSE_DEFAULT_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH)
+/// [`PARSE_DEFAULT_DEPTH`](crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH)
 /// tokora's own Pratt-parser wiring uses: tokora's
 /// [`ParserContext`](crate::ParserContext) and [`InputContext`](crate::input::InputContext)
 /// never build their recursion budget through `Limiter` — each holds a [`RecursionLimiter`]
@@ -138,7 +138,7 @@ pub enum LimitExceeded {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokora::state::tracker::Limiter;
+/// use tokora::state::Limiter;
 ///
 /// let mut tracker = Limiter::new();
 ///
@@ -157,9 +157,9 @@ pub enum LimitExceeded {
 /// ## Configuring Limits
 ///
 /// ```rust
-/// use tokora::state::tracker::Limiter;
-/// use tokora::state::token_tracker::TokenLimiter;
-/// use tokora::state::recursion_tracker::RecursionLimiter;
+/// use tokora::state::Limiter;
+/// use tokora::state::TokenLimiter;
+/// use tokora::state::RecursionLimiter;
 ///
 /// let tracker = Limiter::with_trackers(
 ///     TokenLimiter::with_limitation(10000),
@@ -173,8 +173,8 @@ pub enum LimitExceeded {
 /// ## Checking Limits
 ///
 /// ```rust
-/// use tokora::state::tracker::Limiter;
-/// use tokora::state::token_tracker::TokenLimiter;
+/// use tokora::state::Limiter;
+/// use tokora::state::TokenLimiter;
 ///
 /// let mut tracker = Limiter::with_token_tracker(
 ///     TokenLimiter::with_limitation(5)
@@ -193,9 +193,9 @@ pub enum LimitExceeded {
 ///
 /// ```rust,ignore
 /// use logos::Logos;
-/// use tokora::state::tracker::Limiter;
-/// use tokora::state::token_tracker::TokenLimiter;
-/// use tokora::state::recursion_tracker::RecursionLimiter;
+/// use tokora::state::Limiter;
+/// use tokora::state::TokenLimiter;
+/// use tokora::state::RecursionLimiter;
 ///
 /// #[derive(Default)]
 /// struct LexerState {
@@ -241,7 +241,7 @@ pub enum LimitExceeded {
 /// ## Parser Integration
 ///
 /// ```rust,ignore
-/// use tokora::state::tracker::Limiter;
+/// use tokora::state::Limiter;
 ///
 /// struct Parser {
 ///     tracker: Limiter,
@@ -292,7 +292,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
+  /// use tokora::state::Limiter;
   ///
   /// let tracker = Limiter::new();
   /// assert_eq!(tracker.recursion().limitation(), 500);
@@ -309,8 +309,8 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::Limiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let tracker = Limiter::with_token_tracker(
   ///     TokenLimiter::with_limitation(10000)
@@ -329,8 +329,8 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
-  /// use tokora::state::recursion_tracker::RecursionLimiter;
+  /// use tokora::state::Limiter;
+  /// use tokora::state::RecursionLimiter;
   ///
   /// let tracker = Limiter::with_recursion_tracker(
   ///     RecursionLimiter::with_limitation(100)
@@ -349,9 +349,9 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
-  /// use tokora::state::token_tracker::TokenLimiter;
-  /// use tokora::state::recursion_tracker::RecursionLimiter;
+  /// use tokora::state::Limiter;
+  /// use tokora::state::TokenLimiter;
+  /// use tokora::state::RecursionLimiter;
   ///
   /// let tracker = Limiter::with_trackers(
   ///     TokenLimiter::with_limitation(5000),
@@ -377,7 +377,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
+  /// use tokora::state::Limiter;
   ///
   /// let tracker = Limiter::new();
   /// assert_eq!(tracker.token().tokens(), 0);
@@ -392,7 +392,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
+  /// use tokora::state::Limiter;
   ///
   /// let mut tracker = Limiter::new();
   /// tracker.token_mut().increase();
@@ -408,7 +408,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
+  /// use tokora::state::Limiter;
   ///
   /// let tracker = Limiter::new();
   /// assert_eq!(tracker.recursion().depth(), 0);
@@ -423,7 +423,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
+  /// use tokora::state::Limiter;
   ///
   /// let mut tracker = Limiter::new();
   /// tracker.recursion_mut().increase();
@@ -441,7 +441,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
+  /// use tokora::state::Limiter;
   ///
   /// let mut tracker = Limiter::new();
   /// tracker.increase_token();
@@ -459,7 +459,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
+  /// use tokora::state::Limiter;
   ///
   /// let mut tracker = Limiter::new();
   /// tracker.increase_recursion();
@@ -477,7 +477,7 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
+  /// use tokora::state::Limiter;
   ///
   /// let mut tracker = Limiter::new();
   /// tracker.increase_recursion();
@@ -500,8 +500,8 @@ impl Limiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::tracker::Limiter;
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::Limiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let mut tracker = Limiter::with_token_tracker(
   ///     TokenLimiter::with_limitation(3)

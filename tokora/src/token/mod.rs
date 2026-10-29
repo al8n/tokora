@@ -216,9 +216,9 @@ pub trait Token<'a>: Clone + core::fmt::Debug + 'a {
   /// The claim answers for an item whose **own scan** recorded no frontier in the lexer state —
   /// which includes an item that inherited a value from a scan `logos` skipped inside the same
   /// `next()` call. An item whose own scan recorded one is answered by that value instead: see
-  /// [`State::take_probe`](crate::State::take_probe), the value channel a `logos` callback writes
+  /// [`State::take_probe`](crate::state::State::take_probe), the value channel a `logos` callback writes
   /// to, and
-  /// [`Probe`](crate::Probe) for how a value is matched to the scan that recorded it.
+  /// [`Probe`](crate::state::Probe) for how a value is matched to the scan that recorded it.
   ///
   /// # There is NO default, and that is deliberate
   ///

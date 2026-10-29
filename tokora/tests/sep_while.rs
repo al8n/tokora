@@ -26,11 +26,10 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter, Verbose,
   },
   error::{
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, UnexpectedEot,
+    UnexpectedToken,
   },
-  parser::Action,
+  parse::Action,
 };
 
 use common::{TestLexer, Token};

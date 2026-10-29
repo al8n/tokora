@@ -46,7 +46,7 @@
 //!
 //! Frames admitted equals the limiter's `limitation` **exactly** — the `limitation + 1`th descent
 //! is the one refused. The pratt driver takes its frame at the frame prologue
-//! (`parser/pratt/expr.rs`), so the root expression spends the first one and the deepest *nested*
+//! (`pratt/expr.rs`), so the root expression spends the first one and the deepest *nested*
 //! group that parses clean is `limitation - 1`. Every cell below derives `limitation` from the
 //! parse itself ([`limitation`]) rather than naming 64, so a moved default re-points nothing.
 
@@ -58,9 +58,9 @@ use tokora::{
   cache::DefaultCache,
   cst::{CstProfile, KindValidator, parse_lossless, parse_lossless_partial},
   emitter::Verbose,
-  error::token::UnexpectedToken,
+  error::UnexpectedToken,
   input::{Complete, Completeness, SurfaceIncomplete},
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
 };
 
 // ── A tiny real lexer: one byte per token ──────────────────────────────────────

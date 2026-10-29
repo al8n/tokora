@@ -34,7 +34,7 @@
 //! element declining, or a cycle that committed nothing — reads it as "no more elements", and the
 //! collection **succeeds**. Same defect, same sink-independence, reached through the exit the
 //! failure chokepoint does not cover; the resource budget stopped the parse and the parse reported
-//! a complete construct. `parser::many::absence_after_element` is the second chokepoint, and
+//! a complete construct. `combinator::many::absence_after_element` is the second chokepoint, and
 //! section 4 drives both absence exits of all four families through it. Its cells are the inverse
 //! of section 2's: there a caught trip must change nothing, here it must change the verdict, and
 //! the two sets of sources differ only in *where* the catch sits relative to the element the driver
@@ -50,7 +50,7 @@
 //! value. The *descent* trip is the other kind of fact, a counter event that already happened inside
 //! the element attempt, and no later token unmakes it: an element that caught one, declined, and was
 //! then followed by a real closer closed the collection **successfully** while a resource budget had
-//! stopped the parse. `parser::many::close_after_element` is the third chokepoint, holding the
+//! stopped the parse. `combinator::many::close_after_element` is the third chokepoint, holding the
 //! descent witness alone, and section 5 is section 4's delimited cells with the closer put back.
 //!
 //! # The exit that stays open, by design — section 6
@@ -61,7 +61,7 @@
 //! hands the driver a value, and the driver collects it exactly as it would from an untripped
 //! element. Neither `absence_after_element` nor `close_after_element` is reached on that path, on
 //! purpose, and section 6 is **not** a residual — it is the permanent shape of the design, stated
-//! by `parser::many`'s module docs and pinned here so it cannot drift silently in either direction.
+//! by `combinator::many`'s module docs and pinned here so it cannot drift silently in either direction.
 //! Section 7 is the contrast that makes the distinction legible: the gap it closes *was* a residual,
 //! recorded as one, and is now gone.
 //!
@@ -81,7 +81,7 @@
 //! boundary moved — either narrower (an `Accept` started being gated, which would strand a grammar
 //! that deliberately recovers a value from a caught budget) or wider (a decline/stall/closer exit
 //! sections 4 or 5 gate stopped being gated, and this section's own control failed to notice). If
-//! this section goes red, the fix is almost never in this file — see `parser::many`'s module docs
+//! this section goes red, the fix is almost never in this file — see `combinator::many`'s module docs
 //! for the reasoning the change would have to revisit.
 //!
 //! # Why every cell here runs twice, through two error types
@@ -134,13 +134,12 @@ use tokora::{
     Verbose,
   },
   error::{
-    RecursionLimitReached, Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, RecursionLimitReached, SeparatedError, TooFew,
+    TooMany, Unclosed, UnexpectedEot, UnexpectedToken,
   },
-  parser::Action,
+  parse::Action,
   punct::Paren,
-  state::recursion_tracker::RecursionLimiter,
+  state::RecursionLimiter,
 };
 
 use common::{TestLexer, Token};
@@ -926,7 +925,7 @@ macro_rules! trip_suite {
       /// `parse_input`, which has no decline channel at all — the *only* way an element of theirs
       /// can report absence is by returning a value while consuming nothing, which the driver's
       /// no-progress guard then reads as "no more elements". So this is the one shape section 7 can
-      /// drive those six with, and it is the shape the measurement in `parser::many`'s changelog
+      /// drive those six with, and it is the shape the measurement in `combinator::many`'s changelog
       /// entry used.
       fn caught_then_zero_width_plain<'inp, Ctx>(
         inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
@@ -968,14 +967,14 @@ macro_rules! trip_suite {
       }
 
       /// Section 6's subject: the same catch, answered with a **consuming `Accept`** — the one arm
-      /// no chokepoint in `parser::many` ever inspects, by design. When it finds a `Num` it catches
+      /// no chokepoint in `combinator::many` ever inspects, by design. When it finds a `Num` it catches
       /// the trip and still accepts, producing a value rather than concluding absence; when it does
       /// not, it consumes a stray `Plus` out of the way (a harmless no-op where none is there) and
       /// declines untouched by any catch, so the cycle that lets the driver conclude the construct
       /// ended is never the one that tripped. Reused across `repeated().delimited()` — where the
       /// closer sits directly at the next slot — and `separated_by_comma().delimited()`, where the
       /// consumed `Plus` is what routes the real closer to the epilogue's own gate
-      /// (`parser::many::close_after_element`) rather than the mid-scan arm, which is a DIRECT
+      /// (`combinator::many::close_after_element`) rather than the mid-scan arm, which is a DIRECT
       /// closer the census exempts because only an accepting element can precede it — the same
       /// routing `caught_then_consuming_decline_num` above uses for section 5's separated cell.
       fn caught_then_consuming_accept_num<'inp, Ctx>(
@@ -2112,7 +2111,7 @@ macro_rules! trip_suite {
       //   stop — section 4's defect, through the arm section 4's gate deliberately does not cover.
       //
       // So these cells are section 4's with one character added to the source, and the arm they
-      // reach carries the descent witness alone (`parser::many::close_after_element`).
+      // reach carries the descent witness alone (`combinator::many::close_after_element`).
       //
       // `separated().delimited()` gets ONE cell here, not two, and the missing one is a fact about
       // that driver rather than an omission. It probes the separator-or-close slot BEFORE it
@@ -2179,7 +2178,7 @@ macro_rules! trip_suite {
       //
       // So an element that catches a trip, consumes, and still answers `Accept` leaves the counter
       // exactly where the trip left it, and the very next cycle's own baseline is taken AFTER
-      // that — rebaselined, in the terms `parser::many`'s module docs use. When that next cycle is
+      // that — rebaselined, in the terms `combinator::many`'s module docs use. When that next cycle is
       // the one that reaches a real closer (or, for `separated().delimited()`, consumes the
       // non-element token that puts a real closer in the epilogue's hands), neither
       // `close_after_element` nor anything else has a trip left to see. The collection closes and

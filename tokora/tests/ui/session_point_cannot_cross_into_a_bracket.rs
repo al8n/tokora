@@ -29,12 +29,12 @@
 //
 // **If this file ever compiles, the wall is gone** and `node()` can panic in a release build.
 // Any new session-verb surface — on `ParseState`, or any other handle a parser can reach — must
-// re-prove this theorem before it ships. See the module docs on `src/parser/node.rs`.
+// re-prove this theorem before it ships. See the module docs on `src/combinator/node.rs`.
 #![allow(dead_code)]
 
 use tokora::{
-  Emitter, InputRef, Lexer, ParseContext, ParseInput, SessionPointId, emitter::CstEmitter,
-  parser::node,
+  Emitter, InputRef, Lexer, ParseContext, ParseInput, combinator::node, emitter::CstEmitter,
+  input::SessionPointId,
 };
 
 const K_NODE: u16 = 1;

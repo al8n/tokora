@@ -33,43 +33,35 @@ mod trace;
 #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_16")))]
 pub use logos_0_16 as logos;
 
-pub use cache::{Cache, DefaultCache};
-pub use check::Check;
-pub use dialect::{Dialect, DialectErrorOf, DialectInput, DialectSlice, LangOf, LexerOf};
-pub use emitter::{ComposableEmitter, CstEmitter, Emitter, EmitterView, PolicyComposableEmitter};
-pub use input::{
-  Balance, Commit, Complete, Completeness, DelimClass, DropPolicy, Hole, InputRef, Partial,
-  Rollback, SurfaceIncomplete, Transaction, parse_partial,
+// The versioned name of the same crate (#350, rule 6): a consumer pinned to logos 0.16 keeps
+// writing `#[logos(crate = tokora::logos_0_16)]` after a newer integration lands and the
+// unversioned `tokora::logos` moves on to it.
+#[cfg(feature = "logos_0_16")]
+#[cfg_attr(docsrs, doc(cfg(feature = "logos_0_16")))]
+pub use logos_0_16;
+
+// The crate root is an explicit list, by one criterion: a name a production must have in scope —
+// the traits whose methods it calls, the types its signature spells, and the drivers. Every item
+// here also lives in the module of its concept, and nothing else is re-exported into the root;
+// in particular no glob is, so adding a root name is a deliberate edit to this list (and to the
+// census's frozen `ci/layout/root.txt`).
+pub use emitter::{Emitter, EmitterView};
+pub use input::InputRef;
+pub use lexer::{Lexer, ReadFrontier, ScanLookahead};
+pub use parse::{
+  Accumulator, Action, ComposableParseContext, ErrorOf, FatalContext, Parse, ParseAttempt,
+  ParseChoice, ParseContext, ParseInput, ParseTokenChoice, Parser, ParserContext, TryParseInput,
+  parse, parse_partial, parse_with, parse_with_state,
 };
-#[cfg(any(feature = "std", feature = "alloc"))]
-#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
-pub use input::{SavepointId, SessionPointId, StackedTransaction};
-pub use lexer::{Lexed, Lexer, ReadFrontier, ScanLookahead, SliceOf};
-pub use located::*;
-pub use parse::*;
-pub use parser::{Labelled, Parse, Parser, labelled, parse, parse_with, parse_with_state};
-pub use require::Require;
 pub use slice::Slice;
 pub use source::Source;
 pub use span::{SimpleSpan, Span};
-pub use state::{Probe, State};
 pub use token::Token;
-pub use try_parse::input::{Accept, Decline, ParseAttempt, TryParseInput};
-
-#[cfg(feature = "trace")]
-#[cfg_attr(docsrs, doc(cfg(feature = "trace")))]
-pub use trace::Traced;
-/// Parser tracing DX: wrap any parser in [`traced`] to print an indented event tree of its
-/// run — enter, exit-ok with the consumed span, exit-err — interleaved with the crate's own
-/// instrumented combinators (`try_expect`, `peek`, the `sync` family, the transaction guards,
-/// `attempt`/`try_attempt`, and the separated/repeated drivers) as they fire. Gated on the
-/// `trace` feature; with it off, [`traced`] is the identity and every hook compiles away.
-pub use trace::traced;
 
 /// Concrete Syntax Tree (CST) representations and utilities.
 ///
-/// The rowan-free front half — the [`cst::event`] vocabulary, the era-branded marks, and the
-/// [`emitter::CstEmitter`] capability they ride — is available in
+/// The rowan-free front half — the [event vocabulary](cst#the-event-vocabulary), the era-branded
+/// marks, and the [`emitter::CstEmitter`] capability they ride — is available in
 /// every build, so one parser assembly can bound its context on the event channel and run
 /// tree-less at zero cost. The `rowan` feature adds the back half: the recording sink and the
 /// typed lossless-tree layer (preserving all source information including whitespace and
@@ -78,20 +70,35 @@ pub mod cst;
 
 /// Lexical analysis and token extraction.
 ///
-/// Contains the [`Lexer`] trait and [`Lexed`] type for converting source text into tokens.
-/// Tokens flow on demand to parsers and are cached only when explicit lookahead or backtracking
-/// needs them.
+/// Contains the [`Lexer`] trait and [`Lexed`](lexer::Lexed) type for converting source text into
+/// tokens. Tokens flow on demand to parsers and are cached only when explicit lookahead or
+/// backtracking needs them.
 pub mod lexer;
 
-/// Parser combinators with on-demand lexing, explicit lookahead, and deterministic parsing.
+/// Combinators with on-demand lexing, explicit lookahead, and deterministic parsing.
 ///
-/// A unique parser combinator framework combining:
+/// A unique combinator framework combining:
 /// - **Parse-while-lexing architecture**: Tokens are requested from the lexer as parsing needs them
 /// - **Explicit lookahead and backtracking**: Caches and transaction guards make speculation visible
-/// - **Flexible error handling**: Same parser adapts for fail-fast or greedy diagnostics
+/// - **Flexible error handling**: Same combinator adapts for fail-fast or greedy diagnostics
 ///
-/// See the module documentation for architecture details and quick start guide.
-pub mod parser;
+/// The module holds the combinator constructors, the parser types they return, and the option
+/// and adapter values those constructors take — no trait: what a combinator *accepts* lives in
+/// [`parse`](mod@crate::parse). See the module documentation for architecture details and quick
+/// start guide.
+pub mod combinator;
+
+// The parsing traits, the context vocabulary and the drivers. Its documentation is the inner
+// header in `parse/mod.rs` alone, the same arrangement as `diagnostic` below and for the same
+// reason: an outer comment here would make rustdoc resolve every link in that header from the
+// crate root, and `parse`'s header links names that live in `parse`, not at the root.
+pub mod parse;
+
+// The Pratt subsystem — one module behind one feature (#350, rule 4). Its documentation is the
+// inner header in `pratt/mod.rs` alone, for the reason given on `parse` above.
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
+pub mod pratt;
 
 /// Common AST building blocks for programming languages.
 ///
@@ -185,11 +192,13 @@ pub mod delimiter;
 /// The dialect anchor: one type per language, naming its lexer and its brand.
 ///
 /// A grammar's productions all need the same block of lexer equalities — source, slice, token,
-/// span, offset, token capabilities — and Rust cannot name that block once. The [`Dialect`]
-/// trait is the anchor it hangs off: a consumer writes one impl per language, pins the
-/// projections in a one-line subtrait, and each production then carries two `where`-clause
-/// lines. The [`LexerOf`] / [`LangOf`] / [`DialectSlice`] / [`DialectInput`] /
-/// [`DialectErrorOf`] aliases spell the projections a signature actually mentions.
+/// span, offset, token capabilities — and Rust cannot name that block once. The
+/// [`Dialect`](dialect::Dialect) trait is the anchor it hangs off: a consumer writes one impl per
+/// language, pins the projections in a one-line subtrait, and each production then carries two
+/// `where`-clause lines. The [`LexerOf`](dialect::LexerOf) / [`LangOf`](dialect::LangOf) /
+/// [`DialectSlice`](dialect::DialectSlice) / [`DialectInput`](dialect::DialectInput) /
+/// [`DialectErrorOf`](dialect::DialectErrorOf) aliases spell the projections a signature actually
+/// mentions.
 pub mod dialect;
 
 /// Source text abstraction for lexers.
@@ -219,15 +228,18 @@ pub mod slice;
 /// State management for lexers.
 ///
 /// Provides state tracking types for lexers:
-/// - [`State`]: Base trait for lexer state
-/// - [`recursion_tracker`](state::recursion_tracker): Prevent infinite recursion
-/// - [`token_tracker`](state::token_tracker): Track token occurrences
-/// - [`tracker`](state::tracker): Combined recursion and token tracking
+/// - [`State`](state::State): Base trait for lexer state
+/// - [`RecursionLimiter`](state::RecursionLimiter) / [`RecursionTracker`](state::RecursionTracker):
+///   Prevent infinite recursion
+/// - [`TokenLimiter`](state::TokenLimiter) / [`TokenTracker`](state::TokenTracker): Track token
+///   occurrences
+/// - [`Limiter`](state::Limiter) / [`Tracker`](state::Tracker): Combined recursion and token
+///   tracking
 pub mod state;
 
 /// Token caching for lookahead and backtracking.
 ///
-/// Defines the [`Cache`] trait for buffering tokens to enable lookahead
+/// Defines the [`Cache`](cache::Cache) trait for buffering tokens to enable lookahead
 /// and backtracking operations. The complete set of implementations is three, all
 /// bounded at compile time:
 /// - `ArrayDeque<_, N>`: a fixed-capacity ring (`DefaultCache` is this at `U3`)
@@ -236,8 +248,8 @@ pub mod state;
 ///
 /// There is no dynamic, allocator-backed cache, and `alloc` does not add one: it enables
 /// allocator-backed containers and drivers and forwards the sub-crates' `alloc` features.
-/// Nor would one buy unbounded lookahead — [`Window`] is sealed at U1–U32, so
-/// no cache can serve a public peek past 32 tokens. Lookahead beyond the window is what
+/// Nor would one buy unbounded lookahead — [`Window`](parse::Window) is sealed at U1–U32, so no
+/// cache can serve a public peek past 32 tokens. Lookahead beyond the window is what
 /// transactions are for: they speculate arbitrarily far and re-lex on rollback.
 pub mod cache;
 
@@ -304,12 +316,6 @@ pub mod fuzz;
 )]
 pub mod guide;
 
-/// Convenience re-exports for common usage.
-pub mod prelude;
-
-mod parse;
-mod try_parse;
-
 /// API_DIGEST_CENSUS — the guide's re-declarations of public items, read against the items.
 ///
 /// Gated on `std` rather than on the guide's own `all(std, logos_0_16, combinators)`: the census
@@ -339,10 +345,6 @@ mod require;
 #[doc(hidden)]
 pub mod __private {
   pub use super::{check::Check, error, lexer::*, require::Require, span, syntax, token, utils};
-
-  pub mod try_parse {
-    pub use crate::try_parse::*;
-  }
 
   // Same re-export as the crate-level `tokora::logos` alias above; the macro expansions that
   // name `$crate::__private::logos` must resolve to the same version a user derive does.

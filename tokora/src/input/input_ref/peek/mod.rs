@@ -1032,7 +1032,7 @@ where
   ///
   #[cfg_attr(
     feature = "peek",
-    doc = " The method form of the free [`peek_kind`](crate::parser::peek_kind). Note the"
+    doc = " The method form of the free [`peek_kind`](crate::combinator::peek_kind). Note the"
   )]
   #[cfg_attr(
     not(feature = "peek"),

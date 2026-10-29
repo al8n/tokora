@@ -2,82 +2,9 @@
 //! [`CstEmitter`] records into, and the branded marks that make
 //! retro-parenting safe under backtracking.
 //!
-//! # The two verbs
-//!
-//! **The parse-time event buffer mutates only by append and suffix-truncate; interior writes
-//! are either journaled undo-state riding an append, or occur where no live mark can exist.**
-//!
-//! Append is the `cst_*` emission methods, suffix-truncate is an emitter
-//! [`rewind`](crate::emitter::Emitter::rewind). Every structural decision is expressed by
-//! appending an event that *names* an earlier slot, never by rewriting that slot in place:
-//! retro-parenting appends a `StartAt` naming an earlier tombstone, and the failing exit of an
-//! up-front bracket appends a `Demote` naming its own
-//! start. This is what makes rewind-by-truncation exact: the prefix below any live mark is
-//! immutable, so truncating to the mark restores the buffer to precisely the state it had when
-//! the mark was captured — for **both** exits of a bracket alike. A rollback into the window
-//! between a bracket's start and its exit truncates that exit, whichever it was, and the open
-//! node returns.
-//!
-//! The interior-write clause covers exactly three sites, and the census is closed:
-//!
-//! - the `forward_parent` *acceleration* field a `StartAt` writes back onto its target
-//!   tombstone — **journaled** undo-state riding the `StartAt`'s own append; the sink's undo
-//!   journal reverse-replays those writes on rewind, so the law holds observationally (see
-//!   `Sink` under the `rowan` feature);
-//! - the recovery hole's prefix-preserving splice, **floored above every live mark** so no
-//!   mark's prefix can change under it (`wrap_hole`);
-//! - **materialization's canonicalization pass**, which runs on the owned buffer at the one
-//!   moment no live mark can exist (the sink is consumed) and applies every surviving
-//!   `Demote` to its target — see below.
-//!
-//! The banned direction stays banned: **completing a tombstone in place** — rewriting an
-//! earlier slot's kind during the parse — lets a rolled-back branch's decision survive its own
-//! truncation, because the truncation that erases the deciding branch does not erase the slot
-//! the decision was written on. That is why *both* directions of the kind rewrite are encoded
-//! as appended events, and neither is a parse-time interior write.
-//!
-//! # Canonicalization: where the demotion actually lands
-//!
-//! [`cst_demote`](crate::emitter::CstEmitter::cst_demote) appends a
-//! `Demote` event naming the slot its [`cst_start`](crate::emitter::CstEmitter::cst_start)
-//! appended; the slot itself keeps its real kind for the whole parse. Materialization then
-//! canonicalizes the buffer it owns in one pass — `events[target].kind = TOMBSTONE` for every
-//! surviving `Demote` — after which the abandoned node is byte-identical to the inert slot an
-//! unspent [`cst_mark`](crate::emitter::CstEmitter::cst_mark) leaves, and the replay walk is
-//! blind to both. A `Demote` can never outlive its target (`target` is strictly below the
-//! `Demote`'s own index and truncation is a suffix operation), so the pass has nothing to
-//! reconcile.
-//!
-//! # The depth model
-//!
-//! Balance is *derived* from the buffer, never cached beside it:
-//!
-//! - `StartNode` with a real kind opens a node: **+1**;
-//! - `StartNode` with the [`TOMBSTONE`] kind is an inert mark: **0**;
-//! - `StartAt` opens a retro-wrap (hoisted to its target at
-//!   materialization): **+1** at its own index;
-//! - `FinishNode` closes the innermost open node: **−1**;
-//! - `Demote` un-opens the node its target opened: **−1** at its own index (the pair
-//!   `StartNode(+1) … Demote(−1)` nets zero, exactly as the canonicalized
-//!   `StartNode(TOMBSTONE)` does);
-//! - `Token` and `Diag` are neutral: **0**.
-//!
-//! Both verbs preserve "every prefix has depth ≥ 0 or is diagnosed at materialization": a
-//! malformed buffer is representable (the raw `cst_*` surface is sharp), but it is
-//! *unrepresentable as a successful materialization* — `finish` walks the log and returns a
-//! typed error instead of building a wrong tree.
-//!
-//! # Marks carry eras
-//!
-//! Truncate-and-regrow is the normal backtracking rhythm, so "the index is in bounds" says
-//! nothing about whether the event at that index is still the one a mark was issued for. An
-//! [`EventMark`] therefore pairs its buffer index with the **era** of the truncation history
-//! at issue time — and with the **identity** of the issuing sink, because eras are per-sink
-//! histories and two sinks' `(index, era)` pairs coincide trivially. The recording sink keeps
-//! a monotone era source and a truncation ledger (`TruncationLedger`) that restore never
-//! rewinds, and validates every spend. A stale or foreign mark **panics in every build** —
-//! the savepoint posture: both are parser bugs, not input-dependent conditions, and the
-//! silent alternative is a wrong tree with no witness.
+//! Its laws — the two verbs, canonicalization, the depth model and eras — are documented on
+//! `cst` itself (`crate::cst`, section *The event vocabulary*), where these items are public; this
+//! file is private (#350, rule 5).
 
 #[cfg(feature = "rowan")]
 use core::num::NonZeroU32;
@@ -92,7 +19,9 @@ use crate::{Lexer, emitter::CstEmitter};
 /// `Demote` event: the failing exit of an up-front bracket appends a `Demote` naming its own
 /// start, and materialization applies it to the slot, so a node that was opened and then
 /// abandoned *materializes* exactly as the inert slot an unspent `cst_mark` leaves (see the
-/// canonicalization note in the [module docs](self)). During the parse the slot still carries
+/// canonicalization note in the
+/// [module docs](crate::cst#canonicalization-where-the-demotion-actually-lands)). During the
+/// parse the slot still carries
 /// its real kind — the demotion is an appended event, not an interior write.
 ///
 /// The value is `u16::MAX`, and the slot is **reserved across the whole shared kind space**:
@@ -200,7 +129,7 @@ pub(crate) enum Event<S> {
   ///
   /// [`Demote`](Event::Demote) is the mirror image and is lawful for exactly the same
   /// reason this one is: it, too, is an appended event naming an earlier slot. See the
-  /// [module docs](self).
+  /// [module docs](crate::cst#the-two-verbs).
   StartAt {
     /// The node kind of the retro-wrap.
     kind: u16,
@@ -317,7 +246,7 @@ impl<S> Event<S> {
 /// unrelated events can regrow over the same index — and `(index, era)` is *not* identity —
 /// two fresh sinks both mint `(0, 0)` — so the recording sink checks all three at every spend
 /// and **panics in every build** on a stale *or foreign* mark (the savepoint posture; see the
-/// [module docs](self)).
+/// [module docs](crate::cst#marks-carry-eras)).
 ///
 /// Marks are freely `Copy` and may legitimately outlive combinator frames (a pratt driver
 /// holds one across arbitrarily many operator iterations, spending it once per fold). A
@@ -503,7 +432,7 @@ impl TruncationLedger {
 ///
 /// **Inside a parse, no handle hands out the emitter.** A grammar reaches the event channel
 /// through the forwarding surface on [`InputRef`](crate::InputRef) /
-/// [`ParseState`](crate::ParseState) / [`EmitterView`](crate::EmitterView), which carries the
+/// [`ParseState`](crate::parse::ParseState) / [`EmitterView`](crate::EmitterView), which carries the
 /// operations and not the value, so the mark comes from `inp.cst_mark()` and the retro-wrap
 /// from the handle's own `cst_start_at` / `cst_finish` pair:
 ///
@@ -534,7 +463,7 @@ impl TruncationLedger {
 /// A marker cannot be spent twice — both verbs take `self`:
 ///
 /// ```compile_fail,E0382
-/// use tokora::cst::event::Marker;
+/// use tokora::cst::Marker;
 ///
 /// fn misuse(m: Marker) {
 ///     m.abandon();
@@ -545,7 +474,7 @@ impl TruncationLedger {
 /// Preceding requires completion — an open (or abandoned) marker has no `precede`:
 ///
 /// ```compile_fail,E0599
-/// use tokora::cst::event::Marker;
+/// use tokora::cst::Marker;
 ///
 /// fn misuse(m: Marker) {
 ///     let _ = m.precede(); // ERROR: no method `precede` on `Marker` — complete it first
@@ -555,7 +484,7 @@ impl TruncationLedger {
 /// And a completed node cannot be un-decided — [`CompletedMarker`] has no `abandon`:
 ///
 /// ```compile_fail,E0599
-/// use tokora::cst::event::CompletedMarker;
+/// use tokora::cst::CompletedMarker;
 ///
 /// fn misuse(c: CompletedMarker) {
 ///     c.abandon(); // ERROR: no method `abandon` on `CompletedMarker`

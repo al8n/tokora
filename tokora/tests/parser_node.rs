@@ -16,12 +16,11 @@ use core::fmt;
 use tokora::{
   InputRef, Lexer, Parse, ParseAttempt, ParseInput, Parser, SimpleSpan, Token, TryParseInput,
   cache::DefaultCache,
+  combinator::{Empty, node, node_at, node_opt},
   cst::{CstProfile, FinishError, parse_lossless},
   emitter::Verbose,
-  error::token::UnexpectedToken,
-  parser::{
-    Empty, PrattFoldOp, PrattInfix, PrattLHS, PrattRHS, Precedenced, node, node_at, node_opt, pratt,
-  },
+  error::UnexpectedToken,
+  pratt::{PrattFoldOp, PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
 };
 
 // ── A tiny real lexer: one byte per token ──────────────────────────────────────
@@ -914,7 +913,7 @@ impl<'inp> tokora::Emitter<'inp, ByteLexer<'inp>> for Orphan<'_, 'inp> {
 
   fn emit_unexpected_token(
     &mut self,
-    err: tokora::error::token::UnexpectedTokenOf<'inp, ByteLexer<'inp>, ()>,
+    err: tokora::error::UnexpectedTokenOf<'inp, ByteLexer<'inp>, ()>,
   ) -> Result<(), TestErr> {
     self.0.emit_unexpected_token(err)
   }
@@ -971,7 +970,7 @@ fn an_orphan_view_wrapper_carries_a_foreign_lexer_error_but_licenses_no_gap() {
       // A second parse, over a buffer this sink never saw, emitting into it. Drained: `z`
       // lexes, `!` does not — and the layer reports the refusal itself, with its own span,
       // through the wrapper and into the original sink.
-      let _ = tokora::parser::parse_with(
+      let _ = tokora::parse::parse_with(
         drain_foreign,
         "z!",
         (Orphan(view), DefaultCache::<ByteLexer<'_>>::default()),

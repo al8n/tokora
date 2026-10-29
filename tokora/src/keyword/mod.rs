@@ -167,7 +167,7 @@ macro_rules! keyword {
           pub fn try_parse<'inp, L, Ctx, Lang: ?::core::marker::Sized, Cmpl>(
             inp: &mut $crate::InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
           ) -> ::core::result::Result<
-            $crate::__private::try_parse::input::ParseAttempt<$name<L::Span, (), Lang>>,
+            $crate::ParseAttempt<$name<L::Span, (), Lang>>,
             <Ctx::Emitter as $crate::Emitter<'inp, L, Lang>>::Error,
           >
           where
@@ -203,7 +203,7 @@ macro_rules! keyword {
             Cmpl: $crate::input::SurfaceIncomplete<'inp, L, Ctx, Lang>,
             <Ctx::Emitter as $crate::Emitter<'inp, L, Lang>>::Error:
               ::core::convert::From<$crate::error::UnexpectedEot<L::Offset, Lang>>
-              + ::core::convert::From<$crate::error::token::UnexpectedToken<'inp, L::Token, <L::Token as $crate::Token<'inp>>::Kind, L::Span, Lang>>,
+              + ::core::convert::From<$crate::error::UnexpectedToken<'inp, L::Token, <L::Token as $crate::Token<'inp>>::Kind, L::Span, Lang>>,
           {
             match inp.next_or_stop()? {
               ::core::option::Option::Some(spanned) => {
@@ -215,7 +215,7 @@ macro_rules! keyword {
                 } else {
                   let (span, tok) = spanned.into_components();
                   ::core::result::Result::Err(
-                    $crate::error::token::UnexpectedToken::of(span).with_found(tok).into(),
+                    $crate::error::UnexpectedToken::of(span).with_found(tok).into(),
                   )
                 }
               }
@@ -258,14 +258,14 @@ macro_rules! keyword {
           }
         }
 
-        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::human_display::DisplayHuman for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::DisplayHuman for $name<S, C, Lang> {
           #[inline]
           fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             ::core::fmt::Display::fmt(self, f)
           }
         }
 
-        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::sdl_display::DisplayCompact for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::DisplayCompact for $name<S, C, Lang> {
           type Options = ();
 
           #[inline]
@@ -274,7 +274,7 @@ macro_rules! keyword {
           }
         }
 
-        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::sdl_display::DisplayPretty for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::DisplayPretty for $name<S, C, Lang> {
           type Options = ();
 
           #[inline]

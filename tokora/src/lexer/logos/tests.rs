@@ -174,7 +174,7 @@ fn logos_lexer_from_logos_identity() {
 
 // ── Limit-error latching ─────────────────────────────────────────────────
 
-use crate::state::token_tracker::{TokenLimitExceeded, TokenLimiter};
+use crate::state::{TokenLimitExceeded, TokenLimiter};
 
 #[derive(Debug, Clone, PartialEq)]
 enum LimitErr {
@@ -333,10 +333,10 @@ impl From<TokenLimitExceeded> for TripErr {
   }
 }
 
-impl<'a, T, Kind: Clone, S, Lang: ?Sized>
-  From<crate::error::token::UnexpectedToken<'a, T, Kind, S, Lang>> for TripErr
+impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<crate::error::UnexpectedToken<'a, T, Kind, S, Lang>>
+  for TripErr
 {
-  fn from(_: crate::error::token::UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
+  fn from(_: crate::error::UnexpectedToken<'a, T, Kind, S, Lang>) -> Self {
     TripErr::Lex
   }
 }
@@ -660,18 +660,18 @@ struct PeekRecorder {
   probe: Option<(usize, usize)>,
 }
 
-impl crate::State for PeekRecorder {
+impl crate::state::State for PeekRecorder {
   type Error = TripErr;
 
   fn check(&self) -> Result<(), Self::Error> {
     Ok(())
   }
 
-  fn take_probe(&mut self) -> Option<crate::Probe> {
+  fn take_probe(&mut self) -> Option<crate::state::Probe> {
     self
       .probe
       .take()
-      .map(|(from, to)| crate::Probe::new(from, to))
+      .map(|(from, to)| crate::state::Probe::new(from, to))
   }
 }
 

@@ -1,16 +1,19 @@
 use crate::{
-  Complete, Completeness, Emitter, Lexer, input::InputRef, parse::ParseContext, span::Spanned,
-  try_parse::input::ParseAttempt,
+  Emitter, Lexer,
+  input::{Complete, Completeness, InputRef},
+  parse::{ParseContext, try_parse::input::ParseAttempt},
+  span::Spanned,
 };
 
 // The four dispatch constructors below hand their arms to a `peek` combinator; the choice
 // traits themselves — and the `Branch` id they dispatch on — are substrate.
 #[cfg(feature = "peek")]
 use crate::{
-  Token, Window,
+  Token,
   cache::Peeked,
+  combinator::{DispatchOnKind, FusedDispatchOnKind, PeekThenChoice},
   emitter::EmitterView,
-  parser::{DispatchOnKind, FusedDispatchOnKind, PeekThenChoice},
+  parse::Window,
 };
 
 use super::*;
@@ -102,7 +105,7 @@ pub trait ParseChoice<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// `table[i]` is the viable first-token [`Kind`](Token::Kind) for branch `i`, in branch
   /// order. The combinator peeks a single token, looks its kind up in the table, and runs the
   /// matching branch. On a **committed dispatch failure** — the next token's kind is absent from
-  /// the table — the returned [`UnexpectedToken`](crate::error::token::UnexpectedToken) carries
+  /// the table — the returned [`UnexpectedToken`](crate::error::UnexpectedToken) carries
   /// the *whole* table as its expected set (`expected one of …`, an
   /// [`Expected::OneOf`](crate::utils::Expected::OneOf)); at end-of-input it returns an
   /// [`UnexpectedEot`](crate::error::UnexpectedEot). The expected set is exact and never
@@ -175,10 +178,10 @@ pub trait ParseTokenChoice<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> 
   /// and on a hit hands the already-lexed token to the matching branch — no peek round
   /// trip through the cache. When driven as [`ParseInput`], a miss or end of input fails
   /// exactly like [`dispatch_on_kind`](ParseChoice::dispatch_on_kind): the same
-  /// [`UnexpectedToken`](crate::error::token::UnexpectedToken) /
+  /// [`UnexpectedToken`](crate::error::UnexpectedToken) /
   /// [`UnexpectedEot`](crate::error::UnexpectedEot) carrying the whole table as the
   /// expected set, with the missed token put back for whatever runs next. When driven as
-  /// [`TryParseInput`](crate::TryParseInput), a table miss or end of input instead returns
+  /// [`TryParseInput`], a table miss or end of input instead returns
   /// [`ParseAttempt::Decline`] without consuming valid input; an error from a selected arm
   /// remains an `Err`. See
   /// [`FusedDispatchOnKind`] for the full shape comparison and the equivalence contract.
@@ -431,7 +434,7 @@ impl<const N: usize> Branch<N> {
   /// Constructs a branch from a raw index.
   ///
   /// Crate-internal: the caller must guarantee `index <= N` (the in-bounds contract every
-  /// `ParseChoice` dispatch relies on). Used by [`DispatchOnKind`](crate::parser::DispatchOnKind)
+  /// `ParseChoice` dispatch relies on). Used by [`DispatchOnKind`](crate::combinator::DispatchOnKind)
   /// after a table lookup, where the matched table position is a valid branch index.
   #[cfg(feature = "peek")]
   #[inline(always)]

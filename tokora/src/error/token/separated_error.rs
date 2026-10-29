@@ -14,7 +14,7 @@
 //! `From<SeparatedError<..>>`). So the blanket has to put the name *in the payload*, or the
 //! name is lost for every user of the family.
 
-use crate::{Lexer, Token, error::token::UnexpectedToken, span::SimpleSpan, utils::CowStr};
+use crate::{Lexer, Token, error::UnexpectedToken, span::SimpleSpan, utils::CowStr};
 
 /// Where, within a separated sequence, a separator-related error occurred.
 ///

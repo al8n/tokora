@@ -8,7 +8,7 @@
 //! * the **token-level** one — [`InputRef::pratt`] → `pratt_in`, in
 //!   `src/input/input_ref/pratt.rs`. It opens no transaction at all: acceptance *is* the
 //!   commit, the folds never see an `InputRef`, and there is nothing to roll back.
-//! * the **typed** one — the [`Pratt`] combinator, in `src/parser/pratt/expr.rs`. Its folds
+//! * the **typed** one — the [`Pratt`] combinator, in `src/pratt/expr.rs`. Its folds
 //!   take an `InputRef`, its LHS/RHS channels are arbitrary parsers, and it therefore has to
 //!   probe for the next operator inside a transaction it can restore.
 //!
@@ -272,7 +272,7 @@
 //! asymmetry above is large enough to account for it, in either direction).
 //!
 //! The null is unsurprising rather than mysterious, because the driver in
-//! `src/parser/pratt/expr.rs` is already the **narrowed** shape: its `Infix` arm calls
+//! `src/pratt/expr.rs` is already the **narrowed** shape: its `Infix` arm calls
 //! `txn.commit()` *before* the recursive operand parse, so the quantity the pair is built to
 //! expose is absent from the code the pair was run against. What the pair would catch is the
 //! narrowing being undone — move that `commit()` back below the recursion and `right_chain/d`
@@ -291,7 +291,7 @@
 //!
 //! ## The checksum has been shown to fire
 //!
-//! Two mutations of `src/parser/pratt/expr.rs`, both reverted:
+//! Two mutations of `src/pratt/expr.rs`, both reverted:
 //!
 //! * replacing the infix fold with `lhs = rhs` — every fold skipped, every token still consumed
 //!   — failed every cell that has an operator (exit 101) and correctly left `bare_operand`,
@@ -327,8 +327,8 @@
 //!   inlined `check` sites while the comment claimed two loads per token. See
 //!   [`check`](State::check) for the whole argument.
 //!
-//! [`Pratt`]: tokora::parser::Pratt
-//! [pratt]: tokora::parser::pratt
+//! [`Pratt`]: tokora::pratt::Pratt
+//! [pratt]: tokora::pratt::pratt
 //! [`InputRef::pratt`]: tokora::InputRef::pratt
 
 /// The wall-clock regression gate's measurement window, shared by all five bench binaries.
@@ -342,14 +342,13 @@ use std::hint::black_box;
 use criterion::{Criterion, Throughput, criterion_group};
 
 use tokora::{
-  Emitter, FatalContext, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, State,
-  Token,
+  Emitter, FatalContext, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, Token,
   emitter::Fatal,
-  error::{NonAssociativeChain, RecursionLimitReached, UnexpectedEnd, token::UnexpectedToken},
+  error::{NonAssociativeChain, RecursionLimitReached, UnexpectedEnd, UnexpectedToken},
   lexer::LogosLexer,
   logos::{self, Logos},
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
-  state::recursion_tracker::RecursionLimiter,
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  state::{RecursionLimiter, State},
 };
 
 // ── The lexer state ───────────────────────────────────────────────────────────
@@ -610,7 +609,7 @@ type ExprLexer<'a> = LogosLexer<'a, ExprTok>;
 // satisfy the bounds the typed driver and `Parser::new` require. The typed `Pratt`'s
 // `ParseInput` impl in particular demands `From<UnexpectedEoLhs<_, _>> +
 // From<UnexpectedEoRhs<_, _>> + From<RecursionLimitReached<_, _>> +
-// From<NonAssociativeChain<_, _>>` (`src/parser/pratt/expr.rs`). The first two are aliases of
+// From<NonAssociativeChain<_, _>>` (`src/pratt/expr.rs`). The first two are aliases of
 // `UnexpectedEnd` and are covered by the one generic impl below; the other two get their own
 // impls just below that, converting to the same unit `BenchError`. `RecursionLimitReached` in
 // particular is not merely unreached here the way `NonAssociativeChain` is — see
@@ -764,7 +763,7 @@ where
 ///
 /// `pratt(...)` — and therefore `Pratt::parse_input` — is the whole point of this file: it is
 /// the entry point `parser_combinators.rs` never reaches, and `#[cold] #[inline(never)]`
-/// symbols in `src/parser/pratt/expr.rs` reachable from nowhere else are how a compiled binary
+/// symbols in `src/pratt/expr.rs` reachable from nowhere else are how a compiled binary
 /// can be shown to contain it.
 ///
 /// It is not, however, the only thing under the clock. This loop lexes on **both** sides of the
@@ -1313,7 +1312,7 @@ fn cells() -> Vec<Cell> {
 ///
 /// # Why the default is not enough
 ///
-/// The typed Pratt driver's private `parse` (`src/parser/pratt/expr.rs`) takes one level of the
+/// The typed Pratt driver's private `parse` (`src/pratt/expr.rs`) takes one level of the
 /// recursion budget per call — an `InputRef::descend` in its frame prologue — and its `Infix` arm
 /// recurses into `parse` again for a right-associative operator's right operand. So a chain of
 /// `d` right-associative operators reaches depth `d + 1`, and `right_chain/64`, this file's

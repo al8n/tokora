@@ -1,4 +1,4 @@
-use crate::{error::token::MissingTokenOf, utils::CowStr};
+use crate::{error::MissingTokenOf, utils::CowStr};
 
 use super::*;
 

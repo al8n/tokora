@@ -26,9 +26,10 @@
 //! `Sink`, and there is nowhere else for it to sit.
 
 use crate::{
-  Cache, Complete, Emitter, Lexer, ParseInput, Partial, SurfaceIncomplete,
+  Emitter, Lexer, ParseInput,
+  cache::Cache,
   emitter::ValueKeyedEmitter,
-  input::{Input, InputContext},
+  input::{Complete, Input, InputContext, Partial, SurfaceIncomplete},
 };
 
 use super::{CstProfile, handle::Cst, sink::Sink};
@@ -83,9 +84,9 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// # struct MiniErr;
 /// # impl<'a, T, K: Clone, S, Lang: ?Sized>
-/// #   From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
+/// #   From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
 /// # {
-/// #   fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
+/// #   fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
 /// # }
 /// #[derive(Debug, Clone, Copy)]
 /// struct MiniTok(u8);
@@ -174,9 +175,9 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// # struct MiniErr;
 /// # impl<'a, T, K: Clone, S, Lang: ?Sized>
-/// #   From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
+/// #   From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
 /// # {
-/// #   fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
+/// #   fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
 /// # }
 /// #[derive(Debug, Clone, Copy)]
 /// struct MiniTok(u8);
@@ -272,7 +273,7 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 ///   ) -> Result<(), MiniErr> where L: Lexer<'a> { Ok(()) }
 ///   fn emit_unexpected_token(
 ///     &mut self,
-///     _e: tokora::error::token::UnexpectedTokenOf<'a, L, Lang>,
+///     _e: tokora::error::UnexpectedTokenOf<'a, L, Lang>,
 ///   ) -> Result<(), MiniErr> where L: Lexer<'a> { Ok(()) }
 ///   fn emit_error(&mut self, _e: Spanned<MiniErr, L::Span>) -> Result<(), MiniErr>
 ///   where L: Lexer<'a> { Ok(()) }
@@ -376,9 +377,9 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 /// [`fold_while`](crate::ParseInput::fold_while)) — the `peek_then` family
 /// ([`peek_then`](crate::ParseInput::peek_then),
 /// [`peek_then_choice`](crate::ParseChoice::peek_then_choice)), and the token-level pratt folds
-/// [`PrattFoldTokenPrefix`](crate::parser::PrattFoldTokenPrefix),
-/// [`PrattFoldTokenInfix`](crate::parser::PrattFoldTokenInfix) and
-/// [`PrattFoldTokenPostfix`](crate::parser::PrattFoldTokenPostfix). Under this driver
+/// [`PrattFoldTokenPrefix`](crate::pratt::PrattFoldTokenPrefix),
+/// [`PrattFoldTokenInfix`](crate::pratt::PrattFoldTokenInfix) and
+/// [`PrattFoldTokenPostfix`](crate::pratt::PrattFoldTokenPostfix). Under this driver
 /// `Ctx::Emitter` *is* `Sink`, so an ordinary `*_while` condition used to be handed the live sink
 /// by `&mut`, and the wrong-source class was reachable through it exactly as it had been through
 /// the handle.
@@ -405,9 +406,9 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// # struct MiniErr;
 /// # impl<'a, T, K: Clone, S, Lang: ?Sized>
-/// #   From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
+/// #   From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
 /// # {
-/// #   fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
+/// #   fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
 /// # }
 /// # #[derive(Debug, Clone, Copy)]
 /// # struct MiniTok(u8);
@@ -462,7 +463,7 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 ///   }
 ///   fn emit_unexpected_token(
 ///     &mut self,
-///     e: tokora::error::token::UnexpectedTokenOf<'inp, Mini<'inp>, ()>,
+///     e: tokora::error::UnexpectedTokenOf<'inp, Mini<'inp>, ()>,
 ///   ) -> Result<(), MiniErr> {
 ///     self.0.emit_unexpected_token(e)
 ///   }
@@ -513,9 +514,9 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// # struct MiniErr;
 /// # impl<'a, T, K: Clone, S, Lang: ?Sized>
-/// #   From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
+/// #   From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
 /// # {
-/// #   fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
+/// #   fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
 /// # }
 /// # #[derive(Debug, Clone, Copy)]
 /// # struct MiniTok(u8);
@@ -573,7 +574,7 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 ///   }
 ///   fn emit_unexpected_token(
 ///     &mut self,
-///     e: tokora::error::token::UnexpectedTokenOf<'inp, Mini<'inp>, ()>,
+///     e: tokora::error::UnexpectedTokenOf<'inp, Mini<'inp>, ()>,
 ///   ) -> Result<(), MiniErr> {
 ///     self.0.emit_unexpected_token(e)
 ///   }
@@ -648,22 +649,16 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 /// ```rust,compile_fail
 /// use tokora::{
 ///   Accumulator, Emitter, InputRef, Lexer, ParseInput, SimpleSpan, Token,
-///   cache::{DefaultCache, Peeked},
-///   cst::{CstProfile, KindValidator, Sink, parse_lossless},
-///   emitter::Verbose,
-///   input::Cursor,
-///   parse_with,
-///   parser::Action,
-///   span::Spanned,
-///   utils::typenum::U1,
+///   cache::{DefaultCache, Peeked}, cst::{CstProfile, KindValidator, Sink, parse_lossless},
+///   emitter::Verbose, input::Cursor, parse::Action, parse_with, span::Spanned, utils::typenum::U1,
 /// };
 ///
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// # struct MiniErr;
 /// # impl<'a, T, K: Clone, S, Lang: ?Sized>
-/// #   From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
+/// #   From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
 /// # {
-/// #   fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
+/// #   fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
 /// # }
 /// #[derive(Debug, Clone, Copy)]
 /// struct MiniTok(u8);
@@ -721,7 +716,7 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 ///   }
 ///   fn emit_unexpected_token(
 ///     &mut self,
-///     e: tokora::error::token::UnexpectedTokenOf<'inp, Mini<'inp>, ()>,
+///     e: tokora::error::UnexpectedTokenOf<'inp, Mini<'inp>, ()>,
 ///   ) -> Result<(), MiniErr> {
 ///     self.0.emit_unexpected_token(e)
 ///   }
@@ -808,22 +803,16 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 /// ```rust,compile_fail
 /// use tokora::{
 ///   Accumulator, Emitter, EmitterView, InputRef, Lexer, ParseInput, SimpleSpan, Token,
-///   cache::{DefaultCache, Peeked},
-///   cst::{CstProfile, KindValidator, Sink, parse_lossless},
-///   emitter::Verbose,
-///   input::Cursor,
-///   parse_with,
-///   parser::Action,
-///   span::Spanned,
-///   utils::typenum::U1,
+///   cache::{DefaultCache, Peeked}, cst::{CstProfile, KindValidator, Sink, parse_lossless},
+///   emitter::Verbose, input::Cursor, parse::Action, parse_with, span::Spanned, utils::typenum::U1,
 /// };
 ///
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// # struct MiniErr;
 /// # impl<'a, T, K: Clone, S, Lang: ?Sized>
-/// #   From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
+/// #   From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
 /// # {
-/// #   fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
+/// #   fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
 /// # }
 /// #[derive(Debug, Clone, Copy)]
 /// struct MiniTok(u8);
@@ -881,7 +870,7 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 ///   }
 ///   fn emit_unexpected_token(
 ///     &mut self,
-///     e: tokora::error::token::UnexpectedTokenOf<'inp, Mini<'inp>, ()>,
+///     e: tokora::error::UnexpectedTokenOf<'inp, Mini<'inp>, ()>,
 ///   ) -> Result<(), MiniErr> {
 ///     self.0.emit_unexpected_token(e)
 ///   }
@@ -963,31 +952,27 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 ///
 /// ### What a condition may still do: decide *and* report, without a rewind
 ///
-/// The point of [`Decision`](crate::Decision) is peek → decide → act with no restore, and
+/// The point of [`Decision`](crate::parse::Decision) is peek → decide → act with no restore, and
 /// reporting inline is half of that. The view carries every emitting operation the emitter had,
 /// under the emitter's own names, so a condition that used to write `emitter.emit_warning(..)`
 /// writes exactly that still — only the parameter's type moved. The condition below reports
 /// through the view, opens and closes a CST node through it, and returns an
-/// [`Action`](crate::parser::Action), in one pass over the peeked window; the drive then carries
+/// [`Action`](crate::parse::Action), in one pass over the peeked window; the drive then carries
 /// on from where the peek left the input, with nothing rolled back:
 ///
 /// ```rust
 /// use tokora::{
-///   CstEmitter, Decision, Emitter, EmitterView, InputRef, Lexer, ParseContext, SimpleSpan, Token,
-///   cache::{DefaultCache, Peeked},
-///   cst::{CstProfile, KindValidator, Sink, parse_lossless},
-///   emitter::Verbose,
-///   parser::Action,
-///   span::Spanned,
-///   utils::typenum::U1,
+///   Emitter, EmitterView, InputRef, Lexer, ParseContext, SimpleSpan, Token,
+///   cache::{DefaultCache, Peeked}, cst::{CstProfile, KindValidator, Sink, parse_lossless},
+///   emitter::{CstEmitter, Verbose}, parse::{Action, Decision}, span::Spanned, utils::typenum::U1,
 /// };
 ///
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// # struct MiniErr;
 /// # impl<'a, T, K: Clone, S, Lang: ?Sized>
-/// #   From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
+/// #   From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>> for MiniErr
 /// # {
-/// #   fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
+/// #   fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Self }
 /// # }
 /// #[derive(Debug, Clone, Copy)]
 /// struct MiniTok(u8);
@@ -1146,7 +1131,7 @@ use super::{CstProfile, handle::Cst, sink::Sink};
 ///
 /// This entry point takes the emitter and the cache and settles everything else at its default —
 /// including the **recursion budget**, at
-/// [`RecursionLimiter::PARSE_DEFAULT_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH).
+/// [`RecursionLimiter::PARSE_DEFAULT_DEPTH`](crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH).
 /// A grammar whose documents legitimately nest deeper than that drives
 /// [`parse_lossless_with_context`] instead, which takes the whole
 /// [`InputContext`](crate::input::InputContext) and is otherwise this function exactly. See it for
@@ -1187,11 +1172,11 @@ where
 /// # What it is for
 ///
 /// [`InputContext`] carries four things — the emitter, the cache, the
-/// [`RecursionLimiter`](crate::state::recursion_tracker::RecursionLimiter) the parse descends
+/// [`RecursionLimiter`](crate::state::RecursionLimiter) the parse descends
 /// against, and the [`TokenBudget`](crate::input::TokenBudget) its lexer produces items against —
 /// and until this door existed a lossless parse could choose the emitter and the cache and neither
 /// budget. That is a real gap and not a theoretical one: the depth budget defaults to
-/// [`PARSE_DEFAULT_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH),
+/// [`PARSE_DEFAULT_DEPTH`](crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH),
 /// which is deliberately conservative, and a grammar with legitimately deep documents had no way
 /// to say so; the item ceiling defaults to unlimited, and a lossless parse over untrusted input
 /// had no way to say otherwise. `ParserContext::with_recursion_limiter` is not reachable from here
@@ -1199,9 +1184,7 @@ where
 /// the plumbing cannot be hand-rolled either — so the escape hatch has to be a door.
 ///
 /// ```rust,ignore
-/// use tokora::{
-///   input::{InputContext, TokenBudget}, state::recursion_tracker::RecursionLimiter,
-/// };
+/// use tokora::{input::{InputContext, TokenBudget}, state::RecursionLimiter};
 ///
 /// let (cst, parsed) = parse_lossless_with_context(
 ///   src,
@@ -1326,7 +1309,7 @@ where
 /// # Configuring the parse
 ///
 /// As with the complete door: this one settles the recursion budget at
-/// [`RecursionLimiter::PARSE_DEFAULT_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH),
+/// [`RecursionLimiter::PARSE_DEFAULT_DEPTH`](crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH),
 /// and [`parse_lossless_partial_with_context`] is the same function with the
 /// [`InputContext`](crate::input::InputContext) supplied by the caller.
 ///

@@ -15,12 +15,12 @@
 // Together the two cases say: **no safe surface can settle a point across a `node()`
 // boundary**, which is what makes the bracket's every-build `validate_start_mark` assert
 // unreachable from the blessed combinator, and what a future session verb must re-prove. See
-// the module docs on `src/parser/node.rs`.
+// the module docs on `src/combinator/node.rs`.
 #![allow(dead_code)]
 
 use tokora::{
-  Emitter, InputRef, Lexer, ParseContext, ParseInput, SessionPointId, emitter::CstEmitter,
-  parser::node,
+  Emitter, InputRef, Lexer, ParseContext, ParseInput, combinator::node, emitter::CstEmitter,
+  input::SessionPointId,
 };
 
 const K_NODE: u16 = 1;

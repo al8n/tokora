@@ -150,7 +150,7 @@
 /// | | denominated in | lives in | survives a rollback | who charges |
 /// |---|---|---|---|---|
 /// | `TokenBudget` | items produced | `Input` | **yes** | the driver |
-/// | [`TokenLimiter`](crate::state::token_tracker::TokenLimiter) | whatever the lexer counts | `L::State` | no — a `Checkpoint` carries the state | the lexer impl |
+/// | [`TokenLimiter`](crate::state::TokenLimiter) | whatever the lexer counts | `L::State` | no — a `Checkpoint` carries the state | the lexer impl |
 /// | [`Budget`](crate::input::Budget) | Σ attempt-lexable bytes | `PartialSession` | n/a (cross-attempt) | the session |
 ///
 /// The middle row is not a defect being replaced. A refund under rollback is the *correct*

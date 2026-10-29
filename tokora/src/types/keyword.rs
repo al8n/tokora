@@ -55,7 +55,7 @@
 //! allowing creation of placeholder keywords during error recovery:
 //!
 //! ```rust,ignore
-//! use tokora::{error::ErrorNode, types::recovery::RecoveryState};
+//! use tokora::{error::ErrorNode, types::RecoveryState};
 //!
 //! // Create placeholder for malformed identifier
 //! let bad_ident = Keyword::<String, SimpleSpan, YulLang>::error(span);
@@ -135,7 +135,7 @@ use crate::{
 /// ## Extracting Components
 ///
 /// ```rust
-/// # use tokora::types::{Keyword, recovery::Components};
+/// # use tokora::types::{Components, Keyword};
 /// # use tokora::SimpleSpan;
 /// # use tokora::utils::IntoComponents;
 /// # struct MyLang;

@@ -1,4 +1,4 @@
-use crate::State;
+use crate::state::State;
 
 /// Error returned when recursion depth exceeds the configured limit.
 ///
@@ -9,7 +9,7 @@ use crate::State;
 /// # Example
 ///
 /// ```rust
-/// use tokora::state::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
+/// use tokora::state::{RecursionLimitExceeded, RecursionLimiter};
 ///
 /// let mut limiter = RecursionLimiter::with_limitation(10);
 ///
@@ -37,7 +37,7 @@ impl RecursionLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
+  /// use tokora::state::{RecursionLimitExceeded, RecursionLimiter};
   ///
   /// let mut limiter = RecursionLimiter::with_limitation(3);
   /// limiter.increase();
@@ -53,7 +53,7 @@ impl RecursionLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::recursion_tracker::{RecursionLimiter, RecursionLimitExceeded};
+  /// use tokora::state::{RecursionLimitExceeded, RecursionLimiter};
   ///
   /// let mut limiter = RecursionLimiter::with_limitation(3);
   /// assert_eq!(limiter.limitation(), 3);
@@ -84,7 +84,7 @@ impl RecursionLimitExceeded {
 /// [`PARSE_DEFAULT_DEPTH`](Self::PARSE_DEFAULT_DEPTH) explicitly instead of inheriting
 /// [`new`](Self::new)'s, because on that path a level IS a live native-stack frame, and 500 of
 /// those is not safe everywhere a parse runs. The combined
-/// [`Limiter`](crate::state::tracker::Limiter) is not part of that wiring — tokora's own parser
+/// [`Limiter`](crate::state::Limiter) is not part of that wiring — tokora's own parser
 /// never builds its recursion budget through it — so its constructors inherit this same
 /// general-purpose 500 rather than requesting the parser's own.
 ///
@@ -183,7 +183,7 @@ impl RecursionLimitExceeded {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokora::state::recursion_tracker::RecursionLimiter;
+/// use tokora::state::RecursionLimiter;
 ///
 /// let mut limiter = RecursionLimiter::new();
 ///
@@ -203,7 +203,7 @@ impl RecursionLimitExceeded {
 /// ## Custom Limit
 ///
 /// ```rust
-/// use tokora::state::recursion_tracker::RecursionLimiter;
+/// use tokora::state::RecursionLimiter;
 ///
 /// // Allow deeper nesting for complex grammars
 /// let mut limiter = RecursionLimiter::with_limitation(1000);
@@ -214,7 +214,7 @@ impl RecursionLimitExceeded {
 /// ## Checking Limits
 ///
 /// ```rust
-/// use tokora::state::recursion_tracker::RecursionLimiter;
+/// use tokora::state::RecursionLimiter;
 ///
 /// let mut limiter = RecursionLimiter::with_limitation(5);
 ///
@@ -230,7 +230,7 @@ impl RecursionLimitExceeded {
 /// ## Recursive Parser Example
 ///
 /// ```rust,ignore
-/// use tokora::state::recursion_tracker::RecursionLimiter;
+/// use tokora::state::RecursionLimiter;
 ///
 /// fn parse_expr(input: &str, limiter: &mut RecursionLimiter) -> Result<Expr, Error> {
 ///     limiter.increase();
@@ -255,7 +255,7 @@ impl RecursionLimitExceeded {
 ///
 /// ```rust,ignore
 /// use logos::Logos;
-/// use tokora::state::recursion_tracker::RecursionLimiter;
+/// use tokora::state::RecursionLimiter;
 ///
 /// #[derive(Default)]
 /// struct LexerState {
@@ -1465,7 +1465,7 @@ impl RecursionLimiter {
   /// on the *same* shared budget cell, and 1024 of them at the heaviest measured per-level cost is
   /// ≈41 MiB against a 2 MiB thread — the native abort this crate's whole recursion story exists
   /// to delete. So: pass this constant when the deep part of your grammar is
-  /// [`pratt`](crate::parser::pratt) or [`InputRef::pratt`](crate::InputRef::pratt) frames,
+  /// [`pratt`](crate::pratt::pratt) or [`InputRef::pratt`](crate::InputRef::pratt) frames,
   /// and do not pass it because a build happens to have the feature on.
   ///
   /// # Why 1024
@@ -1531,7 +1531,7 @@ impl RecursionLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::recursion_tracker::RecursionLimiter;
+  /// use tokora::state::RecursionLimiter;
   ///
   /// let mut limiter = RecursionLimiter::unlimited();
   /// assert_eq!(limiter.limitation(), usize::MAX);
@@ -1626,7 +1626,7 @@ pub trait RecursionTracker {
 ///
 /// Blanket-implemented for every `RecursionTracker`, so coherence refuses any other impl and no
 /// tracker can substitute a narrower check for [`RecursionTracker::check`] through any impl. This
-/// is the sibling of [`TrackerExt`](crate::state::tracker::TrackerExt), and it is separated for the
+/// is the sibling of [`TrackerExt`](crate::state::TrackerExt), and it is separated for the
 /// same reason: the composition of an update with a check is not a customization point, because the
 /// only way to specialize it is to check less. The same boundary applies here too: a concrete dot
 /// call still prefers an inherent method of the same name over this blanket one — see that trait's

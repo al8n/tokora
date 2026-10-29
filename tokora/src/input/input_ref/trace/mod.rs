@@ -66,7 +66,7 @@ where
     ));
   }
 
-  /// Drops the depth by one **without emitting**, for a [`traced`](crate::traced) scope that is
+  /// Drops the depth by one **without emitting**, for a [`traced`](crate::combinator::traced) scope that is
   /// leaving by an unwind rather than by one of its exit arms.
   ///
   /// The arms decrement and then emit; an unwound scope prints no exit line (trace events are

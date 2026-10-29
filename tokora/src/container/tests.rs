@@ -185,7 +185,7 @@ fn hybrid_arraydeque_push_overflow() {
 
 #[test]
 fn ignored_push_discards() {
-  let mut c = crate::utils::marker::Ignored::<i32>::default();
+  let mut c = crate::utils::Ignored::<i32>::default();
   assert!(Container::<i32>::push(&mut c, 42).is_ok());
   assert_eq!(Container::<i32>::len(&c), 0);
   assert!(Container::<i32>::is_empty(&c));

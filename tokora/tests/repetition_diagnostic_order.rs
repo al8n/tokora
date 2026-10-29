@@ -49,7 +49,7 @@
 //!
 //! # Why a table
 //!
-//! [#259](https://github.com/al8n/tokora/issues/259) will rewrite `parser::many` into shared
+//! [#259](https://github.com/al8n/tokora/issues/259) will rewrite `combinator::many` into shared
 //! engines, so this law has to survive a rewrite that has not been written yet. The rows are a
 //! declared list and the assertion is written once, over the list — a driver added later is
 //! covered by adding one line, and `many/mod.rs`'s `ELEMENT_ADMISSION_CENSUS` is what makes
@@ -77,11 +77,10 @@ use tokora::{
     Verbose,
   },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
-  parser::Action,
+  parse::Action,
   punct::Bracket,
   utils::{
     ArrayDeque,
@@ -562,7 +561,7 @@ fn the_count_verdict_sits_where_its_fact_became_true() {
 
 /// The row count, pinned against `many/mod.rs`'s `ELEMENT_ADMISSION_CENSUS`.
 ///
-/// That census pins how many places in `parser::many` admit an element into a container. The two
+/// That census pins how many places in `combinator::many` admit an element into a container. The two
 /// numbers are not the same quantity — one counts admission sites, the other counts builder
 /// shapes — so this is a reminder rather than a derivation: a driver added to the tree moves the
 /// census, and the census's failure message sends whoever moved it here.

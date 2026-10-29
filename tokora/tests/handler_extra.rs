@@ -23,9 +23,8 @@ use tokora::{
     UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingToken, MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntax, MissingSyntaxOf, MissingToken, MissingTokenOf, SeparatedError,
+    TooFew, TooMany, UnexpectedEot, UnexpectedToken, UnexpectedTokenOf,
   },
   input::Cursor,
   span::Spanned,

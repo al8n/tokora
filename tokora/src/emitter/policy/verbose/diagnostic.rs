@@ -92,7 +92,7 @@ impl<'a, S, E> Diagnostic<'a, S, E> {
   }
 
   /// The open-label snapshot captured when this diagnostic was emitted, outermost
-  /// [`labelled`](crate::labelled) context first. Empty when the emission was unlabelled.
+  /// [`labelled`](crate::combinator::labelled) context first. Empty when the emission was unlabelled.
   #[inline(always)]
   pub const fn labels(&self) -> &'a [&'static str] {
     self.labels

@@ -44,7 +44,7 @@ fn parse_bstr_available_under_bstr_1() {
 /// `&str` is the positive control that always compiled, and is what made the gap invisible.
 #[test]
 fn bstr_is_equivalent_in_left_position() {
-  use tokora::utils::cmp::Equivalent;
+  use tokora::utils::Equivalent;
 
   fn needs_left<S>(s: &S, probe: &str) -> bool
   where
@@ -64,7 +64,7 @@ fn bstr_is_equivalent_in_left_position() {
 /// The other two directions of the triple, plus the reverse rows the blanket supplies.
 #[test]
 fn bstr_equivalence_covers_the_triple() {
-  use tokora::utils::cmp::Equivalent;
+  use tokora::utils::Equivalent;
 
   let b = bstr_1::BStr::new(b"hello");
   assert!(Equivalent::<[u8]>::equivalent(b, b"hello".as_slice()));

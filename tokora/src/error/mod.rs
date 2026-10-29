@@ -30,11 +30,15 @@ use crate::span::SimpleSpan;
 
 mod errors;
 
-/// Token-level error types.
-pub mod token;
+// Token-level and syntax-level error types. Their public path is `tokora::error::Item`
+// (#350, rule 5); the submodules stay `pub(crate)` so the crate's own paths into them keep
+// resolving.
+pub use syntax::*;
+pub use token::*;
 
-/// Syntax-level error types.
-pub mod syntax;
+pub(crate) mod token;
+
+pub(crate) mod syntax;
 
 mod hex_escape;
 mod incomplete;
@@ -227,7 +231,7 @@ mod unicode_escape;
 ///
 /// A **carrier** type — one with fields of its own, such as [`Ident`](crate::types::Ident),
 /// [`Keyword`](crate::types::Keyword) or the `Lit*` family — must instead hold the state in a
-/// field and report it through [`RecoveryState`](crate::types::recovery::RecoveryState), because a carrier's
+/// field and report it through [`RecoveryState`](crate::types::RecoveryState), because a carrier's
 /// payload is generic and publicly mutable: a caller can spell `"<error>"` by hand, and can
 /// edit a placeholder's payload afterwards, so comparing the payload against a sentinel answers
 /// *what does this node say* and never *did the parser find one here*. A carrier that
@@ -275,8 +279,8 @@ mod unicode_escape;
 ///
 /// # See Also
 ///
-/// - [`Recover`](crate::parser::Recover): Recovery combinator with backtracking
-/// - [`InplaceRecover`](crate::parser::InplaceRecover): Recovery combinator without backtracking
+/// - [`Recover`](crate::combinator::Recover): Recovery combinator with backtracking
+/// - [`InplaceRecover`](crate::combinator::InplaceRecover): Recovery combinator without backtracking
 pub trait ErrorNode<S = SimpleSpan> {
   /// Creates a placeholder node for **malformed content**.
   ///

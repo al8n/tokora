@@ -7,12 +7,9 @@ use core::num::NonZeroU32;
 use crate::{
   Lexer, SimpleSpan,
   cache::DefaultCache,
-  cst::{
-    CstProfile, KindValidator,
-    event::{Event, EventMark, TOMBSTONE},
-  },
+  cst::{CstProfile, EventMark, KindValidator, TOMBSTONE, event::Event},
   emitter::{CstEmitter, Emitter, Fatal, Silent, Verbose},
-  error::token::{UnexpectedToken, UnexpectedTokenOf},
+  error::{UnexpectedToken, UnexpectedTokenOf},
   input::{Balance, Cursor, Input},
   span::Spanned,
   token::Token,
@@ -152,9 +149,8 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, L
 // bundle's error type — the full-family conformance test below names every trait.
 const _: () = {
   use crate::error::{
-    NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs, UnexpectedEoRhs,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError},
+    FullContainer, MissingSyntax, MissingToken, NonAssociativeChain, RecursionLimitReached,
+    SeparatedError, TooFew, TooMany, UnexpectedEoLhs, UnexpectedEoRhs,
   };
 
   impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for TestErr {
@@ -4162,7 +4158,7 @@ fn two_wraps_on_one_target_close_in_materialization_order() {
 /// layer).
 #[test]
 fn marker_complete_and_precede_build_nested_wraps() {
-  use crate::cst::event::Marker;
+  use crate::cst::Marker;
 
   let mut sink = verbose_sink("a:b");
   let marker = Marker::new(sink.cst_mark());
@@ -6597,34 +6593,34 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, L
 
 // The collecting bundle's conversions — needed by the `repeated_while` pin below, which is the
 // one shape in this file that goes through a public collecting combinator.
-impl<S, Lang: ?Sized> From<crate::error::syntax::FullContainer<S, Lang>> for SesErr {
-  fn from(_: crate::error::syntax::FullContainer<S, Lang>) -> Self {
+impl<S, Lang: ?Sized> From<crate::error::FullContainer<S, Lang>> for SesErr {
+  fn from(_: crate::error::FullContainer<S, Lang>) -> Self {
     Self::Lex
   }
 }
 
-impl<S, Lang: ?Sized> From<crate::error::syntax::TooFew<S, Lang>> for SesErr {
-  fn from(_: crate::error::syntax::TooFew<S, Lang>) -> Self {
+impl<S, Lang: ?Sized> From<crate::error::TooFew<S, Lang>> for SesErr {
+  fn from(_: crate::error::TooFew<S, Lang>) -> Self {
     Self::Lex
   }
 }
 
-impl<S, Lang: ?Sized> From<crate::error::syntax::TooMany<S, Lang>> for SesErr {
-  fn from(_: crate::error::syntax::TooMany<S, Lang>) -> Self {
+impl<S, Lang: ?Sized> From<crate::error::TooMany<S, Lang>> for SesErr {
+  fn from(_: crate::error::TooMany<S, Lang>) -> Self {
     Self::Lex
   }
 }
 
-impl<O, Lang: ?Sized> From<crate::error::syntax::MissingSyntax<O, Lang>> for SesErr {
-  fn from(_: crate::error::syntax::MissingSyntax<O, Lang>) -> Self {
+impl<O, Lang: ?Sized> From<crate::error::MissingSyntax<O, Lang>> for SesErr {
+  fn from(_: crate::error::MissingSyntax<O, Lang>) -> Self {
     Self::Lex
   }
 }
 
-impl<'a, T, K: Clone, S, Lang: ?Sized> From<crate::error::token::SeparatedError<'a, T, K, S, Lang>>
+impl<'a, T, K: Clone, S, Lang: ?Sized> From<crate::error::SeparatedError<'a, T, K, S, Lang>>
   for SesErr
 {
-  fn from(_: crate::error::token::SeparatedError<'a, T, K, S, Lang>) -> Self {
+  fn from(_: crate::error::SeparatedError<'a, T, K, S, Lang>) -> Self {
     Self::Lex
   }
 }
@@ -6690,7 +6686,7 @@ impl<'inp> crate::Emitter<'inp, MiniLexer<'inp>> for NonForwardingWrapper<'_, 'i
 
   fn emit_unexpected_token(
     &mut self,
-    err: crate::error::token::UnexpectedTokenOf<'inp, MiniLexer<'inp>, ()>,
+    err: crate::error::UnexpectedTokenOf<'inp, MiniLexer<'inp>, ()>,
   ) -> Result<(), Self::Error> {
     self.0.emit_unexpected_token(err)
   }
@@ -7150,7 +7146,7 @@ fn bstr_projects_a_byte_extent_like_the_other_unsized_backings() {
 #[test]
 #[cfg(feature = "conformance")]
 fn conformance_emitter_kit_accepts_the_sink_and_its_forwarder() {
-  use crate::conformance::emitter::{assert_binds_source, assert_forwards_bound_source};
+  use crate::conformance::{assert_binds_source, assert_forwards_bound_source};
 
   let buf = std::string::String::from("ab");
   let src: &str = &buf;
@@ -7172,7 +7168,7 @@ fn conformance_emitter_kit_accepts_the_sink_and_its_forwarder() {
 #[cfg(feature = "conformance")]
 #[should_panic(expected = "inherits `Emitter::bound_source`'s `None` default")]
 fn conformance_emitter_kit_refuses_an_emitter_that_binds_nothing() {
-  use crate::conformance::emitter::assert_binds_source;
+  use crate::conformance::assert_binds_source;
 
   let src: &str = "ab";
   let em: Verbose<SesErr> = Verbose::new();
@@ -7184,7 +7180,7 @@ fn conformance_emitter_kit_refuses_an_emitter_that_binds_nothing() {
 #[cfg(feature = "conformance")]
 #[should_panic(expected = "does not forward `bound_source`")]
 fn conformance_emitter_kit_refuses_a_non_forwarding_wrapper() {
-  use crate::conformance::emitter::assert_forwards_bound_source;
+  use crate::conformance::assert_forwards_bound_source;
 
   let buf = std::string::String::from("ab");
   let src: &str = &buf;
@@ -7671,7 +7667,7 @@ impl<'inp> crate::Emitter<'inp, MiniLexer<'inp>> for HalfForward<'_, 'inp> {
 
   fn emit_unexpected_token(
     &mut self,
-    err: crate::error::token::UnexpectedTokenOf<'inp, MiniLexer<'inp>, ()>,
+    err: crate::error::UnexpectedTokenOf<'inp, MiniLexer<'inp>, ()>,
   ) -> Result<(), Self::Error> {
     self.0.emit_unexpected_token(err)
   }
@@ -7759,7 +7755,7 @@ impl<'inp> crate::Emitter<'inp, MiniLexer<'inp>> for HalfForwardPartial<'_, 'inp
 
   fn emit_unexpected_token(
     &mut self,
-    err: crate::error::token::UnexpectedTokenOf<'inp, MiniLexer<'inp>, ()>,
+    err: crate::error::UnexpectedTokenOf<'inp, MiniLexer<'inp>, ()>,
   ) -> Result<(), Self::Error> {
     self.inner.emit_unexpected_token(err)
   }
@@ -7831,7 +7827,7 @@ fn half_forwarding_wrapper_is_refused_at_finish() {
     );
     let mut inp = input.as_ref();
     use crate::ParseInput as _;
-    let res = crate::parser::node(K_NODE, |inp: &mut HfIr<'_, '_, '_>| {
+    let res = crate::combinator::node(K_NODE, |inp: &mut HfIr<'_, '_, '_>| {
       for _ in 0..2 {
         assert!(inp.next()?.is_some());
       }
@@ -7878,7 +7874,7 @@ fn partial_forwarding_wrapper_is_refused_at_finish() {
       );
     let mut inp = input.as_ref();
     use crate::ParseInput as _;
-    let res = crate::parser::node(K_NODE, |inp: &mut HfpIr<'_, '_, '_>| {
+    let res = crate::combinator::node(K_NODE, |inp: &mut HfpIr<'_, '_, '_>| {
       for _ in 0..2 {
         assert!(inp.next()?.is_some());
       }
@@ -7912,7 +7908,7 @@ type DrvIr<'inp, 'c, Cmpl> = crate::InputRef<'inp, 'c, MiniLexer<'inp>, DrvCtx<'
 /// Drains every token, in either completeness mode.
 fn drv_drain<'inp, Cmpl>(inp: &mut DrvIr<'inp, '_, Cmpl>) -> Result<usize, SesErr>
 where
-  Cmpl: crate::SurfaceIncomplete<'inp, MiniLexer<'inp>, DrvCtx<'inp>, ()>,
+  Cmpl: crate::input::SurfaceIncomplete<'inp, MiniLexer<'inp>, DrvCtx<'inp>, ()>,
 {
   let mut n = 0;
   while inp.next()?.is_some() {
@@ -7933,7 +7929,7 @@ fn parse_lossless_mints_the_sink_from_the_source_it_parses() {
     Verbose::<SesErr>::new(),
     profile(),
     DefaultCache::<'_, MiniLexer<'_>>::default(),
-    drv_drain::<crate::Complete>,
+    drv_drain::<crate::input::Complete>,
   );
   assert_eq!(parsed, Ok(3));
 
@@ -7953,7 +7949,7 @@ fn parse_lossless_partial_surfaces_incomplete_while_non_final() {
     profile(),
     DefaultCache::<'_, MiniLexer<'_>>::default(),
     false,
-    drv_drain::<crate::Partial>,
+    drv_drain::<crate::input::Partial>,
   );
   assert!(
     matches!(parsed, Err(SesErr::Incomplete(_))),
@@ -7978,7 +7974,7 @@ fn parse_lossless_partial_completes_when_final() {
     profile(),
     DefaultCache::<'_, MiniLexer<'_>>::default(),
     true,
-    drv_drain::<crate::Partial>,
+    drv_drain::<crate::input::Partial>,
   );
   assert_eq!(parsed, Ok(2));
   let (green, _emitter) = cst.finish(K_ROOT);
@@ -8010,7 +8006,7 @@ fn an_incomplete_lossless_attempt_is_discarded_and_redriven_over_the_larger_slic
       profile(),
       DefaultCache::<'_, MiniLexer<'_>>::default(),
       false,
-      drv_drain::<crate::Partial>,
+      drv_drain::<crate::input::Partial>,
     );
     assert!(
       matches!(parsed, Err(SesErr::Incomplete(_))),
@@ -8031,7 +8027,7 @@ fn an_incomplete_lossless_attempt_is_discarded_and_redriven_over_the_larger_slic
     profile(),
     DefaultCache::<'_, MiniLexer<'_>>::default(),
     true,
-    drv_drain::<crate::Partial>,
+    drv_drain::<crate::input::Partial>,
   );
   assert_eq!(parsed, Ok(2));
   let (redriven, _emitter) = cst.finish(K_ROOT);
@@ -8042,7 +8038,7 @@ fn an_incomplete_lossless_attempt_is_discarded_and_redriven_over_the_larger_slic
     Verbose::<SesErr>::new(),
     profile(),
     DefaultCache::<'_, MiniLexer<'_>>::default(),
-    drv_drain::<crate::Complete>,
+    drv_drain::<crate::input::Complete>,
   );
   assert_eq!(parsed, Ok(2));
   let (one_shot, _emitter) = one_shot.finish(K_ROOT);
@@ -8063,7 +8059,7 @@ fn cst_carries_the_trivia_policy_to_materialization() {
     Verbose::<SesErr>::new(),
     profile(),
     DefaultCache::<'_, MiniLexer<'_>>::default(),
-    drv_drain::<crate::Complete>,
+    drv_drain::<crate::input::Complete>,
   );
   assert_eq!(parsed, Ok(3));
 

@@ -19,12 +19,13 @@
 use hybrid_arraydeque::typenum::{U1, U3};
 
 use crate::{
-  InputRef, Token, Window,
+  InputRef, Token,
   cache::{Cache, CachedTokenOf, DefaultCache, Peeked, PeekedTokenExt},
   emitter::Verbose,
   input::Input,
+  parse::Window,
   span::SimpleSpan,
-  state::token_tracker::TokenLimiter,
+  state::TokenLimiter,
 };
 
 use super::super::{

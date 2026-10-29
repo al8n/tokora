@@ -71,6 +71,314 @@ and will red until they do.
 
 ### Changed (breaking)
 
+- **One canonical path per public item: `tokora::parse`, `tokora::combinator` (formerly
+  `tokora::parser`), the feature-gated `tokora::pratt`, a 29-item crate root, and no public path
+  deeper than `tokora::<module>::<Item>`** (#350). Every item now lives in the module of its
+  concept, and the only other path an item can have is the crate root.
+
+  - **`tokora::parse`** is a new public module: the parsing traits and the types their contracts
+    name — `ParseInput`, `ParseInputUnwrapExt`, `TryParseInput`, `ParseAttempt`, `ParseChoice`,
+    `ParseTokenChoice`, `Branch`, `Accumulator`, `Decision`, `Window`, `Action`, `Check`,
+    `Require`, `RecoverInput`, `InplaceRecoverInput`, `DelimiterHandler`, `SeparatorHandler`,
+    `ParseState`, the context vocabulary (`ParseContext`, `ComposableParseContext`,
+    `PolicyParseContext`, `ParserContext`, `FatalContext`, `ErrorOf`), `Apply`, `WithCache`,
+    `WithEmitter` — and the drivers `Parse`, `Parser`, `parse()`, `parse_with`,
+    `parse_with_state` and `parse_partial`. The module `parse` and the function `parse()` share
+    the root in different namespaces, as `syn::parse` and `syn::parse()` do.
+  - **`tokora::parser` is renamed `tokora::combinator`**, and holds the combinator constructors,
+    the parser types they return and the option and adapter values they take — now including
+    `labelled`/`Labelled`, `traced`/`Traced`, `pinned`/`Pinned`, `while_head`, `while_kind`,
+    `WhileHead` and `WhileKind`. No trait is reachable under it. The `combinators` cargo feature
+    keeps its name.
+  - **`tokora::pratt`** is a new public module behind the `pratt` feature: `pratt()`, `Pratt`,
+    `Precedenced`, the power, step and fold traits, and the CST hook types. `token::PrattToken`,
+    `emitter::{PrattEmitter, FromPrattError}` and the Pratt errors stay in their families.
+  - **The crate root is an explicit list**, by one criterion — a name a production must have in
+    scope — and no glob re-exports into it any more: `ParseInput`, `TryParseInput`,
+    `ParseAttempt`, `Accumulator`, `ParseChoice`, `ParseTokenChoice`, `Action`, `ParseContext`,
+    `ComposableParseContext`, `ParserContext`, `FatalContext`, `ErrorOf`, `Parse`, `Parser`,
+    `parse`, `parse_with`, `parse_with_state`, `parse_partial`, `InputRef`, `Lexer`,
+    `ScanLookahead`, `ReadFrontier`, `Token`, `Source`, `Slice`, `Span`, `SimpleSpan`, `Emitter`
+    and `EmitterView`, beside the six `#[macro_export]` macros and `logos` / `logos_0_16`.
+    Forty-eight names left the root for their modules, `Action` joined it, and `Accept` /
+    `Decline` are reachable only as `ParseAttempt::Accept` / `ParseAttempt::Decline`.
+  - **Six three-level families are flattened into their parents.** `state::{tracker,
+    token_tracker, recursion_tracker}`, `cst::{error, event}`, `error::{syntax, token}`,
+    `types::recovery`, `utils::{cmp, human_display, sdl_display, syntax_tree_display, marker}` and
+    `conformance::{cache, emitter}` are private now, and their items are public one level up —
+    `state::RecursionLimiter`, `error::UnexpectedToken`, `utils::DisplayHuman` and the rest. Three
+    modules keep a third level on purpose: `lexer::logos_0_16` (a versioned integration module,
+    whose two items `lexer::{FromLogos, LogosLexer}` alias), `utils::knowledge` and `cst::cast`.
+    The event vocabulary's laws, documented on the old `cst::event` module, are now a section of
+    `tokora::cst`'s documentation.
+  - **`tokora::prelude` is deleted.** Its names are all at the root except `span::Spanned` and
+    `error::UnexpectedTokenOf`.
+  - **Second paths are gone**: an item that had a non-root second path (`input::parse_partial`,
+    `types::recovery::Status`, the prelude's re-exports, the root aliases of module items) keeps
+    only its module path, plus the root where the item is one of the 29.
+
+  The migration is mechanical, and every old path has exactly one replacement:
+  `tokora::parser::X` becomes `tokora::combinator::X` for a combinator, `tokora::parse::X` for a
+  trait or driver, and `tokora::pratt::X` for a Pratt item; a three-level path drops its middle
+  segment. The table lists every public path that changed or disappeared:
+
+  | 0.11 | 0.12 |
+  |---|---|
+  | `tokora::Accept` | `tokora::ParseAttempt::Accept` |
+  | `tokora::Balance` | `tokora::input::Balance` |
+  | `tokora::Branch` | `tokora::parse::Branch` |
+  | `tokora::Cache` | `tokora::cache::Cache` |
+  | `tokora::Check` | `tokora::parse::Check` |
+  | `tokora::Commit` | `tokora::input::Commit` |
+  | `tokora::Complete` | `tokora::input::Complete` |
+  | `tokora::Completeness` | `tokora::input::Completeness` |
+  | `tokora::ComposableEmitter` | `tokora::emitter::ComposableEmitter` |
+  | `tokora::CstEmitter` | `tokora::emitter::CstEmitter` |
+  | `tokora::Decision` | `tokora::parse::Decision` |
+  | `tokora::Decline` | `tokora::ParseAttempt::Decline` |
+  | `tokora::DefaultCache` | `tokora::cache::DefaultCache` |
+  | `tokora::DelimClass` | `tokora::input::DelimClass` |
+  | `tokora::Dialect` | `tokora::dialect::Dialect` |
+  | `tokora::DialectErrorOf` | `tokora::dialect::DialectErrorOf` |
+  | `tokora::DialectInput` | `tokora::dialect::DialectInput` |
+  | `tokora::DialectSlice` | `tokora::dialect::DialectSlice` |
+  | `tokora::DropPolicy` | `tokora::input::DropPolicy` |
+  | `tokora::Hole` | `tokora::input::Hole` |
+  | `tokora::Labelled` | `tokora::combinator::Labelled` |
+  | `tokora::labelled` | `tokora::combinator::labelled` |
+  | `tokora::LangOf` | `tokora::dialect::LangOf` |
+  | `tokora::Lexed` | `tokora::lexer::Lexed` |
+  | `tokora::LexerOf` | `tokora::dialect::LexerOf` |
+  | `tokora::Located` | `tokora::span::Located` |
+  | `tokora::ParseInputUnwrapExt` | `tokora::parse::ParseInputUnwrapExt` |
+  | `tokora::ParseState` | `tokora::parse::ParseState` |
+  | `tokora::Partial` | `tokora::input::Partial` |
+  | `tokora::Pinned` | `tokora::combinator::Pinned` |
+  | `tokora::pinned` | `tokora::combinator::pinned` |
+  | `tokora::PolicyComposableEmitter` | `tokora::emitter::PolicyComposableEmitter` |
+  | `tokora::PolicyParseContext` | `tokora::parse::PolicyParseContext` |
+  | `tokora::Probe` | `tokora::state::Probe` |
+  | `tokora::Require` | `tokora::parse::Require` |
+  | `tokora::Rollback` | `tokora::input::Rollback` |
+  | `tokora::SavepointId` | `tokora::input::SavepointId` |
+  | `tokora::SessionPointId` | `tokora::input::SessionPointId` |
+  | `tokora::SliceOf` | `tokora::lexer::SliceOf` |
+  | `tokora::StackedTransaction` | `tokora::input::StackedTransaction` |
+  | `tokora::State` | `tokora::state::State` |
+  | `tokora::SurfaceIncomplete` | `tokora::input::SurfaceIncomplete` |
+  | `tokora::Traced` | `tokora::combinator::Traced` |
+  | `tokora::traced` | `tokora::combinator::traced` |
+  | `tokora::Transaction` | `tokora::input::Transaction` |
+  | `tokora::while_head` | `tokora::combinator::while_head` |
+  | `tokora::while_kind` | `tokora::combinator::while_kind` |
+  | `tokora::WhileHead` | `tokora::combinator::WhileHead` |
+  | `tokora::WhileKind` | `tokora::combinator::WhileKind` |
+  | `tokora::Window` | `tokora::parse::Window` |
+  | `tokora::conformance::cache::CacheHarness` | `tokora::conformance::CacheHarness` |
+  | `tokora::conformance::emitter::assert_binds_source` | `tokora::conformance::assert_binds_source` |
+  | `tokora::conformance::emitter::assert_forwards_bound_source` | `tokora::conformance::assert_forwards_bound_source` |
+  | `tokora::cst::error::NodeMismatch` | `tokora::cst::NodeMismatch` |
+  | `tokora::cst::error::SyntaxError` | `tokora::cst::SyntaxError` |
+  | `tokora::cst::error::TokenMismatch` | `tokora::cst::TokenMismatch` |
+  | `tokora::cst::event::CompletedMarker` | `tokora::cst::CompletedMarker` |
+  | `tokora::cst::event::EventMark` | `tokora::cst::EventMark` |
+  | `tokora::cst::event::Marker` | `tokora::cst::Marker` |
+  | `tokora::cst::event::TOMBSTONE` | `tokora::cst::TOMBSTONE` |
+  | `tokora::error::syntax::FullContainer` | `tokora::error::FullContainer` |
+  | `tokora::error::syntax::MissingSyntax` | `tokora::error::MissingSyntax` |
+  | `tokora::error::syntax::MissingSyntaxOf` | `tokora::error::MissingSyntaxOf` |
+  | `tokora::error::syntax::TooFew` | `tokora::error::TooFew` |
+  | `tokora::error::syntax::TooMany` | `tokora::error::TooMany` |
+  | `tokora::error::token::MissingToken` | `tokora::error::MissingToken` |
+  | `tokora::error::token::MissingTokenOf` | `tokora::error::MissingTokenOf` |
+  | `tokora::error::token::SeparatedError` | `tokora::error::SeparatedError` |
+  | `tokora::error::token::SeparatedErrorOf` | `tokora::error::SeparatedErrorOf` |
+  | `tokora::error::token::SeparatorPosition` | `tokora::error::SeparatorPosition` |
+  | `tokora::error::token::UnexpectedRepeatedToken` | `tokora::error::UnexpectedRepeatedToken` |
+  | `tokora::error::token::UnexpectedToken` | `tokora::error::UnexpectedToken` |
+  | `tokora::error::token::UnexpectedTokenOf` | `tokora::error::UnexpectedTokenOf` |
+  | `tokora::input::parse_partial` | `tokora::parse::parse_partial` (and the root) |
+  | `tokora::parser::Accepted` | `tokora::combinator::Accepted` |
+  | `tokora::parser::Action` | `tokora::parse::Action` (and the root) |
+  | `tokora::parser::AllowLeading` | `tokora::combinator::AllowLeading` |
+  | `tokora::parser::AllowTrailing` | `tokora::combinator::AllowTrailing` |
+  | `tokora::parser::AndThen` | `tokora::combinator::AndThen` |
+  | `tokora::parser::AndThenWith` | `tokora::combinator::AndThenWith` |
+  | `tokora::parser::angles` | `tokora::combinator::angles` |
+  | `tokora::parser::AnglesOf` | `tokora::combinator::AnglesOf` |
+  | `tokora::parser::Any` | `tokora::combinator::Any` |
+  | `tokora::parser::Apply` | `tokora::parse::Apply` |
+  | `tokora::parser::AtLeast` | `tokora::combinator::AtLeast` |
+  | `tokora::parser::AtMost` | `tokora::combinator::AtMost` |
+  | `tokora::parser::Bounded` | `tokora::combinator::Bounded` |
+  | `tokora::parser::braces` | `tokora::combinator::braces` |
+  | `tokora::parser::BracesOf` | `tokora::combinator::BracesOf` |
+  | `tokora::parser::brackets` | `tokora::combinator::brackets` |
+  | `tokora::parser::BracketsOf` | `tokora::combinator::BracketsOf` |
+  | `tokora::parser::ByRef` | `tokora::combinator::ByRef` |
+  | `tokora::parser::Collect` | `tokora::combinator::Collect` |
+  | `tokora::parser::delimited` | `tokora::combinator::delimited` |
+  | `tokora::parser::DelimitedBy` | `tokora::combinator::DelimitedBy` |
+  | `tokora::parser::DelimitedOf` | `tokora::combinator::DelimitedOf` |
+  | `tokora::parser::DelimiterHandler` | `tokora::parse::DelimiterHandler` |
+  | `tokora::parser::dispatch_take` | `tokora::combinator::dispatch_take` |
+  | `tokora::parser::DispatchOnKind` | `tokora::combinator::DispatchOnKind` |
+  | `tokora::parser::Empty` | `tokora::combinator::Empty` |
+  | `tokora::parser::Expect` | `tokora::combinator::Expect` |
+  | `tokora::parser::expect` | `tokora::combinator::expect` |
+  | `tokora::parser::Fail` | `tokora::combinator::Fail` |
+  | `tokora::parser::fail` | `tokora::combinator::fail` |
+  | `tokora::parser::fail_with` | `tokora::combinator::fail_with` |
+  | `tokora::parser::FailWith` | `tokora::combinator::FailWith` |
+  | `tokora::parser::Filter` | `tokora::combinator::Filter` |
+  | `tokora::parser::FilterMap` | `tokora::combinator::FilterMap` |
+  | `tokora::parser::FilterMapWith` | `tokora::combinator::FilterMapWith` |
+  | `tokora::parser::FilterWith` | `tokora::combinator::FilterWith` |
+  | `tokora::parser::Fold` | `tokora::combinator::Fold` |
+  | `tokora::parser::FoldWhile` | `tokora::combinator::FoldWhile` |
+  | `tokora::parser::FusedDispatchOnKind` | `tokora::combinator::FusedDispatchOnKind` |
+  | `tokora::parser::Ignore` | `tokora::combinator::Ignore` |
+  | `tokora::parser::IgnoreThen` | `tokora::combinator::IgnoreThen` |
+  | `tokora::parser::InplaceRecover` | `tokora::combinator::InplaceRecover` |
+  | `tokora::parser::InplaceRecoverInput` | `tokora::parse::InplaceRecoverInput` |
+  | `tokora::parser::Labelled` | `tokora::combinator::Labelled` |
+  | `tokora::parser::labelled` | `tokora::combinator::labelled` |
+  | `tokora::parser::list` | `tokora::combinator::list` |
+  | `tokora::parser::ListOf` | `tokora::combinator::ListOf` |
+  | `tokora::parser::Map` | `tokora::combinator::Map` |
+  | `tokora::parser::MapWith` | `tokora::combinator::MapWith` |
+  | `tokora::parser::Maximum` | `tokora::combinator::Maximum` |
+  | `tokora::parser::Minimum` | `tokora::combinator::Minimum` |
+  | `tokora::parser::NoCst` | `tokora::pratt::NoCst` |
+  | `tokora::parser::Node` | `tokora::combinator::Node` |
+  | `tokora::parser::node` | `tokora::combinator::node` |
+  | `tokora::parser::node_at` | `tokora::combinator::node_at` |
+  | `tokora::parser::node_opt` | `tokora::combinator::node_opt` |
+  | `tokora::parser::NodeAt` | `tokora::combinator::NodeAt` |
+  | `tokora::parser::NodeOpt` | `tokora::combinator::NodeOpt` |
+  | `tokora::parser::opt` | `tokora::combinator::opt` |
+  | `tokora::parser::OptOf` | `tokora::combinator::OptOf` |
+  | `tokora::parser::Padded` | `tokora::combinator::Padded` |
+  | `tokora::parser::PaddedLeft` | `tokora::combinator::PaddedLeft` |
+  | `tokora::parser::PaddedRight` | `tokora::combinator::PaddedRight` |
+  | `tokora::parser::parens` | `tokora::combinator::parens` |
+  | `tokora::parser::ParensOf` | `tokora::combinator::ParensOf` |
+  | `tokora::parser::Parse` | `tokora::parse::Parse` (and the root) |
+  | `tokora::parser::parse` | `tokora::parse::parse` (and the root) |
+  | `tokora::parser::parse_with` | `tokora::parse::parse_with` (and the root) |
+  | `tokora::parser::parse_with_state` | `tokora::parse::parse_with_state` (and the root) |
+  | `tokora::parser::ParsePrattLHS` | `tokora::pratt::ParsePrattLHS` |
+  | `tokora::parser::ParsePrattRHS` | `tokora::pratt::ParsePrattRHS` |
+  | `tokora::parser::Parser` | `tokora::parse::Parser` (and the root) |
+  | `tokora::parser::peek_kind` | `tokora::combinator::peek_kind` |
+  | `tokora::parser::PeekedKind` | `tokora::combinator::PeekedKind` |
+  | `tokora::parser::PeekThen` | `tokora::combinator::PeekThen` |
+  | `tokora::parser::PeekThenChoice` | `tokora::combinator::PeekThenChoice` |
+  | `tokora::parser::Pratt` | `tokora::pratt::Pratt` |
+  | `tokora::parser::pratt` | `tokora::pratt::pratt` |
+  | `tokora::parser::PrattCst` | `tokora::pratt::PrattCst` |
+  | `tokora::parser::PrattCstKinds` | `tokora::pratt::PrattCstKinds` |
+  | `tokora::parser::PrattFoldInfix` | `tokora::pratt::PrattFoldInfix` |
+  | `tokora::parser::PrattFoldOp` | `tokora::pratt::PrattFoldOp` |
+  | `tokora::parser::PrattFoldPostfix` | `tokora::pratt::PrattFoldPostfix` |
+  | `tokora::parser::PrattFoldPrefix` | `tokora::pratt::PrattFoldPrefix` |
+  | `tokora::parser::PrattFoldTokenInfix` | `tokora::pratt::PrattFoldTokenInfix` |
+  | `tokora::parser::PrattFoldTokenPostfix` | `tokora::pratt::PrattFoldTokenPostfix` |
+  | `tokora::parser::PrattFoldTokenPrefix` | `tokora::pratt::PrattFoldTokenPrefix` |
+  | `tokora::parser::PrattInfix` | `tokora::pratt::PrattInfix` |
+  | `tokora::parser::PrattLHS` | `tokora::pratt::PrattLHS` |
+  | `tokora::parser::PrattPower` | `tokora::pratt::PrattPower` |
+  | `tokora::parser::PrattRHS` | `tokora::pratt::PrattRHS` |
+  | `tokora::parser::Precedenced` | `tokora::pratt::Precedenced` |
+  | `tokora::parser::Recover` | `tokora::combinator::Recover` |
+  | `tokora::parser::RecoverInput` | `tokora::parse::RecoverInput` |
+  | `tokora::parser::Repeated` | `tokora::combinator::Repeated` |
+  | `tokora::parser::RepeatedWhile` | `tokora::combinator::RepeatedWhile` |
+  | `tokora::parser::RequireLeading` | `tokora::combinator::RequireLeading` |
+  | `tokora::parser::RequireTrailing` | `tokora::combinator::RequireTrailing` |
+  | `tokora::parser::RFold` | `tokora::combinator::RFold` |
+  | `tokora::parser::RFoldWhile` | `tokora::combinator::RFoldWhile` |
+  | `tokora::parser::Separated` | `tokora::combinator::Separated` |
+  | `tokora::parser::separated1` | `tokora::combinator::separated1` |
+  | `tokora::parser::Separated1Of` | `tokora::combinator::Separated1Of` |
+  | `tokora::parser::SeparatedWhile` | `tokora::combinator::SeparatedWhile` |
+  | `tokora::parser::SeparatorHandler` | `tokora::parse::SeparatorHandler` |
+  | `tokora::parser::SkipThenRetry` | `tokora::combinator::SkipThenRetry` |
+  | `tokora::parser::Then` | `tokora::combinator::Then` |
+  | `tokora::parser::ThenIgnore` | `tokora::combinator::ThenIgnore` |
+  | `tokora::parser::ThenValue` | `tokora::combinator::ThenValue` |
+  | `tokora::parser::Todo` | `tokora::combinator::Todo` |
+  | `tokora::parser::try_angles` | `tokora::combinator::try_angles` |
+  | `tokora::parser::try_braces` | `tokora::combinator::try_braces` |
+  | `tokora::parser::try_brackets` | `tokora::combinator::try_brackets` |
+  | `tokora::parser::try_delimited` | `tokora::combinator::try_delimited` |
+  | `tokora::parser::try_dispatch_take` | `tokora::combinator::try_dispatch_take` |
+  | `tokora::parser::try_expect` | `tokora::combinator::try_expect` |
+  | `tokora::parser::try_ident_list` | `tokora::combinator::try_ident_list` |
+  | `tokora::parser::try_parens` | `tokora::combinator::try_parens` |
+  | `tokora::parser::TryAnglesOf` | `tokora::combinator::TryAnglesOf` |
+  | `tokora::parser::TryBracesOf` | `tokora::combinator::TryBracesOf` |
+  | `tokora::parser::TryBracketsOf` | `tokora::combinator::TryBracketsOf` |
+  | `tokora::parser::TryDelimitedOf` | `tokora::combinator::TryDelimitedOf` |
+  | `tokora::parser::TryFold` | `tokora::combinator::TryFold` |
+  | `tokora::parser::TryFoldWhile` | `tokora::combinator::TryFoldWhile` |
+  | `tokora::parser::TryFoldWhileWith` | `tokora::combinator::TryFoldWhileWith` |
+  | `tokora::parser::TryFoldWith` | `tokora::combinator::TryFoldWith` |
+  | `tokora::parser::TryParensOf` | `tokora::combinator::TryParensOf` |
+  | `tokora::parser::Unwrapped` | `tokora::combinator::Unwrapped` |
+  | `tokora::parser::Validate` | `tokora::combinator::Validate` |
+  | `tokora::parser::ValidateWith` | `tokora::combinator::ValidateWith` |
+  | `tokora::parser::With` | `tokora::combinator::With` |
+  | `tokora::parser::WithCache` | `tokora::parse::WithCache` |
+  | `tokora::parser::WithCstKinds` | `tokora::pratt::WithCstKinds` |
+  | `tokora::parser::WithEmitter` | `tokora::parse::WithEmitter` |
+  | `tokora::prelude::Emitter` | `tokora::emitter::Emitter` (and the root) |
+  | `tokora::prelude::FatalContext` | `tokora::parse::FatalContext` (and the root) |
+  | `tokora::prelude::InputRef` | `tokora::input::InputRef` (and the root) |
+  | `tokora::prelude::Lexer` | `tokora::lexer::Lexer` (and the root) |
+  | `tokora::prelude::Parse` | `tokora::parse::Parse` (and the root) |
+  | `tokora::prelude::ParseContext` | `tokora::parse::ParseContext` (and the root) |
+  | `tokora::prelude::ParseInput` | `tokora::parse::ParseInput` (and the root) |
+  | `tokora::prelude::Parser` | `tokora::parse::Parser` (and the root) |
+  | `tokora::prelude::ParserContext` | `tokora::parse::ParserContext` (and the root) |
+  | `tokora::prelude::SimpleSpan` | `tokora::span::SimpleSpan` (and the root) |
+  | `tokora::prelude::Span` | `tokora::span::Span` (and the root) |
+  | `tokora::prelude::Spanned` | `tokora::span::Spanned` |
+  | `tokora::prelude::Token` | `tokora::token::Token` (and the root) |
+  | `tokora::prelude::TryParseInput` | `tokora::parse::TryParseInput` (and the root) |
+  | `tokora::prelude::UnexpectedEot` | `tokora::error::UnexpectedEot` |
+  | `tokora::prelude::UnexpectedTokenOf` | `tokora::error::UnexpectedTokenOf` |
+  | `tokora::state::recursion_tracker::RecursionLimiter` | `tokora::state::RecursionLimiter` |
+  | `tokora::state::recursion_tracker::RecursionLimitExceeded` | `tokora::state::RecursionLimitExceeded` |
+  | `tokora::state::recursion_tracker::RecursionTracker` | `tokora::state::RecursionTracker` |
+  | `tokora::state::recursion_tracker::RecursionTrackerExt` | `tokora::state::RecursionTrackerExt` |
+  | `tokora::state::token_tracker::TokenLimiter` | `tokora::state::TokenLimiter` |
+  | `tokora::state::token_tracker::TokenLimitExceeded` | `tokora::state::TokenLimitExceeded` |
+  | `tokora::state::token_tracker::TokenTracker` | `tokora::state::TokenTracker` |
+  | `tokora::state::tracker::Limiter` | `tokora::state::Limiter` |
+  | `tokora::state::tracker::LimitExceeded` | `tokora::state::LimitExceeded` |
+  | `tokora::state::tracker::Tracker` | `tokora::state::Tracker` |
+  | `tokora::state::tracker::TrackerExt` | `tokora::state::TrackerExt` |
+  | `tokora::types::recovery::Components` | `tokora::types::Components` |
+  | `tokora::types::recovery::FromComponents` | `tokora::types::FromComponents` |
+  | `tokora::types::recovery::RecoveryState` | `tokora::types::RecoveryState` |
+  | `tokora::types::recovery::Status` | `tokora::types::Status` |
+  | `tokora::utils::cmp::Equivalent` | `tokora::utils::Equivalent` |
+  | `tokora::utils::human_display::DisplayHuman` | `tokora::utils::DisplayHuman` |
+  | `tokora::utils::human_display::HumanDisplay` | `tokora::utils::HumanDisplay` |
+  | `tokora::utils::marker::Ignored` | `tokora::utils::Ignored` |
+  | `tokora::utils::marker::PhantomDelimited` | `tokora::utils::PhantomDelimited` |
+  | `tokora::utils::marker::PhantomLocated` | `tokora::utils::PhantomLocated` |
+  | `tokora::utils::marker::PhantomSliced` | `tokora::utils::PhantomSliced` |
+  | `tokora::utils::marker::PhantomSpan` | `tokora::utils::PhantomSpan` |
+  | `tokora::utils::sdl_display::CompactDisplay` | `tokora::utils::CompactDisplay` |
+  | `tokora::utils::sdl_display::DisplayCompact` | `tokora::utils::DisplayCompact` |
+  | `tokora::utils::sdl_display::DisplayPretty` | `tokora::utils::DisplayPretty` |
+  | `tokora::utils::sdl_display::DisplaySDL` | `tokora::utils::DisplaySDL` |
+  | `tokora::utils::sdl_display::PrettyDisplay` | `tokora::utils::PrettyDisplay` |
+  | `tokora::utils::syntax_tree_display::DisplaySyntaxTree` | `tokora::utils::DisplaySyntaxTree` |
+  | `tokora::utils::syntax_tree_display::SyntaxTreeDisplay` | `tokora::utils::SyntaxTreeDisplay` |
+
 - **The smol-bytes features are named for the crate, and the `smol-bytes` alias selects 0.2**
   (#350). An integration feature is the crate's own name plus its version, so the hyphen the crate
   carries stays in the feature: `smol_bytes_0_1` is now `smol-bytes_0_1`, the dependency key is
@@ -89,6 +397,10 @@ and will red until they do.
 
 ### Added
 
+- **`tokora::logos_0_16`, and the public modules `tokora::parse` and `tokora::pratt`** (#350).
+  `tokora::logos_0_16` is the versioned name of the `tokora::logos` re-export, so a derive pinned
+  to logos 0.16 keeps writing `#[logos(crate = tokora::logos_0_16)]` after a newer integration
+  lands; the two modules are described under the layout entry above.
 - **smol-bytes 0.2 beside 0.1: the `smol-bytes_0_2` feature** (#350). The same four types as the 0.1
   integration — `shared::Bytes`, `compact::Bytes`, `Utf8Bytes` and `compact::Utf8Bytes` — implement
   `Source`, `Slice`, `CstText`, `Equivalent`, `ToEquivalent` and `IntoEquivalent` over smol-bytes

@@ -98,7 +98,7 @@ impl Location {
 /// [`PathSegment`](super::PathSegment) borrows a response key — and the
 /// [module documentation](super#nothing-here-allocates) sets the three of them out together.
 ///
-/// This is not the label stack a [`labelled`](crate::labelled) parser pushes and a collecting
+/// This is not the label stack a [`labelled`](crate::combinator::labelled) parser pushes and a collecting
 /// emitter captures. That one is the *"while parsing X"* context open at the moment of emission,
 /// and it has no position of its own; this one is a second place in the source with something to
 /// say about it.

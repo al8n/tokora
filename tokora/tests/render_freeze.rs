@@ -39,23 +39,20 @@
 use std::format;
 
 use tokora::SimpleSpan;
-use tokora::error::token::{MissingToken, SeparatedError, SeparatorPosition, UnexpectedToken};
 use tokora::error::{
-  NonAssociativeChain, RecursionLimitReached, Unclosed, UnexpectedEot,
-  syntax::{FullContainer, TooFew, TooMany},
+  FullContainer, NonAssociativeChain, RecursionLimitReached, TooFew, TooMany, Unclosed,
+  UnexpectedEot,
 };
+use tokora::error::{MissingToken, SeparatedError, SeparatorPosition, UnexpectedToken};
 use tokora::punct::Paren;
-use tokora::state::recursion_tracker::{RecursionLimiter, RecursionTracker};
+use tokora::state::{RecursionLimiter, RecursionTracker};
 use tokora::utils::CowStr;
 
 /// The tracker's own report, built the one way a caller can build one: exceed a limiter.
 ///
 /// `RecursionLimitReached` stores it whole and renders two of its numbers, so freezing the outer
 /// type's `Display` means going through this.
-fn exceeded(
-  limitation: usize,
-  depth: usize,
-) -> tokora::state::recursion_tracker::RecursionLimitExceeded {
+fn exceeded(limitation: usize, depth: usize) -> tokora::state::RecursionLimitExceeded {
   let mut limiter = RecursionLimiter::with_limitation(limitation);
   for _ in 0..depth {
     limiter.increase();

@@ -1,9 +1,6 @@
 use crate::{
   Emitter, InputRef, Lexer, Parse, Parser, ParserContext, SimpleSpan, Token as TokenTrait,
-  error::{
-    UnexpectedEot,
-    token::{UnexpectedToken, UnexpectedTokenOf},
-  },
+  error::{UnexpectedEot, UnexpectedToken, UnexpectedTokenOf},
   input::Cursor,
   lexer::LogosLexer,
   logos::{self, Logos},
@@ -278,7 +275,7 @@ fn change_language_preserves_literal() {
 
 #[test]
 fn check_matches_only_its_own_keyword() {
-  use crate::Check;
+  use crate::parse::Check;
   let if_kw = If::new(SimpleSpan::new(0, 2));
   assert!(if_kw.check(&Token::If));
   assert!(!if_kw.check(&Token::Else));

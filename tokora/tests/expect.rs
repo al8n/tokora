@@ -1,26 +1,20 @@
 #![cfg(all(feature = "std", feature = "combinators", feature = "logos_0_16"))]
 
 //! Tests for `ParseInput` impls on `With<Expect, PhantomSpan/PhantomSliced/PhantomLocated>`.
-//! These cover lines 142-216 in parser/expect.rs and parse_state.rs accessors.
+//! These cover lines 142-216 in combinator/expect.rs and parse_state.rs accessors.
 
 mod common;
 
 use common::{TestLexer, Token, TokenKind};
 use tokora::{
-  Emitter, InputRef, Lexer, Located, Parse, ParseContext, ParseInput, Parser, ParserContext,
-  SimpleSpan, Token as TokenTrait,
-  error::{
-    UnexpectedEot,
-    token::{UnexpectedToken, UnexpectedTokenOf},
-  },
+  Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext, SimpleSpan,
+  Token as TokenTrait,
+  combinator::{With, expect},
+  error::{UnexpectedEot, UnexpectedToken, UnexpectedTokenOf},
   input::Cursor,
-  parser::{With, expect},
   slice::Sliced,
-  span::Spanned,
-  utils::{
-    Expected,
-    marker::{PhantomLocated, PhantomSliced, PhantomSpan},
-  },
+  span::{Located, Spanned},
+  utils::{Expected, PhantomLocated, PhantomSliced, PhantomSpan},
 };
 
 type E = ();
@@ -261,7 +255,7 @@ fn expect_parse_input_with_located_err() {
 
 #[test]
 fn parse_state_accessors_via_map() {
-  use tokora::ParseState;
+  use tokora::parse::ParseState;
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<Token, E>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,

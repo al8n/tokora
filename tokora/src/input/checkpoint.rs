@@ -151,7 +151,7 @@ pub struct Checkpoint<'a, 'closure, L: Lexer<'a>> {
   pub(crate) input_id: usize,
   /// This checkpoint's id on its input's live-checkpoint lineage stack. Present in every
   /// allocator build (not just debug witness builds), so a
-  /// [`StackedTransaction`](crate::StackedTransaction) can check that a savepoint's lineage
+  /// [`StackedTransaction`](crate::input::StackedTransaction) can check that a savepoint's lineage
   /// is still live before honoring it, and so a restore can pop the lineage down through
   /// this checkpoint. See [`InputRef::save`](crate::InputRef::save).
   #[cfg(any(feature = "std", feature = "alloc"))]

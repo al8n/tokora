@@ -9,7 +9,7 @@
 //! session verbs below are the whole surface.
 //!
 //! What is being proved is a *shape*, not just a set of return values. A transaction guard
-//! ([`Transaction`](tokora::Transaction)) is a borrow of the input, so a driver cannot hold one
+//! ([`Transaction`](tokora::input::Transaction)) is a borrow of the input, so a driver cannot hold one
 //! beside the input it borrows — the value would be self-referential — and a speculative scope
 //! can therefore never outlive the call that opened it. [`Driver`] below does exactly that
 //! forbidden thing with session points: it holds the input handle as a field, `mark()`s a position
@@ -20,9 +20,10 @@ mod common;
 
 use common::{TestLexer, Token};
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, SessionPointId,
+  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext,
   emitter::Verbose,
-  error::{UnexpectedEot, token::UnexpectedToken},
+  error::{UnexpectedEot, UnexpectedToken},
+  input::SessionPointId,
   span::{SimpleSpan, Spanned},
 };
 

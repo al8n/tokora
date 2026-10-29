@@ -3,8 +3,8 @@
 
 //! Tests for plain `Repeated` (TryParseInput::repeated()) WITHOUT delimiters.
 //!
-//! Covers `parser/many/repeated/` (unbounded, at_least, at_most, bounded)
-//! and `parser/many/handler/` (maximum, minimum, bounded) via the
+//! Covers `combinator/many/repeated/` (unbounded, at_least, at_most, bounded)
+//! and `combinator/many/handler/` (maximum, minimum, bounded) via the
 //! RepeatedHandler trait.
 
 mod common;
@@ -12,16 +12,12 @@ mod common;
 use tokora::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
   ParserContext, Token as TokenTrait, TryParseInput,
+  combinator::With,
   emitter::{FullContainerEmitter, TooFewEmitter, TooManyEmitter},
-  error::{
-    UnexpectedEot,
-    syntax::{FullContainer, TooFew, TooMany},
-    token::{UnexpectedToken, UnexpectedTokenOf},
-  },
+  error::{FullContainer, TooFew, TooMany, UnexpectedEot, UnexpectedToken, UnexpectedTokenOf},
   input::Cursor,
-  parser::With,
   span::Spanned,
-  utils::marker::PhantomSpan,
+  utils::PhantomSpan,
 };
 
 use common::{TestLexer, Token};

@@ -3,7 +3,7 @@ use core::ops::{Deref, DerefMut};
 
 use crate::{
   error::RecursionLimitReached,
-  state::recursion_tracker::{RecursionLimiter, RecursionTracker},
+  state::{RecursionLimiter, RecursionTracker},
 };
 
 use super::*;
@@ -77,7 +77,7 @@ mod tests;
 ///
 /// # `Copy`, and what it is for
 ///
-/// Deliberate. A driver reads its baseline more than once per turn — `parser::many`'s element loop
+/// Deliberate. A driver reads its baseline more than once per turn — `combinator::many`'s element loop
 /// hands the same `trips` to the failure gate and then to the close gate — and a move-only baseline
 /// would push those sites into re-taking it, which is the placement defect the type exists to make
 /// hard. Duplicating one is harmless because storage is refused by the region parameter and not by
@@ -265,8 +265,8 @@ where
   /// # The error is terminal, and it is returned
   ///
   /// [`RecursionLimitReached`] is terminal for every value: no amount of further input clears a
-  /// depth budget, so [`Recover`](crate::parser::Recover),
-  /// [`InplaceRecover`](crate::parser::InplaceRecover) and
+  /// depth budget, so [`Recover`](crate::combinator::Recover),
+  /// [`InplaceRecover`](crate::combinator::InplaceRecover) and
   /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) re-raise it rather than synthesizing
   /// a node. It is *returned*, never emitted, so no rewind can erase it and no recording emitter
   /// can turn a tripped budget into a truncated-but-successful parse. Its offset is committed
@@ -288,7 +288,7 @@ where
   /// no `MaybeTerminal` bound, so it is the whole of what stops an element's trip being
   /// emitted as a diagnostic and looped past. That one is not invariance — it was spent for every
   /// error type before #148 — so it changes those families' behaviour on a trip. See
-  /// `Input::resource_trips` and `parser::many`'s `GATE_CENSUS`.
+  /// `Input::resource_trips` and `combinator::many`'s `GATE_CENSUS`.
   ///
   /// **What every one of those sites tests is a per-attempt transition, not the session fact.**
   /// The cell is monotone and is never cleared, so reading it absolutely would say "this parse has
@@ -653,15 +653,15 @@ where
   /// # Why a pair, and not one guard that takes the snapshot for you
   ///
   /// A guard — one call that opens the attempt, runs it and answers — is harder to misuse, and
-  /// this crate has one: `parser::recovery_gate`'s attempt chokepoint, which owns the closure its
+  /// this crate has one: `combinator::recovery_gate`'s attempt chokepoint, which owns the closure its
   /// combinator hands it and therefore owns the unit the baselines belong to. It is not the shape
-  /// this crate's *loops* use. `parser::many`'s twelve drivers take this baseline by hand, inside
+  /// this crate's *loops* use. `combinator::many`'s twelve drivers take this baseline by hand, inside
   /// their element loop, and pass it to a chokepoint that reads it — because **the two baselines
   /// have opposite granularities, and neither can be derived from the other**. This one is per
   /// *element*: hoisted out of the loop it is arithmetically the session-absolute read above. The
   /// scanner's is per *collection*: taken per element it is re-read after each trip an element
   /// caught, so every later exit concludes cleanly over a budget that is spent. Both fusions are
-  /// measured defects, and `parser::many`'s `GATE_CENSUS` pins both placements in both directions.
+  /// measured defects, and `combinator::many`'s `GATE_CENSUS` pins both placements in both directions.
   ///
   /// A guard that snapshots for you fixes both baselines to one unit, which is that fusion. So
   /// what this crate centralizes is the **verdict**, never the baseline, and the baseline is
@@ -756,8 +756,8 @@ where
   /// [`trip_snapshot`](Self::trip_snapshot) baseline.
   ///
   /// The input-side witness for resource terminality, and the answer to "did the failure I am
-  /// judging come from a tripped budget". Read by [`Recover`](crate::parser::Recover),
-  /// [`InplaceRecover`](crate::parser::InplaceRecover) and
+  /// judging come from a tripped budget". Read by [`Recover`](crate::combinator::Recover),
+  /// [`InplaceRecover`](crate::combinator::InplaceRecover) and
   /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) *beside*
   /// [`MaybeTerminal::is_terminal`](crate::error::MaybeTerminal), and by the four resilient
   /// collection loops (`repeated`, `separated` and their delimited forms) on its own, since those
@@ -787,15 +787,15 @@ where
   /// the counter moved, and the ordinary failure is re-raised as though the budget had stopped it.
   ///
   /// So the resolution of this witness is **one attempt** — one speculative parse for
-  /// [`Recover`](crate::parser::Recover) and
-  /// [`InplaceRecover`](crate::parser::InplaceRecover), one retry cycle for
+  /// [`Recover`](crate::combinator::Recover) and
+  /// [`InplaceRecover`](crate::combinator::InplaceRecover), one retry cycle for
   /// [`skip_then_retry`](crate::ParseInput::skip_then_retry), one *element* for the resilient
   /// collection loops. Within that unit the verdict **fails closed** at the recovery, failure,
   /// absence and real-closer gates: an ordinary failure sharing its unit with a caught trip is
   /// re-raised, never the reverse, and a real trip reaching one of those gates is never recovered
   /// from and never filed as a diagnostic. It says nothing about `Accept` — an element that catches
   /// the trip and still answers `Accept` spends it, for every error type, on purpose; see
-  /// `parser::many`'s module docs, "the channel neither chokepoint closes" section. Outside the
+  /// `combinator::many`'s module docs, "the channel neither chokepoint closes" section. Outside the
   /// unit nothing is charged at all, which is the whole point of taking a baseline.
   ///
   /// **The strong form is not implementable at this layer.** Deciding whether the error in hand is
@@ -898,8 +898,8 @@ where
   /// | decline or stall | `many::absence_after_element` | 3rd term | **1st term** | a driver concludes absence. The scanner verdict always runs; the descent one only if the scanner and latch reads are both false |
   /// | probed closer | `many::close_after_element` | only term | **never** | a probe verdict handed over a real closer. The scanner reading is deliberately absent — a pre-trip closer settles the position question and only that |
   /// | direct closer | the mid-scan arms of `sep/delim` and `sep_while/delim` | **never** | **never** | a closer committed straight from the driver's own scan. The cycle's final `trip_snapshot` is paid and **no verdict is** |
-  /// | recovery failure | `parser::recovery_gate::judge` | 3rd term | 4th term | a recovery attempt returned `Err`. Both sit behind `is_incomplete()` and `is_terminal()` |
-  /// | successful recovery step | `parser::recovery_gate::recovery_step` | **1st term** | 2nd term | a `skip_then_retry` skip or advance **succeeded**. The descent verdict always runs — the one place either runs after something worked |
+  /// | recovery failure | `combinator::recovery_gate::judge` | 3rd term | 4th term | a recovery attempt returned `Err`. Both sit behind `is_incomplete()` and `is_terminal()` |
+  /// | successful recovery step | `combinator::recovery_gate::recovery_step` | **1st term** | 2nd term | a `skip_then_retry` skip or advance **succeeded**. The descent verdict always runs — the one place either runs after something worked |
   ///
   /// Two things the table does not contain, because they are what it is *for*. A verdict is
   /// **absent from an accepted, progressing element** — no row covers that arm, and its absence is
@@ -1185,7 +1185,7 @@ where
   /// [`try_attempt`](Self::try_attempt), [`attempt_parse`](Self::attempt_parse) and a
   /// rollback-on-drop [`Transaction`] reinstate the checkpointed state and a pre-trip `None`
   /// boundary, and for a scanner bound held in the lexer state — the supported placement
-  /// [`TokenLimiter`](crate::state::token_tracker::TokenLimiter) documents — the input-side refusal
+  /// [`TokenLimiter`](crate::state::TokenLimiter) documents — the input-side refusal
   /// bit is `false` too. This method then answers `false`, **correctly**: the restore reinstated
   /// the tally the checkpoint saved, which is the refund that type documents as the right answer
   /// for a bound on the committed stream, so a scan from there really does yield a token.
@@ -1281,7 +1281,7 @@ where
   /// that costs most is one where no stop is in force. A failing
   /// [`try_attempt`](Self::try_attempt) restores the checkpointed state and a pre-trip `None`
   /// boundary; for a scanner bound held in the lexer state — the supported placement
-  /// [`TokenLimiter`](crate::state::token_tracker::TokenLimiter) documents, not a violating shared
+  /// [`TokenLimiter`](crate::state::TokenLimiter) documents, not a violating shared
   /// counter — the input-side refusal bit is `false` as well. Every live reading of the input is
   /// then correctly clean, the caller nonetheless holds the trip-derived error, and the cursor and
   /// state are exactly where the attempt began. A loop guarded on the boolean retries the identical
@@ -1356,7 +1356,7 @@ where
   ///   | [`InputRef`] | [`cache`](Self::cache), and every [`Cache`](crate::cache::Cache) view behind it | reaches only [`CachedToken`](crate::cache::CachedToken), whose regime is not projectable |
   ///   | [`InputRef`] | every `peek*` and `sync_*_then_peek*` result | same — they are all `CachedToken` |
   ///   | [`InputRef`] | `next`, `try_expect*`, `consume_cached_*` | yield `Spanned<L::Token, L::Span>` — provably state-free |
-  ///   | [`ParseState`](crate::ParseState) | `state` / `state_mut` | forward the two rows above |
+  ///   | [`ParseState`](crate::parse::ParseState) | `state` / `state_mut` | forward the two rows above |
   ///   | [`Checkpoint`](crate::input::Checkpoint) | `state` | owned clone |
   ///   | [`Checkpoint`](crate::input::Checkpoint) | `cursor` | an offset — provably state-free |
   ///   | [`CachedToken`](crate::cache::CachedToken) | `state`, `into_components`, `new` | crate-internal: not readable, not fabricable |

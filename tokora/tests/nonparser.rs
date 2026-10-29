@@ -5,10 +5,11 @@ mod common;
 use common::{TestLexer, Token, TokenKind};
 use hybrid_arraydeque::typenum::U1;
 use tokora::{
-  Branch, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseChoice, ParseContext, ParseInput,
-  Parser, TryParseInput,
+  Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseChoice, ParseContext, ParseInput, Parser,
+  TryParseInput,
   cache::Peeked,
-  parser::{Action, Any, expect, try_expect},
+  combinator::{Any, expect, try_expect},
+  parse::{Action, Branch},
   utils::Expected,
 };
 
@@ -616,28 +617,28 @@ fn parse_choice_slice() {
 
 #[test]
 fn human_display_u8_ascii() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let byte: u8 = b'A';
   assert_eq!(format!("{}", byte.display()), "A");
 }
 
 #[test]
 fn human_display_u8_non_ascii() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let byte: u8 = 200;
   assert_eq!(format!("{}", byte.display()), "200");
 }
 
 #[test]
 fn human_display_byte_slice_valid_utf8() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let bytes = b"hello";
   assert_eq!(format!("{}", bytes.display()), "hello");
 }
 
 #[test]
 fn human_display_byte_slice_invalid_utf8() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let bytes: &[u8] = &[0xFF, 0xFE];
   let display = format!("{}", bytes.display());
   // Should show debug format for non-UTF-8
@@ -646,48 +647,48 @@ fn human_display_byte_slice_invalid_utf8() {
 
 #[test]
 fn human_display_char_slice() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let chars = ['h', 'e', 'l', 'l', 'o'];
   assert_eq!(format!("{}", chars.display()), "hello");
 }
 
 #[test]
 fn human_display_char_array() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let chars = ['a', 'b'];
   assert_eq!(format!("{}", chars.display()), "ab");
 }
 
 #[test]
 fn human_display_byte_array() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let bytes = [b'x', b'y'];
   assert_eq!(format!("{}", bytes.display()), "xy");
 }
 
 #[test]
 fn human_display_unit() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   assert_eq!(format!("{}", ().display()), "");
 }
 
 #[test]
 fn human_display_str() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let s = "test";
   assert_eq!(format!("{}", s.display()), "test");
 }
 
 #[test]
 fn human_display_char() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let c = 'z';
   assert_eq!(format!("{}", c.display()), "z");
 }
 
 #[test]
 fn human_display_integers() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   assert_eq!(format!("{}", 42i32.display()), "42");
   assert_eq!(format!("{}", 42u64.display()), "42");
   assert_eq!(format!("{}", (-5i64).display()), "-5");
@@ -695,14 +696,14 @@ fn human_display_integers() {
 
 #[test]
 fn human_display_positioned_char() {
-  use tokora::utils::{PositionedChar, human_display::DisplayHuman};
+  use tokora::utils::{DisplayHuman, PositionedChar};
   let pc = PositionedChar::with_position('x', 42usize);
   assert_eq!(format!("{}", pc.display()), "x");
 }
 
 #[test]
 fn human_display_ref() {
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let val = 42i32;
   let r = &val;
   assert_eq!(format!("{}", r.display()), "42");
@@ -713,7 +714,7 @@ fn human_display_ref() {
 #[test]
 fn punct_comma_display_human() {
   use tokora::punct::Comma;
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let c = Comma::unit();
   assert_eq!(format!("{}", c.display()), ",");
 }
@@ -721,7 +722,7 @@ fn punct_comma_display_human() {
 #[test]
 fn punct_semicolon_display_human() {
   use tokora::punct::Semicolon;
-  use tokora::utils::human_display::DisplayHuman;
+  use tokora::utils::DisplayHuman;
   let s = Semicolon::unit();
   assert_eq!(format!("{}", s.display()), ";");
 }

@@ -25,8 +25,8 @@ three shapes recur in every grammar — *A then B*, *zero or more A*, *A separat
 just sequencing with the brackets ignored — `open.ignore_then(body).then_ignore(close)` —
 which is how the argument-list example below wraps its comma list in parentheses. That
 hand-roll is the lesson here; the combinator reference packages it ready-made as the
-[`parens`](crate::parser::parens) shape (with [`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
-and the generic [`delimited`](crate::parser::delimited)).
+[`parens`](crate::combinator::parens) shape (with [`braces`](crate::combinator::braces)/[`brackets`](crate::combinator::brackets)/[`angles`](crate::combinator::angles)
+and the generic [`delimited`](crate::combinator::delimited)).
 
 ## Repetition
 
@@ -36,7 +36,7 @@ declines, and [`collect`](crate::Accumulator::collect) accumulates the values in
 work too). If your element is a plain `ParseInput` and you would rather supply the
 stopping decision yourself, [`repeated_while`](crate::ParseInput::repeated_while) takes an
 explicit peek-window condition instead —
-[`while_head`](crate::while_head) and [`while_kind`](crate::while_kind) spell the common
+[`while_head`](crate::combinator::while_head) and [`while_kind`](crate::combinator::while_kind) spell the common
 width-1 conditions ("continue while the head satisfies this", "…while its kind is that")
 without a `Peeked` window or a turbofish. For the very common "repeat until a sentinel
 token, and leave it in place" shape there is a one-liner:
@@ -104,7 +104,7 @@ the token `until` accepts, so the caller's next step still sees it.
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, syntax::FullContainer, token::UnexpectedToken};
+# use tokora::error::{FullContainer, UnexpectedEot, UnexpectedToken};
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
@@ -201,7 +201,7 @@ place. Two small impls wire your token type to the separator vocabulary in
   [`Comma`](crate::punct::Comma) punctuator name itself in diagnostics.
 
 The `Separated` driver's knobs — its element-count bounds and leading/trailing separator
-policies — are documented on [`Separated`](crate::parser::Separated); each reports through
+policies — are documented on [`Separated`](crate::combinator::Separated); each reports through
 its own [emitter trait](crate::emitter), which is why the `where` clause below names them.
 (There is also [`separated_while`](crate::ParseInput::separated_while) for elements that
 cannot decline, where you provide the lookahead condition — and
@@ -271,9 +271,8 @@ refused, collected into a `Vec`, with the whole policy already chosen.)
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
 # use tokora::error::{
-#   UnexpectedEot,
-#   syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-#   token::{MissingToken, SeparatedError, UnexpectedToken},
+#   FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, UnexpectedEot,
+#   UnexpectedToken,
 # };
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
@@ -310,15 +309,12 @@ refused, collected into a `Vec`, with the whole policy already chosen.)
 #   ParseAttempt,
 # };
 use tokora::{
-  Accumulator, ParseInput,
+  Accumulator, ParseInput, combinator::expect,
   emitter::{
     FullContainerEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
   },
-  parser::expect,
-  punct::Comma,
-  token::PunctuatorToken,
-  utils::Expected,
+  punct::Comma, token::PunctuatorToken, utils::Expected,
 };
 
 // Wire `Tok` into the punctuator vocabulary: name which kind is the comma.

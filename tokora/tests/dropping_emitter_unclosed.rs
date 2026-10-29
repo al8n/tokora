@@ -20,14 +20,15 @@ mod common;
 use common::{TestLexer, Token};
 
 use tokora::{
-  Accumulator, ComposableEmitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput,
-  Parser, ParserContext, SimpleSpan, TryParseInput,
+  Accumulator, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, SimpleSpan, TryParseInput,
   delimiter::DelimiterKind,
-  emitter::{Emitter, Fatal, FromUnclosed, FullContainerEmitter, UnclosedEmitter, Verbose},
+  emitter::{
+    ComposableEmitter, Emitter, Fatal, FromUnclosed, FullContainerEmitter, UnclosedEmitter, Verbose,
+  },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntaxOf, TooFew},
-    token::{UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntaxOf, TooFew, Unclosed, UnexpectedEot, UnexpectedToken,
+    UnexpectedTokenOf,
   },
   utils::CowStr,
 };

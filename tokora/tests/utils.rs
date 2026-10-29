@@ -532,7 +532,7 @@ mod std_utils {
 #[test]
 fn hipstr_equivalent_both_directions() {
   use hipstr_0_8::{HipByt, HipStr};
-  use tokora::utils::cmp::Equivalent;
+  use tokora::utils::Equivalent;
 
   // A generic helper whose bound `A: Equivalent<B>` forces the *impl* to
   // exist for the concrete `A`. Plain `hipstr.equivalent(..)` would deref-coerce
@@ -577,7 +577,7 @@ fn hipstr_equivalent_both_directions() {
 #[test]
 fn smol_bytes_equivalent_both_directions() {
   use smol_bytes_0_1::{Utf8Bytes, compact, shared};
-  use tokora::utils::cmp::Equivalent;
+  use tokora::utils::Equivalent;
 
   // Same rationale as `hipstr_equivalent_both_directions` above: this helper
   // forces the *impl* to be resolved for the concrete `A`, so method-call
@@ -669,7 +669,7 @@ fn smol_bytes_equivalent_both_directions() {
 #[test]
 fn smol_bytes_0_2_equivalent_both_directions() {
   use smol_bytes_0_2::{Utf8Bytes, compact, shared};
-  use tokora::utils::cmp::Equivalent;
+  use tokora::utils::Equivalent;
 
   // Same rationale as `hipstr_equivalent_both_directions` above: this helper
   // forces the *impl* to be resolved for the concrete `A`, so method-call

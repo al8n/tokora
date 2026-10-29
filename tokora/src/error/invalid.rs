@@ -84,7 +84,7 @@
 
 use crate::{
   span::{SimpleSpan, Span},
-  utils::{human_display::DisplayHuman, knowledge::*},
+  utils::{DisplayHuman, knowledge::*},
 };
 
 /// An invalid string literal value.

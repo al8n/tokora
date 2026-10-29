@@ -23,10 +23,10 @@ use std::{string::String, vec::Vec};
 use crate::{
   InputRef, ParseInput, Token,
   cache::DefaultCache,
-  cst::{FinishError, event::EventMark},
+  combinator::node,
+  cst::{EventMark, FinishError},
   emitter::CstEmitter,
   input::Input,
-  parser::node,
 };
 
 use super::{

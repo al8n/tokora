@@ -142,7 +142,7 @@
 //!
 //! It also does not replace the emitter vocabulary, which answers a different question.
 //! [`emitter::Diagnostic`](crate::emitter) is a *record a collecting emitter kept* — a span, the
-//! open [`labelled`](crate::labelled) context, and a borrowed payload — produced by tokora's
+//! open [`labelled`](crate::combinator::labelled) context, and a borrowed payload — produced by tokora's
 //! machinery while a parse runs. [`Diagnose`] is a *trait an error type implements* to describe
 //! itself once the parse is over. They compose rather than compete: a collected record hands back
 //! its payload, and the payload is what answers the contract. On the one name they share, see

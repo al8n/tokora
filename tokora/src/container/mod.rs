@@ -8,7 +8,7 @@ use hybrid_arraydeque::{ArrayDeque, ArraySize};
 /// elements and read back exactly two things: whether [`push`](Self::push) took an element, and
 /// what [`max_capacity`](Self::max_capacity) says. Everything else a repetition construct
 /// reports — how many elements it parsed, whether that count satisfies `at_least` / `at_most`,
-/// and the count a [`FullContainer`](crate::error::syntax::FullContainer) names — is the
+/// and the count a [`FullContainer`](crate::error::FullContainer) names — is the
 /// drivers' own bookkeeping, computed without consulting this trait. That is deliberate:
 /// `Container` is implementable outside this crate, so an accounting law that rested on an
 /// implementation behaving itself would be a law with no keeper.
@@ -21,7 +21,7 @@ pub trait Container<T> {
   ///
   /// **Refuse an item only when the container cannot hold it.** `Err` is this crate's sole
   /// capacity channel: a refusal becomes a
-  /// [`FullContainer`](crate::error::syntax::FullContainer) diagnostic naming
+  /// [`FullContainer`](crate::error::FullContainer) diagnostic naming
   /// [`max_capacity`](Self::max_capacity), so a refusal for any other reason reports a capacity
   /// the container never reached.
   ///
@@ -47,7 +47,7 @@ pub trait Container<T> {
   /// Returns the number of items this container can hold.
   ///
   /// `usize::MAX` when there is no fixed bound, e.g. for `Vec<T>`; the real bound otherwise.
-  /// This is the capacity a [`FullContainer`](crate::error::syntax::FullContainer) diagnostic
+  /// This is the capacity a [`FullContainer`](crate::error::FullContainer) diagnostic
   /// names, so it must be the bound [`push`](Self::push) refuses at.
   fn max_capacity(&self) -> usize;
 }
@@ -115,7 +115,7 @@ macro_rules! blackhole {
 
 blackhole!(());
 blackhole!(core::marker::PhantomData<T>);
-blackhole!(crate::utils::marker::Ignored<T>);
+blackhole!(crate::utils::Ignored<T>);
 
 impl<T> Container<T> for Option<T> {
   #[inline(always)]

@@ -60,12 +60,8 @@ use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
   cache::Peeked,
   emitter::{Fatal, Verbose},
-  error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, TooFew, TooMany},
-    token::UnexpectedToken,
-  },
-  parser::Action,
+  error::{FullContainer, TooFew, TooMany, Unclosed, UnexpectedEot, UnexpectedToken},
+  parse::Action,
   punct::Bracket,
   utils::typenum::U1,
 };

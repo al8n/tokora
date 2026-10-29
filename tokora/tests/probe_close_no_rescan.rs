@@ -40,7 +40,7 @@ use hybrid_arraydeque::ArrayDeque;
 use hybrid_arraydeque::typenum::{U1, U8};
 use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
-  ParserContext, State, Token as TokenTrait, TryParseInput,
+  ParserContext, Token as TokenTrait, TryParseInput,
   cache::{CachedTokenOf, Peeked},
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
@@ -48,14 +48,14 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
   lexer::LogosLexer,
   logos::{self, Logos},
-  parser::Action,
+  parse::Action,
   punct::{CloseParen, Comma, OpenParen, Paren},
+  state::State,
   token::PunctuatorToken,
 };
 

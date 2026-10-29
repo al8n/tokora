@@ -19,12 +19,9 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter, Verbose,
   },
   error::{
-    NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{
-      MissingToken, MissingTokenOf, SeparatedError, SeparatorPosition, UnexpectedToken,
-      UnexpectedTokenOf,
-    },
+    FullContainer, MissingSyntax, MissingSyntaxOf, MissingToken, MissingTokenOf,
+    NonAssociativeChain, RecursionLimitReached, SeparatedError, SeparatorPosition, TooFew, TooMany,
+    UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot, UnexpectedToken, UnexpectedTokenOf,
   },
   input::Cursor,
   span::{SimpleSpan, Spanned},
@@ -288,7 +285,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = EmitterTestError>,
 {
-  use tokora::parser::expect;
+  use tokora::combinator::expect;
   use tokora::utils::Expected;
   expect(|t: &Token| {
     if matches!(t, Token::Num(_)) {
@@ -1565,7 +1562,7 @@ fn labelled_stamps_context_visible_through_labels_accessor() {
       ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
     >,
   ) -> Result<(), EmitterTestError> {
-    let mut p = tokora::labelled("while parsing item", emit_marker);
+    let mut p = tokora::combinator::labelled("while parsing item", emit_marker);
     p.parse_input(inp)?;
 
     let labels = inp.emitter_ref().labels();
@@ -1603,7 +1600,7 @@ fn labelled_zero_behavior_on_fatal_path() {
       "bare Fatal emission is fatal"
     );
     // Labelled: identical Err(Custom); the label scope changes nothing on the Fatal path.
-    let mut p = tokora::labelled("while parsing item", emit_marker);
+    let mut p = tokora::combinator::labelled("while parsing item", emit_marker);
     let via_label = p.parse_input(inp);
     assert!(
       matches!(via_label, Err(EmitterTestError::Custom)),
@@ -1711,7 +1708,7 @@ fn verbose_warnings_collect_with_labels_parallel_to_errors() {
       ParserContext<'inp, TestLexer<'inp>, Verbose<EmitterTestError>>,
     >,
   ) -> Result<(), EmitterTestError> {
-    let mut p = tokora::labelled("while linting item", warn_marker);
+    let mut p = tokora::combinator::labelled("while linting item", warn_marker);
     p.parse_input(inp)?;
 
     let emitter = inp.emitter_ref();

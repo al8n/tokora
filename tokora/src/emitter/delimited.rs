@@ -127,7 +127,7 @@ where
   doc = " (`Verbose`) records it and lets the parse return the elements"
 )]
 /// collected so far; a dropping emitter ([`Silent`](crate::emitter::Silent),
-/// [`Ignored`](crate::utils::marker::Ignored)) discards it.
+/// [`Ignored`](crate::utils::Ignored)) discards it.
 ///
 /// The [`Unclosed`] carries the **opening** delimiter's span — so the diagnostic points at the
 /// opener that was never closed — the pair's machine identity
@@ -153,7 +153,7 @@ pub trait UnclosedEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   /// [`FromUnclosed`] is named by the **implementations that convert** —
   /// [`Fatal`](crate::emitter::Fatal) returns the converted value and `Verbose` records it, so
   /// both impl blocks carry `E: FromUnclosed` — and by nothing else.
-  /// [`Silent`](crate::emitter::Silent) and [`Ignored`](crate::utils::marker::Ignored) discard
+  /// [`Silent`](crate::emitter::Silent) and [`Ignored`](crate::utils::Ignored) discard
   /// the diagnostic and their impls are bound-free, exactly like their siblings across the
   /// rest of the emitter family.
   ///

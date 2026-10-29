@@ -85,7 +85,7 @@
 
 use crate::{
   span::{SimpleSpan, Span},
-  utils::{human_display::DisplayHuman, knowledge::*},
+  utils::{DisplayHuman, knowledge::*},
 };
 
 /// A malformed string literal token.

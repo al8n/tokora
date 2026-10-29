@@ -30,9 +30,9 @@
 //!
 //! # What makes it work here: a zero-width `Operand` is legal
 //!
-//! The whole posture rests on one property of [`ParsePrattLHS`](tokora::parser::ParsePrattLHS):
-//! **[`Operand`](tokora::parser::PrattLHS::Operand) is not held to "consume what you report".**
-//! Only [`Prefix`](tokora::parser::PrattLHS::Prefix) is stall-checked, because only a prefix
+//! The whole posture rests on one property of [`ParsePrattLHS`](tokora::pratt::ParsePrattLHS):
+//! **[`Operand`](tokora::pratt::PrattLHS::Operand) is not held to "consume what you report".**
+//! Only [`Prefix`](tokora::pratt::PrattLHS::Prefix) is stall-checked, because only a prefix
 //! report makes the driver re-enter the expression at the same position. An operand costs the
 //! driver no recursion and no fold, so a report that consumed nothing costs it nothing — which
 //! is exactly the licence an error node needs.
@@ -41,7 +41,7 @@
 //!
 //! * an ordinary `Err` out of a channel or a fold **keeps** the expression's emissions, so a
 //!   parse can carry several diagnostics;
-//! * the RHS channel's [`End`](tokora::parser::PrattRHS::End) rolls the deciding read back, so
+//! * the RHS channel's [`End`](tokora::pratt::PrattRHS::End) rolls the deciding read back, so
 //!   the recovery set can be tested by *peeking* and the token is left for whoever wants it;
 //! * the driver's own terminal errors (`UnexpectedEoLhs` / `UnexpectedEoRhs`) fire only on a
 //!   grammar bug — a report that consumed nothing where the driver required progress — never
@@ -117,13 +117,13 @@ use tokora::{
   emitter::{CstEmitter, DiagnosticKind, Verbose},
   error::{
     MaybeIncomplete, MaybeTerminal, NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs,
-    UnexpectedEoRhs, UnexpectedEot, token::UnexpectedTokenOf,
+    UnexpectedEoRhs, UnexpectedEot, UnexpectedTokenOf,
   },
   input::{Cursor, InputContext},
   logos::{self, Logos},
-  parser::{PrattFoldOp, PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, pratt},
+  pratt::{PrattFoldOp, PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, pratt},
   span::Spanned,
-  state::recursion_tracker::RecursionLimiter,
+  state::RecursionLimiter,
 };
 
 // ── Lossless lexer ──────────────────────────────────────────────────────────────
@@ -511,7 +511,7 @@ where
 /// The recovery arm is the whole point of the file, and it is a plain `Ok`: the driver is told
 /// "here is your operand", the operand happens to be an error node, and nothing about the parse
 /// is aborted. Note it returns [`PrattLHS::Operand`], never
-/// [`Prefix`](tokora::parser::PrattLHS::Prefix) — the zero-width report is legal precisely
+/// [`Prefix`](tokora::pratt::PrattLHS::Prefix) — the zero-width report is legal precisely
 /// because it is an operand.
 fn parse_lhs<'inp, Ctx>(inp: &mut ExprIn<'inp, '_, Ctx>) -> Result<PrattLHS<Expr, (), Power>, Diag>
 where

@@ -1,4 +1,4 @@
-//! A C-style expression parser using [`pratt`](tokora::parser::pratt).
+//! A C-style expression parser using [`pratt`](tokora::pratt::pratt).
 //!
 //! Demonstrates the high-level `pratt` combinator API where `parse_lhs` and
 //! `parse_rhs` are full parser functions with access to [`InputRef`](tokora::InputRef),
@@ -27,9 +27,9 @@
 
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, Token as TokenT,
-  error::token::UnexpectedTokenOf,
+  error::UnexpectedTokenOf,
   logos::{self, Logos},
-  parser::{PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, pratt},
+  pratt::{PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, pratt},
 };
 
 // ── Lexer ─────────────────────────────────────────────────────────────────────

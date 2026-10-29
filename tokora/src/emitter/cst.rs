@@ -1,10 +1,10 @@
-use crate::cst::event::EventMark;
+use crate::cst::EventMark;
 
 use super::*;
 
 /// The CST event channel: an [`Emitter`] subtrait whose methods record the flat event stream
-/// a lossless syntax tree is derived from (see [`cst::event`](crate::cst::event) for the
-/// vocabulary and its laws).
+/// a lossless syntax tree is derived from (see
+/// [*The event vocabulary*](crate::cst#the-event-vocabulary) for the vocabulary and its laws).
 ///
 /// # Why a subtrait, and not more defaulted methods on [`Emitter`]
 ///
@@ -39,7 +39,7 @@ use super::*;
   not(any(feature = "std", feature = "alloc")),
   doc = " — the crate does exactly that for [`Fatal`], `Verbose`,"
 )]
-/// [`Silent`], and [`Ignored`](crate::utils::marker::Ignored). That is what makes *one*
+/// [`Silent`], and [`Ignored`](crate::utils::Ignored). That is what makes *one*
 /// parser assembly serve both configurations: over a plain diagnostics emitter the event
 /// calls compile to nothing (reference-taking signatures, empty inlined bodies — the
 /// zero-cost bar is byte-identical machine code, held by the `__text`-hash standard); over a
@@ -59,7 +59,7 @@ use super::*;
 ///
 /// These are transport methods with the `enter_label`-class contract: route through the
 /// blessed combinators (`node(kind, p)`-shaped bracketing,
-/// [`Marker`](crate::cst::event::Marker) for retro-wraps) rather than calling the pair by
+/// [`Marker`](crate::cst::Marker) for retro-wraps) rather than calling the pair by
 /// hand. `Marker`'s spend verb takes `&mut E`, which a parse handle does not hand out, so a
 /// *grammar* gets the mark from `Marker` and the wrap from its handle's own
 /// `cst_start_at`/`cst_finish` — see that type's docs for both shapes.
@@ -101,7 +101,7 @@ pub trait CstEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   /// matching [`cst_finish`](Self::cst_finish) closes it, and
   /// [`cst_demote`](Self::cst_demote) un-opens it on a failing exit.
   ///
-  /// `kind` is a dialect u16 from the unified kind space; the [`TOMBSTONE`](crate::cst::event::TOMBSTONE)
+  /// `kind` is a dialect u16 from the unified kind space; the [`TOMBSTONE`](crate::cst::TOMBSTONE)
   /// value is reserved and rejected by recording sinks.
   ///
   /// # The handback, and who needs it
@@ -142,8 +142,8 @@ pub trait CstEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   // nothing downstream could tell the difference: the resulting log is byte-identical to one a
   // legal parse could produce. Recording is the input layer's to trigger, not the grammar's.
 
-  /// Closes the innermost open node (stack discipline; see the module docs of
-  /// [`cst::event`](crate::cst::event) for the derived depth model).
+  /// Closes the innermost open node (stack discipline; see
+  /// [*The depth model*](crate::cst#the-depth-model) for the derived depth model).
   ///
   /// `kind` is the kind of the node this call *intends* to close — the same value passed to
   /// the matching [`cst_start`](Self::cst_start) or [`cst_start_at`](Self::cst_start_at). A
@@ -180,7 +180,7 @@ pub trait CstEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   /// spent on a recording sink is the identity-wall panic in every build, a swallowed
   /// retro-wrap lands its paired finish elsewhere as a `MismatchedFinish`. Inherit **this** one
   /// and the first consequence is a **presence**, silent, on error paths only: nothing happens
-  /// at all until a [`node`](crate::parser::node) fails, and then the channel below keeps a
+  /// at all until a [`node`](crate::combinator::node) fails, and then the channel below keeps a
   /// `StartNode` open. That stream is byte-identical to the one an escaped panic leaves, so
   /// `Cst::finish` refuses a grammar that did everything right (`UnclosedNodes`, misattributed)
   /// and `Cst::finish_partial` materializes the very node the grammar retracted. The same
@@ -223,7 +223,7 @@ pub trait CstEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   ///
   /// A recording sink validates the mark in **every** build — issued by this sink, in
   /// bounds, era not invalidated by a later truncation, `kind` not the reserved
-  /// [`TOMBSTONE`](crate::cst::event::TOMBSTONE), and the slot still holding a `StartNode` of
+  /// [`TOMBSTONE`](crate::cst::TOMBSTONE), and the slot still holding a `StartNode` of
   /// exactly `kind` — and panics otherwise. This is the savepoint posture
   /// [`cst_start_at`](Self::cst_start_at) already takes: a stale, foreign or wrong-kind spend
   /// is a parser bug, and naming whatever else sits at that index is the wrong-tree class
@@ -233,11 +233,11 @@ pub trait CstEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   /// which no `cst_start` could ever have opened.
   ///
   /// **Scope: those panics are reachable from the raw surface only.** The blessed
-  /// [`node`](crate::parser::node) bracket cannot reach the stale arm, because staling its mark
+  /// [`node`](crate::combinator::node) bracket cannot reach the stale arm, because staling its mark
   /// needs a rewind below its own `cst_start`, and the only public verbs that rewind that far
   /// take a `SessionPointId` whose invariant `'closure` brand cannot cross into a parser frame
   /// — see *A rollback below the start cannot happen mid-frame* in the
-  /// [`node` module docs](crate::parser::node), which names the compile-fail cases that pin it.
+  /// [`node` module docs](crate::combinator::node), which names the compile-fail cases that pin it.
   ///
   /// Two misuses are deliberately **not** every-build panics, and for one reason: the slot is
   /// unchanged by a demote, so it cannot witness that it has already been closed. Demoting a
@@ -274,7 +274,7 @@ pub trait CstEmitter<'a, L, Lang: ?Sized = ()>: Emitter<'a, L, Lang> {
   /// The default returns an **inert** mark (no event channel to anchor into); spending an
   /// inert mark on a recording sink panics deterministically, at the sink-identity wall
   /// that rejects every foreign mark in every build. Prefer wrapping
-  /// the result in a [`Marker`](crate::cst::event::Marker) for the single-use
+  /// the result in a [`Marker`](crate::cst::Marker) for the single-use
   /// open/completed/abandoned discipline.
   #[inline(always)]
   fn cst_mark(&mut self) -> EventMark

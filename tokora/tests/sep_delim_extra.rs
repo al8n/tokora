@@ -13,15 +13,15 @@ use common::E;
 use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
   ParserContext, SimpleSpan, TryParseInput,
+  combinator::With,
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter, Verbose,
   },
-  parser::With,
   punct::Bracket,
   span::Spanned,
-  utils::marker::PhantomSpan,
+  utils::PhantomSpan,
 };
 
 use common::{TestLexer, Token};

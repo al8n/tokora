@@ -5,8 +5,8 @@
 mod common;
 
 use common::{TestLexer, Token, TokenKind};
+use tokora::combinator::expect;
 use tokora::input::Cursor;
-use tokora::parser::expect;
 use tokora::utils::Expected;
 use tokora::{Emitter, InputRef, Parse, ParseContext, ParseInput, Parser};
 

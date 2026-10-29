@@ -35,13 +35,12 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter, Verbose,
   },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
   lexer::LogosLexer,
   logos::{self, Logos},
-  parser::Action,
+  parse::Action,
   punct::{CloseParen, Comma, OpenParen, Paren},
   state::State,
   token::PunctuatorToken,
@@ -435,7 +434,7 @@ fn r1_prior_poison_does_not_recharge_an_ordinary_element_failure() {
 //
 // # Why this section exists
 //
-// `tokora/src/parser/many/mod.rs::file_element_failure` is the single place a collection element
+// `tokora/src/combinator/many/mod.rs::file_element_failure` is the single place a collection element
 // failure is filed or re-raised, and it gates on three witnesses. A mutation run over the whole
 // `--all-features` suite, one witness neutered at a time, found that two of the three were pinned
 // by behaviour and the third was not:

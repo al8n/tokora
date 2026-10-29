@@ -172,10 +172,10 @@ directly. There is no separate "parser value" flowing between stages — only th
 forward. The tentative sibling [`TryParseInput`](crate::TryParseInput) has the same shape for
 parsers that report "did not match" without emitting.
 
-Since 0.3.0 the trait carries the same [`Completeness`](crate::Completeness) typestate as the
+Since 0.3.0 the trait carries the same [`Completeness`](crate::input::Completeness) typestate as the
 handle it consumes: the trailing `Cmpl` parameter names whether the drive is over a whole input
-([`Complete`](crate::Complete), the default) or a still-growing chunk of a stream
-([`Partial`](crate::Partial)). The default keeps every existing signature reading exactly as
+([`Complete`](crate::input::Complete), the default) or a still-growing chunk of a stream
+([`Partial`](crate::input::Partial)). The default keeps every existing signature reading exactly as
 before — `ParseInput<'inp, L, O, Ctx>` *is* the complete-mode trait — while a parser written
 generic over `Cmpl` runs under **both** modes: [`Parse`](crate::Parse) drives it at `Complete`
 and [`parse_partial`](crate::parse_partial) drives the same item at `Partial`. The dispatch
@@ -187,12 +187,12 @@ The consume/peek surface the handle exposes is small and deliberate:
 - [`next`](crate::InputRef::next) — consume the next token unconditionally (`Ok(None)` at end of
   input). This is the one call that advances the committed cursor.
 - [`peek`](crate::InputRef::peek) / `peek_one` — fill the lookahead window *without* committing.
-  `peek` takes a compile-time [`Window`](crate::Window) capacity (`typenum::U1` through `U32`), so
+  `peek` takes a compile-time [`Window`](crate::parse::Window) capacity (`typenum::U1` through `U32`), so
   the maximum lookahead a grammar uses is fixed at monomorphization — there is no unbounded,
   hidden lookahead. Peeked tokens land in the cache and are served from there when
   consumed. (The cache itself is the context's one pluggable seam here: the default is a
   small, fixed, stack-inline buffer, so the shipped engine allocates nothing for
-  lookahead — a custom [`Cache`](crate::Cache) may choose its own storage and capacity.)
+  lookahead — a custom [`Cache`](crate::cache::Cache) may choose its own storage and capacity.)
 - [`try_expect`](crate::InputRef::try_expect) — the peek-or-take workhorse: examine the next token
   and either commit it (the predicate matched) or leave it staged. A predicate that never commits
   is a one-token peek.
@@ -240,7 +240,7 @@ backtracking has to rewind more than a cursor.
 
 The handle can save its position and later return to it. You reach for this by name —
 [`attempt`](crate::InputRef::attempt) / `try_attempt` for a single speculative closure,
-[`begin`](crate::InputRef::begin) for an imperative [`Transaction`](crate::Transaction) guard — and
+[`begin`](crate::InputRef::begin) for an imperative [`Transaction`](crate::input::Transaction) guard — and
 the tutorial covered the full surface in [chapter 6](super::ch06_backtracking).
 
 The one fact the engine chapter needs you to carry forward is this: **a rollback rewinds the whole
@@ -274,8 +274,7 @@ single-character tokens (digits and `+`), so nothing but core tokora types is in
 ```rust
 # use core::{convert::Infallible, fmt};
 # use tokora::{
-#   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, token::UnexpectedToken},
+#   FatalContext, InputRef, Lexer, SimpleSpan, Token, error::{UnexpectedEot, UnexpectedToken},
 # };
 # use tokora::span::Span as _;
 # #[derive(Debug, PartialEq)]
@@ -322,7 +321,7 @@ single-character tokens (digits and `+`), so nothing but core tokora types is in
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, Parser, ParseInput as _, parser::expect, utils::Expected};
+use tokora::{Parse, ParseInput as _, Parser, combinator::expect, utils::Expected};
 
 // A parser is a plain function over the working handle: it drives the same `&mut InputRef`
 // that every combinator drives.

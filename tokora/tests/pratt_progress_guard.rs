@@ -25,7 +25,7 @@
 //! repeats the same zero-width report, descends without bound. Every grammar in that section
 //! parses cleanly — `Ok`, no diagnostic on any channel — against an end-of-cycle guard alone.
 //!
-//! Deleting the guard's hunk from `parser/pratt/expr.rs` puts the four section-one tests back
+//! Deleting the guard's hunk from `pratt/expr.rs` puts the four section-one tests back
 //! into an unbounded loop, and turns every section-two test back into a clean `Ok` over a
 //! phantom fold.
 
@@ -37,9 +37,9 @@ use tokora::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser,
   error::{
     NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
-    token::UnexpectedTokenOf,
+    UnexpectedTokenOf,
   },
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
 };
 
 use common::{Power, TestLexer, Token};

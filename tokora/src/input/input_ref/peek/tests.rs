@@ -370,7 +370,7 @@ impl<'inp> crate::emitter::Emitter<'inp, TestLexer<'inp>> for CountingEmitter {
 
   fn emit_unexpected_token(
     &mut self,
-    _: crate::error::token::UnexpectedTokenOf<'inp, TestLexer<'inp>, ()>,
+    _: crate::error::UnexpectedTokenOf<'inp, TestLexer<'inp>, ()>,
   ) -> Result<(), NeverFatal> {
     Ok(())
   }
@@ -630,7 +630,7 @@ impl<'inp> crate::emitter::Emitter<'inp, DropLexer<'inp>> for FatalOnLexError {
 
   fn emit_unexpected_token(
     &mut self,
-    _: crate::error::token::UnexpectedTokenOf<'inp, DropLexer<'inp>, ()>,
+    _: crate::error::UnexpectedTokenOf<'inp, DropLexer<'inp>, ()>,
   ) -> Result<(), Boom> {
     Ok(())
   }
@@ -878,7 +878,7 @@ type TripCtx<'a> = (
 /// count nothing but the tokens this call produced.
 fn assert_trip_truncates<W>(src: &'static str, limit: usize, staged: usize)
 where
-  W: crate::Window,
+  W: crate::parse::Window,
 {
   let limiter = TripLimiter::with_limit(limit);
   let ledger = limiter.ledger();
@@ -998,7 +998,7 @@ fn peek_with_emitter_terminal_flags_a_trip_but_not_eof() {
 /// The spans a `W`-wide peek reports, in window order.
 fn peeked_spans<W>(src: &str) -> std::vec::Vec<crate::span::SimpleSpan>
 where
-  W: crate::Window,
+  W: crate::parse::Window,
 {
   use crate::cache::PeekedTokenExt as _;
   parse_with(src, |inp| {
@@ -1012,7 +1012,7 @@ where
 /// rather than borrowed from the cache, in window order.
 fn peeked_arms<W>(src: &str) -> std::vec::Vec<bool>
 where
-  W: crate::Window,
+  W: crate::parse::Window,
 {
   parse_with(src, |inp| {
     let peeked = inp.peek::<W>()?;
@@ -1352,7 +1352,7 @@ where
       W::CAPACITY,
     >,
   ) where
-    W: crate::Window,
+    W: crate::parse::Window,
   {
     // The real queue, oldest first, bounded by the room the buffer has left — the honest
     // implementation of `peek`, which is what leaves the `len()` lie as the whole of the

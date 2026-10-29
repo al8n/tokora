@@ -29,11 +29,11 @@ fn input_context_new_and_into_components() {
   // found and edited whenever the first two move.
   assert_eq!(
     r.limitation(),
-    crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH
+    crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH
   );
   assert_ne!(
     r.limitation(),
-    crate::state::recursion_tracker::RecursionLimiter::new().limitation(),
+    crate::state::RecursionLimiter::new().limitation(),
     "InputContext's parser-facing default must not equal RecursionLimiter::new()'s general one"
   );
   assert_eq!(r.depth(), 0);
@@ -56,7 +56,7 @@ fn input_context_new_and_into_components() {
 #[test]
 fn input_context_with_recursion_limiter_replaces_the_default() {
   let ctx = InputContext::new("emitter", 42u32)
-    .with_recursion_limiter(crate::state::recursion_tracker::RecursionLimiter::unlimited());
+    .with_recursion_limiter(crate::state::RecursionLimiter::unlimited());
   let (_, _, r, _) = ctx.into_components();
   assert_eq!(r.limitation(), usize::MAX);
   assert_eq!(r.depth(), 0);
@@ -76,7 +76,7 @@ fn input_context_with_token_budget_replaces_the_default() {
   // And it did not disturb the cell beside it.
   assert_eq!(
     r.limitation(),
-    crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH
+    crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH
   );
 }
 

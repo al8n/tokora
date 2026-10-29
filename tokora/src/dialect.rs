@@ -1,6 +1,7 @@
 use crate::{
-  ErrorOf, Lexer, SliceOf,
+  ErrorOf, Lexer,
   input::{Complete, InputRef},
+  lexer::SliceOf,
 };
 
 /// The two facts a grammar cannot derive: which lexer it runs on, and which language it brands.

@@ -2,9 +2,7 @@ use core::ops::{Add, AddAssign};
 
 use crate::{
   span::SimpleSpan,
-  utils::{
-    CharLen, Lexeme, PositionedChar, human_display::DisplayHuman, knowledge::LineTerminator,
-  },
+  utils::{CharLen, DisplayHuman, Lexeme, PositionedChar, knowledge::LineTerminator},
 };
 
 /// A specialized `UnexpectedLexeme` for line terminators.

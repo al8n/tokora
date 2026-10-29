@@ -237,7 +237,7 @@ impl PunctuatorToken<'_> for Token {
 
 // ── From<Punct> for TokenKind ─────────────────────────────────────────────────
 //
-// Required by `Punctuator<'inp, L>` impl in parser/punct.rs which needs
+// Required by `Punctuator<'inp, L>` impl in combinator/punct.rs which needs
 // `<L::Token as Token<'inp>>::Kind: From<$name<(), (), ()>>`.
 
 impl From<Comma<(), (), ()>> for TokenKind {
@@ -312,9 +312,8 @@ pub type TestLexer<'a> = tokora::lexer::LogosLexer<'a, Token>;
 // not every integration binary constructs it, hence the `allow(dead_code)`.
 
 use tokora::error::{
-  Unclosed, UnexpectedEot,
-  syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-  token::{MissingToken, SeparatedError, UnexpectedToken},
+  FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+  UnexpectedEot, UnexpectedToken,
 };
 
 #[derive(Debug)]
@@ -398,7 +397,7 @@ where
 // exercises them, hence the `allow(dead_code)`.
 
 use tokora::{
-  Emitter, Lexer, ParserContext, error::token::UnexpectedTokenOf, input::Cursor, span::Spanned,
+  Emitter, Lexer, ParserContext, error::UnexpectedTokenOf, input::Cursor, span::Spanned,
 };
 
 #[allow(dead_code)]
@@ -451,7 +450,7 @@ pub fn ctx() -> ParserContext<'static, TestLexer<'static>, TestEm> {
 // binary that imports common uses it, hence `allow(dead_code)`.
 
 #[cfg(feature = "pratt")]
-use tokora::parser::PrattPower;
+use tokora::pratt::PrattPower;
 
 #[cfg(feature = "pratt")]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]

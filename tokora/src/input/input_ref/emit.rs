@@ -78,13 +78,13 @@
 use super::*;
 
 use crate::{
-  cst::event::EventMark,
+  cst::EventMark,
   emitter::{
     CstEmitter, FullContainerEmitter, MissingLeadingSeparatorEmitter,
     MissingTrailingSeparatorEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
     UnclosedEmitter, UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
-  error::token::UnexpectedTokenOf,
+  error::UnexpectedTokenOf,
 };
 
 // The two pratt forwarders below are the only members that name it.
@@ -232,7 +232,7 @@ where
 
   /// Pushes a diagnostic label — [`Emitter::enter_label`], forwarded.
   ///
-  /// Pairs with [`exit_label`](Self::exit_label); prefer [`labelled`](crate::labelled), which
+  /// Pairs with [`exit_label`](Self::exit_label); prefer [`labelled`](crate::combinator::labelled), which
   /// pairs them through a drop guard.
   #[inline(always)]
   pub fn enter_label(&mut self, label: &'static str) {
@@ -312,7 +312,7 @@ where
   #[inline(always)]
   pub fn emit_too_few(
     &mut self,
-    err: crate::error::syntax::TooFew<L::Span, Lang>,
+    err: crate::error::TooFew<L::Span, Lang>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Ctx::Emitter: TooFewEmitter<'inp, L, Lang>,
@@ -324,7 +324,7 @@ where
   #[inline(always)]
   pub fn emit_too_many(
     &mut self,
-    err: crate::error::syntax::TooMany<L::Span, Lang>,
+    err: crate::error::TooMany<L::Span, Lang>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Ctx::Emitter: TooManyEmitter<'inp, L, Lang>,
@@ -336,7 +336,7 @@ where
   #[inline(always)]
   pub fn emit_full_container(
     &mut self,
-    err: crate::error::syntax::FullContainer<L::Span, Lang>,
+    err: crate::error::FullContainer<L::Span, Lang>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Ctx::Emitter: FullContainerEmitter<'inp, L, Lang>,
@@ -349,7 +349,7 @@ where
   pub fn emit_missing_separator(
     &mut self,
     name: crate::utils::CowStr,
-    err: crate::error::token::MissingTokenOf<'inp, L, Lang>,
+    err: crate::error::MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
@@ -361,7 +361,7 @@ where
   #[inline(always)]
   pub fn emit_missing_element(
     &mut self,
-    err: crate::error::syntax::MissingSyntaxOf<'inp, L, Lang>,
+    err: crate::error::MissingSyntaxOf<'inp, L, Lang>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Ctx::Emitter: SeparatedEmitter<'inp, L, Lang>,
@@ -374,7 +374,7 @@ where
   pub fn emit_missing_leading_separator(
     &mut self,
     name: crate::utils::CowStr,
-    err: crate::error::token::MissingTokenOf<'inp, L, Lang>,
+    err: crate::error::MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Ctx::Emitter: MissingLeadingSeparatorEmitter<'inp, L, Lang>,
@@ -389,7 +389,7 @@ where
   pub fn emit_missing_trailing_separator(
     &mut self,
     name: crate::utils::CowStr,
-    err: crate::error::token::MissingTokenOf<'inp, L, Lang>,
+    err: crate::error::MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     Ctx::Emitter: MissingTrailingSeparatorEmitter<'inp, L, Lang>,

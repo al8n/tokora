@@ -91,12 +91,12 @@ use tokora::{
   emitter::Fatal,
   error::{
     NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
-    token::UnexpectedTokenOf,
+    UnexpectedTokenOf,
   },
   input::Cursor,
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
   span::Spanned,
-  state::{State, recursion_tracker::RecursionLimiter},
+  state::{RecursionLimiter, State},
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

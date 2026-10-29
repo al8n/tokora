@@ -12,9 +12,9 @@ plain `fn(&mut InputRef<…>) -> Result<O, E>` is a `ParseInput`, and a
 constructors for these shapes.
 
 Since 0.3.0 both traits carry a defaulted completeness parameter
-(`Cmpl = `[`Complete`](crate::Complete)), mirroring [`InputRef`](crate::InputRef), so every
+(`Cmpl = `[`Complete`](crate::input::Complete)), mirroring [`InputRef`](crate::InputRef), so every
 signature in this reference reads unchanged; the parameter exists for when a parser must run
-under [`Partial`](crate::Partial) input ([chapter 9](super::ch09_streaming)). **The mode
+under [`Partial`](crate::input::Partial) input ([chapter 9](super::ch09_streaming)). **The mode
 legend for this catalog:** the try/consume-channel families are mode-generic — the leaf atoms
 (`expect`/`any`/`Ident`/keywords/puncts), every pass-through adapter (`map*`, `filter*`,
 `validate*`, `then*`, `ignored`, `padded*`, `recover`/`skip_then_retry`, `spanned`/`sliced`/
@@ -46,13 +46,13 @@ method-call position it surfaces as `E0599`) — never a silent wrong parse.
 
 Every trait, type, and function carries a language marker `Lang: ?Sized = ()`. An atom has
 **one** spelling, generic over `Lang`, and reads the marker off the input it is handed —
-[`expect`](crate::parser::expect), [`try_expect`](crate::parser::try_expect),
-[`fail`](crate::parser::fail), `Comma::try_parse`, `Keyword::parse_exact`. An unbranded grammar
+[`expect`](crate::combinator::expect), [`try_expect`](crate::combinator::try_expect),
+[`fail`](crate::combinator::fail), `Comma::try_parse`, `Keyword::parse_exact`. An unbranded grammar
 writes the same call as a branded one, and neither needs a turbofish to say which `Lang` it meant.
 
 The `_of` suffix survives on exactly one shape: a **constructor with no input to read the marker
 from**, where `Lang` has to be named or left to its `()` default at the call site —
-[`Any::of`](crate::parser::Any::of), `ParserContext::of`, `Fatal::of`, and the error
+[`Any::of`](crate::combinator::Any::of), `ParserContext::of`, `Fatal::of`, and the error
 constructors (`UnexpectedEot::eot_of`, `Unclosed::paren_of`, …). Repetition-count knobs
 (`at_least`, …) and the `separated_by_*` family never had a twin — they inherit `Lang` from the
 parser they wrap. The [`Parser`](crate::Parser) constructors have no `_of` twin either: each
@@ -68,12 +68,12 @@ language at all.
 
 | Atom | Produces | One-liner |
 |------|----------|-----------|
-| [`Any::of()`](crate::parser::Any) | `L::Token` | consume one token of any kind; errors only at end of input |
-| [`expect(check)`](crate::parser::expect) | `L::Token` | consume one token satisfying `check`, else a typed `UnexpectedToken` |
-| [`try_expect(check)`](crate::parser::try_expect) | `L::Token` | the [`TryParseInput`](crate::TryParseInput) twin: *decline* instead of error |
-| [`Empty::new()`](crate::parser::Empty) | `()` | always succeed, consume nothing (the sequencing identity) |
-| [`Todo::new()`](crate::parser::Todo) | `O` | type-checks as any parser, **panics** if run — a placeholder |
-| [`fail(f)`](crate::parser::fail) | `O` | always fail with `f()` |
+| [`Any::of()`](crate::combinator::Any) | `L::Token` | consume one token of any kind; errors only at end of input |
+| [`expect(check)`](crate::combinator::expect) | `L::Token` | consume one token satisfying `check`, else a typed `UnexpectedToken` |
+| [`try_expect(check)`](crate::combinator::try_expect) | `L::Token` | the [`TryParseInput`](crate::TryParseInput) twin: *decline* instead of error |
+| [`Empty::new()`](crate::combinator::Empty) | `()` | always succeed, consume nothing (the sequencing identity) |
+| [`Todo::new()`](crate::combinator::Todo) | `O` | type-checks as any parser, **panics** if run — a placeholder |
+| [`fail(f)`](crate::combinator::fail) | `O` | always fail with `f()` |
 
 ```text
 Any::of() -> Any<L, Ctx, Lang>                       // also ::spanned/::sliced/::located
@@ -82,10 +82,10 @@ Empty::new() -> Empty                                 // Todo::<O>::new() -> Tod
 fail(f) -> Fail<F, L, O, Ctx>                         // f: FnMut() -> Error
 ```
 
-[`Any`](crate::parser::Any) also has `::spanned()`, `::sliced()`, and `::located()` constructors
-that attach position/text to the token. [`expect`](crate::parser::expect) is preferred over
+[`Any`](crate::combinator::Any) also has `::spanned()`, `::sliced()`, and `::located()` constructors
+that attach position/text to the token. [`expect`](crate::combinator::expect) is preferred over
 `Any` + [`filter`](crate::ParseInput::filter) because it produces an
-[`expected …, found …`](crate::error::token::UnexpectedToken) diagnostic from the
+[`expected …, found …`](crate::error::UnexpectedToken) diagnostic from the
 [`Expected`](crate::utils::Expected) the classifier returns.
 
 When the token's **payload** is what you want rather than the token, the family has an
@@ -104,9 +104,11 @@ the atoms rather than in the table.
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -184,7 +186,9 @@ the atoms rather than in the table.
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, Parser, ParseInput as _, parser::{Any, Empty, expect, fail}, utils::Expected};
+use tokora::{
+  Parse, ParseInput as _, Parser, combinator::{Any, Empty, expect, fail}, utils::Expected,
+};
 
 // `Any::of()` — any one token.
 fn first<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<Tok, Error> {
@@ -232,7 +236,7 @@ assert!(Parser::with_parser(digit_value).parse_str("+").is_err());
 ## Transforming output
 
 All are methods on [`ParseInput`](crate::ParseInput). Each has a `_with` twin that additionally
-receives a [`ParseState`](crate::ParseState) (span/slice access) — `map_with`, `filter_with`,
+receives a [`ParseState`](crate::parse::ParseState) (span/slice access) — `map_with`, `filter_with`,
 `filter_map_with`, `validate_with`.
 
 | Method | Shape | One-liner |
@@ -241,7 +245,7 @@ receives a [`ParseState`](crate::ParseState) (span/slice access) — `map_with`,
 | [`filter`](crate::ParseInput::filter) | `FnMut(&O) -> Result<(), E>` | keep the value, or fail |
 | [`filter_map`](crate::ParseInput::filter_map) | `FnMut(O) -> Result<U, E>` | transform-or-fail in one step |
 | [`validate`](crate::ParseInput::validate) | `FnMut(&O) -> Result<(), E>` | assert an invariant, keep the value |
-| [`.unwrap()`](crate::ParseInputUnwrapExt::unwrap) | `Option<O>` → `O` | unwrap an `Option` output, **panic** on `None` |
+| [`.unwrap()`](crate::parse::ParseInputUnwrapExt::unwrap) | `Option<O>` → `O` | unwrap an `Option` output, **panic** on `None` |
 
 ```text
 map<U, F>(self, f: F) -> Map<…>                       // F: FnMut(O) -> U
@@ -255,9 +259,11 @@ unwrap(self) -> Unwrapped<…>                          // where Self: ParseInpu
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -335,7 +341,10 @@ unwrap(self) -> Unwrapped<…>                          // where Self: ParseInpu
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, Parser, ParseInput as _, ParseInputUnwrapExt as _, parser::{expect, opt}, utils::Expected};
+use tokora::{
+  Parse, ParseInput as _, Parser, combinator::{expect, opt}, parse::ParseInputUnwrapExt as _,
+  utils::Expected,
+};
 use tokora::ParseAttempt;
 
 fn a_digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<Tok, Error> {
@@ -391,9 +400,11 @@ consumed. `spanned`/`sliced`/`located` are taught in [chapter 3](super::ch03_com
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -471,7 +482,7 @@ consumed. `spanned`/`sliced`/`located` are taught in [chapter 3](super::ch03_com
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, Parser, ParseInput as _, parser::Any, span::Spanned};
+use tokora::{Parse, ParseInput as _, Parser, combinator::Any, span::Spanned};
 
 // `.spanned()` wraps the output with the span it covers.
 fn spanned<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<Spanned<Tok, SimpleSpan>, Error> {
@@ -494,8 +505,8 @@ assert!(Parser::with_parser(ignored).parse_str("+").is_ok());
 
 All methods on [`ParseInput`](crate::ParseInput). A **delimited** shape is just sequencing with
 the brackets ignored — `open.ignore_then(body).then_ignore(close)` — packaged ready-made by
-[`delimited`](crate::parser::delimited) and
-[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
+[`delimited`](crate::combinator::delimited) and
+[`parens`](crate::combinator::parens)/[`braces`](crate::combinator::braces)/[`brackets`](crate::combinator::brackets)/[`angles`](crate::combinator::angles)
 (see [*Delimited shapes*](#delimited-shapes)).
 
 | Method | Keeps | One-liner |
@@ -518,9 +529,11 @@ and_then<T, U>(self, f: T) -> AndThen<…>             // f: FnMut(O) -> Result<
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -634,7 +647,7 @@ assert!(Parser::with_parser(nonzero).parse_str("0").is_err());
 
 ## Optional & choice
 
-[`opt(p)`](crate::parser::opt) adapts a declining `try_`-parser into one that yields `Option`
+[`opt(p)`](crate::combinator::opt) adapts a declining `try_`-parser into one that yields `Option`
 (`Some` on accept, `None` on decline, with nothing consumed on decline). Choice is a **tuple**
 impl — a tuple of up to 32 parsers is a [`ParseChoice`](crate::ParseChoice), and you drive it with
 one of the deterministic selectors (taught in [chapter 4](super::ch04_dispatch)):
@@ -650,14 +663,14 @@ one of the deterministic selectors (taught in [chapter 4](super::ch04_dispatch))
 | [`peek_then_head(c)`](crate::ParseInput::peek_then_head) | `ParseInput` | width-1 [`peek_then`](crate::ParseInput::peek_then): the condition sees `Some(head)` or `None`, with no `Peeked` and no typenum |
 
 The two macros are pure syntax; their semantics live in
-[`dispatch_take`](crate::parser::dispatch_take) and
-[`try_dispatch_take`](crate::parser::try_dispatch_take), which are public and callable
+[`dispatch_take`](crate::combinator::dispatch_take) and
+[`try_dispatch_take`](crate::combinator::try_dispatch_take), which are public and callable
 directly. Both take the context bound one tier up from the rest of this section —
 [`ComposableParseContext`](crate::ComposableParseContext) rather than bare
 [`ParseContext`](crate::ParseContext) — because a miss has to be expressible as an error, and
-both run under either [`Completeness`](crate::Completeness).
+both run under either [`Completeness`](crate::input::Completeness).
 
-[`opt`](crate::parser::opt) and [`.accepted()`](crate::TryParseInput::accepted)
+[`opt`](crate::combinator::opt) and [`.accepted()`](crate::TryParseInput::accepted)
 (which turns a `TryParseInput` into a `ParseInput<ParseAttempt<O>>`/`ParseInput<Option<O>>`) are
 the bridges between the two trait worlds. On the value side,
 [`ParseAttempt::into_option`](crate::ParseAttempt::into_option) is the same
@@ -682,9 +695,11 @@ try_dispatch_take(inp, table, project)                        -> Result<ParseAtt
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -762,7 +777,7 @@ try_dispatch_take(inp, table, project)                        -> Result<ParseAtt
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, ParseChoice as _, ParseInput as _, Parser, parser::opt};
+use tokora::{Parse, ParseChoice as _, ParseInput as _, Parser, combinator::opt};
 use tokora::ParseAttempt;
 
 fn try_digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<ParseAttempt<u32>, Error> {
@@ -829,7 +844,7 @@ assert_eq!(Parser::with_parser(try_select_value).parse_str(";").unwrap(), None);
 The [`repeated`](crate::TryParseInput::repeated) driver runs a `TryParseInput`
 element until it declines; [`repeated_while`](crate::ParseInput::repeated_while) runs a
 plain `ParseInput` element until *your* peek-window condition says
-[`Stop`](crate::parser::Action). [`collect`](crate::Accumulator::collect) accumulates the
+[`Stop`](crate::parse::Action). [`collect`](crate::Accumulator::collect) accumulates the
 elements into any [`Container`](crate::container::Container) (a `Vec`, a bounded array, …). The
 **fold** family combines elements without an intermediate container.
 
@@ -837,8 +852,8 @@ elements into any [`Container`](crate::container::Container) (a `Vec`, a bounded
 |------------|-----|-----------|
 | [`repeated()`](crate::TryParseInput::repeated) | `TryParseInput` | repeat until the element declines |
 | [`repeated_while(cond)`](crate::ParseInput::repeated_while) | `ParseInput` | repeat while `cond` (a peek decision) returns `Continue` |
-| [`while_head(pred)`](crate::while_head) | a `cond` argument | continue while the head satisfies `pred`; stop at a failing head or end of input |
-| [`while_kind(kind)`](crate::while_kind) | a `cond` argument | continue while the head's kind equals `kind` — the punct-tail idiom |
+| [`while_head(pred)`](crate::combinator::while_head) | a `cond` argument | continue while the head satisfies `pred`; stop at a failing head or end of input |
+| [`while_kind(kind)`](crate::combinator::while_kind) | a `cond` argument | continue while the head's kind equals `kind` — the punct-tail idiom |
 | [`collect()`](crate::Accumulator::collect) / [`collect_with(c)`](crate::Accumulator::collect_with) | repetition | gather elements into a `Container` (default / provided) |
 | [`fold(init, acc)`](crate::TryParseInput::fold) | `TryParseInput` | left-fold: `acc: FnMut(O, O) -> O` |
 | [`try_fold(init, acc)`](crate::TryParseInput::try_fold) | `TryParseInput` | left-fold with a fallible `acc` |
@@ -856,7 +871,7 @@ while_kind(kind) -> WhileKind<K>                       // K: PartialEq<Token::Ki
 The two condition constructors are the grammar-vocabulary spelling of the `cond` argument
 that [`repeated_while`](crate::ParseInput::repeated_while),
 [`separated_while`](crate::ParseInput::separated_while) and the `fold_while` family take.
-Each returns a concrete [`Decision`](crate::Decision) **pinned at width 1**, which is what
+Each returns a concrete [`Decision`](crate::parse::Decision) **pinned at width 1**, which is what
 removes the turbofish: the driver's window parameter infers from the adapter, so the call
 site carries no `::<_, U1>` and the hook never sees a [`Peeked`](crate::cache::Peeked). Note
 one asymmetry the type system imposes: a *closure* written inline for `while_head` needs its
@@ -868,9 +883,11 @@ an impl-side `Fn` bound; a named function needs none, and `while_kind` needs nei
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -949,7 +966,8 @@ an impl-side `Fn` bound; a named function needs none, and `while_kind` needs nei
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
 use tokora::{
-    Accumulator as _, Parse, ParseInput as _, Parser, TryParseInput as _, while_head, while_kind,
+  Accumulator as _, Parse, ParseInput as _, Parser, TryParseInput as _,
+  combinator::{while_head, while_kind},
 };
 use tokora::ParseAttempt;
 
@@ -1018,9 +1036,11 @@ separated_while<Sep, Cond, W>(self, cond: Cond) -> SeparatedWhile<…>  // eleme
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -1120,29 +1140,29 @@ assert!(Parser::with_parser(csv).parse_str("1,,2").is_err()); // a doubled separ
 
 ## The `many/` builder surface
 
-Each repetition/separation driver ([`Repeated`](crate::parser::Repeated),
-[`Separated`](crate::parser::Separated),
-[`SeparatedWhile`](crate::parser::SeparatedWhile)) exposes a small builder to tune element counts,
+Each repetition/separation driver ([`Repeated`](crate::combinator::Repeated),
+[`Separated`](crate::combinator::Separated),
+[`SeparatedWhile`](crate::combinator::SeparatedWhile)) exposes a small builder to tune element counts,
 separator policy, and delimiters before you [`collect`](crate::Accumulator::collect). The
 knobs return wrapper types (`AtLeast`, `AllowTrailing`, `Bounded`, …) that themselves chain, so
 order is flexible.
 
 | Knob | On | Effect |
 |------|-----|--------|
-| [`at_least(n)`](crate::parser::Separated::at_least) | both | require at least `n` elements — else a [`TooFew`](crate::error::syntax::TooFew) |
-| [`at_most(n)`](crate::parser::Separated::at_most) | both | allow at most `n` — else a [`TooMany`](crate::error::syntax::TooMany) |
-| [`bounded(min, max)`](crate::parser::Separated::bounded) | both | both bounds at once |
-| [`allow_trailing()`](crate::parser::Separated::allow_trailing) | separated | accept a trailing separator |
-| [`require_trailing()`](crate::parser::Separated::require_trailing) | separated | require a trailing separator |
-| [`allow_leading()`](crate::parser::Separated::allow_leading) | separated | accept a leading separator |
-| [`require_leading()`](crate::parser::Separated::require_leading) | separated | require a leading separator |
-| [`delimited::<D>()`](crate::parser::Separated::delimited) | both | wrap in a [`Delimiter`](crate::delimiter::Delimiter) pair (`Paren`/`Bracket`/`Brace`/`Angle`); an unterminated list reports the opener as [`Unclosed`](crate::error::Unclosed) through [`UnclosedEmitter`](crate::emitter::UnclosedEmitter); for a single region see the [`delimited`](crate::parser::delimited)/[`parens`](crate::parser::parens) free shapes |
+| [`at_least(n)`](crate::combinator::Separated::at_least) | both | require at least `n` elements — else a [`TooFew`](crate::error::TooFew) |
+| [`at_most(n)`](crate::combinator::Separated::at_most) | both | allow at most `n` — else a [`TooMany`](crate::error::TooMany) |
+| [`bounded(min, max)`](crate::combinator::Separated::bounded) | both | both bounds at once |
+| [`allow_trailing()`](crate::combinator::Separated::allow_trailing) | separated | accept a trailing separator |
+| [`require_trailing()`](crate::combinator::Separated::require_trailing) | separated | require a trailing separator |
+| [`allow_leading()`](crate::combinator::Separated::allow_leading) | separated | accept a leading separator |
+| [`require_leading()`](crate::combinator::Separated::require_leading) | separated | require a leading separator |
+| [`delimited::<D>()`](crate::combinator::Separated::delimited) | both | wrap in a [`Delimiter`](crate::delimiter::Delimiter) pair (`Paren`/`Bracket`/`Brace`/`Angle`); an unterminated list reports the opener as [`Unclosed`](crate::error::Unclosed) through [`UnclosedEmitter`](crate::emitter::UnclosedEmitter); for a single region see the [`delimited`](crate::combinator::delimited)/[`parens`](crate::combinator::parens) free shapes |
 
 Trailing/leading violations report through dedicated emitter capabilities
 ([`UnexpectedTrailingSeparatorEmitter`](crate::emitter::UnexpectedTrailingSeparatorEmitter), …).
 The **separator and delimiter hooks** —
-[`SeparatorHandler`](crate::parser::SeparatorHandler) and
-[`DelimiterHandler`](crate::parser::DelimiterHandler) — are how a container observes the
+[`SeparatorHandler`](crate::parse::SeparatorHandler) and
+[`DelimiterHandler`](crate::parse::DelimiterHandler) — are how a container observes the
 separators/brackets it stepped over: they are blanket-implemented as no-ops for every standard
 container (`Vec`, `ArrayDeque`, `heapless`, `smallvec`, `tinyvec`), so a plain `collect()`
 never has to mention them. Implement them on a custom accumulator to retain separator spans.
@@ -1158,9 +1178,11 @@ bounded(self, min, max)         delimited::<Delim>(self) -> DelimitedBy<Self, De
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -1275,9 +1297,9 @@ you and collect into a `Vec` — each with a fluent method twin on
 
 | Atom | Method form | One-liner |
 |------|-------------|-----------|
-| [`separated1::<Sep, …>(item, peek)`](crate::parser::separated1) | [`item.separated1_by::<Sep, _>(peek)`](crate::ParseInput::separated1_by) | one-or-more `item`s separated by `Sep`, optional leading separator |
-| [`list(item, until)`](crate::parser::list) | [`item.list_until(until)`](crate::ParseInput::list_until) | zero-or-more `item`s until `until` accepts the next token (left in place) |
-| [`try_ident_list::<Sep, …>()`](crate::parser::try_ident_list) | — | a separated list of identifiers into an [`IdentList`](crate::types::IdentList) (needs [`IdentifierToken`](crate::token::IdentifierToken)) |
+| [`separated1::<Sep, …>(item, peek)`](crate::combinator::separated1) | [`item.separated1_by::<Sep, _>(peek)`](crate::ParseInput::separated1_by) | one-or-more `item`s separated by `Sep`, optional leading separator |
+| [`list(item, until)`](crate::combinator::list) | [`item.list_until(until)`](crate::ParseInput::list_until) | zero-or-more `item`s until `until` accepts the next token (left in place) |
+| [`try_ident_list::<Sep, …>()`](crate::combinator::try_ident_list) | — | a separated list of identifiers into an [`IdentList`](crate::types::IdentList) (needs [`IdentifierToken`](crate::token::IdentifierToken)) |
 
 The method is named `list_until` rather than `list` because the `until` argument is the
 distinguishing half, and `separated1_by` follows the `separated_by_*` family it sits beside.
@@ -1288,7 +1310,7 @@ element-level primitives.
 
 One convention governs the free atoms, here and in [*Delimited shapes*](#delimited-shapes)
 below: an atom takes its sub-parser as `impl` [`ParseInput`](crate::ParseInput) — a closure, a
-fn item, or any named implementor ([`opt`](crate::parser::opt) takes an `impl`
+fn item, or any named implementor ([`opt`](crate::combinator::opt) takes an `impl`
 [`TryParseInput`](crate::TryParseInput) attempt) — and hands back a builder-form closure that
 is itself a `ParseInput` through the blanket impl, so atoms nest into each other and into the
 method combinators without adapters. Predicate parameters — `peek`, `until`, and friends,
@@ -1305,9 +1327,11 @@ list<…>(item: P, until: Until) -> impl FnMut(&mut InputRef) -> Result<Vec<T>, 
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -1385,7 +1409,7 @@ list<…>(item: P, until: Until) -> impl FnMut(&mut InputRef) -> Result<Vec<T>, 
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, ParseInput as _, Parser, parser::{list, separated1}};
+use tokora::{Parse, ParseInput as _, Parser, combinator::{list, separated1}};
 
 fn digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
     match inp.next()? { Some(sp) => match sp.into_data() { Tok::Digit(n) => Ok(n), _ => Err(Error) }, None => Err(Error) }
@@ -1434,13 +1458,13 @@ instead, as that emitter's own unmarked value. This family fires only `Unclosed`
 `Unopened`/`Undelimited` half of the recovery vocabulary (see
 [*Error taxonomy*](#error-taxonomy)).
 
-[`delimited::<D, …>(inner)`](crate::parser::delimited) takes the delimiter pair as its first
+[`delimited::<D, …>(inner)`](crate::combinator::delimited) takes the delimiter pair as its first
 type parameter through the [`TypedDelimiter`](crate::delimiter::TypedDelimiter) capability;
-[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
+[`parens`](crate::combinator::parens)/[`braces`](crate::combinator::braces)/[`brackets`](crate::combinator::brackets)/[`angles`](crate::combinator::angles)
 fix that pair to a built-in, and `parens(inner)` ≡ `delimited::<Paren, …>(inner)` for any
 vocabulary whose two capability declarations agree. Bring your own pair by implementing
 [`TypedDelimiter`](crate::delimiter::TypedDelimiter) for it. This is the single-region
-counterpart to the many-builder's [`delimited::<D>()`](crate::parser::Separated::delimited),
+counterpart to the many-builder's [`delimited::<D>()`](crate::combinator::Separated::delimited),
 which instead wraps a *repetition* and hands its delimiter tokens to a handler.
 
 Every shape has an **attempt twin** that declines — `Ok(None)`, zero consumption — **iff the
@@ -1453,13 +1477,13 @@ would swallow an unclosed group into a decline, where `Ident<` at end of input m
 
 | Atom | One-liner |
 |------|-----------|
-| [`delimited::<D, …>(inner)`](crate::parser::delimited) | one `D`-delimited region into a span-carrying `Delimited` |
-| [`parens(inner)`](crate::parser::parens) | the same, fixed to `( … )` |
-| [`braces(inner)`](crate::parser::braces) | the same, fixed to `{ … }` |
-| [`brackets(inner)`](crate::parser::brackets) | the same, fixed to `[ … ]` |
-| [`angles(inner)`](crate::parser::angles) | the same, fixed to `< … >` |
-| [`try_delimited::<D, …>(inner)`](crate::parser::try_delimited) | the attempt twin: `Ok(None)` iff the opener is absent, committed once it is consumed |
-| [`try_parens`](crate::parser::try_parens) / [`try_braces`](crate::parser::try_braces) / [`try_brackets`](crate::parser::try_brackets) / [`try_angles`](crate::parser::try_angles) | the named attempt twins, pair fixed |
+| [`delimited::<D, …>(inner)`](crate::combinator::delimited) | one `D`-delimited region into a span-carrying `Delimited` |
+| [`parens(inner)`](crate::combinator::parens) | the same, fixed to `( … )` |
+| [`braces(inner)`](crate::combinator::braces) | the same, fixed to `{ … }` |
+| [`brackets(inner)`](crate::combinator::brackets) | the same, fixed to `[ … ]` |
+| [`angles(inner)`](crate::combinator::angles) | the same, fixed to `< … >` |
+| [`try_delimited::<D, …>(inner)`](crate::combinator::try_delimited) | the attempt twin: `Ok(None)` iff the opener is absent, committed once it is consumed |
+| [`try_parens`](crate::combinator::try_parens) / [`try_braces`](crate::combinator::try_braces) / [`try_brackets`](crate::combinator::try_brackets) / [`try_angles`](crate::combinator::try_angles) | the named attempt twins, pair fixed |
 
 ```text
 delimited<D, …>(inner: P) -> impl FnMut(&mut InputRef) -> Result<Delimited<Open, Close, T>, Error>
@@ -1471,10 +1495,15 @@ try_delimited<D, …>(inner) / try_parens(inner) / … -> the same, wrapped in O
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, OpenBrace, CloseBrace, OpenAngle, CloseAngle, Semicolon},
-#   span::Span as _,
-#   token::PunctuatorToken,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{
+#     CloseAngle, CloseBrace, CloseBracket, CloseParen, Comma, OpenAngle, OpenBrace, OpenBracket,
+#     OpenParen, Semicolon,
+#   },
+#   span::Span as _, token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
 # struct Error;
@@ -1564,7 +1593,7 @@ try_delimited<D, …>(inner) / try_parens(inner) / … -> the same, wrapped in O
 # fn digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
 #     match inp.next()? { Some(sp) => match sp.into_data() { Tok::Digit(n) => Ok(n), _ => Err(Error) }, None => Err(Error) }
 # }
-use tokora::{Parse, Parser, punct::Paren, parser::{braces, delimited, parens, try_parens}};
+use tokora::{Parse, Parser, combinator::{braces, delimited, parens, try_parens}, punct::Paren};
 
 // `parens` wraps ONE region and keeps the typed delimiter values and the whole-construct span.
 fn in_parens<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<(u32, SimpleSpan), Error> {
@@ -1601,7 +1630,7 @@ assert!(Parser::with_parser(attempt).parse_str("(1").is_err());
 
 ## CST bracketing
 
-The [`node`](crate::parser::node) family wraps everything a sub-parse commits into one syntax node
+The [`node`](crate::combinator::node) family wraps everything a sub-parse commits into one syntax node
 over the emitter's event channel — the lossless-CST building block (see the lossless-CST chapter,
 and [`crate::cst`]). Because the event channel is defaulted to no-ops on the diagnostic emitters,
 these compile and run **tree-lessly** over [`FatalContext`](crate::FatalContext): the wrap is inert
@@ -1609,9 +1638,9 @@ and the output is just the inner parser's value.
 
 | Combinator | One-liner |
 |------------|-----------|
-| [`node(kind, p)`](crate::parser::node) | wrap `p`'s committed span in a node of `kind` (a `u16`); no node on decline/error |
-| [`node_opt(kind, p)`](crate::parser::node_opt) | as `node`, over a declining `p`, yielding `Option` — a decline records no (empty) node |
-| [`node_at(mark, kind, p)`](crate::parser::node_at) | retro-wrap: anchor the node at a caller-held [`EventMark`](crate::cst::event::EventMark) |
+| [`node(kind, p)`](crate::combinator::node) | wrap `p`'s committed span in a node of `kind` (a `u16`); no node on decline/error |
+| [`node_opt(kind, p)`](crate::combinator::node_opt) | as `node`, over a declining `p`, yielding `Option` — a decline records no (empty) node |
+| [`node_at(mark, kind, p)`](crate::combinator::node_at) | retro-wrap: anchor the node at a caller-held [`EventMark`](crate::cst::EventMark) |
 
 ```text
 node(kind: u16, p: P) -> Node<P>              // P: ParseInput  (or TryParseInput)
@@ -1623,9 +1652,11 @@ node_at(mark: EventMark, kind: u16, p: P) -> NodeAt<P>
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -1703,7 +1734,7 @@ node_at(mark: EventMark, kind: u16, p: P) -> NodeAt<P>
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, ParseInput as _, Parser, parser::{node, node_opt}};
+use tokora::{Parse, ParseInput as _, Parser, combinator::{node, node_opt}};
 use tokora::ParseAttempt;
 
 const NUMBER: u16 = 1;
@@ -1739,10 +1770,10 @@ assert_eq!(Parser::with_parser(opt_number).parse_str("+").unwrap(), None);
 | [`inplace_recover(r)`](crate::ParseInput::inplace_recover) | on error, run `r` from the **error position** (no rewind) — panic-mode resync |
 | [`skip_then_retry(class, pred)`](crate::ParseInput::skip_then_retry) | on error, [`sync_balanced`](crate::InputRef::sync_balanced) to a sync point and retry |
 | [`padded()`](crate::ParseInput::padded) | skip surrounding trivia (also `padded_left`, `padded_right`) |
-| [`labelled(name, p)`](crate::labelled) | stamp `p`'s diagnostics with a *"while parsing name"* context |
+| [`labelled(name, p)`](crate::combinator::labelled) | stamp `p`'s diagnostics with a *"while parsing name"* context |
 
 `recover`/`inplace_recover`/`skip_then_retry` are the error-recovery surface taught in
-[chapter 8](super::ch08_recovery); [`labelled`](crate::labelled) feeds
+[chapter 8](super::ch08_recovery); [`labelled`](crate::combinator::labelled) feeds
 [`Verbose`](crate::emitter::Verbose) diagnostics (see [chapter 7](super::ch07_diagnostics)) and is a
 no-op over a non-collecting emitter.
 
@@ -1750,9 +1781,11 @@ no-op over a non-collecting emitter.
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{Unclosed, UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+#     UnexpectedEot, UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -1830,7 +1863,7 @@ no-op over a non-collecting emitter.
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, ParseInput as _, Parser, labelled};
+use tokora::{Parse, ParseInput as _, Parser, combinator::labelled};
 
 fn digit<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<u32, Error> {
     match inp.next()? { Some(sp) => match sp.into_data() { Tok::Digit(n) => Ok(n), _ => Err(Error) }, None => Err(Error) }
@@ -1865,12 +1898,12 @@ spell with their own parameters (the
 [errors reference](super::ref_errors_emitters_context) says which and why).
 [`ErrorOf<'inp, L, Ctx, Lang>`](crate::ErrorOf) is the shorthand for a context's error type.
 
-| Category | Types (module) |
+| Category | Types |
 |----------|----------------|
-| **Token** | [`UnexpectedToken`](crate::error::token::UnexpectedToken), [`MissingToken`](crate::error::token::MissingToken), [`SeparatedError`](crate::error::token::SeparatedError) (in [`error::token`](crate::error::token)) |
+| **Token** | [`UnexpectedToken`](crate::error::UnexpectedToken), [`MissingToken`](crate::error::MissingToken), [`SeparatedError`](crate::error::SeparatedError) |
 | **End of input** | [`UnexpectedEnd`](crate::error::UnexpectedEnd) with aliases `UnexpectedEot` / `UnexpectedEof` / `UnexpectedEos` |
 | **Lexer** | [`UnknownLexeme`](crate::error::UnknownLexeme), [`Malformed`](crate::error::Malformed) (+ per-literal aliases), [`Invalid`](crate::error::Invalid), hex/unicode escape errors |
-| **Syntax** | [`TooFew`](crate::error::syntax::TooFew), [`TooMany`](crate::error::syntax::TooMany), [`FullContainer`](crate::error::syntax::FullContainer), [`MissingSyntax`](crate::error::syntax::MissingSyntax), [`IncompleteSyntax`](crate::error::IncompleteSyntax) (in [`error::syntax`](crate::error::syntax)) |
+| **Syntax** | [`TooFew`](crate::error::TooFew), [`TooMany`](crate::error::TooMany), [`FullContainer`](crate::error::FullContainer), [`MissingSyntax`](crate::error::MissingSyntax), [`IncompleteSyntax`](crate::error::IncompleteSyntax) |
 | **Delimiter** | [`Unclosed`](crate::error::Unclosed), [`Unopened`](crate::error::Unopened), [`Undelimited`](crate::error::Undelimited), [`Unterminated`](crate::error::Unterminated) |
 | **Pratt** | [`RecursionLimitReached`](crate::error::RecursionLimitReached), [`NonAssociativeChain`](crate::error::NonAssociativeChain) — the descent bound and the second same-power `Neither` operator; both are *returned* by the engines rather than emitted, so each is a required `From` on the pratt entry points rather than a member of the [`FromPrattError`](crate::emitter::FromPrattError) bundle (see the [Pratt reference](super::ref_pratt)) |
 | **Incomplete** | [`Incomplete`](crate::error::Incomplete) — the never-recoverable partial-input signal (see [chapter 9](super::ch09_streaming)) |
@@ -1898,7 +1931,7 @@ tooling included.
 | `unstable-raw` | the raw `InputRef::{save, restore, commit}` checkpoint triple | otherwise the transaction guards are the surface |
 | `conformance` | the `conformance` lexer test kit | implies `std` |
 | `fuzz` | the `fuzz` operation-script harness | implies `std` |
-| `trace` | [`traced`](crate::traced) + combinator instrumentation | implies `std`; zero-cost when off |
+| `trace` | [`traced`](crate::combinator::traced) + combinator instrumentation | implies `std`; zero-cost when off |
 | `bytes` / `bstr` / `hipstr` / `smol-bytes` | extra [`Source`](crate::Source)/[`Slice`](crate::Slice) backends | none implies `std`; each pins one upstream major |
 | `smallvec` / `heapless` / `tinyvec` | extra [`Container`](crate::container::Container) backends | `smallvec` implies `alloc` |
 
@@ -1913,7 +1946,7 @@ sit on stays unconditional — `Parser`/`Parse`/`parse*`, the `ParseInput` / `Tr
 | Feature | Enables | Where in this chapter |
 |---------|---------|-----------------------|
 | `combinators` *(default)* | the umbrella: every family below | all of it |
-| `any` | [`Any`](crate::parser::Any) and its `spanned`/`sliced`/`located` shapes | [Atoms](#atoms-parsers-from-nothing) |
+| `any` | [`Any`](crate::combinator::Any) and its `spanned`/`sliced`/`located` shapes | [Atoms](#atoms-parsers-from-nothing) |
 | `fail` | `fail` / `fail_with` | [Atoms](#atoms-parsers-from-nothing) |
 | `filter` | `filter`, `filter_with`, `filter_map`, `filter_map_with` | [Value transforms](#transforming-output) |
 | `fold` | the fold drivers (`fold_while`, `try_fold*`, `rfold*`); implies `many` | [Repetition & folding](#repetition-folding) |
@@ -1937,5 +1970,5 @@ token-level conversions — including the built-in
 over a sufficient error type) the default-policy family is available at once, and so are the
 conversions. A count or separator policy (`at_most` / `bounded` / `require_leading` /
 `require_trailing`) needs the wider tier,
-[`PolicyParseContext`](crate::PolicyParseContext), which carries the same bound plus
+[`PolicyParseContext`](crate::parse::PolicyParseContext), which carries the same bound plus
 `TooManyEmitter` and the missing-separator pair.

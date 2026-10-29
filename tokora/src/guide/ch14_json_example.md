@@ -80,7 +80,7 @@ assert_eq!(<Token as PunctuatorToken>::open_bracket(), Some(Kind::BracketOpen));
 ```
 
 The public surface includes [`token::PunctuatorToken`](crate::token::PunctuatorToken),
-[`parser::expect`](crate::parser::expect), [`ParseInput::map`](crate::ParseInput::map),
+[`combinator::expect`](crate::combinator::expect), [`ParseInput::map`](crate::ParseInput::map),
 [`ParseInput::ignored`](crate::ParseInput::ignored), [`ParseInput::then`](crate::ParseInput::then),
 [`ParseInput::then_ignore`](crate::ParseInput::then_ignore),
 [`ParseInput::separated_by_comma_while`](crate::ParseInput::separated_by_comma_while),
@@ -119,8 +119,8 @@ diagnostic.
 # #[derive(Debug, PartialEq)]
 # enum JsonError { Lex, Unexpected, End }
 # impl From<LexError> for JsonError { fn from(_: LexError) -> Self { Self::Lex } }
-# impl<'inp> From<tokora::error::token::UnexpectedTokenOf<'inp, JsonLexer<'inp>>> for JsonError {
-#   fn from(_: tokora::error::token::UnexpectedTokenOf<'inp, JsonLexer<'inp>>) -> Self { Self::Unexpected }
+# impl<'inp> From<tokora::error::UnexpectedTokenOf<'inp, JsonLexer<'inp>>> for JsonError {
+#   fn from(_: tokora::error::UnexpectedTokenOf<'inp, JsonLexer<'inp>>) -> Self { Self::Unexpected }
 # }
 # impl<H, O, Lang: ?Sized, Set: Clone + 'static> From<tokora::error::UnexpectedEnd<H, O, Lang, Set>> for JsonError {
 #   fn from(_: tokora::error::UnexpectedEnd<H, O, Lang, Set>) -> Self { Self::End }
@@ -128,7 +128,9 @@ diagnostic.
 # impl<'inp, L: tokora::Lexer<'inp>, Lang: ?Sized> tokora::emitter::FromUnclosed<'inp, L, Lang> for JsonError {
 #   fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { Self::End }
 # }
-use tokora::{Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, parser::expect, utils::Expected};
+use tokora::{
+  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, combinator::expect, utils::Expected,
+};
 
 fn boolean<'inp, Ctx>(
   input: &mut InputRef<'inp, '_, JsonLexer<'inp>, Ctx>,
@@ -182,24 +184,23 @@ and sequences the bracket parsers around that comma-separated core. A tentative 
 decline without consuming when the closer is next; malformed separators remain errors. This
 focused parser follows the same comma-separated array path and makes those failures executable.
 For the ready-made single-region alternative to this bracket hand-roll, see the
-[`brackets`](crate::parser::brackets) free shape (and its
-[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`angles`](crate::parser::angles)/[`delimited`](crate::parser::delimited)
+[`brackets`](crate::combinator::brackets) free shape (and its
+[`parens`](crate::combinator::parens)/[`braces`](crate::combinator::braces)/[`angles`](crate::combinator::angles)/[`delimited`](crate::combinator::delimited)
 siblings):
 
 ```rust
 # use tokora::{
-#   Accumulator, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, Token as TokenT,
-#   TryParseInput,
-#   emitter::{FullContainerEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter},
-#   error::{
-#     UnexpectedEot,
-#     syntax::{FullContainer, MissingSyntaxOf},
-#     token::{MissingTokenOf, SeparatedErrorOf, UnexpectedTokenOf},
+#   Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+#   Token as TokenT, TryParseInput,
+#   emitter::{
+#     FullContainerEmitter, SeparatedEmitter, UnexpectedLeadingSeparatorEmitter,
+#     UnexpectedTrailingSeparatorEmitter,
 #   },
-#   logos::{self, Logos},
-#   punct::{CloseBracket, Comma, OpenBracket},
-#   token::PunctuatorToken,
-#   ParseAttempt,
+#   error::{
+#     FullContainer, MissingSyntaxOf, MissingTokenOf, SeparatedErrorOf, UnexpectedEot,
+#     UnexpectedTokenOf,
+#   },
+#   logos::{self, Logos}, punct::{CloseBracket, Comma, OpenBracket}, token::PunctuatorToken,
 # };
 # #[derive(Clone, Debug, Logos)]
 # #[logos(crate = logos, skip r"[ \t\r\n]+")]
@@ -299,7 +300,7 @@ assert!(Parser::new().apply(array).parse_str("[1,]").is_err());
 A field is `string.then_ignore(Colon::parse).then(json_value)`. `object` uses
 `separated_by_comma_while` with `JsonValue::decide`, an external continuation decision over a
 one-token [`cache::Peeked`](crate::cache::Peeked) window. The decision returns
-[`parser::Action`](crate::parser::Action) to stop before a closing brace or continue for another
+[`parse::Action`](crate::parse::Action) to stop before a closing brace or continue for another
 field.
 
 ## Implement tentative `try_json_value`
@@ -312,7 +313,7 @@ right behavior for an array element when the next token is a delimiter.
 ## Implement committed `json_value` with an expected-kind diagnostic
 
 `json_value` uses [`ParseChoice::peek_then_choice`](crate::ParseChoice::peek_then_choice)
-instead. Its chooser maps a valid start to a [`Branch`](crate::Branch) and constructs an
+instead. Its chooser maps a valid start to a [`Branch`](crate::parse::Branch) and constructs an
 unexpected-token error with [`utils::Expected`](crate::utils::Expected) for every other token.
 The difference is semantic: tentative choice says `not an element here`; committed choice says
 `a JSON value is required here`.

@@ -6,7 +6,7 @@ stopped?
 Testing a parser's grammar is ordinary work: feed it strings, check the trees. What is *not*
 ordinary is the layer underneath. tokora's input machinery does things to your lexer that no
 hand-written driver would: it truncates the token cache after a rollback, it re-lexes a rewound
-region on demand, it resumes a lexer from a saved [`State`](crate::State) at an arbitrary
+region on demand, it resumes a lexer from a saved [`State`](crate::state::State) at an arbitrary
 offset. Every one of those moves is sound **only because the [`Lexer`](crate::Lexer) contract
 holds**. If your lexer quietly violates it — a token whose identity depends on lookahead past
 its own span, a `with_state` + [`bump`](crate::Lexer::bump) resume that does not reproduce the
@@ -143,7 +143,7 @@ searched and found nothing it could stand behind.
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedToken};
+# use tokora::error::{UnexpectedEot, UnexpectedToken};
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
@@ -157,9 +157,8 @@ searched and found nothing it could stand behind.
 #   fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { CalcError::UnexpectedEnd }
 # }
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser,
+  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, combinator::traced,
   conformance::Harness,
-  traced,
 };
 
 // A corpus: the shapes Calc actually sees, plus the empty source, which is where
@@ -248,7 +247,7 @@ produce them.
 3. **Golden-test the *diagnostics*** under [`Verbose`](crate::emitter::Verbose) — chapter 7's
    [`diagnostics()`](crate::emitter::Verbose::diagnostics) view is a stable, orderable thing to
    snapshot. A recovery regression shows up here as a changed hole, and nowhere else.
-4. **Reach for [`traced`](crate::traced)** the moment a parse surprises you, and delete
+4. **Reach for [`traced`](crate::combinator::traced)** the moment a parse surprises you, and delete
    nothing afterwards — it costs nothing with the feature off.
 
 ## Where to go next
@@ -260,7 +259,7 @@ fundamentals are complete.
 The four programs in `examples/` — `json`, `calculator`, `s_expression`, and `c_expression` —
 are canonical complete programs in the same style, each leaning on a different corner of the
 crate. Next: [chapter 11](super::ch11_real_parser) uses them to show how a real parser comes
-together. Read [`InputRef`](crate::InputRef) for the primitives, the [`parser`](crate::parser)
+together. Read [`InputRef`](crate::InputRef) for the primitives, the [`combinator`](crate::combinator)
 module for the combinator catalogue, and the [`emitter`](crate::emitter) module when you decide
 what your diagnostics should *do*. When something behaves in a way the documentation did not
 predict, that is a bug in one of them — the guide's doctests exist so that it is never quietly

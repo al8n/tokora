@@ -38,7 +38,7 @@ macro_rules! ignored_parser {
 mod cst_coverage {
   use rowan::{GreenNodeBuilder, Language as RowanLanguage, SyntaxKind, SyntaxNode};
   use tokora::{
-    cst::{Element, Node, NodeChildren, SyntaxTreeBuilder, cast, error::NodeMismatch},
+    cst::{Element, Node, NodeChildren, NodeMismatch, SyntaxTreeBuilder, cast},
     syntax::Syntax,
     utils::{ArrayDeque, typenum::U0},
   };
@@ -124,7 +124,7 @@ mod cst_coverage {
   impl Node<Lang> for InnerNode {
     fn try_cast_node(
       syntax: SyntaxNode<Lang>,
-    ) -> Result<Self, tokora::cst::error::SyntaxError<Self, Lang>> {
+    ) -> Result<Self, tokora::cst::SyntaxError<Self, Lang>> {
       if Self::castable(syntax.kind()) {
         Ok(Self(syntax))
       } else {
@@ -589,7 +589,7 @@ fn inputref_foldrn_zero_limit() {
 
 #[cfg(test)]
 mod cmp_coverage {
-  use tokora::utils::cmp::Equivalent;
+  use tokora::utils::Equivalent;
 
   #[test]
   fn str_equivalent_to_bytes() {
@@ -812,7 +812,7 @@ mod lexer_coverage {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// parser/mod.rs — Parser construction methods
+// parse/driver.rs — Parser construction methods
 // ═══════════════════════════════════════════════════════════════════════════════
 
 fn parse_num<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<i64, ()>

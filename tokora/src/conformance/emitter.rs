@@ -18,7 +18,7 @@
 //! byte-identical to one a legal single parse could produce.
 //!
 //! So the obligation is stated, and made runnable. This is the same answer the crate gives for
-//! the [`Cache`](crate::Cache) queue laws and the [`Lexer`] contract clauses: a
+//! the [`Cache`](crate::cache::Cache) queue laws and the [`Lexer`] contract clauses: a
 //! contract that only exists as prose is a contract nobody can check.
 //!
 //! # What it checks

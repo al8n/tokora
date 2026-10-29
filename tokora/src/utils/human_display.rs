@@ -40,7 +40,7 @@ use super::PositionedChar;
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokora::utils::human_display::DisplayHuman;
+/// use tokora::utils::DisplayHuman;
 ///
 /// let ascii_byte: u8 = b'A';
 /// let non_ascii_byte: u8 = 200;
@@ -52,7 +52,7 @@ use super::PositionedChar;
 /// ## Byte Slice Handling
 ///
 /// ```rust
-/// use tokora::utils::human_display::DisplayHuman;
+/// use tokora::utils::DisplayHuman;
 ///
 /// let utf8_bytes = b"hello";
 /// let invalid_utf8 = &[0xFF, 0xFE];
@@ -67,7 +67,7 @@ use super::PositionedChar;
 /// ## With Positioned Characters
 ///
 /// ```rust
-/// use tokora::utils::{PositionedChar, human_display::DisplayHuman};
+/// use tokora::utils::{DisplayHuman, PositionedChar};
 ///
 /// let pc = PositionedChar::with_position('x', 42);
 ///
@@ -78,7 +78,7 @@ use super::PositionedChar;
 /// ## Custom Implementation
 ///
 /// ```rust,ignore
-/// use tokora::utils::human_display::DisplayHuman;
+/// use tokora::utils::DisplayHuman;
 ///
 /// struct Token {
 ///     kind: TokenKind,
@@ -109,7 +109,7 @@ pub trait DisplayHuman {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::utils::human_display::DisplayHuman;
+  /// use tokora::utils::DisplayHuman;
   ///
   /// let bytes = b"hello";
   /// println!("{}", bytes.display()); // Prints: hello
@@ -140,7 +140,7 @@ impl DisplayHuman for u8 {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::utils::human_display::DisplayHuman;
+  /// use tokora::utils::DisplayHuman;
   ///
   /// let ascii = b'A';
   /// let non_ascii: u8 = 200;
@@ -181,7 +181,7 @@ impl<T: DisplayHuman> DisplayHuman for PositionedChar<T> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::utils::{PositionedChar, human_display::DisplayHuman};
+  /// use tokora::utils::{DisplayHuman, PositionedChar};
   ///
   /// let pc = PositionedChar::with_position('x', 100);
   /// assert_eq!(format!("{}", pc.display()), "x");
@@ -215,7 +215,7 @@ impl DisplayHuman for [char] {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::utils::human_display::DisplayHuman;
+  /// use tokora::utils::DisplayHuman;
   ///
   /// let chars = ['h', 'e', 'l', 'l', 'o'];
   /// assert_eq!(format!("{}", chars.display()), "hello");
@@ -251,7 +251,7 @@ impl<const N: usize> DisplayHuman for [char; N] {
 /// # Examples
 ///
 /// ```rust
-/// use tokora::utils::human_display::DisplayHuman;
+/// use tokora::utils::DisplayHuman;
 ///
 /// let bytes = b"Hello, world!";
 /// let display_wrapper = bytes.display();

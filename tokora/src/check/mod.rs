@@ -1,11 +1,11 @@
-use crate::parser::ByRef;
+use crate::combinator::ByRef;
 
 /// A trait for checking
 pub trait Check<T: ?Sized, O = bool> {
   /// Check against the target.
   ///
   /// Not to be confused with [`Lexer::check`](crate::Lexer::check) (probes the lexer for a
-  /// deferred error) or [`State::check`](crate::State::check) (probes a lexer state for
+  /// deferred error) or [`State::check`](crate::state::State::check) (probes a lexer state for
   /// validity): this is the parser-side predicate the combinators run against a value.
   fn check(&self, target: &T) -> O;
 

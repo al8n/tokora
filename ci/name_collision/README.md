@@ -94,8 +94,8 @@ plan are each fatal. A run over zero names is not a pass.
 all.** `glob_name` created the competing name as a unit struct and referenced it in a *type*
 position — but `pinned`, `while_head`, `while_kind`, `dispatch_take` and `try_dispatch_take`
 are free functions, which live in the *value* namespace. It also globbed only the crate
-root, so it could not reach `tokora::parser::{dispatch_take, try_dispatch_take}` or
-`tokora::cst::kinds`. And `glob_macro` declared a local macro and never imported or invoked
+root, so it could not reach `dispatch_take` and `try_dispatch_take` in `tokora::combinator`
+(the `parser` module before 0.12.0) or `tokora::cst::kinds`. And `glob_macro` declared a local macro and never imported or invoked
 tokora's, so all four macro names were untested. **Ten of the thirteen glob rows reported
 clean while constructing no collision.** The inventory now records each name's module path
 *and* namespace kind, and the generator refuses a kind it has no template for.

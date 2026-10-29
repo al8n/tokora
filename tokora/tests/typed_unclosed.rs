@@ -8,14 +8,14 @@ use tokora::EmitterView;
 use tokora::{
   Accumulator, FatalContext, InputRef, Parse, ParseContext, ParseInput, Parser, SimpleSpan,
   cache::Peeked,
+  combinator::{DelimitedBy, delimited},
   delimiter::{Delimiter, DelimiterKind},
   emitter::FromUnclosed,
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, Unclosed, UnexpectedEot,
+    UnexpectedToken,
   },
-  parser::{Action, DelimitedBy, delimited},
+  parse::Action,
   punct::{Brace, Bracket, CloseBrace, CloseBracket, OpenBrace, OpenBracket},
   utils::CowStr,
 };

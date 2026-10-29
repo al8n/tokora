@@ -19,21 +19,21 @@ use tokora::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
   ParserContext, SimpleSpan, Token as TokenTrait, TryParseInput,
   cache::Peeked,
+  combinator::With,
   emitter::{
     FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, Silent, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntax, MissingSyntaxOf, MissingTokenOf, SeparatedError, TooFew, TooMany,
+    UnexpectedEot, UnexpectedToken, UnexpectedTokenOf,
   },
   input::Cursor,
-  parser::{Action, With},
+  parse::Action,
   punct::Bracket,
   span::Spanned,
-  utils::{CowStr, marker::PhantomSpan},
+  utils::{CowStr, PhantomSpan},
 };
 
 use common::{TestLexer, Token};

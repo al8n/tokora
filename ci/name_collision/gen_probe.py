@@ -39,7 +39,7 @@ use tokora::{
   Emitter, InputRef, Lexer, ParseContext, ParseInput, ScanLookahead, Token as TokenT,
   TryParseInput, Parse, Parser, ParserContext,
   emitter::Silent,
-  error::{Unclosed, UnexpectedEot, token::UnexpectedToken},
+  error::{Unclosed, UnexpectedEot},
   lexer::LogosLexer,
   logos::{self, Logos},
   ParseAttempt,
@@ -139,11 +139,6 @@ impl<O, Lang: ?Sized, Set: Clone + 'static> From<UnexpectedEot<O, Lang, Set>> fo
     PErr
   }
 }
-impl<'a, T, K: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, K, S, Lang>> for PErr {
-  fn from(_: UnexpectedToken<'a, T, K, S, Lang>) -> Self {
-    PErr
-  }
-}
 impl<'a, L: Lexer<'a>, Lang: ?Sized> tokora::emitter::FromUnclosed<'a, L, Lang> for PErr {
   fn from_unclosed<D>(_: Unclosed<D, L::Span, Lang>) -> Self {
     PErr
@@ -188,6 +183,25 @@ pub fn parse_num<'inp>(
 // would not be testing anything a consumer can write.
 '''
 
+# The fixture error's `From<UnexpectedToken>`, appended to every ITEM template and to no glob one.
+#
+# `UnexpectedToken` has no spelling both sides of 0.12.0 accept: 0.11 publishes it only inside
+# the public `error::token` submodule, and 0.12.0 (#350, which made that submodule a private file)
+# only at `tokora::error::UnexpectedToken`. A probe is byte-identical on both
+# sides, so naming it in `FIXTURE` would make every row's fixture fail on one side — INCONCL across
+# the whole plan, measuring nothing. A glob probe needs no conversion at all, so `FIXTURE` stays
+# free of the name; an item template rides the error type, so it gets the conversion at the
+# 0.12.0 path, which every base ref from 0.12.0 on has.
+TOKEN_ERROR_FIXTURE = r'''
+impl<'a, T, K: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>> for PErr {
+  fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self {
+    PErr
+  }
+}
+'''
+
+ITEM_FIXTURE = FIXTURE + TOKEN_ERROR_FIXTURE
+
 WITNESS = r'''
 #[cfg(test)]
 mod witness {
@@ -213,7 +227,7 @@ mod witness {
 CST_NODE_FIXTURE = r'''
 use rowan::{Language as RowanLanguage, SyntaxKind as RawKind, SyntaxNode};
 use tokora::{
-  cst::{Element, Node, error::NodeMismatch},
+  cst::{Element, Node, NodeMismatch},
   syntax::Syntax,
   utils::{ArrayDeque, typenum::U0},
 };
@@ -288,7 +302,7 @@ impl Element<PLang> for ProbeNode {
 impl Node<PLang> for ProbeNode {
   fn try_cast_node(
     syntax: SyntaxNode<PLang>,
-  ) -> Result<Self, tokora::cst::error::SyntaxError<Self, PLang>> {
+  ) -> Result<Self, tokora::cst::SyntaxError<Self, PLang>> {
     if Self::castable(syntax.kind()) {
       Ok(Self(syntax))
     } else {
@@ -424,7 +438,7 @@ pub fn lexer_value() -> PLexer<'static> {
 # WHY the subject satisfies the bound, and never read a green `ok*` on a `&mut`-self row as
 # evidence that the subject was right. `EMITTER_SUBJECT_FIXTURE` above is the worked example.
 
-# ── The subject for `tokora::types::recovery`, and WHY IT IS NOT `Ident` ─────────────────
+# ── The subject for the `types` recovery traits, and WHY IT IS NOT `Ident` ───────────────
 #
 # Both traits are implemented for `Ident` and for `Keyword`, and `Ident` is the one already in
 # the shared fixture's import list — so it is the obvious pick and it is the WRONG one, which
@@ -449,7 +463,7 @@ pub fn lexer_value() -> PLexer<'static> {
 RECOVERY_CARRIER = r'''
 use tokora::types::Keyword;
 
-/// A carrier tokora implements both `types::recovery` traits for, and which declares no
+/// A carrier tokora implements both recovery traits for, and which declares no
 /// inherent item of any probed name. Built directly: `Keyword::new` is public and const, and a
 /// parse would hand the value back through a grammar rather than to the line making the call.
 pub fn recovery_carrier() -> Keyword<&'static str> {
@@ -458,11 +472,11 @@ pub fn recovery_carrier() -> Keyword<&'static str> {
 '''
 
 RECOVERY_STATE_FIXTURE = (
-    new_module_imports("tokora::types::recovery", "RecoveryState") + RECOVERY_CARRIER
+    new_module_imports("tokora::types", "RecoveryState") + RECOVERY_CARRIER
 )
 
 FROM_COMPONENTS_FIXTURE = (
-    new_module_imports("tokora::types::recovery", "FromComponents") + RECOVERY_CARRIER
+    new_module_imports("tokora::types", "FromComponents") + RECOVERY_CARRIER
 )
 
 
@@ -562,7 +576,7 @@ TRAITS = {
     "State": {
         "recvr": "()",
         "self_ty": None,
-        "scope": "use tokora::State;",
+        "scope": "use tokora::state::State;",
         "fixture": None,
     },
     # `Token`'s subject is the fixture's own `Tok`, which implements it a few lines above.
@@ -636,8 +650,8 @@ TRAITS = {
     #
     # `recvr` is each trait's own module-mate rather than a shared subject reached across a
     # second module: `RecursionLimiter` (`impl RecursionTracker for RecursionLimiter`) sits in
-    # `state::recursion_tracker` beside `RecursionTrackerExt` itself, and `Limiter`
-    # (`impl Tracker for Limiter`) sits in `state::tracker` beside `TrackerExt`. Either row
+    # `state/recursion_tracker/mod.rs` beside `RecursionTrackerExt` itself, and `Limiter`
+    # (`impl Tracker for Limiter`) sits in `state/tracker/mod.rs` beside `TrackerExt`. Either row
     # could have ridden `Limiter` instead — it implements `Tracker`, `TokenTracker` AND
     # `RecursionTracker` all at once, constructed with `Limiter::new()` — but that would pull a
     # second glob into `RecursionTrackerExt`'s scope for no gain: one type per trait, from the
@@ -667,13 +681,13 @@ TRAITS = {
     "TrackerExt": {
         "recvr": "Limiter::new()",
         "self_ty": None,
-        "scope": "use tokora::state::tracker::*;",
+        "scope": "use tokora::state::*;",
         "fixture": None,
     },
     "RecursionTrackerExt": {
         "recvr": "RecursionLimiter::new()",
         "self_ty": None,
-        "scope": "use tokora::state::recursion_tracker::*;",
+        "scope": "use tokora::state::*;",
         "fixture": None,
     },
     # ── `RecoveryState` / `FromComponents` — a NEW trait in a NEW module ────────────────────
@@ -681,12 +695,13 @@ TRAITS = {
     # The first owners here that the same diff introduces AND that live in a module the base ref
     # does not have. Both facts matter and they are answered in different places:
     #
-    #   * the module is new, so a direct `use tokora::types::recovery::RecoveryState;` fails on
-    #     base as `unresolved import `tokora::types::recovery`` — the MODULE, with the owner
-    #     suppressed — and every row scores INCONCL for want of a diagnostic naming the owner.
-    #     `new_module_imports` splits that into two errors, the second `unresolved import
-    #     `new_module::RecoveryState``. Measured on `a218439`, exactly the `tokora::diagnostic`
-    #     shape that function was written for.
+    #   * the module was new (`types::recovery`, public until 0.12.0 made it a private file and
+    #     re-exported its items from `types`), so a direct `use` of the trait through it failed on
+    #     base as an unresolved import of the MODULE, with the owner suppressed — and every row
+    #     scored INCONCL for want of a diagnostic naming the owner. `new_module_imports` splits
+    #     that into two errors, the second `unresolved import `new_module::RecoveryState``.
+    #     Measured on `a218439`, exactly the `tokora::diagnostic` shape that function was written
+    #     for. It now globs `tokora::types`, the module the traits are public in.
     #   * the owner is new, so the BASE side cannot compile and no row here can reach `loud`,
     #     `silent` or `ok*` — those all need a before-state. The three verdicts a new owner can
     #     reach are `new-owner` (head takes the call), `new-owner-err` (head refuses to choose)
@@ -791,7 +806,7 @@ ERROR_SUBJECTS = {
         "path": "RecursionLimitReached::<usize, ()>",
         "imports": (
             "use tokora::error::RecursionLimitReached;\n"
-            "use tokora::state::recursion_tracker::{RecursionLimiter, RecursionTracker};\n"
+            "use tokora::state::{RecursionLimiter, RecursionTracker};\n"
         ),
         # Two `increase`s against a limitation of 1, which is the type's own doc example.
         "build": (
@@ -827,7 +842,7 @@ ERROR_SUBJECTS = {
         "accessors": {
             "offset": "usize",
             "offset_ref": "&usize",
-            "exceeded": "tokora::state::recursion_tracker::RecursionLimitExceeded",
+            "exceeded": "tokora::state::RecursionLimitExceeded",
             "depth": "usize",
             "limitation": "usize",
         },
@@ -889,7 +904,7 @@ def error_subject_method(name, owner, spelling):
         if spelling == "used"
         else f"subject.{name}({args});"
     )
-    return FIXTURE + f"""
+    return ITEM_FIXTURE + f"""
 {imports}
 pub trait ConsumerExt {{
   fn {name}(&self) -> u8;
@@ -928,7 +943,7 @@ def error_subject_assoc_fn(name, owner, spelling):
         if spelling == "used"
         else f"{path}::{name}({args});"
     )
-    return FIXTURE + f"""
+    return ITEM_FIXTURE + f"""
 {imports}
 pub trait ConsumerAssoc {{
   fn {name}() -> u8;
@@ -1246,7 +1261,7 @@ INHERENT_SUBJECTS = {
     # `Probe` is minted by the same diff as its three items, so it takes this table's
     # new-owner shape: the base side cannot name the type at all, and only the head side's
     # binding has to be right. Its module (`tokora::state`) is NOT new, so a plain
-    # `use tokora::Probe;` already names the owner in the base-side diagnostic and the
+    # `use tokora::state::Probe;` already names the owner in the base-side diagnostic and the
     # `new_module_imports` indirection the `diagnostic` types need buys nothing here.
     #
     # It is `Copy` and both accessors are `&self`, so the receiver walk is `Code`'s exactly:
@@ -1257,7 +1272,7 @@ INHERENT_SUBJECTS = {
     # alphabetically last owner declaring a name and `Location` < `Probe`. It is written into
     # this table for that reason and stays in the other three for the reason their header gives.
     "Probe": {
-        "imports": "use tokora::Probe;\n",
+        "imports": "use tokora::state::Probe;\n",
         "fixture": "",
         "ty": "Probe",
         "setup": "",
@@ -1370,7 +1385,7 @@ def inherent_subject_method(name, owner, spelling):
         if spelling == "used"
         else f"subject.{name}({args});"
     )
-    return FIXTURE + fixture + f"""
+    return ITEM_FIXTURE + fixture + f"""
 {imports}
 pub trait ConsumerExt {{
   fn {name}(&mut self) -> u8;
@@ -1407,7 +1422,7 @@ def inherent_subject_assoc_fn(name, owner, spelling):
         if spelling == "used"
         else f"<{ty}>::{name}({args});"
     )
-    return FIXTURE + fixture + f"""
+    return ITEM_FIXTURE + fixture + f"""
 {imports}
 pub trait ConsumerAssoc {{
   fn {name}() -> u8;
@@ -1449,8 +1464,8 @@ def inherent_method(name, owner, spelling):
         # and every row would agree — the `InputRef::recursion` shape recorded in
         # no_collision.txt.
         call = f"let _v: u8 = st.{name}();" if spelling == "used" else f"st.{name}();"
-        return FIXTURE + f"""
-use tokora::ParseState;
+        return ITEM_FIXTURE + f"""
+use tokora::parse::ParseState;
 
 pub trait ConsumerExt {{
   fn {name}(&mut self) -> u8;
@@ -1479,7 +1494,7 @@ fn drive() {{
         # `mut` because the consumer's receiver is `&mut self`; tokora's takes `self` by value,
         # so on the head side its candidate is found one step EARLIER in the receiver walk.
         call = f"let _v: u8 = c.{name}();" if spelling == "used" else f"c.{name}();"
-        return FIXTURE + f"""
+        return ITEM_FIXTURE + f"""
 pub trait ConsumerExt {{
   fn {name}(&mut self) -> u8;
 }}
@@ -1499,7 +1514,7 @@ fn drive() {{
 """ + WITNESS
     if owner == "InputRef":
         call = f"let _v: u8 = inp.{name}();" if spelling == "used" else f"inp.{name}();"
-        return FIXTURE + f"""
+        return ITEM_FIXTURE + f"""
 pub trait ConsumerExt {{
   fn {name}(&mut self) -> u8;
 }}
@@ -1537,7 +1552,7 @@ fn drive() {{
         # consumer's item is found at the `&mut Errors` pick, before any of that, so what the
         # base side runs is the consumer's — which is exactly the before-state this row needs.
         call = f"let _v: u8 = e.{name}();" if spelling == "used" else f"e.{name}();"
-        return FIXTURE + f"""
+        return ITEM_FIXTURE + f"""
 use tokora::error::Errors;
 
 pub trait ConsumerExt {{
@@ -1559,7 +1574,7 @@ fn drive() {{
 """ + WITNESS
     if owner == "ParseAttempt":
         call = f"let _v: u8 = a.{name}();" if spelling == "used" else f"a.{name}();"
-        return FIXTURE + f"""
+        return ITEM_FIXTURE + f"""
 pub trait ConsumerExt {{
   fn {name}(&self) -> u8;
 }}
@@ -1621,7 +1636,7 @@ fn drive() {{
             if spelling == "used"
             else f"subject.{name}();"
         )
-        return FIXTURE + f"""
+        return ITEM_FIXTURE + f"""
 use tokora::input::TokenBudgetTally;
 
 pub trait ConsumerExt {{
@@ -1672,8 +1687,8 @@ def inherent_assoc_fn(name, owner, spelling):
             if spelling == "used"
             else f"RecursionLimiter::{name}();"
         )
-        return FIXTURE + f'''
-use tokora::state::recursion_tracker::RecursionLimiter;
+        return ITEM_FIXTURE + f'''
+use tokora::state::RecursionLimiter;
 
 pub trait ConsumerAssoc {{
   fn {name}() -> u8;
@@ -1699,7 +1714,7 @@ fn drive() {{
         if spelling == "used"
         else f"Ident::<(), ()>::{name}();"
     )
-    return FIXTURE + f'''
+    return ITEM_FIXTURE + f'''
 pub trait ConsumerAssoc {{
   fn {name}() -> u8;
 }}
@@ -1825,7 +1840,7 @@ def trait_method(name, owner, spelling):
     _pty = "&'static str" if name in ("labelled", "traced") else "A"
     params = "" if args == "" else f", _a: {_pty}"
     generic = "" if name in ("labelled", "traced") or args == "" else "<A>"
-    return FIXTURE + (rec["fixture"] or "") + f'''
+    return ITEM_FIXTURE + (rec["fixture"] or "") + f'''
 pub trait ConsumerComb {{
   fn {name}{generic}({recv}{params}) -> u8;
 }}
@@ -1871,7 +1886,7 @@ def trait_assoc_fn(name, owner, spelling):
     call = f"let _v: u8 = {ty}::{name}();" if spelling == "used" else f"{ty}::{name}();"
     # The glob and the collision live in a child module so the glob cannot shadow the shared
     # fixture's own imports; `use super::*` is what the witness module already relies on.
-    return FIXTURE + (rec["fixture"] or "") + f'''
+    return ITEM_FIXTURE + (rec["fixture"] or "") + f'''
 mod clash {{
   use super::*;
 {trait_scope(rec)}
@@ -1917,7 +1932,7 @@ def trait_assoc_const(name, owner, spelling):
     rec = trait_subject(name, owner, "self_ty")
     ty = rec["self_ty"]
     read = f"let v: u8 = {ty}::{name};" if spelling == "used" else f"let v: u8 = {ty}::{name}; let _ = v;"
-    return FIXTURE + (rec["fixture"] or "") + f'''
+    return ITEM_FIXTURE + (rec["fixture"] or "") + f'''
 mod clash {{
   use super::*;
 {trait_scope(rec)}
@@ -1961,7 +1976,8 @@ def glob_name(name, owner, spelling):
 
     `owner` is `<module-path>:<kind>` from the inventory. Both halves are load-bearing and
     both were wrong once: globbing the crate root for a name that lives in
-    `tokora::parser` brings nothing in, and referencing a FUNCTION in the type namespace
+    `tokora::combinator` (the `parser` module before 0.12.0) brings nothing in, and referencing a
+    FUNCTION in the type namespace
     (`&name`) collides with nothing because functions live in the value namespace. Either
     mistake yields a probe that compiles clean on both sides and has tested nothing.
     """

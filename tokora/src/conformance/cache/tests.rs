@@ -26,7 +26,7 @@ use crate::{
     Cache, CachedToken, CachedTokenOf, CachedTokenRefOf, DefaultCache, MaybeRefCachedTokenOf,
     PeekedTokenExt,
   },
-  error::token::UnexpectedToken,
+  error::UnexpectedToken,
   lexer::LogosLexer,
   span::Spanned,
 };
@@ -47,7 +47,7 @@ struct CState {
   lexed: u32,
 }
 
-impl crate::State for CState {
+impl crate::state::State for CState {
   type Error = ();
 
   fn check(&self) -> Result<(), Self::Error> {
@@ -1164,7 +1164,7 @@ where
     &'p self,
     buf: &mut hybrid_arraydeque::ArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
   ) where
-    W: crate::Window,
+    W: crate::parse::Window,
   {
     let seen = self.peeks.get();
     self.peeks.set(seen + 1);
@@ -1187,7 +1187,7 @@ where
     // The window off the TYPE, not off the buffer. `buf.capacity()` is the same number, but the
     // two cells below are statements about a cache that branches on its `W` parameter, and this
     // is where that parameter is read.
-    let w = <<W as crate::Window>::CAPACITY as Unsigned>::USIZE;
+    let w = <<W as crate::parse::Window>::CAPACITY as Unsigned>::USIZE;
     let mut fill = buf.remaining_capacity().min(self.items.len());
     if D == SINGLE_SLOT_PEEK_TAKES_THE_BACK && w == 1 {
       // A one-slot fast path — the shape `peek_one`'s default composition asks for — reaching

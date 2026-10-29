@@ -3,8 +3,8 @@
 
 //! Tests targeting specific uncovered code paths in:
 //!   - `input/input_ref/try_expect.rs`     — cached token paths
-//!   - `parser/many/sep/parse/mod.rs`      — error-recovery branches
-//!   - `parser/many/sep_while/parse/mod.rs` — error-recovery branches
+//!   - `combinator/many/sep/parse/mod.rs`      — error-recovery branches
+//!   - `combinator/many/sep_while/parse/mod.rs` — error-recovery branches
 //!   - `input/input_ref/sync_through.rs`   — sync_through variants
 //!   - `cache/option.rs`                   — rewind edge cases
 //!   - `input/input_ref/consume_cached.rs` — consume_cached variants
@@ -25,12 +25,11 @@ use tokora::{
     UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntax, MissingSyntaxOf, MissingTokenOf, SeparatedError, TooFew, TooMany,
+    UnexpectedEot, UnexpectedToken, UnexpectedTokenOf,
   },
   input::Cursor,
-  parser::Action,
+  parse::Action,
   span::Spanned,
   utils::{CowStr, Expected},
 };

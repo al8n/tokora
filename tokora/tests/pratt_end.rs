@@ -19,9 +19,9 @@ use tokora::{
   emitter::PrattEmitter,
   error::{
     NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
-    token::UnexpectedTokenOf,
+    UnexpectedTokenOf,
   },
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
   token::PrattToken,
 };
 

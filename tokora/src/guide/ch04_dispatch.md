@@ -13,25 +13,25 @@ Three surfaces, one decision rule:
   handler yourself over a peek window (any fan-in, your own failure diagnostic);
 - [`dispatch_on_kind`](crate::ParseChoice::dispatch_on_kind) — the decision **is a static
   table**: `table[i]` is the viable first-token kind for branch `i`. On a miss, the
-  emitted [`UnexpectedToken`](crate::error::token::UnexpectedToken) carries the whole
+  emitted [`UnexpectedToken`](crate::error::UnexpectedToken) carries the whole
   table as an `expected one of …` set ([`Expected::OneOf`](crate::utils::Expected)); at
   end of input it is [`UnexpectedEnd`](crate::error::UnexpectedEnd) instead. Use
   `peek_then_choice` when several kinds route to one branch; the table form is one kind
   per branch;
 - [`select!`](crate::select) — the table is written **beside the patterns**, one arm per
   kind, and the classified head moves into its arm *by value*. Its runtime is
-  [`dispatch_take`](crate::parser::dispatch_take), and the declining twin
+  [`dispatch_take`](crate::combinator::dispatch_take), and the declining twin
   [`try_select!`](crate::try_select) /
-  [`try_dispatch_take`](crate::parser::try_dispatch_take) is the same shape that returns
+  [`try_dispatch_take`](crate::combinator::try_dispatch_take) is the same shape that returns
   [`Decline`](crate::ParseAttempt::Decline) on a head outside the table
   instead of committing.
 
 ## Peeked versus fused
 
-[`DispatchOnKind`](crate::parser::DispatchOnKind) is the *peek* shape: the decision token
+[`DispatchOnKind`](crate::combinator::DispatchOnKind) is the *peek* shape: the decision token
 is peeked (staged in the token cache, including a lexer-state clone), the winning branch —
 any [`ParseInput`](crate::ParseInput), with the token still on the input — consumes it back
-out. [`FusedDispatchOnKind`](crate::parser::FusedDispatchOnKind), built by
+out. [`FusedDispatchOnKind`](crate::combinator::FusedDispatchOnKind), built by
 [`fused_dispatch_on_kind`](crate::ParseTokenChoice::fused_dispatch_on_kind), is the
 *lex-once* twin: the dispatcher consumes the head token as part of classifying it and hands
 it to the winning arm (an `FnMut(head, inp)` — the [`ParseTokenChoice`](crate::ParseTokenChoice)
@@ -40,7 +40,7 @@ only the hit path differs. **When each wins:** hot sum-type loops (a statement l
 value loop) prefer the fused shape — the saved stage/unstage matters most when the lexer
 state is expensive to clone — while branches that are self-contained `ParseInput` parsers,
 reused elsewhere or wanting the head token left on the input, keep the peek shape. And per
-the [dense-discriminant note](crate::parser::DispatchOnKind#performance-keep-token-kind-discriminants-dense),
+the [dense-discriminant note](crate::combinator::DispatchOnKind#performance-keep-token-kind-discriminants-dense),
 keep your kind enum's discriminants dense (`0, 1, 2, …`) so kind matches beside the table
 compile to jump tables.
 
@@ -118,9 +118,8 @@ All three appear below, and the loop at the end asserts they agree.
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
 # use tokora::error::{
-#   UnexpectedEnd,
-#   syntax::{FullContainer, MissingSyntax, TooFew},
-#   token::{MissingToken, SeparatedError, UnexpectedToken},
+#   FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, UnexpectedEnd,
+#   UnexpectedToken,
 # };
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }

@@ -3,8 +3,8 @@
 //! The twin evaluates arithmetic with the **token-level** Pratt API
 //! ([`InputRef::pratt`](tokora::InputRef::pratt)), which folds into synthetic tokens and is
 //! documented CST-unsupported. So this twin uses the **typed** Pratt driver
-//! ([`pratt`](tokora::parser::pratt)) and its CST seam,
-//! [`with_cst_kinds`](tokora::parser::Pratt::with_cst_kinds): the driver holds one mark per
+//! ([`pratt`](tokora::pratt::pratt)) and its CST seam,
+//! [`with_cst_kinds`](tokora::pratt::Pratt::with_cst_kinds): the driver holds one mark per
 //! expression and wraps each fold in a node whose kind a classifier picks from the operator.
 //! No evaluation happens — the lossless tree is the whole product, and the fold functions do
 //! nothing but satisfy the driver.
@@ -20,9 +20,9 @@ use tokora::{
   cache::DefaultCache,
   cst::{CstProfile, KindValidator, parse_lossless},
   emitter::{CstEmitter, Fatal},
-  error::token::UnexpectedTokenOf,
+  error::UnexpectedTokenOf,
   logos::{self, Logos},
-  parser::{PrattFoldOp, PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, pratt},
+  pratt::{PrattFoldOp, PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, pratt},
 };
 
 // ── Lossless lexer ──────────────────────────────────────────────────────────────

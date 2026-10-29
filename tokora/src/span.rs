@@ -3,7 +3,10 @@ use core::{
   ops::{AddAssign, Range},
 };
 
-use crate::utils::{IntoComponents, marker::Ignored};
+use crate::utils::{Ignored, IntoComponents};
+
+// Declared in the private `located` module and public here, the module of its concept (#350).
+pub use crate::located::Located;
 
 /// A trait representing a span in the source code.
 pub trait Span {

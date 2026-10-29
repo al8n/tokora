@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::utils::human_display::DisplayHuman;
+use crate::utils::DisplayHuman;
 
 impl DisplayHuman for bstr_1::BStr {
   #[inline]

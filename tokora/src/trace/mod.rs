@@ -51,9 +51,9 @@ macro_rules! trace_event {
 ///
 /// ```
 /// # #[cfg(all(feature = "trace", feature = "logos_0_16", feature = "std"))]
-/// # fn demo<'inp, P>(inner: P) -> tokora::Traced<P> {
+/// # fn demo<'inp, P>(inner: P) -> tokora::combinator::Traced<P> {
 /// // `expr` will print `> expr … / < expr = ok …` around `inner`'s run.
-/// tokora::traced("expr", inner)
+/// tokora::combinator::traced("expr", inner)
 /// # }
 /// ```
 ///
@@ -93,7 +93,7 @@ mod on {
   use super::Traced;
   use crate::{
     Emitter, InputRef, Lexer, ParseContext, ParseInput, TryParseInput, input::Completeness,
-    try_parse::input::ParseAttempt,
+    parse::try_parse::input::ParseAttempt,
   };
 
   /// The disarm half of a [`traced`] scope's depth bracket.

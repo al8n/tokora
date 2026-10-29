@@ -14,20 +14,24 @@ pub use to_equivalent::*;
 /// Re-export of hybrid-arraydeque for direct access.
 pub use hybrid_arraydeque::{self as arraydeque, ArrayDeque, typenum};
 
-/// A module for custom comparing traits.
-pub mod cmp;
-/// A module for displaying in a human-friendly way.
-pub mod human_display;
-/// A module for displaying in SDL.
-pub mod sdl_display;
-/// A module for displaying in syntax trees.
-pub mod syntax_tree_display;
+// Comparing traits, the human-friendly, SDL and syntax-tree display traits, and marker types.
+// Their public path is `tokora::utils::Item` (#350, rule 5); the submodules stay `pub(crate)` so
+// the crate's own paths into them keep resolving.
+pub use cmp::*;
+pub use human_display::*;
+pub use marker::*;
+pub use sdl_display::*;
+pub use syntax_tree_display::*;
+
+pub(crate) mod cmp;
+pub(crate) mod human_display;
+pub(crate) mod sdl_display;
+pub(crate) mod syntax_tree_display;
 
 /// Common knowledge types for lexing and parsing.
 pub mod knowledge;
 
-/// Marker types used in various utilities.
-pub mod marker;
+pub(crate) mod marker;
 
 mod delimited;
 mod downcast;
@@ -104,8 +108,8 @@ pub(crate) mod to_equivalent;
 /// tokora#320 is that defect: the carriers in [`types`](crate::types) returned `(Span, Payload)`
 /// while holding a recovery status too, so a parse placeholder and a real one decomposed
 /// identically and every rebuild reported the placeholder as valid syntax. Their `Components`
-/// now carries [`Status`](crate::types::recovery::Status) as well, and
-/// [`FromComponents`](crate::types::recovery::FromComponents) is the inverse. A zero-sized marker such as `PhantomData<Lang>` is the one thing
+/// now carries [`Status`](crate::types::Status) as well, and
+/// [`FromComponents`](crate::types::FromComponents) is the inverse. A zero-sized marker such as `PhantomData<Lang>` is the one thing
 /// a decomposition may leave out, because the rebuild names it in its own type.
 ///
 /// ## Component Ordering Convention

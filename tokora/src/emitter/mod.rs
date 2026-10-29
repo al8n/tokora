@@ -1,10 +1,6 @@
 use crate::{
   Lexer,
-  error::{
-    UnexpectedEot,
-    syntax::{FullContainer, TooFew, TooMany},
-    token::UnexpectedTokenOf,
-  },
+  error::{FullContainer, TooFew, TooMany, UnexpectedEot, UnexpectedTokenOf},
   input::Cursor,
   span::Spanned,
 };
@@ -70,7 +66,7 @@ mod view;
   not(any(feature = "std", feature = "alloc")),
   doc = " Tokora provides several complete implementations: [`Fatal`], `Verbose`,"
 )]
-/// [`Silent`], and [`Ignored`](crate::utils::marker::Ignored). However, the atomic trait system
+/// [`Silent`], and [`Ignored`](crate::utils::Ignored). However, the atomic trait system
 /// encourages you to create custom emitters tailored to your specific needs by implementing only the
 /// traits relevant to your parser.
 ///
@@ -206,7 +202,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// existing emit paths reclassifies through it.
   ///
   /// Like the diagnostic-label capabilities, this is a method with a **blanket no-op default**:
-  /// stateless emitters ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::marker::Ignored))
+  /// stateless emitters ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::Ignored))
   /// inherit the empty body — a fail-fast parse has no warning sink, so the warning is dropped
   #[cfg_attr(
     any(feature = "std", feature = "alloc"),
@@ -225,7 +221,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// [`checkpoint`](Self::checkpoint) and drop them in [`rewind`](Self::rewind), exactly as it
   /// does for errors — one emission timeline across every channel. The rewind story is the
   /// reason: a speculative branch ([`attempt`](crate::InputRef::attempt), a
-  /// [`Transaction`](crate::Transaction) rollback) unwinds *everything* it emitted, and a
+  /// [`Transaction`](crate::input::Transaction) rollback) unwinds *everything* it emitted, and a
   /// warning recorded outside the checkpointed state would survive the rollback as a phantom —
   /// attributed to a branch the parse abandoned. Nothing in the crate can detect that
   #[cfg_attr(
@@ -254,7 +250,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   ///
   /// Like [`emit_warning`](Self::emit_warning) and the diagnostic-label capabilities, this is
   /// an additive capability with a **blanket no-op default**: stateless emitters ([`Fatal`],
-  /// [`Silent`], [`Ignored`](crate::utils::marker::Ignored)) inherit the empty body — a
+  /// [`Silent`], [`Ignored`](crate::utils::Ignored)) inherit the empty body — a
   /// fail-fast parse keeps no record of recovery skips, so the note is dropped and parsing
   #[cfg_attr(
     any(feature = "std", feature = "alloc"),
@@ -319,7 +315,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   )]
   /// every recorded error, so a subsequent `rewind` can drop *exactly* the
   /// emissions made after this point. Stateless emitters ([`Fatal`], [`Silent`],
-  /// [`Ignored`](crate::utils::marker::Ignored)) keep nothing to rewind and use
+  /// [`Ignored`](crate::utils::Ignored)) keep nothing to rewind and use
   /// the default `0`.
   ///
   /// # Contract: `checkpoint` is fail-atomic, and a returned mark is settled exactly once
@@ -460,7 +456,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// # Contract: this may run mid-unwind, and must not panic *there*
   ///
   /// A rolling-back guard settles in its `Drop`, and a `Drop` can run while a panic is already
-  /// in flight — including for a [`Commit`](crate::Commit)-policy guard, which takes the
+  /// in flight — including for a [`Commit`](crate::input::Commit)-policy guard, which takes the
   /// rollback arm on the unwind edge. A panic raised here mid-unwind is a double panic and
   /// aborts the process. The clause [`release`](Self::release) already carries applies in full:
   /// stay observably total on the restore path. The crate's rollback-on-drop guarantee is
@@ -573,7 +569,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
     doc = " on a per-mark table — `Verbose`, whose mark is just its log length and whose rewind"
   )]
   /// pops entries by value — legitimately inherit the no-op default, and stateless emitters
-  /// ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::marker::Ignored)) have nothing to
+  /// ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::Ignored)) have nothing to
   /// reclaim in the first place. One mark is released at most once, and marks arrive
   /// last-in, first-out on the crate's own paths (guards and scans settle newest-first).
   /// Two settles are newest-first *within their own family* but may interleave the families,
@@ -669,11 +665,11 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   }
 
   /// Pushes a diagnostic label onto the emitter's open-label stack, opening a
-  /// *"while parsing X"* context for the duration of a [`labelled`](crate::labelled)
+  /// *"while parsing X"* context for the duration of a [`labelled`](crate::combinator::labelled)
   /// sub-parse.
   ///
   /// This is an additive capability with a **blanket no-op default**: stateless
-  /// emitters ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::marker::Ignored))
+  /// emitters ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::Ignored))
   /// inherit the empty body, so a label pair around them costs nothing — the two
   #[cfg_attr(
     any(feature = "std", feature = "alloc"),
@@ -691,7 +687,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   ///
   /// Every `enter_label` is paired with exactly one [`exit_label`](Self::exit_label), and the
   /// pairs nest — the sequence an implementation observes is a well-bracketed push/pop
-  /// stream. [`labelled`](crate::labelled) guarantees this by construction: the pop lives in a
+  /// stream. [`labelled`](crate::combinator::labelled) guarantees this by construction: the pop lives in a
   /// drop guard, so it runs on **every** exit of the sub-parse — success, `?`-propagation, and
   /// panic unwind alike. No label state needs to ride a
   /// checkpoint, because the live stack follows the call structure of the wrapper scopes and
@@ -708,7 +704,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   )]
   /// enter never exited — is not detected: nothing panics, but every later snapshot carries
   /// the drifted context, so diagnostics are attributed to the wrong *"while parsing X"*
-  /// scope. Route labels through [`labelled`](crate::labelled) rather than calling this pair
+  /// scope. Route labels through [`labelled`](crate::combinator::labelled) rather than calling this pair
   /// directly.
   #[inline(always)]
   fn enter_label(&mut self, label: &'static str) {
@@ -716,7 +712,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   }
 
   /// Pops the most recently [`enter_label`](Self::enter_label)ed label as its
-  /// [`labelled`](crate::labelled) scope closes.
+  /// [`labelled`](crate::combinator::labelled) scope closes.
   ///
   #[cfg_attr(
     any(feature = "std", feature = "alloc"),
@@ -732,7 +728,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   ///
   /// # Contract: this may arrive from a drop during a panic unwind
   ///
-  /// [`labelled`](crate::labelled)'s pop is a drop-guard call — that is how the pairing law
+  /// [`labelled`](crate::combinator::labelled)'s pop is a drop-guard call — that is how the pairing law
   /// survives an unwind through the sub-parse — so this can run while a panic is in flight and
   /// must not panic there. A panic raised mid-unwind aborts the process; same posture as
   /// [`release`](Self::release) and [`rewind`](Self::rewind).
@@ -947,7 +943,7 @@ where
   not(any(feature = "std", feature = "alloc")),
   doc = " Every emitter this crate offers: `Verbose`, [`Fatal`], [`Silent`],"
 )]
-/// [`Ignored`](crate::utils::marker::Ignored), and `&mut U` for value-keyed `U`, so a borrowed
+/// [`Ignored`](crate::utils::Ignored), and `&mut U` for value-keyed `U`, so a borrowed
 /// emitter composes exactly like an owned one. Implement it for your own emitter if — and only
 /// if — it keeps the promise above.
 ///
@@ -963,7 +959,7 @@ pub trait ValueKeyedEmitter {}
 impl<Error, S, Lang: ?Sized> ValueKeyedEmitter for Verbose<Error, S, Lang> {}
 impl<T: ?Sized, Lang: ?Sized> ValueKeyedEmitter for Fatal<T, Lang> {}
 impl<T: ?Sized, Lang: ?Sized> ValueKeyedEmitter for Silent<T, Lang> {}
-impl<T: ?Sized> ValueKeyedEmitter for crate::utils::marker::Ignored<T> {}
+impl<T: ?Sized> ValueKeyedEmitter for crate::utils::Ignored<T> {}
 
 /// Forwarded so a **borrowed** emitter is as composable as an owned one: `Emitter` is
 /// implemented for `&mut U`, and without this a value-keyed emitter would lose the property the
@@ -1027,7 +1023,7 @@ where
 /// [`NonAssociativeChain`](crate::error::NonAssociativeChain)). The **typed** engine
 #[cfg_attr(
   feature = "pratt",
-  doc = " ([`Pratt`](crate::parser::Pratt)) names no emitter sub-trait at all: it builds its"
+  doc = " ([`Pratt`](crate::pratt::Pratt)) names no emitter sub-trait at all: it builds its"
 )]
 #[cfg_attr(
   not(feature = "pratt"),
@@ -1068,7 +1064,7 @@ where
 /// into the seven-bound ladder:
 ///
 /// ```rust
-/// use tokora::{ComposableEmitter, Emitter, Lexer};
+/// use tokora::{Emitter, Lexer, emitter::ComposableEmitter};
 /// use tokora::emitter::{
 ///   FullContainerEmitter, SeparatedEmitter, TooFewEmitter, UnexpectedLeadingSeparatorEmitter,
 ///   UnexpectedTrailingSeparatorEmitter, UnclosedEmitter,
@@ -1148,10 +1144,10 @@ where
   not(any(feature = "std", feature = "alloc")),
   doc = " All four in-crate emitters ([`Fatal`], `Verbose`, [`Silent`],"
 )]
-/// [`Ignored`](crate::utils::marker::Ignored)) implement the three added sub-traits already,
+/// [`Ignored`](crate::utils::Ignored)) implement the three added sub-traits already,
 /// so the blanket impl covers them with no new impls.
 ///
-/// The context-side twin is [`PolicyParseContext`](crate::PolicyParseContext).
+/// The context-side twin is [`PolicyParseContext`](crate::parse::PolicyParseContext).
 pub trait PolicyComposableEmitter<'inp, L, Lang: ?Sized = ()>:
   ComposableEmitter<'inp, L, Lang>
   + TooManyEmitter<'inp, L, Lang>
@@ -1212,7 +1208,7 @@ where
 ///
 /// ```rust
 /// use tokora::{Lexer, Token, emitter::{FromTokenErrors, FromUnclosed}};
-/// use tokora::error::{UnexpectedEot, token::UnexpectedTokenOf};
+/// use tokora::error::{UnexpectedEot, UnexpectedTokenOf};
 ///
 /// // The ladder a leaf atom would otherwise carry…
 /// fn ladder<'inp, L, E>()

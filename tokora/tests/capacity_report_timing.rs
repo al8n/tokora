@@ -32,9 +32,8 @@ use tokora::{
   Accumulator, InputRef, Parse, ParseAttempt, ParseInput, Parser, ParserContext, TryParseInput,
   emitter::Fatal,
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
   utils::{ArrayDeque, typenum::U1},
 };

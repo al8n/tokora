@@ -1,11 +1,15 @@
 use core::convert::Infallible;
 
-/// Trackers for preventing infinite recursion in parsers.
-pub mod recursion_tracker;
-/// A token tracker for tracking tokens in a lexer.
-pub mod token_tracker;
-/// A tracker for tracking recursion depth and tokens.
-pub mod tracker;
+pub use recursion_tracker::*;
+pub use token_tracker::*;
+pub use tracker::*;
+
+// The recursion tracker, the token tracker, and the tracker combining both. Each item's public
+// path is `tokora::state::Item` (#350, rule 5); the submodules stay `pub(crate)` so the crate's
+// own paths into them keep resolving.
+pub(crate) mod recursion_tracker;
+pub(crate) mod token_tracker;
+pub(crate) mod tracker;
 
 /// A recorded read-frontier value together with **which scan recorded it**.
 ///
@@ -40,7 +44,7 @@ pub mod tracker;
 /// driver trusts for a different item.
 ///
 /// ```
-/// use tokora::Probe;
+/// use tokora::state::Probe;
 ///
 /// // A callback that matched `[ \t]+` at 3..5 and then inspected the two bytes at 5 and 6.
 /// // `span.end` is 5 — the first offset OUTSIDE the match — so two bytes from there reach 6,
@@ -118,7 +122,7 @@ pub trait State: core::fmt::Debug + Clone {
 
   /// Checks the state for errors.
   ///
-  /// Not to be confused with [`Check::check`](crate::Check::check) (the parser-side value
+  /// Not to be confused with [`Check::check`](crate::parse::Check::check) (the parser-side value
   /// predicate) or [`Lexer::check`](crate::Lexer::check) (the lexer-level probe that
   /// typically wraps this one into the token's error type).
   fn check(&self) -> Result<(), Self::Error>;

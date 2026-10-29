@@ -45,7 +45,7 @@ fn silent_emit_error_returns_ok() {
 
 #[test]
 fn silent_emit_unexpected_token_returns_ok() {
-  use crate::error::token::UnexpectedToken;
+  use crate::error::UnexpectedToken;
   use crate::lexer::DummyToken;
 
   let mut s: Silent<()> = Silent::new();

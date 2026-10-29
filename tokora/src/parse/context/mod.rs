@@ -8,12 +8,12 @@
 use core::marker::PhantomData;
 
 use crate::{
-  Cache, Emitter, Lexer,
-  cache::DefaultCache,
+  Emitter, Lexer,
+  cache::{Cache, DefaultCache},
   emitter::{ComposableEmitter, Fatal, FromTokenErrors, PolicyComposableEmitter},
   input::{InputContext, TokenBudget},
   lexer::SliceOf,
-  state::recursion_tracker::RecursionLimiter,
+  state::RecursionLimiter,
 };
 
 /// A context that provides emitter and cache configuration for parsing.
@@ -145,15 +145,14 @@ where
   /// ```rust
   /// # use core::convert::Infallible;
   /// # use tokora::{
-  /// #   InputRef, Lexer, Parse as _, Parser, SimpleSpan, Source, Token,
-  /// #   emitter::Fatal, input::TokenBudget, span::Span as _,
-  /// #   state::recursion_tracker::RecursionLimiter,
+  /// #   InputRef, Lexer, Parse as _, Parser, SimpleSpan, Source, Token, emitter::Fatal,
+  /// #   input::TokenBudget, span::Span as _, state::RecursionLimiter,
   /// # };
   /// # use tokora::ParserContext;
   /// # #[derive(Debug, PartialEq)] struct Error;
   /// # impl From<Infallible> for Error { fn from(e: Infallible) -> Self { match e {} } }
   /// # impl tokora::error::MaybeIncomplete for Error {}
-  /// # impl<'a, T, K: Clone, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for Error { fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Error } }
+  /// # impl<'a, T, K: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>> for Error { fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Error } }
   /// # impl<O, Lang: ?Sized> From<tokora::error::RecursionLimitReached<O, Lang>> for Error { fn from(_: tokora::error::RecursionLimitReached<O, Lang>) -> Self { Error } }
   /// # #[derive(Debug, Clone, PartialEq)] struct Digit(u32);
   /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)] struct DigitKind;
@@ -219,15 +218,14 @@ where
   /// ```rust
   /// # use core::convert::Infallible;
   /// # use tokora::{
-  /// #   InputRef, Lexer, Parse as _, Parser, SimpleSpan, Source, Token,
-  /// #   emitter::Fatal, input::TokenBudget, span::Span as _,
-  /// #   state::recursion_tracker::RecursionLimiter,
+  /// #   InputRef, Lexer, Parse as _, Parser, SimpleSpan, Source, Token, emitter::Fatal,
+  /// #   input::TokenBudget, span::Span as _, state::RecursionLimiter,
   /// # };
   /// # use tokora::ParserContext;
   /// # #[derive(Debug, PartialEq)] struct Error;
   /// # impl From<Infallible> for Error { fn from(e: Infallible) -> Self { match e {} } }
   /// # impl tokora::error::MaybeIncomplete for Error {}
-  /// # impl<'a, T, K: Clone, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for Error { fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Error } }
+  /// # impl<'a, T, K: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>> for Error { fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self { Error } }
   /// # impl<O, Lang: ?Sized> From<tokora::error::RecursionLimitReached<O, Lang>> for Error { fn from(_: tokora::error::RecursionLimitReached<O, Lang>) -> Self { Error } }
   /// # #[derive(Debug, Clone, PartialEq)] struct Digit(u32);
   /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)] struct DigitKind;
@@ -394,7 +392,7 @@ pub type ErrorOf<'inp, L, Ctx, Lang> =
 ///   FromUnclosed, SeparatedEmitter, TooFewEmitter, UnclosedEmitter,
 ///   UnexpectedTrailingSeparatorEmitter,
 /// };
-/// use tokora::error::{UnexpectedEot, token::UnexpectedTokenOf};
+/// use tokora::error::{UnexpectedEot, UnexpectedTokenOf};
 ///
 /// fn needs_diagnostics<'inp, L, E>()
 /// where

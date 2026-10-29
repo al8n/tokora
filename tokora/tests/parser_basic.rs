@@ -11,11 +11,12 @@ mod common;
 use common::E;
 
 use tokora::{
-  Accumulator, DefaultCache, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext,
-  ParseInput, Parser, ParserContext, Token as TokenTrait, TryParseInput,
+  Accumulator, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, Token as TokenTrait, TryParseInput,
+  cache::DefaultCache,
+  combinator::{Any, Empty, fail},
   emitter::{FullContainerEmitter, TooFewEmitter, TooManyEmitter},
   input::Cursor,
-  parser::{Any, Empty, fail},
   span::Spanned,
   utils::Expected,
 };
@@ -30,7 +31,7 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,
 {
-  use tokora::parser::expect;
+  use tokora::combinator::expect;
   expect(|t: &Token| {
     if matches!(t, Token::Num(_)) {
       Ok(())
@@ -487,7 +488,7 @@ impl<'inp> Emitter<'inp, TestLexer<'inp>> for TestEmitter {
 
   fn emit_unexpected_token(
     &mut self,
-    _: tokora::error::token::UnexpectedTokenOf<'inp, TestLexer<'inp>>,
+    _: tokora::error::UnexpectedTokenOf<'inp, TestLexer<'inp>>,
   ) -> Result<(), E>
   where
     TestLexer<'inp>: Lexer<'inp>,

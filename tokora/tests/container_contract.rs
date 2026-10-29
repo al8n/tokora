@@ -31,12 +31,13 @@ use common::{TestLexer, Token};
 use tinyvec_1::SliceVec;
 use tokora::{
   Accumulator, InputRef, Parse, ParseAttempt, ParseInput, Parser, ParserContext, TryParseInput,
+  combinator::Collect,
   container::Container,
   emitter::Verbose,
-  error::syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-  error::token::{MissingToken, SeparatedError, UnexpectedToken},
-  error::{Unclosed, UnexpectedEot},
-  parser::Collect,
+  error::{
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
+  },
 };
 
 // ── A payload-preserving diagnostic ───────────────────────────────────────────

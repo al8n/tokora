@@ -7,14 +7,14 @@
 //! [`SavepointId`](super::SavepointId) panics in every build.
 
 use crate::{
-  Commit, InputRef, Token,
+  InputRef, Token,
   cache::DefaultCache,
   emitter::{Fatal, Silent, Verbose},
-  error::token::UnexpectedToken,
-  input::Input,
+  error::UnexpectedToken,
+  input::{Commit, Input},
   lexer::LogosLexer,
   span::SimpleSpan,
-  state::token_tracker::{TokenLimitExceeded, TokenLimiter},
+  state::{TokenLimitExceeded, TokenLimiter},
 };
 
 // ── Fixture: a number lexer over a by-value token limiter (mirrors the sibling) ──
@@ -828,7 +828,7 @@ where
 
   fn emit_unexpected_token(
     &mut self,
-    err: crate::error::token::UnexpectedTokenOf<'inp, L, Lang>,
+    err: crate::error::UnexpectedTokenOf<'inp, L, Lang>,
   ) -> Result<(), NumErr> {
     let _ = err;
     Ok(())

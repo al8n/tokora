@@ -25,11 +25,11 @@ use crate::{
   InputRef, Parse, ParseInput, Parser, Token, TryParseInput,
   cache::DefaultCache,
   emitter::{Fatal, Verbose},
-  error::{Incomplete, MaybeIncomplete, token::UnexpectedToken},
-  input::{ClosePayload, CloseStatus, Complete, Input, Partial, SurfaceIncomplete, parse_partial},
+  error::{Incomplete, MaybeIncomplete, UnexpectedToken},
+  input::{ClosePayload, CloseStatus, Complete, Input, Partial, SurfaceIncomplete},
   lexer::LogosLexer,
+  parse::{parse_partial, try_parse::input::ParseAttempt},
   state::State,
-  try_parse::input::ParseAttempt,
 };
 
 // An error type that can carry the partial-input incomplete sentinel. `From<Incomplete>` is the
@@ -79,8 +79,8 @@ impl<O, Lang: ?Sized> From<crate::error::UnexpectedEot<O, Lang>> for PErr {
   }
 }
 
-impl<S, Lang: ?Sized> From<crate::error::syntax::FullContainer<S, Lang>> for PErr {
-  fn from(_: crate::error::syntax::FullContainer<S, Lang>) -> Self {
+impl<S, Lang: ?Sized> From<crate::error::FullContainer<S, Lang>> for PErr {
+  fn from(_: crate::error::FullContainer<S, Lang>) -> Self {
     PErr::Lex
   }
 }
@@ -1941,7 +1941,7 @@ where
   Ctx::Emitter: crate::Emitter<'inp, Lex<'inp>, Error = PErr>,
   Cmpl: SurfaceIncomplete<'inp, Lex<'inp>, Ctx, ()>,
 {
-  use crate::try_parse::input::{Accept, Decline};
+  use crate::parse::try_parse::input::{Accept, Decline};
   match inp.try_expect(|t| matches!(t.data(), PTok::Word))? {
     None => Ok(Decline),
     Some(_) => match inp.try_expect(|t| matches!(t.data(), PTok::Num))? {
@@ -2478,7 +2478,7 @@ where
 
   fn emit_unexpected_token(
     &mut self,
-    err: crate::error::token::UnexpectedTokenOf<'inp, L, Lang>,
+    err: crate::error::UnexpectedTokenOf<'inp, L, Lang>,
   ) -> Result<(), PErr> {
     self.emitted.push(*err.span_ref());
     Ok(())
@@ -3097,7 +3097,7 @@ impl Token<'_> for DTok {
 ///
 /// `probed` is the maximum offset the trial consulted, **inclusive**, with a byte the trial
 /// wanted and did not find counting at the offset it was wanted. It does not live in
-/// [`State`](crate::State): it is set by the `lex` that produced the item and read by the
+/// [`State`](crate::state::State): it is set by the `lex` that produced the item and read by the
 /// `read_frontier` that answers about it, and nothing has to survive the input layer rebuilding
 /// the lexer.
 struct DurationLexer<'a, const LIES: bool> {
@@ -3677,11 +3677,11 @@ impl State for PeekRec {
     Ok(())
   }
 
-  fn take_probe(&mut self) -> Option<crate::Probe> {
+  fn take_probe(&mut self) -> Option<crate::state::Probe> {
     self
       .probe
       .take()
-      .map(|(from, to)| crate::Probe::new(from, to))
+      .map(|(from, to)| crate::state::Probe::new(from, to))
   }
 }
 

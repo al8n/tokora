@@ -2,11 +2,11 @@
 
 //! tokora#276: the typed Pratt driver instantiated at a concrete **unsized** `Lang` brand.
 //!
-//! `pratt/`'s public constructor, [`pratt`](tokora::parser::pratt), was the one production in
+//! `pratt/`'s public constructor, [`pratt`](tokora::pratt::pratt), was the one production in
 //! the crate whose own generic parameter list forced `Lang: Sized` while every other
 //! generalised production — 1,030 sites, including `Dialect::Lang: ?Sized` itself — accepts
 //! `?Sized`. The bound was never load-bearing: the driver's only `Lang`-shaped field is
-//! `PhantomData<Lang>` (`parser/pratt/expr.rs`), which needs no size; every trait the function
+//! `PhantomData<Lang>` (`pratt/expr.rs`), which needs no size; every trait the function
 //! depends on ([`ParsePrattLHS`], [`ParsePrattRHS`], [`ParseContext`]) already spells `Lang:
 //! ?Sized`. Relaxing `pratt`'s own list to match is therefore a four-character diff.
 //!
@@ -21,10 +21,8 @@ mod common;
 use tokora::{
   Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser,
   emitter::FromUnclosed,
-  error::{
-    NonAssociativeChain, RecursionLimitReached, Unclosed, UnexpectedEnd, token::UnexpectedToken,
-  },
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  error::{NonAssociativeChain, RecursionLimitReached, Unclosed, UnexpectedEnd, UnexpectedToken},
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
 };
 
 use common::{Power, TestLexer, Token};

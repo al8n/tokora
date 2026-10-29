@@ -9,9 +9,9 @@ use common::{TestLexer, Token, TokenKind};
 use tokora::{
   InputRef, Parse, ParseAttempt, ParseChoice, ParseContext, ParseInput, ParseTokenChoice, Parser,
   ParserContext, SimpleSpan, Token as TokenTrait, TryParseInput,
+  combinator::Any,
   emitter::Verbose,
-  error::{UnexpectedEot, token::UnexpectedToken},
-  parser::Any,
+  error::{UnexpectedEot, UnexpectedToken},
   span::Spanned,
   utils::Expected,
 };

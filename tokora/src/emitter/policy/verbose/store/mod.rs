@@ -500,7 +500,7 @@ impl<Error, S> Store<Error, S> {
     self.stack.push(label);
   }
 
-  /// Pops the innermost open label as its [`labelled`](crate::labelled) scope closes.
+  /// Pops the innermost open label as its [`labelled`](crate::combinator::labelled) scope closes.
   #[inline(always)]
   pub(super) fn exit_label(&mut self) {
     self.stack.pop();

@@ -47,7 +47,7 @@ The event stream is therefore not an optimization detail; it is the data structu
 
 ## The event vocabulary
 
-The vocabulary lives in [`cst::event`](crate::cst::event), and it is rowan-free — it compiles in
+The vocabulary lives in [`cst`](crate::cst#the-event-vocabulary), and it is rowan-free — it compiles in
 every build, because the *recording* half of the CST design (the marks, the `node` combinators) is
 unconditional; only the *materializing* half is gated on `rowan`. The log itself is a `Vec` of one
 crate-internal `Event` enum, and the governing law is stated up front: **the parse-time event buffer
@@ -65,7 +65,7 @@ because* it is reversed on rewind, so the law holds observationally.)
 ### The six events
 
 - **`StartNode { kind, forward_parent }`** opens a node of `kind`, closed by a matching `FinishNode`
-  — *unless* `kind` is the reserved [`TOMBSTONE`](crate::cst::event::TOMBSTONE) value (`u16::MAX`), in
+  — *unless* `kind` is the reserved [`TOMBSTONE`](crate::cst::TOMBSTONE) value (`u16::MAX`), in
   which case the slot is an **inert mark** that pairs with no finish and materializes into nothing.
   The `forward_parent` field is the journaled acceleration; ignore it until the sink.
 - **`Token { kind, span }`** is one committed token: its dialect-mapped kind and its source span,
@@ -90,7 +90,7 @@ because* it is reversed on rewind, so the law holds observationally.)
   that made it.
 - **`Demote { target }`** un-opens the node the `StartNode` at `target` opened — the **failing exit**
   of an up-front bracket, and the exact mirror of `StartAt`: an appended event naming an earlier
-  slot, never an in-place rewrite of it. It is what a [`node`](crate::parser::node()) bracket emits
+  slot, never an in-place rewrite of it. It is what a [`node`](crate::combinator::node()) bracket emits
   when its sub-parser unwinds with an error (see [the combinator surface](#the-combinator-surface)),
   so a stream carries one per failing bracket and a parse with no failing bracket carries none.
   Appending rather than rewriting is what gives the bracket's two exits **one** rollback law: a
@@ -124,7 +124,7 @@ rather than building a wrong tree.
 
 A retro-wrap needs a handle to the tombstone it will anchor at, and an up-front bracket needs one to
 the start it may have to demote. Both are the same handle — an
-[`EventMark`](crate::cst::event::EventMark), one positional surface with one staleness rule rather
+[`EventMark`](crate::cst::EventMark), one positional surface with one staleness rule rather
 than two — and the subtle part is that *index-in-bounds is not
 validity*. Truncate-and-regrow is the normal backtracking rhythm, so "the buffer has an event at
 index 3" says nothing about whether that event is still the slot a mark was minted for — a
@@ -326,7 +326,7 @@ of arising from it: a sink that had to degrade a rewind it could not perform ref
 describes a rollback that never happened.
 
 Two pre-passes run ahead of that walk, and both are legal for one reason: `finish` has consumed the
-sink, so no [`EventMark`](crate::cst::event::EventMark) and no checkpoint row can still name a slot,
+sink, so no [`EventMark`](crate::cst::EventMark) and no checkpoint row can still name a slot,
 and nothing can observe the buffer between them and the walk. This is the one moment an interior
 kind write is unconditionally safe.
 
@@ -447,20 +447,20 @@ reason the enum exists at all.
 
 ## The combinator surface
 
-You rarely emit events by hand. The [`node`](crate::parser::node()) family is the blessed bracketing
+You rarely emit events by hand. The [`node`](crate::combinator::node()) family is the blessed bracketing
 over the sink, and its encoding is worth one architectural note because it explains why backtracking
 stays clean: every combinator in the family is a **both-exits bracket whose exits are all appends**.
 They differ only in *when* the node's kind is named, and that split is measured rather than
 stylistic.
 
-**Up front.** [`node`](crate::parser::node()) driven as a plain parser cannot decline, so its kind is
+**Up front.** [`node`](crate::combinator::node()) driven as a plain parser cannot decline, so its kind is
 known at entry: it appends a `StartNode` immediately (`cst_start`, which hands back the mark naming
 that slot) and closes on both exits — `cst_finish` on success, `cst_demote` on an error-path unwind.
 Two events per successful node instead of three, no tombstone whose only purpose is to be named
 later, and an open node that exists *only* inside the frame.
 
 **Retro.** Every other shape — `node` over a declining parser,
-[`node_opt`](crate::parser::node_opt()), and [`node_at`](crate::parser::node_at()) — mints an inert
+[`node_opt`](crate::combinator::node_opt()), and [`node_at`](crate::combinator::node_at()) — mints an inert
 tombstone at entry and spends it as a retro-wrap (`cst_start_at` + `cst_finish`) only on a
 *successful* exit, so no node is ever open between entry and exit. That is not a leftover: a
 declining parser's kind is not knowable at entry, and `node_at`'s whole purpose is a kind decided
@@ -472,10 +472,10 @@ identically** — the retro bracket by never spending its mark, the up-front bra
 `Demote` that canonicalization applies to its own start — so the buffers differ and the trees do
 not. The `labelled` finish-on-both-exits discipline, made structural rather than dutiful.
 
-[`node_at`](crate::parser::node_at()) spends a *caller-held* mark — the retro-wrap shape: mark, parse a
+[`node_at`](crate::combinator::node_at()) spends a *caller-held* mark — the retro-wrap shape: mark, parse a
 prefix, then decide it was the start of something bigger. For the common single-wrap decision,
-[`Marker`](crate::cst::event::Marker) wraps a raw mark in a compile-time single-use typestate:
-`complete` spends it into a node and yields a [`CompletedMarker`](crate::cst::event::CompletedMarker),
+[`Marker`](crate::cst::Marker) wraps a raw mark in a compile-time single-use typestate:
+`complete` spends it into a node and yields a [`CompletedMarker`](crate::cst::CompletedMarker),
 `abandon` consumes it leaving the tombstone inert, and `precede` — a further *outer* wrap — exists
 *only* on `CompletedMarker`, so wrapping an abandoned or still-open intent is unrepresentable rather
 than merely checked. The raw `EventMark` stays `Copy` and multi-spend for the pratt shape that needs
@@ -495,8 +495,7 @@ as a token, so `SURFACES_TRIVIA` is honestly `true` — and nothing but core tok
 ```rust
 # use core::{convert::Infallible, fmt};
 # use tokora::{
-#   InputRef, Lexer, SimpleSpan, Token as TokenT,
-#   error::{UnexpectedEot, token::UnexpectedToken},
+#   InputRef, Lexer, SimpleSpan, Token as TokenT, error::{UnexpectedEot, UnexpectedToken},
 # };
 # use tokora::span::Span as _;
 # #[derive(Debug, PartialEq)]
@@ -545,11 +544,8 @@ as a token, so `SURFACES_TRIVIA` is honestly `true` — and nothing but core tok
 # }
 use rowan::Language;
 use tokora::{
-  Emitter, InputRef as In, ParseContext, ParseInput,
-  cache::DefaultCache,
-  cst::{CstProfile, KindValidator, parse_lossless},
-  emitter::{CstEmitter, Fatal},
-  parser::node,
+  Emitter, InputRef as In, ParseContext, ParseInput, cache::DefaultCache, combinator::node,
+  cst::{CstProfile, KindValidator, parse_lossless}, emitter::{CstEmitter, Fatal},
 };
 
 // The dialect's whole u16 kind space: token images, then the node kind, then bookkeeping.

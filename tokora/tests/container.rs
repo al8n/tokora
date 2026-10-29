@@ -17,9 +17,8 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntax, MissingSyntaxOf, MissingTokenOf, SeparatedError, TooFew, TooMany,
+    UnexpectedEot, UnexpectedToken, UnexpectedTokenOf,
   },
   input::Cursor,
   span::Spanned,
@@ -449,7 +448,7 @@ where
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ContainerTestError>,
 {
   use common::TokenKind;
-  use tokora::parser::expect;
+  use tokora::combinator::expect;
   use tokora::utils::Expected;
   expect(|t: &Token| {
     if matches!(t, Token::Num(_)) {

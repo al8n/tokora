@@ -548,8 +548,7 @@ fn a_valid_parse_records_no_recovery_at_all() {
 /// number; what a derived expectation cannot do is notice that the number moved, so that job is
 /// held by literal cells in `src/state/recursion_tracker/tests.rs` and by the `const` assertions
 /// beside the constant, which red when the default moves without its derivation.
-const PARSE_DEPTH_BUDGET: usize =
-  tokora::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH;
+const PARSE_DEPTH_BUDGET: usize = tokora::state::RecursionLimiter::PARSE_DEFAULT_DEPTH;
 
 /// The deepest nesting that still parses. One frame short of the budget.
 const DEEPEST_CLEAN: usize = PARSE_DEPTH_BUDGET - 1;

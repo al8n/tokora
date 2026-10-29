@@ -8,10 +8,10 @@ extern crate std;
 use std::string::{String, ToString};
 
 use tokora::SimpleSpan;
-use tokora::error::token::{MissingToken, SeparatedError, SeparatorPosition, UnexpectedToken};
 /// Tests for all error types in the tokora error module.
 /// Exercises constructors, methods, Display/Debug impls, and transformations.
 use tokora::error::*;
+use tokora::error::{MissingToken, SeparatedError, SeparatorPosition, UnexpectedToken};
 use tokora::utils::{CowStr, Expected, PositionedChar, knowledge::*};
 
 // ── UnexpectedEnd ──────────────────────────────────────────────────────────────

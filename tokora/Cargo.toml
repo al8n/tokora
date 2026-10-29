@@ -74,7 +74,7 @@ peek = []
 # Pratt expression parsing: the typed `pratt(...)` driver and the token-level
 # `InputRef::pratt*` driver, their `PrattToken` classification vocabulary, the `PrattEmitter`
 # capability and the CST kind wiring. `token::PrattToken` and the `InputRef` driver live
-# outside `src/parser/`, but they are the same family and are gated with it.
+# outside `src/pratt/`, but they are the same family and are gated with it.
 pratt = []
 # The punctuator parsers — `Comma::parse`/`try_parse` and the other seventy-five markers — and
 # `delimited`'s `parens`/`braces`/`brackets`/`angles` shapes, which run them. NOT the

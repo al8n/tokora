@@ -21,7 +21,7 @@ use tokora::{
   emitter::PrattEmitter,
   error::{NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs, UnexpectedEoRhs},
   logos::{self, Logos},
-  parser::{PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced},
+  pratt::{PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced},
   span::Spanned,
   token::PrattToken,
 };
@@ -146,8 +146,8 @@ impl From<LexError> for CalcError {
   }
 }
 
-impl<'inp> From<tokora::error::token::UnexpectedTokenOf<'inp, CalcLexer<'inp>>> for CalcError {
-  fn from(_: tokora::error::token::UnexpectedTokenOf<'inp, CalcLexer<'inp>>) -> Self {
+impl<'inp> From<tokora::error::UnexpectedTokenOf<'inp, CalcLexer<'inp>>> for CalcError {
+  fn from(_: tokora::error::UnexpectedTokenOf<'inp, CalcLexer<'inp>>) -> Self {
     CalcError::UnexpectedToken
   }
 }

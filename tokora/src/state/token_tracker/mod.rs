@@ -1,4 +1,4 @@
-use crate::State;
+use crate::state::State;
 
 /// Error returned when token count exceeds the configured limit.
 ///
@@ -9,7 +9,7 @@ use crate::State;
 /// # Example
 ///
 /// ```rust
-/// use tokora::state::token_tracker::{TokenLimiter, TokenLimitExceeded};
+/// use tokora::state::{TokenLimitExceeded, TokenLimiter};
 ///
 /// let mut limiter = TokenLimiter::with_limitation(1000);
 ///
@@ -37,7 +37,7 @@ impl TokenLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::with_limitation(10);
   /// for _ in 0..15 {
@@ -58,7 +58,7 @@ impl TokenLimitExceeded {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::with_limitation(10);
   /// for _ in 0..15 {
@@ -122,7 +122,7 @@ impl TokenLimitExceeded {
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokora::state::token_tracker::TokenLimiter;
+/// use tokora::state::TokenLimiter;
 ///
 /// let mut limiter = TokenLimiter::with_limitation(1000);
 ///
@@ -136,7 +136,7 @@ impl TokenLimitExceeded {
 /// ## Checking Limits
 ///
 /// ```rust
-/// use tokora::state::token_tracker::TokenLimiter;
+/// use tokora::state::TokenLimiter;
 ///
 /// let mut limiter = TokenLimiter::with_limitation(5);
 ///
@@ -153,7 +153,7 @@ impl TokenLimitExceeded {
 ///
 /// ```rust,ignore
 /// use logos::Logos;
-/// use tokora::state::token_tracker::TokenLimiter;
+/// use tokora::state::TokenLimiter;
 ///
 /// #[derive(Default)]
 /// struct LexerState {
@@ -180,7 +180,7 @@ impl TokenLimitExceeded {
 /// ## DoS Protection Pattern
 ///
 /// ```rust,ignore
-/// use tokora::state::token_tracker::TokenLimiter;
+/// use tokora::state::TokenLimiter;
 ///
 /// fn parse_untrusted_input(input: &str, max_tokens: usize) -> Result<AST, Error> {
 ///     let mut limiter = TokenLimiter::with_limitation(max_tokens);
@@ -217,7 +217,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let limiter = TokenLimiter::new();
   /// assert_eq!(limiter.limitation(), usize::MAX);
@@ -236,7 +236,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let limiter = TokenLimiter::with_limitation(1000);
   /// assert_eq!(limiter.limitation(), 1000);
@@ -253,7 +253,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::new();
   /// limiter.increase();
@@ -273,7 +273,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::new();
   /// assert_eq!(limiter.tokens(), 0);
@@ -291,7 +291,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let limiter = TokenLimiter::with_limitation(500);
   /// assert_eq!(limiter.limitation(), 500);
@@ -309,7 +309,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::new();
   /// limiter.increase_token();
@@ -328,7 +328,7 @@ impl TokenLimiter {
   /// # Example
   ///
   /// ```rust
-  /// use tokora::state::token_tracker::TokenLimiter;
+  /// use tokora::state::TokenLimiter;
   ///
   /// let mut limiter = TokenLimiter::with_limitation(3);
   ///

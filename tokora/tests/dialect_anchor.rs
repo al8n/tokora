@@ -37,13 +37,12 @@ use core::marker::PhantomData;
 use common::{TestLexer, Token, TokenKind};
 
 use tokora::{
-  ComposableParseContext, Dialect, DialectErrorOf, DialectInput, DialectSlice, Lexer, LexerOf,
-  Parse, ParseInput, Parser, SimpleSpan,
+  ComposableParseContext, Lexer, Parse, ParseInput, Parser, SimpleSpan,
   delimiter::TypedDelimiter,
+  dialect::{Dialect, DialectErrorOf, DialectInput, DialectSlice, LexerOf},
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
   punct::Brace,
   token::IdentifierToken,

@@ -29,11 +29,10 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    TokenHint, Unclosed, UnexpectedEnd,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TokenHint, TooFew, TooMany,
+    Unclosed, UnexpectedEnd, UnexpectedToken,
   },
-  parser::Action,
+  parse::Action,
   punct::{Comma, Punctuator},
   utils::typenum::U1,
 };

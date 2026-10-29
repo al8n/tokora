@@ -9,7 +9,7 @@
 //!
 //! [`syntax_kinds!`](crate::syntax_kinds) generates all three from the one declaration, so
 //! the colliding declaration becomes inexpressible: the kind space is const-asserted clear
-//! of the reserved [`TOMBSTONE`](crate::cst::event::TOMBSTONE) band at compile time, and the
+//! of the reserved [`TOMBSTONE`](crate::cst::TOMBSTONE) band at compile time, and the
 //! validator is derived from `COUNT` rather than written a second time.
 //!
 //! This module is **not** `rowan`-gated, and neither is what it names: `CstProfile` and
@@ -32,7 +32,7 @@
 /// - `validator()` — the dialect's [`KindValidator`](crate::cst::KindValidator), derived
 ///   from `COUNT`, so the declaration and the sink's validation cannot disagree;
 /// - a `const` assertion that the kind space clears
-///   [`TOMBSTONE`](crate::cst::event::TOMBSTONE) — see the note below on what that
+///   [`TOMBSTONE`](crate::cst::TOMBSTONE) — see the note below on what that
 ///   assertion can and cannot catch.
 ///
 /// # Example
@@ -101,7 +101,7 @@
 /// # What stops an oversized kind space, stated exactly
 ///
 /// The generated `const` assertion reads `COUNT <= TOMBSTONE`. At the shipped value —
-/// [`TOMBSTONE`](crate::cst::event::TOMBSTONE) is `u16::MAX` — **that assertion cannot
+/// [`TOMBSTONE`](crate::cst::TOMBSTONE) is `u16::MAX` — **that assertion cannot
 /// fire**: `COUNT` is a `u16`, so it is `<= u16::MAX` by its type. It is a tripwire on
 /// *tokora's own reserved-band constant*, not on your declaration: it fires only if a
 /// future release moves the reserved band below `u16::MAX` while a dialect is already
@@ -181,7 +181,7 @@ macro_rules! syntax_kinds {
     // The reserved-band door, closed at declaration. `<=` because `COUNT` is one past the
     // last raw value: the last declared kind is `COUNT - 1`, which must be `< TOMBSTONE`.
     const _: () = ::core::assert!(
-      $name::COUNT <= $crate::cst::event::TOMBSTONE,
+      $name::COUNT <= $crate::cst::TOMBSTONE,
       "syntax_kinds!: the declared kind space collides with tokora's reserved TOMBSTONE"
     );
   };

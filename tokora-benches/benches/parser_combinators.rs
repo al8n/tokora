@@ -44,21 +44,23 @@ use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use hybrid_arraydeque::typenum::U1;
 
 use tokora::{
-  Accumulator, Balance, Emitter, EmitterView, InputRef, Parse, ParseAttempt, ParseChoice,
-  ParseContext, ParseInput, ParseTokenChoice, Parser, SimpleSpan, Token, TryParseInput,
+  Accumulator, Emitter, EmitterView, InputRef, Parse, ParseAttempt, ParseChoice, ParseContext,
+  ParseInput, ParseTokenChoice, Parser, SimpleSpan, Token, TryParseInput,
   cache::{Peeked, PeekedTokenExt},
+  combinator::{Any, expect},
   emitter::{
     FullContainerEmitter, PrattEmitter, SeparatedEmitter, TooManyEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    MaybeIncomplete, MaybeTerminal, UnexpectedEnd,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MaybeIncomplete, MaybeTerminal, MissingSyntax, MissingToken, SeparatedError,
+    TooFew, TooMany, UnexpectedEnd, UnexpectedToken,
   },
+  input::Balance,
   lexer::LogosLexer,
   logos::{self, Logos},
-  parser::{Action, Any, PrattInfix, PrattLHS, PrattRHS, Precedenced, expect},
+  parse::Action,
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced},
   punct::Comma,
   span::Spanned,
   token::{PrattToken, PunctuatorToken},
@@ -667,7 +669,7 @@ where
 // `SeparatedWhile::at_most` all wrap the same `AtMost<P>`); this exercises it on the
 // simplest carrier, `repeated()`. Reaching the bound is a single event that is BOTH the
 // failure path (`TooMany`, filed through `admit_element`'s count-check hook — see
-// `tokora/src/parser/many/mod.rs`) and the short-circuit path (the construct ends there
+// `tokora/src/combinator/many/mod.rs`) and the short-circuit path (the construct ends there
 // rather than continuing): there is no separate "stops without erroring" mode for a bound.
 // So one driver over a mixed fixture covers both — most groups stay at or under
 // `REPEATED_AT_MOST_BOUND` elements and return cleanly (the same accepting path
@@ -724,7 +726,7 @@ where
 //
 // `separated_while` takes a caller-supplied `Decision` instead of `separated_by_comma`'s
 // built-in policy of continuing for as long as a separator is present — internally this is
-// the crate's own `sep_while` module (`tokora/src/parser/many/sep_while/`), and its test
+// the crate's own `sep_while` module (`tokora/src/combinator/many/sep_while/`), and its test
 // coverage in `tokora/tests/sep_while_parse.rs` uses that same short name. The condition is
 // asked before every candidate element, including the first, and is handed the peek window
 // positioned at that element's own leading token — not the separator — which is the whole

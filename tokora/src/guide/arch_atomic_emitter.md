@@ -313,10 +313,7 @@ so nothing but core tokora types is in play.
 
 ```rust
 # use core::{convert::Infallible, fmt};
-# use tokora::{
-#   InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, token::UnexpectedToken},
-# };
+# use tokora::{InputRef, Lexer, SimpleSpan, Token, error::{UnexpectedEot, UnexpectedToken}};
 # use tokora::span::Span as _;
 # #[derive(Debug, PartialEq)]
 # struct Error;

@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::utils::human_display::DisplayHuman;
+use crate::utils::DisplayHuman;
 
 const _: () = {
   use hipstr_0_8::{HipByt, HipStr};

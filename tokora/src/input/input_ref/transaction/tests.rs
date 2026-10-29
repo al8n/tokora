@@ -6,14 +6,14 @@
 //! holds at compile time (see the `compile_fail` doctest on the type).
 
 use crate::{
-  Commit, InputRef, Rollback, Token,
+  InputRef, Token,
   cache::DefaultCache,
   emitter::{Fatal, Silent, Verbose},
-  error::token::UnexpectedToken,
-  input::Input,
+  error::UnexpectedToken,
+  input::{Commit, Input, Rollback},
   lexer::LogosLexer,
   span::SimpleSpan,
-  state::token_tracker::{TokenLimitExceeded, TokenLimiter},
+  state::{TokenLimitExceeded, TokenLimiter},
 };
 
 // ── Fixture: a number lexer over a by-value token limiter ──────────────────────

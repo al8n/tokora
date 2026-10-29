@@ -1,4 +1,4 @@
-use crate::{Lexer, Token, error::token::UnexpectedToken, punct::*, span::Spanned, utils::CowStr};
+use crate::{Lexer, Token, error::UnexpectedToken, punct::*, span::Spanned, utils::CowStr};
 
 /// The machine identity of a delimiter pair — the discriminator
 /// [`FromUnclosed`](crate::emitter::FromUnclosed) matches on.
@@ -424,7 +424,7 @@ pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
 }
 
 /// A [`Delimiter`] whose punctuators can be materialized as typed, span-carrying values —
-/// the capability the [`delimited`](crate::parser::delimited) shape parser uses to build
+/// the capability the [`delimited`](crate::combinator::delimited) shape parser uses to build
 /// its [`Delimited`](crate::utils::Delimited) result.
 ///
 /// The base [`Delimiter`] trait is a classifier and error helper; this additive subtrait
@@ -437,7 +437,7 @@ pub trait Delimiter<'inp, L, Lang: ?Sized = ()> {
 /// Any user pair works the same way: implement [`Punctuator`] for the two punctuator types
 /// (or define them with [`punctuator!`](crate::punctuator)), then implement [`Delimiter`]
 /// and `TypedDelimiter` for the pair. It then drops straight into
-/// [`delimited::<MyPair, …>`](crate::parser::delimited) — see that function's example.
+/// [`delimited::<MyPair, …>`](crate::combinator::delimited) — see that function's example.
 ///
 /// # The language brand is a fence
 ///

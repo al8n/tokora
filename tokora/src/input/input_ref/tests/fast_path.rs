@@ -78,7 +78,7 @@ use crate::{
   emitter::Verbose,
   input::Input,
   span::SimpleSpan,
-  state::token_tracker::TokenLimiter,
+  state::TokenLimiter,
 };
 
 use super::super::{
@@ -1161,7 +1161,7 @@ fn a_panic_mid_skip_consumes_exactly_what_the_predicate_accepted() {
 use core::cell::{Cell, RefCell};
 
 use crate::{
-  error::{Incomplete, MaybeIncomplete, UnexpectedEot, token::UnexpectedToken},
+  error::{Incomplete, MaybeIncomplete, UnexpectedEot, UnexpectedToken},
   input::{InputContext, Partial},
   span::Spanned,
   state::State,
@@ -1403,7 +1403,7 @@ fn caller_calls() -> usize {
 
 thread_local! {
   /// While `Some(n)`, [`LedgerLexer::check`] reports a trip once the lexer's tally has passed `n`
-  /// tokens — the fixture's [`TokenLimiter`](crate::state::token_tracker::TokenLimiter).
+  /// tokens — the fixture's [`TokenLimiter`](crate::state::TokenLimiter).
   ///
   /// The budget lives beside the state rather than in it because the tally it is compared against
   /// (`LedgerState::scanned`) is the state's, and adding a second field to `LedgerState` would
@@ -1909,7 +1909,7 @@ where
 
   fn emit_unexpected_token(
     &mut self,
-    _err: crate::error::token::UnexpectedTokenOf<'inp, L, Lang>,
+    _err: crate::error::UnexpectedTokenOf<'inp, L, Lang>,
   ) -> Result<(), LedgerErr> {
     self.emissions += 1;
     self.reports.0 += 1;
@@ -2029,7 +2029,7 @@ impl<'a> Cache<'a, LedgerLexer<'a>, ()> for LedgerCache<'a> {
       W::CAPACITY,
     >,
   ) where
-    W: crate::Window,
+    W: crate::parse::Window,
   {
     note(Effect::CachePeek);
     <Inner<'a> as Cache<'a, LedgerLexer<'a>, ()>>::peek::<W>(&self.0, buf);

@@ -21,7 +21,7 @@ use tokora::{
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
   },
-  parser::Action,
+  parse::Action,
 };
 
 use common::{TestLexer, Token};

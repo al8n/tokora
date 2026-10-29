@@ -12,7 +12,7 @@ happens next is the emitter's business:
 - [`Fatal`](crate::emitter::Fatal) — [`emit_error`](crate::Emitter::emit_error) *returns* the
   error, so the `?` at the call site ends the parse. Nothing is stored, nothing is allocated;
   the diagnostic is the `Err` value the caller already gets. This is what
-  [`Parser::new`](crate::parser::Parser::new) gives you, and every chapter so far has used it
+  [`Parser::new`](crate::parse::Parser::new) gives you, and every chapter so far has used it
   without saying so.
 - [`Verbose`](crate::emitter::Verbose) — the same call *records* the error and returns `Ok`,
   so the `?` does nothing and the parser keeps going. At the end you read the whole harvest
@@ -33,7 +33,7 @@ too.
 
 ## Labels: "while parsing X"
 
-[`labelled(name, parser)`](crate::labelled) pushes a `&'static str` onto the emitter's open
+[`labelled(name, parser)`](crate::combinator::labelled) pushes a `&'static str` onto the emitter's open
 -label stack for the duration of a sub-parse. Every diagnostic recorded inside is stamped with
 the labels open **at emit time** — a snapshot, not a pointer — which is what makes labels
 survive chapter 6: a rollback that drops a diagnostic drops its labels with it, and a
@@ -115,7 +115,7 @@ or anything else.
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedToken};
+# use tokora::error::{UnexpectedEot, UnexpectedToken};
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
@@ -129,11 +129,8 @@ or anything else.
 #   fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { CalcError::UnexpectedEnd }
 # }
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser,
-  cache::DefaultCache,
-  emitter::{Severity, Verbose},
-  labelled,
-  span::Spanned,
+  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, cache::DefaultCache,
+  combinator::labelled, emitter::{Severity, Verbose}, span::Spanned,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -297,9 +294,9 @@ assert_eq!(timeline, [Severity::Warning, Severity::Error]);
 ## Expected sets come for free
 
 Not every diagnostic is one you write. The combinators build structured errors themselves —
-[`UnexpectedToken`](crate::error::token::UnexpectedToken) with an
+[`UnexpectedToken`](crate::error::UnexpectedToken) with an
 [`Expected`](crate::utils::Expected) set, [`UnexpectedEnd`](crate::error::UnexpectedEnd) at
-end of input, [`TooFew`](crate::error::syntax::TooFew) from a bounded repetition — and hand
+end of input, [`TooFew`](crate::error::TooFew) from a bounded repetition — and hand
 them to the emitter through the same two verbs. Chapter 4's
 [`dispatch_on_kind`](crate::ParseChoice::dispatch_on_kind) is the clearest case: on a miss it
 reports the *whole table* as `expected one of …`, which it can only do because the decision is

@@ -8,8 +8,8 @@ use common::{TestLexer, Token, TokenKind};
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext,
   cache::DefaultCache,
+  combinator::expect,
   emitter::{Ignored, Silent},
-  parser::expect,
   span::Spanned,
   utils::Expected,
 };

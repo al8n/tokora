@@ -128,7 +128,7 @@ define_ops! {
   SessionRollback => "session.rollback_point",
   /// `InputRef::begin_point` + drop the handle — a session point abandoned, settled by neither verb: the handle's `Drop` releases its pin while keeping its progress.
   SessionAbandon => "session.abandon(drop)",
-  /// `parser::node(kind, p)` — the CST bracket: tombstone mark at entry, retro-wrap on the success exit only.
+  /// `combinator::node(kind, p)` — the CST bracket: tombstone mark at entry, retro-wrap on the success exit only.
   Node => "node",
   /// `CstEmitter::cst_mark` — mint a retro-wrap anchor (inert over a no-event emitter).
   Mark => "mark",

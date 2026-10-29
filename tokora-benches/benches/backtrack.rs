@@ -52,7 +52,7 @@ use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, Token,
   emitter::Verbose,
-  error::token::UnexpectedToken,
+  error::UnexpectedToken,
   lexer::LogosLexer,
   logos::{self, Logos},
 };

@@ -6,8 +6,7 @@
 
 use tokora::{
   SimpleSpan,
-  error::token::{MissingToken, UnexpectedToken},
-  error::{ErrorContainer, Errors, InvalidHexDigits},
+  error::{ErrorContainer, Errors, InvalidHexDigits, MissingToken, UnexpectedToken},
   span::AsSpan,
   utils::{CowStr, PositionedChar},
 };

@@ -41,7 +41,7 @@ fn test_custom_context() {
 #[test]
 fn provide_carries_a_recursion_override_through_both_of_its_arms() {
   use crate::cache::DefaultCache;
-  use crate::state::recursion_tracker::RecursionLimiter;
+  use crate::state::RecursionLimiter;
 
   type Ctx<'inp> = ParserContext<'inp, DummyLexer, Fatal<()>, DefaultCache<'inp, DummyLexer>>;
 

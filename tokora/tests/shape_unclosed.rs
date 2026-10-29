@@ -24,13 +24,12 @@ mod common;
 use common::{TestLexer, Token};
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, SimpleSpan,
+  combinator::{angles, braces, brackets, delimited, parens, try_parens},
   emitter::{Fatal, Verbose},
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
-  parser::{angles, braces, brackets, delimited, parens, try_parens},
   punct::Paren,
 };
 

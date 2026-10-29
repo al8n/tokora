@@ -1,4 +1,4 @@
-use crate::parser::{PrattLHS, PrattRHS};
+use crate::pratt::{PrattLHS, PrattRHS};
 
 use super::Token;
 

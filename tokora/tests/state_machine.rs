@@ -24,12 +24,11 @@ use tokora::{
     UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, UnexpectedEot,
+    UnexpectedToken,
   },
   input::Cursor,
-  parser::Action,
+  parse::Action,
   span::Spanned,
 };
 

@@ -80,7 +80,7 @@ where
   #[inline(always)]
   fn peek<'p, W>(&'p self, buf: &mut ArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>)
   where
-    W: crate::Window,
+    W: crate::parse::Window,
   {
     if let Some(tok) = self.as_ref() {
       buf.push_back(Maybe::Ref(tok.as_ref()));

@@ -4,7 +4,7 @@
 //! produces — exercised through the public API only.
 //!
 //! Three things are pinned here, and each is a property the lexer-side
-//! [`TokenLimiter`](tokora::state::token_tracker::TokenLimiter) cannot deliver:
+//! [`TokenLimiter`](tokora::state::TokenLimiter) cannot deliver:
 //!
 //! 1. **the hostile shape** — one valid token followed by *N* bytes of plain lexer errors is *one
 //!    accepted item*, under any bound denominated in accepts, while *N* scans run and *N*
@@ -27,13 +27,14 @@
 use core::cell::Cell;
 
 use tokora::{
-  InputRef, Lexer, Parse, ParseContext, Parser, ParserContext, Partial, ScanLookahead, SimpleSpan,
-  Token,
+  InputRef, Lexer, Parse, ParseContext, Parser, ParserContext, ScanLookahead, SimpleSpan, Token,
   cache::DefaultCache,
   emitter::Verbose,
-  error::{Incomplete, MaybeIncomplete, MaybeTerminal, UnexpectedEot, token::UnexpectedToken},
-  input::{Budget, InputContext, PartialSession, RedriveFromBase, SessionRefusal, TokenBudget},
-  state::token_tracker::{TokenLimitExceeded, TokenLimiter},
+  error::{Incomplete, MaybeIncomplete, MaybeTerminal, UnexpectedEot, UnexpectedToken},
+  input::{
+    Budget, InputContext, Partial, PartialSession, RedriveFromBase, SessionRefusal, TokenBudget,
+  },
+  state::{TokenLimitExceeded, TokenLimiter},
 };
 
 // ── The instrument: every `lex()` call this process makes ─────────────────────────────────────

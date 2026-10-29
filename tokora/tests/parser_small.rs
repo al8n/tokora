@@ -10,10 +10,10 @@ use common::{TestLexer, Token, TokenKind};
 use hybrid_arraydeque::typenum::U1;
 use tokora::EmitterView;
 use tokora::{
-  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, ParseInputUnwrapExt, Parser,
-  TryParseInput,
+  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
   cache::Peeked,
-  parser::{Action, Any, Empty, Todo, expect, fail, fail_with, try_expect},
+  combinator::{Any, Empty, Todo, expect, fail, fail_with, try_expect},
+  parse::{Action, ParseInputUnwrapExt},
   utils::Expected,
 };
 
@@ -645,7 +645,7 @@ fn expect_sliced_output() {
 fn expect_located_output() {
   fn parse<'inp, Ctx>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<tokora::Located<Token, tokora::SimpleSpan, &'inp str>, ()>
+  ) -> Result<tokora::span::Located<Token, tokora::SimpleSpan, &'inp str>, ()>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = ()>,

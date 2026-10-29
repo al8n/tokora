@@ -12,14 +12,14 @@ use common::E;
 
 use tokora::{
   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
+  combinator::{
+    AllowLeading, AllowTrailing, AtLeast, AtMost, Bounded, Collect, RequireLeading,
+    RequireTrailing, Separated,
+  },
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
-  },
-  parser::{
-    AllowLeading, AllowTrailing, AtLeast, AtMost, Bounded, Collect, RequireLeading,
-    RequireTrailing, Separated,
   },
   punct::Comma,
 };

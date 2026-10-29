@@ -2,9 +2,10 @@
 //!
 //! # Partial input (Sans-I/O mode)
 //!
-//! An input carries a [`Completeness`] typestate. The default, [`Complete`], is the whole source —
-//! today's behaviour, with identical generated code. [`Partial`] is a **prefix of a stream that may
-//! still grow**, carrying a runtime `is_final` flag the **driver** states — through
+//! An input carries a [`Completeness`](crate::input::Completeness) typestate. The default,
+//! [`Complete`](crate::input::Complete), is the whole source — today's behaviour, with identical
+//! generated code. [`Partial`](crate::input::Partial) is a **prefix of a stream that may still
+//! grow**, carrying a runtime `is_final` flag the **driver** states — through
 //! [`parse_partial`]'s `is_final` argument — when the last chunk lands. While a partial input is
 //! non-final, three conservative *frontier rules* at the scan chokepoint keep a construct that
 //! later input could still extend from being mistaken for a finished one — each surfaces an
@@ -41,8 +42,9 @@
 //! ([`Lexer::read_frontier`]), so **the last such token becomes visible only after more input
 //! arrives or the input is marked final**. The latency is correct by construction: an item whose
 //! decision consulted the end could change once the end moves (`ab` may become `abc`), and the only
-//! proof it will not is more bytes — or `is_final`. With `is_final` set, or on a [`Complete`]
-//! input, the rules are inert and the last token yields immediately.
+//! proof it will not is more bytes — or `is_final`. With `is_final` set, or on a
+//! [`Complete`](crate::input::Complete) input, the rules are inert and the last token yields
+//! immediately.
 //!
 //! **How many tokens that is depends on the lexer, and since 0.10.0 it is not always one.** A lexer
 //! that never reads past what it emits reports [`ReadFrontier::SpanEnd`] and
@@ -117,13 +119,13 @@
 //!
 //! ## The Sans-I/O resumption loop
 //!
-//! Each attempt parses under a rollback-on-drop [`Transaction`], so an incomplete attempt unwinds
-//! its emissions and cursor before the retry. **The parser opens that transaction, not the
+//! Each attempt parses under a rollback-on-drop [`Transaction`](crate::input::Transaction), so an
+//! incomplete attempt unwinds its emissions and cursor before the retry. **The parser opens that transaction, not the
 //! driver**: [`parse_partial`] deliberately does *not* wrap `f` — the caller owns transaction
 //! discipline, and that ownership is precisely what makes a commit-and-carry
 //! [`PartialSession`](crate::input::PartialSession) possible, because a driver-owned transaction would roll back the very
 //! progress a session exists to keep. What [`parse_partial`] does is drive any
-//! [`ParseInput`]`<…, `[`Partial`]`>` — a typed fn item like the one below, a
+//! [`ParseInput`]`<…, `[`Partial`](crate::input::Partial)`>` — a typed fn item like the one below, a
 //! named combinator, or a parser written generic over its completeness. The only requirements
 //! partial mode adds are that the emitter error implement `From<Incomplete<L::Offset>>` (the
 //! construction side of the frontier rules) and [`MaybeIncomplete`](crate::error::MaybeIncomplete)
@@ -132,7 +134,7 @@
 //!
 //! ```
 //! use core::convert::Infallible;
-//! use tokora::{InputRef, Lexer, Partial, SimpleSpan, Source, Token, parse_partial};
+//! use tokora::{InputRef, Lexer, SimpleSpan, Source, Token, input::Partial, parse_partial};
 //! use tokora::cache::DefaultCache;
 //! use tokora::emitter::Fatal;
 //! use tokora::error::{Incomplete, MaybeIncomplete};
@@ -189,8 +191,8 @@
 //! impl MaybeIncomplete for PErr {
 //!   fn is_incomplete(&self) -> bool { matches!(self, PErr::Incomplete) }
 //! }
-//! impl<'a, T, K: Clone, S, Lg: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lg>>
-//!   for PErr { fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lg>) -> Self { PErr::Other } }
+//! impl<'a, T, K: Clone, S, Lg: ?Sized> From<tokora::error::UnexpectedToken<'a, T, K, S, Lg>>
+//!   for PErr { fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lg>) -> Self { PErr::Other } }
 //!
 //! type Lex<'a> = WordLexer<'a>;
 //! type Ctx<'a> = (Fatal<PErr>, DefaultCache<'a, Lex<'a>>);
@@ -232,7 +234,10 @@
 use core::marker::PhantomData;
 
 use crate::{
-  ParseContext, cache::CachedTokenOf, span::Span, state::recursion_tracker::RecursionLimiter,
+  ParseContext,
+  cache::{CachedTokenOf, DefaultCache},
+  span::Span,
+  state::RecursionLimiter,
 };
 
 use super::*;
@@ -720,7 +725,7 @@ where
   /// A trip reported by a *rejecting* emitter reaches the grammar as a value built from the lexer's
   /// own `Token::Error`, with no [`UnexpectedEnd`](crate::error::UnexpectedEnd) on the path to mark
   /// terminal, so [`MaybeTerminal`](crate::error::MaybeTerminal) alone cannot answer for it.
-  /// [`Recover`](crate::parser::Recover), [`InplaceRecover`](crate::parser::InplaceRecover) and
+  /// [`Recover`](crate::combinator::Recover), [`InplaceRecover`](crate::combinator::InplaceRecover) and
   /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) therefore consult the input as well —
   /// but through [`scanner_trips`](Self::scanner_trips), *not* through this cell, and the
   /// difference is the whole reason that cell exists.
@@ -741,7 +746,7 @@ where
   /// ever runs, and the outer verdict reads clean over a live, already-diagnosed stop. A rollbackable
   /// cell compared across a rollback boundary is unreliable at *every* depth, so the depth-proof
   /// witness is the monotone counter and this cell is read beside it as the narrower, standing-stop
-  /// reading. `parser::recovery_gate` is the one place either is read.
+  /// reading. `combinator::recovery_gate` is the one place either is read.
   ///
   /// # A trip is TERMINAL, and terminal outranks incomplete
   ///
@@ -836,7 +841,7 @@ where
   /// `cfg`s. State-carried depth would instead be double-restored on a `std` unwind and leaked on
   /// a `no_std` one.
   ///
-  /// It is also *not* the lexer's [`State`](crate::State), for three independent reasons: a scan
+  /// It is also *not* the lexer's [`State`](crate::state::State), for three independent reasons: a scan
   /// commit overwrites `state` wholesale with the token's own snapshot, `state_mut` re-keys the
   /// world (dropping the token cache **and** any latched poison boundary), and a checkpoint
   /// captures it. See [`RecursionLimiter`] for the lexer-side tracker, which is a different cell
@@ -866,7 +871,7 @@ where
   /// its pre-attempt value would hand an adversary who forces speculation an unbounded supply of
   /// free work. That is the same shape [`resource_trips`](field@Self::resource_trips) and
   /// [`scanner_trips`](field@Self::scanner_trips) are monotone for, one field down, and it is
-  /// exactly what the refundable lexer-side [`TokenLimiter`](crate::state::token_tracker::TokenLimiter)
+  /// exactly what the refundable lexer-side [`TokenLimiter`](crate::state::TokenLimiter)
   /// in `L::State` cannot do: a `Checkpoint` carries the state, so a restore puts the tally back.
   ///
   /// What that costs is stated rather than hidden: a re-lex after a rollback is charged again, so
@@ -924,8 +929,8 @@ where
   /// # Why the grammar's error type cannot be the storage
   ///
   /// [`RecursionLimitReached`](crate::error::RecursionLimitReached) is terminal for every value,
-  /// but it reaches [`Recover`](crate::parser::Recover),
-  /// [`InplaceRecover`](crate::parser::InplaceRecover) and
+  /// but it reaches [`Recover`](crate::combinator::Recover),
+  /// [`InplaceRecover`](crate::combinator::InplaceRecover) and
   /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) already converted into the grammar's
   /// own error type, and that conversion is allowed to discard the value — `()` does. Terminality
   /// carried only through the payload is therefore terminality the grammar can opt out of, which
@@ -938,7 +943,7 @@ where
   /// it too, and there it is the *only* terminality witness rather than a second one: their swallow
   /// arms carry no `MaybeTerminal` bound at all, gating on the frontier incomplete and on
   /// positional and session facts, so this cell is the whole of what keeps a descent trip inside an
-  /// element from being emitted as an ordinary diagnostic and looped past. See `parser::many`'s
+  /// element from being emitted as an ordinary diagnostic and looped past. See `combinator::many`'s
   /// `GATE_CENSUS`.
   ///
   /// # Never cleared, and why that costs nothing now
@@ -970,14 +975,14 @@ where
   /// re-raises it.
   ///
   /// The floor is therefore **one attempt** — one speculative parse for
-  /// [`Recover`](crate::parser::Recover) and
-  /// [`InplaceRecover`](crate::parser::InplaceRecover), one retry cycle for
+  /// [`Recover`](crate::combinator::Recover) and
+  /// [`InplaceRecover`](crate::combinator::InplaceRecover), one retry cycle for
   /// [`skip_then_retry`](crate::ParseInput::skip_then_retry), one **element** for the collection
   /// loops. It **fails closed** inside that unit, at the recovery, failure, absence and
   /// real-closer gates: an ordinary failure sharing a unit with a caught trip is re-raised, never
   /// the reverse, so no real trip reaching one of those gates is ever recovered from or filed as a
   /// diagnostic. It says nothing about `Accept` — an element that catches the trip and still
-  /// answers `Accept` spends it, for every error type, on purpose; see `parser::many`'s module
+  /// answers `Accept` spends it, for every error type, on purpose; see `combinator::many`'s module
   /// docs, "the channel neither chokepoint closes" section. What is lost is emit-and-continue for
   /// one construct, not the stop.
   ///
@@ -1080,7 +1085,7 @@ where
   /// single-writer taxonomy) and kept after the ground-truth cells above, so the scanner-hot
   /// fields pack ahead of it on the `next()` path.
   lineage: Lineage,
-  /// Trace nesting depth (the `trace` feature). [`traced`](crate::traced) bumps it on enter
+  /// Trace nesting depth (the `trace` feature). [`traced`](crate::combinator::traced) bumps it on enter
   /// and drops it on exit, so instrumentation indents by call depth. A plain field, borrowed
   /// by [`InputRef`]; trace events travel out of band (stderr), never through the emitter, so
   /// a rewind never eats them.
@@ -1413,68 +1418,6 @@ where
       _marker: PhantomData,
     }
   }
-}
-
-/// Opens a **Sans-I/O partial parse session** over `src` and drives the parser `f` — any
-/// [`ParseInput`]`<'inp, L, O, Ctx, Lang, `[`Partial`]`>` — returning whatever
-/// `f` returns.
-///
-/// This is the partial-mode entry point, the [`Partial`] instantiation of the same trait
-/// vocabulary the complete-only [`Parse`] API drives at its default: a typed fn item, a named
-/// combinator chain, or a parser written generic over its completeness parameter all satisfy the
-/// bound (write once, run in both modes — see the [`input`](self) module docs). `f`
-/// receives an [`InputRef`] in [`Partial`] mode set to `is_final`, so the
-/// [frontier rules](crate::input) are active while non-final: consuming across the frontier
-/// surfaces an [`Incomplete`](crate::error::Incomplete) on the `Err` channel, which the parser
-/// propagates out. `ctx` supplies the emitter and cache exactly as [`Parse`] does.
-///
-/// The `Partial: SurfaceIncomplete` bound requires that the emitter's error implements
-/// `From<Incomplete<L::Offset>>` (constructing the frontier sentinel) and
-/// [`MaybeIncomplete`](crate::error::MaybeIncomplete) (recognizing it — the atom-layer
-/// never-recoverable gate and the caller's own refill check); complete parses see neither.
-///
-/// # The refill loop
-///
-/// The caller owns the buffer. Each attempt builds a fresh input over the current buffer slice, so
-/// there is **no growable source inside tokora**: on an incomplete result the caller appends the
-/// next chunk to *its own* buffer and calls this again over the larger slice. Inside `f`, parsing
-/// under a rollback-on-drop [`Transaction`] means an incomplete attempt unwinds its emissions and
-/// cursor cleanly before the retry — a transaction `f` opens, because this driver deliberately
-/// wraps nothing. See the [`input`] module docs for the full runnable loop and the one-token
-/// frontier-latency guarantee.
-///
-/// # Cost
-///
-/// Every attempt re-lexes the whole prefix, so cumulative lexer work across a refill loop is
-/// **Θ(Σ attempt lengths)** — the triangular figure under one-token refills. This function returns
-/// nothing that could carry a committed frontier or a cross-attempt budget, so a caller facing
-/// untrusted arrival fragmentation should drive [`PartialSession`] instead, whose [`Budget`] bounds
-/// exactly that sum.
-#[inline]
-pub fn parse_partial<'inp, L, Ctx, Lang, O, P>(
-  ctx: Ctx,
-  src: &'inp L::Source,
-  state: L::State,
-  is_final: bool,
-  mut f: P,
-) -> Result<O, <Ctx::Emitter as crate::Emitter<'inp, L, Lang>>::Error>
-where
-  L: Lexer<'inp>,
-  L::State: Clone,
-  Lang: ?Sized,
-  Ctx: ParseContext<'inp, L, Lang>,
-  Partial: SurfaceIncomplete<'inp, L, Ctx, Lang>,
-  P: crate::ParseInput<'inp, L, O, Ctx, Lang, Partial>,
-{
-  let mut input = Input::<L, Ctx, Lang, Partial>::with_state_and_context(src, state, ctx.provide());
-  // The driver states the world fact BEFORE the parser ever sees a handle — and it is the only
-  // party that can. `seal` takes `&mut Input`, so it is unreachable from the `&mut InputRef` `f`
-  // is handed: `f` cannot end the stream, at any depth, inside any speculative branch.
-  if is_final {
-    input.seal();
-  }
-  let mut input_ref = input.as_ref();
-  f.parse_input(&mut input_ref)
 }
 
 #[cfg(test)]

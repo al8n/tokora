@@ -43,9 +43,9 @@ use tokora::{
     Verbose,
   },
   error::{
-    NonAssociativeChain, RecursionLimitReached, Unclosed, UnexpectedEoLhs, UnexpectedEoRhs,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, SeparatorPosition, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, NonAssociativeChain, RecursionLimitReached,
+    SeparatedError, SeparatorPosition, TooFew, TooMany, Unclosed, UnexpectedEoLhs, UnexpectedEoRhs,
+    UnexpectedToken,
   },
   span::{SimpleSpan, Spanned},
   utils::CowStr,
@@ -1030,8 +1030,7 @@ mod sink_leg {
   use super::ConfError;
 
   use tokora::{
-    InputRef, Lexer, SimpleSpan, Token, cache::DefaultCache, emitter::Verbose,
-    error::syntax::TooFew,
+    InputRef, Lexer, SimpleSpan, Token, cache::DefaultCache, emitter::Verbose, error::TooFew,
   };
 
   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
