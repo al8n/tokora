@@ -40,7 +40,12 @@ use crate::input::{Complete, Completeness};
 // Everything else this file names, it reaches through the crate root.
 use crate::*;
 
-pub use ParseAttempt::{Accept, Decline};
+// The bare variants, for the repetition drivers' `Ok(Accept(item))` / `Ok(Decline)` arms and for
+// this module's tests; the gate is exactly theirs (`many`, and the `tests` module's own), so the
+// import is never unused. Outside the crate they are reached only as `ParseAttempt::Accept` and
+// `ParseAttempt::Decline`.
+#[cfg(any(feature = "many", all(test, any(feature = "std", feature = "alloc"))))]
+pub(crate) use ParseAttempt::{Accept, Decline};
 
 /// Result type for tentative parsing attempts.
 #[derive(Debug, Clone, PartialEq, Eq, IsVariant, TryUnwrap, Unwrap)]
