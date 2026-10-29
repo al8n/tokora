@@ -180,10 +180,12 @@ use tokora::{
     FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
-  parse::Action,
 };
 
-use crate::fixture::{Err0, Lex, Tok, int_elem, try_int};
+use crate::{
+  compat::Action,
+  fixture::{Err0, Lex, Tok, int_elem, try_int},
+};
 
 /// Elements per source. See the module header for why this is small rather than large.
 const ELEMENTS: usize = 512;

@@ -6,14 +6,16 @@
 //! `scan_drain` control, which measures exactly that share.
 
 use tokora::{
-  Emitter, InputRef, ParseAttempt, ParseContext, ScanLookahead, Token,
-  error::{
-    FullContainer, MaybeIncomplete, MaybeTerminal, MissingSyntax, MissingToken, SeparatedError,
-    TooFew, TooMany, UnexpectedEnd, UnexpectedToken,
-  },
+  Emitter, InputRef, ParseContext, ScanLookahead, Token,
+  error::{MaybeIncomplete, MaybeTerminal, UnexpectedEnd},
   lexer::LogosLexer,
   logos::{self, Logos},
   punct::{CloseParen, Comma, OpenParen},
+};
+
+use crate::compat::{
+  FullContainer, MissingSyntax, MissingToken, ParseAttempt, SeparatedError, TooFew, TooMany,
+  UnexpectedToken,
 };
 
 /// Dense discriminants, so a kind match beside a dispatch table compiles to a jump table.

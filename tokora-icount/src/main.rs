@@ -27,6 +27,7 @@
 //!     tokora-icount <workload> <iterations>
 //! ```
 
+mod compat;
 mod fixture;
 mod workloads;
 
