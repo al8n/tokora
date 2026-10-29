@@ -25,9 +25,9 @@ mod unbounded;
 ///
 /// [`on_separator`](Self::on_separator) is called **exactly once for every separator token a
 /// driver consumes, in source order** — the leading one, every one between elements, every
-/// duplicate in a run, and the trailing one. Before this release the happy-path and trailing
-/// separators were never delivered and only the anomalous ones were, i.e. the exact complement
-/// of this law, so a container that recorded separators recorded the wrong set.
+/// duplicate in a run, and the trailing one. Before 0.8.0 the happy-path and trailing separators
+/// were never delivered and only the anomalous ones were, i.e. the exact complement of this law,
+/// so a container that recorded separators recorded the wrong set.
 pub trait SeparatorHandler<'inp, L> {
   /// Whether this handler observes separators at all.
   ///

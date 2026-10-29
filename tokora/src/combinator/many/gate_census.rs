@@ -34,10 +34,10 @@
 //! left for them to spell differently, and the count of chokepoint calls is pinned per source so a
 //! new absence exit cannot land ungated.
 //!
-//! One of those three is a *counter*, not a boundary, and that is the whole of what made this half
-//! reach one nesting level deeper than it used to. A driver's two rollback-set readings — the
-//! poison boundary at an absence exit, the committed cursor at a failure exit — are both erased by
-//! an element that catches a stop inside an [`attempt`](crate::InputRef::attempt) of its own and
+//! One of those three is a *counter*, not a boundary, and that is what lets this half reach one
+//! nesting level deeper than a boundary can. A driver's two rollback-set readings — the poison
+//! boundary at an absence exit, the committed cursor at a failure exit — are both erased by an
+//! element that catches a stop inside an [`attempt`](crate::InputRef::attempt) of its own and
 //! declines it, so both answered `false` over a live stop. `Input::scanner_trips` is outside the
 //! rollback set by construction; [`every_driver_baselines_its_scanner_witness_once_per_collection`]
 //! pins its baseline at the granularity the fact has, which is the *opposite* of the descent one's.
@@ -308,9 +308,9 @@ fn every_element_failure_routes_through_the_gated_chokepoint() {
   // `find`s panic rather than pass when the thing being scanned for is absent, so a chokepoint
   // that has been renamed or gutted reports that instead of quietly finding nothing to check.
   //
-  // WHAT IT DOES NOT PROVE — and an earlier revision of this comment wrongly claimed it did — is
-  // that the witnesses GATE the emission. Textual presence ahead of a call is not control-flow
-  // domination. This exact body keeps the census green with the gate entirely gone:
+  // WHAT IT DOES NOT PROVE is that the witnesses GATE the emission. Textual presence ahead of a
+  // call is not control-flow domination. This exact body keeps the census green with the gate
+  // entirely gone:
   //
   //     let _ = Cmpl::is_incomplete_error(&err);
   //     let _ = inp.at_committed_boundary();
@@ -331,9 +331,9 @@ fn every_element_failure_routes_through_the_gated_chokepoint() {
   //   (`gate_propagates_frontier_incomplete_out_of_repeated`,
   //   `lego_chain_runs_both_modes_to_equivalence`); 2 tests.
   // * `inp.at_committed_boundary()` — `tokora/tests/collection_terminal_stop.rs`, the five `r1b_*`
-  //   cells; 5 tests. These were written FOR this finding: the mutation run that produced this
-  //   comment found the witness could be deleted with the entire suite still green, because R1
-  //   only pinned where it must stay quiet. R1b pins the other direction.
+  //   cells; 5 tests. Without them the witness can be deleted with the entire suite still green (a
+  //   mutation run showed it), because R1 only pins where it must stay quiet. R1b pins the other
+  //   direction.
   // * `inp.tripped_during_attempt(trips)` — `tokora/tests/collection_resource_trip.rs`; 12 tests.
   //
   // So this scan is a fast tripwire on the source — it catches a witness dropped, renamed or
@@ -876,7 +876,7 @@ fn driver_tree() -> [(
   ]
 }
 
-/// No module of the driver trees has landed without being classified.
+/// No module of the driver trees goes unclassified.
 ///
 /// The other half of "the census cannot pass by not looking": the swallow scan reads a fixed
 /// list of sources, and a list is only as good as the guarantee that it is complete. This reads
@@ -1029,21 +1029,20 @@ fn every_nondelim_separator_slot_surfaces_terminal() {
 /// [`every_absence_exit_carries_the_terminal_witnesses`] checks the two lists name the same
 /// sources in the same order, so neither can drift.
 ///
-/// **Every row is nonzero, and that is the property.** This table used to carry eight zeroes,
-/// marking an older *inline* shape that spelled `latched_during_attempt` at each exit and read no
-/// descent witness at all — the four `*_while` drivers and the four fold sources. They had the
-/// same hole the chokepoint closes for the try-driven four, reached the same way: an element that
-/// catches a trip itself and then declines, or accepts consuming nothing, ends the collection
-/// cleanly and successfully. Measured rather than inferred, before and after: `fold` over such an
-/// element returned the same `Ok(6)` on `"1 2 3"` under a budget the element exceeded as under one
-/// it did not, and `repeated_while` returned the same `Ok([1, 2, 3, -1])` over the stalling shape.
-/// Closing it needed the per-element trip baseline
-/// [`every_driver_baselines_its_trip_witness_inside_its_element_loop`] now pins in all twelve
-/// sources — which is why three of the folds stopped being `while let` loops, a `while let` having
+/// **Every row is nonzero, and that is the property.** A zero would mark an *inline* shape that
+/// spells `latched_during_attempt` at each exit and reads no descent witness at all — which has
+/// the same hole the chokepoint closes for the try-driven four, reached the same way: an element
+/// that catches a trip itself and then declines, or accepts consuming nothing, ends the collection
+/// cleanly and successfully. Measured rather than inferred: with that shape, `fold` over such an
+/// element returns the same `Ok(6)` on `"1 2 3"` under a budget the element exceeded as under one
+/// it did not, and `repeated_while` returns the same `Ok([1, 2, 3, -1])` over the stalling shape.
+/// Closing it needs the per-element trip baseline
+/// [`every_driver_baselines_its_trip_witness_inside_its_element_loop`] pins in all twelve
+/// sources — which is why three of the folds are not `while let` loops, a `while let` having
 /// nowhere to snapshot the counter before the element attempt its own condition runs.
 ///
-/// So there is no longer a two-shape classification here, and re-introducing one means adding a
-/// zero, which fails the per-row assertion rather than passing quietly.
+/// So there is no two-shape classification here, and re-introducing one means adding a zero,
+/// which fails the per-row assertion rather than passing quietly.
 fn absence_exit_shapes() -> [(&'static str, usize); 12] {
   [
     ("many/repeated/mod.rs", 1),
@@ -1264,8 +1263,8 @@ fn close_exit_shapes() -> [(&'static str, usize, usize); 12] {
 /// witness first.
 ///
 /// The absence census above pins the exits that conclude the construct ended from *nothing*. This
-/// pins the ones that conclude it from *a real token* — the shape the previous revision left
-/// ungated on the reasoning that a committed pre-trip closer settles the question. It settles the
+/// pins the ones that conclude it from *a real token* — the shape it is tempting to leave ungated
+/// on the reasoning that a committed pre-trip closer settles the question. It settles the
 /// **position** question. The element attempt that declined, or stalled, may have caught a descent
 /// trip on its way there, and a valid closer arriving afterwards does not unmake a counter event
 /// that already happened: without a gate that is a successfully closed collection that spent a
@@ -1386,7 +1385,7 @@ fn every_real_closer_exit_after_an_element_is_trip_gated() {
 /// and not the session counter. Either one smuggled into this body would fail every delimited
 /// parse whose element lookahead latched a boundary past a closer that legitimately closed (the
 /// lookahead that latched also bumped the counter, so the two refuse the same parses) — a
-/// regression a wider scan window makes invisible, and the exact reason the previous revision left
+/// regression a wider scan window makes invisible, and the exact reason it is tempting to leave
 /// the whole arm ungated. Pinning the absence is cheap; noticing it later is not.
 /// `many/mod.rs`'s tree-wide tallies for both, asserted next door, are the same claim counted
 /// globally.

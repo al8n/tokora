@@ -86,14 +86,14 @@
 //!
 //! # Why every cell here runs twice, through two error types
 //!
-//! This is the half of #148 that was **never sink-dependent**. `Recover`, `InplaceRecover` and
-//! `skip_then_retry` used to spend a trip only through a *discarding* error type — a delegating one
-//! reported `is_terminal()` and was re-raised — which is why
+//! This is the half of #148 that was **never sink-dependent**. Without #148, `Recover`,
+//! `InplaceRecover` and `skip_then_retry` spend a trip only through a *discarding* error type — a
+//! delegating one reports `is_terminal()` and is re-raised — which is why
 //! `tokora/tests/pratt_limit_unit_sink.rs` pins those against their `LimErr` counterparts in
-//! `tokora/tests/pratt_limit.rs`, one file per sink. Here the swallow arm consulted neither the
-//! error's answer nor the input's, so it spent the trip from [`TripErr`] — which keeps the payload —
-//! exactly as it did from `()`. Each family is therefore driven through both, in the same file, from
-//! one macro body: the two must now agree, and the agreement is the property.
+//! `tokora/tests/pratt_limit.rs`, one file per sink. Here an ungated swallow arm consults neither
+//! the error's answer nor the input's, so it spends the trip from [`TripErr`] — which keeps the
+//! payload — exactly as it does from `()`. Each family is therefore driven through both, in the
+//! same file, from one macro body: the two must agree, and the agreement is the property.
 //!
 //! [`TripErr`] deliberately does **not** implement
 //! [`MaybeTerminal`](tokora::error::MaybeTerminal). That it compiles is itself an assertion: these
@@ -148,10 +148,10 @@ use common::{TestLexer, Token};
 
 /// A grammar error that **keeps** the descent trip apart from everything else.
 ///
-/// The counterpart of the `()` suite below: `()` erases the trip on conversion, this preserves it as
-/// its own variant, and the point of the fix is that the two now behave identically at these four
-/// gates. It is the shape a real grammar would write, minus the payload — the tests read the
-/// discriminant, never the offset or the depth.
+/// The counterpart of the `()` suite below: `()` erases the trip on conversion, this preserves it
+/// as its own variant, and the point is that the two behave identically at these four gates. It is
+/// the shape a real grammar would write, minus the payload — the tests read the discriminant, never
+/// the offset or the depth.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum TripErr {
   /// Anything the drivers report as ordinary malformed input.
@@ -1879,7 +1879,7 @@ macro_rules! trip_suite {
       /// This is the cell that requires the counter to be a **count**. A set-once `bool` snapshot
       /// compares equal to a baseline taken after the first, caught trip, so the second trip would
       /// read as "nothing happened during this element" and the collection would file it and loop
-      /// past — the very behaviour section 1 closed, reintroduced by the fix for section 2.
+      /// past — the very behaviour section 1 closes, reintroduced by a naive fix for section 2.
       #[allow(rustdoc::private_intra_doc_links)]
       mod second_trip {
         use super::*;
@@ -2166,7 +2166,7 @@ macro_rules! trip_suite {
         );
       }
 
-      // ── Section 6: the one exit no gate closes, because closing it is not this branch's job ──
+      // ── Section 6: the one exit no gate closes, because closing it is not the driver's job ──
       //
       // Sections 4 and 5 gate every exit that concludes the collection FROM an element's absence —
       // a decline, a stall, or a real closer arriving after either. An `Accept` concludes nothing:
@@ -2241,11 +2241,11 @@ macro_rules! trip_suite {
       //   design, so the descent witness there is a constant `false` and there is nothing for a cell
       //   to measure.
       //
-      // Measured before it was fixed, with a throwaway probe and then with these cells: `fold` over
-      // a declining element returned `Ok(6)` on `"1 2 3"` under a budget the element exceeded and
-      // `Ok(6)` under one it did not, and `repeated_while` over the stalling element returned
+      // Measured on the ungated shape, with a throwaway probe and then with these cells: `fold`
+      // over a declining element returns `Ok(6)` on `"1 2 3"` under a budget the element exceeded
+      // and `Ok(6)` under one it did not, and `repeated_while` over the stalling element returns
       // `Ok([1, 2, 3, -1])` under both. Every cell below is that comparison, and every one of them
-      // failed on `tight == roomy` before the per-element baseline was added.
+      // fails on `tight == roomy` without the per-element baseline.
       #[allow(rustdoc::private_intra_doc_links)]
       mod answered_trip_in_a_while_or_fold {
         use super::*;

@@ -8,8 +8,8 @@
 //! A descent trip reaches the caller on exactly one channel: the driver's `Result`. It is
 //! deliberately **not** an emitter event — a recording emitter that could absorb a resource trip
 //! would be worse than one that is hard to observe, so `RecursionLimitReached` has no `emit_*`
-//! counterpart and the engines *return* it. Correct, and until this change it left nothing else
-//! offered. A `parse_lossless` run whose parser trips the budget produced:
+//! counterpart and the engines *return* it. Correct, and without the counter it leaves nothing
+//! else offered. A `parse_lossless` run whose parser trips the budget produces:
 //!
 //! ```text
 //! driver Result            = Err(..)
@@ -482,7 +482,7 @@ fn a_parse_inside_the_budget_reports_no_trip() {
 
 /// **The measurement from the issue, reproduced, and then answered.**
 ///
-/// The tripping parse's other three channels say exactly what they said before this change: the
+/// The tripping parse's other three channels say exactly what they say without the counter: the
 /// diagnostics are empty, the tree round-trips byte for byte, and only the `Result` — the one a
 /// lossless consumer discards, because its product is the tree plus the diagnostics — carries
 /// anything at all. `resource_trips()` is the channel that survives on the value the consumer
@@ -509,7 +509,7 @@ fn tripping_parse_is_otherwise_silent_and_the_count_is_the_only_witness() {
     "only the discarded Result said so"
   );
 
-  // The channel this change adds.
+  // The channel the counter adds.
   assert_eq!(trips, 1, "and the handle now says so too");
 }
 
@@ -531,10 +531,10 @@ fn a_trip_far_past_the_boundary_is_reported_once() {
 
 /// The count is a property of the **parse**, not of the materialization door.
 ///
-/// Materialization is where the handle is spent, and — before this change — where the last trace
-/// of the input had already been gone for a line. Both doors are driven over the identical
-/// source and must agree, and each must hand back its tree as well: the accessor is on the value
-/// the consumer materializes, not on a value it has to keep instead.
+/// Materialization is where the handle is spent, and — without the counter — where the last trace
+/// of the input would already be gone for a line. Both doors are driven over the identical source
+/// and must agree, and each must hand back its tree as well: the accessor is on the value the
+/// consumer materializes, not on a value it has to keep instead.
 #[test]
 fn the_count_survives_both_materialization_doors() {
   let lim = limitation();

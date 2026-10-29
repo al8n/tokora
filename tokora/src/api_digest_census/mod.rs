@@ -2,9 +2,9 @@
 //!
 //! The guide quotes tokora's public surface in *digests*: a fenced block that re-types a trait's
 //! members so a chapter can talk about the shape without sending the reader to rustdoc. A digest
-//! is prose, and prose is uncompiled. `270cf01` ruled out `ignore` (outside every gate), a
-//! compiled doctest gates a *shadow copy* and says nothing about the real item, and `text` is
-//! honest and silent. Every one of the four drifts fixed in `6351204` lived in exactly that gap:
+//! is prose, and prose is uncompiled. `ignore` is outside every gate, a compiled doctest gates a
+//! *shadow copy* and says nothing about the real item, and `text` is honest and silent. Four
+//! drifts of exactly this kind lived in that gap:
 //!
 //! * `Lexer::read_frontier` written `-> ReadFrontier<usize>` where the trait says `Self::Offset`,
 //!   in two chapters;
@@ -113,16 +113,13 @@
 //! pointer or aliasing behaviour, nothing but `std::fs`, `include_str!`, and a `syn` parse of
 //! source text. Interpreting that under Miri finds nothing, and it cost hours.
 //!
-//! On the last Miri run before this module existed — #339 @ `c09692f`, run 33251809138, all 25
-//! jobs green — the two `--lib` shards for each target and borrow model (the ones that would go on
-//! to compile this module) ran 1h23m–1h49m under Stacked Borrows and 2h33m–4h39m under Tree
-//! Borrows. `#341` (`4bdc529`) added this module, and every Miri run since — including the run
-//! against this repository's own `main` — has reported `cancelled=12, success=13`: exactly those
-//! twelve `--lib` shards (`ci/miri_shard.py` puts `--lib` on shard 0 for the `logos` pass and
-//! shard 1 for the `raw` pass) now hit GitHub's default job ceiling — a cancelled run's annotation
-//! reads "exceeded the maximum execution time of 6h0m0s" — and `miri.yml` sets no
-//! `timeout-minutes` of its own, so a run that cannot finish is reported `cancelled` rather than
-//! `failed`.
+//! Without this module the two `--lib` shards for each target and borrow model (the ones that
+//! compile it) run 1h23m–1h49m under Stacked Borrows and 2h33m–4h39m under Tree Borrows. With it
+//! under Miri every run reports `cancelled=12, success=13`: exactly those twelve `--lib` shards
+//! (`ci/miri_shard.py` puts `--lib` on shard 0 for the `logos` pass and shard 1 for the `raw`
+//! pass) hit GitHub's default job ceiling — a cancelled run's annotation reads "exceeded the
+//! maximum execution time of 6h0m0s" — and `miri.yml` sets no `timeout-minutes` of its own, so a
+//! run that cannot finish is reported `cancelled` rather than `failed`.
 //!
 //! This is the crate's first use of `cfg_attr(miri, ignore)`; the next module reaching for the
 //! same exemption should read this note rather than re-derive it, and should reach for it only

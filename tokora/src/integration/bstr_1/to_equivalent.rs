@@ -32,7 +32,7 @@ const _: () = {
 
   // The lattice row. It fails to compile if either half of this family's two files loses its
   // BStr block, which is the anti-drift mechanism — the reason the two files are deliberately
-  // not collapsed into one macro in this release.
+  // not collapsed into one macro.
   fn __assert_bstr_equivalence_family() {
     fn _to<'a, T: ToEquivalent<&'a BStr>>() {}
     fn _into<'a, T: IntoEquivalent<&'a BStr>>() {}

@@ -569,8 +569,8 @@ where
 /// and it never was.
 ///
 /// The `conformance` kit's `run_partial` check exercises the property over every split point, and
-/// it already failed such a vocabulary before this release, using the pre-0.10.0 holdback: the
-/// falsifier predates the feature that fixes it.
+/// it already failed such a vocabulary under the pre-0.10.0 holdback: the falsifier predates the
+/// feature that fixes it.
 ///
 /// ## Span / slice coherence
 ///

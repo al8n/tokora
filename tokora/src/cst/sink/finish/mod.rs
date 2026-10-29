@@ -867,10 +867,10 @@ where
   // The +4.4% is this walk as it ships against the same tree with `cfg!(debug_assertions) &&`
   // deleted from exactly the three sites below: `finish_clean` (8 192 tokens), median of
   // sixteen interleaved paired rounds, positive in all sixteen, against a null control of two
-  // byte-identical builds that spans -1.15%..+1.13%. It replaces a +8.3% taken on the two-pass
-  // gather+walk shape this round superseded, where these three calls sat in the gather pass
-  // rather than in the builder loop; the same deletion reads +1.1% there, a median inside that
-  // control's own span. One code layout on one toolchain — low single digits, not a constant.
+  // byte-identical builds that spans -1.15%..+1.13%. A +8.3% taken on the two-pass gather+walk
+  // shape, where these three calls sat in the gather pass rather than in the builder loop, does
+  // not carry over; the same deletion reads +1.1% there, a median inside that control's own span.
+  // One code layout on one toolchain — low single digits, not a constant.
   //
   // `ReservedKind` is NOT gated — the tombstone band is a plain comparison, it costs nothing,
   // and it was a release wall.
@@ -1336,10 +1336,10 @@ where
 /// `O(n log n)`; the law is stated in that shape rather than claiming a linearity the ordering
 /// does not provide.
 ///
-/// Measured before the quadratic fix, on the error-dense payload (n = 100 / 400 / 1600):
+/// On the error-dense payload (n = 100 / 400 / 1600) a from-zero rescan reads
 /// `W` = 5 550 / 82 200 / 1 288 800 against the bound 900 / 3 600 / 14 400, growing 14.81× /
-/// 15.68× per 4× of input. Two-pass, after that fix: `7n − 1 + k·⌈log₂ k⌉`. Single-pass:
-/// `6n − 1 + k·⌈log₂ k⌉` on the same payload — the gather pass gone, and the lookahead that
-/// replaced it never fired, because every run there is resolved by the token that follows it.
+/// 15.68× per 4× of input; a two-pass walk reads `7n − 1 + k·⌈log₂ k⌉`; the single pass reads
+/// `6n − 1 + k·⌈log₂ k⌉` on the same payload — no gather pass, and the lookahead never fires,
+/// because every run there is resolved by the token that follows it.
 #[cfg(test)]
 pub(crate) mod w;

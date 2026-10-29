@@ -515,8 +515,8 @@ where
   /// `offset()` is the newest lexed token's end and `cursor()` is the cache-front position;
   /// both move under ordinary lookahead, which is legal in the gap. Asserting on either would
   /// fire on legal histories, which is the defect class this check exists to avoid becoming.
-  /// Measured, not assumed: the first version of this check keyed on `offset()` and the misuse
-  /// cell did not fire, because a peek had already moved it before the probe ran.
+  /// Measured, not assumed: keyed on `offset()`, the misuse cell does not fire, because a peek
+  /// has already moved it before the probe runs.
   #[cfg(debug_assertions)]
   #[inline]
   fn assert_probe_still_current(&self, probed_at: &L::Offset) {

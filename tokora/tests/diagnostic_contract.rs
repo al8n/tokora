@@ -700,9 +700,9 @@ fn assert_fused<T: fmt::Debug>(answers: &[Option<T>], what: &str) {
 
 /// A hole before the declared end retires the iterator instead of resuming past it.
 ///
-/// Measured red before the fail-closed fix, on this exact fixture: the sequence was
-/// `[None, Some(Label { .. }), None, None, None]` — a `Some` after a `None`, from a type
-/// carrying `FusedIterator`.
+/// Measured red against an adapter that is not fail-closed, on this exact fixture: the sequence was
+/// `[None, Some(Label { .. }), None, None, None]` — a `Some` after a `None`, from a type carrying
+/// `FusedIterator`.
 #[test]
 fn an_early_hole_does_not_resume_the_iterator() {
   let subject = Adversary::new(Shape::EarlyHole);
@@ -786,8 +786,9 @@ fn an_undercount_yields_the_declared_count_and_no_more() {
 
 /// `Diagnose` takes `&self`, so a safe impl can move what its **accessor** answers between calls.
 ///
-/// Measured red before the fail-closed fix, for the same reason as the early hole: the first read
-/// admits nothing and the second admits two, so the adapter answered `None` and then `Some`.
+/// Measured red against an adapter that is not fail-closed, for the same reason as the early
+/// hole: the first read admits nothing and the second admits two, so the adapter answers `None`
+/// and then `Some`.
 #[test]
 fn an_accessor_that_drifts_under_interior_mutability_still_fuses() {
   let subject = Adversary::new(Shape::DriftingAccessor);
@@ -934,10 +935,11 @@ fn a_well_formed_impl_is_capped_but_not_promised() {
 
 /// What the lower bound actually costs when it is wrong: `Vec` reserves from it.
 ///
-/// Measured before the fix on rustc 1.95.0, 1.97.1 and nightly, `collect` and `extend` alike:
-/// `len=1 capacity=1000000` for a 48-byte `Label`, which is 48 MB of reservation reachable from
-/// any third-party `Diagnose` impl. The ceiling below is deliberately loose — it is checking that
-/// the declared count is not the reservation, not pinning an allocator growth policy.
+/// Measured with the declared count as the lower bound, on rustc 1.95.0, 1.97.1 and nightly,
+/// `collect` and `extend` alike: `len=1 capacity=1000000` for a 48-byte `Label`, which is 48 MB of
+/// reservation reachable from any third-party `Diagnose` impl. The ceiling below is deliberately
+/// loose — it is checking that the declared count is not the reservation, not pinning an allocator
+/// growth policy.
 #[test]
 fn a_declared_count_does_not_become_a_reservation() {
   const CEILING: usize = 4096;

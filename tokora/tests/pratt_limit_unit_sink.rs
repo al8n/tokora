@@ -26,12 +26,11 @@
 //!
 //! # This file is the regression witness for the erasure
 //!
-//! Every cell in section 1 asserted the opposite until issue #148: that `Recover` re-raised a trip
-//! through a delegating error type and **spent** the very same trip through `()`, and that
-//! `skip_then_retry` skipped and committed 68 bytes of input a delegating type never touched. They
-//! were inverted rather than deleted, because a deleted test cannot notice the defect coming back.
-//! Each names its counterpart in `pratt_limit.rs`, and the pair must keep agreeing: that agreement
-//! *is* the invariance the fix delivers.
+//! Without issue #148's fix, `Recover` re-raises a trip through a delegating error type and
+//! **spends** the very same trip through `()`, and `skip_then_retry` skips and commits 68 bytes of
+//! input a delegating type never touches. Every cell in section 1 asserts the opposite of that
+//! defect, so its return is noticed. Each names its counterpart in `pratt_limit.rs`, and the pair
+//! must keep agreeing: that agreement *is* the invariance #148 asked for.
 //!
 //! # What the sink still does not cost
 //!
@@ -478,17 +477,17 @@ where
 /// **The #148 R1 regression witness.** `Recover` re-raises a trip through a delegating error type
 /// and re-raises the very same trip through `()`.
 ///
-/// Until #148 this cell asserted the opposite — that the recoverer ran once and its `"<spent>"`
-/// became the parse's result — and it was correct about the code it measured. Terminality was
-/// carried only by the error payload, so a `From` that discarded the payload discarded the stop
-/// with it. It is stored on the input session now, so it cannot be discarded by an error type at
-/// all.
+/// Carried only by the error payload, terminality would be discarded along with the payload by a
+/// `From` that discards it: the recoverer would run once and its `"<spent>"` would become the
+/// parse's result. Terminality is stored on the input session, so it cannot be discarded by an
+/// error type at all.
 ///
 /// `pratt_limit.rs::a_recoverer_re_raises_a_trip_instead_of_spending_it` is the other half of this
 /// pair: identical ladder, identical limit, identical input, and a recoverer whose body is a
 /// `panic!` because it must never run. Here the recoverer is a counter, and it must read zero. The
-/// two cells now assert the same behaviour through two different error types, which is the whole
-/// content of the fix.
+/// `panic!` because it must never run. Here the recoverer is a counter, and it must read zero. The
+/// two cells assert the same behaviour through two different error types, which is the whole
+/// content of #148.
 #[test]
 fn a_discarding_sink_cannot_let_recovery_spend_a_trip() {
   fn probe<'inp, Ctx>(inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>) -> Result<String, ()>
@@ -933,8 +932,7 @@ fn every_level_and_every_frame_is_released_before_the_trip_surfaces() {
   );
   // ── The machine half runs in NATIVE builds only ──────────────────────────────────────────
   //
-  // Measured on this tree over the 200 frames below. In a native build the ×8 margin is nowhere
-  // near the edge:
+  // Measured over the 200 frames below. In a native build the ×8 margin is nowhere near the edge:
   //
   // | build                        | deepest   | per frame | surface   | holds? |
   // |------------------------------|-----------|-----------|-----------|--------|

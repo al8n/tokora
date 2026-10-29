@@ -990,10 +990,9 @@ fn peek_with_emitter_terminal_flags_a_trip_but_not_eof() {
 // first, while the cache region is copied out afterwards in one bulk read. The fill
 // stages the overflow region at the tail of the output buffer and rotates the
 // front-of-stream region ahead of it; these cells pin the resulting order. They are
-// new coverage, not a pin of prior behaviour: before this change nothing asserted
-// the identity of a peeked token past the cache boundary — the overflow tests
-// checked only `len()` — so removing the rotation leaves every pre-existing peek
-// test green and turns these red.
+// new coverage, not a pin of prior behaviour: nothing else asserts the identity of a peeked
+// token past the cache boundary — the overflow tests check only `len()` — so removing the
+// rotation leaves every other peek test green and turns these red.
 
 /// The spans a `W`-wide peek reports, in window order.
 fn peeked_spans<W>(src: &str) -> std::vec::Vec<crate::span::SimpleSpan>
@@ -1231,8 +1230,8 @@ fn peek_over_a_parked_front_reports_the_parked_token_first() {
 // A release build is where these cells earn their keep, and it is also where a
 // `should_panic` can rot silently: a cell whose panic compiles out passes by never
 // running the code it names. `cargo test --release --all-features` runs them, and the
-// count cell below is the control — it was already ungated and already release-active,
-// so a red there is the harness rather than this change.
+// count cell below is the control — it is ungated and release-active on its own, so a red there
+// is the harness rather than the reordering.
 
 /// The three directions the one lie can take. A `bool` covered the first two; the third —
 /// under-reporting all the way to **zero** — is not "under by one" with a bigger constant,
@@ -1462,10 +1461,9 @@ fn peek_over_a_cache_under_reporting_to_zero_fails_fast_instead_of_holing_the_wi
     // `d` and `e` are lexed, refused by the full cache, and staged. `Cache::peek` then runs
     // with zero room and appends zero entries.
     //
-    // Every count in sight agrees: `copied == in_cache` is `0 == 0`. This is the case that
-    // decides the SHAPE of the endpoint witness — gate it on the reported length, as an
-    // earlier revision did, and the largest lie there is walks straight past it. It is
-    // gated on `staged`, which the fill counted, so it runs here.
+    // Every count in sight agrees: `copied == in_cache` is `0 == 0`. This is the case that decides
+    // the SHAPE of the endpoint witness — gate it on the reported length and the largest lie there
+    // is walks straight past it. It is gated on `staged`, which the fill counted, so it runs here.
     //
     // Unchecked this returns `Ok` with the starts 6, 8 — the window is `[d, e]` while the
     // next consume serves `a` at 0, then `b`, `c`, `d`, `e`. Not a short window: three
@@ -1477,14 +1475,13 @@ fn peek_over_a_cache_under_reporting_to_zero_fails_fast_instead_of_holing_the_wi
 /// The cache-hit exit runs no CACHE_COPY check, and this cell is where that decision is
 /// written down.
 ///
-/// The reordering this fix makes is confined to the fill path: the hit exit appends
-/// nothing behind its cache copy, so a copy the window's own capacity clipped is a correct
-/// short prefix there and cannot hole. Its one weakness — an over-reporting `len()`
-/// shortening the window, because `want` saturates to zero before the copy is sized — is
-/// **pre-existing and unchanged**, and checking it would put the check's cost on the
-/// width-1 head read a grammar runs per token. Both shapes below therefore return `Ok`,
-/// as they did before this change; the cell exists so that a future decision to check
-/// them is a deliberate one.
+/// The fill path's reordering does not reach this exit: the hit exit appends nothing behind its
+/// cache copy, so a copy the window's own capacity clipped is a correct short prefix there and
+/// cannot hole. Its one weakness — an over-reporting `len()` shortening the window, because `want`
+/// saturates to zero before the copy is sized — is **deliberately unchecked**: checking it would
+/// put the check's cost on the width-1 head read a grammar runs per token. Both shapes below
+/// therefore return `Ok`; the cell exists so that a future decision to check them is a deliberate
+/// one.
 #[test]
 fn peek_hit_exit_is_unchecked_and_unchanged_by_the_reordering() {
   use crate::cache::PeekedTokenExt as _;

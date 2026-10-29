@@ -102,8 +102,8 @@ pub use lit::*;
 // tokora must not silently change what a method on a tokora type means, while a name a consumer's
 // own glob shadows is that glob's cost and `::` is its fix. `Status` here is the second kind — a
 // path into the consumer's namespace, not a call on a tokora type — so it is placed where a glob
-// will find it. That header also carries the measured table those rounds produced, both clashes as
-// measured, and the dated crates.io check behind the module's name.
+// will find it. That header also carries the measured table, both clashes as measured, and the
+// dated crates.io check behind the module's name.
 //
 // The two traits staying out of `types::*` is the first kind, so `types::recovery` is one of the
 // three-level namespaces the layout census admits (`ci/layout/allow.txt`): flattened into

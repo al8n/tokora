@@ -3,9 +3,9 @@
 //! `ci/icount/run.sh` builds this package twice from one tree: once against the branch's
 //! `tokora/`, once with the merge-base's `tokora/` swapped in, so the instrument is the constant
 //! and the library is the variable. A few items the workloads name moved under the 0.12 export
-//! layout (#350). This script sets `tokora_0_11_layout` when the sibling tree predates that
-//! layout — its `tokora/src/parse/driver.rs`, which the layout introduced, is absent — and
-//! `src/compat.rs` then imports those names from their 0.11 paths.
+//! layout, which gives each item one canonical path. This script sets `tokora_0_11_layout` when
+//! the sibling tree predates that layout — its `tokora/src/parse/driver.rs`, which the layout
+//! introduced, is absent — and `src/compat.rs` then imports those names from their 0.11 paths.
 //!
 //! Remove this script, with the cfg and `src/compat.rs`'s 0.11 arm, once main carries the 0.12
 //! layout.

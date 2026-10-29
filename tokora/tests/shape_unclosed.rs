@@ -3,9 +3,9 @@
 //! Regression suite for the delimited-SHAPE unclosed fix.
 //!
 //! The committed shape parsers (`delimited::<D>`/`parens`/`braces`/`brackets`/`angles` and
-//! their `try_` twins) used to raise a plain unexpected-token / end-of-input error on a
-//! missing closer. They now report the opener as [`Unclosed`] **through the emitter** — the
-//! same four-way close-miss law the delimited many-builders followed since #73:
+//! their `try_` twins) report a missing closer's opener as [`Unclosed`] **through the emitter**,
+//! not as a plain unexpected-token / end-of-input error — the same four-way close-miss law the
+//! delimited many-builders follow (#73):
 //!
 //! - a fail-fast [`Fatal`] emitter converts the emission to `Err` (carrying the opener's span
 //!   and the delimiter pair's name);
@@ -228,8 +228,8 @@ macro_rules! shape_matrix {
         );
       }
 
-      // A wrong token where the closer belongs is the unexpected-token (expected-close)
-      // diagnostic, NOT Unclosed — unchanged from before the fix.
+      // A wrong token where the closer belongs is the unexpected-token (expected-close) diagnostic,
+      // NOT Unclosed.
       #[test]
       fn wrong_close_is_unexpected_token_not_unclosed() {
         let r = drive_fatal(|inp| $shape(parse_num)(inp), concat!($open, "1", $wrong));

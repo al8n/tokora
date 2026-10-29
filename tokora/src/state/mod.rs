@@ -5,8 +5,8 @@ pub use token_tracker::*;
 pub use tracker::*;
 
 // The recursion tracker, the token tracker, and the tracker combining both. Each item's public
-// path is `tokora::state::Item` (#350, rule 5); the submodules stay `pub(crate)` so the crate's
-// own paths into them keep resolving.
+// path is `tokora::state::Item`: the submodule files stay private and the parent re-exports. The
+// submodules stay `pub(crate)` so the crate's own paths into them keep resolving.
 pub(crate) mod recursion_tracker;
 pub(crate) mod token_tracker;
 pub(crate) mod tracker;

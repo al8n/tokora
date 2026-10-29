@@ -198,9 +198,9 @@ where
 }
 
 /// The typed driver, like the token one, must be indifferent to a cache filled through the
-/// end of input. `1 + 2` with a U3 window peeked first used to truncate to `1`: the loop's
-/// pre-gate read the scanner's frontier, which the fill had already pushed to the buffer end
-/// while `+ 2` sat cached in front of the consumer.
+/// end of input. A loop pre-gate that read the scanner's frontier would truncate `1 + 2` with a U3
+/// window peeked first to `1`: the fill has already pushed the frontier to the buffer end while
+/// `+ 2` sits cached in front of the consumer.
 #[test]
 fn typed_driver_does_not_truncate_when_the_cache_is_preloaded_through_eoi() {
   let control: i64 = Parser::new().apply(sum_expr).parse_str("1 + 2").unwrap();
@@ -352,11 +352,11 @@ where
 /// An un-migrated sentinel grammar keeps its closer: the floor alone is enough.
 ///
 /// `/` is Right-associative at `Power(0)`, one dense level above the sentinel. The
-/// right-associative floor used to descend to `prev(0)` = `-1` — exactly the sentinel's
-/// power — so on `1 / 2 )` the sentinel *bound* as a phantom postfix and the `)`, which is
-/// not part of this expression at all, was consumed by it. The floor now stops at the
-/// operator's own power, so no recursion ever descends below a real operator and the closer
-/// is left for the surrounding grammar.
+/// right-associative floor that descended to `prev(0)` = `-1` would sit exactly at the
+/// sentinel's power, so on `1 / 2 )` the sentinel would *bind* as a phantom postfix and consume
+/// the `)`, which is not part of this expression at all. The floor stops at the operator's own
+/// power, so no recursion ever descends below a real operator and the closer is left for the
+/// surrounding grammar.
 ///
 /// This is the compatibility half of the repair: the fixture here is deliberately written
 /// the pre-`End` way, so it pins that grammars that never migrate stop stealing tokens.
@@ -371,7 +371,7 @@ fn legacy_sentinel_grammar_no_longer_binds_a_phantom_postfix() {
   );
 }
 
-// ── Grouping and the entry floor (additive pins — green before this change too) ──
+// ── Grouping and the entry floor (additive pins) ──
 
 fn group_lhs<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
@@ -500,8 +500,8 @@ where
   Ok((v, plus_remains))
 }
 
-/// Additive pin (green before this change): a parenthesised group parses through the LHS,
-/// and the operator after it still binds at the outer level.
+/// Additive pin: a parenthesised group parses through the LHS, and the operator after it still
+/// binds at the outer level.
 #[test]
 fn additive_grouping_still_folds_around_the_group() {
   let r: i64 = Parser::new()
@@ -511,8 +511,8 @@ fn additive_grouping_still_folds_around_the_group() {
   assert_eq!(r, 9);
 }
 
-/// Additive pin (green before this change): `min_precedence` is *inclusive*. An operator at
-/// exactly the configured floor is consumed; one below it is left on the input.
+/// Additive pin: `min_precedence` is *inclusive*. An operator at exactly the configured floor is
+/// consumed; one below it is left on the input.
 #[test]
 fn additive_min_precedence_is_inclusive_at_exactly_the_floor() {
   let at_floor: i64 = Parser::new()
@@ -588,7 +588,7 @@ where
 /// author needs. Release builds raise the terminal end-of-RHS error instead: the check sits at
 /// the report boundary, so it runs before the fold, and no phantom operator is ever committed.
 /// Ending the expression with an `Ok` here would hand the caller a truncated parse with no
-/// diagnostic on any channel, which is the failure the position pre-gate used to produce.
+/// diagnostic on any channel, which is the failure a position pre-gate produces.
 #[test]
 #[cfg_attr(
   debug_assertions,
@@ -722,9 +722,9 @@ where
 
 /// The token driver's right-associative floor, on the same dense ladder as the typed one.
 ///
-/// `*` = Right(3), `+` = Left(2). The floor used to be `lpower.prev()` = 2, which admits
-/// `+` into `*`'s right operand: `2 * 3 + 4` = `2 * (3 + 4)` = 14. Right-associativity
-/// admits the operator's own power, not one below it, so the answer is `(2 * 3) + 4` = 10.
+/// `*` = Right(3), `+` = Left(2). A floor of `lpower.prev()` = 2 would admit `+` into `*`'s right
+/// operand: `2 * 3 + 4` = `2 * (3 + 4)` = 14. Right-associativity admits the operator's own power,
+/// not one below it, so the answer is `(2 * 3) + 4` = 10.
 #[test]
 fn token_dense_right_assoc_floor_keeps_lower_operator_out_of_the_rhs() {
   let r: i64 = Parser::new()
@@ -832,11 +832,10 @@ fn token_neither_chain_is_rejected_at_the_top_of_the_ladder() {
 /// The non-associative repeat guard compares the operator's true power.
 ///
 /// `;` is `Neither(MAX)` and `,` is `Neither(MAX - 1)` — different powers, so there is no
-/// non-associative repeat and `,` must bind. The token driver used to hand the fold a
-/// *transformed* power and recover the original by inverse arithmetic; under saturation
-/// that reconstruction produced `MAX - 1`, the guard equated it with `,`'s real power, and
-/// the loop stopped after one fold, silently abandoning `, 3`. The true power is now
-/// carried through.
+/// non-associative repeat and `,` must bind. Handing the fold a *transformed* power and recovering
+/// the original by inverse arithmetic breaks under saturation: the reconstruction produces
+/// `MAX - 1`, the guard equates it with `,`'s real power, and the loop stops after one fold,
+/// silently abandoning `, 3`. The true power is carried through.
 #[test]
 fn token_neither_repeat_guard_compares_the_true_power() {
   let (value, second_remains): (i64, bool) = Parser::new()

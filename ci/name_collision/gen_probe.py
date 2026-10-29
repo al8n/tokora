@@ -173,7 +173,7 @@ pub fn parse_num<'inp>(
 # The fixture error's `From<UnexpectedToken>`, appended to every ITEM template and to no glob one.
 #
 # `UnexpectedToken` has no spelling both sides of 0.12.0 accept: 0.11 publishes it only inside
-# the public `error::token` submodule, and 0.12.0 (#350, which made that submodule a private file)
+# the public `error::token` submodule, and 0.12.0 (which made that submodule a private file)
 # only at `tokora::error::UnexpectedToken`. A probe is byte-identical on both
 # sides, so naming it in `FIXTURE` would make every row's fixture fail on one side — INCONCL across
 # the whole plan, measuring nothing. A glob probe needs no conversion at all, so `FIXTURE` stays
@@ -191,7 +191,7 @@ impl<'a, T, K: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T
 # reason as `TOKEN_ERROR_FIXTURE` above.
 #
 # `ParseAttempt` has no spelling both sides of 0.12.0 accept: 0.11 publishes it only inside the
-# public `try_parse_input` module, and 0.12.0 (#350; a08995b had already made that module private)
+# public `try_parse_input` module, and 0.12.0 (which made that module private)
 # only at `tokora::ParseAttempt` and `tokora::parse::ParseAttempt`. A probe is byte-identical on
 # both sides, so naming it in `FIXTURE` makes every row's fixture fail on the base side — INCONCL
 # `base=no-compile` across the whole plan, measuring nothing. A glob probe needs neither the type

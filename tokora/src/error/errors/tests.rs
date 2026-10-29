@@ -238,13 +238,13 @@ fn collecting_more_errors_than_fit_latches_the_flag() {
   assert!(!errors.overflowed());
 }
 
-/// al8n/tokora#284, round 3. Funnelling the collect through `push` brought its own reservation,
-/// and reading `size_hint` before the first `next` made a hint load-bearing: an empty iterator
-/// claiming `usize::MAX` panicked in `with_capacity` where the delegated path had returned empty
-/// without allocating at all.
+/// al8n/tokora#284. Funnelling the collect through `push` brings its own reservation, and reading
+/// `size_hint` before the first `next` would make a hint load-bearing: an empty iterator claiming
+/// `usize::MAX` would panic in `with_capacity` where the delegated path returns empty without
+/// allocating at all.
 ///
-/// Checked at both dispatch points of [`ErrorContainer::from_errors`], because round 4 moved the
-/// default container off the funnel: `Errors<&str>` is `VecDeque`-backed and now delegates, while
+/// Checked at both dispatch points of [`ErrorContainer::from_errors`], because the default
+/// container is off the funnel: `Errors<&str>` is `VecDeque`-backed and delegates, while
 /// `Truncating` inherits the default. A `Truncating<VecDeque<_>>` reserving `usize::MAX` is a
 /// capacity-overflow panic, so surviving the collect *is* the observation that nothing was
 /// reserved.
@@ -291,10 +291,10 @@ fn an_empty_iterator_that_overstates_its_lower_bound_reserves_nothing() {
   assert_eq!(errors.len(), 3);
 }
 
-/// al8n/tokora#284, round 4. `FromIterator` asks the container to build itself, and the default
-/// answer is the per-item funnel — so a container that leaves
-/// [`ErrorContainer::from_errors`] alone accounts exactly as a loop of `try_push` would, and the
-/// two containers that override it are the two that cannot refuse an error.
+/// al8n/tokora#284. `FromIterator` asks the container to build itself, and the default answer is
+/// the per-item funnel — so a container that leaves [`ErrorContainer::from_errors`] alone accounts
+/// exactly as a loop of `try_push` would, and the two containers that override it are the two that
+/// cannot refuse an error.
 #[cfg(any(feature = "alloc", feature = "std"))]
 #[test]
 fn the_bulk_hook_defaults_to_the_funnel_and_the_unbounded_containers_override_it() {

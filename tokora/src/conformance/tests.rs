@@ -1569,11 +1569,11 @@ fn an_endless_same_span_error_lexer_is_refused_not_hung() {
 
 // ── The knob's boundary: three inputs, three separate refusals ──────────────────────
 //
-// These three cells used to be one, and the one was vacuous. It passed `usize::MAX` and accepted
-// any panic tagged `lex-budget`, so every wrong behaviour on the way satisfied it: a clamp to a
-// LOWER multiple than the maximum satisfied it, and so did the release wrapped-to-zero counter,
-// which reached the per-instance refusal with the right tag for the wrong reason. A boundary test
-// that cannot tell the boundary from anything near it is testing that a panic happened.
+// One cell that passed `usize::MAX` and accepted any panic tagged `lex-budget` would be vacuous:
+// every wrong behaviour on the way satisfies it — a clamp to a LOWER multiple than the maximum,
+// and the release wrapped-to-zero counter, which reaches the per-instance refusal with the right
+// tag for the wrong reason. A boundary test that cannot tell the boundary from anything near it is
+// testing that a panic happened.
 //
 // So the exact maximum, one above it, and `usize::MAX` are three cells, and each asserts the
 // specific message its own input should produce: the maximum is ACCEPTED and its guard fires with
@@ -1613,8 +1613,8 @@ fn one_above_the_maximum_budget_multiple_is_refused_at_the_knob() {
 
 /// `usize::MAX` — the historical disarm value — takes the same refusal, and that is the point.
 ///
-/// It is a separate cell from the one above because it is the value that used to be *accepted*:
-/// clamped to the cap, run, and then refused with a `lex-budget` tag that read as a verdict on the
+/// It is a separate cell from the one above because it is the value a clamping cap would *accept*:
+/// clamped to the cap, run, and then refused with a `lex-budget` tag that reads as a verdict on the
 /// lexer. The rejected value is not in the expectation because its rendering is target-width
 /// dependent; the knob's name and the maximum are, and neither a clamp (which panics not at all
 /// here) nor any `lex-budget` refusal can produce them.
@@ -1628,8 +1628,8 @@ fn the_largest_usize_budget_multiple_is_refused_at_the_knob() {
 
 // ── ... and why a budget per LEXER INSTANCE is one boundary short ───────────────────
 //
-// The repair above put the counter on the lexer instance, on the ground that the input layer runs
-// one `next()` call's whole internal loop on one instance. Both halves of that are true and the
+// A counter on the lexer instance rests on the ground that the input layer runs one `next()`
+// call's whole internal loop on one instance. Both halves of that are true and the
 // conclusion drawn from them is not: the layer builds a fresh lexer for EVERY `next()`
 // (`Lexer::with_state` + `bump`), so a per-instance counter IS a per-call counter, and it restarts
 // on every call.
@@ -1638,9 +1638,9 @@ fn the_largest_usize_budget_multiple_is_refused_at_the_knob() {
 // same-span errors and then yields one advancing token — on every call. The span-end dedup records
 // only the first error of each call, so the item log grows by two per token and the item budget
 // stays flat; the instance ceiling is never exceeded because the instance is new each time. Driven
-// over every prefix by `run_partial`, raw lex work is CUBIC in the source length: measured at
-// 4f39c1a, 1319 attempts over 4 units rising to 66779 over 24 — a fit to `8n³/3 + Θ(n²)` — with
-// neither guard firing and no hang to notice.
+// over every prefix by `run_partial`, raw lex work is CUBIC in the source length: measured, 1319
+// attempts over 4 units rising to 66779 over 24 — a fit to `8n³/3 + Θ(n²)` — with neither guard
+// firing and no hang to notice.
 //
 // Only a counter that no construction, reset or rollback returns capacity to ends that, which is
 // what `LexTally` is.
@@ -1779,15 +1779,15 @@ fn a_lexer_that_stalls_just_under_the_per_call_ceiling_is_refused() {
 
 // ── ... and the other direction: what the narrower guard may never refuse ────────────
 //
-// Every cell above is about a guard that was too LOOSE, and an attacker slipping under it. The two
-// below are the same error read the other way. The per-instance ceiling was
-// `DEFAULT_BUDGET_MULTIPLE * units + BUDGET_FLOOR`, computed from whatever source the instance was
-// handed, which made it wrong twice: it never saw `Harness::budget_multiple`, so a lexer certified
-// under a raised budget met the default anyway; and in the partial tier the "source" is a prefix,
-// so the ceiling shrank with the cut. Both produce a CONFORMING LEXER REJECTED — the one outcome a
-// narrower guard may not cause, because the sharper message it exists for is worthless if it is a
-// lie. The repair is that the ceiling is derived from the tier's configured budget and carried on
-// the tally, so it is the same for every instance and is one the item budget already permits.
+// Every cell above is about a guard that is too LOOSE, and an attacker slipping under it. The two
+// below are the same error read the other way. A per-instance ceiling of
+// `DEFAULT_BUDGET_MULTIPLE * units + BUDGET_FLOOR`, computed from whatever source the instance is
+// handed, would be wrong twice: it never sees `Harness::budget_multiple`, so a lexer certified
+// under a raised budget meets the default anyway; and in the partial tier the "source" is a
+// prefix, so the ceiling shrinks with the cut. Both produce a CONFORMING LEXER REJECTED — the one
+// outcome a narrower guard may not cause, because the sharper message it exists for is worthless
+// if it is a lie. The ceiling is therefore derived from the tier's configured budget and carried
+// on the tally: the same for every instance, and one the item budget already permits.
 
 /// A lexer that emits `N` errors over the source's first unit and then exhausts — legally.
 ///
@@ -1878,9 +1878,9 @@ impl<'a, const N: usize> Lexer<'a> for RepeatErrLexer<'a, N> {
 /// certifies nothing.
 ///
 /// 80 errors over one unit: inside the item budget the caller configured (`128 * 1 + 64 = 192`) and
-/// far outside the fixed `8 * 1 + 64 = 72` the instance ceiling used to carry. One
-/// `InputRef::next` serves all 80 on one lexer, so both driving tiers refused this lexer on attempt
-/// 73 while the tally they are supposedly bounded by had spent 73 of its thousands.
+/// far outside a fixed `8 * 1 + 64 = 72` instance ceiling. One `InputRef::next` serves all 80 on
+/// one lexer, so with that fixed ceiling both driving tiers would refuse this lexer on attempt 73
+/// while the tally they are supposedly bounded by had spent 73 of its thousands.
 #[test]
 fn a_dense_lexer_is_certified_under_the_budget_multiple_it_was_given() {
   Harness::<RepeatErrLexer<'_, 80>>::new("a")
@@ -1896,8 +1896,8 @@ fn a_dense_lexer_is_certified_under_the_budget_multiple_it_was_given() {
 ///
 /// 72 items over one unit is what the default budget allows to the character, and the direct tier
 /// accepts the run — `lex_run` and `check_sticky` both pass. The 73rd attempt is the exhaustion
-/// probe, and the instance ceiling used to be `72`, so the same run was refused as nonterminating
-/// the moment it went through the input layer. A ceiling of "every item the budget allows, plus the
+/// probe, so an instance ceiling of `72` would refuse the same run as nonterminating the moment it
+/// went through the input layer. A ceiling of "every item the budget allows, plus the
 /// probe that ends it" is the narrowest one that cannot contradict the budget it is derived from,
 /// and this cell sits on it exactly: one item more and the *item* budget refuses first.
 #[test]
@@ -1906,15 +1906,15 @@ fn a_run_that_spends_its_whole_item_budget_still_reaches_exhaustion() {
   Harness::<RepeatErrLexer<'_, 72>>::new("a").run_partial();
 }
 
-/// The other half of the same error, and the one no budget knob could have worked around: the
-/// ceiling used to be computed from the source the *instance* was handed, and in the partial tier
-/// that is a **prefix**.
+/// The other half of the same error, and the one no budget knob could work around: a ceiling
+/// computed from the source the *instance* is handed is, in the partial tier, computed from a
+/// **prefix**.
 ///
 /// 100 errors over 8 units is inside the default budget (`8 * 8 + 64 = 128`), so the complete drive
-/// and the final one accepted it — and then the sweep reached the two-unit prefix, whose ceiling
-/// was `8 * 2 + 64 = 80`, and refused the same lexer for the same behaviour. Where the cut falls is
-/// not supposed to change what conforms: the run's budget is over the whole input, and so is every
-/// ceiling derived from it.
+/// and the final one accept it — and the sweep then reaches the two-unit prefix, whose ceiling
+/// would be `8 * 2 + 64 = 80`, and would refuse the same lexer for the same behaviour. Where the
+/// cut falls is not supposed to change what conforms: the run's budget is over the whole input, and
+/// so is every ceiling derived from it.
 #[test]
 fn a_prefix_drive_holds_the_same_ceiling_as_the_whole_input() {
   Harness::<RepeatErrLexer<'_, 100>>::new("abcdefgh").run();
@@ -2022,7 +2022,7 @@ fn a_ceiling_at_the_counters_widest_value_refuses_rather_than_wrapping_the_tally
 /// tag or the "the lexer was asked to lex more than" wording — a caller reads both as a verdict on
 /// their code, and the truth is that the kit ran out of counter. The expectation names the tag,
 /// the word INCONCLUSIVE and the explicit denial, because a message that merely *omits* the
-/// accusation is one round of editing away from carrying it again.
+/// accusation is one edit away from carrying it again.
 #[test]
 #[should_panic(
   expected = "kit-capacity] INCONCLUSIVE — this is a limit of the conformance kit \
@@ -2096,8 +2096,8 @@ fn a_saturated_instance_ceiling_refuses_rather_than_wrapping_the_instance_counte
 /// The step *before* both cells above, and the other half of the bracket they leave open.
 ///
 /// The refusals show a ceiling at the counter's widest value is enforced once the count is
-/// standing on it. On their own they do not say the count *gets* there, and that is the claim the
-/// record used to have backwards: it called such a ceiling a guard that could never fire, on the
+/// standing on it. On their own they do not say the count *gets* there, and that is the claim it
+/// is easy to get backwards: such a ceiling looks like a guard that can never fire, on the
 /// reasoning that no counter reaches one past the largest value it holds. With `>=` asked before
 /// the increment there is no "one past" to reach — the last allowed attempt charges from
 /// `MAX - 1`, where `spent < limit` still holds, so the `+ 1` is in range and lands exactly on the
@@ -2162,22 +2162,21 @@ fn the_last_attempt_below_a_saturated_ceiling_lands_on_it_without_overflowing() 
 /// The aggregate ceiling is the **same number at every target width**, which is the whole point of
 /// counting in `u128`.
 ///
-/// It did not used to be. Computed in `usize` the formula saturated, and on a 32-bit target it
-/// saturated at 11,580 units at the default multiple and at 127 at the maximum — sources anyone
-/// hands a test kit. The tally then stopped being a bound derived from the source and became a
-/// flat `usize::MAX` cap, flat while the formula kept growing quadratically. Two lexers with
-/// identical behaviour over an identical source got opposite verdicts because one host was
-/// narrower than the other.
+/// Computed in `usize` the formula saturates, and on a 32-bit target it saturates at 11,580 units
+/// at the default multiple and at 127 at the maximum — sources anyone hands a test kit. The tally
+/// then stops being a bound derived from the source and becomes a flat `usize::MAX` cap, flat while
+/// the formula keeps growing quadratically. Two lexers with identical behaviour over an identical
+/// source would get opposite verdicts because one host was narrower than the other.
 ///
 /// The `model` is the formula written out independently, so a change to either it or
 /// `lex_attempt_ceiling` reds this cell rather than leaving a private model describing an
-/// implementation that moved. The equality is now **exact and unclamped**: no `min(host_max)`,
+/// implementation that moved. The equality is **exact and unclamped**: no `min(host_max)`,
 /// because there is no host whose width the answer depends on. That is the regression pin — the
 /// clamp is what a re-narrowed ceiling would need back.
 ///
 /// `over_u32` is retained as a property of the *formula*: it is what makes 11,580 and 127
 /// thresholds rather than an assertion that big numbers are big, and it is what says the four
-/// bracketing cells still straddle the width that used to decide the verdict.
+/// bracketing cells still straddle the width a `usize` computation would let decide the verdict.
 #[test]
 fn the_aggregate_ceiling_is_the_same_number_at_every_target_width() {
   fn model(multiple: u128, units: u128) -> u128 {
@@ -2190,8 +2189,8 @@ fn the_aggregate_ceiling_is_the_same_number_at_every_target_width() {
   let default = super::DEFAULT_BUDGET_MULTIPLE;
   let max = super::MAX_BUDGET_MULTIPLE;
 
-  // The last row is the finding's own source: 100 KB at the default multiple, where the flat cap
-  // fell about 75x short of what the formula asks for.
+  // The last row is the motivating source: 100 KB at the default multiple, where a flat cap falls
+  // about 75x short of what the formula asks for.
   for &(multiple, units, over_u32) in &[
     (default, 11_579, false),
     (default, 11_580, true),
@@ -2506,10 +2505,10 @@ mod prefix_backtracking {
   }
 
   macro_rules! num_vocabulary {
-    // No class argued at the call site. The const has no default to fall into, so this arm
-    // supplies the conservative value the vocabulary used to inherit — which is what the
-    // `DefaultNum` cells below have always been exercising. Written as a separate arm rather
-    // than as `$class = <Self as Token>::SCAN_LOOKAHEAD`, which is a const cycle.
+    // No class argued at the call site. The const has no default to fall into, so this arm supplies
+    // the conservative value, which is what the `DefaultNum` cells below exercise. Written as a
+    // separate arm rather than as `$class = <Self as Token>::SCAN_LOOKAHEAD`, which is a const
+    // cycle.
     ($name:ident) => {
       num_vocabulary!(@body $name, const SCAN_LOOKAHEAD: crate::ScanLookahead =
         crate::ScanLookahead::Unbounded;);
@@ -2906,8 +2905,8 @@ fn a_conforming_lexer_with_an_unstable_debug_passes_run() {
 static ALT_TOK_FLIP: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 
 /// [`AltErrLexer`]'s defect on the token arm: same kind, same span, same slice, same item count,
-/// and a **payload** that alternates between fresh runs. Nothing the trait tier used to compare
-/// moves, so this passed `run()` for the third reason the kind projection is not the token.
+/// and a **payload** that alternates between fresh runs. Nothing a `kind`-and-`Debug` comparison
+/// reads moves — the third reason the kind projection is not the token.
 struct AltTokLexer<'a> {
   src: &'a str,
   start: usize,
@@ -3204,9 +3203,9 @@ fn a_nan_payload_is_diagnosed_and_not_blamed_on_the_lexer() {
   expected = "non-reflexive-payload] replay-identity position 0: INCONCLUSIVE — the token payload"
 )]
 fn a_nan_payload_is_diagnosed_in_the_trait_tier_too() {
-  // The trait tier compared a `kind` and a `Debug` string, so a `NaN` payload was invisible to it
-  // and this was green. #269's repair is what puts the value in front of a comparison here — the
-  // guard has to arrive with it, or the repair introduces the defect one tier over.
+  // A trait tier comparing only a `kind` and a `Debug` string would not see a `NaN` payload. #269
+  // puts the value in front of a comparison here, so the guard has to arrive with it, or the
+  // comparison introduces the defect one tier over.
   Harness::<NanPayloadLexer<'_>>::over(["n"]).run();
 }
 
@@ -3711,7 +3710,7 @@ fn the_cache_kit_still_runs_over_a_reflexive_payload_of_the_same_type() {
   .run();
 }
 
-// ── The reviewer's counterexample: a divergence the DISCRIMINANT decided ────────────
+// ── A divergence the DISCRIMINANT decided ───────────────────────────────────────────
 
 /// A lexer error payload holding an `f64` — [`FTok`]'s twin on the error arm, non-reflexive
 /// exactly at `NaN`.
@@ -4199,19 +4198,19 @@ fn two_prefilled_peeks_that_agree_in_both_halves_are_not_a_failure() {
   );
 }
 
-// ── #324 round 5: a conclusive difference outranks an inconclusive one ──────────────
+// ── A conclusive difference outranks an inconclusive one ────────────────────────────
 //
-// Rounds 1–4 built the rule that the kit never reports a diagnosis it did not establish. These
-// cells are its mirror: it never withholds one it did. Every one of them is differential — at the
-// commit before this round each produced the wrong answer quoted in its own comment.
+// The kit never reports a diagnosis it did not establish. These cells are the mirror rule: it
+// never withholds one it did. Every one of them is differential — each comment quotes the wrong
+// answer a withholding kit gives.
 
 /// A one-character-per-token lexer over the `NaN`-capable payload whose `L::State` is a
 /// **comparable** counter.
 ///
-/// [`FloatLexer`]'s state is `()`, and a `()` state cannot differ — so the third of
-/// `triple_compare`'s three questions had no fixture that could make it fire while the token
-/// question was already failing, which is exactly the arrangement round 5's second finding lives
-/// in. This is that fixture and it is conforming in everything else.
+/// [`FloatLexer`]'s state is `()`, and a `()` state cannot differ — so without this fixture the
+/// third of `triple_compare`'s three questions has nothing that can make it fire while the token
+/// question is already failing, which is exactly the arrangement the state-corruption cell below
+/// needs. This fixture is conforming in everything else.
 struct StateLexer<'a> {
   src: &'a str,
   start: usize,
@@ -4300,12 +4299,12 @@ fn float_item(
 #[test]
 #[cfg(feature = "std")]
 fn an_extra_item_outranks_a_non_reflexive_payload_at_position_zero() {
-  // THE FINDING. `[Tok(NaN)]` against `[Tok(NaN), Tok(0.0)]`: identical kind, span and slice at
+  // THE CORE CASE. `[Tok(NaN)]` against `[Tok(NaN), Tok(0.0)]`: identical kind, span and slice at
   // position 0, so only the payload can decide there — and it cannot decide anything, because
   // `NaN != NaN`. The extra item proves replay divergence with NO caller equality consulted at
-  // all, and it sat behind the refusal.
+  // all, so it must not sit behind the refusal.
   //
-  // Before: "[input #0 replay-identity] position 0: INCONCLUSIVE — the token payload …".
+  // Defect: "[input #0 replay-identity] position 0: INCONCLUSIVE — the token payload …".
   let msg = panic_message(|| {
     super::assert_run_eq::<NanPayloadLexer<'_>>(
       0,
@@ -4329,7 +4328,7 @@ fn an_extra_item_outranks_a_non_reflexive_payload_at_position_zero() {
   expected = "non-reflexive-payload] replay-identity position 0: INCONCLUSIVE — the token payload"
 )]
 fn a_non_reflexive_payload_with_nothing_conclusive_anywhere_is_still_refused() {
-  // CONTROL 1, and it pulls the opposite way from the finding: two streams of the same length,
+  // CONTROL 1, and it pulls the opposite way from the core case: two streams of the same length,
   // identical in every component a total equality settles, differing only in a payload that will
   // not equal itself. Nothing conclusive exists ANYWHERE, so the retained fallback is the answer
   // and #295's repair survives.
@@ -4373,12 +4372,12 @@ fn an_ordinary_divergence_over_reflexive_payloads_keeps_its_component_and_its_wo
 #[test]
 #[cfg(feature = "std")]
 fn a_conclusive_difference_later_in_the_stream_is_found_and_not_only_one_at_the_same_position() {
-  // CONTROL 3, and it pulls a third way: a repair that only looked at the REST OF THE SAME ITEM
-  // would pass the finding and control 1 and still stop at the first position that differs. The
+  // CONTROL 3, and it pulls a third way: a kit that only looked at the REST OF THE SAME ITEM
+  // would pass the core case and control 1 and still stop at the first position that differs. The
   // `NaN` is at position 0; the span divergence — settled by `Lexer::Span`, bounded `Ord` — is at
   // position 1, and it is what the kit has established.
   //
-  // Before: "[input #0 replay-identity] position 0: INCONCLUSIVE — the token payload …".
+  // Defect: "[input #0 replay-identity] position 0: INCONCLUSIVE — the token payload …".
   let msg = panic_message(|| {
     super::assert_run_eq::<NanPayloadLexer<'_>>(
       0,
@@ -4399,12 +4398,12 @@ fn a_conclusive_difference_later_in_the_stream_is_found_and_not_only_one_at_the_
 
 #[test]
 fn a_reflexive_state_corruption_outranks_a_non_reflexive_token() {
-  // THE SECOND FINDING, at the shared function it lives in. Same span, a `NaN` token on both
-  // sides, and two DIFFERENT `L::State`s that each equal themselves. `triple_compare` returned at
-  // the token and never examined the state, so the guard called the whole thing inconclusive over
-  // a cache the unexamined state convicts on its own.
+  // THE SECOND CASE, at the shared function it lives in. Same span, a `NaN` token on both sides,
+  // and two DIFFERENT `L::State`s that each equal themselves. A `triple_compare` that returned at
+  // the token and never examined the state would have the guard call the whole thing inconclusive
+  // over a cache the unexamined state convicts on its own.
   //
-  // Before: `Some((EntryPart::Token, …))`, both sides non-reflexive, hence a refusal.
+  // Defect: `Some((EntryPart::Token, …))`, both sides non-reflexive, hence a refusal.
   use super::cache::{EntryPart, triple_compare};
   let span = SimpleSpan::new(0, 1);
   let nan = FTok(f64::NAN);
@@ -4445,7 +4444,7 @@ fn a_purity_run_length_outranks_a_non_reflexive_entry_at_a_shared_position() {
   // position 0 and a second run one entry longer: the length is the kit's own `len()`, so no
   // caller equality stands behind it.
   //
-  // Before: `At(0, …)` over the payload, and a refusal.
+  // Defect: `At(0, …)` over the payload, and a refusal.
   use super::{Divergence, cache::runs_decided};
   let nan = || (SimpleSpan::new(0, 1), FTok(f64::NAN), ());
   let first = [nan()];
@@ -4459,22 +4458,21 @@ fn a_purity_run_length_outranks_a_non_reflexive_entry_at_a_shared_position() {
   );
 }
 
-// ── #324 round 5 residue: `Eq` is a marker, and nothing checks its promise ──────────
+// ── `Eq` is a marker, and nothing checks its promise ────────────────────────────────
 //
-// Round 4 classified a second population of verdict-drawing comparisons as settled by TOTAL
-// equalities and therefore outside the guarded population — span/slice coherence, read-frontier
-// purity, the span after exhaustion, gap-free tiling, and the cache's span-valued laws. The
-// classification is what these cells attack. `Eq` and `Ord` promise reflexivity and nothing
-// verifies the promise, so the same lying impl that gets a `non-reflexive-payload` refusal at an
-// item comparison got a red naming the caller's lexer three hundred lines away. One answer, not
+// A second population of verdict-drawing comparisons looks settled by TOTAL equalities and
+// therefore outside the guarded population — span/slice coherence, read-frontier purity, the span
+// after exhaustion, gap-free tiling, and the cache's span-valued laws. That classification is what
+// these cells attack. `Eq` and `Ord` promise reflexivity and nothing verifies the promise, so
+// without a guard the same lying impl that gets a `non-reflexive-payload` refusal at an item
+// comparison would get a red naming the caller's lexer three hundred lines away. One answer, not
 // two.
 
 /// A source slice whose `PartialEq` answers `false` to everything, itself included, while
 /// claiming [`Eq`].
 ///
-/// This is the brief's own falsifier and it is a legal, compiling implementation of the
-/// [`Slice`](crate::Slice) bound: nothing in the trait system, and nothing in this kit before
-/// now, asks whether the promise `Eq` makes is kept.
+/// This is a legal, compiling implementation of the [`Slice`](crate::Slice) bound: nothing in the
+/// trait system asks whether the promise `Eq` makes is kept, so the kit has to.
 #[cfg(feature = "std")]
 #[derive(Clone, Copy, Debug)]
 struct LyingSlice<'a>(&'a str);
@@ -4629,10 +4627,11 @@ impl<'a> Lexer<'a> for LyingSliceLexer<'a> {
 #[test]
 #[cfg(feature = "std")]
 fn a_slice_that_will_not_equal_itself_is_refused_and_not_blamed_on_the_lexer() {
-  // THE FALSIFIER round 4's exemption had to survive, and it does not. Before this the kit said
-  // "[input #0 span/slice-coherence] position 0: slice() disagrees with the source at span 0..1:
-  // source LyingSlice("a"), slice() LyingSlice("a")" — a red naming the caller's LEXER, with two
-  // values that render identically, which is #295 verbatim at a site round 4 called exempt.
+  // THE FALSIFIER for exempting total equalities, and the exemption does not survive it. Without
+  // the guard the kit says "[input #0 span/slice-coherence] position 0: slice() disagrees with the
+  // source at span 0..1: source LyingSlice("a"), slice() LyingSlice("a")" — a red naming the
+  // caller's LEXER, with two values that render identically, which is #295 verbatim at a site a
+  // total-equality exemption would skip.
   let src = LyingSliceSource("ab");
   let msg = panic_message(|| {
     let _ = super::lex_run::<LyingSliceLexer<'_>>(0, &src, 8 * 2 + 64);
@@ -4849,7 +4848,7 @@ fn lying_offset_items(src: &LyingOffsetSource) -> Vec<super::Item<'_, LyingOffse
 #[test]
 #[cfg(feature = "std")]
 fn a_read_frontier_that_will_not_equal_itself_is_refused_and_not_blamed_on_the_lexer() {
-  // Before: "[input #0 read-frontier] position 0: read_frontier() changed between calls: first
+  // Defect: "[input #0 read-frontier] position 0: read_frontier() changed between calls: first
   // read ReadTo(LyingOffset(1)), probe #0 read ReadTo(LyingOffset(1))" — a purity accusation over
   // two readings that are the same reading, rendered identically.
   let src = LyingOffsetSource("ab");
@@ -4867,9 +4866,9 @@ fn a_read_frontier_that_will_not_equal_itself_is_refused_and_not_blamed_on_the_l
 #[test]
 #[cfg(feature = "std")]
 fn a_span_that_will_not_equal_itself_is_refused_after_exhaustion_too() {
-  // Before: "[input #0 span-survives-exhaustion] span() changed after exhaustion: first read
-  // 2..2, probe #0 read 2..2". The clause this enforces is read by a refill driver, so the red it
-  // used to produce sent a caller looking for a lexer bug that is not there.
+  // Defect: "[input #0 span-survives-exhaustion] span() changed after exhaustion:
+  // first read 2..2, probe #0 read 2..2". The clause this enforces is read by a refill driver, so
+  // that red would send a caller looking for a lexer bug that is not there.
   let src = LyingOffsetSource("ab");
   let msg = panic_message(|| {
     super::check_span_after_exhaustion::<LyingOffsetLexer<'_>>(0, &src, 8 * 2 + 64);
@@ -4885,7 +4884,7 @@ fn a_span_that_will_not_equal_itself_is_refused_after_exhaustion_too() {
 #[test]
 #[cfg(feature = "std")]
 fn an_offset_that_will_not_equal_itself_is_refused_by_the_tiling_law() {
-  // Before: "[input #0 lossless] position 0: first span 0..1 does not start at 0" — a tiling
+  // Defect: "[input #0 lossless] position 0: first span 0..1 does not start at 0" — a tiling
   // accusation over an offset that IS zero. Gap-free tiling is four `Offset` equalities and every
   // one of them was unguarded; this is the one a run reaches first.
   let src = LyingOffsetSource("ab");
@@ -4918,14 +4917,13 @@ fn an_honest_lexer_over_the_same_lying_offset_type_is_not_what_any_of_this_rejec
 #[cfg(feature = "std")]
 fn the_cache_kits_span_valued_laws_are_shadowed_by_its_entry_comparison_today() {
   // **This cell is NOT differential for the residue, and says so on purpose.** The cache kit's
-  // eleven span-valued comparisons are guarded now, and with a wholly-lying `L::Span` not one of
-  // them is reachable: `run()` reaches an ENTRY comparison first, at `accepted-push`, and that
-  // one has been guarded since round 2. Removing `guard_entry` and re-running this fixture lands
-  // on `accepted-push`'s own verdict — never on a span-valued law — which is how the shadowing
-  // was established rather than assumed.
+  // eleven span-valued comparisons are guarded, and with a wholly-lying `L::Span` not one of them
+  // is reachable: `run()` reaches an ENTRY comparison first, at `accepted-push`, which is guarded
+  // too. Removing `guard_entry` and re-running this fixture lands on `accepted-push`'s own verdict
+  // — never on a span-valued law — which is how the shadowing was established rather than assumed.
   //
-  // So what this pins is the ORDER, not the repair: it is the cell that changes if a future
-  // reordering makes a span-valued law the first comparison a lying span reaches. The repair at
+  // So what this pins is the ORDER, not the guards: it is the cell that changes if a future
+  // reordering makes a span-valued law the first comparison a lying span reaches. The guards at
   // those eleven sites is defensive for exactly that reason — reachability is an argument about
   // check order and not a bound, which is the same argument
   // `a_nan_payload_is_diagnosed_at_the_resume_comparison` rests on — and it costs a call on a
@@ -5039,12 +5037,12 @@ impl<'a> Lexer<'a> for MixedArmLexer<'a> {
 #[test]
 #[cfg(feature = "std")]
 fn a_raised_error_divergence_is_not_withheld_over_a_nan_the_committed_arm_holds() {
-  // The integration tier's two arms are one verdict, and they were two `assert` calls in a fixed
-  // order — so a committed-token divergence a `NaN` decided withheld a raised-error divergence a
-  // SPAN had settled. That is round 5's finding one level above the position/count ordering.
+  // The integration tier's two arms are one verdict. As two `assert` calls in a fixed order, a
+  // committed-token divergence a `NaN` decided would withhold a raised-error divergence a SPAN had
+  // settled — the withholding defect one level above the position/count ordering.
   //
-  // Before: "[input #0 non-reflexive-payload] integration/peek-heavy position 0: INCONCLUSIVE —
-  // the token payload …", over an error arm that convicts the layer on its own.
+  // Defect: "[input #0 non-reflexive-payload] integration/peek-heavy position 0:
+  // INCONCLUSIVE — the token payload …", over an error arm that convicts the layer on its own.
   use super::{Observed, StreamItem};
   let nan_token = || StreamItem::<MixedArmLexer<'_>>::Token(MTok(f64::NAN), SimpleSpan::new(0, 1));
   let error_at =
@@ -5096,12 +5094,13 @@ fn a_committed_arm_nan_with_a_reproduced_error_arm_is_still_refused() {
 #[test]
 #[cfg(feature = "std")]
 fn a_prefilled_impurity_the_appended_run_decided_is_not_withheld_over_a_nan_in_the_prefix() {
-  // THE COUNTEREXAMPLE'S MIRROR, and the third level the same finding lives at. The existing cell
-  // above runs the other way — a conclusive prefix and a `NaN` in the appended run — and passed
-  // because `find_map` takes the prefix first. This one is the direction `find_map` got wrong:
-  // the prefix's divergence is a `NaN` that decides nothing, and the appended run's is a span.
+  // THE MIRROR of the discriminant counterexample, and the third level the same defect lives at.
+  // The existing cell above runs the other way — a conclusive prefix and a `NaN` in the appended
+  // run — and passes because `find_map` takes the prefix first. This one is the direction a
+  // `find_map` gets wrong: the prefix's divergence is a `NaN` that decides nothing, and the
+  // appended run's is a span.
   //
-  // Before: "[cache non-reflexive-payload] pure-peek/prefilled at depth 1 … INCONCLUSIVE — the
+  // Defect: "[cache non-reflexive-payload] pure-peek/prefilled at depth 1 … INCONCLUSIVE — the
   // token payload of the first prefix entry …".
   let prefix_first = [(SimpleSpan::new(0, 1), FTok(f64::NAN), ())];
   let prefix_second = [(SimpleSpan::new(0, 1), FTok(f64::NAN), ())];
@@ -5132,8 +5131,8 @@ fn one_side_that_will_not_equal_itself_is_enough_to_make_a_difference_inconclusi
   // Pins the AND in `Decided::is_conclusive`. Reflexivity is asked of both sides and either one
   // failing makes the comparison unusable: `NaN != 2.0` is `false` for two reasons at once and
   // the kit cannot tell them apart. An OR here would call position 0 conclusive, refuse over it,
-  // and withhold the ordinary divergence at position 1 — which is the finding again, reached
-  // through the one-sided case the other cells do not cover.
+  // and withhold the ordinary divergence at position 1 — the same withholding defect again,
+  // reached through the one-sided case the other cells do not cover.
   let msg = panic_message(|| {
     super::assert_run_eq::<NanPayloadLexer<'_>>(
       0,
@@ -5159,7 +5158,7 @@ fn a_later_component_of_the_same_item_outranks_an_earlier_one_the_kit_cannot_use
   // first and decides nothing — it answers `false` to every comparison, its own included — while
   // the span behind it is `Ord` and settles the divergence outright.
   //
-  // Before: "[input #0 non-reflexive-payload] integration/peek-heavy position 0: INCONCLUSIVE —
+  // Defect: "[input #0 non-reflexive-payload] integration/peek-heavy position 0: INCONCLUSIVE —
   // the token's `Kind` …", over a span divergence the kit had established. The existing
   // `LyingKind` cell asks the other question — a lying kind with NOTHING conclusive behind it —
   // so the pair differs in the one thing.
@@ -5499,7 +5498,7 @@ fn a_refill_that_adds_nothing_is_not_a_verdict() {
 fn every_conforming_hand_rolled_fixture_passes_the_refill_tier() {
   // The other half of the acceptance: the tier must not be stricter than the contract. Every
   // hand-rolled fixture this file certifies elsewhere is driven through it over the same corpus,
-  // and over REAL buffers — the same corpus under `SameAllocation` was what round 1 shipped.
+  // and over REAL buffers, not only the same corpus under `SameAllocation`.
   let tile = ["hello world", "a", "", "x y  z", "café"];
   Harness::<TileLexer<'_>>::over(tile)
     .run_refill(&OwnedChunks::over(tile))
@@ -5666,7 +5665,7 @@ type RecoverableTrip<'a> = TerminalWordLexer<'a, false>;
 
 #[test]
 fn a_terminal_error_ends_the_schedule_where_a_plain_one_is_withheld_and_re_driven() {
-  // The [high] of round 4, as the minimal pair it is. Over `"ab"` at cut 1 the leg lexes `"a"`,
+  // A terminal error, as the minimal pair it is. Over `"ab"` at cut 1 the leg lexes `"a"`,
   // the word reaches the buffer end, and the lexer latches and errors at `0..1`.
   //
   // With the latch reported through `check`, production terminates there: `classify` ranks the
@@ -5716,8 +5715,8 @@ fn the_control_passes_every_tier_it_is_read_against() {
 #[should_panic(expected = "[input #0 refill-terminal] every one of the 7 refill schedules")]
 fn an_input_whose_every_schedule_ends_terminally_is_refused_not_passed() {
   // `"ab"` is a source whose every buffer trips: the sealed one included, so every schedule ends
-  // on a terminal item and not one of them drives a refill. Round 3 passed this input by
-  // withholding the trip and re-driving it — a green earned from a transition production does not
+  // on a terminal item and not one of them drives a refill. Withholding the trip and re-driving it
+  // would pass this input — a green earned from a transition production does not
   // have. The kit refuses it instead, in `refill-coverage`'s posture and for its reason: this
   // input certified nothing.
   let _ = Harness::<TerminalTrip<'_>>::over(["ab"]).run_refill(&OwnedChunks::over(["ab"]));
@@ -5765,8 +5764,8 @@ impl crate::state::State for BaseAddr {
 ///
 /// It is not exotic: an interner keyed by address, a cached slice, or a raw pointer held for a
 /// fast path all have this shape, and every one of them is a real defect under a driver whose
-/// `String` reallocated on growth. It is the defect the tier's own subject sentence names, and
-/// round 1 certified it — see the cell below.
+/// `String` reallocated on growth. It is the defect the tier's own subject sentence names, and a
+/// tier that drove one allocation only would certify it — see the cell below.
 struct PointerStateLexer<'a> {
   src: &'a str,
   start: usize,
@@ -6614,12 +6613,12 @@ fn the_modal_lexer_is_conforming_over_a_driver_that_agrees_with_its_source() {
                            k=3 whose contents differ"
 )]
 fn a_buffer_rewritten_after_it_passed_is_refused_as_the_drivers_doing() {
-  // Round 3's second finding, executable. Cut 3's buffer is `"ab "` and passes the moment it is
-  // handed over; answering cut 4 rewrites it to `"xb "`. Nothing asks the driver again, so a table
-  // validated only on arrival carries the rewrite into every schedule built from it: `[3, 5]`
-  // commits `x` where the oracle has `a`, and the kit reports `refill-equivalence` against a lexer
-  // that did exactly what it was handed. Validating the settled table is what turns that verdict
-  // back into the driver refusal it always was.
+  // Cut 3's buffer is `"ab "` and passes the moment it is handed over; answering cut 4 rewrites it
+  // to `"xb "`. Nothing asks the driver again, so a table validated only on arrival carries the
+  // rewrite into every schedule built from it: `[3, 5]` commits `x` where the oracle has `a`, and
+  // the kit reports `refill-equivalence` against a lexer that did exactly what it was handed.
+  // Validating the settled table is what turns that verdict back into the driver refusal it always
+  // was.
   let src = ModalSource::new("ab cd", false);
   let driver = MutatingChunks {
     bufs: modal_bufs("ab cd", false),
@@ -6681,17 +6680,16 @@ fn rewriting_bufs(text: &'static str, strike: usize, overwrite: &'static str) ->
                            k=3 whose contents differ from the source: expected \"ab \", got \"xb \""
 )]
 fn a_buffer_rewritten_while_the_kit_validated_it_wins_the_diagnosis() {
-  // Round 4's first [medium], executable. Every callback has been answered and both of the
-  // validations that precede a run have passed — the second one on the value this buffer handed
-  // back **and then stopped holding**. Round 3's claim was that the settled pass establishes every
-  // prefix at the same time; it does not, because the pass runs caller code at every step and the
-  // schedules run more of it afterwards.
+  // Every callback has been answered and both of the validations that precede a run have passed
+  // — the second one on the value this buffer handed back **and then stopped holding**. The
+  // settled pass does not establish every prefix at the same time, because the pass runs caller
+  // code at every step and the schedules run more of it afterwards.
   //
-  // So the leg lexes `"xb "` and commits an `x` the oracle does not have. What the repair changes
-  // is who that is reported against: the buffers this schedule lexed are asked once more on the
-  // way to the verdict, and the one that is no longer a prefix takes it. Before the repair this
-  // was `refill-equivalence` at position 0 — the kit convicting a lexer that did exactly what it
-  // was handed.
+  // So the leg lexes `"xb "` and commits an `x` the oracle does not have. What matters is who that
+  // is reported against: the buffers this schedule lexed are asked once more on the way to the
+  // verdict, and the one that is no longer a prefix takes it. Without that, this is
+  // `refill-equivalence` at position 0 — the kit convicting a lexer that did exactly what it was
+  // handed.
   let src = ModalSource::new("ab cd", false);
   let driver = RewritesUnderValidation {
     bufs: rewriting_bufs("ab cd", 3, "xb "),
@@ -6757,11 +6755,11 @@ fn a_driver_whose_buffers_hold_still_reaches_none_of_those_refusals() {
 #[test]
 #[should_panic(expected = "[input #0 refill-equivalence] refills [2, 3, 4], position 0")]
 fn a_buffer_in_the_wrong_mode_passes_validation_and_the_verdict_names_the_lexer() {
-  // Round 3's third finding, executable — and it is a **documented obligation** rather than a
-  // repair, so this cell pins the boundary instead of a fix. Every buffer here is the right text:
-  // `Source::as_slice` at cut 3 is `"kw "` on both sides and the length matches, so the kit's
-  // validation passes. What differs is `keywords`, which the slice does not carry, so the leg
-  // commits an ident where the oracle has a keyword and the kit convicts a conforming lexer.
+  // A **documented obligation** rather than a repair, so this cell pins the boundary instead of a
+  // fix. Every buffer here is the right text: `Source::as_slice` at cut 3 is `"kw "` on both sides
+  // and the length matches, so the kit's validation passes. What differs is `keywords`, which the
+  // slice does not carry, so the leg commits an ident where the oracle has a keyword and the kit
+  // convicts a conforming lexer.
   //
   // The kit cannot close this without either a caller-supplied semantic hook (a caller-supplied
   // exemption, which is what the cut rule already is and why it is a value in the caller's own

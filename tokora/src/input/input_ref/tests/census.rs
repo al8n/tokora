@@ -99,19 +99,17 @@ const SOURCES: &[(&str, &str)] = &[
   ("skip_while.rs", include_str!("../skip_while.rs")),
   ("fold.rs", include_str!("../fold/mod.rs")),
   ("pratt.rs", include_str!("../pratt.rs")),
-  // Added by 0.8.0's recursion budget and unregistered until R23 — the one non-test neighbour the
-  // list had fallen behind. Every count it contributes is zero (it settles nothing, reaches no
+  // The recursion budget. Every count it contributes is zero (it settles nothing, reaches no
   // front, captures no checkpoint), which is exactly what registering it pins: a settle or a front
-  // read added here would now move a count instead of arriving unseen.
+  // read added here would move a count instead of arriving unseen.
   ("descent.rs", include_str!("../descent/mod.rs")),
-  // Added by the emitter-forwarding wall: the handle's `emit_*` / `cst_*` surface. Every count
-  // it contributes is **zero**, and that is exactly what registering it pins — the four members
-  // the input layer owns (`checkpoint`, `rewind`, `release`, `commit_token`) are deliberately not
-  // forwarded, so a forwarder added for one of them would move a count here instead of arriving
-  // unseen.
+  // The handle's `emit_*` / `cst_*` surface. Every count it contributes is **zero**, and that is
+  // exactly what registering it pins — the four members the input layer owns (`checkpoint`,
+  // `rewind`, `release`, `commit_token`) are deliberately not forwarded, so a forwarder added for
+  // one of them would move a count here instead of arriving unseen.
   ("emit.rs", include_str!("../emit.rs")),
   ("session.rs", include_str!("../session/mod.rs")),
-  // Added by R25's seal of the staged-stop carrier. Every count it contributes is **zero** — it
+  // The sealed staged-stop carrier. Every count it contributes is **zero** — it
   // settles nothing, reaches no front, captures no checkpoint and names no `InputRef` field — and
   // registering it is what pins that: it exists to hold a representation out of reach, so a line
   // in it that touched the input's state would be the seal leaking.
@@ -411,12 +409,12 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     // `mem::replace(self, Some(v))`, and clippy's `mem_replace_option_with_some` requires it — so
     // a marker that only knew the explicit form went blind the moment the lint was obeyed.
     "self.poison_boundary.replace(",
-    // …and the same write again, after R25 sealed the staged stop: the installer moved into
+    // …and the same write again, through the sealed staged stop: the installer lives in
     // `staged_trip.rs`, where the receiver is the `&mut Option<O>` it was handed and the marker
-    // above no longer matches a thing. Both halves are listed — the call site in
-    // `publish_scanner_trip`, which is where the window is, and the installer itself, which is
-    // now the only expression in the crate that writes the latch. A marker that followed the
-    // spelling and not the write went blind the last time this moved, too.
+    // above matches nothing. Both halves are listed — the call site in `publish_scanner_trip`,
+    // which is where the window is, and the installer itself, which is the only expression in the
+    // crate that writes the latch. A marker that follows the spelling and not the write goes blind
+    // whenever the write moves.
     "staged.install(",
     "latch.replace(",
     // The trip COUNT, listed the day the publication grew two named halves. It was invisible here
@@ -486,13 +484,10 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
 
   // Windows that are open and known, each with the reason and the disclosure it belongs to. An
   // entry whose body no longer opens a window is itself a failure.
-  // EMPTY, and that is an outcome rather than a starting point. This carried one
-  // entry — `restore_entry`, whose post-restore cursor read was disclosed in the CHANGELOG as a
-  // known limitation — on the reasoning that removing it meant deriving the cursor from the
-  // entry, which is only sound while the store is drained. The value it needed turned out not to
-  // need deriving at all: the entry's own span end IS the resumed position once the stream is
-  // drained, both callers drain it, and a `debug_assert` at the site now states that where it can
-  // be checked. Hoisting the read above the first mutation removed the window outright.
+  // EMPTY, and that is an outcome rather than a starting point. `restore_entry`'s post-restore
+  // cursor read needs no deriving: the entry's own span end IS the resumed position once the
+  // stream is drained, both callers drain it, and a `debug_assert` at the site states that where it
+  // can be checked. With the read hoisted above the first mutation, there is no window to exempt.
   const EXEMPT: &[(&str, &str, &str)] = &[];
 
   let mut exempted = 0usize;
@@ -597,30 +592,27 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
   // still. Every name here has been read and carries no fallible step after its first mutation.
   const EXPECTED: &[&str] = &[
     "mod.rs::commit_position",
-    // The trip count's own body, joining with R26's split of the publication. Its region is the
-    // single `*self.scanner_trips = ` line, which is the point: the count has to be publishable
-    // with nothing at all around it, because the already-spent refusal publishes it before it has
-    // derived anything.
+    // The trip count's own body. Its region is the single `*self.scanner_trips = ` line, which is
+    // the point: the count has to be publishable with nothing at all around it, because the
+    // already-spent refusal publishes it before it has derived anything.
     "mod.rs::count_scanner_trip",
-    // `commit_token` is deliberately ABSENT, and its departure is the change that put
-    // `settle_committed_token` here: the body is now a clamp followed by a call, and neither is a
-    // fact write, so it holds no window of its own. The window moved into the half it calls.
-    // The two INFALLIBLE install halves, both lit up by classifying the state replacement as a
-    // fact write. Each is nothing but moves — `mem::replace`/`take` — so neither can run caller
-    // code before its last fact lands; `install_rekey`'s trailing cache clear is teardown after
-    // the writes, not between them. They belong on the roster because they are where the facts
-    // move, and they pass because that is all they do.
+    // `commit_token` is deliberately ABSENT: the body is a clamp followed by a call to
+    // `settle_committed_token`, and neither is a fact write, so it holds no window of its own. The
+    // window is in the half it calls. The two INFALLIBLE install halves, both lit up by classifying
+    // the state replacement as a fact write. Each is nothing but moves — `mem::replace`/`take` — so
+    // neither can run caller code before its last fact lands; `install_rekey`'s trailing cache
+    // clear is teardown after the writes, not between them. They belong on the roster because they
+    // are where the facts move, and they pass because that is all they do.
     "mod.rs::install_position",
     "mod.rs::install_rekey",
-    // The scanner stop's boundary half, joining the roster with the boundary-derivation repair:
-    // the boundary write became a `mem::replace` (it was an in-place assignment, a HAZARD marker
-    // but never a FACT one, so this body used to be invisible here for the same reason
-    // `set_state` was). It was `publish_scanner_trip` until R26 split the publication into a
-    // witness and a memo; the marker followed the write into the half that performs it. Its region
-    // is the single `staged.install(` line — the clamp is `stage_scanner_trip`'s, above and
-    // outside, and the displaced boundary is returned rather than dropped.
+    // The scanner stop's boundary half. The boundary write is a `mem::replace`: an in-place
+    // assignment would be a HAZARD marker but never a FACT one, invisible here for the same reason
+    // `set_state` would be. The publication is split into a witness and a memo, and the marker
+    // follows the write into the half that performs it. Its region is the single `staged.install(`
+    // line — the clamp is `stage_scanner_trip`'s, above and outside, and the displaced boundary is
+    // returned rather than dropped.
     //
-    // `publish_scanner_trip` is deliberately ABSENT now: it holds no fact write of its own, only a
+    // `publish_scanner_trip` is deliberately ABSENT: it holds no fact write of its own, only a
     // call to each half, so this rail's rule — no caller code BETWEEN fact writes — has nothing to
     // say about it. It is swept WHOLE by `TRIP_CENSUS` instead, which is the stricter reading.
     "mod.rs::install_scanner_boundary",
@@ -630,21 +622,20 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     "mod.rs::replace_position",
     "mod.rs::restore_entry",
     "mod.rs::restore_unchecked",
-    // The two public state-surgery entry points, inspected here for the first time. They were
-    // never exempted by this rail — they were INVISIBLE to it, because nothing they call was a
-    // marker. That is the more dangerous form of a blind spot: an exemption is at least written
-    // down and countable, while an unlisted marker leaves no trace at all.
+    // The two public state-surgery entry points. If nothing they call were a marker they would be
+    // INVISIBLE to this rail rather than exempted, which is the more dangerous form of a blind
+    // spot: an exemption is at least written down and countable, while an unlisted marker leaves
+    // no trace at all.
     "mod.rs::set_state",
     // The token settle's infallible half: `install_position`, the side-channel notification, and
     // the trailing drop of the pair it replaced. Its region is the single `install_position` line,
     // and everything after it is the deferral the window exists for.
     "mod.rs::settle_committed_token",
     "mod.rs::state_mut",
-    // The sealed installer, joining the roster with R25's seal: `publish_scanner_trip`'s
-    // `mem::replace` of the poison boundary moved here, into the only body that can read a
-    // `StagedTrip`'s representation. Its region is the single `latch.replace(` line — there is no
-    // second fact write to be between — and that is the point: the body exists so the write has
-    // one home, and registering it is what makes a step growing beside the write visible.
+    // The sealed installer: the `mem::replace` of the poison boundary lives here, in the only body
+    // that can read a `StagedTrip`'s representation. Its region is the single `latch.replace(` line
+    // — there is no second fact write to be between — and that is the point: the body exists so the
+    // write has one home, and registering it is what makes a step growing beside the write visible.
     "staged_trip.rs::install",
     // `unwind_clear_stream` is deliberately ABSENT. It drops the parked entry and clears the
     // cache and installs nothing at all, so there is no restored branch for an interrupted drop
@@ -670,16 +661,16 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
 
 /// SETTLE_CENSUS — the settle window, over **every window**, not every body.
 ///
-/// The set of windows is derived from the source. Two earlier revisions of this check failed in
-/// ways worth keeping written down, because both looked correct:
+/// The set of windows is derived from the source. Two plausible shapes of this check fail in ways
+/// worth keeping written down, because both look correct:
 ///
-/// - it carried a hand-list of three bodies while the enumeration said eight call sites shared
-///   the window, so five consume paths were unguarded;
-/// - it then derived the bodies but exempted `skip_until` **whole**, for a real false positive in
-///   one of its three windows — silently dropping the other two, which are the scanner's own
-///   hand-over and skip rails and its highest-risk code. Its guards did not catch
-///   that: the exemption count was still exactly one, and a *floor* on the inspected count cannot
-///   see a missing member. Only a total can.
+/// - a hand-list of three bodies, while the enumeration says eight call sites share the window,
+///   leaves five consume paths unguarded;
+/// - deriving the bodies but exempting `skip_until` **whole**, for a real false positive in one of
+///   its three windows, silently drops the other two, which are the scanner's own hand-over and
+///   skip rails and its highest-risk code. Its guards would not catch that: the exemption count
+///   would still be exactly one, and a *floor* on the inspected count cannot see a missing
+///   member. Only a total can.
 ///
 /// So the unit here is the window — one removal paired with the settle that accounts for it —
 /// exemptions are keyed to a single removal marker inside a single body, and the counts are
@@ -848,13 +839,11 @@ fn settle_census_no_half_pair_position_write() {
        A span advance must carry the lexer state that produced it — route it through \
        `commit_position`/`replace_position`, which take both halves (grep SETTLE_CENSUS)."
     );
-    // No exemption. This used to allow `mod.rs` exactly one raw `*self.state = ` — `set_state`'s
-    // "deliberate surgery, moves no span". That reasoning was sound about the SPAN pair and was
-    // then honoured against every other hazard: the write it waved through drops the displaced
-    // `L::State`, which is caller code, and it sat after a re-key that had already cleared the
-    // cache, the parked slot and the poison latch. `set_state` now moves the state in with
-    // `mem::replace` before the re-key and drops the displaced one at the end, so the site the
-    // exemption existed for no longer needs it and the count is a flat zero everywhere.
+    // No exemption. `set_state`'s "deliberate surgery, moves no span" reasoning is sound about the
+    // SPAN pair and not about every other hazard: a raw `*self.state = ` drops the displaced
+    // `L::State`, which is caller code, after a re-key that has already cleared the cache, the
+    // parked slot and the poison latch. `set_state` moves the state in with `mem::replace` before
+    // the re-key and drops the displaced one at the end, so the count is a flat zero everywhere.
     let raw_state = count(src, "*self.state = ") + count(src, "*ir.state = ");
     assert!(
       raw_state == 0,
@@ -1863,10 +1852,10 @@ fn resume_census_one_pairing_site() {
   // `Cache::back` and `Span::end_ref` — all of it caller code, all of it running before
   // `lex_within_boundary` is entered, and therefore outside anything the lexing site's own ordering
   // can reach. On an entry whose probe is already spent, a stop is owed from the driver's first
-  // line, so every one of those steps used to sit in front of a publication that was already due:
-  // an unwind there, caught inside an `attempt` whose baseline follows the first refusal, reported
-  // a successful parse over input the budget had refused. A new driver that splits a `Resume`
-  // without asking first re-opens exactly that window, and this is where it is caught.
+  // line, so every one of those steps would sit in front of a publication that is already due:
+  // an unwind there, caught inside an `attempt` whose baseline follows the first refusal, would
+  // report a successful parse over input the budget had refused. A new driver that splits a
+  // `Resume` without asking first re-opens exactly that window, and this is where it is caught.
   let gate_sites: &[(&str, usize)] = &[
     ("mod.rs", 2),
     ("scan.rs", 1),
@@ -1927,12 +1916,12 @@ fn resume_census_one_pairing_site() {
   // to produce an item, and the one-shot's bound (one probe for the life of an `Input`) would stop
   // being a property of the module.
   //
-  // The predicate is the CALL, not a wrapper around it. It used to be `lex_spanned(`, which is
+  // The predicate is the CALL, not a wrapper around it. A wrapper such as `lex_spanned(` is
   // `Lexer::lex` followed by `Lexer::span` — two caller-implemented calls, with the charge and the
-  // probe latch outside both. An unwind out of the second one carried away a charge for an item
-  // the lexer had already produced, and a census keyed on the wrapper could not see the gap
-  // because the gap was *inside* it. Both sites now call `Lexer::lex` themselves and write on its
-  // answer, so this counts that.
+  // probe latch outside both: an unwind out of the second one carries away a charge for an item
+  // the lexer has already produced, and a census keyed on the wrapper cannot see the gap because
+  // the gap is *inside* it. Both sites call `Lexer::lex` themselves and write on its answer, so
+  // this counts that.
   for (name, want) in [("lex_within_boundary", 1), ("settle_met_ceiling", 1)] {
     let got = count(&method_body(m, name), "lexer.lex(");
     assert!(
@@ -1955,10 +1944,9 @@ fn resume_census_one_pairing_site() {
     );
   }
   // And no route reaches it one layer down, where neither write can see the item. `lex_spanned(`
-  // is the shape the two sites used to have; `::lex(` is every path form of the same call
-  // (`Lexed::lex`, `L::lex`, `<L as Lexer>::lex`), none of which the method-call count above can
-  // see. Both must be absent from the whole layer, which makes this census strictly wider than the
-  // one it replaces rather than the same claim moved.
+  // is the wrapper shape; `::lex(` is every path form of the same call (`Lexed::lex`, `L::lex`,
+  // `<L as Lexer>::lex`), none of which the method-call count above can see. Both must be absent
+  // from the whole layer.
   for (name, src) in SOURCES {
     for needle in ["lex_spanned(", "::lex("] {
       assert!(
@@ -2025,7 +2013,7 @@ fn resume_census_one_pairing_site() {
 /// the probe is unspent.
 ///
 /// The rest of the discipline is carried by the types and needs no rail. `publish_scanner_trip`
-/// takes a `StagedTrip`, and since R25 that is a **compiler** fact rather than a claim: the type
+/// takes a `StagedTrip`, and that is a **compiler** fact rather than a claim: the type
 /// is a newtype over a representation private to the `staged_trip` module, so
 /// `StagedTrip::stage` — which performs the `Offset::Ord` clamp — is the only expression in the
 /// language that produces one, and no call site can forge a stop that skipped the comparison. The
@@ -2163,25 +2151,25 @@ fn refusal_census_nothing_consumer_controlled_between_the_decision_and_the_publi
 /// TRIP_CENSUS — the same law over **every** method that publishes a scanner trip, with the set
 /// of them *derived from the source* rather than named.
 ///
-/// The cell above is aimed at `settle_met_ceiling`, because that is where round 6's window was.
-/// Round 7's was in `latch_if_limit_tripped` — the other publisher, which that cell does not read
-/// at all: `if lexer.check().is_err()` built a `Token::Error` inside the branch condition that
-/// decides terminality, and the scrutinee of an `if` is a temporary that dies at the end of the
+/// The cell above is aimed at `settle_met_ceiling`. `latch_if_limit_tripped` is the other
+/// publisher, which that cell does not read at all, and the same window opens there:
+/// `if lexer.check().is_err()` builds a `Token::Error` inside the branch condition that decides
+/// terminality, and the scrutinee of an `if` is a temporary that dies at the end of the
 /// condition, before the branch body. `Token::Error` is bounded `Clone + Debug` and nothing else,
-/// so that destructor is caller code, and an unwind out of it left `scanner_trips` and
+/// so that destructor is caller code, and an unwind out of it would leave `scanner_trips` and
 /// `poison_boundary` both clean over a trip that had already been decided.
 ///
-/// Four rounds have now each found one instance of that shape and closed it, which is enumeration
-/// by whoever happens to look. This is the part of ending it that a string gate can carry: the
-/// **set** of publishing methods is computed, and a method that publishes without a declared
-/// window fails here rather than arriving unseen. The runtime twins are
+/// Finding instances of that shape one at a time is enumeration by whoever happens to look. This
+/// is the part of ending it that a string gate can carry: the **set** of publishing methods is
+/// computed, and a method that publishes without a declared window fails here rather than
+/// arriving unseen. The runtime twins are
 /// `a_refusal_is_all_or_nothing_at_every_destructor_in_the_round` and
 /// `a_limit_trip_is_all_or_nothing_at_every_lexer_error_destructor`.
 ///
 /// What this cannot carry is stated in `staged_trip.rs`: it reads text, so it sees the shapes in
-/// `HAZARDS` and not the shape nobody has thought of yet. The complete enumeration is the MIR drop
-/// census in the R25 report — every `drop` terminator post-dominated by a durable write — and that
-/// is a measurement, not a gate.
+/// `HAZARDS` and not the shape nobody has thought of yet. The complete enumeration would be a MIR
+/// drop census — every `drop` terminator post-dominated by a durable write — and that is a
+/// measurement, not a gate.
 #[test]
 #[cfg_attr(
   miri,
@@ -2192,9 +2180,9 @@ fn trip_census_every_publisher_declares_its_window() {
 
   // The declared windows: (method, [(the needle that DECIDES a stop is owed, whether the decision
   // itself produces a CONSUMER-typed value)]). The second field is the classification a reviewer
-  // adding a decision has to make, and it is not decoration: round 7's defect was **on the
-  // decision line**, not below it, so a rail that only swept the lines between the decision and
-  // the publication read the defect as clean. Planted and watched failing before it was believed.
+  // adding a decision has to make, and it is not decoration: the `Lexer::check` defect sits **on
+  // the decision line**, not below it, so a rail that only swept the lines between the decision
+  // and the publication would read it as clean. Planted and watched failing before it was believed.
   //
   // An **empty** decision list means the body has no decision of its own: it is a shared half that
   // every decision reaches, and it is swept WHOLE rather than between two points. `WHOLE_BODY`
@@ -2218,10 +2206,10 @@ fn trip_census_every_publisher_declares_its_window() {
       "settle_met_ceiling",
       &[
         // The already-spent arm. `TokenBudget` is crate-owned and the answer is a `bool`, so this
-        // decision builds nothing a consumer can put a destructor on — and, since R26, the answer
-        // is not learned here at all but READ OFF a durable cell an earlier refusal wrote, which
-        // is why its publication is the trip COUNT alone and comes before every consumer step in
-        // the body rather than after the boundary derivation.
+        // decision builds nothing a consumer can put a destructor on — and the answer is not
+        // learned here at all but READ OFF a durable cell an earlier refusal wrote, which is why
+        // its publication is the trip COUNT alone and comes before every consumer step in the body
+        // rather than after the boundary derivation.
         ("limit_probe_spent(", false),
         // The one-shot probe's answer: `Option<Result<L::Token, Token::Error>>`, consumer through
         // and through.
@@ -2229,10 +2217,9 @@ fn trip_census_every_publisher_declares_its_window() {
       ],
     ),
     // The shared infallible half, and it decides nothing: both staged publishers call it, and its
-    // whole body is the window. It joined this census when R26 split it into
-    // `count_scanner_trip` + `install_scanner_boundary` — which took it OFF the restore-window
-    // roster next door, since it no longer holds a fact write of its own. Swept whole here is the
-    // stricter replacement, not a gap.
+    // whole body is the window. It is split into `count_scanner_trip` +
+    // `install_scanner_boundary`, so it holds no fact write of its own and is not on the
+    // restore-window roster next door; swept whole here is the stricter reading, not a gap.
     ("publish_scanner_trip", &[]),
   ];
 
@@ -2256,12 +2243,12 @@ fn trip_census_every_publisher_declares_its_window() {
     "matches!(",
   ];
 
-  // What COUNTS as a publication, and it is two names since R26. The trip count and the boundary
-  // install are separate bodies now, because the already-spent refusal has to publish the count
-  // *before* it derives the boundary — so a rail keyed only on `publish_scanner_trip(` would have
-  // gone blind to the arm that needed it most, exactly as the restore rail's markers went blind
-  // each time a write changed spelling. `count_scanner_trip(` is the one that matters: the count
-  // is the carrier outside the rollback set.
+  // What COUNTS as a publication, and it is two names. The trip count and the boundary install are
+  // separate bodies, because the already-spent refusal has to publish the count *before* it
+  // derives the boundary — so a rail keyed only on `publish_scanner_trip(` would be blind to the
+  // arm that needs it most, exactly as a marker goes blind when a write changes spelling.
+  // `count_scanner_trip(` is the one that matters: the count is the carrier outside the rollback
+  // set.
   const PUBLICATIONS: &[&str] = &["publish_scanner_trip(", "count_scanner_trip("];
 
   // DERIVE the publishers: every two-space-indented `fn` in `mod.rs` whose body reaches a
@@ -2293,10 +2280,9 @@ fn trip_census_every_publisher_declares_its_window() {
       .collect::<std::vec::Vec<_>>()
   );
 
-  // The hazards, in the two shapes this window grows them: a call into caller-implemented code,
-  // and a value whose `Drop` is caller-implemented. `.is_err()` / `.is_ok()` are here because
-  // that is precisely how round 7's window was spelled — a consumer-typed `Result` consumed as a
-  // `bool` is a consumer destructor nobody wrote down.
+  // The hazards, in the two shapes this window grows them: a call into caller-implemented code, and
+  // a value whose `Drop` is caller-implemented. `.is_err()` / `.is_ok()` are here because a
+  // consumer-typed `Result` consumed as a `bool` is a consumer destructor nobody wrote down.
   const HAZARDS: &[&str] = &[
     "lexer.span(",
     "lexer.check(",
@@ -2821,8 +2807,8 @@ const POSTURE_PHRASES: &[(&str, &str, &str)] = &[
   (
     "HOLDS_ENTRY",
     // POSTURE, not mechanism (#187): this must not also pin WHICH exit triggers the abandon
-    // arm. "at a no-match end of input" was here until #187 — true of the two current holders,
-    // but not implied by `HOLDS_ENTRY = true` itself, so it would force a future holder with a
+    // arm. "at a no-match end of input" is true of the two current holders, but not implied by
+    // `HOLDS_ENTRY = true` itself, so pinning it would force a future holder with a
     // different abandon trigger to either lie about its own mechanism or fail a census that is
     // supposed to be checking posture. See
     // `posture_census_holds_entry_true_phrase_does_not_bind_a_future_members_mechanism` below.
@@ -3164,7 +3150,7 @@ fn negator_before(prose: &str, at: usize) -> Option<&str> {
 }
 
 /// The tail a required-phrase failure adds when the section does carry the words but every
-/// occurrence of them is negated — the case a plain `contains` used to pass.
+/// occurrence of them is negated — the case a plain `contains` would pass.
 fn negation_note(prose: &str, phrase: &str) -> std::string::String {
   prose
     .match_indices(phrase)
@@ -3329,7 +3315,7 @@ fn posture_census_each_sync_states_the_posture_its_scan_mode_has() {
 /// no-match end of input) and shows the CURRENT `HOLDS_ENTRY` true-phrase accepts it — proving
 /// the phrase asserts only the posture. `OLD_TRUE_PHRASE` is the exact pre-#187 wording; the
 /// second assertion pins that it would have rejected the same honest sentence, which is the
-/// defect this fixes (grep POSTURE_CENSUS).
+/// defect the current phrase removes (grep POSTURE_CENSUS).
 #[test]
 fn posture_census_holds_entry_true_phrase_does_not_bind_a_future_members_mechanism() {
   // A future ScanMode, HOLDS_ENTRY = true, whose abandon condition is NOT "a no-match end of
@@ -3376,7 +3362,7 @@ fn posture_census_holds_entry_true_phrase_does_not_bind_a_future_members_mechani
 /// section's callback list flips with it.
 ///
 /// This does not attempt the general case (an arbitrary callback/source named in arbitrary prose).
-/// It closes the one vocabulary item this finding was about, the way it can actually be closed —
+/// It closes the one vocabulary item at issue here, the way it can actually be closed —
 /// derived from a real source-level gate, not asserted by fiat. `sync_balanced`'s "the classifier"
 /// is a real, method-specific panic source with no `ScanMode` constant to derive a requirement
 /// from (the classifier is `sync_balanced`'s own parameter, not part of the `ScanMode` trait), so

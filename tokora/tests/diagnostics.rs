@@ -213,7 +213,7 @@ fn every_ui_case_file_is_registered() {
 /// the corruption was found. `errors_has_no_structural_mutation_door` holds **both** halves of
 /// #247's removal, `DerefMut` and the derived `AsMut<C>`, in one file: they were the same door
 /// under two names, and a case pinning one would go green over a re-derived other. Neither has a
-/// runtime shadow after the fix — that is what "unreachable" means — so the sibling tests in
+/// runtime shadow — that is what "unreachable" means — so the sibling tests in
 /// `src/cst/sink/tests.rs` and `src/error/errors/tests.rs` cover what still compiles, and these
 /// two cover what must not.
 const BOUND_CASES: &[&str] = &[

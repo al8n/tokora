@@ -1,11 +1,9 @@
 //! Backtracking and guard micro-benchmarks for the `InputRef` machinery.
 //!
-//! The scanner hot paths live in `input_scan.rs`. This target instead
-//! quantifies the *absolute per-operation* cost of the backtracking machinery
-//! the correctness campaign hangs off — the live-checkpoint lineage stack, the
-//! pin set, and the snapshot/restore copies — so an upcoming lineage
-//! consolidation has a gate covering these ops and their cost can be read
-//! against plain token consumption.
+//! The scanner hot paths live in `input_scan.rs`. This target instead quantifies the *absolute
+//! per-operation* cost of the backtracking machinery every correctness guarantee hangs off — the
+//! live-checkpoint lineage stack, the pin set, and the snapshot/restore copies — so a lineage
+//! change has a gate covering these ops and their cost can be read against plain token consumption.
 //!
 //! Every bench drains a modest (~12 KiB) source token by token so per-op cost
 //! dominates but real lexing still happens. Each op is expressed as one real

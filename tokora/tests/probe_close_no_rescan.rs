@@ -6,18 +6,17 @@
 //! number of times — including under the blackhole `()` cache
 //! (`ParserContext<_, _, ()>`).
 //!
-//! Pre-fix, `InputRef::probe_close` classified the closer by scanning it and then
-//! pushed the scanned token back to the cache for a follow-up `try_expect` to commit.
-//! Under `()` that push-back is a no-op, so the closer was dropped and the follow-up
-//! `try_expect` **re-scanned** it — one extra closer lex on the success path (a valid
-//! `(a)` could then trip a stateful/limited lexer). The fix carries the classified
-//! closer out of the probe and commits it by value (`commit_probed`), so the closer
-//! is lexed once by the probe and never again.
+//! A probe that classifies the closer by scanning it and then pushes the scanned token back to
+//! the cache for a follow-up `try_expect` to commit drops it under `()`, where that push-back is
+//! a no-op, and the follow-up `try_expect` **re-scans** it — one extra closer lex on the success
+//! path (a valid `(a)` can then trip a stateful/limited lexer). `InputRef::probe_close` instead
+//! carries the classified closer out of the probe and commits it by value (`commit_probed`), so
+//! the closer is lexed once by the probe and never again.
 //!
-//! These tests pin the closer-lex count through the **public builder API**, so they
-//! compile on `main` too: on `main` the count is one higher (the dropped-push-back
-//! re-lex), here it is the minimum. A shared `Rc<Cell<usize>>` in the lexer state
-//! counts every time `)` is lexed (surviving the input's lexer rebuilds).
+//! These tests pin the closer-lex count through the **public builder API**, so they compile against
+//! either shape: with the push-back the count is one higher (the dropped-push-back re-lex), here it
+//! is the minimum. A shared `Rc<Cell<usize>>` in the lexer state counts every time `)` is lexed
+//! (surviving the input's lexer rebuilds).
 //!
 //! Coverage per delimited family:
 //! - `repeated` / `repeated_while`: a simple valid list (`(a)` / `[a]`) reaches the
@@ -444,7 +443,7 @@ fn repeated_no_cache_lexes_the_closer_once() {
 #[test]
 fn repeated_default_cache_lexes_the_closer_once() {
   // The capacity-independence twin: with a real cache the element's declining scan of
-  // `)` is cached, so the probe and commit reuse it — one lex, before and after the fix.
+  // `)` is cached, so the probe and commit reuse it — one lex, with or without the rescan.
   let state = CloserScans::default();
   let counter = state.handle();
   let r: Result<Vec<()>, PcErr> = Parser::with_context(default_cache_ctx())
@@ -464,8 +463,8 @@ fn repeated_default_cache_lexes_the_closer_once() {
 fn repeated_while_no_cache_lexes_the_closer_once() {
   // `repeated_while` probes the close position FIRST each iteration, so the element
   // parser never scans `)`. Under `()` the probe lexes `)` once and `commit_probed`
-  // commits it with no re-lex: the closer is lexed exactly once. Pre-fix the follow-up
-  // `try_expect` re-lexed it (push-back dropped): on `main` this counter reads 2.
+  // commits it with no re-lex: the closer is lexed exactly once. With the push-back shape the
+  // follow-up `try_expect` re-lexes it (push-back dropped) and this counter reads 2.
   let state = CloserScans::default();
   let counter = state.handle();
   let r: Result<Vec<()>, PcErr> = Parser::with_context(no_cache_ctx())
@@ -504,8 +503,8 @@ fn separated_no_cache_lexes_the_closer_once_via_the_epilogue() {
   // The `consume_then_decline` element eats `a` and declines, so the element loop breaks
   // with `)` at the cursor — reaching the epilogue `probe_close` Close arm (Shape B).
   // Under `()` the probe lexes `)` once and `commit_probed` commits it after the
-  // end-state pass with no re-lex. Pre-fix the deferred `try_expect` re-lexed it
-  // (push-back dropped): on `main` this counter reads 2.
+  // end-state pass with no re-lex. With the push-back shape the deferred `try_expect` re-lexes
+  // it (push-back dropped) and this counter reads 2.
   let state = CloserScans::default();
   let counter = state.handle();
   let r: Result<Vec<()>, PcErr> = Parser::with_context(no_cache_ctx())

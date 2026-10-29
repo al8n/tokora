@@ -21,12 +21,12 @@
 //! expression base, and a rewind to a target between the two is no longer refused at the cause.
 //! See `the_crossing_rewind_this_suite_could_not_reach` at the foot of this file for why no test
 //! here exercises it — the short version is that it cannot be written from outside the crate at
-//! all, before the change or after it.
+//! all, with either guard shape.
 //!
 //! * **Probes A and B** are the discriminators: retained clones at the deepest frame, and the
-//!   peak concurrent live states, are constants rather than functions of `d`. Both were linear
-//!   in `d` before the narrowing — `d + 1` and `d + 3`, measured by running these same cells
-//!   against the pre-narrowing driver. Both are now asserted at their **exact** measured figures
+//!   peak concurrent live states, are constants rather than functions of `d`. Both are linear in
+//!   `d` on a per-cycle driver — `d + 1` and `d + 3`, measured by running these same cells against
+//!   it. Both are asserted at their **exact** measured figures
 //!   — `2` and `4`, at every depth in [`DEPTHS`] and in both profiles — and not as ceilings,
 //!   because the claim the narrowing is justified by is a constant and a ceiling cannot pin one.
 //! * **Probe C** is the time half, and is green on both sides on purpose: it pins that the space
@@ -34,8 +34,8 @@
 //!   cycle would satisfy A and B and fail this. It stays an envelope for that reason — the
 //!   narrowing moved its intercept, so an exact form could not be two-sided — but the envelope's
 //!   slope is the measured one, which is what makes the sentence before this true.
-//! * The **rollback cells** are the acceptance evidence. `unwind_restores_the_whole_expression`
-//!   is red before the change and green after: the old per-cycle guards unwound only to the
+//! * The **rollback cells** are the evidence. `unwind_restores_the_whole_expression` is red against
+//!   per-cycle guards and green against the expression guard: per-cycle guards unwind only to the
 //!   outermost live cycle's begin point, the expression guard unwinds to before the expression.
 //!   `an_rhs_parser_panic_restores_the_whole_expression` is the same claim for the other unwind
 //!   site — a panic raised inside `parse_pratt_rhs`, i.e. inside a *live probe guard* nested in
@@ -577,21 +577,20 @@ fn measuring() -> std::sync::MutexGuard<'static, ()> {
 
 /// Retained lexer-state clones at the deepest frame: the exact figure, not a ceiling.
 ///
-/// Measured on the fixed driver, identical at every depth in [`DEPTHS`] and in both profiles:
+/// Measured on the narrowed driver, identical at every depth in [`DEPTHS`] and in both profiles:
 /// **2** — the input's own live `L::State`, plus the one clone held by the expression-scoped
 /// guard `parse_input` opens. No operator probe is live at that instant: each frame commits its
 /// probe *before* it recurses, which is the whole narrowing.
 ///
-/// On the driver this branch replaced it was **`d + 1`** — 3, 5, 9, 17, 33, 65 across [`DEPTHS`],
-/// measured by running this same cell against the pre-narrowing driver rather than reasoned from
-/// the shape of the loop. That is the win, and it is why the number below is a constant.
+/// A per-cycle guard gives **`d + 1`** — 3, 5, 9, 17, 33, 65 across [`DEPTHS`], measured by running
+/// this same cell against the pre-narrowing driver rather than reasoned from the shape of the loop.
+/// That is the win, and it is why the number below is a constant.
 ///
-/// Asserted exactly because the claim this branch is justified by is a *constant*, and a ceiling
-/// cannot pin a constant. A ceiling of `4` — which is what this cell enforced until Codex round 5
-/// pointed at the gap — passes a driver leaving one or two extra checkpoints live at every depth,
-/// which is precisely the retained-memory regression the cell exists to catch. If a future change
-/// genuinely needs a third live state, raise this number *and* say what holds it; do not widen it
-/// back into a range.
+/// Asserted exactly because the claim the narrowing is justified by is a *constant*, and a ceiling
+/// cannot pin a constant. A ceiling of `4` passes a driver leaving one or two extra checkpoints
+/// live at every depth, which is precisely the retained-memory regression the cell exists to catch.
+/// If a future change genuinely needs a third live state, raise this number *and* say what holds
+/// it; do not widen it back into a range.
 const RETAINED_EXACT: isize = 2;
 
 #[test]
@@ -620,7 +619,7 @@ fn retained_state_clones_do_not_grow_with_operator_depth() {
 
 /// Peak concurrent live lexer states over a whole parse: the exact figure, not a ceiling.
 ///
-/// Measured on the fixed driver, identical at every depth in [`DEPTHS`] and in both profiles:
+/// Measured on the narrowed driver, identical at every depth in [`DEPTHS`] and in both profiles:
 /// **4** — the two of [`RETAINED_EXACT`], plus the one operator probe that is live while the RHS
 /// parser is deciding, plus the state the token cache carries beside a token it is holding.
 ///
@@ -657,12 +656,12 @@ fn peak_live_states_are_independent_of_operator_depth() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Probe C — the time half. Green before AND after.
+// Probe C — the time half, green against both drivers.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// The linear envelope on total state clones.
 ///
-/// Measured on the fixed driver, in both profiles: exactly `5 * d + 4` clones at depth `d` — 14,
+/// Measured on the narrowed driver, in both profiles: exactly `5 * d + 4` clones at depth `d` — 14,
 /// 24, 44, 84, 164, 324 across [`DEPTHS`]. Five per operator, because a cycle's probe is one
 /// capture and the cache carries a state beside each token it holds; four fixed, for the
 /// expression guard and the input's own construction and handover.
@@ -677,11 +676,10 @@ fn peak_live_states_are_independent_of_operator_depth() {
 /// which is the only property that makes it a control at all.
 ///
 /// What the envelope keeps is the **slope**, at exactly the measured five, with headroom left
-/// only on the constant. That is the tightening this cell needed: at a slope of six it admitted
-/// the very thing its section header claims it forbids — a "fix" that released a checkpoint early
-/// and re-took it per cycle, which is one extra capture per operator. `6 * d + 4` now breaks the
-/// line at `d = 32` and `d = 64`, where before it fitted underneath at every depth swept; and
-/// `5 * d + 3` still fits, which was checked by running this cell against the old driver.
+/// only on the constant. At a slope of six the envelope would admit the very thing its section
+/// header claims it forbids — a "fix" that released a checkpoint early and re-took it per cycle,
+/// which is one extra capture per operator. `6 * d + 4` breaks the line at `d = 32` and `d = 64`;
+/// and `5 * d + 3` fits, which was checked by running this cell against the per-cycle driver.
 fn clone_envelope(d: usize) -> usize {
   5 * d + 32
 }
@@ -786,7 +784,7 @@ fn unwind_restores_the_whole_expression() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// E2 / E3 — every exit that used to roll back still rolls back
+// Every probe exit still rolls back
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // These three are keep-green. Each still holds a LIVE probe guard at the moment it decides — the
@@ -949,11 +947,10 @@ handback_err_cell!(
 // `rollback_abandoning_points`, the point is abandoned and the restore proceeds, exactly as the
 // expression guard's own rolling-back drop has always done for `Fault::Rewind`.
 //
-// Red baseline: all five panic at the pin against the tree at the *pre-fix* commit — the
-// narrowing with its five probe exits still calling `txn.rollback()` — not against `main`, whose
-// wide cycle guard this suite's other cells discriminate against. Green: the three handback cells
-// assert the same handback their non-leaking twins do, byte for byte, and the two stall cells
-// reach the contract violation they were written to report.
+// Red baseline: all five panic at the pin against a narrowed driver whose five probe exits call
+// `txn.rollback()` — not against the wide cycle guard this suite's other cells discriminate
+// against. Green: the three handback cells assert the same handback their non-leaking twins do,
+// byte for byte, and the two stall cells reach the contract violation they were written to report.
 
 /// [`end_after_consuming_rhs`], having first opened a session point it never settles.
 fn point_leaking_end_rhs<'inp, Ctx>(

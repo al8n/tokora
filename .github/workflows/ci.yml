@@ -843,7 +843,7 @@ jobs:
         run: bash ci/name_collision/run.sh "$base" /tmp/nc/inventory.json
 
   # ── Gate: layout census ─────────────────────────────────────────────────────
-  # The public export layout (#350) is a set of rules over the RESOLVED surface — one canonical
+  # The public export layout is a set of rules over the RESOLVED surface — one canonical
   # path per item plus the crate root, a frozen root with no glob into it, no trait under
   # `combinator`, nothing deeper than `tokora::<module>::<Item>` outside a committed allow-list —
   # and the compiler holds none of them: a `pub use` that hands an item a second path, a new root

@@ -1,4 +1,4 @@
-# The crate root, frozen (#350, rule 2): every public name at `tokora::`, one per line, with its
+# The crate root, frozen (rule 2): every public name at `tokora::`, one per line, with its
 # kind, in the all-features rustdoc JSON. `ci/layout/census.py` check 2 fails when the root and
 # this list differ in either direction, so adding a root name — a module included — is a
 # deliberate edit here. `#[doc(hidden)]` names (`__private`) are not in the JSON and not listed.

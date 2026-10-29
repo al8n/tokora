@@ -566,8 +566,8 @@ fn t_a(span: SimpleSpan, expect: Expect, invoke: impl FnOnce(&mut Vb)) {
 
 /// T-b — the channel rewinds exactly: its emission advances the mark inside a guard, a
 /// rollback puts the mark back and removes the emission, and the logged twin recorded at the
-/// *same span* before the guard survives untouched. Pre-fix, a bypassing channel fails this on
-/// both halves at once — the mark never moved, and the rollback removed the twin instead.
+/// *same span* before the guard survives untouched. A bypassing channel fails this on both
+/// halves at once — the mark never moves, and the rollback removes the twin instead.
 fn t_b(
   span: SimpleSpan,
   expect: Expect,
@@ -918,8 +918,8 @@ verbose_channel_conformance! {
         .expect("Verbose collects rather than propagates");
     }
   },
-  // The control row: `emit_unclosed` already routed through the chokepoint beforehand,
-  // so it proves the template pins a property rather than describing the repair.
+  // The control row: `emit_unclosed` routes through the chokepoint on its own, so it proves
+  // the template pins a property rather than describing one channel's history.
   emit_unclosed => {
     span: SimpleSpan::new(0usize, 1usize),
     expect: Expect::Error(ConfError::Unclosed),

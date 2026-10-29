@@ -23,9 +23,10 @@
 //! finality is a **world fact**, so it is settable only through the owning input
 //! ([`Input::seal`](crate::input::Input::seal), monotone), which an `InputRef` mutably borrows for
 //! its whole life. There is no method on a handle, at any depth, in any speculative branch, that
-//! could flip it — so there is no such operation to fuzz, and the leak it used to cause is
-//! *unrepresentable* rather than merely untriggered. What remains fuzzable is the mirror half — a
-//! rollback must not un-*end* a stream — and `seal_survives_rollback` is exactly that oracle.
+//! could flip it — so there is no such operation to fuzz, and the leak such an operation would
+//! cause is *unrepresentable* rather than merely untriggered. What remains fuzzable is the mirror
+//! half — a rollback must not un-*end* a stream — and `seal_survives_rollback` is exactly that
+//! oracle.
 //!
 //! This is error-agnostic (it compares committed token streams, which skip lexer errors
 //! identically in both modes), so — unlike the consume driver — the fuzzed streams here **do**
@@ -456,14 +457,14 @@ pub(crate) fn run(src: &[u8], seed: u64, cov: &mut Coverage) {
 
   // 4. The limit oracle: put a TERMINAL condition on the frontier and check it outranks it. The
   //    limit is drawn to land inside the stream, and the cut is forced to the tripping token's span
-  //    end — the exact chunk-boundary alignment that used to mask the trip as Incomplete — as well
+  //    end — the exact chunk-boundary alignment that can mask the trip as Incomplete — as well
   //    as sampled randomly.
   let tokens_total = src.iter().filter(|&&b| !is_err(b)).count();
   if tokens_total > 0 {
     let limit = rng.below(tokens_total);
     if let Some(t) = trip_index(src, limit) {
       cov.mark(Op::Next);
-      // The alignment the finding turns on: the tripping token ends exactly at the cut.
+      // The alignment the defect turns on: the tripping token ends exactly at the cut.
       check_limited_prefix(src, limit, t + 1, budget);
       // Its neighbours: the trip strictly inside the prefix, and the prefix stopping just short of
       // it (no trip yet — the holdback must still apply).

@@ -49,13 +49,13 @@ fn a_zero_budget_refuses_the_first_item() {
 ///
 /// # Why the seed and not a drain
 ///
-/// The distance is `usize::MAX` produce-events, and this PR charges a **re-lex** as a
+/// The distance is `usize::MAX` produce-events, and the budget charges a **re-lex** as a
 /// produce-event, so it is a distance one long-lived `Input` over a speculating grammar can cover —
-/// not a four-billion-token document. At a 64-bit `usize` the seed is unreachable and the arithmetic
-/// is the whole claim; at a **32-bit** `usize` the seeded value is `4_294_967_294`, which is why
-/// this cell is also run under `--target wasm32-wasip1` (32-bit `usize`, executed by wasmtime).
-/// [`the_sentinel_distance_is_a_reachable_count_at_thirty_two_bit_width`] pins the width the run
-/// actually had.
+/// not a four-billion-token document. At a 64-bit `usize` the seed is unreachable and the
+/// arithmetic is the whole claim; at a **32-bit** `usize` the seeded value is `4_294_967_294`,
+/// which is why this cell is also run under `--target wasm32-wasip1` (32-bit `usize`, executed by
+/// wasmtime). [`the_sentinel_distance_is_a_reachable_count_at_thirty_two_bit_width`] pins the width
+/// the run actually had.
 #[test]
 fn the_unlimited_sentinel_never_refuses_at_the_top_of_the_counter() {
   let mut budget = TokenBudgetTally::new(TokenBudget::unlimited());
@@ -78,9 +78,9 @@ fn the_unlimited_sentinel_never_refuses_at_the_top_of_the_counter() {
 /// increment has to saturate. A wrap would put `spent` back to `0` and hand an unbounded budget a
 /// fresh, silently-restarted counter.
 ///
-/// Falsifying output before the repair: a `debug_assert` panic in a debug build (`spent < max` is
-/// false at the sentinel) and a wrap to `0` in a release one — the same defect, reported in one
-/// build and silent in the other.
+/// Falsifying output with a wrapping charge: a `debug_assert` panic in a debug build
+/// (`spent < max` is false at the sentinel) and a wrap to `0` in a release one — the same defect,
+/// reported in one build and silent in the other.
 #[test]
 fn the_charge_at_the_sentinel_saturates_rather_than_wrapping() {
   let mut budget = TokenBudgetTally::new(TokenBudget::unlimited());
@@ -93,10 +93,10 @@ fn the_charge_at_the_sentinel_saturates_rather_than_wrapping() {
 
 /// The width the two cells above were actually run at, asserted rather than assumed.
 ///
-/// The sentinel defect is arithmetic at any width and *reachable* only at 32 bits, and this
-/// program has twice shipped a finding that existed only there. There is no 32-bit test leg, so the
-/// evidence is this cell plus the target it ran under: at `wasm32-wasip1` the branch below is the
-/// live one and the distance is a nine-digit number.
+/// The sentinel defect is arithmetic at any width and *reachable* only at 32 bits, and a defect
+/// that exists only there is easy to ship. There is no 32-bit test leg, so the evidence is this
+/// cell plus the target it ran under: at `wasm32-wasip1` the branch below is the live one and the
+/// distance is a nine-digit number.
 #[test]
 fn the_sentinel_distance_is_a_reachable_count_at_thirty_two_bit_width() {
   #[cfg(target_pointer_width = "32")]
@@ -115,15 +115,15 @@ fn the_sentinel_distance_is_a_reachable_count_at_thirty_two_bit_width() {
   );
 }
 
-/// **The repair, at the only place an input's tally can come from.** A tally is built from a
+/// **The split, at the only place an input's tally can come from.** A tally is built from a
 /// [`TokenBudget`] and from nothing else, so the ceiling crosses the seam and the spend cannot.
 ///
-/// This is what makes the transplant unrepresentable rather than merely unlikely. Before the split,
-/// `spent` and the probe latch rode in the `Copy` configuration a caller hands to
-/// `with_token_budget`: `*input.token_budget()` out of a refused parse and into the next context
-/// made the next `Input` start exhausted with a refusal on record. Reproduced at `6aa0b08` through
-/// both public doors over an **empty** source — `Err(terminal)`, `refused_an_item() == true`, and
-/// **zero** `Lexer::lex` calls.
+/// This is what makes the transplant unrepresentable rather than merely unlikely. With `spent`
+/// and the probe latch riding in the `Copy` configuration a caller hands to `with_token_budget`,
+/// `*input.token_budget()` out of a refused parse and into the next context would make the next
+/// `Input` start exhausted with a refusal on record — through both public doors over an
+/// **empty** source: `Err(terminal)`, `refused_an_item() == true`, and **zero** `Lexer::lex`
+/// calls.
 ///
 /// Falsifying output if a spend ever finds its way back into the configuration and through here:
 /// the second block reads a nonzero `spent` or a latched probe.
@@ -137,8 +137,8 @@ fn a_tally_is_built_from_the_ceiling_alone() {
   assert!(!fresh.refused_an_item());
   assert!(!fresh.limit_probe_spent());
 
-  // Spend the first tally to its ceiling and latch its probe — the exact state the transplant
-  // used to carry — then build again from the same configuration value.
+  // Spend the first tally to its ceiling and latch its probe — the exact state a transplant
+  // would carry — then build again from the same configuration value.
   let mut refused = TokenBudgetTally::new(config);
   for _ in 0..4 {
     refused.spend();

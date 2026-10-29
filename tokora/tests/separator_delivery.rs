@@ -183,9 +183,9 @@ macro_rules! delivery {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Happy-path separators: `1,2,3` has commas at offsets 1 and 3. Before the fix the
-// `State::Element -> Separator` arm stored the token without ever delivering it, so a
-// recording container saw NOTHING on a well-formed list.
+// Happy-path separators: `1,2,3` has commas at offsets 1 and 3. A `State::Element -> Separator` arm
+// that stores the token without ever delivering it leaves a recording container seeing NOTHING on a
+// well-formed list.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 delivery!(happy_sep, "1,2,3", vec![1, 3], inp =>
@@ -203,9 +203,9 @@ delivery!(happy_sep_while_delim, "[1,2,3]", vec![2, 4], inp =>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // The full ordered set: `,1,,2,` mixes a leading separator (offset 0), a happy-path one
-// (2), a duplicate (3) and a trailing one (5). Before the fix only the anomalous two —
-// offsets 0 and 3 — were delivered, i.e. the exact complement of the documented law and
-// out of source order relative to the ones that were missing.
+// (2), a duplicate (3) and a trailing one (5). Delivering only the anomalous two — offsets 0
+// and 3 — would be the exact complement of the documented law, and out of source order
+// relative to the ones that were missing.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 delivery!(every_position_sep, ",1,,2,", vec![0, 2, 3, 5], inp =>

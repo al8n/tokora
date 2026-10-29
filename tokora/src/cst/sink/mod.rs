@@ -266,17 +266,16 @@ struct MarkRow {
   /// The inner emitter's own checkpoint reading captured at this sink checkpoint. Handed
   /// back to `inner.rewind` when this row is the rewind target, restoring the inner to
   /// exactly its state when the mark was taken — every forwarded token AND diagnostic before
-  /// the mark survives, every one after is undone. (Pre-fix the inner target came from the
-  /// last surviving `Diag` slot, which missed tokens forwarded after the last diagnostic —
-  /// the desync.)
+  /// the mark survives, every one after is undone. (Deriving the inner target from the last
+  /// surviving `Diag` slot instead would miss tokens forwarded after the last diagnostic — a
+  /// desync.)
   ///
   /// This is a plain `u64` reading, spent when the row is popped — there is no inner-side
   /// resource on the row, so `release` (which also pops the row) leaks no inner checkpoint.
   /// The mechanism assumes a **value-keyed** inner: `checkpoint` a pure monotone reading,
   /// `rewind` a drop-by-value, and `release` a no-op — the `Verbose`/token-tracking shape.
-  /// (A table-keyed inner that allocated per `checkpoint` was already unsupported pre-fix:
-  /// `forward_diag` then captured `inner.checkpoint()` per diagnostic with no matching
-  /// release.) See the *Inner-emitter contract* section on [`Sink`].
+  /// (A table-keyed inner that allocates per `checkpoint` is not supported.) See the
+  /// *Inner-emitter contract* section on [`Sink`].
   inner: u64,
 }
 
@@ -1165,8 +1164,8 @@ where
   /// Test-only for [`recount_depth`](Self::recount_depth)'s reason, and it earns its place
   /// twice. It is the *independent* answer the skew-binary search is checked against — the two
   /// share no code and only the slow one is obviously right — and it is the **before** side of
-  /// the work counter, so the repair's numbers are measured against the walk they replaced
-  /// rather than against a remembered figure from an uncommitted harness.
+  /// the work counter, so the skip links' numbers are measured against the walk they replace
+  /// rather than against a remembered figure.
   #[cfg(all(test, debug_assertions))]
   pub(crate) fn probe_open_chain_via_parents(&self, index: u64) -> (bool, u64) {
     let mut reads = 0u64;
@@ -1389,13 +1388,12 @@ where
     // an open child above the mark is a different bug, already walled at materialization as
     // `UnclosedNodes`.
     // The dipping event IS the diagnosis, so the report names which of the three it is rather
-    // than enumerating all three at the reader. The previous message asserted one shape ("the
-    // node was already closed") for a condition with three causes, and misdiagnosed the two it
-    // did not name — the defect class this repo keeps closing.
+    // than enumerating all three at the reader: a message asserting one shape ("the node was
+    // already closed") for a condition with three causes misdiagnoses the two it does not name.
     //
-    // THE VERDICT IS NO LONGER THE SCAN'S, and the diagnosis still is. The walk below used to
-    // run on EVERY demote, success included, with no early exit — `Theta(d x len)` for `d`
-    // nested failing brackets, measured at exactly `d(d - 1)` visits (al8n/tokora#306). It now
+    // THE VERDICT IS NOT THE SCAN'S, and the diagnosis still is. Run on EVERY demote, success
+    // included, with no early exit, the walk below would be `Theta(d x len)` for `d` nested
+    // failing brackets, measured at exactly `d(d - 1)` visits (al8n/tokora#306). It
     // runs only when the open-node chain has already said the node is closed, i.e. only on the
     // path that is about to panic, where its cost is the panic's. The chain's answer is the
     // scan's answer on every input — a chain entry survives exactly while the suffix holds no
@@ -1588,9 +1586,9 @@ where
     // ── THE JOURNAL NEEDS NO FIX-UP — a theorem about the scan, not a habit of the producers ──
     //
     // The splice renames every index at or above `at`, and journal entries are indices, so the
-    // obvious reading is that they need bumping. They do not, and this method used to bump them
-    // anyway: `Theta(J)` reads and branches per hole that provably wrote nothing, `Theta(J x H)`
-    // over a parse (al8n/tokora#250, measured at exactly `J x H`). What follows is why the loop
+    // obvious reading is that they need bumping. They do not, and bumping them anyway costs
+    // `Theta(J)` reads and branches per hole that provably wrote nothing, `Theta(J x H)` over a
+    // parse (al8n/tokora#250, measured at exactly `J x H`). What follows is why the loop
     // is not merely unnecessary today but unreachable, because deleting a fix-up on a wrong
     // proof does not cost time — it silently renames journal indices.
     //
@@ -1883,20 +1881,18 @@ where
     mark
   }
 
-  /// Truncate + reverse-replay + inner rewind: drop the events above the mark, undo the
-  /// journaled `forward_parent` writes whose `StartAt`s died, record the truncation in
-  /// the era ledger (marks into the dropped region are stale forever), and rewind the
-  /// inner emitter to a reading the sink **knows exactly** — the target row's captured
-  /// reading, or the construction-time base for a no-row unwind to the origin. An
-  /// out-of-range FUTURE mark — `checkpoint` strictly above the current length — names a
-  /// log position that does not exist yet: the sink ignores the call outright, a **total
-  /// no-op on every channel** (events, mark stack, floor, journal, ledger, and the inner
-  /// alike; no live row can sit above the length, so no settle is owed). Clamping it to
-  /// the length instead — the pre-fix behavior — let a future mark spend the live row of
-  /// a real checkpoint taken at the current length; `Verbose` may clamp only because it
-  /// keeps no per-mark bookkeeping. A rewind to a mark exactly **at** the current length
-  /// is the trait's rewind-to-current law — a no-op on every observable channel that
-  /// still spends its capture's row.
+  /// Truncate + reverse-replay + inner rewind: drop the events above the mark, undo the journaled
+  /// `forward_parent` writes whose `StartAt`s died, record the truncation in the era ledger (marks
+  /// into the dropped region are stale forever), and rewind the inner emitter to a reading the sink
+  /// **knows exactly** — the target row's captured reading, or the construction-time base for a
+  /// no-row unwind to the origin. An out-of-range FUTURE mark — `checkpoint` strictly above the
+  /// current length — names a log position that does not exist yet: the sink ignores the call
+  /// outright, a **total no-op on every channel** (events, mark stack, floor, journal, ledger, and
+  /// the inner alike; no live row can sit above the length, so no settle is owed). Clamping it to
+  /// the length instead would let a future mark spend the live row of a real checkpoint taken at
+  /// the current length; `Verbose` may clamp only because it keeps no per-mark bookkeeping. A
+  /// rewind to a mark exactly **at** the current length is the trait's rewind-to-current law — a
+  /// no-op on every observable channel that still spends its capture's row.
   ///
   /// # Panics
   ///
@@ -1942,19 +1938,17 @@ where
   {
     let len = self.events.len() as u64;
     if checkpoint > len {
-      // root guard — an out-of-range FUTURE mark names a log position that does not
-      // exist yet, so there is nothing to rewind on ANY channel: return before every
-      // consumer of the mark (row pops, floor, truncation, journal replay, ledger, the
-      // inner enumeration — and any consumer added later). The pre-fix
-      // `checkpoint.min(len)` clamp instead dressed a future mark up as a
-      // rewind-to-current, and the row lookup below then spent the live row of a REAL
-      // checkpoint taken at the current length; that checkpoint's own later rewind found
-      // no row (now the unconditional mid-log panic below). No live row
-      // can sit above `len` (rows are pushed at the current length and truncation pops
-      // them first), so no settle is owed here — the no-op is exact, not defensive.
-      // `Verbose` may clamp only because it keeps no per-mark bookkeeping: clamp and
-      // ignore coincide there; the sink's mark-keyed row stack makes them differ.
-      // The boundary is strict: `checkpoint == len` IS the current position — a lawful
+      // root guard — an out-of-range FUTURE mark names a log position that does not exist yet, so
+      // there is nothing to rewind on ANY channel: return before every consumer of the mark (row
+      // pops, floor, truncation, journal replay, ledger, the inner enumeration — and any consumer
+      // added later). A `checkpoint.min(len)` clamp would instead dress a future mark up as a
+      // rewind-to-current, and the row lookup below would then spend the live row of a REAL
+      // checkpoint taken at the current length; that checkpoint's own later rewind would find no
+      // row (the unconditional mid-log panic below). No live row can sit above `len` (rows are
+      // pushed at the current length and truncation pops them first), so no settle is owed here —
+      // the no-op is exact, not defensive. `Verbose` may clamp only because it keeps no per-mark
+      // bookkeeping: clamp and ignore coincide there; the sink's mark-keyed row stack makes them
+      // differ. The boundary is strict: `checkpoint == len` IS the current position — a lawful
       // rewind-to-current that must still spend its capture's row below.
       return;
     }

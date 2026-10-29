@@ -839,8 +839,8 @@ fn nested_restore_retains_pre_save_cache_entries() {
   // exactly like the dedup watermark and the poison boundary. The inner restore drops
   // its post-save tail (`2`,`3`) and rewinds the count to the inner save's value; the
   // outer restore then computes zero post-save survivors and keeps the prefilled `1`.
-  // At HEAD the count was never rewound, so the outer restore saw a stale-high count and
-  // over-dropped `1`; re-consuming re-lexed it — the shared `ProbeLimiter` counter, which
+  // A count that was never rewound would let the outer restore see a stale-high count and
+  // over-drop `1`; re-consuming would re-lex it — the shared `ProbeLimiter` counter, which
   // observes every scan, makes that re-lex visible as a nonzero delta across one `next()`.
   //   1 2 3 4 5   (all valid Nums; a `usize::MAX` limit never trips)
   use crate::span::SimpleSpan;
@@ -871,8 +871,8 @@ fn nested_restore_retains_pre_save_cache_entries() {
     inp.restore(outer);
 
     // (a) The prefilled `1` is served FROM CACHE: consuming it does no scan work, so the
-    // shared counter is unchanged across this single `next()`. At HEAD the outer restore
-    // over-drops `1`, so it re-lexes here and the counter ticks up.
+    // shared counter is unchanged across this single `next()`. An outer restore that
+    // over-dropped `1` would re-lex it here, and the counter would tick up.
     let before = scanned.get();
     let first = inp.next().unwrap().expect("first drained token");
     assert_eq!(
@@ -920,7 +920,7 @@ fn nested_restore_with_shared_limiter_no_spurious_poison() {
   // The same nested LIFO shape, but under a SHARED-counter limiter whose budget is one
   // scan short of tolerating the over-drop's re-lex. A faithful drain serves the prefilled
   // `1` from cache (no scan) and re-lexes only the post-save `2`,`3`,`4`,`5`, reaching a
-  // count of 7 — untripped at the limit of 7. The HEAD over-drop also re-lexes `1`,
+  // count of 7 — untripped at the limit of 7. An over-drop also re-lexes `1`,
   // reaching 8 and tripping the limiter on the fifth drained token: a spurious poison latch
   // and a limit diagnostic this checkpoint's lineage never produced.
   //   1 2 3 4 5   (limit 7)
@@ -1628,9 +1628,9 @@ fn sync_through_trip_after_skips_commits_the_diagnosed_prefix() {
     );
 
     // (i) The diagnosed prefix is COMMITTED at the durable frontier (end of `2`,
-    // offset 3), NOT stranded at the stale pre-call anchor (offset 0) that the old
-    // `AtCursor` policy left behind. At HEAD this span was still `[0, 0)` and the
-    // token count still 0 — the regression this test pins.
+    // offset 3), NOT stranded at the stale pre-call anchor (offset 0) an `AtCursor`
+    // policy would leave behind — where this span would still be `[0, 0)` and the
+    // token count still 0, the regression this test pins.
     assert!(inp.is_poisoned(), "the trip latches the poison boundary");
     assert_eq!(
       inp.span(),
@@ -1888,8 +1888,8 @@ fn failed_sync_through_leaves_no_diagnostics() {
   );
 
   // The failed sync left no diagnostics, and a normal drain of valid tokens emits
-  // none. At HEAD the failed sync retained one unexpected-token diagnostic per scanned
-  // token (three) — the stale, misleading noise this fix removes.
+  // none. The regression would retain one unexpected-token diagnostic per scanned
+  // token (three) from the failed sync — stale, misleading noise.
   let total: usize = input
     .emitter()
     .errors()
@@ -1963,7 +1963,7 @@ fn failed_sync_through_reemits_scanned_lexer_error_once() {
   // committed nothing) nor lost: the genuine consume that follows re-crosses `@` and
   // re-emits it exactly once. Without the watermark restore the rewound error would stay
   // watermark-covered and be silently deduplicated away on the re-scan (emitted zero
-  // times); at HEAD the failed sync instead retains it plus two stale unexpected tokens.
+  // times); the regression would instead retain it plus two stale unexpected tokens.
   //   1 @ 2   (`@` is a lexer error spanning [2, 3); high limit so no trip)
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2053,8 +2053,8 @@ fn failed_sync_through_then_peek_leaves_no_diagnostics_and_position() {
     drop(peeked);
 
     // The no-match EOF path commits nothing: cursor/span/state stay at the pre-call anchor
-    // so the caller can fall back from the original position. At HEAD this loop instead
-    // advanced span/state to the lexer EOF.
+    // so the caller can fall back from the original position, rather than span/state
+    // advanced to the lexer EOF.
     assert_eq!(
       inp.span(),
       &SimpleSpan::new(0, 0),
@@ -2085,8 +2085,8 @@ fn failed_sync_through_then_peek_leaves_no_diagnostics_and_position() {
   );
 
   // The failed peek-sync left no diagnostics, and a normal drain of valid tokens emits
-  // none. At HEAD the failed peek-sync retained one unexpected-token diagnostic per scanned
-  // token (three) — the stale, misleading noise this fix removes.
+  // none. The regression would retain one unexpected-token diagnostic per scanned
+  // token (three) from the failed peek-sync — stale, misleading noise.
   let total: usize = input
     .emitter()
     .errors()
@@ -2111,7 +2111,7 @@ fn failed_sync_through_then_peek_reemits_crossed_lexer_error_once() {
   // committed nothing) nor lost: the genuine consume that follows re-crosses `@` and
   // re-emits it exactly once. Without the watermark restore the rewound error would stay
   // watermark-covered and be silently deduplicated away on the re-scan (emitted zero times);
-  // at HEAD the failed peek-sync instead retains it plus two stale unexpected tokens.
+  // the regression would instead retain it plus two stale unexpected tokens.
   //   1 @ 2   (`@` is a lexer error spanning [2, 3); high limit so no trip)
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_context(
@@ -2227,7 +2227,7 @@ fn successful_sync_through_then_peek_retains_skipped_token_diagnostics() {
 
 #[test]
 fn failed_sync_through_with_prefilled_cache_leaves_no_trace() {
-  // The finding's core case. A caller peeks lookahead (filling the cache), then a
+  // The core case. A caller peeks lookahead (filling the cache), then a
   // `sync_through` whose predicate never matches DRAINS that cached prefix — advancing
   // span/state and diagnosing each drained token — before scanning the rest to EOF. The
   // no-match EOF exit commits nothing, so it must rewind the WHOLE call, the drained
@@ -2236,9 +2236,9 @@ fn failed_sync_through_with_prefilled_cache_leaves_no_trace() {
   // later drain re-lexes them (by the `Lexer` determinism contract) and yields the full
   // faithful stream with no noise.
   //
-  // At HEAD the snapshot was taken AFTER the drain, so the drain's span/state advance and
-  // its unexpected-token diagnostics survived the failed call: the cursor ended at EOF,
-  // three stale diagnostics remained, and the drained tokens were lost to the committed
+  // A snapshot taken AFTER the drain would let the drain's span/state advance and its
+  // unexpected-token diagnostics survive the failed call: the cursor would end at EOF, three
+  // stale diagnostics would remain, and the drained tokens would be lost to the committed
   // position — the regression this pins.
   //   1 2 3   (high limit: the scan reaches EOF and never trips)
   use crate::span::SimpleSpan;
@@ -2824,9 +2824,8 @@ fn failed_sync_through_with_prefilled_cache_reemits_crossed_error_once() {
   // consume that follows re-lexes the whole region — the formerly-cached token included —
   // and reports `@` exactly once.
   //
-  // At HEAD the drained token was stranded past the committed cursor (lost to the genuine
-  // consume) and its unexpected-token diagnostic survived the failed call — two defects
-  // this pins.
+  // Two defects this pins: the drained token stranded past the committed cursor (lost to the
+  // genuine consume), and its unexpected-token diagnostic surviving the failed call.
   //   1 @ 2 3   (`@` is a lexer error spanning [2, 3); high limit so no trip)
   use crate::span::SimpleSpan;
   use hybrid_arraydeque::typenum::U1;
@@ -3625,11 +3624,9 @@ fn try_attempt_nested_lifo() {
   expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
 )]
 fn attempt_inner_raw_restore_below_checkpoint_panics_at_restore() {
-  // Converted from `attempt_rollback_after_inner_raw_restore_below_checkpoint`. Inside the
-  // attempt, raw-restore to a checkpoint older than the attempt's own. The attempt pins its
-  // checkpoint on entry, so the raw restore panics AT THE RESTORE. At HEAD the raw restore
-  // succeeded and the decline's rollback arm panicked as stale ("attempt checkpoint is
-  // stale"); post-fix the pinned restore panics first.
+  // Inside the attempt, raw-restore to a checkpoint older than the attempt's own. The attempt
+  // pins its checkpoint on entry, so the raw restore panics AT THE RESTORE, before the
+  // decline's rollback arm could panic as stale ("attempt checkpoint is stale").
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_context(
     "1 2 3 4 5",
@@ -3654,7 +3651,6 @@ fn attempt_inner_raw_restore_below_checkpoint_panics_at_restore() {
 )]
 fn try_attempt_inner_raw_restore_below_checkpoint_panics_at_restore() {
   // The `try_attempt` twin of the attempt test: the pinned restore panics inside the closure.
-  // Converted from `try_attempt_err_after_inner_raw_restore_below_checkpoint`.
   let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
   let mut input = Input::<ProbeLexer<'_>, ProbeCtx<'_>, ()>::with_state_and_context(
     "1 2 3 4 5",
@@ -3901,8 +3897,8 @@ fn set_state_after_limit_trip_resumes_scanning() {
       "state replacement re-keys the poison boundary away (HEAD leaves it latched)"
     );
 
-    // Scanning now resumes PAST the old boundary and the stream completes. At HEAD the
-    // stale boundary made this first `next()` return `None` at the old frontier.
+    // Scanning resumes PAST the old boundary and the stream completes. A stale boundary
+    // would make this first `next()` return `None` at the old frontier.
     let mut resumed = 0usize;
     while inp.next().unwrap().is_some() {
       resumed += 1;
@@ -3955,7 +3951,7 @@ fn state_mut_applies_the_same_rekey() {
 
     // `state_mut` re-keys EAGERLY on the call — before any mutation through the returned
     // `&mut`. Dropping the borrow without touching it already cleared the poison boundary.
-    // At HEAD `state_mut` only cleared the checkpoint lineage, leaving the boundary latched.
+    // Clearing only the checkpoint lineage would leave the boundary latched.
     let _ = inp.state_mut();
     assert!(
       !inp.is_poisoned(),
@@ -3992,8 +3988,8 @@ fn state_mut_applies_the_same_rekey() {
 fn set_state_clears_stale_cache() {
   // Peek fills the cache under the old state; replacing the state must clear it, so the
   // next read RE-LEXES from the cursor instead of serving a dead cached token. The shared
-  // scan counter makes the re-lex observable — at HEAD the cached token is served and the
-  // counter does not move.
+  // scan counter makes the re-lex observable — a stale cache would serve the cached token and
+  // the counter would not move.
   //   1 2 3 4   (high limit: never trips; the point is the cache clear)
   use crate::span::SimpleSpan;
   use hybrid_arraydeque::typenum::U3;
@@ -4024,7 +4020,7 @@ fn set_state_clears_stale_cache() {
   );
 
   // The next read re-lexes from the cursor — the shared counter climbs because the dead
-  // cache no longer serves the token. At HEAD the counter would stay frozen at 3.
+  // cache no longer serves the token. A stale cache would leave the counter frozen at 3.
   let before = scanned.get();
   let tok = inp.next().unwrap().expect("re-lexed token");
   assert_eq!(
@@ -4128,8 +4124,8 @@ fn set_state_resets_watermark_to_cursor() {
   // it. Replacing the state re-keys the watermark back to the committed cursor (behind the
   // error) AND clears the cache holding the tokens that skipped `@`, so draining re-lexes
   // the region under the NEW regime and the error reports AGAIN — one entry per regime (the
-  // documented peek-ahead-speculation edge). At HEAD the stale cache/watermark suppress the
-  // second report, so only one entry survives.
+  // documented peek-ahead-speculation edge). A stale cache/watermark would suppress the
+  // second report, so only one entry would survive.
   //   1 @ 2 3
   //   0 2 4 6      (`@` spans [2, 3))
   use hybrid_arraydeque::typenum::U2;
@@ -4206,7 +4202,7 @@ fn raw_checkpoint_drop_leaks_lineage_without_commit() {
 }
 
 /// The fix: [`commit`](crate::InputRef::commit) consumes a raw checkpoint, keeps all
-/// progress, and releases its lineage id — the verb missing next to `restore`. 100
+/// progress, and releases its lineage id — the keep verb beside `restore`. 100
 /// save → commit cycles must leave the lineage stack at baseline every iteration, so the
 /// stack stays bounded across successful speculation (contrast the drop-leak sibling).
 #[test]
@@ -5403,7 +5399,7 @@ const CELLS: &[MatrixCell] = &[
   },
   // THE FATAL TRIP ON A SKIPPED TOKEN'S DIAGNOSTIC. `2` is rejected: at prefill 2 and 3 it trips
   // inside the cache drain, at prefill 1 and 0 inside the `sync_with` loop. The two paths must
-  // leave the input in the same place — the finding this matrix was built for.
+  // leave the input in the same place — the property this matrix was built for.
   MatrixCell {
     name: "fatal_emitter_on_skipped_token",
     src: "1 2 3 ; 4",
@@ -5472,14 +5468,14 @@ const CELLS: &[MatrixCell] = &[
   },
   // A ZERO-SKIP sync from a non-zero committed position — the sync point is the very next token.
   //
-  // The cell that caught the settle divergence: `sync_balanced`'s zero-skip `Hole` is anchored at
-  // `cursor()`, and `cursor()` reads the cache — it is the front cached token's START when
-  // something is cached and the committed span's END otherwise. While the family had two match
-  // settles they left DIFFERENT cache states behind — the drain stopped with the match at the cache
-  // front, the loop lexed the match, settled before it and left the cache empty — so the hole
-  // landed on the token's start after a peek and on the previous token's end without one: a
-  // RETURNED VALUE that moved with the lookahead depth. One settle now leaves the match unconsumed
-  // at the cache front on both origins, so the cursor is the match's start either way.
+  // `sync_balanced`'s zero-skip `Hole` is anchored at `cursor()`, and `cursor()` reads the cache
+  // — it is the front cached token's START when something is cached and the committed span's END
+  // otherwise. Two match settles that left DIFFERENT cache states behind — a drain stopping with
+  // the match at the cache front, a loop lexing the match, settling before it and leaving the
+  // cache empty — would land the hole on the token's start after a peek and on the previous
+  // token's end without one: a RETURNED VALUE that moves with the lookahead depth. The family's
+  // one settle leaves the match unconsumed at the cache front on both origins, so the cursor is
+  // the match's start either way.
   MatrixCell {
     name: "zero_skip_after_a_consume",
     src: "1 ; 2 3",
@@ -7468,8 +7464,7 @@ thread_local! {
   /// replaces** — caller code, inside the frontier commit, and the only step there that can be
   /// aimed at. `L::Span::end_ref` is the other caller-code step on that path, but it returns a
   /// reference and is called ubiquitously, so arming it by count cannot be pointed at one call:
-  /// that instrument was built, measured to pass identically at every index it could reach, and
-  /// retired rather than shipped as a cell that could not fail.
+  /// such an instrument passes identically at every index it can reach, a cell that cannot fail.
   static STATE_DROPS: Cell<usize> = const { Cell::new(0) };
   static STATE_DROP_BOMB: Cell<usize> = const { Cell::new(0) };
 }
@@ -8931,12 +8926,12 @@ fn r9_frontier_commit_interrupted_abandons_rather_than_half_keeping() {
   // frontier leaves the scope one statement before `commit_at` records it, so the scope's ability
   // to complete the keep changes *during* the exit.
   //
-  // NOTE ON WHAT THIS ARMS, corrected after the pair-tearing class was stated properly: the
-  // armed step is the drop of the STATE the commit replaced, which happens after `commit_position`
-  // has installed both halves. So the position it leaves is WHOLE, not torn — this cell is about
-  // the DISPOSITION, not about atomicity, and it cannot observe a tear. (The cell that can is
-  // `r9_adopt_pair_is_never_published_half_written`, which arms the replaced SPAN's drop: the span
-  // is the first half written, so its drop is the unwind site that sits between the two.)
+  // NOTE ON WHAT THIS ARMS: the armed step is the drop of the STATE the commit replaced, which
+  // happens after `commit_position` has installed both halves. So the position it leaves is WHOLE,
+  // not torn — this cell is about the DISPOSITION, not about atomicity, and it cannot observe a
+  // tear. (The cell that can is `r9_adopt_pair_is_never_published_half_written`, which arms the
+  // replaced SPAN's drop: the span is the first half written, so its drop is the unwind site that
+  // sits between the two.)
   //
   // What an interrupted commit leaves here is a frontier already handed over: the scope can no
   // longer perform the keep the stop's disposition asked for, and keeping anyway leaves a
@@ -9431,12 +9426,12 @@ fn r9_adopt_pair_is_never_published_half_written() {
   // value and then drops the old one, so the replaced span's `Drop` is an unwind site sitting
   // between adopt's two writes; if it unwinds, the state assignment never runs. Arming the STATE
   // drop instead reaches only the second assignment, which is past both writes — that is a cell
-  // that cannot fail, and it is exactly what an earlier revision of this cell did.
+  // that cannot fail.
   //
   // The assertion is the INVARIANT, not an index: whatever span is committed, the tally beside it
   // must be the one the lexer had after producing that span. Indices shift when the drop order
-  // changes — which is precisely what the fix does — so pinning them would re-break this cell for
-  // the wrong reason. Before the fix these read span-of-token-N beside the tally after token N-1.
+  // changes, so pinning them would break this cell for the wrong reason. A torn adopt reads
+  // span-of-token-N beside the tally after token N-1.
   for at in 1usize..=6 {
     let Ok((span, tally, _)) = std::panic::catch_unwind(|| adopt_span_drop_interrupted(at)) else {
       continue; // that index is not a reachable span drop in this run
@@ -9642,8 +9637,8 @@ thread_local! {
   /// `BombOffset::drop` calls since the last arm, and the index that panics (0 = disarmed).
   ///
   /// The clone counter next door reaches the offsets a body *builds*; this one reaches the
-  /// offsets it **destroys**, which is a different set and includes the one the finding is
-  /// about: `Source::len` hands back an owned `L::Offset`, the `>=` against it is the only use,
+  /// offsets it **destroys**, which is a different set and includes the one that matters most:
+  /// `Source::len` hands back an owned `L::Offset`, the `>=` against it is the only use,
   /// and the temporary dies at the end of that `if` condition — a consumer destructor with no
   /// call of its own for a call-keyed instrument to arm.
   static OFFSET_DROPS: Cell<usize> = const { Cell::new(0) };
@@ -9663,24 +9658,20 @@ fn disarm_offset_drop() -> usize {
 
 /// An `L::Offset` whose `Clone` can be armed, and the source and lexer needed to reach one.
 ///
-/// Every offset the crate ships in-tree is `usize`, so `L::Offset::clone` — caller code that the
-/// settle and restore paths both run — had no witness at all, and the note in
-/// `panicking_eof_settle_still_settles_the_mark` said exactly that, and findings
-/// against `restore_entry` were argued on contract grounds for want of this type.
+/// Every offset the crate ships in-tree is `usize`, so without this type `L::Offset::clone` —
+/// caller code that the settle and restore paths both run — has no witness at all.
 ///
 /// It brings its own `Source` and `Lexer` rather than re-keying `BombLexer`: `str` has a single
 /// `Source<usize>` impl and the crate leans on that being unique for inference, so adding a second
 /// one breaks type resolution elsewhere. A private wrapper costs nothing outside this file.
 ///
-/// The blast radius is **8 errors, all `E0283` in `source/tests.rs`** — re-measured on this tree
-/// by adding `impl Source<BombOffset> for str` and building
-/// `cargo check -p tokora --features std,logos,rowan --tests`. An earlier revision of this note
-/// said "44 errors, in production modules"; that was true of the tree it was written on and is not
-/// true of this one, and the number is worth keeping honest because it is read as a cost estimate
-/// for the next instrument. The conclusion is unchanged — 8 errors is still the wrong price for
-/// something a private wrapper gives away — but the *scope* it names is not a reason to abandon
-/// a fixture. Note also what it does not cover: an armable `L::Span`, `L::State` or `Emitter`
-/// needs no `Source` impl at all (see the `d50_*` pins at the end of this file).
+/// The blast radius is **8 errors, all `E0283` in `source/tests.rs`**, measured by adding
+/// `impl Source<BombOffset> for str` and building
+/// `cargo check -p tokora --features std,logos,rowan --tests`. The number is read as a cost
+/// estimate for the next instrument: 8 errors is the wrong price for something a private wrapper
+/// gives away, but the *scope* it names is not a reason to abandon a fixture. Note also what it
+/// does not cover: an armable `L::Span`, `L::State` or `Emitter` needs no `Source` impl at all (see
+/// the `d50_*` pins at the end of this file).
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct BombOffset(usize);
 
@@ -9904,18 +9895,19 @@ impl<'a> crate::Lexer<'a> for OffsetLexer<'a> {
 
 type OffsetCtx<'a> = (BombEmitter, DefaultCache<'a, OffsetLexer<'a>>);
 
-/// `restore_entry` — the site carried as a disclosed limitation, now measured.
+/// `restore_entry`, swept over every offset clone it performs.
 ///
 /// A rewinding scan that reaches end of input without matching restores its full entry state and
-/// rewinds the emitter to it. The rewind cursor used to be read back off the input AFTER the
-/// position was written (`self.cursor().clone()`), putting an `L::Offset::clone` between the
-/// position write and the rewind that completes it. A panic there left the input restored with
-/// the mark un-rewound, and `ScanScope::drop` then RELEASED it — so an abandoned scan's
-/// diagnostics became permanent while the parser retried from the restored position.
+/// rewinds the emitter to it. The rewind cursor comes off the entry's own span end, read above
+/// every mutation: read back off the input AFTER the position write (`self.cursor().clone()`), it
+/// would put an `L::Offset::clone` between the position write and the rewind that completes it,
+/// and a panic there would leave the input restored with the mark un-rewound — which
+/// `ScanScope::drop` then RELEASES, making an abandoned scan's diagnostics permanent while the
+/// parser retries from the restored position.
 ///
-/// The read now comes off the entry's own span end, hoisted above every mutation. This sweeps
-/// every offset clone the call performs and demands the same outcome at each: no stranded mark,
-/// and a position that is either fully restored or never moved — never one with the other's half.
+/// This sweeps every offset clone the call performs and demands the same outcome at each: no
+/// stranded mark, and a position that is either fully restored or never moved — never one with the
+/// other's half.
 #[test]
 fn r9_restore_entry_is_atomic_at_every_offset_clone() {
   fn run(bomb_at: Option<usize>) -> (usize, usize, usize, usize) {
@@ -9986,16 +9978,15 @@ fn r9_restore_entry_is_atomic_at_every_offset_clone() {
 
 // ── The whole restore, not its tail ─────────────────────────────────────────
 
-/// `restore_unchecked` is the body findings kept returning to, one after another. This is the
-/// measurement for its phase-separated form.
+/// `restore_unchecked`'s phase-separated form, measured.
 ///
 /// A checkpoint rollback is all-or-nothing, so the assertion is exactly that: for every armed
 /// caller `Drop`, the input must end up **either fully restored or fully unchanged**, never
-/// between. That is stronger than the split check this cell used to make, which only looked at
-/// one pairing (emitter rewound, position not) and so read clean against the eviction hazard.
+/// between. That is stronger than a split check on one pairing (emitter rewound, position not),
+/// which reads clean against the eviction hazard.
 ///
-/// The fixture leaves **resident post-save cache entries** — the previous one drained to end of
-/// input, which left the tail prune with nothing to pop and the round-14 hazard unexercised.
+/// The fixture leaves **resident post-save cache entries**: one drained to end of input leaves
+/// the tail prune with nothing to pop and the eviction hazard unexercised.
 /// Each resident entry is a `CachedToken` owning an `L::State`, so pruning it runs caller code.
 ///
 /// What this cell does and does not guard, plainly:
@@ -10003,13 +9994,12 @@ fn r9_restore_entry_is_atomic_at_every_offset_clone() {
 /// - **Armed and asserted**: every `L::State::drop` the rollback performs (three of them here,
 ///   from the evicted entries and the replaced pair) must leave the input all-or-nothing, and the
 ///   body must perform zero `L::Span` clones. Both hold.
-/// - **NOT demonstrated**: that this cell catches an eviction moved BELOW the phase boundary. I
-///   relocated the tail prune and `reconcile_cache_geometry` in turn and no observable moved —
-///   the two evictors are interchangeable here (whichever runs first drains the cache, and the
-///   other then finds `survivors == 0`), and I could not build a fixture that separates them. So
-///   the phase ordering is guarded by the RAIL, whose teeth are demonstrated on all three
-///   eviction shapes, and not by this cell. It is a regression guard on the property, not on the
-///   ordering that produces it.
+/// - **NOT demonstrated**: that this cell catches an eviction moved BELOW the phase boundary.
+///   Relocating the tail prune and `reconcile_cache_geometry` in turn moves no observable — the
+///   two evictors are interchangeable here (whichever runs first drains the cache, and the other
+///   then finds `survivors == 0`), and no fixture here separates them. So the phase ordering is
+///   guarded by the RAIL, whose teeth are demonstrated on all three eviction shapes, and not by
+///   this cell. It is a regression guard on the property, not on the ordering that produces it.
 /// - **Held by construction, not measured**: the parked slot's drop, unreachable because
 ///   `DefaultCache` accepts a front push so nothing ever parks; and the abandoned session points'
 ///   `Checkpoint` drops, which need a nested point stack this fixture does not build.
@@ -10110,9 +10100,9 @@ fn r9_restore_unchecked_is_all_or_nothing_at_every_caller_drop() {
 
 /// `set_state` — state surgery's own fallible step, measured with the armable `L::Offset`.
 ///
-/// The re-key clones the committed position, and `L::Offset::clone` is caller code. While that
-/// clone sat below the state write, an unwind in it left the input carrying the NEW lexer state
-/// beside a cache, poison latch and dedup watermark still keyed to the OLD regime — a state
+/// The re-key clones the committed position, and `L::Offset::clone` is caller code. Were that
+/// clone below the state write, an unwind in it would leave the input carrying the NEW lexer
+/// state beside a cache, poison latch and dedup watermark still keyed to the OLD regime — a state
 /// surgery half-applied, and the halves disagreeing about which regime the input is in.
 ///
 /// The violation is stated as exactly that pairing: the new state may only be observed together
@@ -10434,10 +10424,8 @@ fn wapi_b_peek_kind_marks_the_eot_terminal_at_a_latched_boundary() {
 // caught unwind is the world before it: live checkpoints, pins, emitter marks, cursor, span, and
 // recorded diagnostics.
 //
-// They are ADDITIVE pins, not flips. The order they check has held since the body was
-// rewritten; nothing in this branch changes it. Their red is demonstrated by mutation rather
-// than by a red commit — hoisting the two registrations above the clones, the original defect
-// shape, and recording the failure.
+// The order they check already holds, so their red is demonstrated by mutation: hoisting the
+// two registrations above the clones, the original defect shape, reds them.
 
 /// The world either side of a capture that unwound. Nothing in it may move.
 ///
@@ -10755,23 +10743,16 @@ fn a_restore_above_the_flag_keeps_the_front_report_watermark() {
 // about to publish is lost, and the next entry lexes again: the one-call bound becomes one call
 // per retry. So the durable writes go FIRST and the refused item dies after them.
 //
-// RE-AIMED, and the honest account of why is worth more than the widening itself.
+// Hoisting the refused item's construction below every durable write does not leave its
+// destructor trivially last: planting the construction back above `publish_scanner_trip` still
+// falsifies the first cell here — at `rounds == 1` it reads `(1, 0, 1, 0, false)` against a pin
+// of `(1, 0, 1, 1, true)`. Its teeth are real, but narrow: the cell reads ONE index and one
+// shape — a destructor that runs before a durable write. It has no reach into the boundary
+// derivation, which sits *before* the decision rather than after it, so it passes with that
+// window wide open.
 //
-// The boundary-derivation repair was expected to VACATE the first cell here, on the reasoning
-// that hoisting the refused item's construction below every durable write leaves its destructor
-// trivially last. Measured instead of assumed, that is wrong: planting the construction back
-// above `publish_scanner_trip` still falsifies it — at `rounds == 1` it reads `(1, 0, 1, 0,
-// false)` against a pin of `(1, 0, 1, 1, true)`. Its teeth are real.
-//
-// What is true is narrower and was never stated: the cell reads ONE index and one shape — a
-// destructor that runs before a durable write. It has no reach at all into the window the repair
-// actually closed, the boundary derivation, which sits *before* the decision rather than after
-// it; the cell passed on `4e09636` with that window wide open. Neither of its numbers moved
-// across the repair, which is the signature of a gate that is testing something adjacent to the
-// defect rather than the defect.
-//
-// So the aim widens to the property the repair installs, of which "after the refused item's
-// destructor" is one instance:
+// So the aim is the property itself, of which "after the refused item's destructor" is one
+// instance:
 //
 // > **A refusal is all or nothing at EVERY consumer step it runs.** Either the step ran before the
 // > decision — the probe is unspent, no stop is counted, and a re-entry re-derives the whole thing
@@ -10833,12 +10814,11 @@ fn refusal_under_a_panicking_destructor(rounds: usize) -> (usize, usize, usize, 
 /// carriers, even when the refused item's destructor unwinds out of the refusal and the host
 /// retries.
 ///
-/// Falsifying output, measured on `81d6340` (the refused item was a temporary of the `is_none()`
-/// condition, so it died *before* `latch_limit_probe`): `(1, 0, 1, 0, false)`,
-/// `(4, 0, 4, 0, false)`, `(16, 0, 16, 0, false)`, `(256, 0, 256, 0, false)` — one lexer call per
-/// round with `spent` pinned at the ceiling, which is the same unbounded-work shape the twelve-cell
-/// table in `tests/token_budget.rs` exists to refuse, and not one of the three durable writes ever
-/// reached.
+/// Falsifying output, with the refused item a temporary of the `is_none()` condition so that it
+/// dies *before* `latch_limit_probe`: `(1, 0, 1, 0, false)`, `(4, 0, 4, 0, false)`,
+/// `(16, 0, 16, 0, false)`, `(256, 0, 256, 0, false)` — one lexer call per round with `spent`
+/// pinned at the ceiling, which is the same unbounded-work shape the twelve-cell table in
+/// `tests/token_budget.rs` exists to refuse, and not one of the three durable writes ever reached.
 ///
 /// The `unwound` column is the payload witness: a cell where nothing panicked would read
 /// `(1, 0, 0, ..)` and pass vacuously. The trip count is `rounds` and not `1` because the refusal
@@ -10847,17 +10827,16 @@ fn refusal_under_a_panicking_destructor(rounds: usize) -> (usize, usize, usize, 
 ///
 /// # What this cell does and does not reach
 ///
-/// It **did not move** across the boundary-derivation repair, and that was checked rather than
-/// assumed to mean it had gone vacuous. It has not: planting the refused item's construction back
-/// above `publish_scanner_trip` drops the carrier columns to `(1, 0, 1, 0, false)` at
-/// `rounds == 1`, so the ordering it names is still one this cell defends.
+/// Planting the refused item's construction back above `publish_scanner_trip` drops the carrier
+/// columns to `(1, 0, 1, 0, false)` at `rounds == 1`, so the ordering it names is one this cell
+/// defends.
 ///
-/// What it has no reach into is the window the repair closed. The boundary derivation runs
-/// *before* the decision, where no destructor of the refused item can be — this cell passed on
-/// `4e09636` with a `Cache::back` or an `L::Offset::clone` unwind there costing the parse its
-/// terminality. One index and one shape is the limit of it; the general claim is swept by
-/// [`a_refusal_is_all_or_nothing_at_every_destructor_in_the_round`] and, for the pre-decision
-/// half, by `a_refusal_survives_a_panicking_cache_back_in_its_boundary_derivation`.
+/// What it has no reach into is the boundary derivation, which runs *before* the decision, where no
+/// destructor of the refused item can be — this cell passes with a `Cache::back` or an
+/// `L::Offset::clone` unwind there costing the parse its terminality. One index and one shape is
+/// the limit of it; the general claim is swept by
+/// [`a_refusal_is_all_or_nothing_at_every_destructor_in_the_round`] and, for the pre-decision half,
+/// by `a_refusal_survives_a_panicking_cache_back_in_its_boundary_derivation`.
 #[test]
 fn a_panicking_destructor_cannot_un_publish_the_at_limit_refusal() {
   assert_eq!(
@@ -10954,8 +10933,7 @@ fn a_refusal_is_all_or_nothing_at_every_destructor_in_the_round() {
 // `span` that unwinds has already let the lexer produce and advance past an item, and it carries
 // the whole wrapper away before the charge (the authorized step) or the probe latch (the cold
 // at-limit sibling) is made. A host that catches it and re-enters buys that item's work again —
-// once per call, without bound, which is precisely the one-call bound this branch exists to
-// install.
+// once per call, without bound, which is precisely what the one-call bound exists to prevent.
 //
 // Both sites now call `Lexer::lex` themselves and write on its answer, so the two cells below are
 // flat in `rounds`. The third is the control that makes them mean something.
@@ -11079,31 +11057,29 @@ fn a_lexer_that_dies_before_producing(rounds: usize) -> (usize, usize, usize, us
 /// **Plant.** A `Lexer::span` that unwinds after `Lexer::lex` handed an item back cannot un-charge
 /// it: the work is bounded by the ceiling, not by the retry count.
 ///
-/// Falsifying output, measured on `2f74187` (the charge sat outside `Lexed::lex_spanned`, so the
-/// unwind carried it away with the wrapper): `(1, 0, 1, 1, 0, false)`, `(4, 0, 4, 4, 0, false)`,
+/// Falsifying output, with the charge outside `Lexed::lex_spanned` so that the unwind carries it
+/// away with the wrapper: `(1, 0, 1, 1, 0, false)`, `(4, 0, 4, 4, 0, false)`,
 /// `(16, 0, 16, 16, 0, false)`, `(256, 0, 256, 256, 0, false)` — one lexer call per round with
 /// `spent` never leaving zero, so the ceiling of `4` bounded nothing at all and the gate never even
 /// re-armed.
 ///
-/// The shape after the repair is `4` charged steps (one per unit of ceiling), then a fifth
+/// The conforming shape is `4` charged steps (one per unit of ceiling), then a fifth
 /// `Lexer::lex` for the one-shot at-limit probe, then nothing: `spent` sticks at the ceiling and
 /// the lexer is never called again however many times the host retries. The `bombs fired` column
 /// is the payload witness — it is the count of rounds that actually reached an armed `Lexer::span`,
-/// and it drops below `rounds` after the repair for the right reason: once the budget is spent and
+/// and it drops below `rounds` for the right reason: once the budget is spent and
 /// the probe is latched there is no item to wrap, so there is no `span` call left to arm.
 ///
-/// The two terminal carriers are read for the **whole** refusal now, not for a residual. The
-/// refused item is materialised *after* every durable write, so the `Lexer::span` call that builds
-/// it is no longer a foreign step in front of the trip count and the boundary: the round that
-/// unwinds through it publishes both before it dies. The trip column is `rounds - 4` — the four
-/// charged rounds refuse nothing, and every round from the fifth on records a stop, including the
-/// one that unwinds.
+/// The two terminal carriers are read for the **whole** refusal. The refused item is materialised
+/// *after* every durable write, so the `Lexer::span` call that builds it is not a foreign step in
+/// front of the trip count and the boundary: the round that unwinds through it publishes both
+/// before it dies. The trip column is `rounds - 4` — the four charged rounds refuse nothing, and
+/// every round from the fifth on records a stop, including the one that unwinds.
 ///
-/// That column is where this cell **moved** across the boundary-derivation repair: it read
-/// `rounds - 5` while the item was built before the trip count, and the extra unrecorded round was
-/// the probing one. It was disclosed then as "a deferral of one entry, not a loss", and the
-/// disclosure was too generous — a deferral is a loss to any host that catches the unwind and does
-/// not re-enter. See `a_refusal_survives_a_panicking_cache_back_in_its_boundary_derivation`.
+/// Built before the trip count, the item would make this column read `rounds - 5`, the extra
+/// unrecorded round being the probing one — and a deferral of one entry is a loss to any host
+/// that catches the unwind and does not re-enter. See
+/// `a_refusal_survives_a_panicking_cache_back_in_its_boundary_derivation`.
 #[test]
 fn a_panicking_lexer_span_cannot_un_charge_the_item_it_was_wrapping() {
   assert_eq!(
@@ -11123,7 +11099,7 @@ fn a_panicking_lexer_span_cannot_un_charge_the_item_it_was_wrapping() {
 /// `Lexer::lex`'s answer, so the at-limit question costs one `Lexer::lex` for the life of the
 /// `Input` no matter how many retries unwind out of the wrapper.
 ///
-/// Falsifying output, measured on `2f74187`: `(1, 0, 1, 1, 0, false)`, `(4, 0, 4, 4, 0, false)`,
+/// Falsifying output with the same plant: `(1, 0, 1, 1, 0, false)`, `(4, 0, 4, 4, 0, false)`,
 /// `(16, 0, 16, 16, 0, false)`, `(256, 0, 256, 256, 0, false)` — one lexer call per round at a
 /// ceiling of **zero**, which is the unbounded-work shape in its purest form: a budget that
 /// authorizes nothing funding work without limit, and not one terminal carrier ever published.
@@ -11132,11 +11108,10 @@ fn a_panicking_lexer_span_cannot_un_charge_the_item_it_was_wrapping() {
 /// that unwinds. The refused item is built after the publication, so the armed `Lexer::span` is the
 /// last consumer step of the refusal rather than a step in the middle of it.
 ///
-/// This column also moved across the boundary-derivation repair, and it is the residual in its
-/// smallest form: it read `rounds - 1`, the one unwinding round being the one that reached
-/// `Lexer::span` before the trip count. At `rounds == 1` that is the difference between
-/// `(.., 0, false)` and `(.., 1, true)` — a caught unwind after which the input reports no
-/// terminal stop at all.
+/// With the item built before the trip count, this column reads `rounds - 1`, the one unwinding
+/// round being the one that reached `Lexer::span` before the trip count. At `rounds == 1` that is
+/// the difference between `(.., 0, false)` and `(.., 1, true)` — a caught unwind after which the
+/// input reports no terminal stop at all.
 #[test]
 fn a_panicking_lexer_span_cannot_un_latch_the_one_shot_probe() {
   assert_eq!(
@@ -11157,12 +11132,10 @@ fn a_panicking_lexer_span_cannot_un_latch_the_one_shot_probe() {
 /// and nothing to charge; re-entering and lexing again is irreducible, not a bypass.
 ///
 /// This is what keeps the two cells above from being satisfied by "a panic stops the counter". The
-/// numbers here are the ones those cells produced *before* the repair — identical, on the same
+/// numbers here are the ones those cells produce against their plants — identical, on the same
 /// harness — and they are correct here and a defect there. The whole difference is whether an item
-/// crossed the lexer's return.
-///
-/// It is also the cell that does **not** move across this repair: it read the same at `2f74187`,
-/// because there was never anything for either write to answer to. The terminal carriers stay at
+/// crossed the lexer's return, which is also why this cell reads the same with either plant in
+/// place: there is nothing for either write to answer to. The terminal carriers stay at
 /// `(0, false)` at every round count for the same reason — no item, so no step of the budget's, and
 /// nothing ever reaches a stop to record.
 #[test]
@@ -11325,10 +11298,10 @@ fn refusal_under_a_panicking_offset_clone(bomb_at: usize, exit: CaughtExit) -> (
 /// stop was counted.
 ///
 /// Both directions are load-bearing and they fail differently. `probe spent && !counted` is the
-/// defect this repair closes — a refusal nothing reports, so a host that caught the unwind and
-/// left reports a successful parse over dropped input. `counted && !probe spent` is the hazard
-/// the repair *introduces*: the stop is now staged before the lexer call that decides one is
-/// owed, so a staged stop that leaked into the latch would make every end-of-input ask terminal.
+/// defect — a refusal nothing reports, so a host that caught the unwind and left reports a
+/// successful parse over dropped input. `counted && !probe spent` is the hazard the ordering
+/// *introduces*: the stop is staged before the lexer call that decides one is owed, so a staged
+/// stop that leaked into the latch would make every end-of-input ask terminal.
 /// No lexer trip can blur the two here — `BombTally::default` limits at `usize::MAX`, so the
 /// budget's refusal is the only writer either sweep can reach.
 ///
@@ -11362,10 +11335,11 @@ fn assert_refusal_is_all_or_nothing(
 /// **Plant.** No `Cache::back` in the refusal's boundary derivation can strand the refusal
 /// half-published.
 ///
-/// Falsifying output, measured on `4e09636`: the armed index that lands inside
-/// `settle_met_ceiling`'s `frontier.boundary(self.offset())` returns `(0, true, 0, false)` on a
-/// decline and `(2, true, 0, false)` on a commit — a parse reporting `Ok` over two of four items,
-/// with the probe latch published and neither terminal carrier written.
+/// Falsifying output, with the boundary derivation ahead of the publication: the armed index that
+/// lands inside `settle_met_ceiling`'s `frontier.boundary(self.offset())` returns
+/// `(0, true, 0, false)` on a decline and `(2, true, 0, false)` on a commit — a parse reporting
+/// `Ok` over two of four items, with the probe latch published and neither terminal carrier
+/// written.
 #[test]
 fn a_refusal_survives_a_panicking_cache_back_in_its_boundary_derivation() {
   for exit in [CaughtExit::Decline, CaughtExit::Commit] {
@@ -11385,9 +11359,10 @@ fn a_refusal_survives_a_panicking_cache_back_in_its_boundary_derivation() {
 /// **Plant.** The same, for the step no cache contract covers: `L::Offset::clone`, which is what
 /// `Frontier::boundary` *is* on the `AtCursor` path every `next` takes.
 ///
-/// Falsifying output, measured on `4e09636`: the armed clone inside the derivation returns
-/// `(0, true, 0, false)` / `(2, true, 0, false)`, exactly as the cache cell does — the same defect
-/// reached through the other consumer step, which is why both are swept rather than one.
+/// Falsifying output, with the derivation ahead of the publication: the armed clone inside the
+/// derivation returns `(0, true, 0, false)` / `(2, true, 0, false)`, exactly as the cache cell does
+/// — the same defect reached through the other consumer step, which is why both are swept rather
+/// than one.
 #[test]
 fn a_refusal_survives_a_panicking_offset_clone_in_its_boundary_derivation() {
   for exit in [CaughtExit::Decline, CaughtExit::Commit] {
@@ -11418,23 +11393,18 @@ fn a_refusal_survives_a_panicking_offset_clone_in_its_boundary_derivation() {
 // short-circuits the second entry is not durable: a rollback copies the saved one back and a
 // re-key drops it. Clear it, and the second entry has to re-derive and re-publish the stop.
 //
-// On that entry a durable write DOES dominate the body from its first line, and the repairs came
-// in two rounds. The first moved the publication to the top of `settle_met_ceiling` — until then
-// the body ran four consumer steps in front of it (`Source::len`, the `>=` against it, the
-// destructor of the owned offset it handed back, and the whole boundary derivation). That left a
-// disclosed residual the site could not reach: the DRIVER's prologue, which runs before the lexing
-// site is entered at all.
-//
-// The second round closed the residual, and it is why both sweeps below now read a *shorter* entry
-// rather than a better-ordered one. `InputRef::refusal_already_on_record` asks the durable question
-// at the driver, in front of the prologue, and publishes there — so on the already-spent path the
-// entry never builds a `Resume`, never enters `scan_with`, and never reaches
-// `settle_met_ceiling` at all. The steps the sweeps used to walk are not re-ordered; they are
-// **gone**, which is what the totals below pin.
+// On that entry a durable write DOES dominate the body from its first line. `settle_met_ceiling`
+// publishes at its top, ahead of the four consumer steps it runs (`Source::len`, the `>=` against
+// it, the destructor of the owned offset it handed back, and the whole boundary derivation). That
+// cannot reach the DRIVER's prologue, which runs before the lexing site is entered at all — so
+// `InputRef::refusal_already_on_record` asks the durable question at the driver, in front of the
+// prologue, and publishes there. On the already-spent path the entry never builds a `Resume`,
+// never enters `scan_with`, and never reaches `settle_met_ceiling` at all: the steps are not
+// re-ordered, they are **gone**, which is what the totals below pin.
 //
 // An unwind in any of those steps, caught inside an `attempt` whose baseline follows the first
-// trip, left the attempt reading no new trip and an unpoisoned input: **a committed success over
-// truncated input**, with the probe bit saying a refusal happened and no carrier saying so.
+// trip, would leave the attempt reading no new trip and an unpoisoned input: **a committed success
+// over truncated input**, with the probe bit saying a refusal happened and no carrier saying so.
 
 /// How the host cleared the poison boundary between the first refusal and the second entry. Both
 /// are public API, and both are already in the twelve-cell table's `ROUTES`.
@@ -11669,19 +11639,19 @@ fn assert_failures_are_the_named_prefix(
 /// there is no destructor left that could leave the refusal unpublished, by either
 /// boundary-clearing route, on either exit.
 ///
-/// This is the site the finding named: `lex_at.ge(&self.input.len())` builds an owned `L::Offset`
+/// This is the site that matters: `lex_at.ge(&self.input.len())` builds an owned `L::Offset`
 /// and destroys it at the end of the condition, which is a consumer step with no call of its own
-/// for a call-keyed instrument to arm. Falsifying output, measured on `2a91235`: on
-/// `Rollback`/`Commit` the armed drop returns `(2, true, 0, false, 1)` — **two of four items
-/// reported `Ok`** with the probe spent and neither carrier written — and `(0, true, 0, false, 1)`
-/// on `Rekey`/`Commit`.
+/// for a call-keyed instrument to arm. Falsifying output, with that drop ahead of the
+/// publication: on `Rollback`/`Commit` the armed drop returns `(2, true, 0, false, 1)` — **two of
+/// four items reported `Ok`** with the probe spent and neither carrier written — and
+/// `(0, true, 0, false, 1)` on `Rekey`/`Commit`.
 ///
-/// The prefix was already empty at `8f0323a`, over the **two** drops the entry then performed —
-/// `Resume`'s position clone dying with the resume, and the slot `scan_with` writes its local back
-/// over. The driver's gate removes both: the already-spent entry publishes before it builds a
-/// resume, so it builds none. Hence the step count of zero, which is the number this cell now
-/// carries the claim on — an entry that starts destroying offsets again has started doing work a
-/// recorded refusal makes pointless, and this is where that shows up.
+/// Without the driver's gate the entry performs **two** drops — `Resume`'s position clone dying
+/// with the resume, and the slot `scan_with` writes its local back over. The gate removes both:
+/// the already-spent entry publishes before it builds a resume, so it builds none. Hence the step
+/// count of zero, which is the number this cell carries the claim on — an entry that starts
+/// destroying offsets again has started doing work a recorded refusal makes pointless, and this
+/// is where that shows up.
 #[test]
 fn a_second_entry_publishes_at_every_offset_destructor() {
   for how in [Reopened::Rollback, Reopened::Rekey] {
@@ -11700,24 +11670,23 @@ fn a_second_entry_publishes_at_every_offset_destructor() {
   }
 }
 
-/// **Plant.** The same second entry against `L::Offset::clone`, and the residual it used to carry
-/// is gone: the entry now performs **one** clone, the boundary derivation's, and it runs behind the
-/// publication.
+/// **Plant.** The same second entry against `L::Offset::clone`: the entry performs **one** clone,
+/// the boundary derivation's, and it runs behind the publication.
 ///
-/// Falsifying output, measured on `2a91235`: all three clones read `(2, true, 0, false, 1)` on
-/// `Rollback`/`Commit` — the third being the one inside `frontier.boundary(self.offset())`, which
-/// the ordering repair moved behind the count. The two boundary-derivation sweeps above never reach
-/// any of this: their drain stops at the first refusal, so the probe is unspent at every entry they
-/// measure and the derivation is legitimately free to unwind there.
+/// Falsifying output, with the clones ahead of the publication: all three clones read
+/// `(2, true, 0, false, 1)` on `Rollback`/`Commit` — the third being the one inside
+/// `frontier.boundary(self.offset())`, which runs behind the count. The two boundary-derivation
+/// sweeps above never reach any of this: their drain stops at the first refusal, so the probe is
+/// unspent at every entry they measure and the derivation is legitimately free to unwind there.
 ///
-/// At `8f0323a` this cell read a prefix of **two** — `Resume`'s own position clone (`resume_from`)
-/// and the scan's `lex_at` local (`scan_with`), both of which run before `lex_within_boundary` is
-/// called and are therefore outside anything `settle_met_ceiling` can order. That was disclosed as
-/// a residual needing the driver to answer *"has this input already refused?"* before it builds a
-/// lexer, and `InputRef::refusal_already_on_record` is that answer: neither clone happens now,
-/// because neither the resume nor the scan does. What is left is the memo's own clone, published
-/// second on purpose — the count is outside the rollback set and goes first, the boundary is a
-/// lineage memo the next entry re-establishes.
+/// Without the driver's gate this cell reads a prefix of **two** — `Resume`'s own position clone
+/// (`resume_from`) and the scan's `lex_at` local (`scan_with`), both of which run before
+/// `lex_within_boundary` is called and are therefore outside anything `settle_met_ceiling` can
+/// order. `InputRef::refusal_already_on_record` answers *"has this input already refused?"*
+/// before the driver builds a lexer, so neither clone happens, because neither the resume nor the
+/// scan does. What is left is the memo's own clone, published second on purpose — the count is
+/// outside the rollback set and goes first, the boundary is a lineage memo the next entry
+/// re-establishes.
 #[test]
 fn a_second_entry_publishes_at_every_offset_clone_past_the_driver_prologue() {
   for how in [Reopened::Rollback, Reopened::Rekey] {
@@ -12385,8 +12354,8 @@ fn a_lexer_limit_trip_is_terminal_and_the_budget_witness_stays_false() {
 // so that value is free to carry a destructor, and the destructor of an `if` scrutinee runs at
 // the end of the condition, BEFORE the branch body.
 //
-// That is the identical window rounds 3, 5 and 6 closed in three other places, reached through
-// the one caller-implemented call the terminal predicate makes. The cost is the same: `next`
+// That is the same window as the destructor cells above, reached through the one
+// caller-implemented call the terminal predicate makes. The cost is the same: `next`
 // folds a terminal stop into `Ok(None)`, so a host that catches the unwind inside an `attempt`
 // and leaves without re-entering the scanner reads a clean counter and an unpoisoned input and
 // reports a **successful parse over input the lexer had already refused**.
@@ -12485,12 +12454,13 @@ fn assert_trip_is_all_or_nothing(n: usize, total: usize, exit: CaughtExit, t: Tr
 /// **Plant.** No `Token::Error` destructor anywhere in a tripping round can leave the lexer's
 /// limit trip half-recorded.
 ///
-/// Falsifying output, measured on `0f13f31`: the armed index that lands on the `Lexer::check`
-/// error — drop #2 of 3 — returns `(0, 1, 0, false, 1)` on a decline and `(2, 1, 0, false, 1)` on
-/// a commit. That second cell is the whole defect in one row: **a parse reporting two of four
-/// items as `Ok`, with `check()` having answered `Err` and neither terminal carrier written.**
-/// The `if lexer.check().is_err()` scrutinee is a temporary, and a temporary of the condition
-/// dies at the end of the condition — before the branch that publishes is even entered.
+/// Falsifying output, with the publication inside an `if lexer.check().is_err()` branch: the armed
+/// index that lands on the `Lexer::check` error — drop #2 of 3 — returns `(0, 1, 0, false, 1)` on a
+/// decline and `(2, 1, 0, false, 1)` on a commit. That second cell is the whole defect in one row:
+/// **a parse reporting two of four items as `Ok`, with `check()` having answered `Err` and neither
+/// terminal carrier written.** The `if lexer.check().is_err()` scrutinee is a temporary, and a
+/// temporary of the condition dies at the end of the condition — before the branch that publishes
+/// is even entered.
 ///
 /// The sweep is over every index rather than that one, because an index is a thing a later edit
 /// silently re-aims: the round's other error destructors are the `Lexer::lex` error travelling

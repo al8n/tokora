@@ -768,9 +768,9 @@ fn settling_a_point_the_reconciling_rollback_abandoned_is_refused() {
 // (`begin_point`: an abandoned point keeps its progress and is released with the handle). Each of
 // these has two settling exits for the same decision — the closure declines, or the closure
 // unwinds — and the unwind one has always reconciled, because it is the guard's rolling-back
-// `Drop` and a `Drop` may not refuse anything. The decline one used to spell its restore with the
-// *checked* verb, so the same legal history that unwinds cleanly panicked when it returned
-// cleanly: a release panic, raised before anything was restored, blaming the attempt for someone
+// `Drop` and a `Drop` may not refuse anything. Spelling the decline one's restore with the
+// *checked* verb would make the same legal history that unwinds cleanly panic when it returns
+// cleanly: a release panic, raised before anything is restored, blaming the attempt for someone
 // else's legal choice.
 //
 // The five cells below are the four declining/erring arms plus the accepting one, and they say

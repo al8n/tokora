@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The layout census: holds tokora's public export layout (#350) over an all-features rustdoc JSON.
+"""The layout census: holds tokora's public export layout over an all-features rustdoc JSON.
 
 Usage:
     census.py TOKORA.json [--root FILE] [--allow FILE] [--combinator-module NAME]
@@ -27,7 +27,7 @@ macro-support module — or anything else the crate hides. A hidden item is outs
 surface by construction; holding it is not this census's job. Surface GROWTH inside a module
 through a glob is not either: the `name-collision-probe` job reports every newly reachable name.
 
-THE FOUR CHECKS (the design's "Layout census" paragraph, #350):
+THE FOUR CHECKS:
 
   1. One canonical path. An item has at most two public paths, and when it has two, one of them
      is at the crate root. A path through a module marked `versioned` in the allow-list counts

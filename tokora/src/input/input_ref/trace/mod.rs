@@ -237,8 +237,8 @@ enum BoundedDebugOutcome {
 /// `Source::slice` hands back — offers iteration (`iter`, `positioned_iter`, `len`), not
 /// sub-slicing, so there is no smaller `Self::Slice` to ask for either. Adding either
 /// capability would mean widening `Lexer`/`Source`/`Slice` themselves, which is a far bigger
-/// and riskier change than this fix, for every caller of those public traits — not something
-/// to do as a side effect of a trace-preview cost fix.
+/// and riskier change than bounding the sink, for every caller of those public traits — not
+/// something to do as a side effect of a trace-preview cost fix.
 ///
 /// What *is* reachable generically: a `Debug` impl only ever produces output by calling
 /// `Formatter::write_str`/`write_char`, and the `?` those calls are always written behind
@@ -271,7 +271,7 @@ enum BoundedDebugOutcome {
 ///   impl from scanning, escaping and allocating its *entire* rendering into a temporary and
 ///   calling `write_str` once — no unsafe, no misuse of this crate, just an ordinary trait
 ///   impl. This sink cannot shorten work that already ran before it was ever called, so the
-///   cost stays the same `O(remaining source)` this fix exists to remove. Output is still
+///   cost stays the same `O(remaining source)` this function exists to remove. Output is still
 ///   correct (a front-loaded impl's single write still *starts* with a genuine prefix of the
 ///   untruncated dump, so the window and the ellipsis decision are unaffected) — only the cost
 ///   guarantee does not reach this far. No in-tree backing does this today (see the rest of
@@ -282,7 +282,7 @@ enum BoundedDebugOutcome {
 ///   with the write failure recorded in an internal `Result` rather than by breaking its own
 ///   loop — so it keeps *pulling* elements after this sink starts refusing them, even though
 ///   it stops writing. That bounds the allocation and the escaping work to the budget (still a
-///   large, measured win — see the fix's cost evidence), but the iteration stays
+///   large, measured win), but the iteration stays
 ///   `O(remaining elements)`.
 /// - `str`-shaped backings (`str` itself, and `HipStr`/`Utf8Bytes`, which delegate to it)
 ///   accumulate a run of characters that need no escaping before their first write, so a sink

@@ -87,7 +87,7 @@ use rng::Rng;
 pub const DEFAULT_CORPUS: u64 = 256;
 
 /// The seeds excluded from the default corpus because they reproduce a *known, triaged* machinery
-/// finding (a fuzz wave records findings; it does not fix the machinery). Empty means no finding is
+/// finding (a fuzz run records findings; it does not fix the machinery). Empty means no finding is
 /// currently outstanding. Each entry MUST carry a comment naming the finding and its violated
 /// oracle, so a later machinery fix can re-enable it.
 const EXCLUDED_SEEDS: &[u64] = &[

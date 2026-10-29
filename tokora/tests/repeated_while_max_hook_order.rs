@@ -216,7 +216,7 @@ where
 //
 // `nums` starts at 0, so the very first iteration already sits at the boundary
 // (`nums == max == 0`). The lone input token `x` is present (so `decide_any` answers
-// `Continue`) but is not a number (so `parse_num` fails). This is exactly the finding's
+// `Continue`) but is not a number (so `parse_num` fails). This is exactly the defect's
 // concrete repro: "`at_most(0)` with a `Continue` decision and a failing element parser
 // reports `TooMany(1, 0)` before parsing any element."
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -415,10 +415,10 @@ fn bounded_genuine_overflow_still_reports_too_many_once() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Sibling confirmation — the delimited `repeated_while` named alongside the defect. Its maximum
 // is reached only through `many::admit_element`, which an element that failed to parse never
-// reaches, so this is not a RED/GREEN pair: it must pass before the fix and after it, and stays
-// here as executable proof rather than a claim resting on code reading alone. (It held for a
-// different reason before #277 — the family had no per-element hook at all and checked `nums >
-// max` from an end closure — so the row is load-bearing across both designs.)
+// reaches, so this is not a RED/GREEN pair: it passes with or without the hook-order defect, and
+// stays here as executable proof rather than a claim resting on code reading alone. (It held for
+// a different reason before #277 — the family had no per-element hook at all and checked
+// `nums > max` from an end closure — so the row is load-bearing across both designs.)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]

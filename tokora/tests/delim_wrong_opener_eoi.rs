@@ -306,7 +306,7 @@ macro_rules! driver_cases {
       let followed: Result<Vec<i64>, WE> =
         Parser::with_context(fatal_ctx()).apply($go).parse_str("x 1");
 
-      // Case 1 — the FINAL wrong opener. This arm is red before the fix (returns WE::Eot).
+      // Case 1 — the FINAL wrong opener. A broken driver returns WE::Eot here.
       assert!(
         matches!(
           &final_wrong,
@@ -314,7 +314,7 @@ macro_rules! driver_cases {
         ),
         "final wrong opener must be the expected-open UnexpectedToken (Ident @ 0..1), got {final_wrong:?}",
       );
-      // Case 2 — the same wrong opener followed by another token (already correct pre-fix).
+      // Case 2 — the same wrong opener followed by another token (the control).
       assert!(
         matches!(
           &followed,
@@ -341,9 +341,9 @@ macro_rules! driver_cases {
       );
     }
 
-    // Case 1, recovering: the wrong opener stays cached/unconsumed (the cursor never moves
-    // past it) and the expected-open diagnostic is recorded. Before the fix this path also
-    // hard-returned UnexpectedEot even under a recovering emitter, so `.unwrap()` was red.
+    // Case 1, recovering: the wrong opener stays cached/unconsumed (the cursor never moves past it)
+    // and the expected-open diagnostic is recorded. A driver that hard-returns UnexpectedEot even
+    // under a recovering emitter reds the `.unwrap()`.
     #[test]
     fn $unconsumed() {
       fn probe<'inp>(
@@ -377,10 +377,10 @@ macro_rules! driver_cases {
 
 // ── Scenarios 5 + 6 — one junk token, one report ──────────────────────────────
 //
-// Scenario 5 pins the suppression. Before the fix every family recorded the same `W@0..1`
-// TWICE under a recording emitter: the opener arm flagged the wrong opener, the token stayed
-// cached and unconsumed, and the close probe then re-saw that very token and reported it
-// again as a close miss.
+// Scenario 5 pins the suppression. Without it every family records the same `W@0..1` TWICE
+// under a recording emitter: the opener arm flags the wrong opener, the token stays cached and
+// unconsumed, and the close probe then re-sees that very token and reports it again as a close
+// miss.
 //
 // Scenario 6 is its twin and pins the other direction: when a genuinely DIFFERENT token sits
 // at the close position, that second report is real and must survive. The pair makes the

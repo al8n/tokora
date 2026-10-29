@@ -10,26 +10,25 @@ mod terminal_stop;
 
 // Regression coverage for the constructors' `Lang` threading.
 //
-// Before the fix, the constructors bounded their parser-function parameter as
-// `F: ParseInput<'inp, L, O, Ctx>` — the trait's own `Lang` parameter was left elided
-// (defaulting to `()`), even though the constructor itself is generic over an explicit `Lang`
-// and the `Ctx` bound (`ParseContext<'inp, L, Lang>`) already threads it. Per the blanket
-// `FnMut` impl in `parse_input.rs`, a closure whose `InputRef` names a non-`()` `Lang` only
-// implements `ParseInput<..., Ctx, Lang>`, never `ParseInput<..., Ctx, ()>` — so the bound was
-// unsatisfiable for any `Lang`-generic caller (e.g. a GraphQL-tagged closure through
-// `Parser::with_parser::<..., GraphQL>`).
+// A constructor bounding its parser-function parameter as `F: ParseInput<'inp, L, O, Ctx>` leaves
+// the trait's own `Lang` parameter elided (defaulting to `()`), even though the constructor itself
+// is generic over an explicit `Lang` and the `Ctx` bound (`ParseContext<'inp, L, Lang>`) already
+// threads it. Per the blanket `FnMut` impl in `parse_input.rs`, a closure whose `InputRef` names a
+// non-`()` `Lang` only implements `ParseInput<..., Ctx, Lang>`, never `ParseInput<..., Ctx, ()>` —
+// so that bound is unsatisfiable for any `Lang`-generic caller (e.g. a GraphQL-tagged closure
+// through `Parser::with_parser::<..., GraphQL>`).
 //
 // These tests only need to type-check: like the other `DummyLexer`-typed tests in this
 // module tree (see `combinator/any/tests/mod.rs`), they never drive the lexer (`DummyLexer::new` /
-// `with_state` are `todo!()`) — the bug and the fix are both purely at the bound level.
+// `with_state` are `todo!()`) — the property is purely at the bound level.
 
 /// A marker `Lang` distinct from `()`, standing in for a real grammar tag (e.g. `GraphQL`).
 struct TestLang;
 
 /// A parser function pinned to `TestLang`: implements `ParseInput<'inp, DummyLexer, DummyToken,
 /// Ctx, TestLang>` via the blanket `FnMut` impl, and nothing else — in particular, not
-/// `ParseInput<'inp, DummyLexer, DummyToken, Ctx, ()>`, which is what the pre-fix bounds
-/// required regardless of the constructor's own `Lang` argument.
+/// `ParseInput<'inp, DummyLexer, DummyToken, Ctx, ()>`, which is what an elided-`Lang` bound
+/// would require regardless of the constructor's own `Lang` argument.
 fn lang_probe<'inp, Ctx>(
   _input: &mut InputRef<'inp, '_, DummyLexer, Ctx, TestLang>,
 ) -> Result<DummyToken, <Ctx::Emitter as Emitter<'inp, DummyLexer, TestLang>>::Error>

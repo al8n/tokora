@@ -11,10 +11,9 @@
 //! `.spanned()`-shaped extension method does — gets `E0283` instead of a parser. `Collect<..>`
 //! therefore carries exactly one output across all twelve delimited and undelimited families.
 //!
-//! These two families had no file here because they had no spanned impl to exercise: they
-//! implemented the owning destination alone until #259 stage 3. The borrowed destination's
-//! counterpart is `repetition_behavioural_matrix.rs`'s borrowed table, whose eight `b_drep_*` /
-//! `b_drepw_*` rows arrived in the same change.
+//! These two families implement the spanned destination as well as the owning one (#259). The
+//! borrowed destination's counterpart is `repetition_behavioural_matrix.rs`'s borrowed table,
+//! with its eight `b_drep_*` / `b_drepw_*` rows.
 //!
 //! Eight impls, eight rows: the four `unbounded` / `at_least` / `at_most` / `bounded`
 //! specialisations of each family. The bounds are chosen so every row lands on the SUCCESS arm —

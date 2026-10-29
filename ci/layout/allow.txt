@@ -1,4 +1,4 @@
-# The depth allow-list (#350, rule 5): modules whose items may sit one level deeper than
+# The depth allow-list (rule 5): modules whose items may sit one level deeper than
 # `tokora::<module>::<Item>`. One module path per line; `versioned` marks a versioned integration
 # module, whose items `ci/layout/census.py` check 1 counts together with their unversioned alias
 # one level up as one canonical path (rule 6).

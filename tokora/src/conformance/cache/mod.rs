@@ -209,13 +209,10 @@ where
 /// agree on, at a position the divergence is not at, and it answered at all when a length settled
 /// the verdict.
 ///
-/// **The answer is `conformance`'s own [`Divergence`], not a type of this module's.** It was one:
-/// a `Length | At(usize, Decided)` pair that said exactly what `Divergence` says, written here
-/// because the trait tier's loops had not been factored yet. Two spellings of one answer are two
-/// places for the ordering between a position and a count to be decided, and this round's finding
-/// is that the ordering was wrong in every one of them — so the ranking, the length step and the
-/// answer are all [`diverge`]'s now, and the purity law reads them the way the four stream
-/// comparisons do.
+/// **The answer is `conformance`'s own [`Divergence`], not a type of this module's.** Two
+/// spellings of one answer are two places for the ordering between a position and a count to be
+/// decided — and two places to get it wrong — so the ranking, the length step and the answer are
+/// all [`diverge`]'s, and the purity law reads them the way the four stream comparisons do.
 pub(super) fn runs_decided<'inp, L>(
   first: &[PeekedTriple<'inp, L>],
   second: &[PeekedTriple<'inp, L>],
@@ -283,8 +280,8 @@ where
 /// next run.
 ///
 /// **And the order is a preference among CONCLUSIVE answers, not an unconditional first-wins.**
-/// It was `find_map`, so a prefix divergence a `NaN` decided withheld an appended divergence a
-/// span or a length had settled — round 5's finding at the composition of two whole
+/// A `find_map` would let a prefix divergence a `NaN` decided withhold an appended divergence a
+/// span or a length had settled — the withholding defect at the composition of two whole
 /// [`Divergence`]s. [`Ranking`] is generic over what a step answers precisely so this level reads
 /// the same rule as the two below it.
 fn prefilled_purity<'r, 'inp, L>(
@@ -686,8 +683,8 @@ where
   ///
   /// `lex_multiple * units + BUDGET_FLOOR`, and the multiple is the caller's
   /// ([`lex_attempts_multiple`](Self::lex_attempts_multiple)) precisely because the number cannot
-  /// be derived. It used to be justified as "monotone progress and nonempty spans bound a
-  /// conforming lexer at one item per source unit"; the contract enforced elsewhere says
+  /// be derived. It cannot be justified as "monotone progress and nonempty spans bound a
+  /// conforming lexer at one item per source unit": the contract enforced elsewhere says
   /// *non-decreasing* starts and *individually* nonempty spans, which permits overlapping and
   /// repeated-start items, so a finite terminating lexer may legitimately emit many items per unit.
   /// Nothing in this kit checks even that much — it drives the raw lexer and never runs the
@@ -697,12 +694,12 @@ where
   /// # The ceiling has to be a number `attempts` can pass
   ///
   /// It is computed with checked arithmetic, and the multiple it scales is refused above
-  /// [`MAX_BUDGET_MULTIPLE`](super::MAX_BUDGET_MULTIPLE), because the *configured* ceiling used to
-  /// be able to switch this loop off outright. `lex_attempts_multiple(usize::MAX)` saturated to a
-  /// limit of `usize::MAX`, and under the **`attempts > limit`** order of the day no `usize` could
-  /// satisfy that comparison: the endless-error lexer this guard exists to refuse ran forever,
-  /// with the counter wrapping through zero under a release profile, so the arithmetic did not
-  /// stop it either. A guard whose own knob can switch it off is not a guard, and the failure is
+  /// [`MAX_BUDGET_MULTIPLE`](super::MAX_BUDGET_MULTIPLE), because an unbounded *configured* ceiling
+  /// could switch this loop off outright: `lex_attempts_multiple(usize::MAX)` would saturate to a
+  /// limit of `usize::MAX`, and under an **`attempts > limit`** order no `usize` can satisfy that
+  /// comparison — the endless-error lexer this guard exists to refuse would run forever, with the
+  /// counter wrapping through zero under a release profile, so the arithmetic would not stop it
+  /// either. A guard whose own knob can switch it off is not a guard, and the failure is
   /// silent: the run does not report anything, it simply never ends.
   ///
   /// The comparison is now `attempts >= limit`, asked **before** the increment, and a `usize` does
@@ -775,8 +772,8 @@ where
   /// Returns the cache and the **entries** it should be holding, so every later assertion
   /// compares against a list the kit built rather than against the cache's own answer. Each entry
   /// is cloned before the push and the clone is what is kept: the cache takes the original by
-  /// value, and what the kit needs afterwards is the whole triple — span, token and state — not
-  /// the span projection it kept before #183.
+  /// value, and what the kit needs afterwards is the whole triple — span, token and state — not a
+  /// span projection (#183).
   fn filled(&self, n: usize) -> (C, Vec<CachedTokenOf<'inp, L>>) {
     let mut cache = self.make();
     let mut want = Vec::new();
@@ -797,16 +794,15 @@ where
 
   // ── every value a `Cache` method hands back is read, not counted ─────────────────
   //
-  // A value reduced to `is_ok()`/`is_some()` is a value the kit did not check, and #183's own
-  // review found that class twice in two rounds — first a pop whose entry was discarded
-  // (`check_peek_across_mutations`), then a push whose returned reference was (every push in the
-  // kit). Both were invisible for the same reason: everything downstream observes **storage**,
+  // A value reduced to `is_ok()`/`is_some()` is a value the kit did not check — a popped entry
+  // discarded (`check_peek_across_mutations`), or a push whose returned reference is (every push in
+  // the kit). Both are invisible for the same reason: everything downstream observes **storage**,
   // and neither the popped entry nor the returned reference is storage.
   //
   // So the class is closed rather than the occurrences — and closed by ENUMERATION, not by
   // looking harder, which is the difference between a class that is finished and one that keeps
-  // producing findings. A `Cache` method returns an `Option` or a `Result`, so there are exactly
-  // four shapes a value can arrive in, and every one of them is now accounted for:
+  // producing defects. A `Cache` method returns an `Option` or a `Result`, so there are exactly
+  // four shapes a value can arrive in, and every one of them is accounted for:
   //
   //   * `Option::Some`  — compared, through the entry comparison below.
   //   * `Option::None`  — presence-only, at twelve sites, because **absence is the law under
@@ -814,16 +810,15 @@ where
   //                       not answer. Nothing came back, so presence is not a weaker check there
   //                       — it is the whole check. Each carries a comment at the site.
   //
-  //                       That bound is on the RETURN, and #183's ninth round found it being
-  //                       read as a bound on the CALL. `pop_front_if` and `try_pop_front_if` —
-  //                       the only two `Cache` methods that run CALLER CODE, which is a closed
-  //                       list read off the trait rather than an inspection of this file — hand
-  //                       an entry over *before* they learn what to return. A `None` therefore
-  //                       says nothing about what the predicate was shown, and check 9's
-  //                       DECLINING arm is compared rather than counted for exactly that
-  //                       reason: it used to sit in this bullet, and a cache could answer
-  //                       `None`, remove nothing, keep every span in place, and still run the
-  //                       caller's validation predicate against an entry it never held there.
+  //                       That bound is on the RETURN, not on the CALL. `pop_front_if` and
+  //                       `try_pop_front_if` — the only two `Cache` methods that run CALLER
+  //                       CODE, which is a closed list read off the trait rather than an
+  //                       inspection of this file — hand an entry over *before* they learn what
+  //                       to return. A `None` therefore says nothing about what the predicate was
+  //                       shown, and check 9's DECLINING arm is compared rather than counted for
+  //                       exactly that reason: in this bullet, a cache could answer `None`,
+  //                       remove nothing, keep every span in place, and still run the caller's
+  //                       validation predicate against an entry it never held there.
   //
   //                       The two empty-cache probes stay in this bullet on a different footing
   //                       and are sound: their law is that the predicate must NOT RUN at all,
@@ -838,13 +833,12 @@ where
   //                       [`unexpected_refusal`](Self::unexpected_refusal) compares it before the
   //                       refusal panic can discard it.
   //
-  // There is no fifth shape. But an enumeration by shape is not an enumeration by SITE, and that
-  // is where four review rounds in a row went wrong: a single call site can be two shapes at
-  // once — checks 3 and 5 each have one `push_back`/`push_front` whose `Err` is *sometimes*
-  // legitimate and sometimes not — so an enumeration organised by shape classified them once, as
-  // "expected refusal", and never saw the other branch.
+  // There is no fifth shape. But an enumeration by shape is not an enumeration by SITE: a single
+  // call site can be two shapes at once — checks 3 and 5 each have one `push_back`/`push_front`
+  // whose `Err` is *sometimes* legitimate and sometimes not — so an enumeration organised by shape
+  // classified them once, as "expected refusal", and never saw the other branch.
   //
-  // So the account above is no longer the guarantee. `CACHE_CALL_CENSUS` in `cache/tests.rs` is:
+  // So the account above is not the guarantee. `CACHE_CALL_CENSUS` in `cache/tests.rs` is:
   // it parses this file and fails, naming the function and the line, the moment a call to any of
   // these methods appears at a site its table does not know about. Adding a call somewhere new
   // is a red test, not a missed review comment. The helpers below exist so that the registered
@@ -853,11 +847,11 @@ where
   /// The `Ok` arm of an accepted push, compared against the entry that was offered.
   ///
   /// [`Cache::push_back`] and [`Cache::push_front`] both promise `Ok` with **a reference to the
-  /// cached token**, so that reference is a contract value like any other — and until #183's
-  /// second review round every push in this kit reduced it to `is_ok()`. A cache can store the
-  /// offered entry perfectly and hand back a reference assembled from a *different* resident, and
-  /// nothing downstream can tell: `front`, `back`, the pops and `peek` all read storage, which is
-  /// correct, while the value the caller was actually handed is not.
+  /// cached token**, so that reference is a contract value like any other, never reduced to
+  /// `is_ok()`. A cache can store the offered entry perfectly and hand back a reference assembled
+  /// from a *different* resident, and nothing downstream can tell: `front`, `back`, the pops and
+  /// `peek` all read storage, which is correct, while the value the caller was actually handed is
+  /// not.
   ///
   /// Both push arms and all sixteen push sites route through this **one** comparison, which is
   /// what lets a single mutant pin the read everywhere it happens. On success the caller gets its
@@ -895,8 +889,8 @@ where
   ///
   /// `must_accept` is the caller's expectation at THIS push, which is what the two mixed sites
   /// (checks 3 and 5) need: the same call there can produce a warranted refusal or an
-  /// unwarranted one, and until #183's fifth review round the unwarranted branch asserted its
-  /// way out before the returned entry reached any comparison. The split is:
+  /// unwarranted one, and the unwarranted branch must not assert its way out before the returned
+  /// entry reaches a comparison. The split is:
   ///
   /// * accepted — the `Ok` reference is compared against the offered entry
   ///   ([`checked_push`](Self::checked_push)), and the offered entry is handed back as the
@@ -1011,16 +1005,15 @@ where
   ///
   /// The refusal is the louder violation and the message the callers pin names it, so it is what
   /// this ends on. But the value handed back is still a value the kit received, and dropping it
-  /// on the way to the panic was the last place in the kit that took a `Cache` return and looked
+  /// on the way to the panic would leave a place in the kit that took a `Cache` return and looked
   /// only at its shape.
   ///
   /// **Deliberately not in [`checked_push`](Self::checked_push)'s `Err` arm.** The sites that
   /// drive a refusal *on purpose* — check 3's and check 5's round-trips — already compare there,
   /// in their own wording, and that is where `REFUSAL_STATE_SWAP` and `REFUSAL_TOKEN_SWAP` fire.
   /// Moving the comparison up into the shared helper would run it twice and would relocate those
-  /// two cells' firing site, unpinning the round-trip messages their `expected` strings name —
-  /// the same pin-theft that `STATE_LAG` nearly suffered when the accepted-push comparison was
-  /// added. So it lives here, on the path no caller compares, and nowhere else.
+  /// two cells' firing site, unpinning the round-trip messages their `expected` strings name. So
+  /// it lives here, on the path no caller compares, and nowhere else.
   ///
   /// No cache reaches this by conforming: getting here needs a refusal the contract does not
   /// allow *and* a corrupted return, and the refusal alone already fails the kit. It closes a
@@ -1050,11 +1043,11 @@ where
   /// A pop whose answer the kit already knows: it must answer, and it must answer with `want`.
   /// The one place in the kit that calls [`Cache::pop_front`] for a value it intends to keep.
   ///
-  /// The residency sweeps drive runs of pops purely to *reach* a residency, and until #183's
-  /// second review round each of those asserted `is_some()` and threw the entry away. The entry
-  /// is never unknown at those sites — it is the next one off the end being drained — so there is
-  /// nothing to justify not comparing it, and a pop that removes the right entry while returning
-  /// a wrong one is precisely the class this kit exists to catch.
+  /// The residency sweeps drive runs of pops purely to *reach* a residency, and none of them may
+  /// assert `is_some()` and throw the entry away. The entry is never unknown at those sites — it is
+  /// the next one off the end being drained — so there is nothing to justify not comparing it, and
+  /// a pop that removes the right entry while returning a wrong one is precisely the class this kit
+  /// exists to catch.
   fn drained_front(
     &self,
     cache: &mut C,
@@ -1239,7 +1232,7 @@ where
   /// way, with the ordinary tag.
   /// `noun` is what the side being refused *is* — an `entry` at every comparison of a cached
   /// triple, a `run` where a whole peeked vector was compared as one value. It is a parameter
-  /// rather than the constant it used to be because the span-valued laws draw verdicts from
+  /// rather than a constant because the span-valued laws draw verdicts from
   /// values that are not entries, and a refusal that called a span vector an entry would be
   /// describing something the comparison never held.
   fn refuse_non_reflexive(
@@ -1290,9 +1283,9 @@ where
   /// there is no triple to rank and the component that decided it is the only one there was.
   ///
   /// These comparisons draw a cache verdict from `L::Span` and `L::Offset`, both bounded `Ord`.
-  /// Round 4 read that bound as settling them and left them unguarded; `Ord` is a marker and
-  /// nothing checks its promise, so a caller whose span equality answers `false` to everything
-  /// — itself included — got a red naming their cache. The same lying `L::Span` reaches
+  /// That bound does not settle them: `Ord` is a marker and nothing checks its promise, so,
+  /// unguarded, a caller whose span equality answers `false` to everything — itself included —
+  /// would get a red naming their cache. The same lying `L::Span` reaches
   /// [`triple_compare`] three lines further down at several of these sites and is refused there,
   /// which is the whole argument: one answer to a broken total equality, not two.
   fn guard_component(&self, site: &str, noun: &str, decided: &Decided, expected: &str, got: &str) {
@@ -1522,7 +1515,7 @@ where
   }
 
   /// Takes `cache` by `&mut` specifically so its own pop methods can be probed below — see
-  /// there for why a fresh `C::new()` used to stand in for it and what that missed.
+  /// there for why a fresh `C::new()` cannot stand in for it.
   fn assert_empty(&self, cache: &mut C, cap: usize, when: &str) {
     let name = self.label();
     assert!(
@@ -1767,8 +1760,8 @@ where
       let span = span_of::<L>(&tok);
       let expect_accept = resident.len() < cap;
       // The mixed site: this same call can produce a warranted refusal or an unwarranted one, and
-      // `must_accept` is what tells the router which. Before #183's fifth review round the
-      // unwarranted branch asserted its way out below and the returned entry was never compared.
+      // `must_accept` is what tells the router which, so the unwarranted branch compares the
+      // returned entry before it fails.
       let refusal = format!(
         "tokora cache conformance [{name} exact-length]: push_back #{i} was REFUSED with {} of {cap} slots used; `remaining` promised it would be accepted",
         resident.len()
@@ -1907,7 +1900,7 @@ where
     // `CachedTokenRef`, and a cache that overrides BOTH, with the cheap span half right and the
     // reference half wrong, had nothing to answer to. The entry a caller reads through `front()`
     // carries the token and the `L::State` a restore resumes from; the span half alone does not —
-    // which is why since #183 these two reads compare the whole entry and not its span. A ring
+    // which is why these two reads compare the whole entry and not its span (#183). A ring
     // that assembles its edge references out of a span array and a state array, one index apart,
     // answers the span half perfectly.
     self.assert_front_entry(cache, want.first(), when);
@@ -2101,14 +2094,14 @@ where
       self.assert_resident(&cache, cap, &resident, "after push_front");
     }
     // Capacity 1 is the one capacity where the loop above is expected to accept nothing: the
-    // seeding `push_back` fills the cache, so every front push after it meets a full one. This
-    // check used to return at its first line for `cap < 2` and skip that capacity entirely
-    // (#180 part A, item 10) — but "no prepend ORDER to observe" is not "nothing to observe".
-    // What is left is the refusal half, and nothing else in the kit reaches it on this arm:
-    // check 3 drives the round-trip for `push_back`, check 2 and `check_empty_push_front` only
-    // ever drive front pushes that are ACCEPTED. So a cache that corrupts a refused front push —
-    // hands back a resident entry and swallows the offered token — was invisible at capacity 1,
-    // which is exactly the capacity where every front push is refused.
+    // seeding `push_back` fills the cache, so every front push after it meets a full one. Returning
+    // early for `cap < 2` would skip that capacity entirely (#180 part A, item 10) — but "no
+    // prepend ORDER to observe" is not "nothing to observe". What is left is the refusal half, and
+    // nothing else in the kit reaches it on this arm: check 3 drives the round-trip for
+    // `push_back`, check 2 and `check_empty_push_front` only ever drive front pushes that are
+    // ACCEPTED. So without this branch a cache that corrupts a refused front push — hands back a
+    // resident entry and swallows the offered token — would be invisible at capacity 1, which is
+    // exactly the capacity where every front push is refused.
     if cap == 1 {
       assert!(
         refusals > 0,
@@ -2292,7 +2285,7 @@ where
 
   /// The spans of a list of entries, for the messages that show the reader a whole sequence.
   ///
-  /// The expectation lists are entries since #183; a message that printed them whole would have
+  /// The expectation lists are entries (#183); a message that printed them whole would have
   /// to `Debug` a token and a state per position, which buries the ordering it is trying to show.
   /// So the *sequence* messages stay span-valued and the *entry* messages
   /// ([`assert_entry_eq`](Self::assert_entry_eq)) name one component at a time.
@@ -2481,15 +2474,14 @@ where
       // The popped ENTRY, not merely its presence.
       //
       // This is the only drain in the kit that runs on an instance the kit has **already
-      // peeked**, and until #183's review it read nothing but `is_some()` — the value was bound,
-      // discarded, and `want` was shortened blindly. So a cache whose `peek` leaves state behind
-      // (a cached lookahead frontier, a memoised run) and whose later pops report out of it was
-      // invisible here: it removes the right entry, so the residency stays right; it returns the
-      // right span, so every span-level law stays right; and the token and the `L::State` the
-      // caller actually resumes from come from a different position. That is the #183 defect
-      // class on the peek-then-consume path — which is the path the issue's severity argument
-      // rests on, since `InputRef::resume` is lookahead followed by a rebuild — and no mutant on
-      // any return path could reach it while the value was thrown away.
+      // peeked**, so it reads the value rather than `is_some()`. A cache whose `peek` leaves state
+      // behind (a cached lookahead frontier, a memoised run) and whose later pops report out of it
+      // is invisible to a presence check: it removes the right entry, so the residency stays
+      // right; it returns the right span, so every span-level law stays right; and the token and
+      // the `L::State` the caller actually resumes from come from a different position. That is
+      // the #183 defect class on the peek-then-consume path — which is the path the issue's
+      // severity argument rests on, since `InputRef::resume` is lookahead followed by a rebuild —
+      // and no mutant on any return path can reach a value that is thrown away.
       let expected = if from_front {
         want.first().expect("the loop guard says want is non-empty")
       } else {
@@ -2787,8 +2779,8 @@ where
     let tag = from.tag();
     let prefill = self.prefill(cap, depth, from);
     // Cloned BEFORE the entries move into the buffer: the "peek left the prefix untouched"
-    // assertion compares whole entries since #183, so the expectation has to be the whole entry
-    // and not the span projection the kit kept before.
+    // assertion compares whole entries (#183), so the expectation has to be the whole entry and
+    // not a span projection.
     let prefill_want: Vec<CachedTokenOf<'inp, L>> = prefill.clone();
     let prefill_spans = Self::spans_of(&prefill_want);
     let want_spans = Self::spans_of(want);
@@ -3091,7 +3083,7 @@ where
     let name = self.label();
     match (want.first(), want.last(), cache.span()) {
       // Two endpoint comparisons and ONE answer: `&&` over them is a `bool` that does not record
-      // which end fired, which is the shape #324 kept finding one level up. `Comparison::ranked`
+      // which end fired, which is the shape #324 is about, one level up. `Comparison::ranked`
       // consumes both, ranks them, and hands the refusal below the endpoint the verdict rests on.
       (Some(first), Some(last), Some(combined)) => {
         if let Comparison::Differs(decided) = Comparison::ranked(&[
@@ -3284,11 +3276,10 @@ where
     // methods answer `None` regardless of what the predicate would have said.
     //
     // Presence-only, and the law, for these two probes ONLY — not for the false-predicate probe
-    // further down, which discarded its argument until #183 round 9 on the strength of this same
-    // sentence. What makes these two sound is not that they answer `None`; it is that the
-    // predicate must never run, which is asserted on its own line right after each call. On the
-    // conforming path no entry is handed to anyone, so there is nothing to compare.
-    // (Documented exception — see `checked_push`.)
+    // further down, which this same sentence must not be read as excusing. What makes these two
+    // sound is not that they answer `None`; it is that the predicate must never run, which is
+    // asserted on its own line right after each call. On the conforming path no entry is handed to
+    // anyone, so there is nothing to compare. (Documented exception — see `checked_push`.)
     let mut empty = self.make();
     let ran = Cell::new(false);
     assert!(
@@ -3331,12 +3322,12 @@ where
     // front entry on the way to being told so.
     //
     // The RETURN here is an absence law: `None` is the whole answer, and there is no entry behind
-    // it. The predicate ARGUMENT is not, and classifying the whole site by its return is what left
-    // this arm reading its argument not at all until #183's ninth round. `pop_front_if` hands
-    // caller code a real entry *before* it learns the predicate's answer, so absence covers what
-    // comes back and covers nothing about what went out: a cache can keep storage conforming,
-    // answer `None` correctly, leave residency untouched, and still show the declining predicate
-    // someone else's token or state — and every other oracle here would agree it conformed.
+    // it. The predicate ARGUMENT is not, and classifying the whole site by its return would leave
+    // this arm reading its argument not at all. `pop_front_if` hands caller code a real entry
+    // *before* it learns the predicate's answer, so absence covers what comes back and covers
+    // nothing about what went out: a cache can keep storage conforming, answer `None` correctly,
+    // leave residency untouched, and still show the declining predicate someone else's token or
+    // state — and every other oracle here would agree it conformed.
     //
     // The old justification for discarding it was that the true-predicate arm below already pins
     // this read, since `F: FnOnce` settles the entry before the `true`/`false` exists. That is an
@@ -3367,15 +3358,14 @@ where
     // An Err-returning predicate is refused the same way, and the error comes straight back — and
     // it too is handed the FRONT entry, which is recorded here rather than discarded.
     //
-    // Both `try_pop_front_if` closures in this check used to be `|_| ...`, so everything the check
-    // asserted about this method was its return value and its residency. An override that ran the
+    // With `|_| ...` closures for both `try_pop_front_if` calls in this check, everything it
+    // asserts about this method is its return value and its residency. An override that ran the
     // caller's validation predicate against `back()` and then produced the conforming return and
-    // the conforming residency satisfied every one of them — a cache that decides whether to
+    // the conforming residency would satisfy every one of them — a cache that decides whether to
     // remove or retain the front on the strength of unrelated lookahead, certified.
     let (mut cache_e, want_e) = self.filled(cap);
     // The predicate's closure lives in the router, so the entry it is handed is recorded and
-    // compared unconditionally — it cannot be discarded by an edit here, which is what it was
-    // before #183.
+    // compared unconditionally — it cannot be discarded by an edit here.
     let result = self.recording_try_pop_front_if(
       &mut cache_e,
       &want_e[0],
@@ -3450,10 +3440,11 @@ where
 
   /// One recorded `pop_front_if`/`try_pop_front_if` predicate argument against the front entry.
   ///
-  /// `lede` is the site's own wording, kept verbatim from before #183 because two cells pin it
-  /// (`pop_front_if()'s predicate was handed`, `try_pop_front_if()'s Err-path predicate was
-  /// handed`). Presence is checked here rather than at the call site so that "the predicate never
-  /// ran" reports as itself instead of as a mismatch against `None`.
+  /// `lede` is the site's own wording, kept verbatim because two cells pin it
+  /// (`pop_front_if()'s predicate was handed`,
+  /// `try_pop_front_if()'s Err-path predicate was handed`). Presence is checked here rather than at
+  /// the call site so that "the predicate never ran" reports as itself instead of as a mismatch
+  /// against `None`.
   fn assert_recorded_predicate_arg(
     &self,
     saw: Option<&PeekedTriple<'inp, L>>,
@@ -3538,7 +3529,7 @@ where
       corpus.len()
     );
     // Cloned before `push_many` takes the originals by value: the overflow comparison below is
-    // over whole entries since #183, so the expectation has to be the whole entry.
+    // over whole entries (#183), so the expectation has to be the whole entry.
     let all: Vec<CachedTokenOf<'inp, L>> = corpus.clone();
     let all_spans = Self::spans_of(&all);
 

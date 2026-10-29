@@ -454,7 +454,7 @@ where
 }
 
 /// The fold — not the report — is what moves the input here. A postfix report never
-/// recurses, so this is the other half of the finding: a fold that advances also satisfies an
+/// recurses, so this is the other half of the claim: a fold that advances also satisfies an
 /// end-of-cycle watermark.
 fn consuming_fold_postfix<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,

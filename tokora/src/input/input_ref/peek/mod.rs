@@ -10,8 +10,7 @@ use super::*;
 /// that somewhere is the *fill's* frame — 96 bytes on aarch64, reserved on every call for a
 /// path that never runs. PEEK_FOOTPRINT is a frame-size law, so the panic's own storage
 /// belongs in the panic's own function. Measured: with this message inlined, a `U1` peek's
-/// release frame *grew* by those 96 bytes and swallowed the window this change was made to
-/// save.
+/// release frame *grows* by those 96 bytes and swallows the window the split exists to save.
 ///
 /// Free-standing rather than an associated function for the same accounting: it names none
 /// of `InputRef`'s eight parameters, so the crate carries one copy of it instead of one per
@@ -467,8 +466,8 @@ where
                 // Unstage before propagating. Nothing but the staged tokens has been pushed yet,
                 // so `buf` holds exactly `buf_len + staged` entries and truncating to `buf_len`
                 // drops each staged token exactly once (the deque owns them) and hands the
-                // caller's buffer back byte-for-byte as it arrived — the same observable the
-                // discarded staging buffer used to produce.
+                // caller's buffer back byte-for-byte as it arrived — the same observable a
+                // separate staging buffer would produce.
                 buf.truncate(buf_len);
                 return Err(err);
               }
@@ -649,11 +648,10 @@ where
   /// Every quantity a check is *gated* on is one the **fill** computes — `at`, `copied`,
   /// `staged` — never one the cache reports. `reserved` is a cache-derived value and appears
   /// only on the *expected* side of a comparison, where a lie shows up as a mismatch; it never
-  /// decides whether a comparison runs. That is not a style preference, it is the correction of
-  /// a real defect: an earlier revision of this check gated the endpoint witness on
-  /// `reserved > 0`, and a cache under-reporting all the way to **zero** skipped the witness by
-  /// that precondition while passing the count trivially as `0 == 0` — blindest exactly where
-  /// the lie was largest. A precondition is an escape hatch unless it is itself verified.
+  /// decides whether a comparison runs. That is not a style preference: gating the endpoint
+  /// witness on `reserved > 0` would let a cache under-reporting all the way to **zero** skip the
+  /// witness by that precondition while passing the count trivially as `0 == 0` — blindest exactly
+  /// where the lie was largest. A precondition is an escape hatch unless it is itself verified.
   ///
   /// # The two halves, both in every build
   ///
@@ -667,14 +665,13 @@ where
   /// to zero, which satisfies the count trivially as `0 == 0`. Both of those are the **hole**, and
   /// a release build is where a downstream `Cache` runs.
   ///
-  /// It was a `debug_assert!` for one release, on an instruction count that read the comparison —
-  /// two ring indexes, a `Maybe` discriminant, an `Option<&Span>` compare — at 67–70 instructions
-  /// retired per cache-miss fill. **That reasoning is retracted, and the retraction is measured.**
-  /// The instruction count was never the price: the six peek-shaped bench ids read **0.9987**
-  /// geometric mean with this witness release-active, every id inside 0.974×–1.009×, over ten
-  /// interleaved criterion rounds on aarch64-apple-darwin.
+  /// An instruction count that reads the comparison — two ring indexes, a `Maybe` discriminant, an
+  /// `Option<&Span>` compare — at 67–70 instructions retired per cache-miss fill argues for a
+  /// `debug_assert!`, and the measurement refutes it. The instruction count is not the price: the
+  /// six peek-shaped bench ids read **0.9987** geometric mean with this witness release-active,
+  /// every id inside 0.974×–1.009×, over ten interleaved criterion rounds on aarch64-apple-darwin.
   ///
-  /// What the promotion *did* cost, before `#[inline(never)]` below, was the same thing
+  /// What release-activity *does* cost, without `#[inline(never)]` below, is the same thing
   /// PEEK_HOT_SPLIT found: the witness's code sitting in
   /// [`peek_lex_fill`](Self::peek_lex_fill)'s body — past the
   /// overflow-free `return`, never executed by it — moved `input/scan/peek1_then_next` by

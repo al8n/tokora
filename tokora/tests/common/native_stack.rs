@@ -75,11 +75,11 @@ const FAKE_STACK_FLAG: &str = "detect_stack_use_after_return";
 ///
 /// # Why the OS is an argument
 ///
-/// This used to be an unconditional `false`, and that is the whole of the defect it replaces: CI
-/// runs Linux and leaves the flag unspecified, so frames relocated while the decision below said
-/// they did not — and the control that exists to catch a fake stack took its other arm, where the
-/// observation it was written to check is deliberately ignored. **The absence of a setting is not
-/// the absence of the behaviour.**
+/// An unconditional `false` here would be the defect: CI runs Linux and leaves the flag
+/// unspecified, so frames relocate while the decision below says they do not — and the control
+/// that exists to catch a fake stack takes its other arm, where the observation it was written to
+/// check is deliberately ignored. **The absence of a setting is not the absence of the
+/// behaviour.**
 ///
 /// Written as `cfg!(target_os = "linux")` the correction would be unfalsifiable from the host it
 /// was written on: this repository is developed on macOS, where a table that gets Linux wrong and
@@ -110,9 +110,8 @@ pub fn fake_stack_default() -> bool {
 ///
 /// The live values are gathered by [`here`]; taking them as an argument is what gives every branch
 /// a positive control that neither mutates the process environment nor requires an instrumented
-/// build to run. The previous version of this logic had controls that injected `Some("address")`
-/// straight into the helper, so they exercised the helper and never the lookup — which is why the
-/// lookup could be wrong for three rounds while its controls stayed green.
+/// build to run. Controls that inject `Some("address")` straight into the helper exercise the
+/// helper and never the lookup, so the lookup can be wrong while its controls stay green.
 #[derive(Clone, Copy, Debug)]
 pub struct StackEvidence<'a> {
   /// The program is being interpreted, so a frame's locals are a virtual allocation.
@@ -301,9 +300,8 @@ pub fn asan_fake_stack_enabled_from(default: bool, options: Option<&str>) -> boo
 
 /// Whether this run is one where a frame's locals are expected to **move** between two calls.
 ///
-/// This is emphatically not "is this build instrumented", and the difference is what
-/// `stack_per_level`'s control for [`frames_reused`] used to get wrong. Only two things relocate a
-/// frame:
+/// This is emphatically not "is this build instrumented", and the difference is what stack-layout
+/// controls for [`frames_reused`] can easily get wrong. Only two things relocate a frame:
 ///
 /// * **Miri**, which gives every frame's locals their own virtual allocation, and
 /// * **ASan's fake stack**, which [`ASAN_OPTIONS`] can turn on or off and which is on by default

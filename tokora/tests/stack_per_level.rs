@@ -88,9 +88,9 @@ fn take_marks() -> Vec<usize> {
 /// own: allocations handed out monotonically with a constant stride pass [`per_level`]'s ordering
 /// check and its nonzero check alike, and the harness would then print allocation spacing as bytes
 /// per nesting level. So the question is settled before the samples are read, and settled by the
-/// **absence of a positive statement** rather than the absence of a signal: what this file used to
-/// do was read `TOKORA_SANITIZER`, which nothing but `ci/sanitizer.sh` exports, so a direct
-/// `RUSTFLAGS=-Zsanitizer=address cargo test` printed a fake stack's spacing as a frame size.
+/// **absence of a positive statement** rather than the absence of a signal: reading
+/// `TOKORA_SANITIZER`, which nothing but `ci/sanitizer.sh` exports, would let a direct
+/// `RUSTFLAGS=-Zsanitizer=address cargo test` print a fake stack's spacing as a frame size.
 fn relocation_reason() -> Option<String> {
   common::native_stack::measurement_refusal_here()
 }
@@ -113,10 +113,10 @@ fn announce_skipped(why: &str) {
 ///   before anything is read out of the samples, because a fake stack can produce samples that
 ///   pass every check below.
 /// - **A delta is zero.** Every level here is a real recursive call, so a zero means the
-///   samples are not measuring what the caller thinks. This is checked BEFORE direction: under
-///   the strict `>` / `<` this file used to carry, a repeated address failed the ordering check
-///   first and the zero-delta assertion could not fire at all — a dedicated refusal path with
-///   no reachable input is not a refusal path.
+///   samples are not measuring what the caller thinks. This is checked BEFORE direction: under a
+///   strict `>` / `<`, a repeated address would fail the ordering check first and the zero-delta
+///   assertion could not fire at all — a dedicated refusal path with no reachable input is not a
+///   refusal path.
 /// - **The addresses are not a chain at all.** Checked after, and non-strictly, so it rejects
 ///   exactly the shape the zero check does not: samples that go both ways. An interpreter that
 ///   gives each frame's locals its own virtual allocation produces addresses with no relation
@@ -536,9 +536,8 @@ fn per_nesting_level_stack_cost() {
 /// A positive control for every way [`per_level_with`] refuses, plus the two layouts it is
 /// supposed to accept.
 ///
-/// Without these the refusals are unfalsifiable: the file's first version differenced with
-/// `saturating_sub` and printed `0 B` for every layout it did not model, and the fix that
-/// replaced it carried two assertions that no input could reach.
+/// Without these the refusals are unfalsifiable: differencing with `saturating_sub` prints `0 B`
+/// for every layout it does not model, and an assertion no input can reach is no assertion.
 mod refusals {
   use super::common::native_stack::{
     ANNOUNCE, FrameReuseArm, OPT_IN, StackEvidence, announce_arm, asan_fake_stack_enabled,
@@ -663,9 +662,9 @@ mod refusals {
     assert!(measurement_refusal(StackEvidence::native()).is_none());
   }
 
-  /// **The fix, as a control.** An unset affirmation refuses even when nothing was detected — the
-  /// case a direct `RUSTFLAGS=-Zsanitizer=address cargo test` used to take straight to a printed
-  /// number, because the only signal the probe read was one the compiler never sets.
+  /// **The affirmation, as a control.** An unset affirmation refuses even when nothing was
+  /// detected — the case a direct `RUSTFLAGS=-Zsanitizer=address cargo test` would otherwise take
+  /// straight to a printed number, because the compiler sets no signal the probe could read.
   #[test]
   fn an_unaffirmed_build_takes_no_measurement() {
     let unaffirmed = StackEvidence {
@@ -716,10 +715,9 @@ mod refusals {
   ///
   /// # Three builds, three different things to assert
   ///
-  /// [`frames_reused`] observes **relocation**, and relocation is not instrumentation. This
-  /// control used to assert `frames_reused() == !instrumented` with `instrumented` true for any
-  /// reported or announced sanitizer, which is a contradiction in two of the configurations CI
-  /// actually runs:
+  /// [`frames_reused`] observes **relocation**, and relocation is not instrumentation. Asserting
+  /// `frames_reused() == !instrumented`, with `instrumented` true for any reported or announced
+  /// sanitizer, is a contradiction in two of the configurations CI actually runs:
   ///
   /// * **ThreadSanitizer** — in the matrix, next to `address` — instruments memory accesses and
   ///   leaves frames exactly where they were, so sequential calls reuse one frame and the old
@@ -941,7 +939,7 @@ mod refusals {
   #[test]
   fn an_unspecified_flag_means_the_platform_default() {
     let table: [(&str, bool); 8] = [
-      // The one the whole finding is about, and the one this host cannot evaluate for itself.
+      // The one the whole defect is about, and the one this host cannot evaluate for itself.
       ("linux", true),
       // `SANITIZER_ANDROID` is carved back out. Rust spells it as its own `target_os`, and the
       // sanitizer matrix's `cross` neighbours build for it.

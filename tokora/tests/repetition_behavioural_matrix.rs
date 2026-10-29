@@ -749,10 +749,8 @@ variants! {
 //
 // `Collect<&mut _, &mut Container>` is the other ownership contract: the caller keeps the
 // storage and can read it on the **failure** arm, which the owning form cannot expose. **All
-// eight** drivers implement it. Two of them did not until #259 stage 3: `delim/repeated` and
-// `delim/repeated_while` implemented only the owning form, and stage 2 found that **incidental**
-// rather than forced — `sep/delim` and `sep_while/delim` are delimited too and implement the
-// borrowed contract — so the rows returned when those two drivers did.
+// eight** drivers implement it (#259): nothing forces a delimited driver to the owning form alone
+// — `sep/delim` and `sep_while/delim` are delimited too and implement the borrowed contract.
 //
 // The count is thirty-two against the main table's forty-eight, and the sixteen missing rows are
 // all one kind now: the `exact2*` spellings. Three construction paths to one cardinality is A2's
@@ -1555,10 +1553,10 @@ fn a_delimiter_does_not_change_what_is_collected_inside_it() {
 /// loops that have drifted — the multiplication #259's evidence section describes, in the one
 /// place the crate genuinely writes a driver twice.
 ///
-/// All eight drivers have a row: `delim/repeated` and `delim/repeated_while` implemented the
-/// owning form alone until #259 stage 3 gave them the other two contracts. Each row is also this
-/// file's non-vacuity guard for its borrowed twin — a borrowed path that collected nothing would
-/// disagree with an owning twin that collected, rather than passing every property quietly.
+/// All eight drivers have a row, `delim/repeated` and `delim/repeated_while` included (#259). Each
+/// row is also this file's non-vacuity guard for its borrowed twin — a borrowed path that collected
+/// nothing would disagree with an owning twin that collected, rather than passing every property
+/// quietly.
 #[test]
 fn the_owning_and_borrowed_contracts_collect_the_same_elements() {
   let mut r = Report::new(

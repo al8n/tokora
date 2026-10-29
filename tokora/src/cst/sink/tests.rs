@@ -1116,25 +1116,25 @@ fn a_start_left_open_by_an_escaping_panic_is_refused_by_finish_and_closed_by_fin
 // ONE BRACKET, TWO EXITS, ONE ROLLBACK LAW
 // ═══════════════════════════════════════════════════════════════════════════════
 //
-// These five cells are the adversarial-review evidence that decided the appended encoding,
-// kept as pins. The finding they were built to demonstrate — a rollback whose target lands
-// BETWEEN a `cst_start` and its failing exit — is what an in-place kind rewrite got wrong: the
-// truncation kept the slot and kept the rewrite, so `finish` succeeded with the node silently
-// gone where the restore contract promised it open again. The success exit never had that
-// problem, because its `FinishNode` is an append the truncation removes.
+// These five cells pin why the failing exit is an appended event rather than an in-place kind
+// rewrite. A rollback whose target lands BETWEEN a `cst_start` and its failing exit is what an
+// in-place rewrite gets wrong: the truncation keeps the slot and keeps the rewrite, so `finish`
+// succeeds with the node silently gone where the restore contract promised it open again. The
+// success exit never has that problem, because its `FinishNode` is an append the truncation
+// removes.
 //
 // With both exits appended the two are the same law, and the first two cells below are the
-// former defect stated as its correct outcome.
+// in-place defect stated as its correct outcome.
 
-/// **The finding, inverted.** A checkpoint captured between `cst_start` and `cst_demote`
+/// **The in-place defect, inverted.** A checkpoint captured between `cst_start` and `cst_demote`
 /// promised a buffer whose slot holds a live `StartNode(K_NODE)`. The rollback truncates the
 /// `Demote` and delivers exactly that: the node is open again, and a `finish` that follows is
 /// answered with the typed refusal the restore contract implies.
 ///
-/// Under the eager in-place rewrite this cell read the other way — the tombstone survived the
-/// rollback, the retry re-balanced the buffer, and `finish` returned a tree with the node
-/// silently omitted. Nothing downstream could detect that; this is the whole reason the
-/// demotion moved onto an event.
+/// Under an eager in-place rewrite this cell would read the other way — the tombstone would
+/// survive the rollback, the retry re-balance the buffer, and `finish` return a tree with the
+/// node silently omitted. Nothing downstream could detect that; this is the whole reason the
+/// demotion is an event.
 #[test]
 fn a_rollback_into_the_demote_window_reopens_the_node() {
   let mut sink = verbose_sink("ab");
@@ -2151,8 +2151,8 @@ fn cst_forward_census_one_helper_carries_every_channel() {
   // gap-licensing evidence, and it must sit in `commit_lexer_error` — the surface the input layer
   // reaches and no caller can. Every other forwarded diagnostic passes `None`.
   //
-  // A second `Some(` site would re-open the finding this census was written for: a caller-chosen
-  // span, with nothing consumed for it, excusing an uncovered byte of the sink's own buffer.
+  // A second `Some(` site would re-open the hole this census guards: a caller-chosen span, with
+  // nothing consumed for it, excusing an uncovered byte of the sink's own buffer.
   let evidence = count(src, "self.forward_diag::<Lang, _>(Some(");
   assert!(
     evidence == 1,
@@ -2773,7 +2773,7 @@ fn finish_builds_the_straight_tree() {
 /// through either): the caller chose that span with nothing consumed for it, so the slot carries
 /// `None`. Both forward the diagnostic; both occupy a log position; only one licenses a gap.
 ///
-/// This is the event-level statement of the finding closed in this round. Its behavioural halves
+/// This is the event-level statement of that difference. Its behavioural halves
 /// are `a_handle_raised_lexer_error_reports_without_licensing_the_gap` and
 /// `an_orphan_view_wrapper_carries_a_foreign_lexer_error_but_licenses_no_gap` in
 /// `tests/parser_node.rs`, driven from outside the crate; the structural one is
@@ -2849,13 +2849,13 @@ fn round_trip_with_a_lexer_error_is_structural() {
 ///
 /// This cell is the readable statement of the law; [`appending_a_token_never_moves_a_gap`] is
 /// the law itself, checked over a corpus with the second half **generated** rather than
-/// written. Three rounds of this rule shipped a hand-written "same stream, one token longer"
-/// that was not one, so the mechanical check is the part that has teeth and this one is the
-/// part that explains what it means.
+/// written. A hand-written "same stream, one token longer" tends to be a different parse rather
+/// than the same one continued, so the mechanical check is the part that has teeth and this one
+/// is the part that explains what it means.
 ///
 /// Teeth (measured): tiling a run at the token that *reveals* it instead of the token it trails
-/// — the pre-rule walk (M1) — turns the trailing half into `Root[Node[Tok"a"] Gap"!"]` and reds
-/// this cell, while the mid-stream half stays green. That is the asymmetry, stated as a diff.
+/// turns the trailing half into `Root[Node[Tok"a"] Gap"!"]` and reds this cell, while the
+/// mid-stream half stays green. That is the asymmetry, stated as a diff.
 #[test]
 fn a_trailing_gap_joins_the_node_of_the_token_it_trails() {
   // Mid-stream: the `!` at [1,2) opens the instant `a` settles, so it tiles into the node open
@@ -2904,23 +2904,22 @@ fn a_trailing_gap_joins_the_node_of_the_token_it_trails() {
 /// two peek schedules**, not two parses, and a rule that reads a diagnostic's position would
 /// make the materialized tree a function of how far the caller happened to look ahead.
 ///
-/// Two earlier shapes of the trailing rule did read it, and both are why this cell exists. The
-/// first asked whether a close was the last event *to drive the builder*: a `Diag` drives
-/// nothing, so it was skipped and the close still counted as last. The second held the close and
-/// released it at **any** following event, `Diag` included — which fixed the skip and made the
-/// tree depend on the hoist instead, splitting exactly the pair below into two shapes. Placement
-/// now reads tokens and structure only, so neither hole is expressible.
+/// Two plausible shapes of the trailing rule do read it, and both are why this cell exists. One
+/// asks whether a close is the last event *to drive the builder*: a `Diag` drives nothing, so it
+/// is skipped and the close still counts as last. The other holds the close and releases it at
+/// **any** following event, `Diag` included — which fixes the skip and makes the tree depend on
+/// the hoist instead, splitting exactly the pair below into two shapes. Placement reads tokens
+/// and structure only, so neither hole is expressible.
 ///
 /// [`hoisting_a_lexer_error_never_moves_a_gap`] checks this over a corpus, by moving every
 /// diagnostic to every slot; this cell is the one worked example.
 ///
-/// Teeth (measured): M4 — round 2's mechanism restored, a root child's close held and released
-/// at the next event of any kind — reds this cell with `Root[Node[Tok"a"] Gap"!"]`, and it is
-/// the only mutation that reds it **together with**
-/// [`hoisting_a_lexer_error_never_moves_a_gap`]. M3 — round 1's mechanism, which skipped `Diag`
-/// — leaves both green, which is exactly the shape of the hole this cell now guards: round 1
-/// was peek-stable by accident, and round 2 gave that away buying an append-invariance it did
-/// not get either.
+/// Teeth (measured): holding a root child's close and releasing it at the next event of any kind
+/// reds this cell with `Root[Node[Tok"a"] Gap"!"]`, and it is the only mutation that reds it
+/// **together with** [`hoisting_a_lexer_error_never_moves_a_gap`]. Skipping `Diag` when deciding
+/// whether a close is last leaves both green, which is exactly the shape of the hole this cell
+/// guards: that rule is peek-stable by accident, and releasing at any event gives that away
+/// without gaining append-invariance either.
 #[test]
 fn moving_the_lexer_error_across_the_close_does_not_move_the_gap() {
   // The parse: open `K_NODE`, settle `a`, refuse `!`, close. The refusal is recorded INSIDE the
@@ -3023,9 +3022,11 @@ fn moving_the_lexer_error_across_the_close_does_not_move_the_gap() {
 /// one never looks: by the time the first close is read the run is already in the tree.
 ///
 /// Teeth (measured): tiling a run at the token that reveals it instead of at the token it
-/// trails (M1) reds the mid-stream half first, with `Root[Node[List[Tok"a"] Gap"!" Tok"b"]]` —
-/// the run one level up, in the node that revealed it. M2, M3 and M4 red it the same way, which
-/// is the point: every rule that decides depth at or after the close gets this stream wrong.
+/// trails reds the mid-stream half first, with `Root[Node[List[Tok"a"] Gap"!" Tok"b"]]` —
+/// the run one level up, in the node that revealed it. The three close-holding mutations (never
+/// release; release unless the next event drives the builder; release at the next event of any
+/// kind) red it the same way, which is the point: every rule that decides depth at or after the
+/// close gets this stream wrong.
 #[test]
 fn a_trailing_gap_lands_at_the_depth_of_the_token_it_trails() {
   let nested = |sink: &mut VerboseSink<'_>| {
@@ -3106,7 +3107,7 @@ fn a_trailing_gap_lands_at_the_depth_of_the_token_it_trails() {
 /// content" will expect the tail to descend here, and silence is how a rule acquires an
 /// undocumented third case.
 ///
-/// Teeth (measured): holding a root child's close and never releasing it (M2 — "the tail joins
+/// Teeth (measured): holding a root child's close and never releasing it ("the tail joins
 /// the last child" read as the rule rather than as a consequence) makes the first half
 /// `Root[Node[Tok"a" Tok"b" Gap"!"]]`, swallowing a **root-level token** into the node before
 /// it. The same mutation reds `hole_wrap_materializes_as_an_error_node_with_real_tokens` on
@@ -3142,8 +3143,7 @@ fn a_trailing_gap_stays_at_the_root_when_the_token_it_trails_did() {
   );
 }
 
-/// **A LEADING run — one no token trails — is the single case placed where it is discovered**,
-/// and it is unchanged from before this rule.
+/// **A LEADING run — one no token trails — is the single case placed where it is discovered.**
 ///
 /// There is no "the token before it" to attach to, so it tiles at the first committed token, in
 /// whatever node that token lands in. That is not a loophole in the rule: appending events
@@ -3155,7 +3155,7 @@ fn a_trailing_gap_stays_at_the_root_when_the_token_it_trails_did() {
 /// [`a_source_with_nothing_lexable_keeps_its_gap_at_the_root_either_way`] is that case in full.
 ///
 /// Teeth (measured): the over-consistent reading of the fallback — tile a leading run at the
-/// very start of the walk, in the root, because that is where it "opens" (M5) — yields
+/// very start of the walk, in the root, because that is where it "opens" — yields
 /// `Root[Gap"!" Node[Tok"b"]]`, ejecting leading trivia from the node the parse opened over it
 /// and leaving that node starting at offset 1. This cell and
 /// [`finish_partial_trailing_gap_tiles_into_the_innermost_open_node`] are what rule that out.
@@ -3201,15 +3201,13 @@ fn a_leading_gap_tiles_at_the_first_token_that_follows_it() {
 /// finishes with **zero committed tokens**. So there is no token for the run to trail, the
 /// fallback clause applies, and the tree is `Root[Node@0..0[], Gap@0..len]`.
 ///
-/// **This is the one shape an earlier round of the rule moved and this one moves back**, so the
-/// reasoning is recorded rather than left as a diff. That round put the run inside the node,
-/// making it `Root[Node@0..len[Gap]]`, and argued the document node "was opened over those
-/// bytes". The argument is appealing and it is wrong for a measurable reason: the identical
-/// parse with one lexable byte appended tiles that same run **at the root** — there is still no
-/// token before it — so descending here would have made the shape depend on whether a lexable
-/// byte followed, which is the exact asymmetry this branch exists to delete. It was not a gain
-/// with an unlucky edge; it was an instance of the defect, and
-/// [`appending_a_token_never_moves_a_gap`] measures it as one.
+/// **Putting the run inside the node here is tempting, and wrong**, so the reasoning is
+/// recorded. That shape, `Root[Node@0..len[Gap]]`, argues the document node "was opened over
+/// those bytes". The argument is appealing and it is wrong for a measurable reason: the
+/// identical parse with one lexable byte appended tiles that same run **at the root** — there is
+/// still no token before it — so descending here would make the shape depend on whether a
+/// lexable byte followed, which is the exact asymmetry the placement rule exists to delete. It is
+/// an instance of the defect, and [`appending_a_token_never_moves_a_gap`] measures it as one.
 ///
 /// The second half is the twin that decides it. One committed token is enough for the node to
 /// take the run — because now there *is* a token to trail — and the node widens over it. So the
@@ -3218,10 +3216,10 @@ fn a_leading_gap_tiles_at_the_first_token_that_follows_it() {
 /// all and the garbage is beside it. Nothing about either answer changes when input is appended.
 ///
 /// Teeth (measured): the most sensitive cell in the battery — all five mutations red it, with
-/// **three** distinct wrong answers. M2/M3/M4 put the run inside the node
-/// (`Root[Node[Gap"ab"]]`, the shape this reverts); M5 puts it before the node
-/// (`Root[Gap"ab" Node[]]`); M1 leaves the first two blocks alone and reds the third instead
-/// (`Root[Node[Tok"a"] Gap"b"]`), which is the pre-rule shape.
+/// **three** distinct wrong answers. The three close-holding mutations put the run inside the
+/// node (`Root[Node[Gap"ab"]]`); tiling a leading run at the start of the walk puts it before
+/// the node (`Root[Gap"ab" Node[]]`); tiling at the revealing token leaves the first two blocks
+/// alone and reds the third instead (`Root[Node[Tok"a"] Gap"b"]`).
 #[test]
 fn a_source_with_nothing_lexable_keeps_its_gap_at_the_root_either_way() {
   let mut sink = verbose_sink("ab");
@@ -3534,19 +3532,18 @@ fn placement_corpus() -> std::vec::Vec<(&'static str, &'static str, std::vec::Ve
 /// one root-level token that starts exactly where the source ended must leave every gap in the
 /// node it was already in.
 ///
-/// This is the law the branch is named for, and the check three rounds of it did not have. Each
-/// round wrote its own "mid-stream twin" by hand and each hand-written twin was a *different
-/// parse* rather than the same one continued, so the twin agreed while the append did not. Here
-/// the twin is `ops.push(Tok(len, len + 1))` and cannot be anything else.
+/// A hand-written "mid-stream twin" tends to be a *different parse* rather than the same one
+/// continued, so the twin agrees while the append does not. Here the twin is
+/// `ops.push(Tok(len, len + 1))` and cannot be anything else.
 ///
 /// Only the `Ok`/`Ok` pairs are compared: appending a token can legitimately change whether the
 /// **zero-token wall** fires, and that is a coverage verdict, not a placement one.
 ///
-/// Teeth (measured): **both** shipped mechanisms red this cell — round 1's (M3, hold the close
-/// unless the next event drives the builder) and round 2's (M4, hold it until the next event of
-/// any kind), each on `trailing, refusal inside the node` first. The pre-rule walk (M1) and the
-/// never-release reading (M2) leave it green, and that is the division of labour: this cell says
-/// a rule must be *consistent*, and the shape cells above say **which** consistent rule.
+/// Teeth (measured): holding the close unless the next event drives the builder, and holding it
+/// until the next event of any kind, both red this cell, each on `trailing, refusal inside the
+/// node` first. Tiling at the revealing token and never releasing the close leave it green, and
+/// that is the division of labour: this cell says a rule must be *consistent*, and the shape
+/// cells above say **which** consistent rule.
 #[test]
 fn appending_a_token_never_moves_a_gap() {
   for (label, src, ops) in placement_corpus() {
@@ -3584,12 +3581,12 @@ fn appending_a_token_never_moves_a_gap() {
 /// variants below are one parse under different peek schedules, and if the tree moved, the CST
 /// would be a function of how far the caller happened to look ahead.
 ///
-/// Teeth (measured): round 2's mechanism — hold a root child's close, release it at the next
-/// event whatever it is (M4) — reds this cell, first on `trailing, refusal inside the node`
-/// with the diagnostic moved from slot 2 to slot 3: the `Diag` released the hold, so which side
-/// of the close it fell on decided the tree. It is the **only** mutation in the battery that
-/// reds this cell. Round 1's (M3) leaves it green, having skipped `Diag` for an unrelated
-/// reason, and law 1 above is what catches that one instead.
+/// Teeth (measured): holding a root child's close and releasing it at the next event whatever it is
+/// reds this cell, first on `trailing, refusal inside the node` with the diagnostic moved from slot
+/// 2 to slot 3: the `Diag` released the hold, so which side of the close it fell on decided the
+/// tree. It is the **only** mutation in the battery that reds this cell. Skipping `Diag` when
+/// deciding whether a close is last leaves it green, and law 1 above is what catches that one
+/// instead.
 #[test]
 fn hoisting_a_lexer_error_never_moves_a_gap() {
   for (label, src, ops) in placement_corpus() {
@@ -3658,7 +3655,7 @@ fn finish_partial_places_a_balanced_trailing_gap_exactly_as_finish_does() {
 
 /// Where a trailing gap lands when `finish_partial` is called with a node still open. Here the
 /// run *does* trail a token — `a`, inside the open `K_NODE` — so the ordinary clause already
-/// answers it, and the answer is the one this door promised before the rule changed.
+/// answers it.
 ///
 /// The end-of-walk tiling that the doc calls the innermost-open-node case is the **fallback**
 /// clause, and it is reachable through this door alone: a run no token precedes, tiled before
@@ -3666,7 +3663,7 @@ fn finish_partial_places_a_balanced_trailing_gap_exactly_as_finish_does() {
 /// `finish` never sees that shape — an unbalanced stream is refused outright — and the second
 /// half below is it.
 ///
-/// Teeth (measured): tiling a leading run at the start of the walk instead (M5) yields
+/// Teeth (measured): tiling a leading run at the start of the walk instead yields
 /// `Root[Gap"ab" Node[List[]]]`, putting the run outside both open frames.
 #[test]
 fn finish_partial_trailing_gap_tiles_into_the_innermost_open_node() {
@@ -4673,10 +4670,10 @@ type JournalingCtx<'inp> = (JournalingSink<'inp>, DefaultCache<'inp, MiniLexer<'
 /// checkpoint, so they must survive on the inner exactly as they survive on the sink's own
 /// event log — the inner's surviving journal must equal the sink's surviving `Token` count.
 ///
-/// Pre-fix the sink derived the inner rewind target from the last surviving `Diag` slot; with
-/// no diagnostic it fell to `base`, so the two surviving tokens were **not** restored to the
-/// inner (the inner's reading and the sink's disagree — permanent desync). Post-fix the
-/// checkpoint captured the inner's own reading and the rewind restores it exactly.
+/// A sink that derives the inner rewind target from the last surviving `Diag` slot fails this:
+/// with no diagnostic it falls to `base`, so the two surviving tokens are **not** restored to
+/// the inner (the inner's reading and the sink's disagree — permanent desync). The checkpoint
+/// captures the inner's own reading, and the rewind restores it exactly.
 #[test]
 fn decline_rewinds_inner_to_checkpoint_reading_no_diag() {
   let mut input = Input::<MiniLexer<'_>, JournalingCtx<'_>>::with_state_and_context(
@@ -4729,9 +4726,9 @@ fn decline_rewinds_inner_to_checkpoint_reading_no_diag() {
 /// `a`, then a single `next()` crosses the `!` lexer error (forwarding a `Diag`) and yields
 /// `b`; then an `attempt` consumes `c` and declines. The checkpoint sits after `a`,diag,`b`.
 ///
-/// Pre-fix the rewind used the surviving `!` slot's reading (after `a`,diag), dropping the `b`
-/// that settled after it — the inner journal came back `[Token, Diag]` (length 2). Post-fix
-/// the checkpoint captured the inner's reading, so `b` survives: `[Token, Diag, Token]`.
+/// A rewind to the surviving `!` slot's reading (after `a`,diag) drops the `b` that settled
+/// after it — the inner journal comes back `[Token, Diag]` (length 2). The checkpoint captures
+/// the inner's reading, so `b` survives: `[Token, Diag, Token]`.
 #[test]
 fn decline_rewinds_inner_to_checkpoint_reading_across_diag() {
   let mut input = Input::<MiniLexer<'_>, JournalingCtx<'_>>::with_state_and_context(
@@ -4771,9 +4768,9 @@ fn decline_rewinds_inner_to_checkpoint_reading_across_diag() {
 }
 
 /// REGRESSION: the no-row base rewind must restore the inner to its
-/// construction-time reading even when settled TOKENS were the only forwards. Pre-fix,
-/// `commit_token` advanced the inner without priming the base, so the no-row rewind captured a
-/// post-token reading and the inner retained tokens the sink log dropped — a one-timeline
+/// construction-time reading even when settled TOKENS were the only forwards. If
+/// `commit_token` advanced the inner without priming the base, the no-row rewind would capture a
+/// post-token reading and the inner would retain tokens the sink log dropped — a one-timeline
 /// shear on the raw fallback path.
 #[test]
 fn no_row_base_rewind_restores_the_construction_reading() {
@@ -4805,9 +4802,9 @@ fn no_row_base_rewind_restores_the_construction_reading() {
 /// range above, or sits exactly at, the current log length — must be a no-op on EVERY
 /// channel, the inner
 /// included: the surviving events are the whole log, so every inner-side record they
-/// reference must survive with them (the trait's rewind-to-current law). Pre-fix the no-row
-/// fallback rewound the inner to base unconditionally: the sink log kept the settled token,
-/// the inner dropped it — silent one-timeline shear on a lawful no-op call.
+/// reference must survive with them (the trait's rewind-to-current law). A no-row fallback that
+/// rewinds the inner to base unconditionally fails this: the sink log keeps the settled token,
+/// the inner drops it — silent one-timeline shear on a lawful no-op call.
 #[test]
 fn no_row_truncation_free_rewind_leaves_the_inner_untouched() {
   let mut sink: JournalingSink<'_> = Sink::new("ab", JournalingEmitter::default(), profile());
@@ -4835,13 +4832,11 @@ fn no_row_truncation_free_rewind_leaves_the_inner_untouched() {
 /// has NO exact inner reading anywhere — an **unpaired settle**, which is a parser bug and
 /// never an input-dependent condition. It panics at cause in **EVERY** build.
 ///
-/// Deliberately NOT `cfg(debug_assertions)`-gated: the whole point of the hardening is that
-/// the release profile behaves identically, so this case must be exercised by
-/// `cargo test --release` too. It was a `debug_assertions`-only wall, deferring to the input
-/// layer's LIFO witness one level up — but that witness is itself debug-only, so a release
-/// build had no wall on either layer and the event log silently sheared away from the
-/// diagnostic log. (Pre-fix it went further still and paired the surviving prefix with the
-/// construction-time base, destroying committed inner state the log still carried.)
+/// Deliberately NOT `cfg(debug_assertions)`-gated: the release profile must behave identically,
+/// so this case must be exercised by `cargo test --release` too. A `debug_assertions`-only wall
+/// would defer to the input layer's LIFO witness one level up — but that witness is itself
+/// debug-only, so a release build would have no wall on either layer and the event log would
+/// silently shear away from the diagnostic log.
 #[test]
 #[should_panic(expected = "rewind to a mid-log mark with no captured row")]
 fn no_row_middle_rewind_panics_at_cause_in_every_build() {
@@ -5189,13 +5184,13 @@ fn release_of_a_non_innermost_mark_is_lawful_and_silent() {
 /// - the position, the three witness facts and the cache-push counter are never installed (the
 ///   abandoned shape).
 ///
-/// Both halves are asserted below. This is a **found, not fixed** condition: the tear predates
-/// the wall becoming unconditional (the same panic existed in debug builds), it is reachable
-/// only through the same double-settle bug the wall is reporting, and closing it would mean
-/// reordering `restore_unchecked`'s phase 2 — which cannot make the call whole anyway, because
-/// phase 1 has already abandoned the session points above the target and cleared the parked
-/// slot. What the fix in the sink *does* guarantee is the other half of the question: the
-/// **emitter** is transactional. It is asserted here too.
+/// Both halves are asserted below. This is a **known, unfixed** condition: debug builds carry
+/// the same panic whether or not the wall is unconditional, it is reachable only through the
+/// same double-settle bug the wall is reporting, and closing it would mean reordering
+/// `restore_unchecked`'s phase 2 — which cannot make the call whole anyway, because phase 1 has
+/// already abandoned the session points above the target and cleared the parked slot. What the
+/// sink *does* guarantee is the other half of the question: the **emitter** is transactional.
+/// It is asserted here too.
 ///
 /// Gated to the same feature set as `live_checkpoints_len`, the lineage observable.
 #[cfg(all(feature = "logos_0_16", feature = "std"))]
@@ -5295,13 +5290,11 @@ fn restore_unchecked_is_not_transactional_across_the_settle_wall() {
 
 /// REGRESSION: an out-of-range FUTURE mark (`checkpoint > len`) is a rewind to
 /// a point the log has not reached — a TOTAL no-op on every channel, the mark stack included.
-/// Pre-fix, `mark = checkpoint.min(len)` clamped it to the length BEFORE the row lookup, so a
-/// future mark masqueraded as a rewind-to-current and spent the live row of a REAL checkpoint
-/// taken at the current length; that checkpoint's own later rewind then found no row — which,
-/// now that the mid-log no-row wall is unconditional, would panic on a perfectly disciplined
-/// mark in every build. (Pre-fix it fired only in debug, and the release build instead let the
-/// inner ghost the abandoned branch's records.) The wall being loud is exactly why this
-/// early-return has to stay exact rather than defensive.
+/// Clamping with `mark = checkpoint.min(len)` BEFORE the row lookup would let a future mark
+/// masquerade as a rewind-to-current and spend the live row of a REAL checkpoint taken at the
+/// current length; that checkpoint's own later rewind would then find no row — which, with the
+/// mid-log no-row wall unconditional, panics on a perfectly disciplined mark in every build. The
+/// wall being loud is exactly why this early-return has to stay exact rather than defensive.
 #[test]
 fn out_of_range_rewind_spends_no_live_row() {
   let mut sink: JournalingSink<'_> = Sink::new("ab", JournalingEmitter::default(), profile());
@@ -5642,9 +5635,9 @@ fn a_borrowed_value_keyed_inner_composes_like_an_owned_one() {
 // ── The replay-work law W and the Diag-arm pins ────────────────────────────────
 //
 // `W` ticks once at the top of every loop body inside `replay` and its helpers, so it is
-// ONE quantity measured identically before and after the walk rewrite — not a needle
-// counter, which restates the payload's shape and reads its required GREEN on unfixed
-// code. The inventory of iteration constructs (ticked vs. justified) lives on the
+// ONE quantity measured identically whatever shape the walk takes — not a needle counter,
+// which restates the payload's shape and reads its required GREEN on defective code. The
+// inventory of iteration constructs (ticked vs. justified) lives on the
 // counter's own module, `super::finish::w`.
 
 /// The error-dense payload: `n` alternating (1-byte lexer error, 1-byte token) pairs over a
@@ -5681,23 +5674,22 @@ fn ceil_log2(k: u64) -> u64 {
   }
 }
 
-/// **T-3 — the acceptance gate.** Replay work matches its stated shape on error-dense
-/// input: **linear in events, plus one `k log k` ordering of the recorded diagnostic spans**.
+/// Replay work matches its stated shape on error-dense input: **linear in events, plus one
+/// `k log k` ordering of the recorded diagnostic spans**.
 ///
-/// The name of this cell used to say "is linear", and the cell used to report 4.00× growth for
-/// a 4× input at every size. Both were artifacts: the sort was charged a flat element count,
-/// which made the charged quantity linear by construction, so the growth clause could not fail
-/// for the reason it existed. Charged at its real cost the same payload reports 4.57× — the
-/// sort became visible to its own gate.
+/// The sort is charged at its real cost, not a flat element count: a flat charge makes the
+/// charged quantity linear by construction — 4.00× growth for a 4× input at every size — so the
+/// growth clause could not fail for the reason it exists. Charged at its real cost the same
+/// payload reports 4.57×, and the sort is visible to its own gate.
 ///
 /// Falsified by: any n outside the two-sided law `events ≤ W ≤ 3 × (events + gap_tiles)`,
 /// any per-4×n growth ratio above 4.5, or an exact-composition mismatch.
 /// The lower bound is not decoration — it is what catches a deleted or misplaced tick, the
 /// failure mode an instrument swap is most exposed to.
 ///
-/// Measured on the base (`548fd9a`, before the rewrite): `W` = 5 550 / 82 200 / 1 288 800
-/// against the bound 900 / 3 600 / 14 400 — 6.17× / 22.83× / 89.50× over, with per-4×n
-/// growth 14.81 / 15.68 (the quadratic signature ≈ 16).
+/// A from-zero rescan reads `W` = 5 550 / 82 200 / 1 288 800 against the bound
+/// 900 / 3 600 / 14 400 — 6.17× / 22.83× / 89.50× over, with per-4×n growth 14.81 / 15.68 (the
+/// quadratic signature ≈ 16).
 #[test]
 fn replay_work_matches_its_stated_shape_on_error_dense_input() {
   let mut ws = std::vec::Vec::new();
@@ -5809,9 +5801,9 @@ fn replay_work_on_wraps_is_events_plus_chain_hops() {
   );
 }
 
-/// **T-19 (pin, green on the base and after).** A diagnostic that starts strictly *after*
-/// the tiling cursor must not let the run before it escape untiled: the tree stays
-/// lossless, and the unexplained prefix is still named as today's leftmost run.
+/// A diagnostic that starts strictly *after* the tiling cursor must not let the run before it
+/// escape untiled: the tree stays lossless, and the unexplained prefix is still named as the
+/// leftmost run.
 ///
 /// Teeth: implement the `Diag` arm as `[max(covered, start), end)` (tile == licence) and
 /// the text becomes `"acde"` — `tree.text() != source`, losslessness gone — with the
@@ -5844,9 +5836,8 @@ fn diag_starting_after_covered_keeps_the_tree_lossless() {
   );
 }
 
-/// **T-20 (pin, green on the base and after).** A diagnostic absorbing to the source end
-/// still leaves an earlier dropped committed token refused — the tile and the licence are
-/// different intervals, and only the licence may explain a byte.
+/// A diagnostic absorbing to the source end still leaves an earlier dropped committed token refused
+/// — the tile and the licence are different intervals, and only the licence may explain a byte.
 ///
 /// Teeth: with tile == licence this returns **`Ok`** with text `"acd"` — a dropped
 /// committed token silently materialized, the crate's worst failure class.
@@ -5877,9 +5868,8 @@ fn diag_absorbing_to_source_end_still_refuses_the_dropped_token() {
   );
 }
 
-/// **T-21 (pin, green on the base and after).** `UncoveredGap` keeps its precedence: it is
-/// latched during the walk and consumed at the END of it, so every in-walk wall and the
-/// balance wall still answer first.
+/// `UncoveredGap` keeps its precedence: it is latched during the walk and consumed at the END of
+/// it, so every in-walk wall and the balance wall still answer first.
 ///
 /// Teeth: refuse in-walk at the token instead of latching, and all three cells become
 /// `UncoveredGap { start: 0, end: 1 }`.
@@ -5916,9 +5906,8 @@ fn uncovered_gap_keeps_its_error_precedence() {
   );
 }
 
-/// **T-22 (pin, green on the base and after).** A partially explained run names today's
-/// exact span — the leftmost byte that no committed token covers and no diagnostic span
-/// covers, with the end at the first licence that begins after it.
+/// A partially explained run names the exact span — the leftmost byte that no committed token
+/// covers and no diagnostic span covers, with the end at the first licence that begins after it.
 ///
 /// Teeth: a bare `[covered, end)` tile with no separate licence names nothing here and
 /// returns `Ok`.
@@ -5949,7 +5938,7 @@ fn partially_explained_run_names_todays_span() {
   );
 }
 
-// ── T-18: the retro-wrap chain ─────────────────────────────────────────────────
+// ── The retro-wrap chain ───────────────────────────────────────────────────────
 
 /// The chain survives the normal backtracking rhythm. Two wraps on one target, a truncation
 /// between them, a regrow, and a fresh spend: the tombstone's head pointer and every `prev`
@@ -6055,7 +6044,7 @@ fn unreachable_start_at_is_refused_not_dropped() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// The boundary-validation wave: the profile refuses its own contradictions at
+// Boundary validation: the profile refuses its own contradictions at
 // construction, and materialization refuses out-of-language kinds, malformed
 // diagnostic spans, and non-UTF-8 sources
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -6368,7 +6357,7 @@ impl rowan::Language for StrictLang {
   }
 }
 
-/// The wave's whole point, stated as a property: if `finish` returns `Ok`, every kind in the
+/// Boundary validation's whole point, stated as a property: if `finish` returns `Ok`, every
 /// tree — the root, direct nodes, retro-wraps, the synthesized error node, committed tokens,
 /// and the synthesized gap tile — is one the dialect's validator admits. A full traversal
 /// through a `Language` that asserts that range must therefore complete without panicking.
@@ -6742,7 +6731,7 @@ impl<'inp> crate::Emitter<'inp, MiniLexer<'inp>> for NonForwardingWrapper<'_, 'i
 /// writing the discard where its own reviewer reads it.
 ///
 /// The `cst_demote` line below is pinned by `a_wrapper_forwards_the_node_brackets_failing_exit`,
-/// and needs to be: emptying it once left the whole lib suite green, because pin 5 drives
+/// and needs to be: with it emptied the rest of the lib suite stays green, because pin 5 drives
 /// `cst_start`/`cst_finish` only and every other demote exercise bypasses a wrapper entirely.
 impl<'inp> CstEmitter<'inp, MiniLexer<'inp>> for NonForwardingWrapper<'_, 'inp> {
   fn cst_start(&mut self, kind: u16) -> EventMark {
@@ -6804,10 +6793,6 @@ fn sink_and_parse_over_one_buffer_agree_on_identity() {
   );
 }
 
-/// **The flip.** This cell used to be named `sink_bound_to_a_foreign_source_is_not_yet_detected`
-/// and asserted today's *wrong* answer — a tree whose text was `"XY"` and whose structure came
-/// from `"ab"` — so that closing the hole would flip it. Closing it did.
-///
 /// `Sink::new` binds a source, and `'inp` proves that borrow and the parser's borrow both
 /// outlive the sink — **not that they are the same buffer**. Equal length is the point: a
 /// length check alone never caught this, and `finish` never could, because the event log a
@@ -7199,8 +7184,8 @@ fn conformance_emitter_kit_refuses_a_non_forwarding_wrapper() {
 /// accessor, a parse whose events are all diagnostics, and hand-emitted token spans. Each fix
 /// relocated the hole rather than closing it, because the witness was flags on the sink and the
 /// sink cannot tell who set them. A typed `FinishError` implying a protection with three
-/// published bypasses is the `## Panics` fiction this release deleted nine of, in a different
-/// medium.
+/// published bypasses is the same defect as a `## Panics` section promising a panic the code does
+/// not perform, in a different medium.
 ///
 /// **What 0.9.0 narrowed, and what it left alone.** The cell used to state the general form as
 /// "a wrapper writing `impl CstEmitter for W {}` satisfies every CST bound while inheriting every
@@ -7367,14 +7352,13 @@ fn a_recorded_span_with_no_settle_behind_it_materializes_like_any_other() {
 /// — and it is forwarded through the same wrapper as everything else, because a wrapper that
 /// did not forward the structuring surface could not carry a CST parse at all.
 ///
-/// **The delta, stated plainly.** Up to this commit — on `main` before it — this variant was
-/// refused: the unqualified zero-token wall read `saw_structure && !saw_token && source_len > 0`
-/// and answered `StructureWithoutTokens`, so this pairing did not materialize while pin 2's
-/// structureless one did. That refusal was
-/// **incidental, not a protection**: the wall's witness is "no committed token arrived", which
-/// is a fact about the emitter chain and says nothing about *which buffer* the parse read — it
-/// refused this shape and the honest all-error parse of an unlexable source in the same breath,
-/// with the same message, and could not tell them apart. Qualifying it with
+/// **The delta, stated plainly.** An unqualified zero-token wall — one reading
+/// `saw_structure && !saw_token && source_len > 0` and answering `StructureWithoutTokens` — refuses
+/// this variant, so this pairing would not materialize while pin 2's structureless one does. That
+/// refusal would be **incidental, not a protection**: the wall's witness is "no committed token
+/// arrived", which is a fact about the emitter chain and says nothing about *which buffer* the
+/// parse read — it refuses this shape and the honest all-error parse of an unlexable source in the
+/// same breath, with the same message, and cannot tell them apart. Qualifying it with
 /// `first_uncovered_gap.is_some()` gives up the accident and keeps every stream the wall was
 /// built for: here the diagnostics explain every byte, so the wall stays silent and the tree
 /// materializes as the forwarded node holding one gap tile over the sink's own bytes.
@@ -7440,12 +7424,12 @@ fn a_structured_all_diagnostic_parse_through_a_non_forwarding_wrapper_is_not_cau
 ///
 /// The three cells above pin what a wrapper's *omission* costs. This one pins the opposite
 /// direction — that `NonForwardingWrapper`'s `cst_demote` line does something — and it exists
-/// because nothing in the tree drove the node bracket's **failing** exit through a wrapper at
-/// all. Pin 5 drives `cst_start`/`cst_finish` only, and every other demote exercise is
+/// because nothing else in the tree drives the node bracket's **failing** exit through a wrapper
+/// at all. Pin 5 drives `cst_start`/`cst_finish` only, and every other demote exercise is
 /// direct-on-sink, through `ParseState`, or through the view/handle forwarding surfaces — none
 /// interposes a consumer-shaped wrapper. So flipping that fixture's `cst_demote` body to a
-/// discard left the whole lib suite green, and the in-crate model of the wrapper hazard was
-/// unexercised on the one method whose loss is *silent*.
+/// discard leaves the rest of the lib suite green, and without this cell the in-crate model of
+/// the wrapper hazard is unexercised on the one method whose loss is *silent*.
 ///
 /// **Why demote alone earns a cell.** [`CstEmitter::cst_demote`]'s *Required, not defaulted*
 /// grades the five by failure direction: the four defaulted methods fail toward a loud, typed
@@ -7454,11 +7438,10 @@ fn a_structured_all_diagnostic_parse_through_a_non_forwarding_wrapper_is_not_cau
 /// Requiredness (0.9.0) closed the *inherited* discard; a discard written deliberately still
 /// compiles, and that is the population this cell is against.
 ///
-/// **Its falsifying edit, which is the acceptance it landed under.** Empty the forward at
-/// `impl CstEmitter for NonForwardingWrapper` and this cell goes red loudly and typed — strict
-/// `finish` answers `Err(FinishError::UnclosedNodes { open: 1 })`, because the demote never
-/// reached the sink. Restore it and the cell greens. A check that has only ever been green over
-/// a correct wrapper proves nothing, so the flip was run in both directions before this landed.
+/// **Its falsifying edit.** Empty the forward at `impl CstEmitter for NonForwardingWrapper` and
+/// this cell goes red loudly and typed — strict `finish` answers
+/// `Err(FinishError::UnclosedNodes { open: 1 })`, because the demote never reaches the sink.
+/// Restore it and the cell greens.
 ///
 /// The pairing is the matching-source control's, not the residue cells' — one buffer on both
 /// sides — so what is measured here is the forward and nothing else.
@@ -8632,7 +8615,7 @@ fn open_chain_search_answers_what_the_parent_walk_answers() {
 // `#[ignore]`d, because a wall time is a measurement and not a gate: the gates are the oracles
 // above, which are exact and profile-independent. They are committed anyway — the figures these
 // print are quoted in the CHANGELOG, and a number whose instrument lives in nobody's tree is a
-// number no later round can compare against.
+// number no later measurement can compare against.
 //
 //   cargo test -p tokora --features rowan --release --lib \
 //     cst::sink::tests::measure_hole_wrap -- --ignored --nocapture

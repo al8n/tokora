@@ -87,24 +87,23 @@ impl core::fmt::Debug for FailsForAForeignReason {
   }
 }
 
-/// The case Codex's review named: only three characters are ever offered to the sink here,
-/// so `self.len` never reaches [`PREVIEW_WINDOW`] and the sink never refuses a write —
-/// `sink.truncated` stays `false`. `write!` still fails, but for a reason of the `Debug`
-/// impl's own, and `"abc"` is that impl's *complete* intended output, not a fragment of a
-/// longer one that got cut off. An earlier version of this fix folded the write's own result
-/// into a single `truncated` bool with `||`, on the reasoning "incomplete is incomplete,
-/// whatever the cause" — reasonable-sounding, but wrong here: nothing is incomplete. The
-/// write finished exactly as the impl meant it to. Reporting it truncated would append `…` to
-/// a trace line for a value with no more content, claiming a continuation that does not
-/// exist — the same mistake as the original bug, in the opposite direction.
-/// [`BoundedDebugOutcome::FormatFailed`] is the outcome that makes neither claim: it says the
-/// renderer broke, and says nothing about how much of the value that left out.
+/// The format-failure case: only three characters are ever offered to the sink here, so `self.len`
+/// never reaches [`PREVIEW_WINDOW`] and the sink never refuses a write — `sink.truncated` stays
+/// `false`. `write!` still fails, but for a reason of the `Debug` impl's own, and `"abc"` is that
+/// impl's *complete* intended output, not a fragment of a longer one that got cut off. Folding the
+/// write's own result into a single `truncated` bool with `||`, on the reasoning "incomplete is
+/// incomplete, whatever the cause", is reasonable-sounding but wrong here: nothing is incomplete.
+/// The write finished exactly as the impl meant it to. Reporting it truncated would append `…` to a
+/// trace line for a value with no more content, claiming a continuation that does not exist — the
+/// mirror of missing a real truncation. [`BoundedDebugOutcome::FormatFailed`] is the outcome that
+/// makes neither claim: it says the renderer broke, and says nothing about how much of the value
+/// that left out.
 #[test]
 fn bounded_debug_is_format_failed_when_debug_fails_for_a_reason_the_sink_did_not_cause() {
   let (window, outcome) = bounded_debug(&FailsForAForeignReason);
 
-  // What was written before the failure is real output, kept exactly as written — this fix
-  // changes how the outcome is classified, not what makes it into the prefix.
+  // What was written before the failure is real output, kept exactly as written — the cell pins
+  // how the outcome is classified, not what makes it into the prefix.
   assert_eq!(window, "abc");
   assert_eq!(
     outcome,
@@ -158,11 +157,10 @@ fn bounded_debug_absorbs_a_foreign_failure_after_truncation_into_window_truncate
   );
 }
 
-/// Recomputes the whole old `trace_preview` window computation this fix's commit replaced:
-/// format the value, take [`PREVIEW_WINDOW`] characters, and append the ellipsis if the full
-/// dump was longer than that. This is the exact three-step body `trace_preview` used to have
-/// inline, before it was extracted into `bounded_debug` plus the `match` on
-/// [`BoundedDebugOutcome`] that still lives in `trace_preview` today.
+/// An independent reimplementation of the format-then-take preview: format the value, take
+/// [`PREVIEW_WINDOW`] characters, and append the ellipsis if the full dump was longer than that —
+/// the behaviour `bounded_debug` plus the `match` on [`BoundedDebugOutcome`] in `trace_preview`
+/// must reproduce.
 fn reference_preview_window<T: core::fmt::Debug + ?Sized>(value: &T) -> std::string::String {
   let dump = std::format!("{value:?}");
   let mut window: std::string::String = dump.chars().take(PREVIEW_WINDOW).collect();
@@ -190,12 +188,10 @@ fn assert_matches_reference<T: core::fmt::Debug + ?Sized>(case: &str, value: &T)
 }
 
 /// **Characterization test, not a specification.** It pins `bounded_debug`'s output — plus
-/// the ellipsis step `trace_preview` applies on top of it — as byte-identical to the pre-fix
-/// `format!("{value:?}")` + `.chars().take(24)` + conditional-ellipsis logic it replaced
-/// (reimplemented independently in [`reference_preview_window`]), across a spread of lengths
-/// and escape-heavy content. That equivalence was previously checked only by a throwaway
-/// harness that no longer exists, so nothing in the suite would have caught a regression of
-/// it; this test is that proof, moved in-tree and made permanent. It documents today's
+/// the ellipsis step `trace_preview` applies on top of it — as byte-identical to
+/// `format!("{value:?}")` + `.chars().take(24)` + conditional-ellipsis logic (reimplemented
+/// independently in [`reference_preview_window`]), across a spread of lengths and escape-heavy
+/// content, so nothing in the suite misses a regression of that equivalence. It documents today's
 /// behaviour, not a contract: a future, *deliberate* change to what `bounded_debug` or
 /// `trace_preview` returns is expected to update this test alongside it, not be blocked by it.
 ///

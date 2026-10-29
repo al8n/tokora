@@ -120,8 +120,8 @@
 //! level up, in [`PartialSession`] — whose
 //! [`Budget`] is a required constructor argument for
 //! exactly this reason. A resuming mode that lexes only the new bytes, giving O(total bytes) for
-//! parsers that commit incrementally, is designed and prototype-verified and ships in a later
-//! wave; [`ReplayMode`] is sealed and additive so its arrival breaks nothing.
+//! parsers that commit incrementally, is designed and prototype-verified but not yet shipped;
+//! [`ReplayMode`] is sealed and additive so its arrival breaks nothing.
 //!
 //! ## The Sans-I/O resumption loop
 //!

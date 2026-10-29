@@ -1,5 +1,5 @@
-//! The items the workloads name whose paths moved under the 0.12 export layout (#350), imported
-//! from whichever layout the sibling `../tokora` has.
+//! The items the workloads name whose paths moved under the 0.12 export layout (one canonical
+//! path per item), imported from whichever layout the sibling `../tokora` has.
 //!
 //! `build.rs` sets `tokora_0_11_layout` when it is the merge-base's 0.11 tree. Both arms import
 //! the same names, so `fixture.rs` and `workloads.rs` compile unchanged against either side —

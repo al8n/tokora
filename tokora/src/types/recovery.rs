@@ -8,12 +8,11 @@
 //!
 //! # How a name added to a globbed namespace behaves, by kind
 //!
-//! This table is a measured fact and is the durable result of the rounds that produced it. What it
-//! is **not** is the reason for the placement above — see *The line this API is placed on*.
+//! This table is a measured fact. What it is **not** is the reason for the placement above — see
+//! *The line this API is placed on*.
 //!
 //! Measured against `rustc 1.100.0-nightly` with the consumer's source held fixed and the library
-//! gaining one item — and with **both sides exposing the item the consumer reaches for**, which is
-//! what the first attempt got wrong:
+//! gaining one item — and with **both sides exposing the item the consumer reaches for**:
 //!
 //! | kind       | vs an extern crate of that name  | vs a second glob            | vs a local def |
 //! |------------|----------------------------------|-----------------------------|----------------|
@@ -22,14 +21,14 @@
 //! | **trait**  | `E0790`                          | **silent, first glob wins** | local wins     |
 //! | fn / const | no interaction (value namespace) | `E0659`                     | local wins     |
 //!
-//! The `type` row was first measured as `E0599`, loud. That was wrong, and wrong in a way worth
-//! recording: the probe asked for an associated item the shadowing type did not have, so it could
-//! only be loud. With a dependency aliased `Status` exporting `Error`, and tokora's `Status`
-//! carrying an `Error` variant with an inherent `is_error()`, `Status::Error.is_error()` compiles
-//! on both revisions and **the boolean inverts**. A collision provoked by asking for something one
-//! side lacks is a verdict about the probe, not about the kind.
+//! A probe that asks for an associated item the shadowing type does not have can only be loud,
+//! which makes the `type` row look like `E0599`. With a dependency aliased `Status` exporting
+//! `Error`, and tokora's `Status` carrying an `Error` variant with an inherent `is_error()`,
+//! `Status::Error.is_error()` compiles on both revisions and **the boolean inverts**. A collision
+//! provoked by asking for something one side lacks is a verdict about the probe, not about the
+//! kind.
 //!
-//! So **no kind that can carry this API is loud on both axes.** That is the finding, and it holds.
+//! So **no kind that can carry this API is loud on both axes.** That is the result, and it holds.
 //!
 //! # The line this API is placed on
 //!
@@ -76,10 +75,8 @@
 //! consumer of both crates gets `E0432` at their own import line, plus `E0659` where the name is
 //! then used. Measured, not assumed. Disambiguated by `::recovery::Recovery`.
 //!
-//! A rename of this module was drafted when the deciding property was still loud-versus-silent,
-//! and withdrawn. If the check above goes stale — that crate yanked, or one published that exports
-//! a name this module also has — the date is what makes the claim re-checkable instead of
-//! re-argued.
+//! If the check above goes stale — that crate yanked, or one published that exports a name this
+//! module also has — the date is what makes the claim re-checkable instead of re-argued.
 
 use super::Status;
 
@@ -183,14 +180,14 @@ pub trait RecoveryState {
 /// `is_valid`, and since `new` assigns [`Status::Valid`], a payload the caller's own check
 /// rejects then reports valid. `(.., b)` and `t.1` are the same defect in other spellings.
 ///
-/// That was the third exemption of its kind on this branch to be refuted — after "the return type
-/// differs" and "the argument type is a `Status`" — and all three failed the same way: each
-/// estimated *what a consumer could have written* and estimated it too small. So this is not a
-/// better-argued exemption. It is a shape that **no** tuple pattern can match, whatever it binds
-/// and however it spells the rest, because a braced struct is not a tuple. `let (a, b)`,
-/// `(_, b)`, `(a, ..)`, `(_, .., b)`, `(.., b)`, a trailing comma, `ref` bindings, a `match` arm,
-/// `.0` and `.1` were each compiled against both shapes: all ten build on 0.9 and all ten are
-/// rejected here, with `E0308` for the patterns and `E0609` for the index accesses.
+/// That is the third exemption of its kind to fail — after "the return type differs" and "the
+/// argument type is a `Status`" — and all three fail the same way: each estimates *what a consumer
+/// could have written* and estimates it too small. So this is not a better-argued exemption. It is
+/// a shape that **no** tuple pattern can match, whatever it binds and however it spells the rest,
+/// because a braced struct is not a tuple. `let (a, b)`, `(_, b)`, `(a, ..)`, `(_, .., b)`,
+/// `(.., b)`, a trailing comma, `ref` bindings, a `match` arm, `.0` and `.1` were each compiled
+/// against both shapes: all ten build on 0.9 and all ten are rejected here, with `E0308` for the
+/// patterns and `E0609` for the index accesses.
 ///
 /// It is also the better API. Three positional parts whose third is a status is exactly the shape
 /// that made `..` dangerous; a named field says which is which.

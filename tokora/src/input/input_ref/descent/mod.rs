@@ -41,8 +41,8 @@ mod tests;
 ///   fails with `E0521: borrowed data escapes outside of function`.
 ///
 /// * **Invariance is load-bearing, at an identified site, and the map is measured rather than
-///   asserted** — this sentence has been wrong twice, so what follows is what flipping the brand
-///   to a bare reference measurably changes and what it does not.
+///   asserted** — what follows is what flipping the brand to a bare reference measurably changes
+///   and what it does not.
 ///
 ///   | shape | invariant | covariant |
 ///   |---|---|---|
@@ -52,9 +52,9 @@ mod tests;
 ///   | a closure capture under a `for<'c>` bound | refused | refused |
 ///   | a hand-written [`ParseInput`](crate::ParseInput) impl carrying one in a field | refused | refused |
 ///
-///   The **adapter row is the load-bearing one**, and it is a consumption site — which is what an
-///   earlier version of this paragraph got wrong when it concluded from the last three rows that
-///   the brand was redundant with [`InputRef`]'s own invariance in `'closure`. In those three the
+///   The **adapter row is the load-bearing one**, and it is a consumption site — which is why the
+///   last three rows do not show the brand to be redundant with [`InputRef`]'s own invariance in
+///   `'closure`. In those three the
 ///   handle is itself coerced or universally quantified, so its invariance already refuses and the
 ///   brand's cannot be seen. In the adapter the handle sits at **one fixed region and is never
 ///   coerced**; only the baseline moves, and then the brand is the only thing refusing. Under a
@@ -424,8 +424,8 @@ where
   /// [`ResourceTripBaseline`] is opaque: no accessor, no `PartialEq`, no constructor. Hand it back
   /// to [`tripped_during_attempt`](Self::tripped_during_attempt) and nothing else is expressible —
   /// not the difference of two baselines, not a trip count, and not the session-absolute reading
-  /// below. The contract used to be a sentence asking callers not to do those things; it is now
-  /// the type refusing to let them.
+  /// below. The contract is the type refusing to let callers do those things, not a sentence asking
+  /// them not to.
   ///
   /// **The session-absolute reading is the one that had to become unspellable.**
   /// `trip_snapshot() != 0` would be "did this parse exceed a budget at all" — a true statement
@@ -706,8 +706,8 @@ where
   /// | [`ResourceTripBaseline`] itself | 8 B, align 4 | 16 B, align 8 | **×2** | carried per element |
   ///
   /// The **layout** row is the one an instruction count does not show: the baseline is `Copy` and
-  /// passed by value, so a 32-bit element loop carries twice the value it used to. It is in the
-  /// accounting because it was missed the first time this was priced.
+  /// passed by value, so a 32-bit element loop carries twice the value a `usize` baseline would. It
+  /// is in the accounting because it is easy to miss.
   ///
   /// Whole-parse, on `wasm32-wasip1` — the widest 32-bit target that can be *executed* here, since
   /// `i686` cannot link on this host — a collection-parse binary grew **33 bytes** (120,421 →
@@ -826,32 +826,31 @@ where
   /// and reported one diagnostic per remaining token — 67 for one refusal at 66 levels, 804 at
   /// 800, growing with the document.
   ///
-  /// That repair took three rounds because every round left the verdict resting on something a
-  /// *caller* implements. [`MaybeTerminal::is_terminal`](crate::error::MaybeTerminal) is the
-  /// grammar's own answer, and a `From` that discards [`RecursionLimitReached`] — `()` does —
-  /// answers `false` over a real trip. A latch of the parser's own would have to live in
-  /// `L::State` or beside the poison boundary, and a [`Checkpoint`](crate::input::Checkpoint)
-  /// carries both, so a speculative rollback refunds it. This cell is neither: written by the trip
-  /// arm before any grammar code runs, outside the rollback set, one writer, no mutable route.
+  /// The repair cannot rest the verdict on anything a *caller* implements.
+  /// [`MaybeTerminal::is_terminal`](crate::error::MaybeTerminal) is the grammar's own answer, and a
+  /// `From` that discards [`RecursionLimitReached`] — `()` does — answers `false` over a real trip.
+  /// A latch of the parser's own would have to live in `L::State` or beside the poison boundary,
+  /// and a [`Checkpoint`](crate::input::Checkpoint) carries both, so a speculative rollback refunds
+  /// it. This cell is neither: written by the trip arm before any grammar code runs, outside the
+  /// rollback set, one writer, no mutable route.
   ///
-  /// **The scanner twin was published in the same change and withdrawn before release**, and the
-  /// asymmetry is the point rather than an accident of scope. That counter has a second public
-  /// contract it cannot see — [`set_state`](InputRef::set_state) drops the poison boundary as the
-  /// crate's *documented* limit-recovery path, and never touches the counter — so a loop following
-  /// its own documentation can recover, read a whole document, and still be told it was truncated.
-  /// `InputRef::scanner_trip_snapshot` carries that measurement, and also the narrower statement
-  /// that replaced an earlier overclaim: [`try_expect_or_stop`](InputRef::try_expect_or_stop)
-  /// covers the *declining* exits and is **not** a replacement for that pair, because a rejecting
-  /// emitter's trip is built and propagated from inside it. No public witness answers that path
-  /// today, and none did before this change either. **Nothing analogous exists here**, and the
-  /// reason is the channel: a descent refusal is *returned* by
-  /// [`descend`](Self::descend) and never routed through an emitter, so no emitter can unmark it
-  /// or convert it away from the counter that already recorded it —
+  /// **The scanner twin is not public**, and the asymmetry is the point rather than an accident of
+  /// scope. That counter has a second public contract it cannot see —
+  /// [`set_state`](InputRef::set_state) drops the poison boundary as the crate's *documented*
+  /// limit-recovery path, and never touches the counter — so a loop following its own documentation
+  /// can recover, read a whole document, and still be told it was truncated.
+  /// `InputRef::scanner_trip_snapshot` carries that measurement, and also the narrower statement:
+  /// [`try_expect_or_stop`](InputRef::try_expect_or_stop) covers the *declining* exits and is
+  /// **not** a replacement for that pair, because a rejecting emitter's trip is built and
+  /// propagated from inside it. No public witness answers that path. **Nothing analogous exists
+  /// here**, and the reason is the channel: a descent refusal is *returned* by
+  /// [`descend`](Self::descend) and never routed through an emitter, so no emitter can unmark it or
+  /// convert it away from the counter that already recorded it —
   /// `the_descent_witness_holds_under_a_rejecting_emitter` measures exactly that. No public API
-  /// clears or re-keys the descent counter either: a budget once
-  /// exceeded cannot be un-exceeded by more input, by an unwind, or by a rollback, and the one
-  /// cooperative escape hatch — the rebaseline above — is deliberately not built. The witness a
-  /// consumer can rely on is exactly the one with no second contract to conflict with.
+  /// clears or re-keys the descent counter either: a budget once exceeded cannot be un-exceeded by
+  /// more input, by an unwind, or by a rollback, and the one cooperative escape hatch — the
+  /// rebaseline above — is deliberately not built. The witness a consumer can rely on is exactly
+  /// the one with no second contract to conflict with.
   ///
   /// What is published is the **reading**. There is no writer here, no way to lower the counter,
   /// and no rebaseline: the granularity floor above is the floor for a consumer too.
@@ -884,13 +883,13 @@ where
   ///
   /// # When each verdict runs — the table, derived from every call site
   ///
-  /// **This is the one copy of this model.** Three previous versions of it were each written from
-  /// the call sites the author happened to look at, and each was wrong in a different way: "on the
-  /// failure arm only" missed the clean exits, "on every normal termination" missed that some
-  /// terminations evaluate nothing and some evaluate only half, and both missed the two
-  /// `recovery_gate` sites entirely. So this is enumerated from the code: there are exactly **five**
-  /// places in the crate that evaluate either verdict, and the six termination classes fall out of
-  /// them rather than being asserted beside them.
+  /// **This is the one copy of this model.** A model written from the call sites one happens to
+  /// look at is wrong in a different way each time: "on the failure arm only" misses the clean
+  /// exits, "on every normal termination" misses that some terminations evaluate nothing and some
+  /// evaluate only half, and both miss the two `recovery_gate` sites entirely. So this is
+  /// enumerated from the code: there are exactly **five** places in the crate that evaluate either
+  /// verdict, and the six termination classes fall out of them rather than being asserted beside
+  /// them.
   ///
   /// | class | site | descent | scanner | reached when |
   /// |---|---|---|---|---|
@@ -1079,8 +1078,8 @@ where
   /// [`tripped_during_attempt`](Self::tripped_during_attempt) carries the one copy of that model,
   /// derived from every call site in the crate; this verdict is its **own column** in that table,
   /// differing from the descent column in both the order it is evaluated in and which closer
-  /// classes reach it. Read the values there rather than here — a copy of them here is how the
-  /// three previous versions of that model each went stale.
+  /// classes reach it. Read the values there rather than here — a copy of them here is how a
+  /// model goes stale.
   ///
   /// # Panics
   ///
@@ -1383,10 +1382,9 @@ where
   ///   excluded from equality, so exhaustion forces
   ///   [`ReKeyed`](ScannerOutcome::ReKeyed) rather than a false stall.
   ///
-  /// The predicate therefore matches the theorem rather than approximating it. An earlier version
-  /// tested only "not advanced", which was strictly weaker in both directions — it called a
-  /// documented `state_mut` recovery a stall (rejecting a recoverable parse) and swallowed a rewind
-  /// into the same arm.
+  /// The predicate therefore matches the theorem rather than approximating it. Testing only "not
+  /// advanced" would be strictly weaker in both directions — it calls a documented `state_mut`
+  /// recovery a stall (rejecting a recoverable parse) and swallows a rewind into the same arm.
   ///
   /// # What clears each arm
   ///
@@ -1573,7 +1571,7 @@ where
 ///
 /// The abort column is a **demonstration, not a constant**: it is one debug build's frame size on
 /// one platform, and it moved by a whole probe step between two builds of the same source. What is
-/// stable is the shape of the finding — the budget is configured, it is consulted, it never sees
+/// stable is the shape of the result — the budget is configured, it is consulted, it never sees
 /// more than one live level, and the native abort it exists to delete comes back.
 ///
 /// So the attribute catches the bare statement and nothing else, and the four silent rows are not

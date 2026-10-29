@@ -17,7 +17,7 @@
 ///
 /// What blocks it now postdates both. `PartialSession::parse` requires
 /// `Ctx::Emitter: ValueKeyedEmitter`, and a recording `Sink` deliberately is not one — so the
-/// **session** route to a chunked CST is uncompilable by design, not by omission (see the
+/// **session** route to a chunked CST is uncompilable by design, not by omission (see the 0.8.0
 /// release notes' *Streaming CST is not in this release*). The supported shape is a
 /// hand-rolled refill loop with a **fresh sink per attempt**, and writing this oracle against
 /// that shape is the remaining work: it needs a per-attempt sink harness that the suite does

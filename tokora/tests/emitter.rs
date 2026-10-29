@@ -1844,7 +1844,8 @@ fn diagnostics_bridge_interleaves_both_channels_in_emission_order() {
 /// `Fatal::<E, MyLang>::default()` did not resolve and a branded `Fatal` could not be printed,
 /// while its `Silent` sibling could do both. Nothing in either body depends on the brand.
 ///
-/// Before: this function does not compile. After: it does, and the render is unchanged at `()`.
+/// Without brand-generic impls this function does not compile; with them it does, and the render
+/// is unchanged at `()`.
 #[test]
 fn fatal_is_lang_generic_for_default_and_debug() {
   struct MyLang;

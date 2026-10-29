@@ -5,8 +5,7 @@
 ///
 /// `Incomplete` is the marker a partial/streaming parse raises when it runs out of input while a
 /// construct is still open (a half-read token, an unterminated list): "there may be more input;
-/// come back with it". It is defined now so the error family is coherent before the partial-input
-/// wave wires it — the type is always compiled but inert until then.
+/// come back with it". The type is always compiled; only a partial-input parse raises it.
 ///
 /// # The never-recoverable law
 ///
@@ -15,8 +14,8 @@
 /// - **Recovery combinators must re-raise it untouched.** A recoverer exists to synthesize a value
 ///   from a *malformed* construct; an incomplete one is not malformed, only unfinished, so
 ///   recovering it would fabricate a value from input that has not arrived.
-///   [`Recover`](crate::combinator::Recover) (and the skip-retry driver when it lands) therefore
-///   re-raises an `Incomplete` on the `Err` channel instead of invoking the recoverer — see
+///   [`Recover`](crate::combinator::Recover) and the skip-retry driver therefore re-raise an
+///   `Incomplete` on the `Err` channel instead of invoking the recoverer — see
 ///   [`MaybeIncomplete`].
 /// - **It must never be emitted as a diagnostic.** `Incomplete` rides the `Err` channel *only*; it
 ///   is a control signal to the caller ("feed me more"), not a user-facing error, so it never
