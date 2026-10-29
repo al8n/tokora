@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::{
-  ParseInput, Parser, ParserContext, SimpleSpan,
+  Parse, ParseInput, Parser, ParserContext, SimpleSpan,
   error::{UnexpectedToken, UnexpectedTokenOf},
   input::Cursor,
   lexer::LogosLexer,
