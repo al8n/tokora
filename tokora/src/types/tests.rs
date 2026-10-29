@@ -1,7 +1,7 @@
 use super::*;
 // `RecoveryState` is no longer re-exported into `types`, so `use super::*` does not bring it in —
 // which is the whole repair, and this line is what an ordinary consumer writes instead.
-use super::recovery::{Components, FromComponents, RecoveryState, Status};
+use super::recovery::{Components, FromComponents, RecoveryState};
 use std::{
   format,
   string::{String, ToString},
@@ -1092,7 +1092,7 @@ mod consumer_scope {
   /// tokora's own answer, reached without importing the trait — which is what a fully qualified
   /// path is for, and what the consumer would write on the rare call that wants it.
   fn tokora_status(lit: &LitDecimal<&str>) -> Status {
-    <LitDecimal<&str> as crate::types::RecoveryState>::status(lit)
+    <LitDecimal<&str> as crate::types::recovery::RecoveryState>::status(lit)
   }
 
   /// **The cell, and its two directions.**
@@ -1338,7 +1338,7 @@ mod consumer_scope {
   /// `MaybeUninit::uninit().assume_init()` is worse — it yields whatever the stack held.
   ///
   /// So the constructor is not in the inherent namespace at all: it is
-  /// [`FromComponents::from_components`](crate::types::FromComponents::from_components),
+  /// [`FromComponents::from_components`](crate::types::recovery::FromComponents::from_components),
   /// a trait method, which a consumer's inherent item outranks. The call below reaches the
   /// consumer's constructor and must keep doing so.
   #[test]
@@ -1380,7 +1380,7 @@ mod consumer_scope {
 
     // tokora's own status-preserving construction is still reachable, by the trait that replaced
     // the constructor — and it is the exact inverse of the decomposition.
-    use crate::{types::FromComponents, utils::IntoComponents};
+    use crate::{types::recovery::FromComponents, utils::IntoComponents};
     let placeholder = LitDecimal::<&str>::error(span);
     let rebuilt = LitDecimal::<&str>::from_components(placeholder.into_components());
     assert_eq!(rebuilt, placeholder);
@@ -1512,7 +1512,7 @@ mod second_glob {
     // Tokora's own answer is still reachable, by naming it — which is the cost of the repair and
     // the whole of it.
     assert!(
-      <LitDecimal<&str> as crate::types::RecoveryState>::status(&nonsense).is_valid(),
+      <LitDecimal<&str> as crate::types::recovery::RecoveryState>::status(&nonsense).is_valid(),
       "tokora's recovery status is the opposite answer, reached by naming the trait",
     );
   }

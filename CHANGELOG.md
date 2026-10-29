@@ -102,13 +102,15 @@ and will red until they do.
     and `EmitterView`, beside the six `#[macro_export]` macros and `logos` / `logos_0_16`.
     Forty-eight names left the root for their modules, `Action` joined it, and `Accept` /
     `Decline` are reachable only as `ParseAttempt::Accept` / `ParseAttempt::Decline`.
-  - **Six three-level families are flattened into their parents.** `state::{tracker,
+  - **Five three-level families are flattened into their parents.** `state::{tracker,
     token_tracker, recursion_tracker}`, `cst::{error, event}`, `error::{syntax, token}`,
-    `types::recovery`, `utils::{cmp, human_display, sdl_display, syntax_tree_display, marker}` and
+    `utils::{cmp, human_display, sdl_display, syntax_tree_display, marker}` and
     `conformance::{cache, emitter}` are private now, and their items are public one level up —
-    `state::RecursionLimiter`, `error::UnexpectedToken`, `utils::DisplayHuman` and the rest. Three
+    `state::RecursionLimiter`, `error::UnexpectedToken`, `utils::DisplayHuman` and the rest. Four
     modules keep a third level on purpose: `lexer::logos_0_16` (a versioned integration module,
-    whose two items `lexer::{FromLogos, LogosLexer}` alias), `utils::knowledge` and `cst::cast`.
+    whose two items `lexer::{FromLogos, LogosLexer}` alias), `utils::knowledge`, `cst::cast`, and
+    `types::recovery`, whose `RecoveryState`, `FromComponents` and `Components` stay out of
+    `types::*` so that a consumer's second glob cannot silently rebind their trait methods (#320).
     The event vocabulary's laws, documented on the old `cst::event` module, are now a section of
     `tokora::cst`'s documentation.
   - **`tokora::prelude` is deleted.** Its names are all at the root except `span::Spanned` and
@@ -359,9 +361,6 @@ and will red until they do.
   | `tokora::state::tracker::LimitExceeded` | `tokora::state::LimitExceeded` |
   | `tokora::state::tracker::Tracker` | `tokora::state::Tracker` |
   | `tokora::state::tracker::TrackerExt` | `tokora::state::TrackerExt` |
-  | `tokora::types::recovery::Components` | `tokora::types::Components` |
-  | `tokora::types::recovery::FromComponents` | `tokora::types::FromComponents` |
-  | `tokora::types::recovery::RecoveryState` | `tokora::types::RecoveryState` |
   | `tokora::types::recovery::Status` | `tokora::types::Status` |
   | `tokora::utils::cmp::Equivalent` | `tokora::utils::Equivalent` |
   | `tokora::utils::human_display::DisplayHuman` | `tokora::utils::DisplayHuman` |

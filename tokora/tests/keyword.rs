@@ -9,7 +9,7 @@ use tokora::{
   error::UnexpectedEot,
   logos::{self, Logos},
   token::{KeywordToken, PunctuatorToken},
-  types::{Components, Keyword},
+  types::{Keyword, recovery::Components},
 };
 
 // ── Token with keywords ─────────────────────────────────────────────────────

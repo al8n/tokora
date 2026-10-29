@@ -87,22 +87,28 @@ pub use ident::*;
 pub use ident_list::*;
 pub use keyword::*;
 pub use lit::*;
-// `Status`, `RecoveryState`, `FromComponents` and `Components` are all public here, at
-// `tokora::types::Item`: no public path is deeper than two (#350, rule 5), so `recovery` is a
-// private file whose items this module re-exports.
+// `Status` is declared in a private file and re-exported here, so a consumer who writes
+// `use tokora::types::*` gets the status type without naming a module, and the type has one path;
+// `RecoveryState`, `FromComponents` and `Components` are reached through `types::recovery`.
 //
-// The line those items sit on is stated in `recovery`'s header: tokora must not silently change
-// what a method on a tokora type means, while a name a consumer's own glob shadows is that glob's
-// cost and `::` is its fix. A name in `types::*` is the second kind — a path into the consumer's
-// namespace, not a call on a tokora type. That header also carries the measured table, both
-// clashes as measured, and the dated crates.io check that once bore on the module's public name.
-pub use recovery::*;
+// That split is ordinary library design, and the line it sits on is stated in `recovery`'s header:
+// tokora must not silently change what a method on a tokora type means, while a name a consumer's
+// own glob shadows is that glob's cost and `::` is its fix. `Status` here is the second kind — a
+// path into the consumer's namespace, not a call on a tokora type — so it is placed where a glob
+// will find it. That header also carries the measured table those rounds produced, both clashes as
+// measured, and the dated crates.io check behind the module's name.
+//
+// The two traits staying out of `types::*` is the first kind, so `types::recovery` is one of the
+// three-level namespaces the layout census admits (`ci/layout/allow.txt`): flattened into
+// `types`, a consumer's own same-named trait under a second glob would be silently rebound.
+pub use status::Status;
 
 mod ident;
 mod ident_list;
 mod keyword;
 mod lit;
-pub(crate) mod recovery;
+pub mod recovery;
+mod status;
 
 /// A type representing a recoverable parse node, which can be a valid node,
 /// an error node with span, or a missing node with span.
