@@ -679,11 +679,23 @@ jobs:
           # edits base's manifest at all — a bare package-`version` bump is enough, and
           # `--locked` then refuses base outright.
           #
-          # The comparison below is what that copied lock used to prove, made explicit: every
-          # `[[package]]` triple (name, version, source) must match across both locks, so that a
+          # The comparison below is what that copied lock used to prove, made explicit, so that a
           # finding cannot be an artifact of the two `cargo doc` runs linking different versions
           # of some third crate. Deleting it gives that guarantee up silently. `--locked` stays
           # on both `cargo doc` calls so a re-resolution during doc generation is refused.
+          #
+          # It keys every third-party `[[package]]` on (name, source, compatibility class), the
+          # class being what cargo unifies within: the major version from 1.0 on, `0.minor`
+          # below it, and `0.0.patch` below that. Within a class present on BOTH sides the
+          # versions must be identical, and a mismatch is fatal — that is the re-resolution
+          # artifact this guard exists for (one side picked up a newer semver-compatible
+          # release, and the two sides would link different code). A class present on ONE side
+          # only is a dependency the diff itself adds or removes — a new major beside an old
+          # one, or a requirement dropped — and comparing it would forbid every PR that changes
+          # a dependency requirement. It is printed (`only in head: smol-bytes 0.2.1, a new
+          # compatibility class`) and allowed. The 0.12 layout PR is the case that showed the
+          # difference: its step 2 added `smol-bytes` 0.2 beside 0.1, and the old triple-for-
+          # triple comparison stopped the job before it probed anything.
           #
           # The exemption is PATH/LOCAL entries — the ones a lock records with no `source`,
           # meaning a workspace member or a path dependency. It used to be the single name
@@ -739,20 +751,48 @@ jobs:
           print("lock parity: path/local entries exempted from the comparison: "
                 + ", ".join(f"{n} {v}" for n, v in local))
 
-          head_set = {t for t in head if t[2] is not None}
-          base_set = {t for t in base if t[2] is not None}
-          only_head = head_set - base_set
-          only_base = base_set - head_set
+          def compat_class(version):
+              # What cargo unifies within: `1.4.2` -> `1`, `0.2.1` -> `0.2`, `0.0.3` -> `0.0.3`.
+              core = re.split(r"[-+]", version, maxsplit=1)[0]
+              parts = (core.split(".") + ["0", "0"])[:3]
+              if parts[0] != "0":
+                  return parts[0]
+              if parts[1] != "0":
+                  return f"0.{parts[1]}"
+              return f"0.0.{parts[2]}"
 
-          if only_head or only_base:
-              print("::error::lock graphs disagree on a third-party package")
-              for n, v, s in sorted(only_base):
-                  print(f"  only in base: {n} {v} ({s or 'path/local'})")
-              for n, v, s in sorted(only_head):
-                  print(f"  only in head: {n} {v} ({s or 'path/local'})")
+          def classes(entries):
+              out = {}
+              for n, v, s in entries:
+                  if s is not None:
+                      out.setdefault((n, s, compat_class(v)), set()).add(v)
+              return out
+
+          head_cls = classes(head)
+          base_cls = classes(base)
+
+          mismatched = sorted(k for k in head_cls.keys() & base_cls.keys()
+                              if head_cls[k] != base_cls[k])
+          for k in sorted(base_cls.keys() - head_cls.keys()):
+              n, s, c = k
+              for v in sorted(base_cls[k]):
+                  print(f"only in base: {n} {v}, a compatibility class head no longer has ({s})")
+          for k in sorted(head_cls.keys() - base_cls.keys()):
+              n, s, c = k
+              for v in sorted(head_cls[k]):
+                  print(f"only in head: {n} {v}, a new compatibility class ({s})")
+
+          if mismatched:
+              print("::error::lock graphs disagree on a third-party package within one "
+                    "compatibility class")
+              for n, s, c in mismatched:
+                  print(f"  {n}, compatibility class {c} ({s}): "
+                        f"base {', '.join(sorted(base_cls[(n, s, c)]))}, "
+                        f"head {', '.join(sorted(head_cls[(n, s, c)]))}")
               sys.exit(1)
 
-          print(f"lock parity OK: {len(head_set)} third-party entries agree on both sides")
+          shared = len(head_cls.keys() & base_cls.keys())
+          print(f"lock parity OK: {shared} third-party compatibility classes agree on both sides")
           PY
           # The per-side resolver for `want`. It reads `cargo metadata` rather than grepping
           # the `[features]` table because that is cargo's own parser: it reports the implicit
