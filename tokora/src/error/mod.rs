@@ -385,50 +385,6 @@ impl ErrorNode for &[u8] {
   }
 }
 
-#[cfg(feature = "bytes_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
-impl ErrorNode for bytes_1::Bytes {
-  #[inline]
-  fn error(_span: SimpleSpan) -> Self {
-    bytes_1::Bytes::from_static(b"<error>")
-  }
-
-  #[inline]
-  fn missing(_span: SimpleSpan) -> Self {
-    bytes_1::Bytes::from_static(b"<missing>")
-  }
-}
-
-#[cfg(feature = "hipstr_0_8")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
-const _: () = {
-  use hipstr_0_8::{HipByt, HipStr};
-
-  impl ErrorNode for HipStr<'_> {
-    #[inline]
-    fn error(_span: SimpleSpan) -> Self {
-      HipStr::borrowed("<error>")
-    }
-
-    #[inline]
-    fn missing(_span: SimpleSpan) -> Self {
-      HipStr::borrowed("<missing>")
-    }
-  }
-
-  impl ErrorNode for HipByt<'_> {
-    #[inline]
-    fn error(_span: SimpleSpan) -> Self {
-      HipByt::borrowed(b"<error>")
-    }
-
-    #[inline]
-    fn missing(_span: SimpleSpan) -> Self {
-      HipByt::borrowed(b"<missing>")
-    }
-  }
-};
-
 /// A container of error types
 pub trait ErrorContainer<E> {
   /// The iterator type for the container.

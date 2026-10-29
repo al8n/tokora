@@ -74,7 +74,7 @@ const SITES: &[(&str, &str, &str, usize, &str, usize)] = &[
   ),
   (
     "many/delim/repeated.rs",
-    include_str!("delim/repeated.rs"),
+    include_str!("delim/repeated/mod.rs"),
     "on_stop(nums, inp, &span)",
     2,
     "Ok(span)",
@@ -82,7 +82,7 @@ const SITES: &[(&str, &str, &str, usize, &str, usize)] = &[
   ),
   (
     "many/delim/repeated_while.rs",
-    include_str!("delim/repeated_while.rs"),
+    include_str!("delim/repeated_while/mod.rs"),
     "on_stop(nums, inp, &span)",
     3,
     "Ok(span)",

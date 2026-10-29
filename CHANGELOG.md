@@ -67,6 +67,35 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
+## Unreleased
+
+### Changed (breaking)
+
+- **The smol-bytes features are named for the crate, and the `smol-bytes` alias selects 0.2**
+  (#350). An integration feature is the crate's own name plus its version, so the hyphen the crate
+  carries stays in the feature: `smol_bytes_0_1` is now `smol-bytes_0_1`, the dependency key is
+  renamed with it, and the unversioned alias moves from `smol_bytes` (which selected 0.1) to
+  `smol-bytes`, which selects the newest line, 0.2. In Rust the extern crates and the private
+  modules keep the underscore (`smol_bytes_0_1`, `smol_bytes_0_2`); only the Cargo feature and
+  dependency names change.
+
+  | 0.11 | now |
+  |---|---|
+  | `smol_bytes_0_1` | `smol-bytes_0_1` |
+  | `smol_bytes` (alias of `smol_bytes_0_1`) | `smol-bytes` (alias of `smol-bytes_0_2`); write `smol-bytes_0_1` to stay on smol-bytes 0.1 |
+
+  A manifest that named either old feature fails to resolve until it is renamed; nothing else in the
+  public surface moves.
+
+### Added
+
+- **smol-bytes 0.2 beside 0.1: the `smol-bytes_0_2` feature** (#350). The same four types as the 0.1
+  integration — `shared::Bytes`, `compact::Bytes`, `Utf8Bytes` and `compact::Utf8Bytes` — implement
+  `Source`, `Slice`, `CstText`, `Equivalent`, `ToEquivalent` and `IntoEquivalent` over smol-bytes
+  0.2, and both versions can be enabled together because each type is a distinct one. The impls are
+  ported unchanged: every method they call exists in 0.2 with the same meaning, and the 0.1 test
+  matrices pass against 0.2.1 as they stand.
+
 ## 0.11.0 (2026-09-15)
 
 ### Changed (breaking)

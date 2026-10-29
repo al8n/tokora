@@ -1114,21 +1114,14 @@ pub trait SemanticPrefix:
 impl SemanticPrefix for str {}
 impl SemanticPrefix for [u8] {}
 
-#[cfg(feature = "bstr_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
-impl SemanticPrefix for bstr_1::BStr {}
-
 /// The seal on [`SemanticPrefix`], in a private module so that the promise cannot be made from
 /// outside this crate.
-mod sealed {
+pub(crate) mod sealed {
   /// Implemented for exactly the sources whose slice carries all of their lexical semantics.
   pub trait Sealed {}
 
   impl Sealed for str {}
   impl Sealed for [u8] {}
-
-  #[cfg(feature = "bstr_1")]
-  impl Sealed for bstr_1::BStr {}
 }
 
 /// The driver that hands back **prefixes of the caller's one buffer**: `&src[..k]`, at every cut

@@ -2126,7 +2126,7 @@ fn count(hay: &str, needle: &str) -> usize {
   ignore = "reads crate source and string-matches: no UB surface, and miri interprets every byte"
 )]
 fn cst_forward_census_one_helper_carries_every_channel() {
-  let src = include_str!("../sink.rs");
+  let src = include_str!("mod.rs");
 
   // The forwarded channels: 6 core Emitter (the four diagnostic `emit_*`, `emit_skipped_region`,
   // and `commit_lexer_error` — the input layer's own refusal, which is the *evidence* twin of
@@ -2240,7 +2240,7 @@ fn cst_forward_census_one_helper_carries_every_channel() {
             every byte of what remains"
 )]
 fn cst_composition_census_every_family_method_is_overridden() {
-  let src = include_str!("../sink.rs");
+  let src = include_str!("mod.rs");
 
   // (a) The 30-method inventory: 13 core Emitter + 5 CstEmitter + 12 capability emit_*.
   // Each must appear as an `fn <name>` impl in the sink; a missing one is a severed channel.
@@ -8175,7 +8175,7 @@ fn depth_matches_oracle(sink: &VerboseSink<'_>, at: &str) {
   ignore = "reads crate source and string-matches: no UB surface, and miri interprets every byte"
 )]
 fn depth_census_one_append_door_and_one_splice() {
-  let src = include_str!("../sink.rs");
+  let src = include_str!("mod.rs");
 
   assert_eq!(
     count(src, "self.events.push("),

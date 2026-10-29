@@ -192,8 +192,9 @@ is `std` alone, and every combinator is compiled unconditionally.
 | `bstr_1` | Enables `bstr@1` source support. |
 | `hipstr` | Alias for `hipstr_0_8`. |
 | `hipstr_0_8` | Enables `hipstr@0.8` source support. |
-| `smol_bytes` | Alias for `smol_bytes_0_1`. |
-| `smol_bytes_0_1` | Enables `smol-bytes@0.1` source support (smol-bytes ≥ 0.1.2). |
+| `smol-bytes` | Alias for `smol-bytes_0_2`, the newest supported smol-bytes. |
+| `smol-bytes_0_1` | Enables `smol-bytes@0.1` source support (smol-bytes ≥ 0.1.2). |
+| `smol-bytes_0_2` | Enables `smol-bytes@0.2` source support. |
 | `smallvec` | Alias for `smallvec_1`. |
 | `smallvec_1` | Enables `smallvec@1` containers and implies `alloc`. |
 | `heapless` | Alias for `heapless_0_9`. |
@@ -209,7 +210,9 @@ is a default feature, so a plain dependency line sees the whole surface; a `defa
 build names the families it uses.
 
 Feature aliases select their versioned counterpart; versioned features make the corresponding
-optional dependency available. `tokora::logos` and the unversioned `tokora::lexer::LogosLexer`
+optional dependency available. An integration feature is the crate's own name plus its version,
+so a hyphenated crate keeps its hyphen (`smol-bytes_0_2`) and the unversioned name aliases the
+newest. `tokora::logos` and the unversioned `tokora::lexer::LogosLexer`
 are available with `logos_0_16` and re-export/adapt that version — the only Logos major tokora
 supports. `rowan` does not enable `logos`, and `smallvec_1` is the versioned feature that adds
 `alloc`.

@@ -580,10 +580,10 @@ each gate to the section that documents it.
 | `bytes` / `bytes_1` | `&[u8]` / `Bytes` source | `bytes_1` → `dep:bytes_1` | needs atomic CAS |
 | `bstr` / `bstr_1` | `BStr` byte-string source | `bstr_1` → `dep:bstr_1` | no_std **+ allocator**, CAS-free |
 | `hipstr` / `hipstr_0_8` | `HipStr` / `HipByt` source | `hipstr_0_8` → `dep:hipstr_0_8` | needs atomic CAS |
-| `smol_bytes` / `smol_bytes_0_1` | the smol-bytes source | `smol_bytes_0_1` → `dep:smol_bytes_0_1` (with the dep's `alloc` feature; smol-bytes ≥ 0.1.2) | needs atomic CAS |
+| `smol-bytes` / `smol-bytes_0_1` / `smol-bytes_0_2` | the smol-bytes source (`smol-bytes` aliases the newest, 0.2) | `smol-bytes_0_1` → `dep:smol-bytes_0_1` (smol-bytes ≥ 0.1.2), `smol-bytes_0_2` → `dep:smol-bytes_0_2`, each with the dep's `alloc` feature | needs atomic CAS |
 
 "Needs atomic CAS" is a property of the dependency, not of tokora: `bytes`, `hipstr` and
-`smol_bytes` all reach a refcounted buffer through `Arc`-shaped sharing whose `fetch_add` /
+`smol-bytes` all reach a refcounted buffer through `Arc`-shaped sharing whose `fetch_add` /
 compare-and-swap has no lowering on targets without atomic CAS. They therefore fail to build
 on a target like `thumbv6m-none-eabi`, whatever tokora does.
 

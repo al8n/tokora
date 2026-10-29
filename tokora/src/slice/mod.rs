@@ -1,21 +1,5 @@
 use super::utils::IntoComponents;
 
-#[cfg(feature = "bytes_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
-mod bytes_1;
-
-#[cfg(feature = "bstr_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
-mod bstr_1;
-
-#[cfg(feature = "hipstr_0_8")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
-mod hipstr_0_8;
-
-#[cfg(feature = "smol_bytes_0_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "smol_bytes_0_1")))]
-mod smol_bytes_0_1;
-
 /// The slice type returned by lexers' sources.
 ///
 /// `'source` is the lifetime for which a slice's contents must remain valid.

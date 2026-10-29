@@ -947,23 +947,23 @@ verbose_channel_conformance! {
 // The matrix above is only total if its row list matches the emitter's channel list. Adding
 // `emit_new_thing` to any Verbose impl file must fail here until a macro row — which *generates*
 // the two tests — exists; deleting a row must fail in the other direction. `grep
-// CONFORMANCE_CENSUS` finds the anchor; RECORD_CENSUS in `src/emitter/impl_/verbose/` pins the
+// CONFORMANCE_CENSUS` finds the anchor; RECORD_CENSUS in `src/emitter/policy/verbose/` pins the
 // module list this include list mirrors.
 
 /// The Verbose channel-bearing sources, read from the test binary. Mirrors RECORD_CENSUS's
 /// `SOURCES` minus the storage and the read-side iterator, neither of which declares a channel.
 const VERBOSE_SOURCES: &[&str] = &[
-  include_str!("../src/emitter/impl_/verbose/mod.rs"),
-  include_str!("../src/emitter/impl_/verbose/full_container.rs"),
-  include_str!("../src/emitter/impl_/verbose/missing_leading_separator.rs"),
-  include_str!("../src/emitter/impl_/verbose/missing_trailing_separator.rs"),
-  include_str!("../src/emitter/impl_/verbose/pratt.rs"),
-  include_str!("../src/emitter/impl_/verbose/separator.rs"),
-  include_str!("../src/emitter/impl_/verbose/too_few.rs"),
-  include_str!("../src/emitter/impl_/verbose/too_many.rs"),
-  include_str!("../src/emitter/impl_/verbose/unclosed.rs"),
-  include_str!("../src/emitter/impl_/verbose/unexpected_leading_separator.rs"),
-  include_str!("../src/emitter/impl_/verbose/unexpected_trailing_separator.rs"),
+  include_str!("../src/emitter/policy/verbose/mod.rs"),
+  include_str!("../src/emitter/policy/verbose/full_container.rs"),
+  include_str!("../src/emitter/policy/verbose/missing_leading_separator.rs"),
+  include_str!("../src/emitter/policy/verbose/missing_trailing_separator.rs"),
+  include_str!("../src/emitter/policy/verbose/pratt.rs"),
+  include_str!("../src/emitter/policy/verbose/separator.rs"),
+  include_str!("../src/emitter/policy/verbose/too_few.rs"),
+  include_str!("../src/emitter/policy/verbose/too_many.rs"),
+  include_str!("../src/emitter/policy/verbose/unclosed.rs"),
+  include_str!("../src/emitter/policy/verbose/unexpected_leading_separator.rs"),
+  include_str!("../src/emitter/policy/verbose/unexpected_trailing_separator.rs"),
 ];
 
 /// Every `fn emit_*` declared on a non-comment line of `src`, by name.

@@ -4,8 +4,8 @@
 //! Tests exercising the emitter system: Fatal, Silent, and Verbose emitters.
 //!
 //! These tests trigger error paths through parser combinators to exercise
-//! emitter implementations in `emitter/impl_/fatal.rs`, `emitter/impl_/silent.rs`,
-//! and `emitter/impl_/verbose.rs`.
+//! emitter implementations in `emitter/policy/fatal.rs`, `emitter/policy/silent.rs`,
+//! and `emitter/policy/verbose.rs`.
 
 mod common;
 

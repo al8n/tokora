@@ -21,7 +21,8 @@ std = [
   "bytes_1?/default",
   "hipstr_0_8?/default",
   "bstr_1?/default",
-  "smol_bytes_0_1?/default",
+  "smol-bytes_0_1?/default",
+  "smol-bytes_0_2?/default",
   "tinyvec_1?/alloc",
 
   "logos_0_16?/default",
@@ -134,8 +135,9 @@ bstr_1 = ["dep:bstr_1"]
 hipstr = ["hipstr_0_8"]
 hipstr_0_8 = ["dep:hipstr_0_8"]
 
-smol_bytes = ["smol_bytes_0_1"]
-smol_bytes_0_1 = ["dep:smol_bytes_0_1"]
+smol-bytes = ["smol-bytes_0_2"]
+smol-bytes_0_1 = ["dep:smol-bytes_0_1"]
+smol-bytes_0_2 = ["dep:smol-bytes_0_2"]
 
 smallvec = ["smallvec_1"]
 smallvec_1 = ["dep:smallvec_1", "alloc"]
@@ -171,7 +173,10 @@ thiserror = { version = "2", default-features = false }
 bstr_1 = { package = "bstr", version = "1", default-features = false, optional = true }
 bytes_1 = { package = "bytes", version = "1", default-features = false, optional = true }
 hipstr_0_8 = { package = "hipstr", version = "0.8", default-features = false, optional = true }
-smol_bytes_0_1 = { package = "smol-bytes", version = "0.1", default-features = false, optional = true, features = [
+smol-bytes_0_1 = { package = "smol-bytes", version = "0.1", default-features = false, optional = true, features = [
+  "alloc",
+] }
+smol-bytes_0_2 = { package = "smol-bytes", version = "0.2", default-features = false, optional = true, features = [
   "alloc",
 ] }
 

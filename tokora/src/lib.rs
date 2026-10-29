@@ -318,6 +318,7 @@ mod try_parse;
 #[cfg(all(test, feature = "std"))]
 mod api_digest_census;
 mod check;
+mod integration;
 mod keyword;
 mod located;
 /// The native call stack the Pratt frames sit on: the `stacker` feature's `maybe_grow` seam, the
