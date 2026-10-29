@@ -1,3 +1,14 @@
+//! The native call stack the Pratt frames sit on: the `stacker` feature's `maybe_grow` seam, the
+//! red-zone and segment derivations, and the measurements `RecursionLimiter::PARSE_DEFAULT_DEPTH`
+//! and `RecursionLimiter::SEGMENTED_PRATT_DEPTH` come from.
+//!
+//! Gated on `pratt` because the two Pratt frame prologues are its only callers — `descend` has
+//! other ones, this does not. **`stacker` therefore implies `pratt`**: without that implication a
+//! `stacker` build resolved the dependency, built `psm`'s `cc` script, and compiled nothing able
+//! to call any of it. The `--each-feature` `stacker` leg consequently builds this module and both
+//! prologues, which is the library half of the pair; the manifest's `std,logos,combinators,stacker`
+//! entry is what additionally compiles the suites that exercise them.
+//!
 //! The **native call stack** a Pratt frame sits on, and the two things that bound how many of them
 //! fit: the recursion budget, which refuses, and the optional `stacker` feature, which moves where
 //! the refusing has to happen.

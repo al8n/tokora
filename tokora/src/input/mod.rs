@@ -1,10 +1,16 @@
+//! Input stream abstraction for parsers.
+//!
+//! Provides the [`InputRef`] type that bridges lexers and parsers,
+//! implementing on-demand token flow. Maintains cursor position, lookahead caches, and
+//! checkpoint/rewind capabilities for explicit backtracking.
+//!
 //! The input layer: [`InputRef`], its backtracking guards, and the completeness typestate.
 //!
 //! # Partial input (Sans-I/O mode)
 //!
-//! An input carries a [`Completeness`](crate::input::Completeness) typestate. The default,
-//! [`Complete`](crate::input::Complete), is the whole source — today's behaviour, with identical
-//! generated code. [`Partial`](crate::input::Partial) is a **prefix of a stream that may still
+//! An input carries a [`Completeness`] typestate. The default,
+//! [`Complete`], is the whole source — today's behaviour, with identical
+//! generated code. [`Partial`] is a **prefix of a stream that may still
 //! grow**, carrying a runtime `is_final` flag the **driver** states — through
 //! [`parse_partial`]'s `is_final` argument — when the last chunk lands. While a partial input is
 //! non-final, three conservative *frontier rules* at the scan chokepoint keep a construct that
@@ -29,7 +35,7 @@
 //!
 //! The second law is what keeps finality out of the rollback set safely. Because it cannot change
 //! during a handle's life, no rollback within that life can observe it change — so a
-//! [`Checkpoint`](crate::input::Checkpoint) has nothing to save, and a restore has nothing to undo.
+//! [`Checkpoint`] has nothing to save, and a restore has nothing to undo.
 //! Checkpointing it would be the mirror bug: a driver seals when the last chunk lands, the parse
 //! rolls back to a checkpoint taken earlier, finality reverts to `false`, and the parser waits
 //! forever for bytes that will never arrive. Rollback rewinds the parse; it does not rewind the
@@ -43,7 +49,7 @@
 //! arrives or the input is marked final**. The latency is correct by construction: an item whose
 //! decision consulted the end could change once the end moves (`ab` may become `abc`), and the only
 //! proof it will not is more bytes — or `is_final`. With `is_final` set, or on a
-//! [`Complete`](crate::input::Complete) input, the rules are inert and the last token yields
+//! [`Complete`] input, the rules are inert and the last token yields
 //! immediately.
 //!
 //! **How many tokens that is depends on the lexer, and since 0.10.0 it is not always one.** A lexer
@@ -111,21 +117,21 @@
 //! while every per-attempt limit stays nominally satisfied. The wall is a **cross-attempt budget**,
 //! which cannot live in `L::State` (a fresh per-attempt limiter admits the whole triangle; a shared
 //! cumulative one counts replay as input and trips on valid documents) and therefore lives one
-//! level up, in [`PartialSession`](crate::input::PartialSession) — whose
-//! [`Budget`](crate::input::Budget) is a required constructor argument for
+//! level up, in [`PartialSession`] — whose
+//! [`Budget`] is a required constructor argument for
 //! exactly this reason. A resuming mode that lexes only the new bytes, giving O(total bytes) for
 //! parsers that commit incrementally, is designed and prototype-verified and ships in a later
-//! wave; [`ReplayMode`](crate::input::ReplayMode) is sealed and additive so its arrival breaks nothing.
+//! wave; [`ReplayMode`] is sealed and additive so its arrival breaks nothing.
 //!
 //! ## The Sans-I/O resumption loop
 //!
-//! Each attempt parses under a rollback-on-drop [`Transaction`](crate::input::Transaction), so an
+//! Each attempt parses under a rollback-on-drop [`Transaction`], so an
 //! incomplete attempt unwinds its emissions and cursor before the retry. **The parser opens that transaction, not the
 //! driver**: [`parse_partial`] deliberately does *not* wrap `f` — the caller owns transaction
 //! discipline, and that ownership is precisely what makes a commit-and-carry
-//! [`PartialSession`](crate::input::PartialSession) possible, because a driver-owned transaction would roll back the very
+//! [`PartialSession`] possible, because a driver-owned transaction would roll back the very
 //! progress a session exists to keep. What [`parse_partial`] does is drive any
-//! [`ParseInput`]`<…, `[`Partial`](crate::input::Partial)`>` — a typed fn item like the one below, a
+//! [`ParseInput`]`<…, `[`Partial`]`>` — a typed fn item like the one below, a
 //! named combinator, or a parser written generic over its completeness. The only requirements
 //! partial mode adds are that the emitter error implement `From<Incomplete<L::Offset>>` (the
 //! construction side of the frontier rules) and [`MaybeIncomplete`](crate::error::MaybeIncomplete)

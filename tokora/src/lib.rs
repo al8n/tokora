@@ -58,14 +58,16 @@ pub use source::Source;
 pub use span::{SimpleSpan, Span};
 pub use token::Token;
 
-/// Concrete Syntax Tree (CST) representations and utilities.
-///
-/// The rowan-free front half — the [event vocabulary](cst#the-event-vocabulary), the era-branded
-/// marks, and the [`emitter::CstEmitter`] capability they ride — is available in
-/// every build, so one parser assembly can bound its context on the event channel and run
-/// tree-less at zero cost. The `rowan` feature adds the back half: the recording sink and the
-/// typed lossless-tree layer (preserving all source information including whitespace and
-/// comments) for building tools like formatters, refactoring engines, and language servers.
+// Each module is documented in exactly one place. A module whose file opens with an inner `//!`
+// header carries no outer `///` comment here, because rustdoc resolves the links of a module
+// documented from both sides differently per toolchain: stable 1.99 resolves the merged fragments
+// from the crate root when the first fragment is outer, while nightly resolves the inner header
+// in the module itself, so a header that links correctly on one breaks on the other. With the
+// header alone, every link in it resolves in the module's own scope on both: a name the module
+// defines or imports is written bare, anything else crate-absolute. (Spelling a header's links
+// crate-absolute to suit the root scope instead trades an unresolved link for a redundant one, and
+// ties the correct spelling to the root's re-export list.) The modules below that do carry an
+// outer comment have no inner header; their links resolve from the crate root on both toolchains.
 pub mod cst;
 
 /// Lexical analysis and token extraction.
@@ -75,45 +77,17 @@ pub mod cst;
 /// backtracking needs them.
 pub mod lexer;
 
-/// Combinators with on-demand lexing, explicit lookahead, and deterministic parsing.
-///
-/// A unique combinator framework combining:
-/// - **Parse-while-lexing architecture**: Tokens are requested from the lexer as parsing needs them
-/// - **Explicit lookahead and backtracking**: Caches and transaction guards make speculation visible
-/// - **Flexible error handling**: Same combinator adapts for fail-fast or greedy diagnostics
-///
-/// The module holds the combinator constructors, the parser types they return, and the option
-/// and adapter values those constructors take — no trait: what a combinator *accepts* lives in
-/// [`parse`](mod@crate::parse). See the module documentation for architecture details and quick
-/// start guide.
 pub mod combinator;
 
-// The parsing traits, the context vocabulary and the drivers. Its documentation is the inner
-// header in `parse/mod.rs` alone, the same arrangement as `diagnostic` below and for the same
-// reason: an outer comment here would make rustdoc resolve every link in that header from the
-// crate root, and `parse`'s header links names that live in `parse`, not at the root.
 pub mod parse;
 
-// The Pratt subsystem — one module behind one feature (#350, rule 4). Its documentation is the
-// inner header in `pratt/mod.rs` alone, for the reason given on `parse` above.
+// The Pratt subsystem: one module behind one feature (#350, rule 4).
 #[cfg(feature = "pratt")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 pub mod pratt;
 
-/// Common AST building blocks for programming languages.
-///
-/// Provides generic, reusable types for building Abstract Syntax Trees across different
-/// programming languages. Includes identifiers, literals (numeric, string, character),
-/// and other common AST nodes. All types support span tracking and are generic over
-/// string representation (zero-copy `&str`, owned `String`, or interned strings).
 pub mod types;
 
-/// Syntax definition and incomplete syntax error tracking.
-///
-/// Provides the [`Syntax`](syntax::Syntax) trait for representing syntax elements with a
-/// known number of components, and error types for tracking missing components during
-/// parsing. Enables collecting all missing parts rather than failing on the first error,
-/// providing better diagnostics.
 pub mod syntax;
 
 /// Utility types and helpers for lexing and parsing.
@@ -161,19 +135,6 @@ pub mod emitter;
 /// All errors carry span information for precise diagnostic reporting.
 pub mod error;
 
-// Deliberately no outer doc comment, unlike every other `pub mod` in this file. Rustdoc resolves
-// the MERGED fragments of a module's documentation in the scope of whichever attribute came from
-// outside, so an outer comment here reinterprets every link in `diagnostic/mod.rs` as one rooted
-// in the crate: measured at 20 `unresolved link` errors plus 2 `redundant explicit link target`
-// under `RUSTDOCFLAGS="-D warnings"`, all for items that are right there in the module.
-//
-// The modules above get away with it because the names their headers link — `CstEmitter`,
-// `Emitter`, `Window` — are re-exported at the crate root, so the root scope happens to resolve
-// them. This module's are not, and should not be: `diagnostic::Severity` at the root would sit
-// beside `emitter::Severity` for anyone doing a glob import. The alternative fix, spelling the
-// header's links crate-absolute, trades an unresolved link for a redundant one and makes the
-// correct spelling depend on the crate root's re-export set — so the module's own header keeps
-// its own scope, and the crate index still shows its summary line from that header.
 pub mod diagnostic;
 
 /// Macro for defining punctuator types.
@@ -261,54 +222,16 @@ pub mod cache;
 /// provides.
 pub mod token;
 
-/// Input stream abstraction for parsers.
-///
-/// Provides the [`InputRef`] type that bridges lexers and parsers,
-/// implementing on-demand token flow. Maintains cursor position, lookahead caches, and
-/// checkpoint/rewind capabilities for explicit backtracking.
 pub mod input;
 
-/// Conformance test kit for custom [`Lexer`] implementations.
-///
-/// Provides [`Harness`](conformance::Harness), a builder that drives a lexer against
-/// the [`Lexer`] contract — replay identity, state-resume faithfulness, monotone
-/// progress, sticky exhaustion, span/slice coherence, optional gap-free tiling — and,
-/// through the input machinery, a set of deterministic save/peek/drain/restore
-/// schedules. Requires the `conformance` feature, which implies `alloc` — **not** `std`: the kit
-/// allocates but needs no operating system, and it builds on a no-std target. Reading it as
-/// `std` is how `core`-only items get imported through the crate's `extern crate alloc as std`
-/// alias, which resolves under `--all-features` and fails on the `conformance`-alone leg.
 #[cfg(feature = "conformance")]
 #[cfg_attr(docsrs, doc(cfg(feature = "conformance")))]
 pub mod conformance;
 
-/// Public fuzz harness for the input/backtracking machinery.
-///
-/// Provides an operation-script fuzzer — a deterministic PRNG drives well-formed scripts of
-/// the crate's public input operations (consume, peek, the `sync` family, `attempt`,
-/// transaction guards, stacked savepoints, session points, partial-mode chunking) against a
-/// scriptable synthetic lexer, checking the documented laws (no-trace failure paths, LIFO
-/// rollback discipline, committed-stream faithfulness, chunked equivalence, termination, no
-/// panic) after every operation. The operation alphabet is enumerated in one place
-/// ([`fuzz::Op`]) with a compile-time exhaustiveness prod and a corpus coverage
-/// test so it cannot silently lag the real surface. Runs on stable Rust as ordinary tests;
-/// requires the `fuzz` feature (which implies `std`). See [`fuzz`] for the seed
-/// workflow.
 #[cfg(feature = "fuzz")]
 #[cfg_attr(docsrs, doc(cfg(feature = "fuzz")))]
 pub mod fuzz;
 
-/// A guided tour of tokora: from Calc fundamentals to maintained parser programs and lossless CSTs.
-///
-/// The fundamentals build **Calc** through tokens and the lexer contract, first parsers and
-/// typed errors, combinator composition, kind dispatch, Pratt expressions, backtracking,
-/// diagnostics, recovery, partial input, and testing. The applied-parser section then explains
-/// the maintained calculator, S-expression, JSON, and C-expression examples. An optional Rowan
-/// chapter covers lossless CSTs. Every non-ignored Rust fence is a doctest, so the guide cannot
-/// drift quietly from the API. Start at [`guide::ch01_tokens`].
-///
-/// Documentation-only: the module defines no items. It requires the `std` and `logos`
-/// features (the same set the repository's `examples/` build with).
 #[cfg(all(feature = "std", feature = "logos_0_16", feature = "combinators"))]
 #[cfg_attr(
   docsrs,
@@ -327,16 +250,6 @@ mod check;
 mod integration;
 mod keyword;
 mod located;
-/// The native call stack the Pratt frames sit on: the `stacker` feature's `maybe_grow` seam, the
-/// red-zone and segment derivations, and the measurements `RecursionLimiter::PARSE_DEFAULT_DEPTH`
-/// and `RecursionLimiter::SEGMENTED_PRATT_DEPTH` come from.
-///
-/// Gated on `pratt` because the two Pratt frame prologues are its only callers — `descend` has
-/// other ones, this does not. **`stacker` therefore implies `pratt`**: without that implication a
-/// `stacker` build resolved the dependency, built `psm`'s `cc` script, and compiled nothing able
-/// to call any of it. The `--each-feature` `stacker` leg consequently builds this module and both
-/// prologues, which is the library half of the pair; the manifest's `std,logos,combinators,stacker`
-/// entry is what additionally compiles the suites that exercise them.
 #[cfg(feature = "pratt")]
 mod native_stack;
 

@@ -1,3 +1,12 @@
+//! Concrete Syntax Tree (CST) representations and utilities.
+//!
+//! The rowan-free front half — the [event vocabulary](self#the-event-vocabulary), the era-branded
+//! marks, and the [`emitter::CstEmitter`](crate::emitter::CstEmitter) capability they ride — is
+//! available in every build, so one parser assembly can bound its context on the event channel and
+//! run tree-less at zero cost. The `rowan` feature adds the back half: the recording sink and the
+//! typed lossless-tree layer (preserving all source information including whitespace and comments)
+//! for building tools like formatters, refactoring engines, and language servers.
+//!
 //! Concrete Syntax Tree (CST) utilities: a rowan-free event vocabulary, and — under the
 //! `rowan` feature — the typed-tree infrastructure built on top of
 //! [rowan](https://docs.rs/rowan).
@@ -23,8 +32,8 @@
 //! The components, front half (rowan-free, available in every build) first:
 //!
 //! 1. **The event vocabulary** ([below](#the-event-vocabulary)): the era-branded
-//!    [`EventMark`](crate::cst::EventMark), and the
-//!    [`Marker`](crate::cst::Marker) retro-wrap typestate
+//!    [`EventMark`], and the
+//!    [`Marker`] retro-wrap typestate
 //! 2. **`parse_lossless`** / **`parse_lossless_partial`**, and their `_with_context` siblings
 //!    (`rowan`): The only doors that mint a `Sink`. They take the source once and use that one
 //!    argument for both the sink and the input, so the buffer the tree's text comes from and the
@@ -111,7 +120,7 @@
 //! Balance is *derived* from the buffer, never cached beside it:
 //!
 //! - `StartNode` with a real kind opens a node: **+1**;
-//! - `StartNode` with the [`TOMBSTONE`](crate::cst::TOMBSTONE) kind is an inert mark: **0**;
+//! - `StartNode` with the [`TOMBSTONE`] kind is an inert mark: **0**;
 //! - `StartAt` opens a retro-wrap (hoisted to its target at
 //!   materialization): **+1** at its own index;
 //! - `FinishNode` closes the innermost open node: **−1**;
@@ -129,7 +138,7 @@
 //!
 //! Truncate-and-regrow is the normal backtracking rhythm, so "the index is in bounds" says
 //! nothing about whether the event at that index is still the one a mark was issued for. An
-//! [`EventMark`](crate::cst::EventMark) therefore pairs its buffer index with the **era** of the truncation history
+//! [`EventMark`] therefore pairs its buffer index with the **era** of the truncation history
 //! at issue time — and with the **identity** of the issuing sink, because eras are per-sink
 //! histories and two sinks' `(index, era)` pairs coincide trivially. The recording sink keeps
 //! a monotone era source and a truncation ledger (`TruncationLedger`) that restore never

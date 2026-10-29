@@ -1,3 +1,15 @@
+//! Combinators with on-demand lexing, explicit lookahead, and deterministic parsing.
+//!
+//! A unique combinator framework combining:
+//! - **Parse-while-lexing architecture**: Tokens are requested from the lexer as parsing needs them
+//! - **Explicit lookahead and backtracking**: Caches and transaction guards make speculation visible
+//! - **Flexible error handling**: Same combinator adapts for fail-fast or greedy diagnostics
+//!
+//! The module holds the combinator constructors, the parser types they return, and the option
+//! and adapter values those constructors take — no trait: what a combinator *accepts* lives in
+//! [`parse`](mod@crate::parse). See the module documentation for architecture details and quick
+//! start guide.
+//!
 //! Blazing fast parser combinators with deterministic parsing and zero-copy streaming.
 //!
 //! This module provides a unique parser combinator framework that combines:
@@ -55,7 +67,7 @@
 //! });
 //! ```
 //!
-//! The [`Window`](crate::parse::Window) trait provides compile-time fixed lookahead capacity
+//! The [`Window`] trait provides compile-time fixed lookahead capacity
 //! (`typenum::U1` to `typenum::U32`), enabling LALR-style deterministic table parsing.
 //!
 //! ## Flexible Error Handling via Emitter
@@ -148,8 +160,9 @@
 //! so only a `default-features = false` dependency has to name any of this. Every gated item
 //! carries its feature in the rustdoc label.
 //!
-//! The substrate is unconditional: [`Parser`], [`Parse`], the [`parse()`] family, the
-//! [`ParseInput`] / [`TryParseInput`] / [`ParseChoice`] traits, and the combinators the
+//! The substrate is unconditional: [`Parser`](crate::Parser), [`Parse`](crate::Parse), the
+//! [`parse()`](crate::parse()) family, the [`ParseInput`] / [`TryParseInput`](crate::TryParseInput)
+//! / [`ParseChoice`](crate::ParseChoice) traits, and the combinators the
 //! families are written against — `expect`, `delimited`, `recover`, `select`, `opt`,
 //! `padded`, `node`, `skip_then_retry`, `ignore`, `labelled`, `empty`, `todo`, `with`,
 //! `by_ref`, `collect`, `accepted`, `unwrapped`.
