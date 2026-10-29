@@ -1,3 +1,5 @@
+#![allow(single_use_lifetimes)]
+
 use crate::utils::{IntoEquivalent, ToEquivalent, to_equivalent::sealed};
 
 const _: () = {
