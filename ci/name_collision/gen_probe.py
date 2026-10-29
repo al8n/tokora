@@ -42,7 +42,6 @@ use tokora::{
   error::{Unclosed, UnexpectedEot},
   lexer::LogosLexer,
   logos::{self, Logos},
-  ParseAttempt,
   types::Ident,
 };
 
@@ -154,18 +153,6 @@ pub fn ctx() -> PCtx<'static> {
 
 /// A parser-shaped fn item — the receiver `ParseInput`'s blanket actually accepts. A
 /// non-parser-shaped value probes clean and proves nothing.
-pub fn try_num<'inp>(
-  inp: &mut InputRef<'inp, '_, PLexer<'inp>, PCtx<'inp>>,
-) -> Result<ParseAttempt<i64>, PErr> {
-  Ok(match inp.next()? {
-    Some(sp) => match sp.into_data() {
-      Tok::Num(n) => ParseAttempt::Accept(n),
-      _ => ParseAttempt::Decline,
-    },
-    None => ParseAttempt::Decline,
-  })
-}
-
 pub fn parse_num<'inp>(
   inp: &mut InputRef<'inp, '_, PLexer<'inp>, PCtx<'inp>>,
 ) -> Result<i64, PErr> {
@@ -200,7 +187,35 @@ impl<'a, T, K: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T
 }
 '''
 
-ITEM_FIXTURE = FIXTURE + TOKEN_ERROR_FIXTURE
+# The fixture's tentative parser, appended to every ITEM template and to no glob one, for the same
+# reason as `TOKEN_ERROR_FIXTURE` above.
+#
+# `ParseAttempt` has no spelling both sides of 0.12.0 accept: 0.11 publishes it only inside the
+# public `try_parse_input` module, and 0.12.0 (#350; a08995b had already made that module private)
+# only at `tokora::ParseAttempt` and `tokora::parse::ParseAttempt`. A probe is byte-identical on
+# both sides, so naming it in `FIXTURE` makes every row's fixture fail on the base side — INCONCL
+# `base=no-compile` across the whole plan, measuring nothing. A glob probe needs neither the type
+# nor the parser built on it, so `FIXTURE` stays free of both; an item template rides the parser
+# (`try_num` is `TryParseInput`'s receiver), so it gets them at the 0.12.0 path, which every base
+# ref from 0.12.0 on has.
+ATTEMPT_FIXTURE = r'''
+use tokora::ParseAttempt;
+
+/// The tentative twin of `parse_num`: the receiver `TryParseInput`'s blanket accepts.
+pub fn try_num<'inp>(
+  inp: &mut InputRef<'inp, '_, PLexer<'inp>, PCtx<'inp>>,
+) -> Result<ParseAttempt<i64>, PErr> {
+  Ok(match inp.next()? {
+    Some(sp) => match sp.into_data() {
+      Tok::Num(n) => ParseAttempt::Accept(n),
+      _ => ParseAttempt::Decline,
+    },
+    None => ParseAttempt::Decline,
+  })
+}
+'''
+
+ITEM_FIXTURE = FIXTURE + ATTEMPT_FIXTURE + TOKEN_ERROR_FIXTURE
 
 WITNESS = r'''
 #[cfg(test)]
