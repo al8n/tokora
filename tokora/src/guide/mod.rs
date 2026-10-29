@@ -1,3 +1,15 @@
+//! A guided tour of tokora: from Calc fundamentals to maintained parser programs and lossless CSTs.
+//!
+//! The fundamentals build **Calc** through tokens and the lexer contract, first parsers and
+//! typed errors, combinator composition, kind dispatch, Pratt expressions, backtracking,
+//! diagnostics, recovery, partial input, and testing. The applied-parser section then explains
+//! the maintained calculator, S-expression, JSON, and C-expression examples. An optional Rowan
+//! chapter covers lossless CSTs. Every non-ignored Rust fence is a doctest, so the guide cannot
+//! drift quietly from the API. Start at [`ch01_tokens`].
+//!
+//! Documentation-only: the module defines no items. It requires the `std` and `logos`
+//! features (the same set the repository's `examples/` build with).
+//!
 #![doc = include_str!("README.md")]
 
 // The chapters are markdown so the same source renders as rustdoc *and* as the mdbook book

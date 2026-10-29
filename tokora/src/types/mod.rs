@@ -1,3 +1,10 @@
+//! Common AST building blocks for programming languages.
+//!
+//! Provides generic, reusable types for building Abstract Syntax Trees across different
+//! programming languages. Includes identifiers, literals (numeric, string, character),
+//! and other common AST nodes. All types support span tracking and are generic over
+//! string representation (zero-copy `&str`, owned `String`, or interned strings).
+//!
 //! Common types for building language-specific ASTs.
 //!
 //! This module provides generic, reusable building blocks for creating Abstract
@@ -50,7 +57,7 @@
 //! 2. **Span tracking**: Every node carries its source location for diagnostics
 //! 3. **Language safety**: Generic `Lang` parameter prevents mixing ASTs from
 //!    different languages
-//! 4. **Error recovery**: Implement [`ErrorNode`](crate::error::ErrorNode) when
+//! 4. **Error recovery**: Implement [`ErrorNode`] when
 //!    appropriate for creating placeholders during parsing errors
 //!
 //! # Example: Building a Simple Expression AST

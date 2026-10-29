@@ -112,7 +112,9 @@ and will red until they do.
     `types::recovery`, whose `RecoveryState`, `FromComponents` and `Components` stay out of
     `types::*` so that a consumer's second glob cannot silently rebind their trait methods (#320).
     The event vocabulary's laws, documented on the old `cst::event` module, are now a section of
-    `tokora::cst`'s documentation.
+    `tokora::cst`'s documentation, and the cache and source-binding emitter kits' documentation,
+    on the old `conformance::cache` and `conformance::emitter` modules, is now two sections of
+    `tokora::conformance`'s.
   - **`tokora::prelude` is deleted.** Its names are all at the root except `span::Spanned` and
     `error::UnexpectedTokenOf`.
   - **Second paths are gone**: an item that had a non-root second path (`input::parse_partial`,

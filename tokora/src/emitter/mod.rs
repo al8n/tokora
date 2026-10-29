@@ -774,7 +774,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   ///
   /// # If you are writing a source-binding emitter
   ///
-  /// Override this, and assert you did — `conformance::emitter::assert_binds_source` is one
+  /// Override this, and assert you did — `conformance::assert_binds_source` is one
   /// line and exists for exactly that. A source-binding emitter that inherits the default
   /// compiles, runs, and quietly gives up the guarantee.
   #[inline(always)]

@@ -1,40 +1,6 @@
-//! Conformance kit for emitters that **bind a source**.
-//!
-//! # Why this exists
-//!
-//! [`Emitter::bound_source`] is a *defaulted* member. That is the right shape — its default,
-//! `None`, is the true statement *"I bind no source"* for every emitter that only carries
-//! diagnostics, which is 30 of the 31 core `Emitter` implementations in this crate and, as far
-//! as the crate can measure, all of the external ones. A required member would force *an*
-//! answer rather than the right one: a cargo-culted `None` written to silence a compile error
-//! is byte-identical to a forgotten override, so requiring it buys a keystroke, not a thought.
-//!
-//! But a default that is right for the majority is wrong for the minority, and the minority
-//! here is exactly the population that needs it: an emitter that **stores a source and slices
-//! it later**. If such an emitter inherits the default, it compiles, it runs, and it silently
-//! gives up the guarantee — the parse entry has nothing to compare, so a sink bound to a
-//! foreign buffer is accepted and materializes a tree whose text came from one source and
-//! whose structure came from another. Nothing downstream can see it: the event log is
-//! byte-identical to one a legal single parse could produce.
-//!
-//! So the obligation is stated, and made runnable. This is the same answer the crate gives for
-//! the [`Cache`](crate::cache::Cache) queue laws and the [`Lexer`] contract clauses: a
-//! contract that only exists as prose is a contract nobody can check.
-//!
-//! # What it checks
-//!
-//! 1. [`assert_binds_source`] — a source-binding emitter answers `Some`, and answers with the
-//!    identity of the source it was actually given. An emitter that inherits the default fails
-//!    here, which is the whole point.
-//! 2. [`assert_forwards_bound_source`] — a *wrapper* around a source-binding emitter reports
-//!    the same identity as the emitter it wraps. The `&mut U` blanket in this crate forwards
-//!    it; a hand-written wrapper that forwards every emission but not this one disables the
-//!    check for whatever it wraps, and that is invisible from inside tokora.
-//!
-//! # Violation posture
-//!
-//! Assert-with-context, like the rest of `conformance`: these are test tools, run from the
-//! implementor's own `#[test]`s, and a failure is a bug in the emitter.
+//! The source-binding emitter conformance kit. Its documentation is the source-binding emitter
+//! kit section of the [`conformance`](super) module docs, where docs.rs renders it: this module
+//! is crate-private, and its items are reached as `tokora::conformance::Item`.
 
 use crate::{Emitter, Lexer, source::SourceIdentity};
 

@@ -1,3 +1,10 @@
+//! Syntax definition and incomplete syntax error tracking.
+//!
+//! Provides the [`Syntax`] trait for representing syntax elements with a
+//! known number of components, and error types for tracking missing components during
+//! parsing. Enables collecting all missing parts rather than failing on the first error,
+//! providing better diagnostics.
+//!
 //! Syntax definition and incomplete syntax error types.
 //!
 //! This module provides types for representing syntax elements with a known number
