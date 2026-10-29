@@ -29,6 +29,10 @@ name: CI
 #       | while read -r leg; do cargo check -p tokora $leg || break; done
 #     bash ci/name_collision/run.sh <merge-base> <inventory.json>   # see that job for the
 #                                                                  # inventory it requires
+#     python3 ci/layout/census.py --selftest
+#     RUSTC_BOOTSTRAP=1 RUSTDOCFLAGS="-Z unstable-options --output-format json" \
+#       cargo doc -p tokora --no-deps --all-features --locked
+#     python3 ci/layout/census.py target/doc/tokora.json
 #
 # The three guide lines belong to a DIFFERENT workflow — `pages.yml`, not the jobs below — and a
 # red there is a red `main` just the same. `mdbook build` is the only command anywhere that runs
@@ -797,6 +801,49 @@ jobs:
           cp /tmp/nc/surface_names.json /tmp/nc/inventory.json
       - name: Probe every added name against its real owner
         run: bash ci/name_collision/run.sh "$base" /tmp/nc/inventory.json
+
+  # ── Gate: layout census ─────────────────────────────────────────────────────
+  # The public export layout (#350) is a set of rules over the RESOLVED surface — one canonical
+  # path per item plus the crate root, a frozen root with no glob into it, no trait under
+  # `combinator`, nothing deeper than `tokora::<module>::<Item>` outside a committed allow-list —
+  # and the compiler holds none of them: a `pub use` that hands an item a second path, a new root
+  # name, or a trait re-exported from `combinator` all compile clean. `ci/layout/census.py` reads
+  # them off rustdoc JSON instead, against `ci/layout/root.txt` and `ci/layout/allow.txt`.
+  #
+  # The dump is ALL features, unlike the `name-collision` job's
+  # (`std,logos,trace,rowan,combinators`): the root list is feature-dependent, and a narrower dump
+  # would hold a narrower layout. It is built the way that job builds its own — stable rustdoc
+  # behind `RUSTC_BOOTSTRAP=1`, `--locked` against a lock generated here because `Cargo.lock` is
+  # gitignored — so the census reads the same format `surface_diff.py` does. The self-test runs
+  # first, for the reason the changelog gate's does: a census nobody has watched fail means
+  # nothing, and a broken one should report itself by name.
+  #
+  # The JSON is uploaded whether the census passed or not. It is the whole public surface of the
+  # commit, and reading it is how a reviewer inspects the layout without building anything.
+  layout-census:
+    name: layout census
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: python3 ci/layout/census.py --selftest
+        run: python3 ci/layout/census.py --selftest
+      - name: Install Rust
+        run: rustup update stable --no-self-update && rustup default stable
+      - name: Build the all-features rustdoc JSON
+        run: |
+          set -euo pipefail
+          cargo generate-lockfile
+          RUSTC_BOOTSTRAP=1 RUSTDOCFLAGS="-Z unstable-options --output-format json" \
+            cargo doc -p tokora --no-deps --all-features --locked
+      - name: python3 ci/layout/census.py target/doc/tokora.json
+        run: python3 ci/layout/census.py target/doc/tokora.json
+      - name: Upload the all-features rustdoc JSON
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tokora-rustdoc-json-all-features
+          path: target/doc/tokora.json
+          if-no-files-found: warn
 
   # ── Gate: the native stack probes take their reading ────────────────────────
   # The two address-differencing probes refuse rather than report on a build that cannot be shown
