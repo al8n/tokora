@@ -211,7 +211,7 @@ where
   /// [`release`](crate::Emitter::release), every [`Cache`](crate::cache::Cache) method, and the
   /// [`Lexer`](crate::Lexer) with its [`Source`](crate::Source). This route runs a **different**
   /// set of them. Some are measured, on the same stream in the same residency, by the effect
-  /// ledger in `fast_path_tests`, for the call that dominates the census — a skip that skips
+  /// ledger in `tests::fast_path`, for the call that dominates the census — a skip that skips
   /// nothing:
   ///
   /// | caller-supplied step, for one no-op skip | this route | the scan it replaces |
@@ -244,7 +244,7 @@ where
   /// times here for a no-op skip — and those are simply two the table never had. Successive
   /// readings of this method have each found an operation the previous naming did not contain, so
   /// the condition below is quantified over **all** caller-supplied code and every list inside it,
-  /// this table included, is illustration. What `fast_path_tests` pins is the *emptiness* of this
+  /// this table included, is illustration. What `tests::fast_path` pins is the *emptiness* of this
   /// route's side for a no-op skip, not an inventory of the scan's: an inventory would be one
   /// review round out of date.
   ///
@@ -335,7 +335,7 @@ where
   /// ### And for a caller who does not meet it
   ///
   /// Not a second list to maintain, and not one that has to be complete — each of these is one of
-  /// the two clauses failing, and each is measured in `fast_path_tests`, so the condition is a
+  /// the two clauses failing, and each is measured in `tests::fast_path`, so the condition is a
   /// fact rather than a caveat. A caller who breaks a clause in a way no bullet here describes
   /// gets the same answer: the guarantees are not made to them.
   ///

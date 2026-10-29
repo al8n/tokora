@@ -1268,7 +1268,7 @@ mod lie {
 /// This is the plausible defect rather than a contrived one: an off-by-one — or a
 /// forgotten increment, which is the zero case — in a hand-rolled cache's length
 /// bookkeeping, in the one method the input layer sizes its window from. The crate's own
-/// conformance kit models the same class of lie (`conformance/cache_tests.rs`).
+/// conformance kit models the same class of lie (`conformance/cache/tests.rs`).
 struct MisreportingCache<'a, L, const LIE: u8>
 where
   L: crate::Lexer<'a>,
@@ -1624,7 +1624,7 @@ fn successful_overflow_peek_frees_every_staged_token_exactly_once() {
 //     oversized token and lexer state — the window is one array of entries and each
 //     entry carries one token, one state and one span, so the frame is exactly linear
 //     in all three;
-//   * `peek_footprint_census_the_fill_owns_no_store` in `census_tests.rs` fixes the
+//   * `peek_footprint_census_the_fill_owns_no_store` in `tests/census.rs` fixes the
 //     *structural* one — the fill body constructs no array, no deque and no
 //     `MaybeUninit` of its own. That is the live half: a size assertion cannot see a
 //     new local, and reintroducing a staging array trips the census immediately.

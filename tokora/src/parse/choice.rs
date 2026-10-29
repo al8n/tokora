@@ -178,7 +178,7 @@ pub trait ParseTokenChoice<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> 
   /// [`UnexpectedToken`](crate::error::token::UnexpectedToken) /
   /// [`UnexpectedEot`](crate::error::UnexpectedEot) carrying the whole table as the
   /// expected set, with the missed token put back for whatever runs next. When driven as
-  /// [`TryParseInput`], a table miss or end of input instead returns
+  /// [`TryParseInput`](crate::TryParseInput), a table miss or end of input instead returns
   /// [`ParseAttempt::Decline`] without consuming valid input; an error from a selected arm
   /// remains an `Err`. See
   /// [`FusedDispatchOnKind`] for the full shape comparison and the equivalence contract.

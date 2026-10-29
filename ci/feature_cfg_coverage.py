@@ -253,15 +253,15 @@ EXTRA_LEGS = [
         "unique_suites": True,
         # `trace = ["std"]` and nothing pulls `trace`, so `trace` alone has no logos and no leg
         # that has logos has `trace`. This is the leg the derivation for #200 did not have: its
-        # predicate is rustfmt-wrapped over five lines in `src/trace.rs` and
-        # `src/parser/labelled.rs`, and the line-oriented grep that derivation used cannot see
+        # predicate is rustfmt-wrapped over five lines in `src/trace/mod.rs` and
+        # `src/parser/labelled/mod.rs`, and the line-oriented grep that derivation used cannot see
         # a wrapped attribute. It is also the leg with the most to say — `trace` instruments the
         # crate's own combinators at ~40 `#[cfg(feature = "trace")]` sites, and its own header
-        # in `src/trace.rs` calls out the `trace`-without-`logos` test build as the shape to
+        # in `src/trace/mod.rs` calls out the `trace`-without-`logos` test build as the shape to
         # watch.
         #
-        # `combinators` is deliberately absent: `src/trace.rs` and `src/parser/labelled.rs` are
-        # ungated, so this builds the trace surface without the families masking it.
+        # `combinators` is deliberately absent: `src/trace/mod.rs` and `src/parser/labelled/mod.rs`
+        # are ungated, so this builds the trace surface without the families masking it.
         #
         # THAT ABSENCE DOES A SECOND JOB THIS SCRIPT CANNOT SEE, and it is recorded here because
         # the only place it is visible is the leg itself. Eight integration suites carry the

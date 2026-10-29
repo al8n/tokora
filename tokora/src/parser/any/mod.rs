@@ -274,6 +274,3 @@ where
 // Both cells run `Any::spanned().map(..)`, so they need the `map` family too.
 #[cfg(all(test, feature = "map"))]
 mod tests;
-
-#[cfg(all(test, feature = "std", feature = "logos_0_16"))]
-mod slice_tests;

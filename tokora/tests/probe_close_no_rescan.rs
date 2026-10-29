@@ -62,7 +62,7 @@ use tokora::{
 // ── Scan-counting lexer state ──────────────────────────────────────────────────
 //
 // The tally is shared through an `Rc<Cell<_>>` so it survives every lexer the input
-// rebuilds — exactly the `partial_tests.rs` `LimitTracker` pattern, but the bump is on
+// rebuilds — exactly the `tests/partial.rs` `LimitTracker` pattern, but the bump is on
 // the CLOSER `)`, not on words. `check()` never trips: the tally itself is the assertion.
 
 #[derive(Debug, Clone)]

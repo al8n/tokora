@@ -26,7 +26,7 @@
 //! *Not* enforced, and named rather than folded in: this seals the **carrier**, not the field.
 //! `InputRef::poison_boundary` is `pub(super)`, so a future edit could still write the latch
 //! without going through a stop at all. That residual is the census's (`TRIP_CENSUS` in
-//! `census_tests.rs`), not the type system's.
+//! `tests/census.rs`), not the type system's.
 
 /// A terminal scanner stop whose one fallible step is already taken: the boundary write, decided
 /// and not yet performed.

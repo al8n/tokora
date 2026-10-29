@@ -40,7 +40,7 @@
 //!
 //! The same five [`Emitter`] members [`InputRef`](crate::InputRef) withholds, for the same
 //! reasons, and the `SETTLE_CENSUS` / `RELEASE_CENSUS` / `LEXER_ERROR_CENSUS` source censuses in
-//! `input_ref/census_tests.rs` exist to keep it that way:
+//! `input_ref/tests/census.rs` exist to keep it that way:
 //!
 //! - [`Emitter::checkpoint`], [`Emitter::rewind`] and [`Emitter::release`] are the emitter half of
 //!   the input's checkpoint lineage. A caller-driven call desynchronizes the emitter from the input

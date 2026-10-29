@@ -38,7 +38,7 @@
 //! # What is deliberately *not* forwarded
 //!
 //! Five `Emitter` members have exactly one lawful caller — the input layer itself — and the
-//! `SETTLE_CENSUS` / `RELEASE_CENSUS` / `LEXER_ERROR_CENSUS` source censuses in `census_tests.rs`
+//! `SETTLE_CENSUS` / `RELEASE_CENSUS` / `LEXER_ERROR_CENSUS` source censuses in `tests/census.rs`
 //! exist to keep it that way:
 //!
 //! - [`Emitter::checkpoint`], [`Emitter::rewind`] and [`Emitter::release`] are the emitter half

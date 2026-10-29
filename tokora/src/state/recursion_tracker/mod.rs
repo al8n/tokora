@@ -592,7 +592,7 @@ pub(crate) mod policy {
   /// - **Tier two — a bare fit, with no multiplier, at the heaviest MODELLED per-level price.**
   ///   Nothing shipped spends the cell at that price today; the syntactic consumer's ~41 KiB level
   ///   is what a caller's own hand-written [`descending`](crate::InputRef::descending) *could*
-  ///   cost, and `descent_tests.rs` models exactly that. A population that is modelled rather than
+  ///   cost, and `descent/tests.rs` models exactly that. A population that is modelled rather than
   ///   observed earns a fit, not a margin.
   ///
   /// **Applying `MIN_HEADROOM` to the modelled row instead gives 16, and applying only the fit

@@ -657,7 +657,7 @@ directly. Both take the context bound one tier up from the rest of this section 
 [`ParseContext`](crate::ParseContext) — because a miss has to be expressible as an error, and
 both run under either [`Completeness`](crate::Completeness).
 
-[`opt`](crate::parser::opt) and [`.accepted()`](crate::try_parse_input::TryParseInput::accepted)
+[`opt`](crate::parser::opt) and [`.accepted()`](crate::TryParseInput::accepted)
 (which turns a `TryParseInput` into a `ParseInput<ParseAttempt<O>>`/`ParseInput<Option<O>>`) are
 the bridges between the two trait worlds. On the value side,
 [`ParseAttempt::into_option`](crate::ParseAttempt::into_option) is the same
@@ -826,7 +826,7 @@ assert_eq!(Parser::with_parser(try_select_value).parse_str(";").unwrap(), None);
 
 ## Repetition & folding
 
-The [`repeated`](crate::try_parse_input::TryParseInput::repeated) driver runs a `TryParseInput`
+The [`repeated`](crate::TryParseInput::repeated) driver runs a `TryParseInput`
 element until it declines; [`repeated_while`](crate::ParseInput::repeated_while) runs a
 plain `ParseInput` element until *your* peek-window condition says
 [`Stop`](crate::parser::Action). [`collect`](crate::Accumulator::collect) accumulates the
@@ -835,14 +835,14 @@ elements into any [`Container`](crate::container::Container) (a `Vec`, a bounded
 
 | Combinator | On | One-liner |
 |------------|-----|-----------|
-| [`repeated()`](crate::try_parse_input::TryParseInput::repeated) | `TryParseInput` | repeat until the element declines |
+| [`repeated()`](crate::TryParseInput::repeated) | `TryParseInput` | repeat until the element declines |
 | [`repeated_while(cond)`](crate::ParseInput::repeated_while) | `ParseInput` | repeat while `cond` (a peek decision) returns `Continue` |
 | [`while_head(pred)`](crate::while_head) | a `cond` argument | continue while the head satisfies `pred`; stop at a failing head or end of input |
 | [`while_kind(kind)`](crate::while_kind) | a `cond` argument | continue while the head's kind equals `kind` — the punct-tail idiom |
 | [`collect()`](crate::Accumulator::collect) / [`collect_with(c)`](crate::Accumulator::collect_with) | repetition | gather elements into a `Container` (default / provided) |
-| [`fold(init, acc)`](crate::try_parse_input::TryParseInput::fold) | `TryParseInput` | left-fold: `acc: FnMut(O, O) -> O` |
-| [`try_fold(init, acc)`](crate::try_parse_input::TryParseInput::try_fold) | `TryParseInput` | left-fold with a fallible `acc` |
-| [`rfold(init, acc)`](crate::try_parse_input::TryParseInput::rfold) | `TryParseInput` | right-fold (buffers, `alloc`) |
+| [`fold(init, acc)`](crate::TryParseInput::fold) | `TryParseInput` | left-fold: `acc: FnMut(O, O) -> O` |
+| [`try_fold(init, acc)`](crate::TryParseInput::try_fold) | `TryParseInput` | left-fold with a fallible `acc` |
+| [`rfold(init, acc)`](crate::TryParseInput::rfold) | `TryParseInput` | right-fold (buffers, `alloc`) |
 | [`fold_while(cond, init, acc)`](crate::ParseInput::fold_while) | `ParseInput` | left-fold under a peek condition (also `try_fold_while`, `rfold_while`) |
 
 ```text
@@ -999,9 +999,9 @@ assert_eq!(Parser::with_parser(digit_run).parse_str("12+").unwrap(), vec![1, 2])
 
 ## Separation — comma-separated and friends
 
-[`separated`](crate::try_parse_input::TryParseInput::separated) drives a declining element between
+[`separated`](crate::TryParseInput::separated) drives a declining element between
 a typed separator [`Punctuator`](crate::punct::Punctuator); the ready-made spellings
-[`separated_by_comma`](crate::try_parse_input::TryParseInput::separated_by_comma) and its family
+[`separated_by_comma`](crate::TryParseInput::separated_by_comma) and its family
 (`separated_by_semicolon`, `_colon`, `_pipe`, … 18 in all) fix the separator. Wire your token to
 the vocabulary with one [`PunctuatorToken`](crate::token::PunctuatorToken) impl (which kind is the
 comma) and a `From<Comma<(), (), ()>>` for your kind (so the punctuator can name itself). When your

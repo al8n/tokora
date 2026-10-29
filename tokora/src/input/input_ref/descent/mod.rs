@@ -8,7 +8,9 @@ use crate::{
 
 use super::*;
 
-#[cfg(test)]
+/// What holds a recursion level and what silently gives it back — the runtime half of the table on
+/// [`Descent`]. Needs `std` for the unwind cell's `catch_unwind`.
+#[cfg(all(test, feature = "logos_0_16", feature = "std"))]
 mod tests;
 
 /// The baseline half of the **descent-trip witness** — what
@@ -1591,7 +1593,7 @@ where
 ///   let inp = &mut *frame;   // every line below runs inside the level, recursion included
 ///   ```
 ///
-/// The runtime cells behind the table are in `src/input/input_ref/descent_tests.rs`.
+/// The runtime cells behind the table are in `src/input/input_ref/descent/tests.rs`.
 ///
 /// # Why a guard and not a pair of calls
 ///

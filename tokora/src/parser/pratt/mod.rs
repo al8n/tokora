@@ -15,7 +15,7 @@ mod expr;
 /// them; the string-building the checks use needs `format!`, which the allocator-less build
 /// lacks.
 #[cfg(all(test, any(feature = "std", feature = "alloc")))]
-mod census_tests;
+mod tests;
 
 /// The power level of an operator, used to determine the order of operations in Pratt parsing.
 ///

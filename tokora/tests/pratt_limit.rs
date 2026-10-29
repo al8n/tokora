@@ -2864,7 +2864,7 @@ fn with_stacker_the_same_chain_parses_past_the_thread_it_runs_on() {
 /// A panic out of a frame that is running **on a segment** still unwinds, and the level it holds
 /// is still released.
 ///
-/// The extension of `descent_tests.rs`'s `descending_releases_the_level_when_the_body_unwinds` to
+/// The extension of `descent/tests.rs`'s `descending_releases_the_level_when_the_body_unwinds` to
 /// the case that file cannot reach: with `stacker` on, the frame body runs on a different stack
 /// than the `Descent` guard that owns its level, because `maybe_grow` sits *inside* the guard's
 /// scope. stacker catches the unwind on the segment and resumes it on the calling stack, so the
@@ -2935,7 +2935,7 @@ fn a_panic_on_a_segment_unwinds_and_releases_every_level() {
     "the panic did not fire where this cell needs it to. Folds run on the way back up, so this \
      reading is also the native depth the panicking frame sat at — and it has to be past the 384 \
      the measurement table records for the typed driver on a 2 MiB thread, or nothing crossed a \
-     stack boundary and the cell is testing the plain unwind `descent_tests.rs` already covers"
+     stack boundary and the cell is testing the plain unwind `descent/tests.rs` already covers"
   );
   assert_eq!(
     AFTER.load(Ordering::Relaxed),

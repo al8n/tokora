@@ -442,7 +442,7 @@ fn r1_prior_poison_does_not_recharge_an_ordinary_element_failure() {
 //
 // | witness                          | tests that failed when it was neutered |
 // |----------------------------------|----------------------------------------|
-// | `Cmpl::is_incomplete_error(..)`  | 2 (`input::input_ref::partial_tests`)  |
+// | `Cmpl::is_incomplete_error(..)`  | 2 (`input::input_ref::tests::partial`) |
 // | `inp.at_committed_boundary()`    | **0 — nothing, anywhere**              |
 // | `inp.tripped_during_attempt(..)` | 12 (`collection_resource_trip.rs`)     |
 //
