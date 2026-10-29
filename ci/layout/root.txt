@@ -1,0 +1,77 @@
+# The crate root, frozen (#350, rule 2): every public name at `tokora::`, one per line, with its
+# kind, in the all-features rustdoc JSON. `ci/layout/census.py` check 2 fails when the root and
+# this list differ in either direction, so adding a root name — a module included — is a
+# deliberate edit here. `#[doc(hidden)]` names (`__private`) are not in the JSON and not listed.
+#
+# Kinds: mod, trait, struct, enum, type (alias), fn, macro (#[macro_export]), extern (a re-exported
+# crate). The function `parse` and the module `parse` are two names in two namespaces.
+
+# The 29 names a production must have in scope.
+enum Action
+enum ParseAttempt
+enum ReadFrontier
+enum ScanLookahead
+fn parse
+fn parse_partial
+fn parse_with
+fn parse_with_state
+struct EmitterView
+struct InputRef
+struct Parser
+struct ParserContext
+struct SimpleSpan
+trait Accumulator
+trait ComposableParseContext
+trait Emitter
+trait Lexer
+trait Parse
+trait ParseChoice
+trait ParseContext
+trait ParseInput
+trait ParseTokenChoice
+trait Slice
+trait Source
+trait Span
+trait Token
+trait TryParseInput
+type ErrorOf
+type FatalContext
+
+# The #[macro_export] macros, which always land at the root.
+macro attempt
+macro keyword
+macro punctuator
+macro select
+macro syntax_kinds
+macro try_select
+
+# The logos re-export and its versioned name (rule 6).
+extern logos
+extern logos_0_16
+
+# The public modules.
+mod cache
+mod combinator
+mod conformance
+mod container
+mod cst
+mod delimiter
+mod diagnostic
+mod dialect
+mod emitter
+mod error
+mod fuzz
+mod guide
+mod input
+mod lexer
+mod parse
+mod pratt
+mod punct
+mod slice
+mod source
+mod span
+mod state
+mod syntax
+mod token
+mod types
+mod utils

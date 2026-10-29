@@ -1,0 +1,20 @@
+# The depth allow-list (#350, rule 5): modules whose items may sit one level deeper than
+# `tokora::<module>::<Item>`. One module path per line; `versioned` marks a versioned integration
+# module, whose items `ci/layout/census.py` check 1 counts together with their unversioned alias
+# one level up as one canonical path (rule 6).
+#
+# Re-exported external crates (`logos`, `logos_0_16`, `utils::typenum`, `utils::arraydeque`) are
+# not listed: the census skips a `use` whose target is outside the crate, since what lies under it
+# is that crate's layout.
+
+# A versioned integration module: `lexer::logos_0_16::{FromLogos, LogosLexer}`, aliased by the
+# unversioned `lexer::{FromLogos, LogosLexer}`.
+lexer::logos_0_16 versioned
+
+# The knowledge types for lexing and parsing (owner, 2026-10-29).
+utils::knowledge
+
+# `child`, `children`, `token`, `tokens` and `token_any` read only qualified — flattened,
+# `cst::token` would sit beside the trait `cst::Token` — and smear re-exports and expands the
+# module inside its own macro.
+cst::cast
