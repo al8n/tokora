@@ -164,7 +164,7 @@ fn every_ui_case_file_is_registered() {
 /// that lint is the only thing standing between a downstream recursive combinator and
 /// `inp.descend()?;` — a line that releases the recursion level before the frame it bounds and
 /// silently restores the unbounded descent. Its subject can be deleted by a one-line edit; the
-/// only other thing that would notice is `src/input/input_ref/descent_tests.rs`'s
+/// only other thing that would notice is `src/input/input_ref/descent/tests.rs`'s
 /// `#[expect(unused_must_use, …)]`, which is the same rail on every toolchain rather than only on
 /// the pinned one. That file also carries the runtime half: this attribute catches **one** of the
 /// five ways a caller can release the level early, and the recommended shape,

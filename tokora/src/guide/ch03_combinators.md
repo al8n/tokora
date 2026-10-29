@@ -11,7 +11,7 @@ three shapes recur in every grammar — *A then B*, *zero or more A*, *A separat
   `Accept(value)` or `Decline`, and a decline consumes **no valid tokens** — the input is
   rewound so whatever comes next can look at the same tokens. (Lexer-*error* tokens and
   already-emitted diagnostics are not rolled back; see the
-  [transactional contract](crate::try_parse_input).) Declining elements are what let the
+  [transactional contract](crate::TryParseInput).) Declining elements are what let the
   repetition drivers stop cleanly without arbitrary lookahead.
 
 ## Sequencing

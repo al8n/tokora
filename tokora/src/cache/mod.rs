@@ -675,8 +675,3 @@ impl<T, State, Span> CachedToken<T, State, Span> {
 #[allow(warnings)]
 #[cfg(feature = "std")]
 mod tests;
-
-#[cfg(test)]
-#[allow(warnings)]
-#[cfg(feature = "std")]
-mod cache_trait_tests;

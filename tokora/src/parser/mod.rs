@@ -899,9 +899,3 @@ pub enum Action {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(all(test, feature = "logos_0_16", feature = "std", feature = "combinators"))]
-mod terminal_stop_tests;
-
-#[cfg(all(test, feature = "logos_0_16", feature = "std", feature = "combinators"))]
-mod select_tests;

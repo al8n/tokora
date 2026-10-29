@@ -198,9 +198,6 @@
 pub mod cache;
 pub mod emitter;
 
-#[cfg(all(test, feature = "logos_0_16", feature = "std"))]
-mod cache_tests;
-
 use core::cell::RefCell;
 // `std` is `alloc` on a no-std build (`extern crate alloc as std`), and that is exactly the
 // configuration `conformance` selects — the feature enables `alloc`, not `std`. So `Rc` comes

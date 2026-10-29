@@ -898,7 +898,7 @@ where
   /// it covers is much the smaller of the two: a peek commits nothing, so there is no frontier to
   /// clone and no mark to take on **either** route. What differs is confined to the cache surface
   /// and one offset read. Measured, on the same stream in the same residency, by the effect ledger
-  /// in `fast_path_tests`:
+  /// in `tests::fast_path`:
   ///
   /// | caller-supplied step, for one width-1 read | this route | the general route |
   /// |---|---|---|

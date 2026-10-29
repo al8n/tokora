@@ -38,7 +38,7 @@ use crate::emitter::Emitter;
 
 use super::{Checkpoint, Lexer, Lineage};
 
-#[cfg(test)]
+#[cfg(all(test, feature = "logos_0_16", feature = "std"))]
 mod tests;
 
 /// An opaque handle to one open [session point](super::InputRef::begin_point).

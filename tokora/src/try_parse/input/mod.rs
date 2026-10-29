@@ -1,4 +1,4 @@
-//! Tentative, backtracking parsing via [`TryParseInput`] and `ParseAttempt`.
+//! Tentative, backtracking parsing via [`TryParseInput`](crate::TryParseInput) and `ParseAttempt`.
 //!
 //! # Transactional contract (important)
 //!

@@ -3,7 +3,7 @@ use core::mem::MaybeUninit;
 use hybrid_arraydeque::{ArrayDeque, ArraySize, array::Array, typenum};
 
 use crate::{
-  Complete, Completeness, Emitter, Lexer, Source, SurfaceIncomplete, Token, TryParseInput,
+  Complete, Completeness, Emitter, Lexer, Source, SurfaceIncomplete, Token,
   cache::Peeked,
   emitter::EmitterView,
   input::{DelimClass, InputRef},
@@ -683,7 +683,8 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   ///
   /// ## Key Behavior
   ///
-  /// Unlike [`repeated()`](TryParseInput::repeated), this parser doesn't need built-in lookahead:
+  /// Unlike [`repeated()`](crate::TryParseInput::repeated), this parser doesn't need built-in
+  /// lookahead:
   /// - **You provide** a condition function that peeks ahead at tokens
   /// - Condition decides `Continue` or `Stop` based on what it sees
   /// - Element parser is only called when condition says `Continue`
@@ -694,7 +695,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   ///
   /// ## See Also
   ///
-  /// - [`repeated`](TryParseInput::repeated) - Parser has lookahead, no separator
+  /// - [`repeated`](crate::TryParseInput::repeated) - Parser has lookahead, no separator
   /// - [`Action`] - The decision type (`Continue` or `Stop`)
   #[cfg(feature = "many")]
   #[cfg_attr(docsrs, doc(cfg(feature = "many")))]
@@ -723,7 +724,8 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   ///
   /// ## Key Behavior
   ///
-  /// Unlike [`separated()`](TryParseInput::separated), this parser doesn't need built-in lookahead:
+  /// Unlike [`separated()`](crate::TryParseInput::separated), this parser doesn't need built-in
+  /// lookahead:
   /// - **You provide** a condition function that peeks ahead at tokens
   /// - Condition decides `Continue` or `Stop` based on what it sees
   /// - Element parser is only called when condition says `Continue`
@@ -735,7 +737,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   ///
   /// ## See Also
   ///
-  /// - [`separated`](TryParseInput::separated) - Parser has lookahead, with separator
+  /// - [`separated`](crate::TryParseInput::separated) - Parser has lookahead, with separator
   /// - [`Action`] - The decision type (`Continue` or `Stop`)
   #[cfg(feature = "many")]
   #[cfg_attr(docsrs, doc(cfg(feature = "many")))]
@@ -910,7 +912,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     Ctx: ParseContext<'inp, L, Lang>,
     C: Decision<'inp, L, Ctx::Emitter, W, Lang>,
     W: Window,
-    PeekThen<Self, C, L::Token, W, Cmpl>: TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
+    PeekThen<Self, C, L::Token, W, Cmpl>: crate::TryParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   {
     PeekThen::of(self, condition)
   }

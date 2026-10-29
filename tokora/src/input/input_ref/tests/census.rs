@@ -85,7 +85,7 @@
 /// that file is registered here — and the `mod.rs` module list makes an unregistered
 /// neighbour impossible to miss in review.
 const SOURCES: &[(&str, &str)] = &[
-  ("mod.rs", include_str!("mod.rs")),
+  ("mod.rs", include_str!("../mod.rs")),
   ("scan.rs", include_str!("../scan.rs")),
   ("try_expect.rs", include_str!("../try_expect.rs")),
   (
@@ -97,7 +97,7 @@ const SOURCES: &[(&str, &str)] = &[
   ("sync_through.rs", include_str!("../sync_through.rs")),
   ("sync_balanced.rs", include_str!("../sync_balanced.rs")),
   ("skip_while.rs", include_str!("../skip_while.rs")),
-  ("fold.rs", include_str!("../fold.rs")),
+  ("fold.rs", include_str!("../fold/mod.rs")),
   ("pratt.rs", include_str!("../pratt.rs")),
   // Added by 0.8.0's recursion budget and unregistered until R23 — the one non-test neighbour the
   // list had fallen behind. Every count it contributes is zero (it settles nothing, reaches no
@@ -117,7 +117,7 @@ const SOURCES: &[(&str, &str)] = &[
   // in it that touched the input's state would be the seal leaking.
   ("staged_trip.rs", include_str!("../staged_trip.rs")),
   ("drop_policy.rs", include_str!("../drop_policy.rs")),
-  ("trace.rs", include_str!("../trace.rs")),
+  ("trace.rs", include_str!("../trace/mod.rs")),
   ("transaction/mod.rs", include_str!("../transaction/mod.rs")),
   ("stacked/mod.rs", include_str!("../stacked/mod.rs")),
 ];
@@ -1453,7 +1453,7 @@ fn release_census_trait_declares_and_blanket_forwards() {
 
 /// The lineage module source, censused for the two preflight-reservation primitives
 /// `reserve_open` and `reserve_pin`.
-const LINEAGE_MOD: &str = include_str!("../../lineage.rs");
+const LINEAGE_MOD: &str = include_str!("../../lineage/mod.rs");
 
 /// The code lines of `hay` rejoined without its `//`-prefixed lines — the same filter [`count`]
 /// applies, kept as text rather than a count so a capture site's ordering can be checked
@@ -3050,7 +3050,7 @@ fn scan_mode_const(mode: &str, name: &str, depth: usize) -> bool {
     panic!(
       "POSTURE_CENSUS: `{mode}`'s `ScanMode` impl declares no `{name}`. The posture each \
        `# Panic unwind` section is checked against is derived from this constant, so renaming or \
-       removing it has to reach `POSTURE_PHRASES` in `census_tests.rs` too (grep POSTURE_CENSUS)."
+       removing it has to reach `POSTURE_PHRASES` in `tests/census.rs` too (grep POSTURE_CENSUS)."
     )
   });
   let rest = &flat[value_at + needle.len()..];

@@ -481,7 +481,7 @@ run_case covered 0 "feature-cfg-coverage OK" \
 #
 # Which sites to strip is DERIVED, not listed: the gate is imported and asked which predicates
 # each leg alone covers, and every site of those predicates is blanked. A hardcoded line range
-# would pin today's `src/trace.rs`, not the property. See `$work/mutate.py` above for the
+# would pin today's `src/trace/mod.rs`, not the property. See `$work/mutate.py` above for the
 # mutation itself and for how H's split alternatives are constructed.
 suite_legs=$(python3 - "$root/$GATE" <<'PY'
 import ast, sys

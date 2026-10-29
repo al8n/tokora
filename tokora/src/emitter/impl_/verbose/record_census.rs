@@ -14,7 +14,7 @@
 //! that records nothing at all, a route spelled through a second alias, and above all a
 //! **new** channel that lands without joining either the routing law or the conformance
 //! matrix. Rust has no call-site reflection, so — exactly like `SETTLE_CENSUS` in
-//! `input_ref/census_tests.rs` — the residual "notice a new site exists" step is a greppable
+//! `input_ref/tests/census.rs` — the residual "notice a new site exists" step is a greppable
 //! marker and a consciously-maintained count. `grep RECORD_CENSUS` finds every anchor.
 //!
 //! # The census (what must stay true)
@@ -56,7 +56,7 @@
 /// in a fixture.
 const SOURCES: &[(&str, &str)] = &[
   ("mod.rs", include_str!("mod.rs")),
-  ("store.rs", include_str!("store.rs")),
+  ("store.rs", include_str!("store/mod.rs")),
   ("diagnostic.rs", include_str!("diagnostic.rs")),
   ("full_container.rs", include_str!("full_container.rs")),
   (

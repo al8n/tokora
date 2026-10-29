@@ -285,7 +285,7 @@ pub use transaction::Transaction;
 pub(crate) use try_expect::CloseStatus;
 // `ClosePayload` is threaded through the delimited drivers without being named there (the
 // `Close(payload)` arm passes it straight to `commit_probed`); only the tests name the origin,
-// so the re-export is gated to exactly the cfg that compiles `partial_tests`.
+// so the re-export is gated to exactly the cfg that compiles `tests::partial`.
 #[cfg(all(test, feature = "logos_0_16", feature = "std", feature = "combinators"))]
 pub(crate) use try_expect::ClosePayload;
 
@@ -295,9 +295,6 @@ pub use stacked::{SavepointId, StackedTransaction};
 
 #[cfg(all(test, feature = "logos_0_16", feature = "std"))]
 mod tests;
-
-// #[cfg(all(test, feature = "logos_0_16", feature = "std"))]
-// mod session_tests;
 
 /// A reference to an `Input` instance.
 pub struct InputRef<'inp, 'closure, L, Ctx, Lang: ?Sized = (), Cmpl = Complete>
@@ -744,7 +741,7 @@ where
   /// }
   /// ```
   ///
-  /// Enforcing tests (in `src/input/input_ref/partial_tests.rs`):
+  /// Enforcing tests (in `src/input/input_ref/tests/partial.rs`):
   /// `speculation_cannot_end_the_stream` and `rollback_cannot_un_end_a_sealed_stream`.
   #[inline(always)]
   pub fn is_final(&self) -> bool {
@@ -2189,7 +2186,7 @@ where
   ///
   /// A token is *committed* the instant no continuation of the current lineage can yield it
   /// again — popped off the cache front by a consume, or accepted straight off the lexer. All
-  /// fourteen 1:1 consume settles route through here (the census in `census_tests.rs` holds the
+  /// fourteen 1:1 consume settles route through here (the census in `tests/census.rs` holds the
   /// list and fails on drift), so a side channel that must observe committed tokens exactly
   /// once has exactly one home on the consume surface — plus the scanner's skip settle
   /// ([`AtFrontier::adopt`], its own censused site) — instead of a dozen.
@@ -2397,7 +2394,7 @@ where
   /// point abandons it, because only that destroys the lineage the point describes; an
   /// **accepted** attempt commits, and a point `f` left open is still open and still settleable
   /// afterwards — the non-lexical property session points exist for. Enforcing cells (in
-  /// `src/input/input_ref/session_tests.rs`):
+  /// `src/input/input_ref/session/tests.rs`):
   /// `attempt_declining_across_an_abandoned_point_reconciles`,
   /// `attempt_panic_with_an_open_point_leaves_no_stranded_point`, and
   /// `attempt_accepting_leaves_the_closure_s_point_open_and_its_progress_kept`.
@@ -2483,7 +2480,7 @@ where
   /// exactly what an unwind out of `f` restores. See [`attempt`](Self::attempt)'s *"A session
   /// point `f` opened and abandoned is legal"* section for why the checked verb is the wrong one
   /// here. Enforcing cell (in
-  /// `src/input/input_ref/session_tests.rs`):
+  /// `src/input/input_ref/session/tests.rs`):
   /// `try_attempt_erring_across_an_abandoned_point_reconciles`.
   ///
   /// # If the closure panics
@@ -2535,7 +2532,7 @@ where
   /// reconciling [`rollback_abandoning_points`](Transaction::rollback_abandoning_points), so a
   /// session point `f` opened and abandoned is reconciled rather than refused — see
   /// [`attempt`](Self::attempt)'s *"A session point `f` opened and abandoned is legal"* section.
-  /// Enforcing cells (in `src/input/input_ref/session_tests.rs`):
+  /// Enforcing cells (in `src/input/input_ref/session/tests.rs`):
   /// `attempt_parse_declining_across_an_abandoned_point_reconciles` and
   /// `attempt_parse_erring_across_an_abandoned_point_reconciles`.
   ///
@@ -2913,7 +2910,7 @@ where
   /// `dropping_the_handle_releases_the_open_points`,
   /// `dropping_the_handle_keeps_the_progress_of_the_open_points`, and
   /// `a_second_handle_rewinds_across_an_abandoned_point` (in
-  /// `src/input/input_ref/session_tests.rs`), and
+  /// `src/input/input_ref/session/tests.rs`), and
   /// `abandoned_session_points_release_their_emitter_marks` (in `src/cst/sink/tests.rs`).
   ///
   /// The [`SessionPointId`] does not change this: an id merely dropped is not a signal, so a point
@@ -3120,7 +3117,7 @@ where
   /// savepoint-release/commit/drop paths — because each holds the full [`Checkpoint`] at the
   /// exact moment its mark becomes unrewindable. The abandoning settle is the restore family,
   /// which *spends* the mark through [`Emitter::rewind`] instead; every checkpoint the crate
-  /// takes ends in exactly one of the two (the census in `census_tests.rs` locks the sites).
+  /// takes ends in exactly one of the two (the census in `tests/census.rs` locks the sites).
   ///
   /// Assert-free and silent on purpose: the guards' commit-on-drop arms run inside `Drop`,
   /// possibly mid-unwind. The one keeper that does **not** route through this funnel is a
