@@ -47,7 +47,7 @@ description = "tokora's instruction-count workloads over the repetition matrix. 
 # a number this package reports.
 #
 # `combinators` is the umbrella that carries `many` — the repetition families under
-# `tokora/src/parser/many/`, which is the whole subject of this package. `logos` supplies the
+# `tokora/src/combinator/many/`, which is the whole subject of this package. `logos` supplies the
 # lexer the workloads drive, and `std` is what `Vec` and the process's own `println!` need.
 # NOT `rowan`, NOT `unstable-raw`, NOT `trace`: nothing here names them, and every feature
 # that is on is more code for both sides of a comparison to compile.

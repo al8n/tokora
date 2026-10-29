@@ -72,7 +72,7 @@ use core::ops::AddAssign;
 
 use crate::{
   span::SimpleSpan,
-  utils::{Lexeme, human_display::DisplayHuman},
+  utils::{DisplayHuman, Lexeme},
 };
 
 use super::PositionedChar;

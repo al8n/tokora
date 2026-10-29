@@ -1,4 +1,4 @@
-use crate::{Lexer, Token, error::token::UnexpectedToken, span::Spanned, utils::CowStr};
+use crate::{Lexer, Token, error::UnexpectedToken, span::Spanned, utils::CowStr};
 
 /// The carriage return newline (`\r\n`) punctuator.
 pub type Crnl<S, C = (), Lang = ()> = CarriageReturnNewline<S, C, Lang>;
@@ -179,14 +179,14 @@ macro_rules! punctuator {
           }
         }
 
-        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::human_display::DisplayHuman for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::DisplayHuman for $name<S, C, Lang> {
           #[inline]
           fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             ::core::fmt::Display::fmt(self, f)
           }
         }
 
-        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::sdl_display::DisplayCompact for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::DisplayCompact for $name<S, C, Lang> {
           type Options = ();
 
           #[inline]
@@ -195,7 +195,7 @@ macro_rules! punctuator {
           }
         }
 
-        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::sdl_display::DisplayPretty for $name<S, C, Lang> {
+        impl<S, C, Lang: ?::core::marker::Sized> $crate::__private::utils::DisplayPretty for $name<S, C, Lang> {
           type Options = ();
 
           #[inline]

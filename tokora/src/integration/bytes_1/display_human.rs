@@ -1,4 +1,4 @@
-use crate::utils::human_display::DisplayHuman;
+use crate::utils::DisplayHuman;
 
 impl DisplayHuman for bytes_1::Bytes {
   #[inline]

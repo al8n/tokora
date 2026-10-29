@@ -14,12 +14,12 @@ differ only in the *currency* the folds trade in.
 
 | | **Token-level** | **AST-level** |
 |---|---|---|
-| Entry | [`InputRef::pratt`](crate::InputRef::pratt) / [`pratt_with_min_precedence`](crate::InputRef::pratt_with_min_precedence) | [`pratt`](crate::parser::pratt) → [`Pratt`](crate::parser::Pratt) |
+| Entry | [`InputRef::pratt`](crate::InputRef::pratt) / [`pratt_with_min_precedence`](crate::InputRef::pratt_with_min_precedence) | [`pratt`](crate::pratt::pratt) → [`Pratt`](crate::pratt::Pratt) |
 | Classifier | [`PrattToken`](crate::token::PrattToken) on the token type | `parse_lhs` / `parse_rhs` sub-parsers |
 | Fold currency | `Spanned<Token, Span>` → `Spanned<Token, Span>` | your node type `O` → `O` |
 | Result | `Option<Spanned<Token, Span>>` | `O` |
 | Extra emitter capability | [`PrattEmitter`](crate::emitter::PrattEmitter) | none (folds hold the `InputRef`) |
-| CST | unsupported (synthetic tokens) | [`with_cst_kinds`](crate::parser::Pratt::with_cst_kinds) |
+| CST | unsupported (synthetic tokens) | [`with_cst_kinds`](crate::pratt::Pratt::with_cst_kinds) |
 | Worked example | [ch05](super::ch05_pratt) | [ch15](super::ch15_c_expression_example) |
 
 Reach for the token-level API when an expression's value is itself a token — a calculator that
@@ -50,7 +50,7 @@ trait PrattPower: Default + Clone + Ord {}
 ```
 
 ```rust
-use tokora::parser::PrattPower;
+use tokora::pratt::PrattPower;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct Prec(i32);
@@ -72,9 +72,9 @@ table is the whole rule:
 
 | Written | Right operand admits | Effect |
 |---|---|---|
-| [`PrattInfix::Left`](crate::parser::PrattInfix) | powers `> power` | equal-power operator to the right folds into the *outer* call → `a - b - c` = `(a - b) - c` |
-| [`PrattInfix::Right`](crate::parser::PrattInfix) | powers `>= power` | equal-power operator to the right is consumed by the *inner* call → `a ^ b ^ c` = `a ^ (b ^ c)` |
-| [`PrattInfix::Neither`](crate::parser::PrattInfix) | powers `> power`, then refuses a second **infix** operator of the same power | `a == b == c` fails with [`NonAssociativeChain`](crate::error::NonAssociativeChain) |
+| [`PrattInfix::Left`](crate::pratt::PrattInfix) | powers `> power` | equal-power operator to the right folds into the *outer* call → `a - b - c` = `(a - b) - c` |
+| [`PrattInfix::Right`](crate::pratt::PrattInfix) | powers `>= power` | equal-power operator to the right is consumed by the *inner* call → `a ^ b ^ c` = `a ^ (b ^ c)` |
+| [`PrattInfix::Neither`](crate::pratt::PrattInfix) | powers `> power`, then refuses a second **infix** operator of the same power | `a == b == c` fails with [`NonAssociativeChain`](crate::error::NonAssociativeChain) |
 
 **What "refuses" means, exactly.** Both engines raise the *same* error and leave the second
 operator on the input, unconsumed. The offset it carries is the **handback position**, and that is
@@ -85,7 +85,7 @@ names a real boundary in your own input, not a position derived from something n
 
 It is **not** the second operator's own start, and you should not read it as a pointer at the
 operator. Anything the handback also returned sits between the two: whitespace your lexer skipped,
-trivia *tokens* a [`ParsePrattRHS`](crate::parser::ParsePrattRHS) would have skipped, the gap
+trivia *tokens* a [`ParsePrattRHS`](crate::pratt::ParsePrattRHS) would have skipped, the gap
 inside a multi-token spelling (`not in`, `<>`), or a region a non-fatal lexer error was reported
 over. On `1 ; 2 ; 3` the offset is 5 and the repeated `;` is at 6. If you are rendering a caret,
 skip forward from the offset the way your own grammar would; if you are resuming a parse, start
@@ -96,7 +96,7 @@ And
 recording emitter cannot turn it back into a truncated success. It is *not* terminal, so a
 grammar that wants the tolerant reading asks for it explicitly, by wrapping the pratt parser in
 [`recover`](crate::ParseInput::recover) / [`skip_then_retry`](crate::ParseInput::skip_then_retry)
-or by declaring the operator [`Left`](crate::parser::PrattInfix::Left). The latch is armed by a
+or by declaring the operator [`Left`](crate::pratt::PrattInfix::Left). The latch is armed by a
 `Neither` fold, cleared by folding an infix at a different power, and untouched by a postfix
 fold — so `a == b! == c` still trips.
 
@@ -129,7 +129,7 @@ Two further knobs share the same mechanism:
 - **A floor.** A parse runs against a *minimum* binding power (`Power::default()` at the top —
   `0` for an integer power). Operators below the floor are left on the input for the surrounding
   grammar. A token that is not an operator at all is not a power: an AST-level classifier says
-  [`PrattRHS::End`](crate::parser::PrattRHS) and a token-level one returns `None`.
+  [`PrattRHS::End`](crate::pratt::PrattRHS) and a token-level one returns `None`.
 - **Grouping is a pair below the floor.** `(` is a *prefix* operator and `)` a *postfix* operator
   at the same sub-floor power: `)` is invisible at the top level (below the floor, left for the
   caller) but consumable inside the recursive call a `(` prefix opens (whose floor is that same
@@ -141,7 +141,7 @@ Two further knobs share the same mechanism:
 
 **Both engines bound their own descent, and the bound is on by default.** Each pratt frame enters
 one level of the input's shared
-[`RecursionLimiter`](crate::state::recursion_tracker::RecursionLimiter) through
+[`RecursionLimiter`](crate::state::RecursionLimiter) through
 [`InputRef::descend`](crate::InputRef::descend), whose [`Descent`](crate::input::Descent) guard
 releases the level on every exit — return, `?`, or unwind, identically in `std` and `no_std`.
 Exceeding the limit fails the parse with
@@ -150,13 +150,13 @@ draw on the same budget through
 [`InputRef::descending`](crate::InputRef::descending) — see
 [Bounding your own recursion](#bounding-your-own-recursion).
 
-- **The default is [`RecursionLimiter::PARSE_DEFAULT_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH)**,
+- **The default is [`RecursionLimiter::PARSE_DEFAULT_DEPTH`](crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH)**,
   so an unconfigured parse of a deeply nested expression fails cleanly instead of risking a native
   stack abort. Set your own with
   [`ParserContext::with_recursion_limiter`](crate::ParserContext::with_recursion_limiter) or
   [`InputContext::with_recursion_limiter`](crate::input::InputContext::with_recursion_limiter);
   spell "no limit" as
-  [`RecursionLimiter::unlimited()`](crate::state::recursion_tracker::RecursionLimiter::unlimited).
+  [`RecursionLimiter::unlimited()`](crate::state::RecursionLimiter::unlimited).
   It is deliberately conservative, because the two failure modes are not symmetric — too low
   returns a catchable error telling you to raise it, too high aborts the process with no
   diagnostic. A grammar that parses deep untrusted input should still pick a limit against the
@@ -170,7 +170,7 @@ moved the shipped default more than once. This block is a doctest, so the number
 go stale quietly:
 
 ```rust
-use tokora::state::recursion_tracker::RecursionLimiter;
+use tokora::state::RecursionLimiter;
 
 // Installed by default, in EVERY build including a release one.
 assert_eq!(RecursionLimiter::PARSE_DEFAULT_DEPTH, 32);
@@ -196,7 +196,7 @@ a build with `debug-assertions = false` at `opt-level = 0` selects the release a
 frame prices — so a default that diverged by profile shipped a process-level abort once already.
 The release figure is real and published as `OPTIMIZED_PARSE_DEPTH` for a caller to opt into
 rather than shipped as the default. See
-[`PARSE_DEFAULT_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH)
+[`PARSE_DEFAULT_DEPTH`](crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH)
 for the two-tier rule both parse-side figures are derived by, and the measured rows behind it.
 
 `SEGMENTED_PRATT_DEPTH` is the one that interacts with something else in this guide: it is 1024,
@@ -216,7 +216,7 @@ refusal rather than an abort.
   counts as one level.
 - **Terminal, for every grammar error type — the stop does not travel in the payload.** No amount
   of further input clears a depth budget, so [`recover`](crate::ParseInput::recover),
-  [`InplaceRecover`](crate::parser::InplaceRecover) and
+  [`InplaceRecover`](crate::combinator::InplaceRecover) and
   [`skip_then_retry`](crate::ParseInput::skip_then_retry) re-raise a trip untouched rather than
   synthesizing a node. That holds for an error type that stores the value and delegates
   [`is_terminal`](crate::error::MaybeTerminal::is_terminal), and equally for a discarding sink such
@@ -239,7 +239,7 @@ refusal rather than an abort.
   the trip regardless of error type, exactly as it always did. Refusing it would mean a
   value-producing element could never recover from a budget it deliberately caught, which is a
   broader contract than this crate makes for any other error a grammar is free to catch and answer.
-  See `parser::many`'s module docs for the reasoning and the pinned boundary.
+  See `combinator::many`'s module docs for the reasoning and the pinned boundary.
 
   Every one of those sites reads the cell **relative to the attempt it is judging** — the
   speculative parse, or the one element — by snapshotting it beforehand and asking whether it moved.
@@ -350,7 +350,7 @@ Precedenced::new(token: T, precedence: Power) -> Precedenced<T, Power>
 ```
 
 ```rust
-use tokora::parser::Precedenced;
+use tokora::pratt::Precedenced;
 
 let p = Precedenced::new("*", 2i64);
 assert_eq!(*p.token_ref(), "*");
@@ -480,10 +480,8 @@ re-encoding each result as a `Digit` token.
 ```rust
 # use core::convert::Infallible;
 # use tokora::{
-#   EmitterView, FatalContext, InputRef, Lexer, Parse, Parser, SimpleSpan, Token,
-#   emitter::Fatal,
-#   error::{UnexpectedEnd, token::UnexpectedToken},
-#   span::{Span as _, Spanned},
+#   EmitterView, FatalContext, InputRef, Lexer, Parse, Parser, SimpleSpan, Token, emitter::Fatal,
+#   error::{UnexpectedEnd, UnexpectedToken}, span::{Span as _, Spanned},
 # };
 # #[derive(Debug, PartialEq)]
 # struct Error;
@@ -539,10 +537,7 @@ re-encoding each result as a `Digit` token.
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced},
-  token::PrattToken,
-};
+use tokora::{pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced}, token::PrattToken};
 
 // The table: each token says what it is at each position. `None` = "not part of an
 // expression here" — the loop leaves the token on the input and stops.
@@ -632,7 +627,7 @@ assert_eq!(eval("-2 ^ 2"), Ok(-4)); //     `^` outranks unary `-`  → -(2 ^ 2)
 
 ### `pratt`
 
-Build a [`Pratt`](crate::parser::Pratt) combinator from two sub-parsers and three folds. It is
+Build a [`Pratt`](crate::pratt::Pratt) combinator from two sub-parsers and three folds. It is
 generic over the language marker and reads it off the input the result is driven with — there is
 one spelling for branded and unbranded grammars alike (the `Lang` convention runs through the
 whole crate — see the [combinator reference](super::ref_combinators)). The result implements
@@ -646,7 +641,7 @@ pratt(parse_lhs, parse_rhs, fold_prefix, fold_infix, fold_postfix) -> Pratt<…,
 
 `parse_lhs` and `parse_rhs` are ordinary parsers whose output is a classification: any
 `ParseInput` yielding a `PrattLHS`/`PrattRHS` qualifies (via the blanket
-[`ParsePrattLHS`](crate::parser::ParsePrattLHS) / [`ParsePrattRHS`](crate::parser::ParsePrattRHS)),
+[`ParsePrattLHS`](crate::pratt::ParsePrattLHS) / [`ParsePrattRHS`](crate::pratt::ParsePrattRHS)),
 so a plain `fn(&mut InputRef) -> Result<PrattLHS<…>, Error>` is enough.
 
 ### The `Pratt` builder
@@ -662,7 +657,7 @@ Pratt::with_cst_kinds(self, kinds: PrattCstKinds<…>) -> Pratt<…, WithCstKind
 ### The AST folds
 
 Named `fn`s. The `InputRef` comes **first** (a fold may consume further tokens — that is how a
-postfix `[` reads an index and its `]`); the operator is a [`Precedenced`](crate::parser::Precedenced)
+postfix `[` reads an index and its `]`); the operator is a [`Precedenced`](crate::pratt::Precedenced)
 and comes **last**. Each returns your node type `O`.
 
 ```text
@@ -676,14 +671,13 @@ fn fold_postfix(&mut InputRef, operand: O,           operator: Precedenced<PostO
 The same arithmetic, folded into a tree instead of evaluated. A non-operator token answers
 `PrattRHS::End`, and the engine rolls back the token it read and leaves it for the surrounding
 grammar. The last stanza adds
-[`with_cst_kinds`](crate::parser::Pratt::with_cst_kinds).
+[`with_cst_kinds`](crate::pratt::Pratt::with_cst_kinds).
 
 ```rust
 # use core::convert::Infallible;
 # use tokora::{
 #   FatalContext, InputRef, Lexer, Parse, Parser, SimpleSpan, Token,
-#   error::{UnexpectedEnd, token::UnexpectedToken},
-#   span::Span as _,
+#   error::{UnexpectedEnd, UnexpectedToken}, span::Span as _,
 # };
 # #[derive(Debug, PartialEq)]
 # struct Error;
@@ -740,8 +734,7 @@ grammar. The last stanza adds
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
 use tokora::{
-  ParseInput as _,
-  parser::{PrattFoldOp, PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  ParseInput as _, pratt::{PrattFoldOp, PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
 };
 
 #[derive(Debug, PartialEq)]
@@ -854,7 +847,7 @@ assert_eq!(Parser::with_parser(parse_expr_cst).parse_str("1 + 2 * 3").unwrap(), 
 
 ## Building a CST while you fold
 
-Only the AST driver carries a CST seam. [`with_cst_kinds`](crate::parser::Pratt::with_cst_kinds)
+Only the AST driver carries a CST seam. [`with_cst_kinds`](crate::pratt::Pratt::with_cst_kinds)
 takes a classifier mapping each fold's operator to a node kind (`None` records no node); the
 driver mints one mark before the expression and spends it once per fold, so same-target wraps
 nest inside-out and `1 + 2 * 3` materializes as `Bin[1, +, Bin[2, *, 3]]`. The fold hooks are
@@ -869,8 +862,8 @@ enum PrattFoldOp<'op, PreOp, LeftAssoc, RightAssoc, NeitherAssoc, PostOp> {
 ```
 
 Two implementation types back the seam (both re-exported, rarely named): the default
-[`NoCst`](crate::parser::NoCst) — inert, zero-cost, no bound beyond the core emitter — and
-[`WithCstKinds`](crate::parser::WithCstKinds), whose `ParseInput` impl carries
+[`NoCst`](crate::pratt::NoCst) — inert, zero-cost, no bound beyond the core emitter — and
+[`WithCstKinds`](crate::pratt::WithCstKinds), whose `ParseInput` impl carries
 `Ctx::Emitter: CstEmitter`. That bound is a **structural gate**: a kinds-configured Pratt parser
 over an emitter without the event channel is a compile error, never a silently tree-less parse.
 

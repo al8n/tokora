@@ -31,7 +31,7 @@ use core::ops::AddAssign;
 
 use hybrid_arraydeque::{ArrayDeque, AssocArraySize};
 
-use crate::utils::{PositionedChar, human_display::DisplayHuman};
+use crate::utils::{DisplayHuman, PositionedChar};
 
 pub use store::InvalidHexDigits;
 

@@ -2,7 +2,7 @@ use core::ops::{Add, AddAssign};
 
 use crate::{
   span::SimpleSpan,
-  utils::{CharLen, Lexeme, PositionedChar, human_display::DisplayHuman},
+  utils::{CharLen, DisplayHuman, Lexeme, PositionedChar},
 };
 
 /// An error indicating that an unexpected prefix was found after a valid token.

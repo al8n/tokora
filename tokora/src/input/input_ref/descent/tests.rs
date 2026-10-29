@@ -25,10 +25,10 @@ use crate::{
   Token,
   cache::DefaultCache,
   emitter::Fatal,
-  error::{RecursionLimitReached, token::UnexpectedToken},
+  error::{RecursionLimitReached, UnexpectedToken},
   input::{Input, InputContext, InputRef},
   lexer::LogosLexer,
-  state::recursion_tracker::RecursionLimiter,
+  state::RecursionLimiter,
 };
 
 /// The budget every cell runs against. Small enough that a bound frame trips almost immediately,

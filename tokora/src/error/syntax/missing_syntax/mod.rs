@@ -30,7 +30,7 @@ pub type MissingSyntaxOf<'inp, L, Lang = ()> = MissingSyntax<<L as Lexer<'inp>>:
 /// # Examples
 ///
 /// ```ignore
-/// use tokora::error::syntax::MissingSyntax;
+/// use tokora::error::MissingSyntax;
 ///
 /// // Basic missing syntax error with no message
 /// let error = MissingSyntax::new(10);
@@ -91,7 +91,7 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::error::syntax::MissingSyntax;
+  /// use tokora::error::MissingSyntax;
   ///
   /// let error = MissingSyntax::new(10);
   /// assert_eq!(error.offset(), 10);
@@ -109,7 +109,7 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::error::syntax::MissingSyntax;
+  /// use tokora::error::MissingSyntax;
   ///
   /// let error = MissingSyntax::new(10);
   /// assert_eq!(error.offset_ref(), &10);
@@ -124,7 +124,7 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::error::syntax::MissingSyntax;
+  /// use tokora::error::MissingSyntax;
   ///
   /// let mut error = MissingSyntax::new(10);
   /// *error.offset_mut() = 12;
@@ -155,7 +155,7 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::error::syntax::MissingSyntax;
+  /// use tokora::error::MissingSyntax;
   ///
   /// let mut error = MissingSyntax::new(10);
   /// error.bump(&5);
@@ -178,7 +178,7 @@ impl<O, Lang: ?Sized> MissingSyntax<O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::error::syntax::MissingSyntax;
+  /// use tokora::error::MissingSyntax;
   ///
   /// let error = MissingSyntax::new(10);
   /// let (offset, msg) = error.into_components();

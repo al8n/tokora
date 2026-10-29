@@ -1,9 +1,9 @@
 #![cfg(all(feature = "std", feature = "combinators", feature = "logos_0_16"))]
 
 // Additional tests targeting uncovered code paths in:
-//   - parser/pratt/expr.rs (prefix/infix/postfix/min_precedence config, Neither assoc, Right assoc)
-//   - parser/punct.rs (Comma/Semicolon/OpenParen/CloseParen ::parse and ::try_parse)
-//   - parser/fold/ (try_fold_with, try_fold_while_with)
+//   - pratt/expr.rs (prefix/infix/postfix/min_precedence config, Neither assoc, Right assoc)
+//   - combinator/punct.rs (Comma/Semicolon/OpenParen/CloseParen ::parse and ::try_parse)
+//   - combinator/fold/ (try_fold_with, try_fold_while_with)
 //   - input/input_ref/try_expect.rs (try_expect_map / try_expect_and_then with cached tokens)
 //   - input/input_ref/sync_through.rs (sync_through with cached tokens)
 
@@ -15,12 +15,14 @@ use tokora::{
   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
   TryParseInput,
   cache::{DefaultCache, Peeked},
+  combinator::expect,
   emitter::Ignored,
   error::{
     NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
-    token::UnexpectedToken,
+    UnexpectedToken,
   },
-  parser::{Action, PrattInfix, PrattLHS, PrattRHS, Precedenced, expect, pratt},
+  parse::Action,
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
   punct::{CloseParen, Comma, OpenParen, Semicolon},
   span::Spanned,
   utils::Expected,

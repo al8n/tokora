@@ -3,7 +3,7 @@
 //!
 //! ## Why the axes are these nine
 //!
-//! `tokora/src/parser/many/` is a monomorphised matrix: 259 files and 338 `impl` blocks over
+//! `tokora/src/combinator/many/` is a monomorphised matrix: 259 files and 338 `impl` blocks over
 //! {family} x {plain, delimited} x {bound} x {leading/trailing policy}. The matrix exists
 //! BECAUSE each combination is a separate specialisation, so any consolidation of it into
 //! shared engines is exactly the shape that loses inlining. These nine reach one engine each,
@@ -180,7 +180,7 @@ use tokora::{
     FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
-  parser::Action,
+  parse::Action,
 };
 
 use crate::fixture::{Err0, Lex, Tok, int_elem, try_int};
@@ -581,7 +581,7 @@ where
   })
 }
 
-// ── Control. Not an axis: names nothing under `parser/many/`. ────────────────────────────────
+// ── Control. Not an axis: names nothing under `combinator/many/`. ────────────────────────────────
 
 fn scan_drain<'inp, Ctx>(inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx>) -> Result<usize, Err0>
 where

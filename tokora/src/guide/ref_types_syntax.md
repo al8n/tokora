@@ -93,13 +93,13 @@ has no span to give; `Recoverable`, further below, forwards it only when its pay
 implements it.
 
 [`Spanned<D, S = SimpleSpan>`](crate::span::Spanned), [`Sliced<D, Src = ()>`](crate::slice::Sliced),
-and [`Located<D, Sp = SimpleSpan, Sl = ()>`](crate::Located) are the three ready-made wrappers —
+and [`Located<D, Sp = SimpleSpan, Sl = ()>`](crate::span::Located) are the three ready-made wrappers —
 what [`.spanned()`/`.sliced()`/`.located()`](super::ref_combinators) hand you — pairing a value
 with, respectively, its span, its captured source text, or both (`Spanned`'s fields are public;
 `Sliced`/`Located` keep theirs private behind accessors):
 
 ```rust
-use tokora::{Located, SimpleSpan, slice::Sliced, span::Spanned, utils::IntoComponents};
+use tokora::{SimpleSpan, slice::Sliced, span::{Located, Spanned}, utils::IntoComponents};
 
 // `Spanned` — a value plus the span it came from.
 let spanned = Spanned::new(SimpleSpan::new(10, 15), "hello");
@@ -166,7 +166,7 @@ impl RecoveryState for Ident<..> { fn status(&self) -> Status;
 use tokora::{SimpleSpan, error::ErrorNode, types::{Ident, Keyword}, utils::IntoComponents};
 // `RecoveryState` is NOT in `types::*` — a trait reached through a glob can be rebound by a
 // second glob with only a warning, so it has to be named:
-use tokora::types::recovery::{Components, FromComponents, RecoveryState};
+use tokora::types::{Components, FromComponents, RecoveryState};
 
 struct MyLang;
 
@@ -229,7 +229,7 @@ assert!(!list.is_valid()); // false as soon as one element is
 assert!(list.is_error());
 ```
 
-Built by [`try_ident_list`](crate::parser::try_ident_list) in the
+Built by [`try_ident_list`](crate::combinator::try_ident_list) in the
 [combinator reference](super::ref_combinators) when every token is an `IdentifierToken`.
 
 ## Literals

@@ -1,7 +1,7 @@
 //! The **consume-tree** driver: the core fuzzer over the complete-mode backtracking surface.
 //!
 //! A case is a recursively-generated *tree* of operations (the guard borrow structure is inherently
-//! nested — a [`Transaction`](crate::Transaction) borrows the input for a lexical scope — so a
+//! nested — a [`Transaction`](crate::input::Transaction) borrows the input for a lexical scope — so a
 //! tree, not a flat list, is
 //! the faithful model; every scope is well-bracketed by construction). The executor walks the tree
 //! against a live [`InputRef`] over an **error-free** byte-per-token stream, so the shadow model is
@@ -34,11 +34,11 @@ use super::{
   rng::Rng,
 };
 use crate::{
-  Commit, InputRef, ParseInput, SimpleSpan, Token,
-  cst::event::EventMark,
+  InputRef, ParseInput, SimpleSpan, Token,
+  combinator::node,
+  cst::EventMark,
   emitter::CstEmitter,
-  input::{Rollback, StackedTransaction},
-  parser::node,
+  input::{Commit, Rollback, StackedTransaction},
   span::Spanned,
 };
 
@@ -507,7 +507,7 @@ fn run_attempt(
 
 /// A live savepoint: its id plus the cursor/emission/mark-stack facts it must restore to.
 struct Sp<'txn> {
-  id: crate::SavepointId<'txn>,
+  id: crate::input::SavepointId<'txn>,
   o: usize,
   count: u64,
   marks: usize,

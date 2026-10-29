@@ -1,8 +1,8 @@
 //! The lossless-CST twin of `c_expression.rs`.
 //!
 //! Same C-style expression grammar as its twin, built into a **lossless** rowan tree instead
-//! of an [`Expr`] AST. Like the twin it uses the high-level [`pratt`](tokora::parser::pratt)
-//! driver — here with its CST seam, [`with_cst_kinds`](tokora::parser::Pratt::with_cst_kinds):
+//! of an [`Expr`] AST. Like the twin it uses the high-level [`pratt`](tokora::pratt::pratt)
+//! driver — here with its CST seam, [`with_cst_kinds`](tokora::pratt::Pratt::with_cst_kinds):
 //! each fold's operator picks the node kind that wraps the folded region. The interesting part
 //! is the **postfix folds that consume tokens**: `e[i]`, `f(args)`, and `e ? t : f` each parse
 //! extra tokens inside the fold, and the driver still wraps the whole region — the wrap runs
@@ -21,9 +21,9 @@ use tokora::{
   cache::DefaultCache,
   cst::{CstProfile, KindValidator, parse_lossless},
   emitter::{CstEmitter, Fatal},
-  error::token::UnexpectedTokenOf,
+  error::UnexpectedTokenOf,
   logos::{self, Logos},
-  parser::{PrattFoldOp, PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, pratt},
+  pratt::{PrattFoldOp, PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced, pratt},
 };
 
 // ── Lossless lexer ──────────────────────────────────────────────────────────────

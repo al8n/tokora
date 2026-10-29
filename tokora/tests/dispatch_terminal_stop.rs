@@ -28,10 +28,10 @@ use hybrid_arraydeque::typenum::U4;
 use tokora::{
   Emitter, InputRef, Parse, ParseAttempt, ParseChoice, ParseContext, ParseInput, ParseTokenChoice,
   Parser, ParserContext, SimpleSpan, Token as TokenTrait, TryParseInput,
-  error::{MaybeIncomplete, MaybeTerminal, UnexpectedEot, token::UnexpectedToken},
+  combinator::Any,
+  error::{MaybeIncomplete, MaybeTerminal, UnexpectedEot, UnexpectedToken},
   lexer::LogosLexer,
   logos::{self, Logos},
-  parser::Any,
   span::Spanned,
   state::State,
 };

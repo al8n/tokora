@@ -1,5 +1,5 @@
 use crate::{
-  error::{syntax::MissingSyntaxOf, token::MissingTokenOf},
+  error::{MissingSyntaxOf, MissingTokenOf},
   utils::CowStr,
 };
 

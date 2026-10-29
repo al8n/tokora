@@ -25,7 +25,7 @@
 // deregistered instead.
 #![allow(dead_code)]
 
-use tokora::state::tracker::{Tracker, TrackerExt};
+use tokora::state::{Tracker, TrackerExt};
 
 /// A tracker with two independent limits, so "check the counter I just touched" and "check every
 /// limit" are genuinely different answers.

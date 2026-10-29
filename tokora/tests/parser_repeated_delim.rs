@@ -4,7 +4,7 @@
 //! Tests for `TryParseInput::repeated().delimited()` (repeated parser without
 //! separator, wrapped in delimiters).
 //!
-//! Covers `parser/many/delim/repeated/` (unbounded, at_least, at_most, bounded).
+//! Covers `combinator/many/delim/repeated/` (unbounded, at_least, at_most, bounded).
 
 mod common;
 
@@ -13,9 +13,7 @@ use tokora::{
   ParserContext, Token as TokenTrait, TryParseInput,
   emitter::{FullContainerEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter, Verbose},
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, TooFew, TooMany},
-    token::{UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, TooFew, TooMany, Unclosed, UnexpectedEot, UnexpectedToken, UnexpectedTokenOf,
   },
   input::Cursor,
   punct::Bracket,

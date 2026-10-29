@@ -13,7 +13,7 @@ identical call. The [combinator reference](super::ref_combinators) explains that
 the one shape where an `_of` suffix survives. Since 0.3.0 every one of these entry points
 is also generic over the input's completeness (a trailing `Cmpl` fn parameter, inferred from
 the handle you pass), so the same `Comma::parse` drives complete and
-[`Partial`](crate::Partial) inputs alike; if you spell an entry point's generics in full, append
+[`Partial`](crate::input::Partial) inputs alike; if you spell an entry point's generics in full, append
 the completeness argument (or `_`).
 
 ## How to read this reference
@@ -98,9 +98,11 @@ Comma::try_parse(inp)  -> Result<ParseAttempt<Comma<L::Span, (), Lang>>, Error>/
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, UnexpectedEot,
+#     UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -176,7 +178,7 @@ Comma::try_parse(inp)  -> Result<ParseAttempt<Comma<L::Span, (), Lang>>, Error>/
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, Parser, parser::opt, punct::Paren, delimiter::Delimiter};
+use tokora::{Parse, Parser, combinator::opt, delimiter::Delimiter, punct::Paren};
 use tokora::ParseAttempt;
 
 // `Comma::parse` — consume a comma, else `UnexpectedToken` / `UnexpectedEot`.
@@ -258,12 +260,12 @@ fails to compile instead of type-checking and then driving on the wrong dialect'
 and builds the boundary errors. To parse a delimited body, sequence the punctuators (as taught in
 [chapter 3](super::ch03_combinators)) — `OpenParen::parse` then the body then `CloseParen::parse`,
 or `open.ignore_then(body).then_ignore(close)` — or reach for the ready-made
-[`delimited`](crate::parser::delimited)/[`parens`](crate::parser::parens)/[`braces`](crate::parser::braces)/[`brackets`](crate::parser::brackets)/[`angles`](crate::parser::angles)
+[`delimited`](crate::combinator::delimited)/[`parens`](crate::combinator::parens)/[`braces`](crate::combinator::braces)/[`brackets`](crate::combinator::brackets)/[`angles`](crate::combinator::angles)
 shapes, the consumption side of these pairs, which materialize each pair's typed values through
 [`TypedDelimiter`](crate::delimiter::TypedDelimiter). The `is_open`/`is_close` classification is
 exercised over `Paren` in the built-in-punctuator doctest above. Balanced recovery
 ([chapter 8](super::ch08_recovery)) uses the same delimiter notion through
-[`DelimClass`](crate::DelimClass).
+[`DelimClass`](crate::input::DelimClass).
 
 ---
 
@@ -295,9 +297,11 @@ one-character keyword, so the spelling is `"i"`; a real lexer reports the full w
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, UnexpectedEot,
+#     UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]
@@ -376,7 +380,7 @@ one-character keyword, so the spelling is `"i"`; a real lexer reports the full w
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, Parser, keyword, parser::opt};
+use tokora::{Parse, Parser, combinator::opt, keyword};
 use tokora::ParseAttempt;
 
 keyword! {
@@ -408,7 +412,7 @@ assert!(Parser::with_parser(maybe_if).parse_str("x").unwrap().is_none());
 
 ## `Expected`, `OneOf` & the `Set` parameter
 
-Token classifiers (the closure [`expect`](crate::parser::expect) takes) return an
+Token classifiers (the closure [`expect`](crate::combinator::expect) takes) return an
 [`Expected<Kind>`](crate::utils::Expected) describing what would have satisfied them; the token
 errors carry it so `expected …, found …` diagnostics come for free.
 
@@ -442,11 +446,11 @@ combinators.
 
 | Trait | Method(s) | Purpose |
 |-------|-----------|---------|
-| [`Check<T, O = bool>`](crate::Check) | `check(&self, &T) -> O` | parser-side predicate; **any** `Fn(&T) -> O` is a `Check` (keywords implement it too). Distinct from [`Lexer::check`](crate::Lexer::check) / [`State::check`](crate::State::check). |
-| [`Require<O>`](crate::Require) | `matched(&self) -> bool`, `require(self) -> Result<O, Self::Err>` | `try_into`-style extraction of a specific shape without consuming the stream. |
+| [`Check<T, O = bool>`](crate::parse::Check) | `check(&self, &T) -> O` | parser-side predicate; **any** `Fn(&T) -> O` is a `Check` (keywords implement it too). Distinct from [`Lexer::check`](crate::Lexer::check) / [`State::check`](crate::state::State::check). |
+| [`Require<O>`](crate::parse::Require) | `matched(&self) -> bool`, `require(self) -> Result<O, Self::Err>` | `try_into`-style extraction of a specific shape without consuming the stream. |
 
 ```rust
-use tokora::{Check, Require};
+use tokora::parse::{Check, Require};
 
 // Any `Fn(&T) -> bool` is a `Check`.
 let positive = |n: &i32| *n > 0;
@@ -482,9 +486,9 @@ assert_eq!(Punct::Comma.require(), Err(Punct::Comma));
 | [`Lexeme`](crate::utils::Lexeme) / [`PositionedChar`](crate::utils::PositionedChar) | lexer-error building blocks: a character (or range) plus its offset → a span |
 | [`Delimited`](crate::utils::Delimited) | an `Open`/`Close`/`Data`/span bundle for a parsed delimited construct |
 | [`SingleCharEscape`](crate::utils::SingleCharEscape) / [`MultiCharEscape`](crate::utils::MultiCharEscape) / [`EscapedLexeme`](crate::utils::EscapedLexeme) | escape-sequence lexeme helpers |
-| [`human_display`](crate::utils::human_display) | `DisplayHuman` + `HumanDisplay` — reader-facing rendering |
-| [`sdl_display`](crate::utils::sdl_display) | `DisplaySDL` / `DisplayCompact` / `DisplayPretty` — schema-style rendering |
-| [`syntax_tree_display`](crate::utils::syntax_tree_display) | `DisplaySyntaxTree` — S-expression-style tree rendering |
+| [`DisplayHuman`](crate::utils::DisplayHuman) + [`HumanDisplay`](crate::utils::HumanDisplay) | reader-facing rendering |
+| [`DisplaySDL`](crate::utils::DisplaySDL) / [`DisplayCompact`](crate::utils::DisplayCompact) / [`DisplayPretty`](crate::utils::DisplayPretty) | schema-style rendering |
+| [`DisplaySyntaxTree`](crate::utils::DisplaySyntaxTree) | S-expression-style tree rendering |
 | [`IntoComponents`](crate::utils::IntoComponents) / [`IsAsciiChar`](crate::utils::IsAsciiChar) / [`CharLen`](crate::utils::CharLen) | decompose a parsed element / classify a byte-or-char / byte-length of a char |
 | [`ArrayDeque`](crate::utils::ArrayDeque) + [`typenum`](crate::utils::typenum) | the const-capacity ring buffer used by the bounded caches/containers |
 | `Maybe` / `MaybeRef` / `MaybeMut` / `Owned` / `Ref` | owned-or-borrowed helpers (re-exported from `mayber`) |
@@ -552,7 +556,7 @@ each gate to the section that documents it.
 | Feature | Enables | Implies | no_std posture |
 |---------|---------|---------|----------------|
 | `combinators` *(default)* | the umbrella over the thirteen below | the thirteen family gates | no_std-clean |
-| `any` | [`Any`](crate::parser::Any) + its `spanned`/`sliced`/`located` shapes | — | no_std-clean |
+| `any` | [`Any`](crate::combinator::Any) + its `spanned`/`sliced`/`located` shapes | — | no_std-clean |
 | `fail` | `fail` / `fail_with` | — | no_std-clean |
 | `filter` | `filter`, `filter_with`, `filter_map`, `filter_map_with` | — | no_std-clean |
 | `fold` | the fold drivers (`fold_while`, `try_fold*`, `rfold*`) | **`many`** — they reuse its absence-gate error construction | no_std-clean |
@@ -608,7 +612,7 @@ CAS-free fallback.
 |---------|---------|---------|----------------|
 | `rowan` | the recording CST sink + typed lossless tree (the Rowan chapter) | `dep:rowan`, **`std`** | requires `std` |
 | `unstable-raw` | the raw `InputRef::{save, restore, commit}` triple + `Checkpoint` construction | — | no_std-clean |
-| `trace` | [`traced`](crate::traced) + combinator instrumentation | **`std`** | requires `std`; zero-cost when off |
+| `trace` | [`traced`](crate::combinator::traced) + combinator instrumentation | **`std`** | requires `std`; zero-cost when off |
 | `conformance` | the `conformance` lexer test kit | **`std`** | requires `std` |
 | `fuzz` | the `fuzz` operation-script harness | **`std`** | requires `std` |
 | `stacker` | runs each **Pratt frame prologue** on a fresh heap stack segment when the native stack is nearly exhausted. It does not raise the recursion budget — see [Recursion limits](super::ref_pratt#recursion-limits) | `dep:stacker`, **`std`**, `pratt` | requires `std` |

@@ -60,8 +60,8 @@ binding parser below shows the complete plumbing without becoming a second full 
 # impl From<LexError> for ParseError { fn from(_: LexError) -> Self { Self::Lex } }
 # impl<O, Lang: ?Sized, Set: Clone + 'static> From<tokora::error::UnexpectedEot<O, Lang, Set>> for ParseError { fn from(_: tokora::error::UnexpectedEot<O, Lang, Set>) -> Self { Self::End } }
 # impl<'inp, L: tokora::Lexer<'inp>, Lang: ?Sized> tokora::emitter::FromUnclosed<'inp, L, Lang> for ParseError { fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { Self::End } }
-# impl<'inp> From<tokora::error::token::UnexpectedTokenOf<'inp, BindingLexer<'inp>>> for ParseError {
-#   fn from(_: tokora::error::token::UnexpectedTokenOf<'inp, BindingLexer<'inp>>) -> Self { Self::Unexpected }
+# impl<'inp> From<tokora::error::UnexpectedTokenOf<'inp, BindingLexer<'inp>>> for ParseError {
+#   fn from(_: tokora::error::UnexpectedTokenOf<'inp, BindingLexer<'inp>>) -> Self { Self::Unexpected }
 # }
 use tokora::{Emitter, InputRef, Parse, ParseContext, Parser};
 

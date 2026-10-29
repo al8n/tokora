@@ -19,7 +19,7 @@
 //! When the parser reaches the end of input with a missing token, use constructors without a found token:
 //!
 //! ```
-//! use tokora::{SimpleSpan, error::token::MissingToken};
+//! use tokora::{SimpleSpan, error::MissingToken};
 //!
 //! // Simple missing token error
 //! let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::expected_one(
@@ -34,7 +34,7 @@
 //! When a specific token was found but something else was expected:
 //!
 //! ```
-//! use tokora::{SimpleSpan, utils::Expected, error::token::MissingToken};
+//! use tokora::{SimpleSpan, error::MissingToken, utils::Expected};
 //!
 //! let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::expected_one(
 //!     SimpleSpan::new(10, 15),
@@ -79,7 +79,7 @@ pub type MissingTokenOf<'inp, L, Lang = ()> = MissingToken<
 /// # Examples
 ///
 /// ```
-/// use tokora::{SimpleSpan, utils::Expected, error::token::MissingToken};
+/// use tokora::{SimpleSpan, error::MissingToken, utils::Expected};
 ///
 /// // Error when expecting a specific token
 /// let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::expected_one(
@@ -174,7 +174,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::Expected, error::token::MissingToken};
+  /// use tokora::{SimpleSpan, error::MissingToken, utils::Expected};
   ///
   /// let error: MissingToken<'_, &str, usize> = MissingToken::new(
   ///     100,
@@ -197,7 +197,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, error::token::MissingToken};
+  /// use tokora::{SimpleSpan, error::MissingToken};
   ///
   /// let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::expected_one(
   ///     SimpleSpan::new(50, 51),
@@ -218,7 +218,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, error::token::MissingToken};
+  /// use tokora::{SimpleSpan, error::MissingToken};
   ///
   /// let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::expected_one_with_found(
   ///     SimpleSpan::new(50, 51),
@@ -239,7 +239,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```ignore
-  /// use tokora::{SimpleSpan, error::token::MissingToken};
+  /// use tokora::{SimpleSpan, error::MissingToken};
   ///
   /// let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::expected_one_of(
   ///     SimpleSpan::new(25, 26),
@@ -260,7 +260,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```ignore
-  /// use tokora::{SimpleSpan, error::token::MissingToken};
+  /// use tokora::{SimpleSpan, error::MissingToken};
   ///
   /// let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::expected_one_of_with_found(
   ///     SimpleSpan::new(25, 26),
@@ -278,7 +278,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, error::token::MissingToken};
+  /// use tokora::{SimpleSpan, error::MissingToken};
   ///
   /// let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::expected_one(
   ///     SimpleSpan::new(10, 15),
@@ -299,7 +299,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::error::token::MissingToken;
+  /// use tokora::error::MissingToken;
   ///
   /// let error: MissingToken<'_, &str> = MissingToken::expected_one(10, "identifier");
   /// assert_eq!(error.offset_ref(), &10);
@@ -314,7 +314,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::error::token::MissingToken;
+  /// use tokora::error::MissingToken;
   ///
   /// let mut error: MissingToken<'_, &str> = MissingToken::expected_one(10, "identifier");
   /// *error.offset_mut() = 12;
@@ -348,7 +348,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::Expected, error::token::MissingToken};
+  /// use tokora::{SimpleSpan, error::MissingToken, utils::Expected};
   ///
   /// let error: MissingToken<'_, &str, SimpleSpan> = MissingToken::expected_one(SimpleSpan::new(5, 6), "}");
   /// assert!(matches!(error.expected(), Some(Expected::One(value)) if *value == "}"));
@@ -366,7 +366,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::error::token::MissingToken;
+  /// use tokora::error::MissingToken;
   ///
   /// let mut error: MissingToken<'_, &str> = MissingToken::expected_one(10, "}");
   /// error.bump(&5);
@@ -389,7 +389,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   ///
   /// ```
   /// # #[cfg(feature = "std")] {
-  /// use tokora::{utils::Expected, error::token::MissingToken};
+  /// use tokora::{error::MissingToken, utils::Expected};
   ///
   /// let error: MissingToken<'_, &str> = MissingToken::expected_one(0, "identifier");
   /// let mapped_error = error.map_expected(|expected| {
@@ -416,7 +416,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// optional message, and the stamped token [`name`](Self::name), in field order.
   ///
   /// The name is returned rather than dropped for the same reason
-  /// [`SeparatedError::into_components`](crate::error::token::SeparatedError::into_components)
+  /// [`SeparatedError::into_components`](crate::error::SeparatedError::into_components)
   /// returns its own: a downstream `From<MissingToken>` impl that takes the error apart is
   /// precisely the consumer the separator conversions stamp the name for, and those
   /// conversions are blanket impls such a type cannot override. A tuple that omitted the name
@@ -428,7 +428,7 @@ impl<'a, Kind: Clone, O, Lang: ?Sized> MissingToken<'a, Kind, O, Lang> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{CowStr, Expected}, error::token::MissingToken};
+  /// use tokora::{SimpleSpan, error::MissingToken, utils::{CowStr, Expected}};
   ///
   /// let error: MissingToken<'_, &str, SimpleSpan> =
   ///     MissingToken::expected_one(SimpleSpan::new(5, 6), "}").with_name(CowStr::from_static("brace"));

@@ -166,10 +166,10 @@ impl From<BErr> for BenchErr {
   }
 }
 
-impl<'a, T, K: Clone, S, Lang: ?Sized>
-  From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for BenchErr
+impl<'a, T, K: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>>
+  for BenchErr
 {
-  fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self {
+  fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self {
     Self::Lex
   }
 }

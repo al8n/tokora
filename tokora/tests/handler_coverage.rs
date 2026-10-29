@@ -20,14 +20,13 @@ use tokora::{
     UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    NonAssociativeChain, RecursionLimitReached, Unclosed, UnexpectedEoLhs, UnexpectedEoRhs,
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingToken, MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntax, MissingSyntaxOf, MissingToken, MissingTokenOf,
+    NonAssociativeChain, RecursionLimitReached, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot, UnexpectedToken, UnexpectedTokenOf,
   },
   input::Cursor,
   span::{SimpleSpan, Spanned},
-  utils::{ArrayDeque, CowStr, marker::Ignored, typenum::U2},
+  utils::{ArrayDeque, CowStr, Ignored, typenum::U2},
 };
 
 use common::{TestLexer, Token, TokenKind};
@@ -2077,7 +2076,7 @@ fn rlat_at_least_empty_input_recovery() {
 // Merged from handler_emitter_coverage.rs
 //
 // Coverage tests for:
-// - `parser/many/handler/mod.rs` lines 47-49, 57-59, 75, 228-237, 245-254, 270, 277
+// - `combinator/many/handler/mod.rs` lines 47-49, 57-59, 75, 228-237, 245-254, 270, 277
 //   — SeparatorHandler and DelimiterHandler impls on `()`, `PhantomData<T>`,
 //     and `ArrayDeque` (exercised by running parsers that collect into those types)
 // - `emitter/mod.rs` lines 170, 177, 181, 188, 192, 196, 200, 204
@@ -2633,7 +2632,7 @@ fn missing_trailing_separator_emitter_mut_ref() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// parser/many/handler/mod.rs — SeparatorHandler impl for ()
+// combinator/many/handler/mod.rs — SeparatorHandler impl for ()
 // (lines 47-49)
 //
 // To exercise on_separator for (), we run a separated parser that collects
@@ -2668,7 +2667,7 @@ fn separator_handler_unit_via_parser() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// parser/many/handler/mod.rs — SeparatorHandler impl for PhantomData<T>
+// combinator/many/handler/mod.rs — SeparatorHandler impl for PhantomData<T>
 // (lines 57-59)
 //
 // Collect into PhantomData<i64> — triggers on_separator for PhantomData.
@@ -2703,7 +2702,7 @@ fn separator_handler_phantom_data_via_parser() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// parser/many/handler/mod.rs — SeparatorHandler impl for ArrayDeque
+// combinator/many/handler/mod.rs — SeparatorHandler impl for ArrayDeque
 // (line 75)
 //
 // Collect into ArrayDeque<i64, U2>.
@@ -2739,7 +2738,7 @@ fn separator_handler_gad_via_parser() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// parser/many/handler/mod.rs — SeparatorHandler impl for Ignored<T>
+// combinator/many/handler/mod.rs — SeparatorHandler impl for Ignored<T>
 // (line 68 via @generic macro)
 //
 // Collect into Ignored<i64> — triggers on_separator for Ignored.
@@ -2774,7 +2773,7 @@ fn separator_handler_ignored_via_parser() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// parser/many/handler/mod.rs — DelimiterHandler impls on (), PhantomData, GAD
+// combinator/many/handler/mod.rs — DelimiterHandler impls on (), PhantomData, GAD
 // (lines 228-237, 245-254, 270, 277)
 //
 // Delimited parsers call on_open_delimiter and on_close_delimiter on the
@@ -2794,7 +2793,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  use tokora::{parser::With, punct::Bracket};
+  use tokora::{combinator::With, punct::Bracket};
   try_num_emitter
     .separated_by_comma()
     .delimited::<Bracket>()
@@ -2825,7 +2824,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  use tokora::{parser::With, punct::Bracket};
+  use tokora::{combinator::With, punct::Bracket};
   try_num_emitter
     .separated_by_comma()
     .delimited::<Bracket>()
@@ -2855,7 +2854,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  use tokora::{parser::With, punct::Bracket};
+  use tokora::{combinator::With, punct::Bracket};
   try_num_emitter
     .separated_by_comma()
     .delimited::<Bracket>()
@@ -2885,7 +2884,7 @@ where
     + TooFewEmitter<'inp, TestLexer<'inp>>
     + TooManyEmitter<'inp, TestLexer<'inp>>,
 {
-  use tokora::{parser::With, punct::Bracket};
+  use tokora::{combinator::With, punct::Bracket};
   try_num_emitter
     .separated_by_comma()
     .delimited::<Bracket>()
@@ -2910,7 +2909,7 @@ fn delimiter_handler_ignored_via_parser() {
 // emitter's override, without touching the diagnostic tally.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-use tokora::{cst::event::EventMark, emitter::CstEmitter};
+use tokora::{cst::EventMark, emitter::CstEmitter};
 
 /// No public `EventMark` constructor exists (only a recording sink mints live marks), so the
 /// tracking overrides hand back the defaulted inert mark of a diagnostics-only emitter; the

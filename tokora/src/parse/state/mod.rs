@@ -1,4 +1,8 @@
-use super::super::{input::Cursor, span::Spanned, *};
+use super::super::{
+  input::{Complete, Completeness, Cursor},
+  span::Spanned,
+  *,
+};
 
 /// The view of a parse a state-carrying combinator callback is handed: the `*_with` family —
 #[cfg_attr(feature = "map", doc = " [`map_with`](crate::ParseInput::map_with),")]
@@ -129,7 +133,7 @@ where
   #[inline(always)]
   pub fn emit_unexpected_token(
     &mut self,
-    err: crate::error::token::UnexpectedTokenOf<'inp, L, Lang>,
+    err: crate::error::UnexpectedTokenOf<'inp, L, Lang>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self.inp.emit_unexpected_token(err)
   }
@@ -193,7 +197,7 @@ where
   /// Opens a CST node of `kind` —
   /// [`CstEmitter::cst_start`](crate::emitter::CstEmitter::cst_start), forwarded.
   #[inline(always)]
-  pub fn cst_start(&mut self, kind: u16) -> crate::cst::event::EventMark
+  pub fn cst_start(&mut self, kind: u16) -> crate::cst::EventMark
   where
     Ctx::Emitter: crate::emitter::CstEmitter<'inp, L, Lang>,
   {
@@ -213,7 +217,7 @@ where
   /// Un-opens the node started at `mark` —
   /// [`CstEmitter::cst_demote`](crate::emitter::CstEmitter::cst_demote), forwarded.
   #[inline(always)]
-  pub fn cst_demote(&mut self, mark: crate::cst::event::EventMark, kind: u16)
+  pub fn cst_demote(&mut self, mark: crate::cst::EventMark, kind: u16)
   where
     Ctx::Emitter: crate::emitter::CstEmitter<'inp, L, Lang>,
   {
@@ -223,7 +227,7 @@ where
   /// Appends a retro-wrap anchor —
   /// [`CstEmitter::cst_mark`](crate::emitter::CstEmitter::cst_mark), forwarded.
   #[inline(always)]
-  pub fn cst_mark(&mut self) -> crate::cst::event::EventMark
+  pub fn cst_mark(&mut self) -> crate::cst::EventMark
   where
     Ctx::Emitter: crate::emitter::CstEmitter<'inp, L, Lang>,
   {
@@ -233,7 +237,7 @@ where
   /// Retro-opens a node of `kind` at `mark` —
   /// [`CstEmitter::cst_start_at`](crate::emitter::CstEmitter::cst_start_at), forwarded.
   #[inline(always)]
-  pub fn cst_start_at(&mut self, mark: crate::cst::event::EventMark, kind: u16)
+  pub fn cst_start_at(&mut self, mark: crate::cst::EventMark, kind: u16)
   where
     Ctx::Emitter: crate::emitter::CstEmitter<'inp, L, Lang>,
   {

@@ -5,7 +5,7 @@
 //! The RHS report boundary was guarded first: the driver reads the watermark the instant
 //! `parse_pratt_rhs` returns and refuses an admitted `Infix`/`Postfix` that consumed nothing,
 //! before it recurses and before any fold. The LHS path is the same shape one site over — a
-//! [`PrattLHS::Prefix`](tokora::parser::PrattLHS) report goes to `parse(..)` at the *same input
+//! [`PrattLHS::Prefix`](tokora::pratt::PrattLHS) report goes to `parse(..)` at the *same input
 //! position*, then to `fold_prefix`, then to the CST wrap — and it carried no such check.
 //!
 //! Nothing declines a `Prefix`. `PrattLHS` has two variants and no floor applies to either;
@@ -35,9 +35,9 @@ use tokora::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser,
   error::{
     NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
-    token::UnexpectedTokenOf,
+    UnexpectedTokenOf,
   },
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
 };
 
 use common::{Power, TestLexer, Token};

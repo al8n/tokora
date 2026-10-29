@@ -4,13 +4,14 @@
 use core::fmt;
 
 use tokora::{
-  Located, SimpleSpan,
+  SimpleSpan,
   error::{ErrorNode, IncompleteSyntax},
   slice::Sliced,
+  span::Located,
   syntax::{Language, Syntax},
   utils::{
-    ArrayDeque, Expected, OneOf,
-    marker::{Ignored, PhantomDelimited, PhantomLocated, PhantomSliced, PhantomSpan},
+    ArrayDeque, Expected, Ignored, OneOf, PhantomDelimited, PhantomLocated, PhantomSliced,
+    PhantomSpan,
     typenum::{U0, U1, U2, U3},
   },
 };

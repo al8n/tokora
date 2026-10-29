@@ -2,8 +2,8 @@ use ::hybrid_arraydeque::{ArrayDeque, typenum::U1};
 use mayber::Maybe;
 
 use crate::{
-  Window,
   lexer::Lexer,
+  parse::Window,
   span::{Span, Spanned},
 };
 
@@ -50,10 +50,10 @@ pub type DefaultCache<'a, L> =
 ///
 /// There is **no dynamic, allocator-backed cache**, and enabling `alloc` does not add one — it
 /// enables allocator-backed *containers and drivers*, and forwards the sub-crates' own `alloc`
-/// features. Nor would one buy unbounded lookahead: [`crate::Window`] is sealed at
+/// features. Nor would one buy unbounded lookahead: [`crate::parse::Window`] is sealed at
 /// **U1–U32**, so no cache of any capacity — built-in or downstream — can serve a public peek
 /// past 32 tokens. Lookahead beyond the window is what **transactions** are for: an
-/// [`attempt`](crate::InputRef::attempt) or a [`Transaction`](crate::Transaction) speculates
+/// [`attempt`](crate::InputRef::attempt) or a [`Transaction`](crate::input::Transaction) speculates
 /// arbitrarily far and re-lexes on rollback, which is unbounded speculation without an unbounded
 /// buffer.
 ///

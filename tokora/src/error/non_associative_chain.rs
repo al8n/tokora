@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 /// A non-associative operator appeared a second time at its own binding power in one chain:
 #[cfg_attr(
   feature = "pratt",
-  doc = " `a == b == c` where `==` is [`PrattInfix::Neither`](crate::parser::PrattInfix::Neither)."
+  doc = " `a == b == c` where `==` is [`PrattInfix::Neither`](crate::pratt::PrattInfix::Neither)."
 )]
 #[cfg_attr(
   not(feature = "pratt"),
@@ -29,13 +29,13 @@ use core::marker::PhantomData;
 ///
 /// This is malformed **input**, the classic recovery target, so
 /// [`is_terminal`](crate::error::MaybeTerminal::is_terminal) is `false` and
-/// [`Recover`](crate::parser::Recover) / [`InplaceRecover`](crate::parser::InplaceRecover) /
+/// [`Recover`](crate::combinator::Recover) / [`InplaceRecover`](crate::combinator::InplaceRecover) /
 /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) may spend it. A grammar that *wants*
 /// the fold-once-then-stop behaviour asks for it explicitly, by wrapping the pratt parser in a
 /// recovery combinator or by reclassifying the operator
 #[cfg_attr(
   feature = "pratt",
-  doc = " [`Left`](crate::parser::PrattInfix::Left); tolerance is a caller policy stated in grammar"
+  doc = " [`Left`](crate::pratt::PrattInfix::Left); tolerance is a caller policy stated in grammar"
 )]
 #[cfg_attr(
   not(feature = "pratt"),
@@ -77,7 +77,7 @@ use core::marker::PhantomData;
 /// The operator's head is also not a quantity the typed engine could report even if it wanted to.
 #[cfg_attr(
   feature = "pratt",
-  doc = " [`ParsePrattRHS`](crate::parser::ParsePrattRHS) is caller code holding a whole"
+  doc = " [`ParsePrattRHS`](crate::pratt::ParsePrattRHS) is caller code holding a whole"
 )]
 #[cfg_attr(
   not(feature = "pratt"),
@@ -106,7 +106,7 @@ use core::marker::PhantomData;
 ///
 /// The identity above is about the handback, and it holds for whoever the error is handed to
 /// *unchanged*. It is **not** a prediction of where a recovery combinator restarts, because two of
-/// the three roll the input back further before they run: [`Recover`](crate::parser::Recover) and
+/// the three roll the input back further before they run: [`Recover`](crate::combinator::Recover) and
 /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) both speculate through
 /// [`try_attempt`](crate::InputRef::try_attempt), whose failure path restores the pre-attempt
 /// checkpoint. What they hand a handler, or begin skipping from, is therefore **their own attempt
@@ -205,7 +205,7 @@ impl<O, Lang: ?Sized> NonAssociativeChain<O, Lang> {
   ///
   /// It is where a grammar that catches this error, or one that recovers with
   /// [`inplace_recover`](crate::ParseInput::inplace_recover), resumes.
-  /// [`Recover`](crate::parser::Recover) and
+  /// [`Recover`](crate::combinator::Recover) and
   /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) restore their own attempt origin
   /// first and restart there instead — see the type's docs.
   #[inline]

@@ -18,17 +18,16 @@ use common::{E, TestLexer, Token, TokenKind};
 use tokora::{
   ComposableParseContext, Emitter, ErrorOf, FatalContext, InputRef, Lexer, Parse, ParseInput,
   Parser, ParserContext, SimpleSpan,
+  combinator::{
+    angles, braces, brackets, delimited, list, opt, parens, peek_kind, separated1, try_angles,
+    try_braces, try_brackets, try_delimited, try_parens,
+  },
   emitter::{
     Fatal, FullContainerEmitter, SeparatedEmitter, TooFewEmitter, UnclosedEmitter, Verbose,
   },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
-  },
-  parser::{
-    angles, braces, brackets, delimited, list, opt, parens, peek_kind, separated1, try_angles,
-    try_braces, try_brackets, try_delimited, try_parens,
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
   punct::{Brace, Bracket, CloseBrace, Comma, Paren, Semicolon},
   span::Spanned,

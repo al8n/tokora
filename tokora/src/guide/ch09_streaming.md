@@ -10,14 +10,14 @@ tokora's answer is to make the *question* representable, in the type system.
 
 ## The `Completeness` typestate
 
-An input carries a [`Completeness`](crate::Completeness) parameter:
+An input carries a [`Completeness`](crate::input::Completeness) parameter:
 
-- [`Complete`](crate::Complete) — the default, and what chapters 1-8 have been using without
+- [`Complete`](crate::input::Complete) — the default, and what chapters 1-8 have been using without
   ever saying so. The source is all of it. Every frontier rule below is written
   `if Cmpl::PARTIAL && …`, so under `Complete` they are compiled *out of existence*: the
   typestate is not a runtime mode, and the fast path pays exactly nothing for the existence of
   the slow one.
-- [`Partial`](crate::Partial) — the source is a **prefix of a stream that may still grow**. It
+- [`Partial`](crate::input::Partial) — the source is a **prefix of a stream that may still grow**. It
   carries one runtime bit, `is_final`, that the **driver** states when the last chunk lands —
   [`parse_partial`](crate::parse_partial)'s `is_final` argument.
 
@@ -92,8 +92,8 @@ the current slice — which is what "Sans-I/O" means: tokora never reads, never 
 a socket. It parses what you hand it and tells you when it needs more.
 
 [`parse_partial`](crate::parse_partial) wires up one round of that loop: it builds a
-[`Partial`](crate::Partial) input over your slice, seals it if this is the last chunk, and drives
-any [`ParseInput`](crate::ParseInput)`<…, `[`Partial`](crate::Partial)`>` — a typed fn like the
+[`Partial`](crate::input::Partial) input over your slice, seals it if this is the last chunk, and drives
+any [`ParseInput`](crate::ParseInput)`<…, `[`Partial`](crate::input::Partial)`>` — a typed fn like the
 one below, a named combinator chain, or a parser written generic over its completeness
 parameter. Since 0.3.0 that bound *is* the partial driver's whole signature: the closure era's
 bare-`FnOnce` bypass is gone, and partial mode is simply the other instantiation of the same
@@ -167,12 +167,10 @@ instead of spending it as a diagnostic — the never-recoverable law, enforced a
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedToken};
+# use tokora::error::{UnexpectedEot, UnexpectedToken};
 use tokora::{
-  InputRef, Partial, parse_partial,
-  cache::DefaultCache,
-  emitter::Fatal,
-  error::{Incomplete, MaybeIncomplete},
+  InputRef, cache::DefaultCache, emitter::Fatal, error::{Incomplete, MaybeIncomplete},
+  input::Partial, parse_partial,
 };
 
 // Chapter 3's `CalcError`, plus the one variant partial mode asks for.
@@ -279,10 +277,10 @@ assert_eq!(refills, 2);
 Everything above used a parser whose signature *names* `Partial`. That is one honest way to
 write a streaming parser — but 0.3.0's point is that you do not have to choose. Write the
 parser **generic over its completeness** and it is one item with two instantiations: the
-complete combinator driver pins `Cmpl = `[`Complete`](crate::Complete), `parse_partial` pins
-`Cmpl = `[`Partial`](crate::Partial), and the frontier rules exist in exactly one of the two
+complete combinator driver pins `Cmpl = `[`Complete`](crate::input::Complete), `parse_partial` pins
+`Cmpl = `[`Partial`](crate::input::Partial), and the frontier rules exist in exactly one of the two
 monomorphizations. The bound to reach for is
-[`SurfaceIncomplete`](crate::SurfaceIncomplete) — the [`Completeness`](crate::Completeness)
+[`SurfaceIncomplete`](crate::input::SurfaceIncomplete) — the [`Completeness`](crate::input::Completeness)
 refinement the scan chokepoint itself uses, satisfied by `Complete` unconditionally and by
 `Partial` wherever the error type meets the two requirements above.
 
@@ -347,12 +345,10 @@ refinement the scan chokepoint itself uses, satisfied by `Complete` unconditiona
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedToken};
+# use tokora::error::{UnexpectedEot, UnexpectedToken};
 # use tokora::{
-#   InputRef, Partial, parse_partial,
-#   cache::DefaultCache,
-#   emitter::Fatal,
-#   error::{Incomplete, MaybeIncomplete},
+#   InputRef, cache::DefaultCache, emitter::Fatal, error::{Incomplete, MaybeIncomplete},
+#   input::Partial, parse_partial,
 # };
 #
 # // Chapter 3's `CalcError`, plus the one variant partial mode asks for.

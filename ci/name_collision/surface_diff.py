@@ -2,9 +2,10 @@
 """Mechanical public-surface delta between two rustdoc-JSON dumps.
 
 An earlier version read **only the crate root's direct item list**, so
-nested public modules were invisible — it missed `tokora::parser::{dispatch_take,
-try_dispatch_take}` and the new public module `tokora::cst::kinds`, both reachable by
-a legal consumer glob (`use tokora::parser::*`). This version walks the whole public
+nested public modules were invisible — it missed `dispatch_take` and `try_dispatch_take` in
+`tokora::combinator` (the `parser` module before 0.12.0) and the new public module
+`tokora::cst::kinds`, both reachable by a legal consumer glob (`use tokora::combinator::*`).
+This version walks the whole public
 module tree, following `module` items and `use` re-exports (named and glob), and
 reports every module path a new name lands in.
 
@@ -45,6 +46,21 @@ def load(path):
     return d, {str(k): v for k, v in d["index"].items()}
 
 
+def external_kind(paths, tid):
+    """The kind rustdoc records for a re-export whose target is outside the crate.
+
+    Such a target is not in `index`, so its kind used to read as the placeholder `use`, which no
+    probe template expresses — `gen_probe.py` refuses it, and the row goes FATAL. The `paths`
+    table does carry the target's kind (`module` for a re-exported crate such as
+    `tokora::logos_0_16`, `struct` for `utils::ArrayDeque`), and that is the namespace the probe
+    has to construct the collision in.
+    """
+    entry = paths.get(str(tid)) if tid is not None else None
+    if isinstance(entry, dict) and entry.get("kind"):
+        return entry["kind"]
+    return "use"
+
+
 def get(idx, i):
     return idx.get(str(i))
 
@@ -54,7 +70,7 @@ def kind_of(item):
     return next(iter(inner.keys()), "?") if isinstance(inner, dict) else "?"
 
 
-def namespace(idx, mod_id, _memo=None, _stack=None):
+def namespace(idx, mod_id, _memo=None, _stack=None, paths=None):
     """{name: (kind, submodule_id_or_None)} — a module's *resolved* namespace.
 
     Resolves `use` re-exports, including globs from private modules (which is how
@@ -88,13 +104,14 @@ def namespace(idx, mod_id, _memo=None, _stack=None):
                 tgt = get(idx, tid) if tid is not None else None
                 if u.get("is_glob"):
                     if tgt and "module" in tgt.get("inner", {}):
-                        for nm, val in namespace(idx, tid, _memo, _stack).items():
+                        for nm, val in namespace(idx, tid, _memo, _stack, paths).items():
                             out.setdefault(nm, val)
                     continue
                 nm = u.get("name")
                 if nm:
                     sub = tid if (tgt and "module" in tgt.get("inner", {})) else None
-                    out.setdefault(nm, (kind_of(tgt) if tgt else "use", sub))
+                    kind = kind_of(tgt) if tgt else external_kind(paths or {}, tid)
+                    out.setdefault(nm, (kind, sub))
                 continue
             nm = child.get("name")
             if not nm:
@@ -122,7 +139,7 @@ def walk_modules(d, idx):
         # `#[macro_export]` macro (which lands at the crate root), and an empty new
         # module is still a new glob namespace.
         _ = out[path]
-        for nm, (kind, sub) in namespace(idx, mod_id, memo).items():
+        for nm, (kind, sub) in namespace(idx, mod_id, memo, paths=d.get("paths", {})).items():
             out[path].setdefault(nm, kind)
             if sub is not None:
                 visit(sub, path + "::" + nm)
@@ -266,7 +283,7 @@ def main():
             continue
         glob_names.add(nm)
         # The MODULE the name is reachable from and the NAMESPACE it occupies. A probe
-        # that globs the crate root for a name living in `tokora::parser`, or that
+        # that globs the crate root for a name living in `tokora::combinator`, or that
         # references a function in the type namespace, constructs no collision at all and
         # reports a clean run over an experiment that never happened.
         glob_details[nm] = {"kind": kind, "path": sorted(paths)[0]}

@@ -18,12 +18,13 @@
 //!   [`kind_of`] — no parallel drive of the machinery under test.
 
 use crate::{
-  Lexer, SimpleSpan, State, Token,
+  Lexer, SimpleSpan, Token,
   cache::DefaultCache,
   emitter::Emitter,
-  error::{Incomplete, MaybeIncomplete, token::UnexpectedTokenOf},
+  error::{Incomplete, MaybeIncomplete, UnexpectedTokenOf},
   input::Cursor,
   span::Spanned,
+  state::State,
 };
 
 // ── The shadow model: pure byte classifiers ─────────────────────────────────────────────────────
@@ -437,7 +438,7 @@ where
   L: Lexer<'a>,
 {
   #[inline(always)]
-  fn cst_demote(&mut self, mark: crate::cst::event::EventMark, kind: u16) {
+  fn cst_demote(&mut self, mark: crate::cst::EventMark, kind: u16) {
     let _ = (mark, kind);
   }
 }

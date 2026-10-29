@@ -1806,7 +1806,7 @@ struct RepeatErrLexer<'a, const N: usize> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct Emitted(usize);
 
-impl crate::State for Emitted {
+impl crate::state::State for Emitted {
   type Error = ();
 
   fn check(&self) -> Result<(), Self::Error> {
@@ -2642,7 +2642,10 @@ mod prefix_backtracking {
 mod recorded_value {
   use super::{Harness, OwnedChunks};
   use crate::lexer::LogosLexer;
-  use crate::{Probe, State, Token};
+  use crate::{
+    Token,
+    state::{Probe, State},
+  };
 
   #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
   enum NumKind {
@@ -2790,7 +2793,7 @@ static ALT_FLIP: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool
 #[derive(Clone, Copy, Debug)]
 struct AltChoice(bool);
 
-impl crate::State for AltChoice {
+impl crate::state::State for AltChoice {
   type Error = Infallible;
   fn check(&self) -> Result<(), Infallible> {
     Ok(())
@@ -3435,7 +3438,7 @@ const FLIP_AT: usize = 6;
 #[derive(Clone, Copy, Debug)]
 struct InstanceChoice(u8);
 
-impl crate::State for InstanceChoice {
+impl crate::state::State for InstanceChoice {
   type Error = Infallible;
   fn check(&self) -> Result<(), Infallible> {
     Ok(())
@@ -3690,7 +3693,7 @@ fn the_cache_kit_diagnoses_a_non_reflexive_token_instead_of_blaming_the_cache() 
   // same guard, or the sweep stops one tier short. Eight `NaN`-payload tokens, a conforming
   // cache: before this the kit reported `entry-token`, "the entry at 0..1 is a DIFFERENT token
   // from the one stored there — expected FTok(NaN), got FTok(NaN)".
-  crate::conformance::cache::CacheHarness::<
+  crate::conformance::CacheHarness::<
     NanPayloadLexer<'_>,
     crate::cache::DefaultCache<'_, NanPayloadLexer<'_>>,
   >::new("nnnnnnnn")
@@ -3701,7 +3704,7 @@ fn the_cache_kit_diagnoses_a_non_reflexive_token_instead_of_blaming_the_cache() 
 fn the_cache_kit_still_runs_over_a_reflexive_payload_of_the_same_type() {
   // The cache tier's control, and it is the same shape as the partial tier's: the payload TYPE is
   // not what the guard rejects, only a value that will not equal itself.
-  crate::conformance::cache::CacheHarness::<
+  crate::conformance::CacheHarness::<
     NanPayloadLexer<'_>,
     crate::cache::DefaultCache<'_, NanPayloadLexer<'_>>,
   >::new("abcdefgh")
@@ -4020,12 +4023,12 @@ fn a_peeked_run_is_probed_at_the_position_the_two_runs_disagree_at() {
 
 /// The harness the cells drive the prefilled purity law through. It never touches the cache, so
 /// the type parameter is only there to name one.
-fn purity_harness<'a>() -> crate::conformance::cache::CacheHarness<
+fn purity_harness<'a>() -> crate::conformance::CacheHarness<
   'a,
   NanPayloadLexer<'a>,
   crate::cache::DefaultCache<'a, NanPayloadLexer<'a>>,
 > {
-  crate::conformance::cache::CacheHarness::new("nn")
+  crate::conformance::CacheHarness::new("nn")
 }
 
 /// The message a panic carried, or a failure saying the kit did not panic at all.
@@ -4929,7 +4932,7 @@ fn the_cache_kits_span_valued_laws_are_shadowed_by_its_entry_comparison_today() 
   // path already panicking.
   let src = LyingOffsetSource("abcdefghijklmnop");
   let msg = panic_message(|| {
-    crate::conformance::cache::CacheHarness::<
+    crate::conformance::CacheHarness::<
       LyingOffsetLexer<'_>,
       crate::cache::DefaultCache<'_, LyingOffsetLexer<'_>>,
     >::new(&src)

@@ -90,7 +90,7 @@
 //! ```rust
 //! # struct YulLang;
 //! # let span = tokora::SimpleSpan::new(0, 2);
-//! use tokora::{SimpleSpan, error::ErrorNode, types::{LitDecimal, recovery::RecoveryState}};
+//! use tokora::{SimpleSpan, error::ErrorNode, types::{LitDecimal, RecoveryState}};
 //!
 //! // Create placeholder for malformed literal
 //! let bad_lit = LitDecimal::<&str, SimpleSpan, YulLang>::error(span);
@@ -156,7 +156,7 @@ macro_rules! define_literal {
       ///
       /// ```rust
       #[doc = "use tokora::types::" $name ";"]
-      /// use tokora::{SimpleSpan, error::ErrorNode, types::recovery::RecoveryState};
+      /// use tokora::{SimpleSpan, error::ErrorNode, types::RecoveryState};
       /// # struct MyLang;
       /// # let span = SimpleSpan::new(0, 4);
       ///
@@ -266,13 +266,13 @@ macro_rules! define_literal {
       /// `FromComponents` is the inverse: without it in both, a consumer who took a literal apart
       /// and put it back together would have to rebuild through `new`, which always declares the
       /// result valid.
-      type Components = $crate::types::recovery::Components<Span, D>;
+      type Components = $crate::types::Components<Span, D>;
 
       #[inline(always)]
       fn into_components(self) -> Self::Components {
         let Self { _lang, status, span, data } = self;
 
-        $crate::types::recovery::Components { span, payload: data, status }
+        $crate::types::Components { span, payload: data, status }
       }
     }
 
@@ -358,18 +358,18 @@ macro_rules! define_literal {
       }
     }
 
-    impl<D, Span, Lang: ?::core::marker::Sized> $crate::types::recovery::FromComponents
+    impl<D, Span, Lang: ?::core::marker::Sized> $crate::types::FromComponents
       for $name<D, Span, Lang>
     {
       #[inline(always)]
       fn from_components(components: Self::Components) -> Self {
-        let $crate::types::recovery::Components { span, payload, status } = components;
+        let $crate::types::Components { span, payload, status } = components;
 
         Self::with_status(span, payload, status)
       }
     }
 
-    impl<D: ?::core::marker::Sized, Span, Lang: ?::core::marker::Sized> $crate::types::recovery::RecoveryState
+    impl<D: ?::core::marker::Sized, Span, Lang: ?::core::marker::Sized> $crate::types::RecoveryState
       for $name<D, Span, Lang>
     {
       #[inline(always)]

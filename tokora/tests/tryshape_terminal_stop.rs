@@ -18,15 +18,14 @@ use std::rc::Rc;
 
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, Token as TokenT,
+  combinator::{parens, try_angles, try_braces, try_brackets, try_delimited, try_parens},
   emitter::{Fatal, Silent, UnclosedEmitter, Verbose},
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
   lexer::LogosLexer,
   logos::{self, Logos},
-  parser::{parens, try_angles, try_braces, try_brackets, try_delimited, try_parens},
   punct::{
     CloseAngle, CloseBrace, CloseBracket, CloseParen, OpenAngle, OpenBrace, OpenBracket, OpenParen,
     Paren,
@@ -724,7 +723,10 @@ fn committed_shape_trip_at_close_surfaces_eot_not_unclosed() {
 // a fresh trip at the would-be leaf surfaces the committed end-of-input error, a genuine decline
 // (wrong token or real end of input) still declines.
 
-use tokora::{ParseAttempt, TryParseInput, parser::peek_kind, parser::try_expect};
+use tokora::{
+  ParseAttempt, TryParseInput,
+  combinator::{peek_kind, try_expect},
+};
 
 #[test]
 fn expect_try_leaf_does_not_decline_on_trip() {
@@ -977,8 +979,9 @@ fn ident_try_leaf_still_declines_on_genuine_eoi() {
 // the handler unchanged.
 
 use tokora::{
-  Branch, ParseChoice, ParseInput,
+  ParseChoice, ParseInput,
   input::Completeness,
+  parse::Branch,
   utils::typenum::{U1, U2},
 };
 

@@ -1,6 +1,6 @@
 use crate::{
   Lexer,
-  parser::{DelimiterHandler, SeparatorHandler},
+  parse::{DelimiterHandler, SeparatorHandler},
   span::Spanned,
 };
 

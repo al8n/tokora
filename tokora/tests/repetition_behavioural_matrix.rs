@@ -6,7 +6,7 @@
 //! # Why this file is not the thirty-fourth suite
 //!
 //! `tokora/tests/` already holds tens of thousands of lines of behavioural tests for these
-//! combinators, and `parser::many`'s censuses count the sites those combinators are spelled at.
+//! combinators, and `combinator::many`'s censuses count the sites those combinators are spelled at.
 //! [#259](https://github.com/al8n/tokora/issues/259) names the gap both of them leave, in its own
 //! summary:
 //!
@@ -39,7 +39,7 @@
 //! Layer B needs to know what *should* be in the container without asking the thing that filled
 //! it. The element parsers here are instrumented: every value they hand back is appended to a
 //! thread-local log first (`accepted`). The log is written by the element parser, which is test
-//! code, and read after the construct returns. Nothing in `parser::many` can move it.
+//! code, and read after the construct returns. Nothing in `combinator::many` can move it.
 //!
 //! That is the whole of the independence claim, and it is worth stating what it does **not**
 //! cover: an element the driver parses and then rolls back is in the log and legitimately not in
@@ -88,14 +88,14 @@ use tokora::{
   Emitter, EmitterView, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
   ParserContext, TryParseInput,
   cache::Peeked,
+  combinator::Collect,
   emitter::{Fatal, FromUnclosed, Verbose},
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
   logos::Logos,
-  parser::{Action, Collect},
+  parse::Action,
   punct::Bracket,
   span::SimpleSpan,
   utils::typenum::U1,
@@ -516,7 +516,7 @@ impl Variant {
 ///
 /// A row is one line: its name, its layout, its declared bound, and the builder expression. The
 /// macro instantiates that expression twice — once for a single attempt and once for the reuse
-/// pair — so a driver, cardinality or separator policy added to `parser::many` inherits every
+/// pair — so a driver, cardinality or separator policy added to `combinator::many` inherits every
 /// fixture and every property in this file by gaining **one line here**, and by nothing else.
 /// That inheritance is what #259's "generated behavioural matrix" acceptance criterion asks for,
 /// and it is the reason the criterion is about inheritance rather than about coverage: the thirty
@@ -956,7 +956,7 @@ fn variant(name: &str) -> &'static Variant {
 // LAYER B — absolute properties
 //
 // Each is true of every variant on its own and is checked against something outside
-// `parser::many`, so it is still red when all forty-nine rows share one wrong behaviour. This is
+// `combinator::many`, so it is still red when all forty-nine rows share one wrong behaviour. This is
 // the layer #259 asks for, and the layer A below structurally cannot supply.
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -1057,7 +1057,7 @@ fn the_counts_a_construct_reports_are_the_counts_it_collected() {
 
 /// **B3 — position: the input rests exactly at the boundary of what was consumed.**
 ///
-/// Both sides are computed outside `parser::many`. The right-hand side is the fixture's source
+/// Both sides are computed outside `combinator::many`. The right-hand side is the fixture's source
 /// re-lexed with `logos` directly and cut at the end of the consumed region; the left-hand side
 /// is what the input still held, drained token by token after the construct returned. A driver
 /// whose lookahead swallowed a token it did not commit, or that left a token behind the boundary
@@ -1704,7 +1704,7 @@ fn the_four_structural_shapes_collect_the_same_elements() {
 // The table itself
 // ══════════════════════════════════════════════════════════════════════════════
 
-/// The matrix's size, pinned so that a driver added to `parser::many` without a row here is
+/// The matrix's size, pinned so that a driver added to `combinator::many` without a row here is
 /// visible rather than silently uncovered.
 ///
 /// Eight drivers — `repeated`, `repeated_while`, `separated`, `separated_while` and the delimited

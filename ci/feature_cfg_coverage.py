@@ -202,7 +202,7 @@ EXTRA_LEGS = [
         # `many`/`fold` family at the alloc-WITHOUT-std tier. `--features many` and
         # `--features fold` have no allocator; `--features alloc`, `conformance` and
         # `smallvec_1` have no family; `default` has the family but brings `std` with it. So
-        # `src/parser/many/list.rs` and the `list`/`separated1` sinks — gated
+        # `src/combinator/list.rs` and the `list`/`separated1` sinks — gated
         # `all(many, any(alloc, std))` — are compiled by no other leg without `std`, and a
         # `std`-only path leaking into them would be invisible.
         #
@@ -254,13 +254,13 @@ EXTRA_LEGS = [
         # `trace = ["std"]` and nothing pulls `trace`, so `trace` alone has no logos and no leg
         # that has logos has `trace`. This is the leg the derivation for #200 did not have: its
         # predicate is rustfmt-wrapped over five lines in `src/trace/mod.rs` and
-        # `src/parser/labelled/mod.rs`, and the line-oriented grep that derivation used cannot see
+        # `src/combinator/labelled/mod.rs`, and the line-oriented grep that derivation used cannot see
         # a wrapped attribute. It is also the leg with the most to say — `trace` instruments the
         # crate's own combinators at ~40 `#[cfg(feature = "trace")]` sites, and its own header
         # in `src/trace/mod.rs` calls out the `trace`-without-`logos` test build as the shape to
         # watch.
         #
-        # `combinators` is deliberately absent: `src/trace/mod.rs` and `src/parser/labelled/mod.rs`
+        # `combinators` is deliberately absent: `src/trace/mod.rs` and `src/combinator/labelled/mod.rs`
         # are ungated, so this builds the trace surface without the families masking it.
         #
         # THAT ABSENCE DOES A SECOND JOB THIS SCRIPT CANNOT SEE, and it is recorded here because

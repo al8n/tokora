@@ -66,7 +66,7 @@ macro_rules! blackhole {
       #[inline(always)]
       fn peek<'p, W>(&'p self, _: &mut ArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>)
       where
-        W: crate::Window,
+        W: crate::parse::Window,
       {
       }
 

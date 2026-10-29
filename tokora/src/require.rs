@@ -9,7 +9,7 @@
 /// ## Example
 ///
 /// ```rust
-/// use tokora::Require;
+/// use tokora::parse::Require;
 ///
 /// #[derive(Debug, Clone)]
 /// pub enum Punct {

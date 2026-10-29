@@ -15,7 +15,7 @@
 /// - **Recovery combinators must re-raise it untouched.** A recoverer exists to synthesize a value
 ///   from a *malformed* construct; an incomplete one is not malformed, only unfinished, so
 ///   recovering it would fabricate a value from input that has not arrived.
-///   [`Recover`](crate::parser::Recover) (and the skip-retry driver when it lands) therefore
+///   [`Recover`](crate::combinator::Recover) (and the skip-retry driver when it lands) therefore
 ///   re-raises an `Incomplete` on the `Err` channel instead of invoking the recoverer — see
 ///   [`MaybeIncomplete`].
 /// - **It must never be emitted as a diagnostic.** `Incomplete` rides the `Err` channel *only*; it
@@ -108,7 +108,7 @@ impl<O> Incomplete<O> {
 /// opts in with an empty `impl MaybeIncomplete for MyError {}` and only overrides the method if it
 /// can actually carry an incomplete signal. [`Incomplete`] itself overrides it to `true`.
 ///
-/// [`Recover`](crate::parser::Recover) requires this bound and re-raises rather than recovers when
+/// [`Recover`](crate::combinator::Recover) requires this bound and re-raises rather than recovers when
 /// `is_incomplete()` holds, so an unfinished construct is never fabricated into a value.
 pub trait MaybeIncomplete {
   /// Returns `true` iff this error value is (or currently represents) an [`Incomplete`]

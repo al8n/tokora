@@ -12,21 +12,21 @@ use derive_more::{Display, From, Unwrap};
 use hybrid_arraydeque::typenum::U1;
 
 use tokora::{
-  Accumulator, Branch, Emitter, EmitterView, InputRef, Parse, ParseAttempt, ParseChoice,
-  ParseContext, ParseInput, Parser, Token as TokenT, TryParseInput,
+  Accumulator, Emitter, EmitterView, InputRef, Parse, ParseAttempt, ParseChoice, ParseContext,
+  ParseInput, Parser, Token as TokenT, TryParseInput,
   cache::Peeked,
+  combinator::expect,
   delimiter::DelimiterKind,
   emitter::{
     FromUnclosed, FullContainerEmitter, SeparatedEmitter, UnclosedEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntaxOf},
-    token::{MissingTokenOf, SeparatedErrorOf, UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntaxOf, MissingTokenOf, SeparatedErrorOf, Unclosed, UnexpectedEot,
+    UnexpectedToken, UnexpectedTokenOf,
   },
   logos::{self, Logos},
-  parser::{Action, expect},
+  parse::{Action, Branch},
   punct::{Brace, Bracket, CloseBrace, CloseBracket, Colon, Comma, OpenBrace, OpenBracket},
   span::Spanned,
   token::PunctuatorToken,

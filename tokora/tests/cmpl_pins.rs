@@ -13,7 +13,7 @@ mod common;
 use common::{TestLexer, Token, TokenKind};
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser,
-  parser::{Any, expect, parens},
+  combinator::{Any, expect, parens},
   utils::Expected,
 };
 
@@ -139,7 +139,7 @@ fn t8_closure_rooted() {
 #[test]
 #[allow(clippy::type_complexity)] // the point IS the fully-written 0.2.0 type spelling
 fn t9_written_type_default_position() {
-  use tokora::{FatalContext, parser::Map};
+  use tokora::{FatalContext, combinator::Map};
   fn step(t: Token) -> i64 {
     as_num(t)
   }
@@ -164,7 +164,7 @@ fn t9_written_type_default_position() {
 #[test]
 fn t10_s_class_atop_generic_subchain() {
   use hybrid_arraydeque::typenum::U1;
-  use tokora::parser::Action;
+  use tokora::parse::Action;
   fn parse<'inp, Ctx>(inp: &mut InputRef<'inp, '_, L<'inp>, Ctx>) -> Result<i64, ()>
   where
     Ctx: ParseContext<'inp, L<'inp>>,
@@ -202,10 +202,10 @@ where
     PinErr::Other
   }
 }
-impl<'a, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, Token, TokenKind, S, Lang>>
+impl<'a, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, Token, TokenKind, S, Lang>>
   for PinErr
 {
-  fn from(_: tokora::error::token::UnexpectedToken<'a, Token, TokenKind, S, Lang>) -> Self {
+  fn from(_: tokora::error::UnexpectedToken<'a, Token, TokenKind, S, Lang>) -> Self {
     PinErr::Other
   }
 }
@@ -216,37 +216,35 @@ impl<O, Lang: ?Sized, Set: Clone + 'static> From<tokora::error::UnexpectedEot<O,
     PinErr::Other
   }
 }
-impl<'a, S, Lang: ?Sized> From<tokora::error::token::SeparatedError<'a, Token, TokenKind, S, Lang>>
+impl<'a, S, Lang: ?Sized> From<tokora::error::SeparatedError<'a, Token, TokenKind, S, Lang>>
   for PinErr
 {
-  fn from(_: tokora::error::token::SeparatedError<'a, Token, TokenKind, S, Lang>) -> Self {
+  fn from(_: tokora::error::SeparatedError<'a, Token, TokenKind, S, Lang>) -> Self {
     PinErr::Other
   }
 }
-impl<'a, O, Lang: ?Sized> From<tokora::error::token::MissingToken<'a, TokenKind, O, Lang>>
-  for PinErr
-{
-  fn from(_: tokora::error::token::MissingToken<'a, TokenKind, O, Lang>) -> Self {
+impl<'a, O, Lang: ?Sized> From<tokora::error::MissingToken<'a, TokenKind, O, Lang>> for PinErr {
+  fn from(_: tokora::error::MissingToken<'a, TokenKind, O, Lang>) -> Self {
     PinErr::Other
   }
 }
-impl<O, Lang: ?Sized> From<tokora::error::syntax::MissingSyntax<O, Lang>> for PinErr {
-  fn from(_: tokora::error::syntax::MissingSyntax<O, Lang>) -> Self {
+impl<O, Lang: ?Sized> From<tokora::error::MissingSyntax<O, Lang>> for PinErr {
+  fn from(_: tokora::error::MissingSyntax<O, Lang>) -> Self {
     PinErr::Other
   }
 }
-impl<S, Lang: ?Sized> From<tokora::error::syntax::FullContainer<S, Lang>> for PinErr {
-  fn from(_: tokora::error::syntax::FullContainer<S, Lang>) -> Self {
+impl<S, Lang: ?Sized> From<tokora::error::FullContainer<S, Lang>> for PinErr {
+  fn from(_: tokora::error::FullContainer<S, Lang>) -> Self {
     PinErr::Other
   }
 }
-impl<S, Lang: ?Sized> From<tokora::error::syntax::TooFew<S, Lang>> for PinErr {
-  fn from(_: tokora::error::syntax::TooFew<S, Lang>) -> Self {
+impl<S, Lang: ?Sized> From<tokora::error::TooFew<S, Lang>> for PinErr {
+  fn from(_: tokora::error::TooFew<S, Lang>) -> Self {
     PinErr::Other
   }
 }
-impl<S, Lang: ?Sized> From<tokora::error::syntax::TooMany<S, Lang>> for PinErr {
-  fn from(_: tokora::error::syntax::TooMany<S, Lang>) -> Self {
+impl<S, Lang: ?Sized> From<tokora::error::TooMany<S, Lang>> for PinErr {
+  fn from(_: tokora::error::TooMany<S, Lang>) -> Self {
     PinErr::Other
   }
 }

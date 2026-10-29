@@ -16,7 +16,7 @@
 // cannot fail for the reason it names.
 #![allow(dead_code)]
 
-use tokora::cst::{Element, Node, error::SyntaxError};
+use tokora::cst::{Element, Node, SyntaxError};
 use tokora::syntax::Syntax;
 use tokora::utils::{ArrayDeque, typenum::U0};
 

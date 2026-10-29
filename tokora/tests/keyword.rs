@@ -1,7 +1,7 @@
 #![cfg(all(feature = "std", feature = "combinators", feature = "logos_0_16"))]
 #![allow(unused_imports)]
 
-//! Tests for parser/keyword.rs -- Keyword::try_parse, try_parse_sliced,
+//! Tests for combinator/keyword.rs -- Keyword::try_parse, try_parse_sliced,
 //! try_parse_exact, try_parse_exact_sliced and their _of variants.
 
 use tokora::{
@@ -9,7 +9,7 @@ use tokora::{
   error::UnexpectedEot,
   logos::{self, Logos},
   token::{KeywordToken, PunctuatorToken},
-  types::{Keyword, recovery::Components},
+  types::{Components, Keyword},
 };
 
 // ── Token with keywords ─────────────────────────────────────────────────────
@@ -245,7 +245,7 @@ where
   }
 }
 
-use tokora::error::token::UnexpectedToken;
+use tokora::error::UnexpectedToken;
 
 #[derive(Debug)]
 struct KwTestError;
@@ -545,9 +545,9 @@ use std::borrow::Borrow;
 use std::fmt::Write as _;
 
 use tokora::__private::span::{AsSpan, IntoSpan};
+use tokora::__private::utils::DisplayHuman;
 use tokora::__private::utils::IntoComponents;
-use tokora::__private::utils::human_display::DisplayHuman;
-use tokora::__private::utils::sdl_display::{DisplayCompact, DisplayPretty};
+use tokora::__private::utils::{DisplayCompact, DisplayPretty};
 use tokora::span::SimpleSpan;
 
 // ── Define a keyword and punctuator for testing ──────────────────────────────

@@ -7,12 +7,13 @@
 //! by-value tally is the only shape in which the harvest rule is measurable at all.
 
 use crate::{
-  InputRef, Partial, SimpleSpan, Token,
+  InputRef, SimpleSpan, Token,
   cache::DefaultCache,
   emitter::{Fatal, Verbose},
-  error::{Incomplete, MaybeIncomplete, MaybeTerminal, token::UnexpectedToken},
-  input::{Budget, PartialSession, RedriveFromBase, SessionRefusal, parse_partial},
+  error::{Incomplete, MaybeIncomplete, MaybeTerminal, UnexpectedToken},
+  input::{Budget, Partial, PartialSession, RedriveFromBase, SessionRefusal},
   lexer::Lexer,
+  parse::parse_partial,
   state::State,
 };
 

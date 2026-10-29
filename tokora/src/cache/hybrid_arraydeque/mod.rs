@@ -86,7 +86,7 @@ where
   #[inline(always)]
   fn peek<'p, W>(&'p self, buf: &mut ArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>)
   where
-    W: crate::Window,
+    W: crate::parse::Window,
   {
     let fill = buf.remaining_capacity().min(self.len());
     for tok in self.iter().take(fill) {

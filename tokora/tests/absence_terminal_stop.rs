@@ -39,13 +39,12 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
   lexer::LogosLexer,
   logos::{self, Logos},
-  parser::Action,
+  parse::Action,
   punct::{CloseParen, Comma, OpenParen, Paren},
   state::State,
   token::PunctuatorToken,
@@ -909,7 +908,7 @@ fn rollback_after_a_peek_latch_still_surfaces_terminal() {
 // Relocating a latch read closes one depth and opens the next. A cell inside the rollback set cannot
 // witness an event across a rollback at any depth, so the witness is `Input::scanner_trips`: a
 // monotone session counter bumped by the crate's sole terminal predicate, outside the rollback set
-// by construction. This is the same answer `parser::recovery_gate` reached for the recovery
+// by construction. This is the same answer `combinator::recovery_gate` reached for the recovery
 // combinators, applied to the twelve collection drivers.
 
 #[test]

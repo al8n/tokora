@@ -27,8 +27,8 @@
 #![allow(dead_code)]
 
 use tokora::{
-  Emitter, Lexer, Token, cst::event::EventMark, emitter::CstEmitter,
-  error::token::UnexpectedTokenOf, input::Cursor, span::Spanned,
+  Emitter, Lexer, Token, cst::EventMark, emitter::CstEmitter,
+  error::UnexpectedTokenOf, input::Cursor, span::Spanned,
 };
 
 /// A generic forwarding wrapper — the fully-public downstream population. It cannot mint an

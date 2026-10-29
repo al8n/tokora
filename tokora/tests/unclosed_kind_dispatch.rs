@@ -26,14 +26,13 @@ mod common;
 use common::{TestLexer, Token};
 use tokora::{
   FatalContext, InputRef, Lexer, Parse, Parser, SimpleSpan,
+  combinator::{angles, braces, brackets, delimited, parens},
   delimiter::{Delimiter, DelimiterKind, TypedDelimiter},
   emitter::FromUnclosed,
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, Unclosed, UnexpectedEot,
+    UnexpectedToken,
   },
-  parser::{angles, braces, brackets, delimited, parens},
   punct::{Angle, Brace, Bracket, CloseAngle, CloseBrace, OpenAngle, OpenBrace, Paren},
   utils::CowStr,
 };

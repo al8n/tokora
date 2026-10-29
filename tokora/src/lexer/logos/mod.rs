@@ -288,7 +288,7 @@ macro_rules! bail {
       /// which is the direction that lets an unstable item be committed.
       ///
       /// So the value carries the offset its scan started at
-      /// ([`Probe::scanned_from`](crate::Probe::scanned_from)) and is
+      /// ([`Probe::scanned_from`](crate::state::Probe::scanned_from)) and is
       /// accepted **iff that equals the returned item's span start**. Anything else — a skipped
       /// scan's value, a value carried in on a restored state — falls back to the class claim,
       /// which is conservative by construction. The check is here rather than in a rule recorders

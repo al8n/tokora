@@ -9,9 +9,7 @@ use hybrid_arraydeque::typenum::U1;
 use tokora::EmitterView;
 use tokora::{
   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
-  cache::Peeked,
-  parser::{Action, expect},
-  utils::Expected,
+  cache::Peeked, combinator::expect, parse::Action, utils::Expected,
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────

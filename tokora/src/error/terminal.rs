@@ -52,7 +52,7 @@
 /// be **re-raised untouched**, exactly as an [`Incomplete`](crate::error::Incomplete) is — the two
 /// are duals: an incomplete says "more input may fix this", a terminal stop says "no input ever
 /// will", and neither may be spent as a recoverable failure.
-/// [`Recover`](crate::parser::Recover), [`InplaceRecover`](crate::parser::InplaceRecover), and
+/// [`Recover`](crate::combinator::Recover), [`InplaceRecover`](crate::combinator::InplaceRecover), and
 /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) require this bound and re-raise, rather
 /// than recover, when `is_terminal()` holds — and on two input-side witnesses beside it, because a
 /// terminal *event* can reach them through a carrier nothing marked. See
@@ -157,8 +157,8 @@
 /// **mark** that path — there is no `UnexpectedEnd` on it to raise a flag on.
 ///
 /// What it does now is not depend on the mark. The scanner's trip is **counted on the input
-/// session**, and [`Recover`](crate::parser::Recover),
-/// [`InplaceRecover`](crate::parser::InplaceRecover) and
+/// session**, and [`Recover`](crate::combinator::Recover),
+/// [`InplaceRecover`](crate::combinator::InplaceRecover) and
 /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) read that counter — attempt-relative,
 /// against a per-attempt snapshot — beside this trait, exactly as they read the session counter for
 /// a descent trip. So an unmarked scanner trip is **re-raised rather than spent** whatever your arm
@@ -199,7 +199,7 @@
 ///
 /// | Wrong arm | What it costs |
 /// |---|---|
-/// | `false` on a real terminal stop | [`Recover`](crate::parser::Recover), [`InplaceRecover`](crate::parser::InplaceRecover) and [`skip_then_retry`](crate::ParseInput::skip_then_retry) **spend** it: they synthesize a value and re-enter the parser, which re-trips the same limit. Under a [`PartialSession`](crate::input::PartialSession) the terminal latch misses it too, so the next attempt is admitted and re-lexes the same prefix. Nothing in this crate bounds either loop. The three recovery combinators are covered for the **two limits this crate itself enforces** — a scanner trip through the input's poison latch, a descent trip through the session counter, neither of which your conversion can discard — so what a `false` arm still spends there is a limit of *your own*; the `PartialSession` latch has no such second witness and misses every one |
+/// | `false` on a real terminal stop | [`Recover`](crate::combinator::Recover), [`InplaceRecover`](crate::combinator::InplaceRecover) and [`skip_then_retry`](crate::ParseInput::skip_then_retry) **spend** it: they synthesize a value and re-enter the parser, which re-trips the same limit. Under a [`PartialSession`](crate::input::PartialSession) the terminal latch misses it too, so the next attempt is admitted and re-lexes the same prefix. Nothing in this crate bounds either loop. The three recovery combinators are covered for the **two limits this crate itself enforces** — a scanner trip through the input's poison latch, a descent trip through the session counter, neither of which your conversion can discard — so what a `false` arm still spends there is a limit of *your own*; the `PartialSession` latch has no such second witness and misses every one |
 /// | `true` on a recoverable failure | recovery re-raises what it could have repaired, so one diagnostic becomes a hard stop; under a `PartialSession` it also latches the session shut and later attempts are refused. Both fail **closed** — you lose recovery, loudly, and never spin |
 ///
 /// Malformed input is the one case where `false` is affirmatively right, and you can always
@@ -209,9 +209,8 @@
 ///
 /// ```
 /// use tokora::{
-///   error::{MaybeTerminal, RecursionLimitReached, UnexpectedEot},
-///   input::SessionRefusal,
-///   state::recursion_tracker::{RecursionLimiter, RecursionTracker},
+///   error::{MaybeTerminal, RecursionLimitReached, UnexpectedEot}, input::SessionRefusal,
+///   state::{RecursionLimiter, RecursionTracker},
 /// };
 ///
 /// // The lexer's own error type — what `From<<L::Token as Token>::Error>` builds from. A

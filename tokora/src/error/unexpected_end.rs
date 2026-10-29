@@ -222,7 +222,7 @@ pub struct PrattLhsHint;
 /// set — the "…, expected one of X, Y, Z" table a committed dispatch failure at end of input can
 #[cfg_attr(
   feature = "peek",
-  doc = " attach (see [`DispatchOnKind`](crate::parser::DispatchOnKind)). It is purely additive: `Set`"
+  doc = " attach (see [`DispatchOnKind`](crate::combinator::DispatchOnKind)). It is purely additive: `Set`"
 )]
 #[cfg_attr(
   not(feature = "peek"),
@@ -984,7 +984,7 @@ where
   /// (`eof`/`eot`/`eos`/…); `Some` only for the `*_expected_*` forms — e.g. a committed
   #[cfg_attr(
     feature = "peek",
-    doc = " [`DispatchOnKind`](crate::parser::DispatchOnKind) failure at end of input reports its whole"
+    doc = " [`DispatchOnKind`](crate::combinator::DispatchOnKind) failure at end of input reports its whole"
   )]
   #[cfg_attr(
     not(feature = "peek"),
@@ -1037,7 +1037,7 @@ where
   /// "…, expected one of X, Y, Z" table a committed dispatch failure attaches at end of input.
   ///
   /// This is the end-of-input sibling of
-  /// [`UnexpectedToken::expected_one_of`](crate::error::token::UnexpectedToken::expected_one_of):
+  /// [`UnexpectedToken::expected_one_of`](crate::error::UnexpectedToken::expected_one_of):
   /// same "token stream" name and [`TokenHint`] as [`eot`](Self::eot), plus the expected set.
   ///
   /// ## Example

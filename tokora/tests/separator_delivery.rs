@@ -26,7 +26,7 @@ use tokora::{
   cache::Peeked,
   container::Container,
   emitter::Verbose,
-  parser::{Action, DelimiterHandler, SeparatorHandler},
+  parse::{Action, DelimiterHandler, SeparatorHandler},
   punct::Bracket,
   span::{Span, Spanned},
   utils::typenum::U1,

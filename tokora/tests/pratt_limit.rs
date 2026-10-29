@@ -39,11 +39,11 @@ use tokora::{
   emitter::{Fatal, PrattEmitter, Verbose},
   error::{
     MaybeTerminal, NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs, UnexpectedEoRhs,
-    UnexpectedEot, token::UnexpectedToken,
+    UnexpectedEot, UnexpectedToken,
   },
   logos::{self, Logos},
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
-  state::recursion_tracker::RecursionLimiter,
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  state::RecursionLimiter,
   token::PrattToken,
 };
 

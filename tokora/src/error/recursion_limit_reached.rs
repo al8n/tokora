@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::state::recursion_tracker::RecursionLimitExceeded;
+use crate::state::RecursionLimitExceeded;
 
 /// The configured recursion limit was exceeded while entering one level of recursive descent.
 ///
@@ -15,7 +15,7 @@ use crate::state::recursion_tracker::RecursionLimitExceeded;
 /// this type: there is no non-terminal constructor, because no amount of further input clears a
 /// depth budget. That is the same law a scanner limit trip carries, reached through the same
 /// [`MaybeTerminal`](crate::error::MaybeTerminal) gate that
-/// [`Recover`](crate::parser::Recover), [`InplaceRecover`](crate::parser::InplaceRecover) and
+/// [`Recover`](crate::combinator::Recover), [`InplaceRecover`](crate::combinator::InplaceRecover) and
 /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) consult: a recoverer handed this
 /// value must re-raise it untouched rather than synthesize a node from input it was forbidden to
 /// read.
@@ -126,7 +126,7 @@ use crate::state::recursion_tracker::RecursionLimitExceeded;
 /// delegating error type was spent there exactly as `()` was. The baseline is per *element*, so an
 /// ordinary failure later in the same collection — or in the enclosing one, where an inner
 /// collection's trip was swallowed — is emitted and looped past as it always was. See
-/// `parser::many`'s `GATE_CENSUS` for how the three exits stay wired.
+/// `combinator::many`'s `GATE_CENSUS` for how the three exits stay wired.
 ///
 /// **A fourth path is exempt, deliberately and permanently: an element that catches the trip, still
 /// consumes, and still answers `Accept`.** The three exits above are gated because the driver is
@@ -140,7 +140,7 @@ use crate::state::recursion_tracker::RecursionLimitExceeded;
 /// same limit on it, holds for the *scanner* witnesses beside this one, stated once for all of them
 /// under
 /// [the channel no witness is consulted on](crate::error::MaybeTerminal#the-channel-no-witness-is-consulted-on-a-value-the-grammar-consumed-input-to-produce);
-/// `parser::many`'s module docs, "the channel neither chokepoint closes" section, carry the
+/// `combinator::many`'s module docs, "the channel neither chokepoint closes" section, carry the
 /// crate-internal reasoning at length, and `tokora/tests/collection_resource_trip.rs` is the pin —
 /// its section 6 for the consuming `Accept`, its sections 4 and 7 for the zero-width one.
 ///
@@ -155,8 +155,7 @@ use crate::state::recursion_tracker::RecursionLimitExceeded;
 ///
 /// ```rust
 /// use tokora::{
-///   error::{MaybeTerminal, RecursionLimitReached},
-///   state::recursion_tracker::{RecursionLimiter, RecursionTracker},
+///   error::{MaybeTerminal, RecursionLimitReached}, state::{RecursionLimiter, RecursionTracker},
 /// };
 ///
 /// let mut limiter = RecursionLimiter::with_limitation(1);

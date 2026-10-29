@@ -16,9 +16,9 @@ kind is the same. The decision lives on the *second* token.
 |-------|-------------------|
 | [`attempt`](crate::InputRef::attempt) | speculation in a closure; a decline is `None` and carries nothing out |
 | [`try_attempt`](crate::InputRef::try_attempt) | the same, but the failure is a value you need |
-| [`begin`](crate::InputRef::begin) → [`Transaction`](crate::Transaction) | imperative flow with several exits (loops, `match` arms) |
+| [`begin`](crate::InputRef::begin) → [`Transaction`](crate::input::Transaction) | imperative flow with several exits (loops, `match` arms) |
 | [`begin_with::<Commit>`](crate::InputRef::begin_with) | the same, but *keeping* progress is the common case |
-| [`begin_stacked`](crate::InputRef::begin_stacked) → [`StackedTransaction`](crate::StackedTransaction) | several live fallback points at once (best/longest match) |
+| [`begin_stacked`](crate::InputRef::begin_stacked) → [`StackedTransaction`](crate::input::StackedTransaction) | several live fallback points at once (best/longest match) |
 | [`begin_point`](crate::InputRef::begin_point) → session points | a driver that marks, parses, and decides across *separate calls* |
 
 All of them are the *same* mechanism — save a checkpoint, maybe restore it — wearing a
@@ -30,7 +30,7 @@ is immutable, so there is nothing to undo.
 Beneath all of them sits the raw `save`/`restore` pair. It is gated behind the `unstable-raw`
 feature and it is **not** the API you are meant to use: the guards exist because the raw pair
 has a last-in-first-out contract that a human must uphold by hand, and every guard upholds it
-by construction — a nested [`Transaction`](crate::Transaction) mutably borrows its parent, so
+by construction — a nested [`Transaction`](crate::input::Transaction) mutably borrows its parent, so
 deciding the parent while a child is undecided is a *borrow error*, not a runtime bug. Guards
 first. Always.
 
@@ -104,7 +104,7 @@ you will report the wrong one.
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedToken};
+# use tokora::error::{UnexpectedEot, UnexpectedToken};
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
@@ -280,9 +280,9 @@ assert_eq!(
 
 A closure is a poor fit for control flow with several exits — a loop with two `break`s, a
 `match` with an early return. [`begin`](crate::InputRef::begin) hands you a
-[`Transaction`](crate::Transaction) guard instead: parse *through* it (it dereferences to the
-`InputRef`), then [`commit`](crate::Transaction::commit) to keep the work or
-[`rollback`](crate::Transaction::rollback) to discard it. Say nothing and the drop decides —
+[`Transaction`](crate::input::Transaction) guard instead: parse *through* it (it dereferences to the
+`InputRef`), then [`commit`](crate::input::Transaction::commit) to keep the work or
+[`rollback`](crate::input::Transaction::rollback) to discard it. Say nothing and the drop decides —
 and **the default is rollback**, so an early `return`, a `break`, or a `?` that propagates an
 error all rewind on the way out. You cannot forget to undo a speculative branch, because
 undoing it is what happens if you write no code at all.
@@ -291,7 +291,7 @@ The dual exists too. [`begin_with::<Commit>`](crate::InputRef::begin_with) flips
 policy — the guard *keeps* progress unless you roll it back explicitly. That is what an
 operator loop wants: every successful iteration keeps its tokens with no `commit()` call on
 the hot path, and only the branch that backs out of a half-consumed operator says so. The
-policy is a zero-sized [typestate](crate::DropPolicy) parameter: the choice is compiled in,
+policy is a zero-sized [typestate](crate::input::DropPolicy) parameter: the choice is compiled in,
 not branched on.
 
 One thing overrides the policy: **a panic is not a decision**. An undecided guard dropped while
@@ -304,11 +304,11 @@ not an unwind, so the keep-on-`?` behaviour above is untouched. Under `no_std` t
 And when you need *several* live fallback points at once — the longest-match shape, where you
 keep parsing and want to return to the best position you have seen — reach for
 [`begin_stacked`](crate::InputRef::begin_stacked). Its
-[`savepoint`](crate::StackedTransaction::savepoint)s follow SQL semantics:
-[`rollback_to`](crate::StackedTransaction::rollback_to) an older savepoint destroys every
+[`savepoint`](crate::input::StackedTransaction::savepoint)s follow SQL semantics:
+[`rollback_to`](crate::input::StackedTransaction::rollback_to) an older savepoint destroys every
 younger one (out-of-order revival is impossible by construction) while the target stays valid
-for a later rollback, and [`release`](crate::StackedTransaction::release) forgets savepoints
-while *keeping* the parsed progress. A [`SavepointId`](crate::SavepointId) is lifetime-branded
+for a later rollback, and [`release`](crate::input::StackedTransaction::release) forgets savepoints
+while *keeping* the parsed progress. A [`SavepointId`](crate::input::SavepointId) is lifetime-branded
 to its transaction, so it cannot outlive it.
 
 ```rust
@@ -372,7 +372,7 @@ to its transaction, so it cannot outlive it.
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedToken};
+# use tokora::error::{UnexpectedEot, UnexpectedToken};
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
@@ -385,7 +385,7 @@ to its transaction, so it cannot outlive it.
 # impl<'inp, L: tokora::Lexer<'inp>, Lang: ?Sized> tokora::emitter::FromUnclosed<'inp, L, Lang> for CalcError {
 #   fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { CalcError::UnexpectedEnd }
 # }
-use tokora::{Commit, Emitter, InputRef, Parse, ParseContext, Parser};
+use tokora::{Emitter, InputRef, Parse, ParseContext, Parser, input::Commit};
 
 # fn expect_tok<'inp, Ctx>(
 #   inp: &mut InputRef<'inp, '_, CalcLexer<'inp>, Ctx>,
@@ -591,7 +591,7 @@ struct Driver<'a, 'inp, 'closure, Ctx> {
 
 A **session point** is the non-lexical form. It is a *value on the input*, not a borrow of it:
 [`begin_point`](crate::InputRef::begin_point) pushes a checkpoint onto the input's own stack and
-hands back a plain [`SessionPointId`](crate::SessionPointId) — a `Copy` token, not a borrow, so
+hands back a plain [`SessionPointId`](crate::input::SessionPointId) — a `Copy` token, not a borrow, so
 nothing stays borrowed and the whole consume surface — [`next`](crate::InputRef::next),
 [`try_expect`](crate::InputRef::try_expect), any parser you hand the input to — is still callable
 with the point open, in this call and in later ones.
@@ -667,7 +667,7 @@ parses in the next, and decides in a third.
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedToken};
+# use tokora::error::{UnexpectedEot, UnexpectedToken};
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
@@ -680,7 +680,7 @@ parses in the next, and decides in a third.
 # impl<'inp, L: tokora::Lexer<'inp>, Lang: ?Sized> tokora::emitter::FromUnclosed<'inp, L, Lang> for CalcError {
 #   fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { CalcError::UnexpectedEnd }
 # }
-use tokora::{Emitter, InputRef, Parse, ParseContext, Parser, SessionPointId};
+use tokora::{Emitter, InputRef, Parse, ParseContext, Parser, input::SessionPointId};
 
 # fn expect_tok<'inp, Ctx>(
 #   inp: &mut InputRef<'inp, '_, CalcLexer<'inp>, Ctx>,

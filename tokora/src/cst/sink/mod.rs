@@ -1,6 +1,7 @@
 //! The rewindable event sink: [`Sink`] wraps any inner emitter, buffers the CST event
 //! stream, and rewinds it under the **same** mark that rewinds diagnostics — one timeline,
-//! every channel (see the [`event`](super::event) module for the vocabulary and its laws).
+//! every channel (see [*The event vocabulary*](crate::cst#the-event-vocabulary) for the vocabulary
+//! and its laws).
 //!
 //! # CELL_CENSUS — every mutable cell of the sink, and its class
 //!
@@ -9,7 +10,7 @@
 //!
 //! | # | Cell | Class | Rewind/restore semantics |
 //! |---|------|-------|--------------------------|
-//! | E1 | [`Sink::events`] | **ground truth** (a second emission log) | append + suffix-truncate to the mark — the same two verbs as `Verbose`'s log (plus the one censused prefix-preserving splice of the hole wrap, entirely above every live mark, and the one censused interior write: `cst_start_at`'s journaled `forward_parent` link — see the law in [`event`](super::event)) |
+//! | E1 | [`Sink::events`] | **ground truth** (a second emission log) | append + suffix-truncate to the mark — the same two verbs as `Verbose`'s log (plus the one censused prefix-preserving splice of the hole wrap, entirely above every live mark, and the one censused interior write: `cst_start_at`'s journaled `forward_parent` link — see the law in [*The two verbs*](crate::cst#the-two-verbs)) |
 //! | — | [`Sink::demotes`] | **latching hint** (an `Event::Demote` was appended at some point) | never restored, never cleared — a rewind may leave it set over a buffer with no `Demote` left, which costs one no-op canonicalization pass at materialization and can never skip a needed one |
 //! | E2 | [`Sink::journal`] | **undo journal** (the Verbose-parallel-maps discipline lifted to events) | rewind pops entries written above the mark, reverse order, restoring each overwritten `forward_parent`; never grows on rewind |
 //! | E3 | [`Sink::ledger`] | **monotone era source + truncation witness** | rewind APPENDS to it (a rewind *is* a truncation) and never removes; rewinding it would false-accept a stale mark |
@@ -31,7 +32,7 @@
 //! restore rule while a derived one is restored by truncation for free. The restore rule turned
 //! out to be free too, and the recount did not: the frozen facts are minted by
 //! [`checkpoint`](Emitter::checkpoint)/[`release`](Emitter::release), and nothing in the CST
-//! channel mints one. The blessed [`node`](crate::parser::node) bracket takes no emitter
+//! channel mints one. The blessed [`node`](crate::combinator::node) bracket takes no emitter
 //! checkpoint, so a predictive grammar emitting `n` flat sibling nodes left `rows` empty and
 //! the floor at `0` and recounted the whole accumulated prefix once per close —
 //! `3n(n − 1)/2 + 2n` event visits for `n` siblings, measured exactly (al8n/tokora#253).
@@ -126,7 +127,7 @@
 //! ## The chain is *searched*, not walked — and why `O(depth)` was not the answer
 //!
 //! Membership was first answered by following `parent` one link at a time, which is `O(depth)`.
-//! Through the blessed [`node`](crate::parser::node) combinator that is a bounded constant —
+//! Through the blessed [`node`](crate::combinator::node) combinator that is a bounded constant —
 //! `d` is grammar nesting depth and `RecursionLimiter` caps it — but **the raw `CstEmitter`
 //! surface is not bounded by that limiter at all**, and the query is reached from it directly.
 //! A hand-rolled sequence that keeps the chain long and demotes near its *bottom* is enough:
@@ -177,10 +178,7 @@ use crate::{
     UnclosedEmitter, UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
     ValueKeyedEmitter,
   },
-  error::{
-    syntax::{FullContainer, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingTokenOf, UnexpectedTokenOf},
-  },
+  error::{FullContainer, MissingSyntaxOf, MissingTokenOf, TooFew, TooMany, UnexpectedTokenOf},
   input::Cursor,
   span::{Span, Spanned},
   token::Token,
@@ -352,7 +350,7 @@ struct OpenNode {
 /// exempt: it **performs no parse-time write at all**. The failing exit appends an
 /// `Event::Demote` naming its own start, exactly as `cst_start_at` appends a `StartAt` naming
 /// its target, and materialization applies it. An appended event needs no undo — the
-/// truncation *is* the undo. See the law in [`event`](super::event).
+/// truncation *is* the undo. See the law in [*The two verbs*](crate::cst#the-two-verbs).
 #[derive(Debug, Clone, Copy)]
 struct JournalEntry {
   /// The event-log length immediately after the append that carried this write (the
@@ -451,7 +449,7 @@ fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
 ///
 /// [`checkpoint`](Emitter::checkpoint) is the event-log length: one positional mark over one
 /// unified log, exactly `Verbose`'s architecture. Every diagnostic forwarded to the inner
-/// emitter occupies a [`Diag`](super::event) slot *inside* the event buffer (appended by one
+/// emitter occupies a `Diag` slot *inside* the event buffer (appended by one
 /// census-marked helper, on `Ok` and `Err` alike), so [`rewind`](Emitter::rewind) is:
 /// truncate the buffer to the mark, reverse-replay the undo journal, and rewind the inner
 /// emitter to the reading its mark-stack row captured at the checkpoint. The mark stack holds
@@ -480,7 +478,7 @@ fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
 /// forwarding** — the inner is never told about kept branches. The wrapped emitter must
 /// therefore be **value-keyed**, the trait's reference shape
 /// ([`Verbose`](crate::emitter::Verbose), [`Fatal`](crate::emitter::Fatal),
-/// [`Silent`](crate::emitter::Silent), [`Ignored`](crate::utils::marker::Ignored), and every
+/// [`Silent`](crate::emitter::Silent), [`Ignored`](crate::utils::Ignored), and every
 /// `Verbose`-shaped collector): `checkpoint` is a pure monotone reading of the emission state
 /// (no per-call allocation), `rewind` restores by value — reclaiming everything above the
 /// mark as a range — and `release` needs nothing forwarded, because a kept reading is just a
@@ -579,7 +577,7 @@ fn bump_witness(next: &core::sync::atomic::AtomicUsize) -> usize {
 ///
 /// The validator rides in the profile as a plain predicate instead of being hung on the
 /// dialect's brand or on `rowan::Language`, and that is forced rather than chosen:
-/// [`Dialect::Lang`](crate::Dialect::Lang) is a **grammar brand** (`type Lang: ?Sized`, a
+/// [`Dialect::Lang`](crate::dialect::Dialect::Lang) is a **grammar brand** (`type Lang: ?Sized`, a
 /// marker that keeps two grammars' vocabularies apart), while a kind authority would have to
 /// be a `rowan::Language`; and `rowan`'s `kind_from_raw` has no fallible form, so even a
 /// `Lang: rowan::Language` bound could not yield a *typed* rejection — only a panic at query
@@ -1107,7 +1105,7 @@ where
   ///
   /// A full recount over the events above the nearest frozen `(mark, depth)` fact until
   /// al8n/tokora#253: the CST channel mints no frozen facts of its own, so a grammar of flat
-  /// sibling [`node`](crate::parser::node)s recounted the whole prefix on every close. See the
+  /// sibling [`node`](crate::combinator::node)s recounted the whole prefix on every close. See the
   /// depth section in the module docs.
   #[inline(always)]
   const fn depth(&self) -> i64 {
@@ -1313,7 +1311,7 @@ where
   /// universally quantified parser frame, so `node()`'s failing exit always spends a live mark.
   /// That is a type-system guarantee with **no runtime backstop**: the settle scan is
   /// newest-first, so a point opened before the bracket would pass it. See *A rollback below the
-  /// start cannot happen mid-frame* in the [`node` module docs](crate::parser::node) for the
+  /// start cannot happen mid-frame* in the [`node` module docs](crate::combinator::node) for the
   /// theorem and the compile-fail cases that pin it.
   fn validate_start_mark(&self, mark: &EventMark, kind: u16) {
     assert!(

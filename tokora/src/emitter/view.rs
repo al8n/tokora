@@ -16,13 +16,13 @@
 //! never the only door. Several public callback traits take the emitter as a **parameter**, by
 //! `&mut`, and hand it to code the consumer wrote:
 //!
-//! - [`Decision::decide`](crate::Decision::decide) — the condition of every `*_while` combinator;
+//! - [`Decision::decide`](crate::parse::Decision::decide) — the condition of every `*_while` combinator;
 //! - [`ParseInput::peek_then`](crate::ParseInput::peek_then) and
 //!   [`ParseChoice::peek_then_choice`](crate::ParseChoice::peek_then_choice) — the peek-gate and
 //!   dispatch handlers;
-//! - [`PrattFoldTokenPrefix`](crate::parser::PrattFoldTokenPrefix),
-//!   [`PrattFoldTokenInfix`](crate::parser::PrattFoldTokenInfix) and
-//!   [`PrattFoldTokenPostfix`](crate::parser::PrattFoldTokenPostfix) — the token-level pratt folds.
+//! - [`PrattFoldTokenPrefix`](crate::pratt::PrattFoldTokenPrefix),
+//!   [`PrattFoldTokenInfix`](crate::pratt::PrattFoldTokenInfix) and
+//!   [`PrattFoldTokenPostfix`](crate::pratt::PrattFoldTokenPostfix) — the token-level pratt folds.
 //!
 //! Every one of them now receives an [`EmitterView`] instead. A view **implements no emitter
 //! trait**, does not [`Deref`](core::ops::Deref) to the emitter, and exposes no accessor yielding
@@ -70,13 +70,13 @@ use core::marker::PhantomData;
 
 use crate::{
   Lexer, Token,
-  cst::event::EventMark,
+  cst::EventMark,
   emitter::{
     CstEmitter, Emitter, FullContainerEmitter, MissingLeadingSeparatorEmitter,
     MissingTrailingSeparatorEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter,
     UnclosedEmitter, UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
-  error::token::UnexpectedTokenOf,
+  error::UnexpectedTokenOf,
   span::Spanned,
 };
 
@@ -87,7 +87,7 @@ use crate::emitter::PrattEmitter;
 /// The emitter's **operations**, lent to a callback — never the emitter.
 ///
 /// Handed by value to every public callback that used to receive `&mut Ctx::Emitter`:
-/// [`Decision::decide`](crate::Decision::decide), the `peek_then` family's handlers, and the
+/// [`Decision::decide`](crate::parse::Decision::decide), the `peek_then` family's handlers, and the
 /// token-level pratt folds. The methods carry the emitter's own names, so a body written against
 /// `&mut E` keeps every statement it had.
 ///
@@ -163,7 +163,7 @@ where
   /// exists to withhold, and gains no reach by wrapping it. **Inside** a parse there is no `&mut
   /// Ctx::Emitter` to pass: the handle's accessor is crate-private and the callback traits hand
   /// out views, which is the wall. This constructor is for the other side of it: exercising a
-  /// [`Decision`](crate::Decision) body, a `peek_then` handler, or a token-level pratt fold
+  /// [`Decision`](crate::parse::Decision) body, a `peek_then` handler, or a token-level pratt fold
   /// **directly**, over an emitter the test owns — `EmitterView::new(&mut Verbose::new())`, or
   /// `&mut ()` for a fold that ignores the parameter. Without it those bodies would only be
   /// reachable through a whole parse, which is a rewrite of every unit test they have.
@@ -283,7 +283,7 @@ where
 
   /// Pushes a diagnostic label — [`Emitter::enter_label`], forwarded.
   ///
-  /// Pairs with [`exit_label`](Self::exit_label); prefer [`labelled`](crate::labelled), which
+  /// Pairs with [`exit_label`](Self::exit_label); prefer [`labelled`](crate::combinator::labelled), which
   /// pairs them through a drop guard.
   #[inline(always)]
   pub fn enter_label(&mut self, label: &'static str) {
@@ -356,10 +356,7 @@ where
 
   /// [`TooFewEmitter::emit_too_few`], forwarded.
   #[inline(always)]
-  pub fn emit_too_few(
-    &mut self,
-    err: crate::error::syntax::TooFew<L::Span, Lang>,
-  ) -> Result<(), E::Error>
+  pub fn emit_too_few(&mut self, err: crate::error::TooFew<L::Span, Lang>) -> Result<(), E::Error>
   where
     E: TooFewEmitter<'inp, L, Lang>,
   {
@@ -368,10 +365,7 @@ where
 
   /// [`TooManyEmitter::emit_too_many`], forwarded.
   #[inline(always)]
-  pub fn emit_too_many(
-    &mut self,
-    err: crate::error::syntax::TooMany<L::Span, Lang>,
-  ) -> Result<(), E::Error>
+  pub fn emit_too_many(&mut self, err: crate::error::TooMany<L::Span, Lang>) -> Result<(), E::Error>
   where
     E: TooManyEmitter<'inp, L, Lang>,
   {
@@ -382,7 +376,7 @@ where
   #[inline(always)]
   pub fn emit_full_container(
     &mut self,
-    err: crate::error::syntax::FullContainer<L::Span, Lang>,
+    err: crate::error::FullContainer<L::Span, Lang>,
   ) -> Result<(), E::Error>
   where
     E: FullContainerEmitter<'inp, L, Lang>,
@@ -395,7 +389,7 @@ where
   pub fn emit_missing_separator(
     &mut self,
     name: crate::utils::CowStr,
-    err: crate::error::token::MissingTokenOf<'inp, L, Lang>,
+    err: crate::error::MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), E::Error>
   where
     E: SeparatedEmitter<'inp, L, Lang>,
@@ -407,7 +401,7 @@ where
   #[inline(always)]
   pub fn emit_missing_element(
     &mut self,
-    err: crate::error::syntax::MissingSyntaxOf<'inp, L, Lang>,
+    err: crate::error::MissingSyntaxOf<'inp, L, Lang>,
   ) -> Result<(), E::Error>
   where
     E: SeparatedEmitter<'inp, L, Lang>,
@@ -420,7 +414,7 @@ where
   pub fn emit_missing_leading_separator(
     &mut self,
     name: crate::utils::CowStr,
-    err: crate::error::token::MissingTokenOf<'inp, L, Lang>,
+    err: crate::error::MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), E::Error>
   where
     E: MissingLeadingSeparatorEmitter<'inp, L, Lang>,
@@ -433,7 +427,7 @@ where
   pub fn emit_missing_trailing_separator(
     &mut self,
     name: crate::utils::CowStr,
-    err: crate::error::token::MissingTokenOf<'inp, L, Lang>,
+    err: crate::error::MissingTokenOf<'inp, L, Lang>,
   ) -> Result<(), E::Error>
   where
     E: MissingTrailingSeparatorEmitter<'inp, L, Lang>,

@@ -105,7 +105,7 @@ use crate::{
   error::{Unclosed, UnexpectedLexeme},
   punct::Brace,
   span::SimpleSpan,
-  utils::{CharLen, CowStr, Lexeme, PositionedChar, human_display::DisplayHuman},
+  utils::{CharLen, CowStr, DisplayHuman, Lexeme, PositionedChar},
 };
 use derive_more::{Display, From, IsVariant, TryUnwrap, Unwrap};
 

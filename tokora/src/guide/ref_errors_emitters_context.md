@@ -33,10 +33,10 @@ for free.
 ### Taxonomy by category
 
 Four leaves carry an `…Of<'inp, L, Lang>` alias that projects the lexer's associated types for
-you: [`UnexpectedTokenOf`](crate::error::token::UnexpectedTokenOf),
-[`MissingTokenOf`](crate::error::token::MissingTokenOf),
-[`SeparatedErrorOf`](crate::error::token::SeparatedErrorOf) and
-[`MissingSyntaxOf`](crate::error::syntax::MissingSyntaxOf) — the four that ride the emitter's own
+you: [`UnexpectedTokenOf`](crate::error::UnexpectedTokenOf),
+[`MissingTokenOf`](crate::error::MissingTokenOf),
+[`SeparatedErrorOf`](crate::error::SeparatedErrorOf) and
+[`MissingSyntaxOf`](crate::error::MissingSyntaxOf) — the four that ride the emitter's own
 method signatures, where the projection would otherwise be rewritten at every impl and every
 bound. **The rest have none**, and you name their parameters yourself; for an offset-carrying
 leaf that is just `<L::Offset, Lang>`, the spelling the pratt surfaces use for
@@ -50,9 +50,9 @@ impl that wires it in.
 | Category | Leaf types (module) | Your error absorbs |
 |----------|---------------------|--------------------|
 | **Lexer** | your `Token::Error`, plus [`UnknownLexeme`](crate::error::UnknownLexeme) / [`Malformed`](crate::error::Malformed) / [`Invalid`](crate::error::Invalid) / escape errors | `From<<L::Token as Token>::Error>` |
-| **Token** | [`UnexpectedToken`](crate::error::token::UnexpectedToken), [`MissingToken`](crate::error::token::MissingToken), [`SeparatedError`](crate::error::token::SeparatedError) | `From<UnexpectedToken>`, `From<MissingToken>`, `From<SeparatedError>` |
+| **Token** | [`UnexpectedToken`](crate::error::UnexpectedToken), [`MissingToken`](crate::error::MissingToken), [`SeparatedError`](crate::error::SeparatedError) | `From<UnexpectedToken>`, `From<MissingToken>`, `From<SeparatedError>` |
 | **End of input** | [`UnexpectedEnd`](crate::error::UnexpectedEnd) (aliases [`UnexpectedEot`](crate::error::UnexpectedEot) / `UnexpectedEof` / `UnexpectedEos`) | `From<UnexpectedEot<O, Lang, Set>>` |
-| **Syntax** | [`TooFew`](crate::error::syntax::TooFew), [`TooMany`](crate::error::syntax::TooMany), [`FullContainer`](crate::error::syntax::FullContainer), [`MissingSyntax`](crate::error::syntax::MissingSyntax) | `From<TooFew>`, `From<TooMany>`, `From<FullContainer>`, `From<MissingSyntax>` |
+| **Syntax** | [`TooFew`](crate::error::TooFew), [`TooMany`](crate::error::TooMany), [`FullContainer`](crate::error::FullContainer), [`MissingSyntax`](crate::error::MissingSyntax) | `From<TooFew>`, `From<TooMany>`, `From<FullContainer>`, `From<MissingSyntax>` |
 | **Delimiter** | [`Unclosed`](crate::error::Unclosed), [`Unopened`](crate::error::Unopened), [`Undelimited`](crate::error::Undelimited), [`Unterminated`](crate::error::Unterminated) | [`FromUnclosed`](crate::emitter::FromUnclosed) — **one** impl for every pair; the other three are raised by your own code, so they need a `From<…>` only if you raise them |
 | **Pratt** | [`RecursionLimitReached`](crate::error::RecursionLimitReached), [`NonAssociativeChain`](crate::error::NonAssociativeChain) — the descent bound and the second same-power `Neither` operator ([Pratt reference](super::ref_pratt)) | `From<RecursionLimitReached>` + `From<NonAssociativeChain>`, **required** by the pratt entry points, not opt-in. Both errors are *returned*, never emitted, so no `emit_*` hook sees them and neither is part of [`FromPrattError`](crate::emitter::FromPrattError), which covers only what an emitter body converts |
 | **Incomplete** | [`Incomplete`](crate::error::Incomplete) — the never-recoverable partial-input signal | *no `From`*; `impl MaybeIncomplete` instead |
@@ -73,9 +73,9 @@ impl that wires it in.
   instead of fabricating a value from input that has not arrived. It has a blanket `false`
   default, so most error types opt in with an empty `impl MaybeIncomplete for MyError {}` and
   override [`is_incomplete`](crate::error::MaybeIncomplete::is_incomplete) only if the type can
-  itself carry the signal. [`Recover`](crate::parser::Recover) requires this bound — and since
+  itself carry the signal. [`Recover`](crate::combinator::Recover) requires this bound — and since
   0.3.0 partial mode as a whole does: `Partial`'s
-  [`SurfaceIncomplete`](crate::SurfaceIncomplete) impl requires `MaybeIncomplete` alongside
+  [`SurfaceIncomplete`](crate::input::SurfaceIncomplete) impl requires `MaybeIncomplete` alongside
   `From<Incomplete<L::Offset>>`, because the input layer *constructs* incompletes while the
   atom layer now also *recognizes* them (the resilient collection loops re-raise a frontier
   `Incomplete` untouched instead of spending it as a diagnostic).
@@ -102,7 +102,7 @@ impl that wires it in.
   holding your lexer error may be terminal too. The trait's own doc carries the table, that path,
   and the rule for an arm the table does not name.
 - **The `Set` / `Expected` machinery.** A token mismatch does not just say "wrong" — it names
-  what was wanted. [`UnexpectedToken`](crate::error::token::UnexpectedToken) carries an
+  what was wanted. [`UnexpectedToken`](crate::error::UnexpectedToken) carries an
   [`Expected<'a, Kind>`](crate::utils::Expected) (`One(kind)` or `OneOf(set)`); classifiers
   build it (`Expected::one(k)`, `Expected::one_of(&[…])`), and
   [`dispatch_on_kind`](crate::ParseChoice::dispatch_on_kind) turns its whole table into the
@@ -125,9 +125,11 @@ drives two of the paths:
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, UnexpectedEot,
+#     UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, Clone, PartialEq)]
@@ -190,7 +192,9 @@ drives two of the paths:
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
 # type Ctx<'a> = FatalContext<'a, CharLexer<'a>, Error>;
-use tokora::{Parse, Parser, ParseInput as _, error::MaybeIncomplete, parser::expect, utils::Expected};
+use tokora::{
+  Parse, ParseInput as _, Parser, combinator::expect, error::MaybeIncomplete, utils::Expected,
+};
 
 // Your error type is an ordinary enum. It becomes a *tokora* error type by absorbing — through
 // `From` — every leaf the combinators it drives can raise. Each impl wires one category to one
@@ -300,9 +304,9 @@ nodes) need more than the base surface, so tokora splits each scenario into a fo
 
 | Sub-trait | Emits | Unlocked by | In [`ComposableEmitter`](crate::emitter::ComposableEmitter)? |
 |-----------|-------|-------------|:--:|
-| [`TooFewEmitter`](crate::emitter::TooFewEmitter) | [`TooFew`](crate::error::syntax::TooFew) | `From<TooFew>` | ✅ |
-| [`TooManyEmitter`](crate::emitter::TooManyEmitter) | [`TooMany`](crate::error::syntax::TooMany) | `From<TooMany>` | — (in [`PolicyComposableEmitter`](crate::emitter::PolicyComposableEmitter)) |
-| [`FullContainerEmitter`](crate::emitter::FullContainerEmitter) | [`FullContainer`](crate::error::syntax::FullContainer) | `From<FullContainer>` | ✅ |
+| [`TooFewEmitter`](crate::emitter::TooFewEmitter) | [`TooFew`](crate::error::TooFew) | `From<TooFew>` | ✅ |
+| [`TooManyEmitter`](crate::emitter::TooManyEmitter) | [`TooMany`](crate::error::TooMany) | `From<TooMany>` | — (in [`PolicyComposableEmitter`](crate::emitter::PolicyComposableEmitter)) |
+| [`FullContainerEmitter`](crate::emitter::FullContainerEmitter) | [`FullContainer`](crate::error::FullContainer) | `From<FullContainer>` | ✅ |
 | [`SeparatedEmitter`](crate::emitter::SeparatedEmitter) | missing separator / element | `From<MissingTokenOf>` + `From<MissingSyntaxOf>` | ✅ |
 | [`UnexpectedLeadingSeparatorEmitter`](crate::emitter::UnexpectedLeadingSeparatorEmitter) / [`…Trailing…`](crate::emitter::UnexpectedTrailingSeparatorEmitter) | a stray separator | `From<SeparatedErrorOf>` | ✅ |
 | [`MissingLeadingSeparatorEmitter`](crate::emitter::MissingLeadingSeparatorEmitter) / [`…Trailing…`](crate::emitter::MissingTrailingSeparatorEmitter) | a required separator | `From<MissingTokenOf>` | — (in [`PolicyComposableEmitter`](crate::emitter::PolicyComposableEmitter)) |
@@ -353,7 +357,7 @@ its methods have no-op defaults (so `Fatal`/`Verbose`/`Silent` are `CstEmitter` 
 tree-less at zero cost), but a CST-producing parse path bounds `Ctx::Emitter: CstEmitter` so a
 non-forwarding wrapper is a compile error rather than a silently empty tree. The recording
 implementation is the `rowan`-gated `cst::Sink`; see [`crate::cst`] and the
-[lossless-CST material](crate::parser::node).
+[lossless-CST material](crate::combinator::node).
 
 ### Built-in emitters
 
@@ -391,9 +395,11 @@ The example runs **one** generic parser under two emitters — fail-fast, then c
 # use core::{convert::Infallible, fmt};
 # use tokora::{
 #   FatalContext, InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, syntax::{FullContainer, MissingSyntax, TooFew, TooMany}, token::{MissingToken, SeparatedError, UnexpectedToken}},
-#   punct::{Comma, OpenBracket, CloseBracket, OpenParen, CloseParen, Semicolon},
-#   span::Span as _,
+#   error::{
+#     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, UnexpectedEot,
+#     UnexpectedToken,
+#   },
+#   punct::{CloseBracket, CloseParen, Comma, OpenBracket, OpenParen, Semicolon}, span::Span as _,
 #   token::PunctuatorToken,
 # };
 # #[derive(Debug, PartialEq)]

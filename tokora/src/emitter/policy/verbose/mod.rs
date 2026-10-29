@@ -110,7 +110,7 @@ pub(crate) enum Channel {
 ///
 /// # Diagnostic labels — context captured at emit time
 ///
-/// [`labelled`](crate::labelled) opens a *"while parsing X"* context around a
+/// [`labelled`](crate::combinator::labelled) opens a *"while parsing X"* context around a
 /// sub-parse by pushing a `&'static str` onto this emitter's open-label stack
 /// (via [`enter_label`](Emitter::enter_label)) and popping it as the scope closes.
 /// Labels are captured **into the emission log at emit time**: each recorded
@@ -266,7 +266,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   ///
   /// The returned map mirrors [`errors()`](Self::errors) span-for-span and
   /// index-for-index: `labels()[span][i]` is the open-label stack — outermost
-  /// [`labelled`](crate::labelled) context first — that was captured when
+  /// [`labelled`](crate::combinator::labelled) context first — that was captured when
   /// `errors()[span][i]` was emitted. An unlabelled diagnostic maps to an empty
   /// stack. The two accessors are meant to be read together, e.g. by zipping each
   /// span's error group with its label group.
@@ -510,7 +510,7 @@ where
     self.store.enter_label(label);
   }
 
-  /// Pops the innermost open label as its [`labelled`](crate::labelled) scope closes.
+  /// Pops the innermost open label as its [`labelled`](crate::combinator::labelled) scope closes.
   #[inline(always)]
   fn exit_label(&mut self) {
     self.store.exit_label();

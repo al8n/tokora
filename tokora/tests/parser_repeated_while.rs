@@ -3,9 +3,9 @@
 
 //! Tests for the `RepeatedWhile` (condition-based repetition WITHOUT separator) combinator.
 //!
-//! Exercises `parser/many/repeated_while/` (unbounded, at_least, at_most, bounded),
-//! `parser/many/delim/repeated_while.rs` via `.delimited()`, and
-//! `parser/many/handler/bounded.rs` via `.at_least()`, `.at_most()`, `.bounded()`.
+//! Exercises `combinator/many/repeated_while/` (unbounded, at_least, at_most, bounded),
+//! `combinator/many/delim/repeated_while.rs` via `.delimited()`, and
+//! `combinator/many/handler/bounded.rs` via `.at_least()`, `.at_most()`, `.bounded()`.
 //!
 //! # Sentinel token
 //!
@@ -23,19 +23,19 @@ use tokora::{
   Accumulator, Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext,
   Token as TokenTrait,
   cache::Peeked,
+  combinator::With,
   emitter::{
     FullContainerEmitter, SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter, Verbose,
   },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntax, MissingSyntaxOf, MissingTokenOf, SeparatedError, TooFew, TooMany,
+    Unclosed, UnexpectedEot, UnexpectedToken, UnexpectedTokenOf,
   },
   input::Cursor,
-  parser::{Action, With},
+  parse::Action,
   punct::Bracket,
   span::Spanned,
-  utils::{CowStr, marker::PhantomSpan},
+  utils::{CowStr, PhantomSpan},
 };
 
 use common::{TestLexer, Token};

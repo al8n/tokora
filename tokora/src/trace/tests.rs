@@ -1,5 +1,5 @@
 use crate::{
-  InputRef, ParseInput, Token, cache::DefaultCache, emitter::Silent, error::token::UnexpectedToken,
+  InputRef, ParseInput, Token, cache::DefaultCache, emitter::Silent, error::UnexpectedToken,
   input::Input, lexer::LogosLexer,
 };
 
@@ -66,7 +66,7 @@ fn traced_emits_enter_leaf_exit_with_indentation() {
   );
   let mut inp = input.as_ref();
 
-  let mut parser = crate::traced("num", eat_num);
+  let mut parser = crate::combinator::traced("num", eat_num);
   let (res, lines) = crate::trace::capture(|| parser.parse_input(&mut inp));
 
   assert_eq!(res, Ok(true));
@@ -111,11 +111,11 @@ fn traced_unwind_restores_depth() {
 
   let (_, lines) = crate::trace::capture(|| {
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-      let mut p = crate::traced("boom", boom);
+      let mut p = crate::combinator::traced("boom", boom);
       let _ = p.parse_input(&mut inp);
     }));
     assert!(caught.is_err(), "the panic was caught by this host");
-    let mut after = crate::traced("after", eat_num);
+    let mut after = crate::combinator::traced("after", eat_num);
     let _ = after.parse_input(&mut inp);
   });
 

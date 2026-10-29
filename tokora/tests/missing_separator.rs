@@ -13,9 +13,8 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, Verbose,
   },
   error::{
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf},
-    token::{MissingToken, MissingTokenOf, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingSyntaxOf, MissingToken, MissingTokenOf, SeparatedError,
+    UnexpectedEot, UnexpectedToken,
   },
   span::SimpleSpan,
   utils::CowStr,

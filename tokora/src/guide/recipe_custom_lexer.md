@@ -179,8 +179,7 @@ runs dry itself:
 # }
 # type ConfigLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, Parser,
-  error::{UnexpectedEot, token::UnexpectedTokenOf},
+  Emitter, InputRef, Parse, ParseContext, Parser, error::{UnexpectedEot, UnexpectedTokenOf},
 };
 
 // A parsed value, and the parser's error. The `From` impls are what let the crate's
@@ -314,7 +313,7 @@ opt-in and one parse of each kind:
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type ConfigLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedTokenOf};
+# use tokora::error::{UnexpectedEot, UnexpectedTokenOf};
 # #[derive(Debug, Clone, PartialEq)]
 # enum ConfigError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for ConfigError { fn from(_: LexError) -> Self { ConfigError::Lex } }
@@ -388,7 +387,7 @@ assert!(Parser::new().apply(a_true).parse_str("false").is_err());
 ```
 
 `Equal::parse` and `True::parse` needed no new error `From` impls beyond
-[`UnexpectedTokenOf`](crate::error::token::UnexpectedTokenOf) and
+[`UnexpectedTokenOf`](crate::error::UnexpectedTokenOf) and
 [`UnexpectedEot`](crate::error::UnexpectedEot) — the same two the hand-written parser already
 carried. See the [vocabulary reference](super::ref_vocabulary_macros_features) for the
 [`punctuator!`](crate::punctuator)/[`keyword!`](crate::keyword) macros, delimiter types, and the

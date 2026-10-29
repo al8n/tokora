@@ -8,9 +8,8 @@
 use tokora::{
   Emitter, InputRef, ParseAttempt, ParseContext, ScanLookahead, Token,
   error::{
-    MaybeIncomplete, MaybeTerminal, UnexpectedEnd,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MaybeIncomplete, MaybeTerminal, MissingSyntax, MissingToken, SeparatedError,
+    TooFew, TooMany, UnexpectedEnd, UnexpectedToken,
   },
   lexer::LogosLexer,
   logos::{self, Logos},

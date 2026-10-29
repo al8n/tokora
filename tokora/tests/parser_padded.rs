@@ -2,10 +2,10 @@
 #![allow(warnings)]
 
 //! Integration tests for:
-//!   - parser/padded.rs   (Padded, PaddedLeft, PaddedRight)
-//!   - parser/peek/peek_then.rs (PeekThen via try_parse_input / Decision)
-//!   - parser/any.rs      (Any -- spanned, sliced, located, EOI)
-//!   - parser/expect.rs   (Expect -- spanned, sliced, located, try_expect variants)
+//!   - combinator/padded.rs   (Padded, PaddedLeft, PaddedRight)
+//!   - combinator/peek/peek_then.rs (PeekThen via try_parse_input / Decision)
+//!   - combinator/any.rs      (Any -- spanned, sliced, located, EOI)
+//!   - combinator/expect.rs   (Expect -- spanned, sliced, located, try_expect variants)
 
 use hybrid_arraydeque::typenum::U1;
 use tokora::slice::Sliced;
@@ -13,11 +13,11 @@ use tokora::{
   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
   Token as TokenT, TryParseInput,
   cache::DefaultCache,
+  combinator::{Any, expect},
   emitter::{Fatal, Ignored, Verbose},
-  error::UnexpectedEot,
-  error::token::UnexpectedToken,
+  error::{UnexpectedEot, UnexpectedToken},
   logos::{self, Logos},
-  parser::{Action, Any, expect},
+  parse::Action,
   span::Spanned,
   utils::Expected,
 };
@@ -959,7 +959,7 @@ fn any_sliced_eoi() {
 fn any_located() {
   fn parse<'inp, Ctx>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<tokora::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
+  ) -> Result<tokora::span::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
@@ -974,7 +974,7 @@ fn any_located() {
 fn any_located_eoi() {
   fn parse<'inp, Ctx>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<tokora::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
+  ) -> Result<tokora::span::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
@@ -1054,7 +1054,7 @@ fn any_sliced_on_punctuation() {
 fn any_located_on_punctuation() {
   fn parse<'inp, Ctx>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<tokora::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
+  ) -> Result<tokora::span::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
@@ -1232,7 +1232,7 @@ fn expect_sliced_mismatch() {
 fn expect_located_match() {
   fn parse<'inp, Ctx>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<tokora::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
+  ) -> Result<tokora::span::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
@@ -1255,7 +1255,7 @@ fn expect_located_match() {
 fn expect_located_eoi() {
   fn parse<'inp, Ctx>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<tokora::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
+  ) -> Result<tokora::span::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
@@ -1283,8 +1283,9 @@ fn try_expect_accept() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
   {
-    let mut p =
-      tokora::parser::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| matches!(t, Token::Num(_)));
+    let mut p = tokora::combinator::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| {
+      matches!(t, Token::Num(_))
+    });
     let result = p.try_parse_input(inp)?;
     Ok(matches!(result, ParseAttempt::Accept(_)))
   }
@@ -1299,8 +1300,9 @@ fn try_expect_decline() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
   {
-    let mut p =
-      tokora::parser::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| matches!(t, Token::Num(_)));
+    let mut p = tokora::combinator::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| {
+      matches!(t, Token::Num(_))
+    });
     let result = p.try_parse_input(inp)?;
     Ok(matches!(result, ParseAttempt::Decline))
   }
@@ -1315,8 +1317,9 @@ fn try_expect_eoi_decline() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
   {
-    let mut p =
-      tokora::parser::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| matches!(t, Token::Num(_)));
+    let mut p = tokora::combinator::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| {
+      matches!(t, Token::Num(_))
+    });
     let result = p.try_parse_input(inp)?;
     Ok(matches!(result, ParseAttempt::Decline))
   }
@@ -1333,8 +1336,9 @@ fn try_expect_spanned_accept() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
   {
-    let p =
-      tokora::parser::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| matches!(t, Token::Num(_)));
+    let p = tokora::combinator::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| {
+      matches!(t, Token::Num(_))
+    });
     // Use &Expect which implements TryParseInput for Spanned
     let result = (&p).try_parse_input(inp)?;
     Ok(matches!(result, ParseAttempt::Accept(_)))
@@ -1350,8 +1354,9 @@ fn try_expect_spanned_decline() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
   {
-    let p =
-      tokora::parser::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| matches!(t, Token::Num(_)));
+    let p = tokora::combinator::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| {
+      matches!(t, Token::Num(_))
+    });
     let result = (&p).try_parse_input(inp)?;
     Ok(matches!(result, ParseAttempt::Decline))
   }
@@ -1368,8 +1373,9 @@ fn try_expect_spanned_eoi() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
   {
-    let p =
-      tokora::parser::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| matches!(t, Token::Num(_)));
+    let p = tokora::combinator::try_expect::<_, TestLexer, Ctx, _>(|t: &Token| {
+      matches!(t, Token::Num(_))
+    });
     let result = (&p).try_parse_input(inp)?;
     Ok(matches!(result, ParseAttempt::Decline))
   }
@@ -1388,7 +1394,7 @@ fn expect_match_lang_named() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
   {
-    tokora::parser::expect::<_, TestLexer, Ctx, ()>(|t: &Token| {
+    tokora::combinator::expect::<_, TestLexer, Ctx, ()>(|t: &Token| {
       if matches!(t, Token::Num(_)) {
         Ok(())
       } else {
@@ -1408,8 +1414,9 @@ fn try_expect_accept_lang_named() {
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,
   {
-    let mut p =
-      tokora::parser::try_expect::<_, TestLexer, Ctx, ()>(|t: &Token| matches!(t, Token::Num(_)));
+    let mut p = tokora::combinator::try_expect::<_, TestLexer, Ctx, ()>(|t: &Token| {
+      matches!(t, Token::Num(_))
+    });
     let result = p.try_parse_input(inp)?;
     Ok(matches!(result, ParseAttempt::Accept(_)))
   }
@@ -1446,7 +1453,7 @@ fn expect_spanned_mismatch() {
 fn expect_located_mismatch() {
   fn parse<'inp, Ctx>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
-  ) -> Result<tokora::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
+  ) -> Result<tokora::span::Located<Token, tokora::SimpleSpan, &'inp str>, TestError>
   where
     Ctx: ParseContext<'inp, TestLexer<'inp>>,
     Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = TestError>,

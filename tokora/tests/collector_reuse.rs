@@ -33,11 +33,12 @@ use tokora::{
   Accumulator, EmitterView, InputRef, Parse, ParseAttempt, ParseInput, Parser, ParserContext,
   TryParseInput,
   cache::Peeked,
+  combinator::With,
   emitter::Fatal,
-  parser::{Action, With},
+  parse::Action,
   punct::Bracket,
   span::Spanned,
-  utils::{marker::PhantomSpan, typenum::U1},
+  utils::{PhantomSpan, typenum::U1},
 };
 
 type Ctx<'inp> = ParserContext<'inp, TestLexer<'inp>, Fatal<E>>;

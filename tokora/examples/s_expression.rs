@@ -18,7 +18,7 @@
 
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, Parser, Token as TokenT,
-  error::token::UnexpectedTokenOf,
+  error::UnexpectedTokenOf,
   logos::{self, Logos},
 };
 

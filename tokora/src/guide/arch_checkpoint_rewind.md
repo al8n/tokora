@@ -9,7 +9,7 @@ part's register: less *how to call it*, more *why it is shaped this way*.
 
 The tutorial already taught the surface. [Chapter 6](super::ch06_backtracking) walked the whole
 public backtracking vocabulary — [`attempt`](crate::InputRef::attempt) / `try_attempt`, the
-[`Transaction`](crate::Transaction) guard, the stacked savepoints, the session points — and stated
+[`Transaction`](crate::input::Transaction) guard, the stacked savepoints, the session points — and stated
 the two laws they all obey: *restores are last-in, first-out*, and *restoring is a snapshot copy,
 not a journal replay*. This chapter explains the single mechanism beneath all of them, why those
 two laws are the shape they are, and how one checkpoint manages to rewind two independent
@@ -152,7 +152,7 @@ Three layers guard it, strongest first:
   lifetime of the handle that saved it. Every handle a parser receives arrives through a
   `for<'closure>` closure, so any two handles carry rigidly distinct brands that cannot unify —
   and restoring a checkpoint one handle saved into a *different* handle is a **compile error**, not
-  a runtime check. This is what makes the [`Transaction`](crate::Transaction) guard's nesting
+  a runtime check. This is what makes the [`Transaction`](crate::input::Transaction) guard's nesting
   safe: an inner guard mutably borrows its parent for its whole life, so deciding the parent while
   a child is still live does not *compile*. The most common LIFO violation is unrepresentable.
 
@@ -195,24 +195,24 @@ without it the three methods are crate-internal, so a downstream crate cannot ev
 non-LIFO restore, and the whole hazard class of the previous section is unrepresentable. The
 supported surface upholds the contract by construction:
 
-- [`Transaction`](crate::Transaction) — the guard from [`begin`](crate::InputRef::begin). Parse
-  *through* it (it dereferences to the handle), then [`commit`](crate::Transaction::commit) to keep
-  the work or [`rollback`](crate::Transaction::rollback) to discard it. Say nothing and the drop
+- [`Transaction`](crate::input::Transaction) — the guard from [`begin`](crate::InputRef::begin). Parse
+  *through* it (it dereferences to the handle), then [`commit`](crate::input::Transaction::commit) to keep
+  the work or [`rollback`](crate::input::Transaction::rollback) to discard it. Say nothing and the drop
   decides; the default is rollback, so every early exit — a `break`, a `?`, a return — rewinds on
-  the way out. The drop policy is a zero-sized [typestate](crate::DropPolicy): `begin_with::<Commit>`
+  the way out. The drop policy is a zero-sized [typestate](crate::input::DropPolicy): `begin_with::<Commit>`
   flips it to keep-on-drop for operator loops whose common path is success — except on a panic
   unwind, which takes the rollback arm whatever the policy says (std builds), because an unwind
   aborts the region rather than completing it. Deciding is one branch over an `Option<Checkpoint>`;
   there is no journaling to unwind.
 
-- [`StackedTransaction`](crate::StackedTransaction) — the guard from
+- [`StackedTransaction`](crate::input::StackedTransaction) — the guard from
   [`begin_stacked`](crate::InputRef::begin_stacked), for several live fallback points at once.
-  Its [`savepoint`](crate::StackedTransaction::savepoint)s follow SQL semantics:
-  [`rollback_to`](crate::StackedTransaction::rollback_to) an older one destroys every younger one
+  Its [`savepoint`](crate::input::StackedTransaction::savepoint)s follow SQL semantics:
+  [`rollback_to`](crate::input::StackedTransaction::rollback_to) an older one destroys every younger one
   (out-of-order revival is impossible *by construction* — the savepoint vector truncates from the
   top), while the target stays valid for a later rollback;
-  [`release`](crate::StackedTransaction::release) forgets savepoints while keeping the progress. A
-  [`SavepointId`](crate::SavepointId) is lifetime-branded to its transaction, so it cannot outlive
+  [`release`](crate::input::StackedTransaction::release) forgets savepoints while keeping the progress. A
+  [`SavepointId`](crate::input::SavepointId) is lifetime-branded to its transaction, so it cannot outlive
   it, and a foreign or stale id panics in every build.
 
 - [`attempt`](crate::InputRef::attempt) / `try_attempt` and the
@@ -292,10 +292,7 @@ parse; the lexer is the same tiny hand-written `CharLexer` over single-character
 
 ```rust
 # use core::{convert::Infallible, fmt};
-# use tokora::{
-#   InputRef, Lexer, SimpleSpan, Token,
-#   error::{UnexpectedEot, token::UnexpectedToken},
-# };
+# use tokora::{InputRef, Lexer, SimpleSpan, Token, error::{UnexpectedEot, UnexpectedToken}};
 # use tokora::span::Span as _;
 # #[derive(Debug, PartialEq)]
 # struct Error;

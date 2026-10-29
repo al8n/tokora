@@ -10,8 +10,10 @@ mod common;
 
 use common::{E, TestLexer, Token, TokenKind};
 use tokora::{
-  Accumulator, InputRef, Parse, ParseInput, Parser, ParserContext, emitter::Silent, parser::expect,
-  utils::Expected, while_head, while_kind,
+  Accumulator, InputRef, Parse, ParseInput, Parser, ParserContext,
+  combinator::{expect, while_head, while_kind},
+  emitter::Silent,
+  utils::Expected,
 };
 
 type Ctx<'a> = ParserContext<'a, TestLexer<'a>, Silent<E>>;
@@ -386,7 +388,7 @@ fn attempt_macro_propagates_a_decline_and_carries_an_accept() {
 
 #[test]
 fn pinned_fixes_an_ambiguous_receiver_so_the_next_call_needs_no_annotation() {
-  use tokora::pinned;
+  use tokora::combinator::pinned;
 
   // `.collect()` has several output impls, so a downstream site that does not name the
   // container is ambiguous. `pinned::<Vec<i64>, _>` fixes it at exactly one, and the
@@ -410,7 +412,7 @@ fn pinned_fixes_an_ambiguous_receiver_so_the_next_call_needs_no_annotation() {
 
 #[test]
 fn pinning_preserves_send_regardless_of_the_pinned_type() {
-  use tokora::pinned;
+  use tokora::combinator::pinned;
 
   // The phantom is `fn() -> O`, not `O`. `Pinned` stores no `O`, so it must not inherit
   // `O`'s auto-traits: pinning to a `*const u8` output must not un-`Send` a `Send`
@@ -444,8 +446,8 @@ fn pinning_preserves_send_regardless_of_the_pinned_type() {
 #[test]
 fn fluent_labelled_matches_the_free_function() {
   use tokora::{
+    combinator::labelled,
     emitter::Verbose,
-    parser::labelled,
     span::{SimpleSpan, Spanned},
   };
 
@@ -603,7 +605,7 @@ fn fluent_traced_is_the_identity_on_the_parse_it_wraps() {
 
     let method_alpha = format!("{:?}", f.traced(ALPHA));
     let method_beta = format!("{:?}", f.traced(BETA));
-    let free_alpha = format!("{:?}", tokora::traced(ALPHA, f));
+    let free_alpha = format!("{:?}", tokora::combinator::traced(ALPHA, f));
 
     assert!(
       method_alpha.contains(&want_alpha) && !method_alpha.contains(&want_beta),
@@ -626,7 +628,7 @@ fn fluent_traced_is_the_identity_on_the_parse_it_wraps() {
 
 #[test]
 fn fluent_opt_matches_the_free_function() {
-  use tokora::{TryParseInput, parser::opt};
+  use tokora::{TryParseInput, combinator::opt};
 
   fn try_num<'inp>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx<'inp>>,

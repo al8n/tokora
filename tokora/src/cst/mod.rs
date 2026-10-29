@@ -15,16 +15,16 @@
 //! # Architecture
 //!
 //! Tree support is a **flat event stream that rides the emitter**: the parser records events
-//! (through the [`CstEmitter`] capability subtrait), and the tree
+//! (through the [`CstEmitter`](crate::emitter::CstEmitter) capability subtrait), and the tree
 //! is *derived* from the surviving events exactly once — never mutated mid-parse. Because the
 //! events live in the emitter's rewindable channel, backtracking rewinds the tree for free:
 //! the same mark that unwinds diagnostics unwinds tree events.
 //!
 //! The components, front half (rowan-free, available in every build) first:
 //!
-//! 1. **[`event`](crate::cst::event)**: The event vocabulary, the era-branded
-//!    [`EventMark`](crate::cst::event::EventMark), and the
-//!    [`Marker`](crate::cst::event::Marker) retro-wrap typestate
+//! 1. **The event vocabulary** ([below](#the-event-vocabulary)): the era-branded
+//!    [`EventMark`](crate::cst::EventMark), and the
+//!    [`Marker`](crate::cst::Marker) retro-wrap typestate
 //! 2. **`parse_lossless`** / **`parse_lossless_partial`**, and their `_with_context` siblings
 //!    (`rowan`): The only doors that mint a `Sink`. They take the source once and use that one
 //!    argument for both the sink and the input, so the buffer the tree's text comes from and the
@@ -54,6 +54,89 @@
 //!   green tree, emit a new one through `SyntaxTreeBuilder`, and re-root it.
 //! - **Type-safe**: Compile-time guarantees about node types and relationships
 //!
+//! # The event vocabulary
+//!
+//! The rowan-free half of the channel: the flat log a
+//! [`CstEmitter`](crate::emitter::CstEmitter) records into, and the branded marks that make
+//! retro-parenting safe under backtracking.
+//!
+//! ## The two verbs
+//!
+//! **The parse-time event buffer mutates only by append and suffix-truncate; interior writes
+//! are either journaled undo-state riding an append, or occur where no live mark can exist.**
+//!
+//! Append is the `cst_*` emission methods, suffix-truncate is an emitter
+//! [`rewind`](crate::emitter::Emitter::rewind). Every structural decision is expressed by
+//! appending an event that *names* an earlier slot, never by rewriting that slot in place:
+//! retro-parenting appends a `StartAt` naming an earlier tombstone, and the failing exit of an
+//! up-front bracket appends a `Demote` naming its own
+//! start. This is what makes rewind-by-truncation exact: the prefix below any live mark is
+//! immutable, so truncating to the mark restores the buffer to precisely the state it had when
+//! the mark was captured — for **both** exits of a bracket alike. A rollback into the window
+//! between a bracket's start and its exit truncates that exit, whichever it was, and the open
+//! node returns.
+//!
+//! The interior-write clause covers exactly three sites, and the census is closed:
+//!
+//! - the `forward_parent` *acceleration* field a `StartAt` writes back onto its target
+//!   tombstone — **journaled** undo-state riding the `StartAt`'s own append; the sink's undo
+//!   journal reverse-replays those writes on rewind, so the law holds observationally (see
+//!   `Sink` under the `rowan` feature);
+//! - the recovery hole's prefix-preserving splice, **floored above every live mark** so no
+//!   mark's prefix can change under it (`wrap_hole`);
+//! - **materialization's canonicalization pass**, which runs on the owned buffer at the one
+//!   moment no live mark can exist (the sink is consumed) and applies every surviving
+//!   `Demote` to its target — see below.
+//!
+//! The banned direction stays banned: **completing a tombstone in place** — rewriting an
+//! earlier slot's kind during the parse — lets a rolled-back branch's decision survive its own
+//! truncation, because the truncation that erases the deciding branch does not erase the slot
+//! the decision was written on. That is why *both* directions of the kind rewrite are encoded
+//! as appended events, and neither is a parse-time interior write.
+//!
+//! ## Canonicalization: where the demotion actually lands
+//!
+//! [`cst_demote`](crate::emitter::CstEmitter::cst_demote) appends a
+//! `Demote` event naming the slot its [`cst_start`](crate::emitter::CstEmitter::cst_start)
+//! appended; the slot itself keeps its real kind for the whole parse. Materialization then
+//! canonicalizes the buffer it owns in one pass — `events[target].kind = TOMBSTONE` for every
+//! surviving `Demote` — after which the abandoned node is byte-identical to the inert slot an
+//! unspent [`cst_mark`](crate::emitter::CstEmitter::cst_mark) leaves, and the replay walk is
+//! blind to both. A `Demote` can never outlive its target (`target` is strictly below the
+//! `Demote`'s own index and truncation is a suffix operation), so the pass has nothing to
+//! reconcile.
+//!
+//! ## The depth model
+//!
+//! Balance is *derived* from the buffer, never cached beside it:
+//!
+//! - `StartNode` with a real kind opens a node: **+1**;
+//! - `StartNode` with the [`TOMBSTONE`](crate::cst::TOMBSTONE) kind is an inert mark: **0**;
+//! - `StartAt` opens a retro-wrap (hoisted to its target at
+//!   materialization): **+1** at its own index;
+//! - `FinishNode` closes the innermost open node: **−1**;
+//! - `Demote` un-opens the node its target opened: **−1** at its own index (the pair
+//!   `StartNode(+1) … Demote(−1)` nets zero, exactly as the canonicalized
+//!   `StartNode(TOMBSTONE)` does);
+//! - `Token` and `Diag` are neutral: **0**.
+//!
+//! Both verbs preserve "every prefix has depth ≥ 0 or is diagnosed at materialization": a
+//! malformed buffer is representable (the raw `cst_*` surface is sharp), but it is
+//! *unrepresentable as a successful materialization* — `finish` walks the log and returns a
+//! typed error instead of building a wrong tree.
+//!
+//! ## Marks carry eras
+//!
+//! Truncate-and-regrow is the normal backtracking rhythm, so "the index is in bounds" says
+//! nothing about whether the event at that index is still the one a mark was issued for. An
+//! [`EventMark`](crate::cst::EventMark) therefore pairs its buffer index with the **era** of the truncation history
+//! at issue time — and with the **identity** of the issuing sink, because eras are per-sink
+//! histories and two sinks' `(index, era)` pairs coincide trivially. The recording sink keeps
+//! a monotone era source and a truncation ledger (`TruncationLedger`) that restore never
+//! rewinds, and validates every spend. A stale or foreign mark **panics in every build** —
+//! the savepoint posture: both are parser bugs, not input-dependent conditions, and the
+//! silent alternative is a wrong tree with no witness.
+//!
 //! # See Also
 //!
 //! - [rowan documentation](https://docs.rs/rowan) - The underlying CST library
@@ -72,7 +155,10 @@ use rowan::{GreenNodeBuilder, Language, SyntaxNode, SyntaxToken};
 #[cfg(feature = "rowan")]
 use crate::syntax::Syntax;
 
-pub mod event;
+// The rowan-free event vocabulary. Its items' public path is `tokora::cst::Item` (#350, rule 5);
+// the submodule stays `pub(crate)` so the crate's own paths into it keep resolving.
+pub use event::*;
+pub(crate) mod event;
 pub mod kinds;
 
 // UN-GATED from `rowan` deliberately (T12). `CstProfile` and `KindValidator` are fn-pointer and
@@ -178,7 +264,7 @@ pub use text::CstText;
 /// crate is stated on (the thread `RecursionLimiter`'s own measured rows are bisected on), and
 /// the *parse* budget derived from it is the wider claim on that thread by
 /// a factor of nearly three: the shipped
-/// [`PARSE_DEFAULT_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH)
+/// [`PARSE_DEFAULT_DEPTH`](crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH)
 /// of 32 models 1.25 MiB of native frames against this ceiling's 477 KiB. A thread too small to
 /// drop a tree at this ceiling is a thread too small to have run the parse that built it, and by
 /// more. This constant is therefore not the binding term in the crate's stack contract; it is a
@@ -228,7 +314,7 @@ pub use text::CstText;
 /// equality rather than admitted by a band.
 ///
 /// **One number for both profiles, derived from the tighter of the two**, on the argument
-/// [`PARSE_DEFAULT_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH)
+/// [`PARSE_DEFAULT_DEPTH`](crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH)
 /// already makes for holding one value across both — which is stronger here than there, because
 /// the frames being bounded are `rowan`'s, so they are compiled under the *dependency's* profile
 /// — a fact `cfg!(debug_assertions)` in this crate cannot observe at all, not even imperfectly.
@@ -239,9 +325,9 @@ pub use text::CstText;
 /// # What the ceiling clears, and the one cell it meets
 ///
 /// Every recursion budget this crate ships or publishes fits under it —
-/// [`PARSE_DEFAULT_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH)
+/// [`PARSE_DEFAULT_DEPTH`](crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH)
 /// is 32 and
-/// [`OPTIMIZED_PARSE_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::OPTIMIZED_PARSE_DEPTH)
+/// [`OPTIMIZED_PARSE_DEPTH`](crate::state::RecursionLimiter::OPTIMIZED_PARSE_DEPTH)
 /// is 256, against a deepest shipped consumer document of 11 and a deepest tree over this
 /// crate's own CST fuzz corpus of **4** — a figure `fuzz::cst`'s `CORPUS_DEEPEST_TREE` asserts
 /// live, from both sides, so this sentence cannot go stale quietly. The one cell the ceiling
@@ -269,7 +355,7 @@ pub const MAX_TREE_DEPTH: usize = 1024;
 ///
 /// It is the same 2 MiB every other stack figure in this crate is stated on, and it is not this
 /// constant that binds it: the shipped
-/// [`PARSE_DEFAULT_DEPTH`](crate::state::recursion_tracker::RecursionLimiter::PARSE_DEFAULT_DEPTH)
+/// [`PARSE_DEFAULT_DEPTH`](crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH)
 /// models 1.25 MiB of native parse frames on the same thread, nearly three times the tree
 /// ceiling's drop. A thread that cannot afford this constant cannot afford the parse either, and
 /// the answer there is the thread rather than a smaller tree.
@@ -340,7 +426,7 @@ const ROWAN_BYTES_PER_LEVEL_DEBUG: usize =
 /// itself. Change the stated minimum and the byte form is what notices.
 #[cfg(feature = "rowan")]
 const _: () = {
-  use crate::state::recursion_tracker::{RecursionLimiter, policy::MIN_HEADROOM};
+  use crate::state::{RecursionLimiter, recursion_tracker::policy::MIN_HEADROOM};
 
   assert!(
     MIN_SUPPORTED_STACK == crate::state::recursion_tracker::measured::STACK,
@@ -404,7 +490,7 @@ const _: () = {
 /// recorded rather than engineered away.
 #[cfg(all(feature = "rowan", feature = "stacker"))]
 const _: () = {
-  use crate::state::recursion_tracker::RecursionLimiter;
+  use crate::state::RecursionLimiter;
 
   assert!(
     RecursionLimiter::SEGMENTED_PRATT_DEPTH <= MAX_TREE_DEPTH,
@@ -1070,7 +1156,7 @@ pub trait Token<Lang: Language>: Element<Lang> {
   ///
   /// # Errors
   ///
-  /// Returns [`TokenMismatch`](error::TokenMismatch) if:
+  /// Returns [`TokenMismatch`] if:
   /// - The token's kind doesn't match the expected kind for this type
   /// - For enum tokens, the kind is not one of the valid variants
   fn try_cast_token(syntax: SyntaxToken<Lang>) -> Result<Self, error::TokenMismatch<Self, Lang>>
@@ -1322,10 +1408,12 @@ where
 #[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
 pub mod cast;
 
-/// Error types for CST operations.
+// Error types for CST operations, public at `tokora::cst::Item` like `event`'s above.
 #[cfg(feature = "rowan")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
-pub mod error;
+pub use error::*;
+#[cfg(feature = "rowan")]
+pub(crate) mod error;
 
 #[cfg(all(test, feature = "rowan"))]
 mod tests;

@@ -138,11 +138,7 @@ use tokora::{
   input::{ScannerAttempt, ScannerOutcome, ScannerTripBaseline, TokenBudget},
   lexer::LogosLexer,
   logos::{self, Logos},
-  state::{
-    State,
-    recursion_tracker::RecursionLimiter,
-    token_tracker::{TokenLimitExceeded, TokenLimiter},
-  },
+  state::{RecursionLimiter, State, TokenLimitExceeded, TokenLimiter},
 };
 
 use common::{TestLexer, Token};
@@ -688,10 +684,10 @@ impl From<ScanLimitExceeded> for SErr {
   }
 }
 
-impl<'a, T, K: Clone, S, Lang: ?Sized>
-  From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>> for SErr
+impl<'a, T, K: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, K, S, Lang>>
+  for SErr
 {
-  fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lang>) -> Self {
+  fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lang>) -> Self {
     SErr::Ordinary
   }
 }
@@ -1318,7 +1314,7 @@ fn the_descent_witness_holds_under_a_rejecting_emitter() {
 ///
 /// [`Lexer`]: tokora::Lexer
 /// [`State`]: tokora::state::State
-/// [`TokenLimiter`]: tokora::state::token_tracker::TokenLimiter
+/// [`TokenLimiter`]: tokora::state::TokenLimiter
 #[derive(Debug, Clone, PartialEq, Logos)]
 #[logos(crate = logos, extras = TokenLimiter, skip r"[ \t\r\n]+")]
 enum CTok {
@@ -1373,7 +1369,7 @@ enum Mode {
 /// path to the *live* value, not a shared tally.
 ///
 /// [`State`]: tokora::state::State
-/// [`TokenLimiter`]: tokora::state::token_tracker::TokenLimiter
+/// [`TokenLimiter`]: tokora::state::TokenLimiter
 #[derive(Debug, Clone, Default)]
 struct ModeLimiter {
   limiter: TokenLimiter,
@@ -1872,7 +1868,7 @@ fn a_baseline_taken_after_the_trip_does_not_charge_this_attempt_with_it() {
 /// [`InputRef::scanner_stopped_during_attempt`]: tokora::InputRef::scanner_stopped_during_attempt
 /// [`Lexer`]: tokora::Lexer
 /// [`ScannerOutcome::Stalled`]: tokora::input::ScannerOutcome::Stalled
-/// [`TokenLimiter`]: tokora::state::token_tracker::TokenLimiter
+/// [`TokenLimiter`]: tokora::state::TokenLimiter
 #[test]
 fn the_stall_outcome_ends_a_speculating_loop_the_boolean_cannot() {
   fn root<'inp, Ctx>(

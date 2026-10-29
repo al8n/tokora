@@ -73,7 +73,7 @@ impl<S, Lang: ?Sized> TooMany<S, Lang> {
   ///
   /// It is not the construct's final element count. Every driver detects the violation at the
   /// same point — the element that first pushes the count past the limit, reported from the
-  /// element-count hook `parser::many`'s admission runs — so `limit() + 1` is the value all of
+  /// element-count hook `combinator::many`'s admission runs — so `limit() + 1` is the value all of
   /// them report, and it is what makes one input history yield one diagnostic whichever builder
   /// produced it. Under a fail-fast emitter the true final count is unknowable in principle,
   /// since the parse aborts at the first violation; the construct's own output and returned span

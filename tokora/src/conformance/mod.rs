@@ -19,7 +19,7 @@
 //!    [`run`](crate::conformance::Harness::run)'s two `PartialEq` bounds buy, and what a green
 //!    from it did not mean before 0.10.0 — see `run`'s own docs for who pays.
 //! 2. **State-resume faithfulness** — for *every* position `k`, capturing the lexer
-//!    [`State`] there and resuming with
+//!    [`State`](crate::state::State) there and resuming with
 //!    `L::with_state(src, saved)` + [`bump`](crate::Lexer::bump) to `k`'s offset
 //!    reproduces the original suffix from `k`. This is the prefix-replay assumption
 //!    verbatim (position is threaded via `bump`, not encoded in `State`).
@@ -60,7 +60,7 @@
 //!
 //! **Partial-input tier** (`run_partial`, a separate entry point for
 //! `usize`-offset `str` / `[u8]` sources) — driving the input in
-//! [`Partial`] mode over **every split point** and requiring
+//! [`Partial`](crate::input::Partial) mode over **every split point** and requiring
 //! chunked-equivalence under the frontier rules: a non-final drain of each prefix yields a
 //! **prefix of** the complete-parse items before the cut and always ends incomplete, while a
 //! final drain of the whole source reproduces the complete parse **exactly**. Catches lexers that
@@ -195,8 +195,14 @@
 //! first difference reached hid a decisive item count behind a `NaN` at position 0, and a
 //! corrupted `L::State` behind a `NaN` in the token beside it.
 
-pub mod cache;
-pub mod emitter;
+// The cache harness and the emitter source-binding assertions. Their public path is
+// `tokora::conformance::Item` (#350, rule 5); the submodules stay `pub(crate)` so the crate's own
+// paths into them keep resolving.
+pub use cache::*;
+pub use emitter::*;
+
+pub(crate) mod cache;
+pub(crate) mod emitter;
 
 use core::cell::RefCell;
 // `std` is `alloc` on a no-std build (`extern crate alloc as std`), and that is exactly the
@@ -208,7 +214,7 @@ use crate::{
   Lexer, ReadFrontier, Slice, Source, Span, Token,
   cache::DefaultCache,
   emitter::Emitter,
-  error::{Incomplete, MaybeIncomplete, token::UnexpectedTokenOf},
+  error::{Incomplete, MaybeIncomplete, UnexpectedTokenOf},
   input::{Complete, Cursor, Input, InputRef, Partial},
   span::Spanned,
 };
@@ -1805,9 +1811,9 @@ where
   }
 }
 
-impl<S> crate::State for Tallied<S>
+impl<S> crate::state::State for Tallied<S>
 where
-  S: crate::State,
+  S: crate::state::State,
 {
   type Error = S::Error;
 
@@ -2722,7 +2728,7 @@ fn assert_partial_prefix_of<'inp, L>(
 }
 
 /// The second half of every `non-reflexive-payload` refusal, shared by the trait/partial tiers
-/// here and by the cache kit in [`cache`] so that the two cannot drift apart on what the
+/// here and by the cache kit in `cache` so that the two cannot drift apart on what the
 /// diagnosis means or on what it asks the caller to do about it.
 const NON_REFLEXIVE_BODY: &str = "`PartialEq` is partial: it promises symmetry and transitivity, \
    never reflexivity, and a payload holding an `f64` that can be `NaN` is the case that reaches \
@@ -2946,7 +2952,7 @@ enum Divergence {
 /// positions, else a cardinality difference if there is one, else the first inconclusive
 /// position, else `None`.
 ///
-/// The four stream comparisons in this module and [`cache`]'s purity comparison all read their
+/// The four stream comparisons in this module and `cache`'s purity comparison all read their
 /// answer from here, so the ordering between a position and a count cannot come to hold at one of
 /// them and not at another — the shape rounds 2 through 4 each hit by repairing a site.
 ///

@@ -20,7 +20,7 @@
 //! When the parser reaches the end of input unexpectedly, use constructors without a found token:
 //!
 //! ```
-//! use tokora::{SimpleSpan, error::token::UnexpectedToken};
+//! use tokora::{SimpleSpan, error::UnexpectedToken};
 //!
 //! // Simple end-of-input error (no found token)
 //! let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
@@ -36,7 +36,7 @@
 //! When a specific token was found but something else was expected:
 //!
 //! ```
-//! use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+//! use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
 //!
 //! let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
 //!     SimpleSpan::new(10, 15),
@@ -79,7 +79,7 @@ pub type UnexpectedTokenOf<'inp, L, Lang = ()> = UnexpectedToken<
 /// # Examples
 ///
 /// ```
-/// use tokora::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
+/// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
 ///
 /// // Error when expecting a specific token but got something else
 /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
@@ -141,7 +141,7 @@ impl<'a, T, Kind: Clone, S> UnexpectedToken<'a, T, Kind, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::with_expected(
   ///     SimpleSpan::new(100, 101),
@@ -164,7 +164,7 @@ impl<'a, T, Kind: Clone, S> UnexpectedToken<'a, T, Kind, S> {
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::maybe_expected(
   ///     SimpleSpan::new(100, 101),
@@ -212,7 +212,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::with_expected_of(
   ///     SimpleSpan::new(100, 101),
@@ -235,7 +235,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::maybe_expected_of(
   ///     SimpleSpan::new(100, 101),
@@ -258,7 +258,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(50, 51),
@@ -280,7 +280,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(50, 51),
@@ -304,7 +304,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_of(
   ///     SimpleSpan::new(25, 26),
@@ -328,7 +328,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::Expected, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_of_with_found(
   ///     SimpleSpan::new(25, 26),
@@ -355,7 +355,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// // With a found token
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
@@ -388,7 +388,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// // With a found token
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
@@ -423,7 +423,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(5, 10),
@@ -446,7 +446,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one(
   ///     SimpleSpan::new(5, 10),
@@ -469,7 +469,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
@@ -491,7 +491,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
@@ -510,7 +510,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let mut error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
@@ -532,7 +532,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(0, 10),
@@ -557,7 +557,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(5, 6),
@@ -579,7 +579,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let mut error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(10, 15),
@@ -606,7 +606,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   ///
   /// ```
   /// # #[cfg(feature = "std")] {
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(0, 5),
@@ -640,7 +640,7 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> UnexpectedToken<'a, T, Kind, S, Lang> 
   /// # Examples
   ///
   /// ```
-  /// use tokora::{SimpleSpan, utils::{Expected}, error::token::UnexpectedToken};
+  /// use tokora::{SimpleSpan, error::UnexpectedToken, utils::Expected};
   ///
   /// let error: UnexpectedToken<'_, &str, &str, SimpleSpan> = UnexpectedToken::expected_one_with_found(
   ///     SimpleSpan::new(5, 6),

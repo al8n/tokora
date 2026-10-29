@@ -13,12 +13,12 @@ use crate::{
   Emitter, Token,
   cache::DefaultCache,
   emitter::{Silent, Verbose},
-  error::token::UnexpectedToken,
+  error::UnexpectedToken,
   input::Input,
   lexer::LogosLexer,
+  parse::try_parse::input::ParseAttempt,
   span::{SimpleSpan, Spanned},
-  state::token_tracker::{TokenLimitExceeded, TokenLimiter},
-  try_parse::input::ParseAttempt,
+  state::{TokenLimitExceeded, TokenLimiter},
 };
 
 // ── Fixture: a number lexer over a by-value token limiter (as in the guard tests) ──────────────

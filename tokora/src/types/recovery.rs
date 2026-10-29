@@ -1,9 +1,11 @@
 //! The recovery state of a syntax carrier, the trait that reads it, and the parts it decomposes
 //! into.
 //!
-//! [`Status`] is re-exported as `types::Status`, so a consumer globbing `tokora::types::*` has the
-//! status type without naming this module. [`RecoveryState`], [`FromComponents`] and
-//! [`Components`] are reached through this path.
+//! [`Status`], [`RecoveryState`], [`FromComponents`] and [`Components`] are all re-exported from
+//! `types` and reached as `tokora::types::Item`; this module is private (#350, rule 5), so its own
+//! name is no longer a path into a consumer's namespace and the `recovery` clash recorded below
+//! no longer arises. The table and the line it argues for still govern the four names in
+//! `types::*`.
 //!
 //! # How a name added to a globbed namespace behaves, by kind
 //!
@@ -80,19 +82,11 @@
 //! a name this module also has — the date is what makes the claim re-checkable instead of
 //! re-argued.
 
-/// Reachable both ways: as `types::Status`, which is where a glob finds it, and through this
-/// module beside the rest of the recovery API.
+/// Reachable as `types::Status`, beside the rest of the recovery API: this file is private and
+/// `types` re-exports all four of its items, which is also where a glob finds them.
 ///
 /// ```rust
-/// use tokora::types::Status;
-/// use tokora::types::recovery::{Components, FromComponents, RecoveryState, Status as Same};
-/// # const _: () = { let _: fn(Status) -> Same = |s| s; };
-/// ```
-///
-/// The traits and [`Components`] are **not** in `types::*`, so they are named rather than globbed:
-///
-/// ```compile_fail,E0432
-/// use tokora::types::RecoveryState;
+/// use tokora::types::{Components, FromComponents, RecoveryState, Status};
 /// ```
 /// The recovery state of a syntax carrier: whether the parser found the construct, found
 /// something malformed where it should have been, or found nothing at all.
@@ -328,7 +322,7 @@ pub trait RecoveryState {
 /// What replaces them binds by name, so no elision can slide a binding onto the status:
 ///
 /// ```rust
-/// # use tokora::{SimpleSpan, types::{LitDecimal, recovery::Components}, utils::IntoComponents};
+/// # use tokora::{SimpleSpan, types::{Components, LitDecimal}, utils::IntoComponents};
 /// # let lit = LitDecimal::<&str>::new(SimpleSpan::new(0, 2), "42");
 /// let Components { span, payload, status } = lit.into_components();
 /// assert_eq!(payload, "42");
@@ -350,7 +344,7 @@ pub struct Components<Span, Payload> {
 /// took it apart into — the exact inverse, over the same associated type.
 ///
 /// ```rust
-/// use tokora::{SimpleSpan, error::ErrorNode, types::{LitDecimal, recovery::FromComponents}};
+/// use tokora::{SimpleSpan, error::ErrorNode, types::{FromComponents, LitDecimal}};
 /// use tokora::utils::IntoComponents;
 ///
 /// let placeholder = LitDecimal::<&str>::error(SimpleSpan::new(0, 3));

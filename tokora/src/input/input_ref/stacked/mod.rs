@@ -76,7 +76,7 @@ use super::{
 /// outlive the input loan:
 ///
 /// ```compile_fail
-/// use tokora::{InputRef, Lexer, ParseContext, SavepointId};
+/// use tokora::{InputRef, Lexer, ParseContext, input::SavepointId};
 ///
 /// fn durable_misuse<'inp, 'closure, L, Ctx>(
 ///   input: &mut InputRef<'inp, 'closure, L, Ctx>,

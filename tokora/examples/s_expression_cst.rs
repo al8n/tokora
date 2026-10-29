@@ -3,7 +3,7 @@
 //! Same Lisp grammar as its twin, but instead of reducing to an [`Atom`] value it builds a
 //! **lossless** rowan concrete syntax tree through a [`cst::Sink`](tokora::cst::Sink) — every
 //! byte of the source, whitespace and `;` comments included, survives into the tree. This is
-//! the canonical [`node`](tokora::parser::node) pattern from the guide's chapter 16: a
+//! the canonical [`node`](tokora::combinator::node) pattern from the guide's chapter 16: a
 //! recursive-descent parser whose structure is declared by wrapping sub-parses in `node(...)`
 //! brackets; committed tokens (and trivia) flow to the sink on their own.
 //!
@@ -19,11 +19,11 @@ use rowan::{Language, NodeOrToken, SyntaxNode};
 use tokora::{
   Emitter, InputRef, ParseContext, ParseInput, Token as TokenT,
   cache::DefaultCache,
+  combinator::node,
   cst::{CstProfile, KindValidator, parse_lossless},
   emitter::{CstEmitter, Fatal},
-  error::token::UnexpectedTokenOf,
+  error::UnexpectedTokenOf,
   logos::{self, Logos},
-  parser::node,
 };
 
 // ── Lossless lexer ──────────────────────────────────────────────────────────────

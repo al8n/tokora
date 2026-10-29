@@ -21,7 +21,7 @@ use tokora::{
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter, Verbose,
   },
-  parser::Action,
+  parse::Action,
   punct::Bracket,
 };
 

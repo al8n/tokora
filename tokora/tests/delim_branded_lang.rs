@@ -36,9 +36,8 @@ use tokora::{
   delimiter::TypedDelimiter,
   emitter::Fatal,
   error::{
-    TokenHint, Unclosed, UnexpectedEnd,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TokenHint, TooFew, TooMany,
+    Unclosed, UnexpectedEnd, UnexpectedToken,
   },
   punct::Bracket,
 };

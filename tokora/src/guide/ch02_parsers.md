@@ -18,7 +18,7 @@ The two primitives this chapter leans on:
 
 Parsers return `Result<O, E>` where `E` is *your* error type. Failures reach it through two
 routes: your own code returns it directly, and the crate's machinery **emits** structured
-errors — [`UnexpectedTokenOf`](crate::error::token::UnexpectedTokenOf) when a token
+errors — [`UnexpectedTokenOf`](crate::error::UnexpectedTokenOf) when a token
 mismatches, [`UnexpectedEot`](crate::error::UnexpectedEot) at a premature end, the token's
 lexer error for unlexable bytes — through the configured
 [`Emitter`](crate::Emitter). The default emitter, [`Fatal`](crate::emitter::Fatal),
@@ -98,8 +98,7 @@ the same trait also provides `parse_bytes`, `parse_bstr`, and `parse_hipstr`.
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, Parser,
-  error::{UnexpectedEot, token::UnexpectedTokenOf},
+  Emitter, InputRef, Parse, ParseContext, Parser, error::{UnexpectedEot, UnexpectedTokenOf},
 };
 
 // Calc's parse error. One variant per failure family; the `From` impls are
@@ -266,7 +265,7 @@ concrete default are one and the same parser:
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedTokenOf};
+# use tokora::error::{UnexpectedEot, UnexpectedTokenOf};
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
@@ -319,8 +318,8 @@ first. The full catalog — every context, emitter, and error leaf — is the
 ## `expect`: mismatches with a name
 
 The manual `try_expect`-then-`Err` above works, but the failure says nothing about *what*
-was expected. The [`expect`](crate::parser::expect) combinator consumes one token and, on a
-mismatch, routes an [`UnexpectedTokenOf`](crate::error::token::UnexpectedTokenOf) through
+was expected. The [`expect`](crate::combinator::expect) combinator consumes one token and, on a
+mismatch, routes an [`UnexpectedTokenOf`](crate::error::UnexpectedTokenOf) through
 the emitter carrying an [`Expected`](crate::utils::Expected) — the machine-readable
 "expected integer, found `;`" half of a diagnostic (chapter 7 renders it). At end of input
 it emits [`UnexpectedEot`](crate::error::UnexpectedEot) instead:
@@ -387,8 +386,7 @@ it emits [`UnexpectedEot`](crate::error::UnexpectedEot) instead:
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
 # use tokora::{
-#   Emitter, InputRef, Parse, ParseContext, Parser,
-#   error::{UnexpectedEot, token::UnexpectedTokenOf},
+#   Emitter, InputRef, Parse, ParseContext, Parser, error::{UnexpectedEot, UnexpectedTokenOf},
 # };
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
@@ -402,7 +400,7 @@ it emits [`UnexpectedEot`](crate::error::UnexpectedEot) instead:
 # impl<'inp, L: tokora::Lexer<'inp>, Lang: ?Sized> tokora::emitter::FromUnclosed<'inp, L, Lang> for CalcError {
 #   fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { CalcError::UnexpectedEnd }
 # }
-use tokora::{ParseInput, parser::expect, utils::Expected};
+use tokora::{ParseInput, combinator::expect, utils::Expected};
 
 fn parse_int<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, CalcLexer<'inp>, Ctx>,

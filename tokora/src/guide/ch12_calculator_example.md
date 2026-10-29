@@ -92,8 +92,8 @@ type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Token>;
 enum CalcError { Lex(LexError), UnexpectedToken, UnexpectedEot }
 
 impl From<LexError> for CalcError { fn from(e: LexError) -> Self { Self::Lex(e) } }
-impl<'inp> From<tokora::error::token::UnexpectedTokenOf<'inp, CalcLexer<'inp>>> for CalcError {
-  fn from(_: tokora::error::token::UnexpectedTokenOf<'inp, CalcLexer<'inp>>) -> Self { Self::UnexpectedToken }
+impl<'inp> From<tokora::error::UnexpectedTokenOf<'inp, CalcLexer<'inp>>> for CalcError {
+  fn from(_: tokora::error::UnexpectedTokenOf<'inp, CalcLexer<'inp>>) -> Self { Self::UnexpectedToken }
 }
 // Both Pratt expression-end errors collapse to the same "ran out of input" variant.
 impl From<tokora::error::UnexpectedEot> for CalcError { fn from(_: tokora::error::UnexpectedEot) -> Self { Self::UnexpectedEot } }
@@ -107,23 +107,23 @@ assert_eq!(Token::Num(1.5).kind(), TokenKind::Num);
 ```
 
 The relevant public APIs are `Token`, [`token::PrattToken`](crate::token::PrattToken),
-[`parser::PrattPower`](crate::parser::PrattPower),
-[`parser::PrattLHS`](crate::parser::PrattLHS),
-[`parser::PrattRHS`](crate::parser::PrattRHS),
-[`parser::Precedenced`](crate::parser::Precedenced),
-[`parser::PrattInfix`](crate::parser::PrattInfix), [`InputRef::pratt`](crate::InputRef::pratt),
+[`pratt::PrattPower`](crate::pratt::PrattPower),
+[`pratt::PrattLHS`](crate::pratt::PrattLHS),
+[`pratt::PrattRHS`](crate::pratt::PrattRHS),
+[`pratt::Precedenced`](crate::pratt::Precedenced),
+[`pratt::PrattInfix`](crate::pratt::PrattInfix), [`InputRef::pratt`](crate::InputRef::pratt),
 `PrattEmitter`, `Spanned`, `Parser`, and `Parse::parse_str`.
 
 ## Define the precedence constants and grouping sentinel
 
 `Power(i32)` names this language's ladder. It is useful for making the domain explicit, not for
-orphan-rule reasons: Tokora implements [`PrattPower`](crate::parser::PrattPower) for the standard
+orphan-rule reasons: Tokora implements [`PrattPower`](crate::pratt::PrattPower) for the standard
 integer types too, so a bare `i64` (chapter 5's choice) would also work. The grouping sentinel is
 below the default floor so an opening parenthesis can recurse at that lower floor and consume its
 matching closing parenthesis without exposing it to the outer expression.
 
 ```rust
-use tokora::parser::PrattPower;
+use tokora::pratt::PrattPower;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct Power(i32);
@@ -156,7 +156,7 @@ classifier: the token type describes *itself* at each position. `try_pratt_lhs` 
 (an operand), a prefix minus, or an opening parenthesis; `try_pratt_rhs` accepts the infix
 operators and the closing-parenthesis postfix sentinel. Returning `None` tells the engine that the
 token is not part of this expression here, so it is left on the input and the loop stops. `^` is
-the one [`Right`](crate::parser::PrattInfix)-associative row; `(`/`)` share `PREC_PAREN`.
+the one [`Right`](crate::pratt::PrattInfix)-associative row; `(`/`)` share `PREC_PAREN`.
 
 ```rust
 # use tokora::{Token as TokenT, logos::{self, Logos}};
@@ -188,7 +188,7 @@ the one [`Right`](crate::parser::PrattInfix)-associative row; `(`/`)` share `PRE
 #   fn kind(&self) -> TokenKind { TokenKind::from(self) }
 #   fn is_trivia(&self) -> bool { false }
 # }
-# use tokora::parser::PrattPower;
+# use tokora::pratt::PrattPower;
 # #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 # struct Power(i32);
 # impl PrattPower for Power {}
@@ -197,7 +197,7 @@ the one [`Right`](crate::parser::PrattInfix)-associative row; `(`/`)` share `PRE
 # const PREC_PROD: Power = Power(2);
 # const PREC_NEG: Power = Power(3);
 # const PREC_EXP: Power = Power(4);
-use tokora::parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced};
+use tokora::pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced};
 use tokora::token::PrattToken;
 
 impl PrattToken<'_, f64, Power> for Token {
@@ -241,7 +241,7 @@ Use named functions rather than closures because the token-level fold traits req
 higher-ranked lifetime bound on the emitter (`for<'lt> FnMut(…, &'lt mut Emitter)`); a closure is
 monomorphic in that lifetime and does not satisfy it, while a `fn` item is generic over its
 lifetimes and satisfies it for free. `fold_prefix` negates a number or passes a grouped value
-through; `fold_infix` extracts the operator from [`PrattInfix`](crate::parser::PrattInfix) and
+through; `fold_infix` extracts the operator from [`PrattInfix`](crate::pratt::PrattInfix) and
 computes the next `f64` (here `^` is `powf`); `fold_postfix` acknowledges a closing parenthesis and
 returns its operand. Each fold trades in [`Spanned`](crate::span::Spanned)`<Token>`, so the
 evaluated value goes back in as a `Token::Num`. The emitter parameter is unused here, so the folds
@@ -281,13 +281,13 @@ can even be exercised directly with `E = ()`:
 # #[derive(Debug)]
 # enum CalcError { Lex(LexError), UnexpectedToken, UnexpectedEot }
 # impl From<LexError> for CalcError { fn from(e: LexError) -> Self { Self::Lex(e) } }
-# impl<'inp> From<tokora::error::token::UnexpectedTokenOf<'inp, CalcLexer<'inp>>> for CalcError { fn from(_: tokora::error::token::UnexpectedTokenOf<'inp, CalcLexer<'inp>>) -> Self { Self::UnexpectedToken } }
+# impl<'inp> From<tokora::error::UnexpectedTokenOf<'inp, CalcLexer<'inp>>> for CalcError { fn from(_: tokora::error::UnexpectedTokenOf<'inp, CalcLexer<'inp>>) -> Self { Self::UnexpectedToken } }
 # impl From<tokora::error::UnexpectedEot> for CalcError { fn from(_: tokora::error::UnexpectedEot) -> Self { Self::UnexpectedEot } }
 # impl From<tokora::error::UnexpectedEoLhs> for CalcError { fn from(_: tokora::error::UnexpectedEoLhs) -> Self { Self::UnexpectedEot } }
 # impl From<tokora::error::UnexpectedEoRhs> for CalcError { fn from(_: tokora::error::UnexpectedEoRhs) -> Self { Self::UnexpectedEot } }
 impl<O, Lang: ?Sized> From<tokora::error::RecursionLimitReached<O, Lang>> for CalcError { fn from(_: tokora::error::RecursionLimitReached<O, Lang>) -> Self { Self::UnexpectedEot } }
 impl<O, Lang: ?Sized> From<tokora::error::NonAssociativeChain<O, Lang>> for CalcError { fn from(_: tokora::error::NonAssociativeChain<O, Lang>) -> Self { Self::UnexpectedEot } }
-use tokora::{SimpleSpan, parser::PrattInfix, span::Spanned};
+use tokora::{SimpleSpan, pratt::PrattInfix, span::Spanned};
 
 fn fold_prefix<'inp, E>(
   op: Spanned<Token, SimpleSpan>,
@@ -409,14 +409,14 @@ assertions below are the maintained evaluator's behavior contract, now executabl
 # #[derive(Debug)]
 # enum CalcError { Lex(LexError), UnexpectedToken, UnexpectedEot }
 # impl From<LexError> for CalcError { fn from(e: LexError) -> Self { Self::Lex(e) } }
-# impl<'inp> From<tokora::error::token::UnexpectedTokenOf<'inp, CalcLexer<'inp>>> for CalcError { fn from(_: tokora::error::token::UnexpectedTokenOf<'inp, CalcLexer<'inp>>) -> Self { Self::UnexpectedToken } }
+# impl<'inp> From<tokora::error::UnexpectedTokenOf<'inp, CalcLexer<'inp>>> for CalcError { fn from(_: tokora::error::UnexpectedTokenOf<'inp, CalcLexer<'inp>>) -> Self { Self::UnexpectedToken } }
 # impl<O, Lang: ?Sized, Set: Clone + 'static> From<tokora::error::UnexpectedEot<O, Lang, Set>> for CalcError { fn from(_: tokora::error::UnexpectedEot<O, Lang, Set>) -> Self { Self::UnexpectedEot } }
 # impl<'inp, L: tokora::Lexer<'inp>, Lang: ?Sized> tokora::emitter::FromUnclosed<'inp, L, Lang> for CalcError { fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { Self::UnexpectedEot } }
 # impl From<tokora::error::UnexpectedEoLhs> for CalcError { fn from(_: tokora::error::UnexpectedEoLhs) -> Self { Self::UnexpectedEot } }
 # impl From<tokora::error::UnexpectedEoRhs> for CalcError { fn from(_: tokora::error::UnexpectedEoRhs) -> Self { Self::UnexpectedEot } }
 impl<O, Lang: ?Sized> From<tokora::error::RecursionLimitReached<O, Lang>> for CalcError { fn from(_: tokora::error::RecursionLimitReached<O, Lang>) -> Self { Self::UnexpectedEot } }
 impl<O, Lang: ?Sized> From<tokora::error::NonAssociativeChain<O, Lang>> for CalcError { fn from(_: tokora::error::NonAssociativeChain<O, Lang>) -> Self { Self::UnexpectedEot } }
-# use tokora::parser::PrattPower;
+# use tokora::pratt::PrattPower;
 # #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 # struct Power(i32);
 # impl PrattPower for Power {}
@@ -425,7 +425,7 @@ impl<O, Lang: ?Sized> From<tokora::error::NonAssociativeChain<O, Lang>> for Calc
 # const PREC_PROD: Power = Power(2);
 # const PREC_NEG: Power = Power(3);
 # const PREC_EXP: Power = Power(4);
-# use tokora::parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced};
+# use tokora::pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced};
 # use tokora::token::PrattToken;
 # impl PrattToken<'_, f64, Power> for Token {
 #   fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), Power>> {

@@ -9,19 +9,20 @@ use hybrid_arraydeque::{ArrayDeque, typenum::U1};
 use mayber::{Maybe, MaybeRef};
 
 use crate::{
-  ParseContext, Token, Window,
+  ParseContext, Token,
   cache::{CachedToken, CachedTokenOf, CachedTokenRefOf, MaybeRefCachedTokenOf, Peeked},
   emitter::{Emitter, EmitterView},
-  error::{UnexpectedEot, token::UnexpectedToken},
+  error::{UnexpectedEot, UnexpectedToken},
+  parse::{Window, try_parse::input::ParseAttempt},
   span::Spanned,
-  try_parse::input::ParseAttempt,
   utils::Expected,
 };
 
 use super::{
-  Cache, Checkpoint, Complete, Completeness, Cursor, Lexed, Lexer, Lineage, ReadFrontier, Source,
-  Span, SurfaceIncomplete,
+  Checkpoint, Complete, Completeness, Cursor, Lexer, Lineage, ReadFrontier, Source, Span,
+  SurfaceIncomplete,
 };
+use crate::{cache::Cache, lexer::Lexed};
 
 pub(crate) use session::Session;
 use staged_trip::StagedTrip;
@@ -334,7 +335,7 @@ where
   /// The **recursion budget**, borrowed from the owning [`Input`](super::Input) — see that field
   /// for why it is outside the rollback set. Read through [`recursion`](Self::recursion); its
   /// only writer is the [`Descent`] guard [`descend`](Self::descend) hands out.
-  pub(super) recursion: &'closure mut crate::state::recursion_tracker::RecursionLimiter,
+  pub(super) recursion: &'closure mut crate::state::RecursionLimiter,
   /// The **token budget**, borrowed from the owning [`Input`](super::Input) — see that field for
   /// why a rollback does not refund it. Read through [`token_budget`](Self::token_budget); its
   /// only writers are [`lex_within_boundary`](Self::lex_within_boundary), which charges the one
@@ -380,7 +381,7 @@ where
   /// the scanner its registers).
   pub(super) session: Session<'inp, 'closure, L, Ctx::Emitter, Lang>,
   /// Trace nesting depth, borrowed from the owning [`Input`] (the `trace` feature). Its sole
-  /// mutators are [`traced`](crate::traced)'s enter/exit hooks; internal leaf events only read
+  /// mutators are [`traced`](crate::combinator::traced)'s enter/exit hooks; internal leaf events only read
   /// it for indentation.
   #[cfg(feature = "trace")]
   pub(super) depth: &'closure mut usize,
@@ -729,7 +730,7 @@ where
   /// `DerefMut`:
   ///
   /// ```compile_fail
-  /// use tokora::{InputRef, Lexer, ParseContext, Partial};
+  /// use tokora::{InputRef, Lexer, ParseContext, input::Partial};
   ///
   /// fn end_the_stream<'inp, L, Ctx>(inp: &mut InputRef<'inp, '_, L, Ctx, (), Partial>)
   /// where
@@ -997,7 +998,7 @@ where
   #[inline]
   pub(crate) fn emit_unexpected_front(
     &mut self,
-    err: crate::error::token::UnexpectedTokenOf<'inp, L, Lang>,
+    err: crate::error::UnexpectedTokenOf<'inp, L, Lang>,
     front_end: L::Offset,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     self.session.emitter.emit_unexpected_token(err)?;
@@ -1226,7 +1227,7 @@ where
   /// **That `false` is not wrong about the input — it is the wrong question for the caller.** The
   /// [`Lexer`](crate::Lexer) contract requires limit accounting to derive entirely from source,
   /// offset and [`State`](crate::state::State), and
-  /// [`TokenLimiter`](crate::state::token_tracker::TokenLimiter) documents the consequence from the
+  /// [`TokenLimiter`](crate::state::TokenLimiter) documents the consequence from the
   /// other side: a restore reinstalls the saved tally, *everything spent after it is given back*,
   /// because an abandoned speculation's tokens are not in the committed stream. So after that
   /// rollback a scan from the restored cursor really does yield a token, and this reading says so
@@ -2833,11 +2834,11 @@ where
   /// rewind destroyed.
   ///
   /// One thing a point deliberately **cannot** reach is the interior of a
-  /// [`node`](crate::parser::node) bracket a caller is already inside: settling a point from an
+  /// [`node`](crate::combinator::node) bracket a caller is already inside: settling a point from an
   /// enclosing frame there would rewind below that bracket's start and stale the mark its failing
   /// exit must spend, so the invariant `'closure` brand on the id refuses it at compile time —
   /// the wall is the brand, not a runtime check. See *A rollback below the start cannot happen
-  /// mid-frame* in the [`node` module docs](crate::parser::node).
+  /// mid-frame* in the [`node` module docs](crate::combinator::node).
   ///
   /// # Contract: a point is scoped to *this handle*, and never outlives it
   ///
@@ -3205,7 +3206,7 @@ where
   }
 
   /// The number of live checkpoints — test-only observability for the no-growth
-  /// guarantee that committing (and a success-path [`Recover`](crate::parser::Recover))
+  /// guarantee that committing (and a success-path [`Recover`](crate::combinator::Recover))
   /// gives the lineage stack (see [`Lineage::live_len`](super::Lineage::live_len)).
   ///
   /// The stack it measures is maintained in every allocator build, so this accessor is gated
@@ -4074,7 +4075,7 @@ where
   /// fresh resource-limit trip (a `Scan::Tripped`), and an already-latched poison boundary at the
   /// cursor. For a **committed** leaf — one that turns `next() == None` into an
   /// [`UnexpectedEot`](crate::error::UnexpectedEot) — that fold is a false negative: a fresh trip
-  /// becomes a plain, *recoverable* end-of-input error, so [`Recover`](crate::parser::Recover)
+  /// becomes a plain, *recoverable* end-of-input error, so [`Recover`](crate::combinator::Recover)
   /// synthesizes a value and re-enters the scanner, re-tripping the same limit instead of re-raising
   /// it. No input ever clears a tripped limit, so a terminal stop must be re-raised untouched exactly
   /// as an [`Incomplete`](crate::error::Incomplete) is — see the [never-recoverable

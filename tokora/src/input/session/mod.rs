@@ -1,6 +1,6 @@
 //! The resumable partial-parse **session**: the cross-attempt half of the streaming story.
 //!
-//! [`parse_partial`](crate::input::parse_partial) is a one-shot: it builds a fresh input over the
+//! [`parse_partial`](crate::parse::parse_partial) is a one-shot: it builds a fresh input over the
 //! caller's whole buffer, drives the parser, and returns a value that carries no committed
 //! offset, no evolved lexer state and no budget. Every refill therefore re-drives the entire
 //! prefix, and — the part that matters — **no work budget can live anywhere**. A fresh
@@ -151,7 +151,7 @@ pub enum SessionRefusal {
 ///
 /// ```
 /// use core::convert::Infallible;
-/// use tokora::{InputRef, Lexer, Partial, SimpleSpan, Token};
+/// use tokora::{InputRef, Lexer, SimpleSpan, Token, input::Partial};
 /// use tokora::cache::DefaultCache;
 /// use tokora::emitter::Fatal;
 /// use tokora::error::{Incomplete, MaybeIncomplete, MaybeTerminal};
@@ -212,8 +212,8 @@ pub enum SessionRefusal {
 /// # impl MaybeTerminal for MyErr {
 /// #   fn is_terminal(&self) -> bool { matches!(self, MyErr::Refused(_)) }
 /// # }
-/// # impl<'a, T, K: Clone, S, Lg: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, K, S, Lg>>
-/// #   for MyErr { fn from(_: tokora::error::token::UnexpectedToken<'a, T, K, S, Lg>) -> Self { MyErr::Other } }
+/// # impl<'a, T, K: Clone, S, Lg: ?Sized> From<tokora::error::UnexpectedToken<'a, T, K, S, Lg>>
+/// #   for MyErr { fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lg>) -> Self { MyErr::Other } }
 /// #
 /// # type Lex<'a> = WordLexer<'a>;
 /// # type Ctx<'a> = (Fatal<MyErr>, DefaultCache<'a, Lex<'a>>);
@@ -381,7 +381,7 @@ impl<St, Off> PartialSession<St, Off, RedriveFromBase> {
   /// # The refill loop
   ///
   /// The caller owns the buffer, exactly as with
-  /// [`parse_partial`](crate::input::parse_partial): on an incomplete result it appends the next
+  /// [`parse_partial`](crate::parse::parse_partial): on an incomplete result it appends the next
   /// chunk to *its own* buffer and calls this again over the larger slice. What the session
   /// adds is the cross-attempt budget, the terminal latch, and the harvested frontier.
   ///

@@ -17,7 +17,7 @@
 //!
 //! The separated door is here because it is the shape no corpus in this repository measured.
 //! The five criterion benches monomorphize `Repeated`, `Separated` and `Collect` out of
-//! `parser::many` and nothing else — no `DelimitedBy`, no `SeparatedWhile`, no cardinality or
+//! `combinator::many` and nothing else — no `DelimitedBy`, no `SeparatedWhile`, no cardinality or
 //! policy wrapper — so a change that costs stack in a recursive separated grammar is invisible
 //! to them, and it is the deeper of the two combinator doors.
 //!
@@ -55,12 +55,11 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntaxOf},
-    token::{MissingTokenOf, UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntaxOf, MissingTokenOf, Unclosed, UnexpectedEot, UnexpectedToken,
+    UnexpectedTokenOf,
   },
   input::Cursor,
-  parser::Action,
+  parse::Action,
   span::Spanned,
   utils::CowStr,
 };
@@ -387,11 +386,11 @@ where
 /// `Collect<DelimitedBy<SeparatedWhile<..>, Bracket>, Vec<_>>`.
 ///
 /// This is the shape [`combinator_node`] does not reach. The five criterion benches
-/// monomorphize `Repeated`, `Separated` and `Collect` and nothing else out of `parser::many` —
+/// monomorphize `Repeated`, `Separated` and `Collect` and nothing else out of `combinator::many` —
 /// no `DelimitedBy`, no `SeparatedWhile`, no cardinality or policy wrapper — so an attribute
 /// change that costs stack HERE is invisible to a corpus made of them, and a recursive
 /// separated grammar is exactly where a per-level regression would hide. It goes through
-/// `parser::many::sep_while::delim::unbounded`, one of the 144 leaf modules the four
+/// `combinator::many::sep_while::delim::unbounded`, one of the 144 leaf modules the four
 /// `impl_separated_*` macros generate.
 ///
 /// The document is the same `[[[…]]]`: one child per level, so the separator is never taken and

@@ -1,4 +1,4 @@
-use crate::utils::cmp::{__assert_equivalent_impl, Equivalent};
+use crate::utils::{Equivalent, cmp::__assert_equivalent_impl};
 
 const _: () = {
   use hipstr_0_8::{HipByt, HipStr};

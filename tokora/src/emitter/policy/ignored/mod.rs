@@ -1,4 +1,4 @@
-use crate::{error::syntax::MissingSyntaxOf, span::Spanned};
+use crate::{error::MissingSyntaxOf, span::Spanned};
 
 use super::super::*;
 
@@ -17,7 +17,7 @@ mod unexpected_trailing_separator;
 /// An emitter that ignores all errors, and the error type is `()`.
 ///
 /// If you want to preserve the error type, use [`Silent`](super::silent::Silent) emitter instead.
-pub type Ignored = crate::utils::marker::Ignored<()>;
+pub type Ignored = crate::utils::Ignored<()>;
 
 impl<'a, L, Lang: ?Sized> Emitter<'a, L, Lang> for Ignored {
   type Error = ();

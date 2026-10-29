@@ -1,4 +1,4 @@
-use crate::{error::syntax::MissingSyntaxOf, span::Spanned};
+use crate::{error::MissingSyntaxOf, span::Spanned};
 
 use super::super::{
   separated::{

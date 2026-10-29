@@ -87,23 +87,22 @@ pub use ident::*;
 pub use ident_list::*;
 pub use keyword::*;
 pub use lit::*;
-// `Status` is re-exported here so a consumer who writes `use tokora::types::*` gets the status
-// type without naming the module; `RecoveryState`, `FromComponents` and `Components` are reached
-// through `types::recovery`.
+// `Status`, `RecoveryState`, `FromComponents` and `Components` are all public here, at
+// `tokora::types::Item`: no public path is deeper than two (#350, rule 5), so `recovery` is a
+// private file whose items this module re-exports.
 //
-// That split is ordinary library design, and the line it sits on is stated in `recovery`'s header:
-// tokora must not silently change what a method on a tokora type means, while a name a consumer's
-// own glob shadows is that glob's cost and `::` is its fix. `Status` here is the second kind — a
-// path into the consumer's namespace, not a call on a tokora type — so it is placed where a glob
-// will find it. That header also carries the measured table those rounds produced, both clashes as
-// measured, and the dated crates.io check behind the module's name.
-pub use recovery::Status;
+// The line those items sit on is stated in `recovery`'s header: tokora must not silently change
+// what a method on a tokora type means, while a name a consumer's own glob shadows is that glob's
+// cost and `::` is its fix. A name in `types::*` is the second kind — a path into the consumer's
+// namespace, not a call on a tokora type. That header also carries the measured table, both
+// clashes as measured, and the dated crates.io check that once bore on the module's public name.
+pub use recovery::*;
 
 mod ident;
 mod ident_list;
 mod keyword;
 mod lit;
-pub mod recovery;
+pub(crate) mod recovery;
 
 /// A type representing a recoverable parse node, which can be a valid node,
 /// an error node with span, or a missing node with span.

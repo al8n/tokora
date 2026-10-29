@@ -44,11 +44,10 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter, Verbose,
   },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
-  parser::Action,
+  parse::Action,
 };
 
 // ── A rich error type that distinguishes the opener-probe outcomes ─────────────
@@ -522,7 +521,7 @@ flagged_once_cases!(
 
 const ONE_FLAG: fn() -> Vec<WE> = || vec![wrong(TokenKind::Ident, 0, 1)];
 
-// Reaches `parser/many/delim/repeated.rs`'s function-level four-way probe.
+// Reaches `combinator/many/delim/repeated.rs`'s function-level four-way probe.
 #[test]
 fn repeated_zero_width_stall_arm_flags_wrong_opener_once() {
   fn parse<'inp>(
@@ -559,7 +558,7 @@ fn repeated_zero_width_stall_arm_flags_wrong_opener_once() {
   );
 }
 
-// Reaches `parser/many/delim/repeated_while.rs`'s function-level four-way probe. The
+// Reaches `combinator/many/delim/repeated_while.rs`'s function-level four-way probe. The
 // condition must say `Continue` at least once, or the in-loop arm settles it instead.
 #[test]
 fn repeated_while_zero_width_stall_arm_flags_wrong_opener_once() {
@@ -606,7 +605,7 @@ fn repeated_while_zero_width_stall_arm_flags_wrong_opener_once() {
   );
 }
 
-// Reaches `parser/many/sep_while/delim/mod.rs`'s in-loop stall probe (the third of that
+// Reaches `combinator/many/sep_while/delim/mod.rs`'s in-loop stall probe (the third of that
 // file's three arms).
 #[test]
 fn separated_while_zero_width_stall_arm_flags_wrong_opener_once() {

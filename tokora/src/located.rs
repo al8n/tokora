@@ -32,7 +32,7 @@ use core::{
 /// Thanks to `Deref`, you can call methods on the wrapped value directly:
 ///
 /// ```rust
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 ///
 /// let located = Located::new("main.rs", SimpleSpan::new(10, 15), "hello");
 ///
@@ -48,7 +48,7 @@ use core::{
 /// ## Multi-File Error Reporting
 ///
 /// ```rust,ignore
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 /// use std::path::PathBuf;
 ///
 /// fn report_error<T>(loc: &Located<T, SimpleSpan, PathBuf>, message: &str)
@@ -69,7 +69,7 @@ use core::{
 /// ## Building Complete AST Nodes
 ///
 /// ```rust,ignore
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 /// use std::path::PathBuf;
 ///
 /// type Loc<T> = Located<T, SimpleSpan, PathBuf>;
@@ -96,7 +96,7 @@ use core::{
 /// ## Cross-File Reference Checking
 ///
 /// ```rust,ignore
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 ///
 /// fn check_reference(
 ///     reference: &Located<String, SimpleSpan, String>,
@@ -119,7 +119,7 @@ use core::{
 /// ## Mapping Values While Preserving Full Location
 ///
 /// ```rust
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 ///
 /// let located_str = Located::new("input.txt", SimpleSpan::new(5, 7), "42");
 ///
@@ -134,7 +134,7 @@ use core::{
 /// ## IDE Integration
 ///
 /// ```rust,ignore
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 /// use std::path::PathBuf;
 ///
 /// struct Diagnostic {
@@ -160,7 +160,7 @@ use core::{
 /// ## Incremental Compilation with Position Tracking
 ///
 /// ```rust,ignore
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 /// use std::collections::HashMap;
 ///
 /// struct Definition {
@@ -189,7 +189,7 @@ use core::{
 /// ## Basic Usage
 ///
 /// ```rust
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 ///
 /// let located = Located::new("file.rs", SimpleSpan::new(0, 5), "hello");
 ///
@@ -202,7 +202,7 @@ use core::{
 /// ## Destructuring
 ///
 /// ```rust
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 ///
 /// let located = Located::new("main.rs", SimpleSpan::new(10, 20), 42);
 ///
@@ -215,7 +215,7 @@ use core::{
 /// ## Mutable Access
 ///
 /// ```rust
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 ///
 /// let mut located = Located::new("input", SimpleSpan::new(0, 2), 10);
 ///
@@ -235,7 +235,7 @@ use core::{
 /// ## Conversion from Spanned or Sliced
 ///
 /// ```rust
-/// use tokora::{Located, SimpleSpan};
+/// use tokora::{SimpleSpan, span::Located};
 /// use tokora::slice::Sliced;
 /// use tokora::span::Spanned;
 ///
@@ -306,7 +306,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let located = Located::new("file.rs", SimpleSpan::new(10, 15), "hello");
   /// assert_eq!(located.slice(), "file.rs");
@@ -323,7 +323,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let located = Located::new("main.rs", SimpleSpan::new(0, 5), "data");
   /// assert_eq!(located.slice(), "main.rs");
@@ -341,7 +341,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let located = Located::new("config.toml", SimpleSpan::new(5, 10), "data");
   /// assert_eq!(located.slice_ref(), &"config.toml");
@@ -356,7 +356,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let mut located = Located::new("old.txt", SimpleSpan::new(0, 3), "data");
   /// *located.slice_mut() = "new.txt";
@@ -372,7 +372,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let located = Located::new("file.rs", SimpleSpan::new(5, 10), "data");
   /// assert_eq!(located.span(), SimpleSpan::new(5, 10));
@@ -390,7 +390,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let located = Located::new("file.rs", SimpleSpan::new(5, 10), "data");
   /// assert_eq!(located.span_ref(), &SimpleSpan::new(5, 10));
@@ -405,7 +405,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let mut located = Located::new("file.rs", SimpleSpan::new(0, 5), "data");
   /// located.span_mut().set_end(10);
@@ -421,7 +421,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let located = Located::new("file.txt", SimpleSpan::new(0, 2), 42);
   /// assert_eq!(*located.data(), 42);
@@ -436,7 +436,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let mut located = Located::new("file.txt", SimpleSpan::new(0, 2), 42);
   /// *located.data_mut() = 100;
@@ -452,7 +452,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let located = Located::new(
   ///     String::from("file.txt"),
@@ -476,7 +476,7 @@ impl<D, Sp, Sl> Located<D, Sp, Sl> {
   /// ## Example
   ///
   /// ```rust
-  /// use tokora::{Located, SimpleSpan};
+  /// use tokora::{SimpleSpan, span::Located};
   ///
   /// let mut located = Located::new(
   ///     String::from("file.txt"),

@@ -45,7 +45,7 @@ The engine needs to ask two different questions, so there are two traits:
 
 They are bound together by one associated type: `Source::Slice<'a>: Slice<'a>`. Slicing a
 `Source` produces something that is itself a `Slice`. That is the whole contract, and it is why
-[`SliceOf<'inp, L>`](crate::SliceOf) — the projection `<L::Source as Source>::Slice<'inp>` — is
+[`SliceOf<'inp, L>`](crate::lexer::SliceOf) — the projection `<L::Source as Source>::Slice<'inp>` — is
 the type generic parser code reaches for whenever it wants the raw text of a token.
 
 `'a` is a validity requirement, not merely a label on that projection:

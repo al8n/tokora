@@ -1058,7 +1058,7 @@ mod consumer_scope {
   use crate::{
     SimpleSpan,
     error::ErrorNode,
-    types::{Ident, LitDecimal, recovery::Status},
+    types::{Ident, LitDecimal, Status},
   };
 
   /// A downstream extension trait with the three names, meaning something of its own.
@@ -1092,7 +1092,7 @@ mod consumer_scope {
   /// tokora's own answer, reached without importing the trait — which is what a fully qualified
   /// path is for, and what the consumer would write on the rare call that wants it.
   fn tokora_status(lit: &LitDecimal<&str>) -> Status {
-    <LitDecimal<&str> as crate::types::recovery::RecoveryState>::status(lit)
+    <LitDecimal<&str> as crate::types::RecoveryState>::status(lit)
   }
 
   /// **The cell, and its two directions.**
@@ -1177,7 +1177,7 @@ mod consumer_scope {
   /// consumer whose `status()` returned something else would get a type error.
   ///
   /// A differing return type is only loud **if the caller stores the value**. The chain below
-  /// stores nothing, and [`Status`](crate::types::recovery::Status) offers `is_valid` too, so with an
+  /// stores nothing, and [`Status`](crate::types::Status) offers `is_valid` too, so with an
   /// inherent `status` in place `literal.status().is_valid()` keeps compiling and silently stops
   /// asking the consumer's question. `new` marks any caller-supplied payload `Status::Valid`, so
   /// `"999"` — which does not fit the consumer's `u8` — passes.
@@ -1325,7 +1325,7 @@ mod consumer_scope {
   ///
   /// A draft of this branch shipped `with_status` as a `pub const fn` inherent on all nineteen
   /// carriers, arguing it could not be displaced silently because its third parameter is a
-  /// [`Status`](crate::types::recovery::Status), a type no pre-upgrade expression can produce. That holds
+  /// [`Status`](crate::types::Status), a type no pre-upgrade expression can produce. That holds
   /// for expressions whose type comes from the *expression* — `Default::default()`, `x.into()`,
   /// an associated constant, a bounded generic call — all of which were measured and all of which
   /// fail with `E0277` or `E0308`.
@@ -1338,7 +1338,7 @@ mod consumer_scope {
   /// `MaybeUninit::uninit().assume_init()` is worse — it yields whatever the stack held.
   ///
   /// So the constructor is not in the inherent namespace at all: it is
-  /// [`FromComponents::from_components`](crate::types::recovery::FromComponents::from_components),
+  /// [`FromComponents::from_components`](crate::types::FromComponents::from_components),
   /// a trait method, which a consumer's inherent item outranks. The call below reaches the
   /// consumer's constructor and must keep doing so.
   #[test]
@@ -1380,7 +1380,7 @@ mod consumer_scope {
 
     // tokora's own status-preserving construction is still reachable, by the trait that replaced
     // the constructor — and it is the exact inverse of the decomposition.
-    use crate::{types::recovery::FromComponents, utils::IntoComponents};
+    use crate::{types::FromComponents, utils::IntoComponents};
     let placeholder = LitDecimal::<&str>::error(span);
     let rebuilt = LitDecimal::<&str>::from_components(placeholder.into_components());
     assert_eq!(rebuilt, placeholder);
@@ -1512,7 +1512,7 @@ mod second_glob {
     // Tokora's own answer is still reachable, by naming it — which is the cost of the repair and
     // the whole of it.
     assert!(
-      <LitDecimal<&str> as crate::types::recovery::RecoveryState>::status(&nonsense).is_valid(),
+      <LitDecimal<&str> as crate::types::RecoveryState>::status(&nonsense).is_valid(),
       "tokora's recovery status is the opposite answer, reached by naming the trait",
     );
   }

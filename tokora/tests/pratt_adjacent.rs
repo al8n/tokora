@@ -47,14 +47,14 @@ use tokora::{
   emitter::Verbose,
   error::{
     NonAssociativeChain, RecursionLimitReached, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot,
-    token::UnexpectedTokenOf,
+    UnexpectedTokenOf,
   },
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
   span::Spanned,
   token::PrattToken,
 };
 
-use tokora::state::recursion_tracker::RecursionLimiter;
+use tokora::state::RecursionLimiter;
 
 use common::{TestLexer, Token, TokenKind, WallClock, bounded_wait};
 

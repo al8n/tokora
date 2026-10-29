@@ -106,7 +106,7 @@ so both arms are now priced at the debug frame cost and no profile combination c
 The release figure is published rather than installed, and taking it is one call:
 
 ```rust
-use tokora::state::recursion_tracker::RecursionLimiter;
+use tokora::state::RecursionLimiter;
 
 // The default budget — the same number in every build profile.
 assert_eq!(RecursionLimiter::PARSE_DEFAULT_DEPTH, 32);

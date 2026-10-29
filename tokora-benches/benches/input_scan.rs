@@ -36,14 +36,15 @@ use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use hybrid_arraydeque::typenum::{U3, U8};
 
 use tokora::{
-  Cache, Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput, ParseTokenChoice,
-  Parser, State, Token,
-  cache::PeekedTokenExt,
-  error::{UnexpectedEnd, token::UnexpectedToken},
+  Emitter, InputRef, Lexer, Parse, ParseChoice, ParseContext, ParseInput, ParseTokenChoice, Parser,
+  Token,
+  cache::{Cache, PeekedTokenExt},
+  combinator::Any,
+  error::{UnexpectedEnd, UnexpectedToken},
   lexer::LogosLexer,
   logos::{self, Logos},
-  parser::Any,
   span::Spanned,
+  state::State,
 };
 
 // ── Fixture: a small ident/int/punct/whitespace-trivia token enum ─────────────
@@ -776,7 +777,7 @@ fn dispatch_bench(c: &mut Criterion) {
 // on the six dispatch ids that take the overflow-free exit. What this records is the
 // one arm nothing else measures.
 
-/// Capacity of [`tokora::DefaultCache`], which is what both probes are sized against.
+/// Capacity of [`tokora::cache::DefaultCache`], which is what both probes are sized against.
 ///
 /// Not a guess: `probe_calibration` proves the cache really holds this many and refuses
 /// to register the group otherwise, so a change to `DefaultCache`'s width fails the

@@ -27,13 +27,12 @@ use common::{E, TestLexer, Token, TokenKind};
 use tokora::{
   Accumulator, ComposableParseContext, FatalContext, InputRef, Lexer, Parse, ParseAttempt,
   ParseInput, Parser, TryParseInput,
+  combinator::peek_kind,
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedEot, UnexpectedToken,
   },
   input::SurfaceIncomplete,
-  parser::peek_kind,
   punct::Brace,
   token::IdentifierToken,
   types::Ident,
@@ -106,7 +105,7 @@ where
 /// The braced identifier the delimited production yields. The pair is named at the caller's
 /// language: a `Brace` branded for a sibling grammar is not this grammar's pair.
 type BracedIdentOf<'inp, L, Ctx, Lang> =
-  tokora::parser::DelimitedOf<'inp, Brace<(), (), Lang>, L, Ctx, Lang, IdentOf<'inp, L, Lang>>;
+  tokora::combinator::DelimitedOf<'inp, Brace<(), (), Lang>, L, Ctx, Lang, IdentOf<'inp, L, Lang>>;
 
 /// The delimited family adds the fifth member: `FromUnclosed`, quantified over the pair.
 /// This signature names neither `Brace` in a conversion nor `FromUnclosed` at all.
@@ -328,7 +327,7 @@ fn policy_bundled_production<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
 ) -> Result<usize, tokora::ErrorOf<'inp, TestLexer<'inp>, Ctx, ()>>
 where
-  Ctx: tokora::PolicyParseContext<'inp, TestLexer<'inp>>,
+  Ctx: tokora::parse::PolicyParseContext<'inp, TestLexer<'inp>>,
 {
   let items: std::vec::Vec<IdentOf<'inp, TestLexer<'inp>, ()>> = Ident::try_parse
     .separated_by_comma()
@@ -364,7 +363,7 @@ fn policy_bundle_drives_at_most() {
 fn assert_policy_bundle<'inp, L, Ctx, Lang>()
 where
   L: Lexer<'inp>,
-  Ctx: tokora::PolicyParseContext<'inp, L, Lang>,
+  Ctx: tokora::parse::PolicyParseContext<'inp, L, Lang>,
   Lang: ?Sized,
 {
   // Bundle-2 is a strict widening: anything satisfying it satisfies bundle-1.

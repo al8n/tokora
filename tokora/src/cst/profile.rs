@@ -35,8 +35,8 @@ use super::event::TOMBSTONE;
 /// Hence the predicate travels as data. [`accept_all`](Self::accept_all) is the written-down
 /// opt-out for a caller who really does accept every kind.
 ///
-/// [`Dialect`]: crate::Dialect
-/// [`Dialect::Lang`]: crate::Dialect::Lang
+/// [`Dialect`]: crate::dialect::Dialect
+/// [`Dialect::Lang`]: crate::dialect::Dialect::Lang
 #[derive(Clone, Copy)]
 pub struct KindValidator(fn(u16) -> bool);
 

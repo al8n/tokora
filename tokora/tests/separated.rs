@@ -3,7 +3,7 @@
 //! Tests for `separated_by` and `repeated` combinators.
 //!
 //! Covers every separator policy variant and count modifier in
-//! `parser/many/sep/` and `parser/many/sep_while/`.
+//! `combinator/many/sep/` and `combinator/many/sep_while/`.
 
 mod common;
 
@@ -15,9 +15,8 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, UnexpectedEot,
+    UnexpectedToken,
   },
 };
 

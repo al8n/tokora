@@ -14,14 +14,14 @@ use common::E;
 use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
   ParserContext, SimpleSpan, TryParseInput,
+  combinator::With,
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnexpectedLeadingSeparatorEmitter,
     UnexpectedTrailingSeparatorEmitter,
   },
-  parser::With,
   span::Spanned,
-  utils::marker::PhantomSpan,
+  utils::PhantomSpan,
 };
 
 use common::{TestLexer, Token};

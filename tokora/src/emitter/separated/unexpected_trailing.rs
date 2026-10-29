@@ -1,5 +1,5 @@
 use crate::{
-  error::token::{SeparatedError, SeparatedErrorOf, UnexpectedTokenOf},
+  error::{SeparatedError, SeparatedErrorOf, UnexpectedTokenOf},
   utils::CowStr,
 };
 

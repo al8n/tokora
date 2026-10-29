@@ -18,13 +18,13 @@ for one typo is worse than useless.
 depth zero**. You give it two things:
 
 - a **classifier** — which token kinds open and close a pair. Any
-  `FnMut(&Kind) -> Balance<P>` is one, via the blanket [`DelimClass`](crate::DelimClass) impl;
-  [`Balance`](crate::Balance) is `Open(pair)`, `Close(pair)`, or `Neutral`.
+  `FnMut(&Kind) -> Balance<P>` is one, via the blanket [`DelimClass`](crate::input::DelimClass) impl;
+  [`Balance`](crate::input::Balance) is `Open(pair)`, `Close(pair)`, or `Neutral`.
 - a **sync predicate** — what you want to land on. It is consulted **only at depth zero**, so
   garbage containing balanced pairs skips straight over any sync tokens buried inside them.
 
-It returns `Option<`[`Hole`](crate::Hole)`>` — the region it skipped
-([`span()`](crate::Hole::span) and [`skipped()`](crate::Hole::skipped), the token count) — and
+It returns `Option<`[`Hole`](crate::input::Hole)`>` — the region it skipped
+([`span()`](crate::input::Hole::span) and [`skipped()`](crate::input::Hole::skipped), the token count) — and
 stops *before* the sync token, leaving it for the parse that resumes.
 
 Two properties are worth naming because they are what make it safe. Depth counting is
@@ -105,7 +105,7 @@ nothing at all and rewinds without a trace: **no diagnostic for a failed hole**.
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedToken};
+# use tokora::error::{UnexpectedEot, UnexpectedToken};
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
@@ -116,10 +116,8 @@ nothing at all and rewinds without a trace: **no diagnostic for a failed hole**.
 #   fn from(_: UnexpectedEot) -> Self { CalcError::UnexpectedEnd }
 # }
 use tokora::{
-  Balance, DelimClass, Emitter, InputRef, Parse, ParseContext, Parser,
-  cache::DefaultCache,
-  emitter::Verbose,
-  span::Spanned,
+  Emitter, InputRef, Parse, ParseContext, Parser, cache::DefaultCache, emitter::Verbose,
+  input::{Balance, DelimClass}, span::Spanned,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -362,7 +360,7 @@ about to retry.
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEot, token::UnexpectedToken};
+# use tokora::error::{UnexpectedEot, UnexpectedToken};
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
@@ -373,10 +371,8 @@ about to retry.
 #   fn from(_: UnexpectedEot) -> Self { CalcError::UnexpectedEnd }
 # }
 use tokora::{
-  Balance, Emitter, InputRef, Parse, ParseContext, ParseInput, Parser,
-  cache::DefaultCache,
-  emitter::Verbose,
-  error::{MaybeIncomplete, MaybeTerminal},
+  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, cache::DefaultCache, emitter::Verbose,
+  error::{MaybeIncomplete, MaybeTerminal}, input::Balance,
 };
 
 // THE NEVER-RECOVERABLE LAW AND ITS TERMINAL DUAL. `skip_then_retry` requires the emitter's error
@@ -499,8 +495,8 @@ about to type.
 
 The Pratt driver's answer is the rust-analyzer one: report the missing operand, hand the driver
 an *error node* as the operand, and let the fold and the loop continue over it. It works because
-the LHS channel's [`Operand`](crate::parser::PrattLHS::Operand) report — unlike
-[`Prefix`](crate::parser::PrattLHS::Prefix) — is not held to "consume what you report", so an
+the LHS channel's [`Operand`](crate::pratt::PrattLHS::Operand) report — unlike
+[`Prefix`](crate::pratt::PrattLHS::Prefix) — is not held to "consume what you report", so an
 operand of **zero width** is legal. The full argument, the recovery-set rule that keeps such a
 parse terminating, and how the two kinds of recovery meet at an
 [`inplace_recover`](crate::ParseInput::inplace_recover) boundary are in
@@ -512,7 +508,7 @@ parse terminating, and how the two kinds of recovery meet at an
 Recovery skips input. An [`Incomplete`](crate::error::Incomplete) error says *there is more
 input coming*. Skipping past it would throw away bytes that have not arrived yet — so both
 [`skip_then_retry`](crate::ParseInput::skip_then_retry) and
-[`Recover`](crate::parser::Recover) check
+[`Recover`](crate::combinator::Recover) check
 [`is_incomplete()`](crate::error::MaybeIncomplete::is_incomplete) **before** they skip, and
 re-raise such an error untouched. Recovery is for the malformed, never for the unfinished.
 

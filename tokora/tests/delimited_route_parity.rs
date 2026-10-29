@@ -39,14 +39,13 @@ mod common;
 use common::{TestLexer, Token, TokenKind};
 use tokora::{
   InputRef, Parse, Parser, ParserContext, SimpleSpan,
+  combinator::{angles, braces, brackets, delimited, parens},
   delimiter::Delimiter,
   emitter::Verbose,
   error::{
-    Unclosed,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
+    UnexpectedToken,
   },
-  parser::{angles, braces, brackets, delimited, parens},
   punct::{
     Angle, Brace, Bracket, CloseAngle, CloseBrace, CloseBracket, CloseParen, Paren, Punctuator,
   },

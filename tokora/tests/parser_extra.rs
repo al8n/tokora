@@ -9,8 +9,8 @@ mod common;
 
 use tokora::{
   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
-  error::{UnexpectedEot, token::UnexpectedToken},
-  parser::{Any, expect, try_expect},
+  combinator::{Any, expect, try_expect},
+  error::{UnexpectedEot, UnexpectedToken},
   utils::Expected,
 };
 

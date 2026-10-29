@@ -5,7 +5,7 @@ use common::E;
 
 use tokora::{
   Emitter, InputRef, Lexer, Parse, Parser, ParserContext, Token as TokenTrait,
-  error::token::UnexpectedTokenOf, input::Cursor, span::Spanned,
+  error::UnexpectedTokenOf, input::Cursor, span::Spanned,
 };
 
 use common::{TestLexer, Token};

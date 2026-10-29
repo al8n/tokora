@@ -59,8 +59,8 @@ use tokora::{
   Accumulator, Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
   ParserContext, TryParseInput,
   emitter::{Fatal, FullContainerEmitter, PrattEmitter},
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
-  state::recursion_tracker::RecursionLimiter,
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  state::RecursionLimiter,
   token::PrattToken,
   utils::typenum::U4,
 };
@@ -1376,7 +1376,7 @@ fn a_caught_trip_does_not_disable_a_later_recovery() {
 /// is re-raised. Same source, same recoverer, same one trip — only where the catch sits.
 ///
 /// This is a real residual and it is documented as one, on `InputRef::tripped_during_attempt`, on
-/// `Input::resource_trips` and in `parser::many`'s module docs. **The strong form is not
+/// `Input::resource_trips` and in `combinator::many`'s module docs. **The strong form is not
 /// implementable**: proving that the `Err` in hand *is* the trip means interrogating the error
 /// value, and this file's whole subject is a sink that discards it — `()` keeps no discriminant to
 /// interrogate. So the witness resolves to one *attempt*, and inside that unit it fails closed: an

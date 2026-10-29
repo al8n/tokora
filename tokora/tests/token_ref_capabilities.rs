@@ -24,7 +24,7 @@ use tokora::{
 
 #[cfg(feature = "pratt")]
 use tokora::{
-  parser::{PrattLHS, PrattRHS},
+  pratt::{PrattLHS, PrattRHS},
   token::PrattToken,
 };
 
@@ -144,7 +144,7 @@ impl PrattToken<'_, i64, i64> for Tok {
 
   fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), i64>> {
     match self.kind {
-      Kind::Dot => Some(PrattRHS::Postfix(tokora::parser::Precedenced::new((), 7))),
+      Kind::Dot => Some(PrattRHS::Postfix(tokora::pratt::Precedenced::new((), 7))),
       _ => None,
     }
   }
@@ -161,7 +161,7 @@ impl PrattToken<'_, str, i8> for Tok {
 
   fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), i8>> {
     match self.kind {
-      Kind::Comma => Some(PrattRHS::Postfix(tokora::parser::Precedenced::new((), 3))),
+      Kind::Comma => Some(PrattRHS::Postfix(tokora::pratt::Precedenced::new((), 3))),
       _ => None,
     }
   }

@@ -15,7 +15,7 @@ Two crates share the work:
 - **tokora** parses and records. Committed tokens flow to the emitter on their own
   ([`commit_token`](crate::Emitter::commit_token) fires once per settled token, everywhere —
   you never call it), and node structure is declared with the
-  [`node`](crate::parser::node()) combinators. This half is rowan-free and compiles in every
+  [`node`](crate::combinator::node()) combinators. This half is rowan-free and compiles in every
   build.
 - **[rowan](https://docs.rs/rowan)** stores the finished tree. Under the `rowan` feature,
   [`parse_lossless`](crate::cst::parse_lossless) drives the parse with a
@@ -26,11 +26,11 @@ Two crates share the work:
   construction rather than by convention.
 
 The event stream between the two is an implementation detail: you never construct, inspect,
-or replay events. (The [`cst::event`](crate::cst::event) module documents the vocabulary and
+or replay events. (The [`cst`](crate::cst#the-event-vocabulary) module documents the vocabulary and
 its laws normatively, for the curious.) What matters is *where* the events live — in the
 emitter's rewindable channel. The same checkpoint/rewind mark that unwinds diagnostics
 unwinds tree events, so [`attempt`](crate::InputRef::attempt), the
-[`Transaction`](crate::Transaction) guards, and pratt rollback rewind the tree for free.
+[`Transaction`](crate::input::Transaction) guards, and pratt rollback rewind the tree for free.
 
 If you read this chapter before 0.2: it taught a manual builder walkthrough — a recording
 shim around every consume, a builder parameter threaded through every parser function — and
@@ -53,7 +53,7 @@ rowan = "0.17"
 The `rowan` feature implies `std` (rowan itself requires it); it does not imply `logos`.
 Only the *materializing* half — [`Sink`](crate::cst::Sink) and the typed tree views —
 lives behind the feature. The recording half ([`CstEmitter`](crate::emitter::CstEmitter),
-the [`node`](crate::parser::node()) combinators, the marks) is unconditional, which is what
+the [`node`](crate::combinator::node()) combinators, the marks) is unconditional, which is what
 lets a grammar crate stay rowan-free while its tooling consumers opt in.
 
 ## One enum owns the kind space
@@ -201,7 +201,7 @@ identifiers on the hot path for no structural gain.
 
 ## The grammar declares the tree
 
-Here is the heart of the chapter. [`node(kind, parser)`](crate::parser::node()) wraps a
+Here is the heart of the chapter. [`node(kind, parser)`](crate::combinator::node()) wraps a
 parser so that, on success, **everything the sub-parse committed** — tokens, trivia, nested
 nodes — becomes the children of one syntax node of that kind. Structure is declared exactly
 where the grammar already is; nothing else about the parser changes. Compare these functions
@@ -250,8 +250,8 @@ structure*. Helpers that merely consume keep the plain emitter bound.
 # #[derive(Debug, Clone, PartialEq)]
 # enum QueryError { Lex, Unexpected }
 # impl From<LexError> for QueryError { fn from(_: LexError) -> Self { QueryError::Lex } }
-# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
-#   fn from(_: tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
+# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
+#   fn from(_: tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # #[repr(u16)]
@@ -295,12 +295,9 @@ structure*. Helpers that merely consume keep the plain emitter bound.
 #   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
 # }
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
-  cache::DefaultCache,
-  cst::{CstProfile, KindValidator, parse_lossless},
-  emitter::{CstEmitter, Fatal},
-  parser::{node, node_at},
-  ParseAttempt,
+  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
+  cache::DefaultCache, combinator::{node, node_at},
+  cst::{CstProfile, KindValidator, parse_lossless}, emitter::{CstEmitter, Fatal},
 };
 
 /// Chapter shorthand for the input reference.
@@ -534,7 +531,7 @@ assert_eq!(user_node.first_child().unwrap().text().to_string(), "(id: 4)");
 - **Success** wraps precisely the region committed since entry.
 - **A decline** (the inner parser is a `try_` parser that declined) records no node — not
   even an empty one. `opt_arguments` above leans on this;
-  [`node_opt`](crate::parser::node_opt()) packages the same shape as an `Option`.
+  [`node_opt`](crate::combinator::node_opt()) packages the same shape as an `Option`.
 - **An error-path unwind** (`?` out of the inner parser) records no node and leaves no
   dangling half-open bracket: materialization stays balanced, whatever already committed
   stays in the tree, and gap tiling (below) keeps the round trip.
@@ -551,7 +548,7 @@ identifier is the field's *name* or an *alias*: only a following `:` decides. Re
 grammar to lookahead twice would contort it; wrapping too eagerly would put a wrong node in
 the tree.
 
-[`node_at`](crate::parser::node_at()) is the retro-wrap: take a
+[`node_at`](crate::combinator::node_at()) is the retro-wrap: take a
 [mark](crate::emitter::CstEmitter::cst_mark) *before* the first identifier, parse it, and
 spend the mark only when the colon shows up — the new node wraps everything recorded since
 the mark, including tokens committed before the wrap was conceivable.
@@ -596,8 +593,8 @@ the mark, including tokens committed before the wrap was conceivable.
 # #[derive(Debug, Clone, PartialEq)]
 # enum QueryError { Lex, Unexpected }
 # impl From<LexError> for QueryError { fn from(_: LexError) -> Self { QueryError::Lex } }
-# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
-#   fn from(_: tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
+# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
+#   fn from(_: tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # #[repr(u16)]
@@ -641,12 +638,9 @@ the mark, including tokens committed before the wrap was conceivable.
 #   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
 # }
 # use tokora::{
-#   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
-#   cache::DefaultCache,
-#   cst::{CstProfile, KindValidator, parse_lossless},
-#   emitter::{CstEmitter, Fatal},
-#   parser::{node, node_at},
-#   ParseAttempt,
+#   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
+#   cache::DefaultCache, combinator::{node, node_at},
+#   cst::{CstProfile, KindValidator, parse_lossless}, emitter::{CstEmitter, Fatal},
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
 # #[allow(dead_code)]
@@ -829,7 +823,7 @@ Two safety properties keep caller-held marks honest. A mark whose branch was rol
 **stale**, and spending it panics in every build — the alternative would be silently
 wrapping whatever the retry parsed over the same buffer positions, a wrong tree nothing
 downstream can detect. And for the common single-wrap decision tree, the
-[`Marker`](crate::cst::event::Marker) typestate makes double-spends and
+[`Marker`](crate::cst::Marker) typestate makes double-spends and
 wrap-before-complete compile errors rather than conventions.
 
 ## Tokens reach the tree on their own
@@ -890,8 +884,8 @@ formatting data *without* a tree in the dependency closure; under a sink they ar
 # #[derive(Debug, Clone, PartialEq)]
 # enum QueryError { Lex, Unexpected }
 # impl From<LexError> for QueryError { fn from(_: LexError) -> Self { QueryError::Lex } }
-# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
-#   fn from(_: tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
+# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
+#   fn from(_: tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # #[repr(u16)]
@@ -935,12 +929,9 @@ formatting data *without* a tree in the dependency closure; under a sink they ar
 #   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
 # }
 # use tokora::{
-#   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
-#   cache::DefaultCache,
-#   cst::{CstProfile, KindValidator, parse_lossless},
-#   emitter::{CstEmitter, Fatal},
-#   parser::{node, node_at},
-#   ParseAttempt,
+#   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
+#   cache::DefaultCache, combinator::{node, node_at},
+#   cst::{CstProfile, KindValidator, parse_lossless}, emitter::{CstEmitter, Fatal},
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
 # #[allow(dead_code)]
@@ -1188,8 +1179,8 @@ nothing.
 # #[derive(Debug, Clone, PartialEq)]
 # enum QueryError { Lex, Unexpected }
 # impl From<LexError> for QueryError { fn from(_: LexError) -> Self { QueryError::Lex } }
-# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
-#   fn from(_: tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
+# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
+#   fn from(_: tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
 # }
 # impl<O, Lang: ?Sized, Set: Clone + 'static> From<tokora::error::UnexpectedEot<O, Lang, Set>> for QueryError { fn from(_: tokora::error::UnexpectedEot<O, Lang, Set>) -> Self { QueryError::Unexpected } }
 # impl<'inp, L: tokora::Lexer<'inp>, Lang: ?Sized> tokora::emitter::FromUnclosed<'inp, L, Lang> for QueryError { fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { QueryError::Unexpected } }
@@ -1205,10 +1196,8 @@ nothing.
 #   const fn raw(self) -> u16 { self as u16 }
 # }
 # use tokora::{
-#   Emitter, InputRef, ParseContext, ParseInput, TryParseInput,
-#   emitter::CstEmitter,
-#   parser::{node, node_at},
-#   ParseAttempt,
+#   Emitter, InputRef, ParseAttempt, ParseContext, ParseInput, TryParseInput,
+#   combinator::{node, node_at}, emitter::CstEmitter,
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
 # #[derive(Debug, Clone, PartialEq)]
@@ -1376,7 +1365,7 @@ wrapper at **compile time** — the structural gate. (Wrapper authors: implement
 The sink's [`checkpoint`](crate::Emitter::checkpoint) mark covers the event buffer and the
 wrapped emitter's diagnostics as one timeline. Every rollback shape from
 [chapter 6](super::ch06_backtracking) — [`attempt`](crate::InputRef::attempt) /
-[`try_attempt`](crate::InputRef::try_attempt), the [`Transaction`](crate::Transaction)
+[`try_attempt`](crate::InputRef::try_attempt), the [`Transaction`](crate::input::Transaction)
 guards, session points — therefore rewinds the tree exactly as it rewinds position and
 diagnostics. Speculation can consume tokens, wrap nodes, even recover from errors; if the
 branch is abandoned, its events are truncated as if they never happened.
@@ -1421,8 +1410,8 @@ branch is abandoned, its events are truncated as if they never happened.
 # #[derive(Debug, Clone, PartialEq)]
 # enum QueryError { Lex, Unexpected }
 # impl From<LexError> for QueryError { fn from(_: LexError) -> Self { QueryError::Lex } }
-# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
-#   fn from(_: tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
+# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
+#   fn from(_: tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # #[repr(u16)]
@@ -1452,12 +1441,9 @@ branch is abandoned, its events are truncated as if they never happened.
 #   )
 # }
 # use tokora::{
-#   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
-#   cache::DefaultCache,
-#   cst::{CstProfile, KindValidator, parse_lossless},
-#   emitter::{CstEmitter, Fatal},
-#   parser::{node, node_at},
-#   ParseAttempt,
+#   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
+#   cache::DefaultCache, combinator::{node, node_at},
+#   cst::{CstProfile, KindValidator, parse_lossless}, emitter::{CstEmitter, Fatal},
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
 # #[allow(dead_code)]
@@ -1704,8 +1690,8 @@ scan — no sync point found — rewinds its speculative events entirely.)
 # #[derive(Debug, Clone, PartialEq)]
 # enum QueryError { Lex, Unexpected }
 # impl From<LexError> for QueryError { fn from(_: LexError) -> Self { QueryError::Lex } }
-# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
-#   fn from(_: tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
+# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
+#   fn from(_: tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # #[repr(u16)]
@@ -1749,12 +1735,9 @@ scan — no sync point found — rewinds its speculative events entirely.)
 #   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
 # }
 # use tokora::{
-#   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
-#   cache::DefaultCache,
-#   cst::{CstProfile, KindValidator, parse_lossless},
-#   emitter::CstEmitter,
-#   parser::{node, node_at},
-#   ParseAttempt,
+#   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
+#   cache::DefaultCache, combinator::{node, node_at},
+#   cst::{CstProfile, KindValidator, parse_lossless}, emitter::CstEmitter,
 # };
 # type QueryIn<'inp, 'x, Ctx> = InputRef<'inp, 'x, QueryLexer<'inp>, Ctx>;
 # #[allow(dead_code)]
@@ -1898,7 +1881,7 @@ scan — no sync point found — rewinds its speculative events entirely.)
 #   })
 #   .parse_input(inp)
 # }
-use tokora::{Balance, emitter::Verbose, span::Spanned};
+use tokora::{emitter::Verbose, input::Balance, span::Spanned};
 
 /// The bracket classifier (chapter 8): the skip counts nesting so a sync point inside
 /// brackets is never mistaken for a boundary.
@@ -2039,8 +2022,8 @@ the wall that keeps a hand-rolled mistake loud:
 # #[derive(Debug, Clone, PartialEq)]
 # enum QueryError { Lex, Unexpected }
 # impl From<LexError> for QueryError { fn from(_: LexError) -> Self { QueryError::Lex } }
-# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
-#   fn from(_: tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
+# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
+#   fn from(_: tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # #[repr(u16)]
@@ -2152,7 +2135,7 @@ combinators** leaves no dangling start — the brackets never desync — so it n
 that as an [`UncoveredGap`](crate::cst::FinishError::UncoveredGap) (a dropped committed
 token and an abandoned tail are indistinguishable to it). `finish_partial` closes any open
 node *and* tiles the un-diagnosed tail — the aborted-parse example in the trivia section used
-exactly that door. And an [`Incomplete`](crate::Completeness) verdict from a
+exactly that door. And an [`Incomplete`](crate::input::Completeness) verdict from a
 [partial-input parse](super::ch09_streaming) should not be materialized strictly either —
 though not because the handle is waiting to be finished later. **It is not a continuation.**
 It holds that one attempt's events, nothing on it accepts more input, and no later refill
@@ -2218,7 +2201,7 @@ So there are two positions and a type belongs to exactly one:
 - a **parser-facing** node implements [`Node`](crate::cst::Node) — hence `Syntax`, hence the
   component model — and receives `CastNode` from a blanket impl. Its own entry point is
   [`try_cast_node`](crate::cst::Node::try_cast_node), which returns a typed
-  [`SyntaxError`](crate::cst::error::SyntaxError) naming the mismatch instead of `None`; the
+  [`SyntaxError`](crate::cst::SyntaxError) naming the mismatch instead of `None`; the
   blanket impl is that call with `.ok()` on the end.
 - a **navigation-only** node implements `CastNode` directly and never names `Syntax` at all.
 
@@ -2269,8 +2252,8 @@ Reading this chapter's tree wants the second position:
 # #[derive(Debug, Clone, PartialEq)]
 # enum QueryError { Lex, Unexpected }
 # impl From<LexError> for QueryError { fn from(_: LexError) -> Self { QueryError::Lex } }
-# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
-#   fn from(_: tokora::error::token::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
+# impl<'a, T, Kd: Clone, S, Lang: ?Sized> From<tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>> for QueryError {
+#   fn from(_: tokora::error::UnexpectedToken<'a, T, Kd, S, Lang>) -> Self { QueryError::Unexpected }
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # #[repr(u16)]
@@ -2314,12 +2297,9 @@ Reading this chapter's tree wants the second position:
 #   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
 # }
 # use tokora::{
-#   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, TryParseInput,
-#   cache::DefaultCache,
-#   cst::{CstProfile, KindValidator, parse_lossless},
-#   emitter::{CstEmitter, Fatal},
-#   parser::{node, node_at},
-#   ParseAttempt,
+#   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
+#   cache::DefaultCache, combinator::{node, node_at},
+#   cst::{CstProfile, KindValidator, parse_lossless}, emitter::{CstEmitter, Fatal},
 # };
 #
 # /// Chapter shorthand for the input reference.
@@ -2566,7 +2546,7 @@ nineteen extra kinds in the image space.
 ## Pratt expressions
 
 The typed pratt driver of [chapter 5](super::ch05_pratt) carries an additive CST hook:
-[`with_cst_kinds`](crate::parser::Pratt::with_cst_kinds) takes a classifier from fold
+[`with_cst_kinds`](crate::pratt::Pratt::with_cst_kinds) takes a classifier from fold
 operators to node kinds, and the driver wraps each folded region itself — the driver holds
 the mark, spends it once per fold, and your fold hooks keep their exact signatures. `1 + 2 *
 3` materializes as `Bin[1, +, Bin[2, *, 3]]` with the folds computing the same values they
@@ -2583,7 +2563,7 @@ and is documented CST-unsupported.
   model, entered through [`try_cast_node`](crate::cst::Node::try_cast_node). None of them
   changes the losslessness story.
 - **The event vocabulary**, its depth model, and the era-branded mark validation are
-  specified in [`cst::event`](crate::cst::event) — the normative reference behind
+  specified in [`cst`](crate::cst#the-event-vocabulary) — the normative reference behind
   everything this chapter demonstrated.
 - [`SyntaxTreeBuilder`](crate::cst::SyntaxTreeBuilder) remains as the low-level, append-only
   escape hatch over rowan's builder for code that constructs trees outside a parse. Inside a

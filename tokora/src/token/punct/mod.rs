@@ -281,21 +281,21 @@ macro_rules! define_punctuator_token_traits {
       {
         #[doc = "Returns `Some(_)` when the token is hyphen (`-`)."]
         #[inline(always)]
-        fn expect_hyphen(self) -> Result<Spanned<L::Token, L::Span>, crate::error::token::UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>
+        fn expect_hyphen(self) -> Result<Spanned<L::Token, L::Span>, crate::error::UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>
         {
           self.expect_minus()
         }
 
         #[doc = "Returns `Some(_)` when the token is thin arrow (`->`)."]
         #[inline(always)]
-        fn expect_thin_arrow(self) -> Result<Spanned<L::Token, L::Span>, crate::error::token::UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>
+        fn expect_thin_arrow(self) -> Result<Spanned<L::Token, L::Span>, crate::error::UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>
         {
           self.expect_arrow()
         }
 
         $(
           #[doc = "Returns `Some(_)` when the token is " $punct " (`" $punct_char "`)."]
-          fn [< expect_ $punct >](self) -> Result<Spanned<L::Token, L::Span>, crate::error::token::UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>;
+          fn [< expect_ $punct >](self) -> Result<Spanned<L::Token, L::Span>, crate::error::UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>>;
         )*
       }
 
@@ -307,12 +307,12 @@ macro_rules! define_punctuator_token_traits {
         $(
           #[doc = "Returns `Some(_)` when the token is " $punct " (`" $punct_char "`)."]
           #[inline(always)]
-          fn [< expect_ $punct >](self) -> Result<Spanned<L::Token, L::Span>, crate::error::token::UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>> {
+          fn [< expect_ $punct >](self) -> Result<Spanned<L::Token, L::Span>, crate::error::UnexpectedToken<'a, L::Token, <L::Token as Token<'a>>::Kind, L::Span, Lang>> {
             if self.data().[< is_ $punct >]() {
               Ok(self)
             } else {
               let (span, tok) = self.into_components();
-              Err(crate::error::token::UnexpectedToken::expected_one(
+              Err(crate::error::UnexpectedToken::expected_one(
                 span,
                 <L::Token>::$punct()
                   .expect(concat!("`", stringify!($punct), "` should not be `None` if `is_", stringify!($punct), "` is `true`")))

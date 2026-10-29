@@ -29,7 +29,7 @@
 /// ## Basic String/Bytes Comparison
 ///
 /// ```rust
-/// use tokora::utils::cmp::Equivalent;
+/// use tokora::utils::Equivalent;
 ///
 /// let text = "hello";
 /// let bytes = b"hello";
@@ -41,7 +41,7 @@
 /// ## Different String Types
 ///
 /// ```rust,ignore
-/// use tokora::utils::cmp::Equivalent;
+/// use tokora::utils::Equivalent;
 /// use bytes::Bytes;
 ///
 /// let static_str = "hello";
@@ -54,7 +54,7 @@
 /// ## Case-Insensitive Comparison (Custom Implementation)
 ///
 /// ```rust,ignore
-/// use tokora::utils::cmp::Equivalent;
+/// use tokora::utils::Equivalent;
 ///
 /// struct CaseInsensitive<'a>(&'a str);
 ///
@@ -84,7 +84,7 @@ pub trait Equivalent<T: ?Sized> {
   /// # Examples
   ///
   /// ```rust
-  /// use tokora::utils::cmp::Equivalent;
+  /// use tokora::utils::Equivalent;
   ///
   /// assert!("hello".equivalent(b"hello"));
   /// assert!(b"world".equivalent("world"));

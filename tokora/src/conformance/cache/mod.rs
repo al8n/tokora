@@ -268,10 +268,11 @@ use mayber::Maybe;
 
 use super::{Comparison, Decided, Divergence, NON_REFLEXIVE_BODY, Ranking, compare_by, diverge};
 use crate::{
-  Lexer, Slice, Source, Span, Window,
+  Lexer, Slice, Source, Span,
   cache::{
     Cache, CachedToken, CachedTokenOf, CachedTokenRefOf, MaybeRefCachedTokenOf, PeekedTokenExt,
   },
+  parse::Window,
   span::Spanned,
 };
 
@@ -614,7 +615,7 @@ const NO_NOTE: &str = "";
 /// # #[cfg(all(feature = "logos_0_16", feature = "std"))]
 /// # fn demo() {
 /// use tokora::cache::DefaultCache;
-/// use tokora::conformance::cache::CacheHarness;
+/// use tokora::conformance::CacheHarness;
 /// # type MyLexer<'a> = tokora::lexer::LogosLexer<'a, MyTok>;
 /// # #[derive(Clone, Debug, PartialEq, tokora::logos::Logos)]
 /// # #[logos(crate = tokora::logos, skip r"[ \t]+")]

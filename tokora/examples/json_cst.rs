@@ -3,7 +3,7 @@
 //! The twin parses JSON to a [`JsonValue`] AST with high-level combinators (`separated_by`,
 //! `delimited`, `peek_then_choice`). This twin parses the same grammar into a **lossless**
 //! rowan concrete syntax tree through a [`cst::Sink`](tokora::cst::Sink), using the
-//! [`node`](tokora::parser::node) combinator to declare structure — a clean recursive-descent
+//! [`node`](tokora::combinator::node) combinator to declare structure — a clean recursive-descent
 //! shape, chosen over reproducing the twin's container combinators because an example teaches
 //! best when its structure is on the surface. Every byte, whitespace included, survives.
 //!
@@ -19,11 +19,11 @@ use rowan::{Language, NodeOrToken, SyntaxNode};
 use tokora::{
   Emitter, InputRef, ParseContext, ParseInput, Token as TokenT,
   cache::DefaultCache,
+  combinator::node,
   cst::{CstProfile, KindValidator, parse_lossless},
   emitter::{CstEmitter, Fatal},
-  error::token::UnexpectedTokenOf,
+  error::UnexpectedTokenOf,
   logos::{self, Logos},
-  parser::node,
 };
 
 // ── Lossless lexer ──────────────────────────────────────────────────────────────

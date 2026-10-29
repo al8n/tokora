@@ -21,28 +21,25 @@ use tokora::EmitterView;
 
 use hybrid_arraydeque::typenum::U1;
 use tokora::{
-  Accumulator, Emitter, InputRef, Lexer, Located, Parse, ParseAttempt, ParseContext, ParseInput,
-  Parser, ParserContext, SimpleSpan, Token as TokenTrait, TryParseInput,
+  Accumulator, Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, SimpleSpan, Token as TokenTrait, TryParseInput,
   cache::Peeked,
+  combinator::{With, try_expect},
   emitter::{
     FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, Silent, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntax, MissingSyntaxOf, MissingTokenOf, SeparatedError, TooFew, TooMany,
+    UnexpectedEot, UnexpectedToken, UnexpectedTokenOf,
   },
   input::Cursor,
-  parser::{Action, With, try_expect},
+  parse::Action,
   punct::Bracket,
   slice::Sliced,
-  span::Spanned,
-  utils::{
-    CowStr, Expected,
-    marker::{PhantomLocated, PhantomSliced, PhantomSpan},
-  },
+  span::{Located, Spanned},
+  utils::{CowStr, Expected, PhantomLocated, PhantomSliced, PhantomSpan},
 };
 
 use common::{TestLexer, Token, TokenKind};

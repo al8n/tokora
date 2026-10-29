@@ -83,7 +83,7 @@
 //!
 //! [`EmitterView`]: tokora::EmitterView
 //! [`InputRef`]: tokora::InputRef
-//! [`ParseState`]: tokora::ParseState
+//! [`ParseState`]: tokora::parse::ParseState
 
 mod common;
 
@@ -101,7 +101,7 @@ use std::collections::BTreeSet;
 
 use tokora::{
   Emitter, EmitterView, InputRef, Lexer, Parse, Parser, ParserContext, Token as TokenTrait,
-  cst::event::EventMark,
+  cst::EventMark,
   delimiter::DelimiterKind,
   emitter::{
     CstEmitter, FromUnclosed, FullContainerEmitter, MissingLeadingSeparatorEmitter,
@@ -109,9 +109,8 @@ use tokora::{
     UnclosedEmitter, UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
   },
   error::{
-    Unclosed, UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, MissingSyntaxOf, TooFew, TooMany},
-    token::{MissingToken, MissingTokenOf, SeparatedError, UnexpectedToken, UnexpectedTokenOf},
+    FullContainer, MissingSyntax, MissingSyntaxOf, MissingToken, MissingTokenOf, SeparatedError,
+    TooFew, TooMany, Unclosed, UnexpectedEot, UnexpectedToken, UnexpectedTokenOf,
   },
   input::Cursor,
   source::SourceIdentity,
@@ -120,7 +119,7 @@ use tokora::{
 };
 
 #[cfg(feature = "map")]
-use tokora::{ParseInput, ParseState, parser::Empty};
+use tokora::{ParseInput, combinator::Empty, parse::ParseState};
 
 #[cfg(feature = "pratt")]
 use tokora::{
@@ -1678,7 +1677,7 @@ fn state_slice() {
 struct Dial(u32);
 
 #[cfg(feature = "map")]
-impl tokora::State for Dial {
+impl tokora::state::State for Dial {
   type Error = ();
 
   fn check(&self) -> Result<(), ()> {

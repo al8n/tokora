@@ -3,17 +3,17 @@ use core::mem::MaybeUninit;
 use hybrid_arraydeque::{ArrayDeque, ArraySize, array::Array, typenum};
 
 use crate::{
-  Complete, Completeness, Emitter, Lexer, Source, SurfaceIncomplete, Token,
+  Emitter, Lexer, Source, Token,
   cache::Peeked,
+  combinator::*,
   emitter::EmitterView,
-  input::{DelimClass, InputRef},
+  input::{Complete, Completeness, DelimClass, InputRef, SurfaceIncomplete},
   located::Located,
-  parser::*,
+  parse::try_parse::input::ParseAttempt,
   punct::*,
   slice::Sliced,
   span::Spanned,
-  try_parse::input::ParseAttempt,
-  utils::marker::{PhantomLocated, PhantomSliced, PhantomSpan},
+  utils::{PhantomLocated, PhantomSliced, PhantomSpan},
 };
 
 // Named only by the `separated_by_*_while` family the macro below mints.
@@ -125,7 +125,7 @@ where
 ///
 /// A second blanket closure impl would break coherence with the `FnMut` blanket above,
 /// so concrete adapter types are the house pattern here — see `WhileNext` in
-/// `parser/list.rs`.
+/// `combinator/list.rs`.
 mod decision_adapters {
   use super::*;
 
@@ -210,7 +210,7 @@ pub fn while_kind<K>(kind: K) -> WhileKind<K> {
 ///
 /// A parser with several output impls — `Collect`, `With`, `FailWith`, `Accepted` — is
 /// ambiguous at every downstream site that does not name the output. `Pinned<P, O>`
-/// implements [`ParseInput`]/[`TryParseInput`](crate::TryParseInput) at exactly one `O`,
+/// implements [`ParseInput`]/[`TryParseInput`] at exactly one `O`,
 /// so the ambiguity stops there instead of being re-annotated at every use.
 ///
 /// Build one with [`pinned`].
@@ -383,7 +383,7 @@ macro_rules! define_delimited_by {
         self,
       ) -> impl for<'c> FnMut(
         &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
-      ) -> crate::parser::DelimitedOf<'inp, $delimiter<(), (), Lang>, L, Ctx, Lang, O>
+      ) -> crate::combinator::DelimitedOf<'inp, $delimiter<(), (), Lang>, L, Ctx, Lang, O>
       where
         Self: Sized,
         $delimiter<(), (), Lang>: crate::delimiter::TypedDelimiter<'inp, L, Lang>,
@@ -414,7 +414,7 @@ macro_rules! define_try_delimited_by {
         self,
       ) -> impl for<'c> FnMut(
         &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
-      ) -> crate::parser::TryDelimitedOf<'inp, $delimiter<(), (), Lang>, L, Ctx, Lang, O>
+      ) -> crate::combinator::TryDelimitedOf<'inp, $delimiter<(), (), Lang>, L, Ctx, Lang, O>
       where
         Self: Sized,
         $delimiter<(), (), Lang>: crate::delimiter::TypedDelimiter<'inp, L, Lang>,
@@ -438,7 +438,7 @@ macro_rules! define_try_delimited_by {
 /// `Cmpl` parameter (defaulted to [`Complete`], so every pre-0.3.0 spelling reads
 /// unchanged). A parser written generic over `Cmpl` is a **write-once** parser: the same
 /// item runs under the complete drivers ([`Parse`](crate::Parse)) and the Sans-I/O partial
-/// driver ([`parse_partial`](crate::parse_partial)). Builder methods return adapters that
+/// driver ([`parse_partial`]). Builder methods return adapters that
 /// carry the same parameter, so a whole combinator chain stays mode-generic until a drive
 /// site pins it.
 pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
@@ -461,7 +461,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     self,
   ) -> impl for<'c> FnMut(
     &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
-  ) -> crate::parser::DelimitedOf<'inp, D, L, Ctx, Lang, O>
+  ) -> crate::combinator::DelimitedOf<'inp, D, L, Ctx, Lang, O>
   where
     Self: Sized,
     D: crate::delimiter::TypedDelimiter<'inp, L, Lang>,
@@ -469,7 +469,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     Ctx: ComposableParseContext<'inp, L, Lang>,
     Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   {
-    crate::parser::delimited::<D, L, Ctx, Lang, Self, O, Cmpl>(self)
+    crate::combinator::delimited::<D, L, Ctx, Lang, Self, O, Cmpl>(self)
   }
 
   define_delimited_by! {
@@ -489,7 +489,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// behave exactly as the committed form's do.
   ///
   /// Delegation is the contract, not an implementation detail: the body is
-  /// `crate::parser::try_delimited(self)` and nothing else, so the free function and this
+  /// `crate::combinator::try_delimited(self)` and nothing else, so the free function and this
   /// method cannot drift apart.
   ///
   /// The free form remains the escape hatch when the enclosed output type has to be named in
@@ -500,7 +500,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     self,
   ) -> impl for<'c> FnMut(
     &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
-  ) -> crate::parser::TryDelimitedOf<'inp, D, L, Ctx, Lang, O>
+  ) -> crate::combinator::TryDelimitedOf<'inp, D, L, Ctx, Lang, O>
   where
     Self: Sized,
     D: crate::delimiter::TypedDelimiter<'inp, L, Lang>,
@@ -508,7 +508,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     Ctx: ComposableParseContext<'inp, L, Lang>,
     Cmpl: SurfaceIncomplete<'inp, L, Ctx, Lang>,
   {
-    crate::parser::try_delimited::<D, L, Ctx, Lang, Self, O, Cmpl>(self)
+    crate::combinator::try_delimited::<D, L, Ctx, Lang, Self, O, Cmpl>(self)
   }
 
   define_try_delimited_by! {
@@ -778,16 +778,16 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     At,
   );
 
-  /// Method form of the free [`labelled`](crate::parser::labelled).
+  /// Method form of the free [`labelled`](crate::combinator::labelled).
   #[inline(always)]
-  fn labelled(self, name: &'static str) -> crate::parser::Labelled<Self>
+  fn labelled(self, name: &'static str) -> crate::combinator::Labelled<Self>
   where
     Self: Sized,
   {
-    crate::parser::labelled(name, self)
+    crate::combinator::labelled(name, self)
   }
 
-  /// Method form of the free [`traced`](crate::trace::traced).
+  /// Method form of the free [`traced`].
   #[cfg(feature = "trace")]
   #[cfg_attr(docsrs, doc(cfg(feature = "trace")))]
   #[inline(always)]
@@ -798,7 +798,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     crate::trace::traced(name, self)
   }
 
-  /// Method form of the free [`traced`](crate::trace::traced).
+  /// Method form of the free [`traced`].
   ///
   /// With `trace` off this is the identity, exactly as the free function is.
   #[cfg(not(feature = "trace"))]
@@ -811,14 +811,14 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     self
   }
 
-  /// Method form of the free [`list`](crate::parser::list) — named `list_until` because
+  /// Method form of the free [`list`](crate::combinator::list) — named `list_until` because
   /// the `until` argument is the distinguishing half.
   ///
   /// # Availability
   ///
   /// Complete inputs only ([`Complete`](crate::input::Complete)), and the context must be
   /// a [`ComposableParseContext`]. The completeness pin is **inherited from the free
-  /// [`list`](crate::parser::list)**, which carries it already: this method cannot be
+  /// [`list`](crate::combinator::list)**, which carries it already: this method cannot be
   /// wider than the function it delegates to, and widening that function would re-bound a
   /// pre-existing item, which this wave does not do. Streaming callers keep the
   /// element-level primitives. (Contrast [`select!`](crate::select), whose runtime is new
@@ -836,24 +836,24 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     until: Until,
   ) -> impl for<'c> FnMut(
     &mut InputRef<'inp, 'c, L, Ctx, Lang>,
-  ) -> crate::parser::ListOf<'inp, L, Ctx, Lang, O>
+  ) -> crate::combinator::ListOf<'inp, L, Ctx, Lang, O>
   where
     Self: Sized + ParseInput<'inp, L, O, Ctx, Lang>,
     L: Lexer<'inp>,
     Ctx: ComposableParseContext<'inp, L, Lang>,
     Until: FnMut(&L::Token) -> bool,
   {
-    crate::parser::list(self, until)
+    crate::combinator::list(self, until)
   }
 
-  /// Method form of the free [`separated1`](crate::parser::separated1) — the
+  /// Method form of the free [`separated1`](crate::combinator::separated1) — the
   /// committed-first "light" list shape, fluent.
   ///
   /// # Availability
   ///
   /// Same as [`list_until`](Self::list_until): complete inputs only, and a
   /// [`ComposableParseContext`]. The pin is inherited from the free
-  /// [`separated1`](crate::parser::separated1), and so is the `alloc`/`std` gate — the
+  /// [`separated1`](crate::combinator::separated1), and so is the `alloc`/`std` gate — the
   /// free function returns a `Vec`.
   #[cfg(all(feature = "many", any(feature = "alloc", feature = "std")))]
   #[cfg_attr(
@@ -866,7 +866,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     peek: Peek,
   ) -> impl for<'c> FnMut(
     &mut InputRef<'inp, 'c, L, Ctx, Lang>,
-  ) -> crate::parser::Separated1Of<'inp, L, Ctx, Lang, O>
+  ) -> crate::combinator::Separated1Of<'inp, L, Ctx, Lang, O>
   where
     Self: Sized + ParseInput<'inp, L, O, Ctx, Lang>,
     L: Lexer<'inp>,
@@ -874,7 +874,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     Sep: Punctuator<'inp, L, Lang>,
     Peek: FnMut(&L::Token) -> bool,
   {
-    crate::parser::separated1::<Sep, L, Ctx, Lang, Self, O, Peek>(self, peek)
+    crate::combinator::separated1::<Sep, L, Ctx, Lang, Self, O, Peek>(self, peek)
   }
 
   /// Creates a `PeekThen` combinator that peeks at most `N` tokens first from the input before parsing.

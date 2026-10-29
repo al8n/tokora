@@ -1,6 +1,6 @@
 use crate::{
   span::{SimpleSpan, Span},
-  utils::human_display::DisplayHuman,
+  utils::DisplayHuman,
 };
 
 /// A token that ended before its lexical form was complete.

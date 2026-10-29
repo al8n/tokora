@@ -25,11 +25,10 @@ use tokora::{
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter, Verbose,
   },
   error::{
-    UnexpectedEot,
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, SeparatorPosition, UnexpectedToken},
+    FullContainer, MissingSyntax, MissingToken, SeparatedError, SeparatorPosition, TooFew, TooMany,
+    UnexpectedEot, UnexpectedToken,
   },
-  parser::Action,
+  parse::Action,
   span::SimpleSpan,
   utils::{CowStr, Expected},
 };

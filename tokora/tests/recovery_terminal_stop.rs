@@ -14,7 +14,7 @@
 //! one not. A rejecting emitter's `Err` is not a refusal to report — it **is** the report — so
 //! this is every fail-fast sink, not a `Fatal` quirk.
 //!
-//! [`Recover`](tokora::parser::Recover), [`InplaceRecover`](tokora::parser::InplaceRecover) and
+//! [`Recover`](tokora::combinator::Recover), [`InplaceRecover`](tokora::combinator::InplaceRecover) and
 //! [`skip_then_retry`](tokora::ParseInput::skip_then_retry) keyed their terminal re-raise off the
 //! error alone plus the *descent* counter, so through a rejecting emitter the recoverer RAN: it
 //! re-entered the scanner and re-tripped the same limit. The input-side scanner witness
@@ -36,14 +36,11 @@ use std::rc::Rc;
 use tokora::{
   Emitter, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, Token as TokenT,
   emitter::{Fatal, Silent},
-  error::{
-    MaybeIncomplete, MaybeTerminal, UnexpectedEot,
-    token::{SeparatedError, UnexpectedToken},
-  },
+  error::{MaybeIncomplete, MaybeTerminal, SeparatedError, UnexpectedEot, UnexpectedToken},
   input::{Balance, Cursor},
   lexer::LogosLexer,
   logos::{self, Logos},
-  parser::{InplaceRecoverInput, RecoverInput},
+  parse::{InplaceRecoverInput, RecoverInput},
   span::{SimpleSpan, Spanned},
   state::State,
 };

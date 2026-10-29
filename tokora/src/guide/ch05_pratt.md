@@ -17,7 +17,7 @@ tokora has two Pratt surfaces:
   *token type itself* classifies each token via [`PrattToken`](crate::token::PrattToken), and
   the folds map tokens to tokens. This is the shape to reach for when the expression's value
   is itself expressible as a token — a calculator that folds `1 + 2` into `Int(3)`.
-- **AST-level** — the [`pratt`](crate::parser::pratt)
+- **AST-level** — the [`pratt`](crate::pratt::pratt)
   combinator. You supply LHS/RHS sub-parsers and folds over *your own node type*, so the
   result is a tree. That is what a full Calc — the one whose expressions include variables,
   and which therefore cannot fold to a number during the parse — would use.
@@ -42,9 +42,9 @@ operator's own, so an equal-power operator to the right does *not* clear the inn
 folds into the outer call instead — `10 / 2 / 5` groups as `(10 / 2) / 5`. A right-associative
 operator recurses with a floor that admits its own power too, so the equal-power operator
 *does* clear it and is consumed by the inner call: `2 ^ 3 ^ 2` groups as `2 ^ (3 ^ 2)` = 512.
-You write [`PrattInfix::Left`](crate::parser::PrattInfix) or `PrattInfix::Right`; picking the
+You write [`PrattInfix::Left`](crate::pratt::PrattInfix) or `PrattInfix::Right`; picking the
 strictness is the engine's job. Note what it never does: step to a neighbouring level. A
-[`PrattPower`](crate::parser::PrattPower) is only ever compared, so the rule holds at the ends
+[`PrattPower`](crate::pratt::PrattPower) is only ever compared, so the rule holds at the ends
 of the ladder, where `power ± 1` would have run out of room and silently swapped the two
 behaviours.
 
@@ -57,7 +57,7 @@ No bracket-matching code and no depth counter: the precedence rule already says 
 
 ## Binding powers are plain integers
 
-`Power` defaults to `i64`, and tokora implements [`PrattPower`](crate::parser::PrattPower) for
+`Power` defaults to `i64`, and tokora implements [`PrattPower`](crate::pratt::PrattPower) for
 every standard integer type. Write `1`, `2`, `-1` and move on. A newtype is still welcome when
 you want *named* levels and a type-checked ladder — the trait is public, and it asks for
 nothing beyond `Default + Clone + Ord` — but nothing forces one on you.
@@ -141,7 +141,7 @@ fn fold_postfix(operand,  operator,                 EmitterView) -> Result<Spann
 #   fn is_trivia(&self) -> bool { false }
 # }
 # type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
-# use tokora::error::{UnexpectedEnd, token::UnexpectedToken};
+# use tokora::error::{UnexpectedEnd, UnexpectedToken};
 # #[derive(Debug, Clone, PartialEq)]
 # enum CalcError { Lex, Unexpected, UnexpectedEnd }
 # impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
@@ -161,11 +161,8 @@ fn fold_postfix(operand,  operator,                 EmitterView) -> Result<Spann
 #   fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { CalcError::UnexpectedEnd }
 # }
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, Parser, SimpleSpan,
-  emitter::PrattEmitter,
-  parser::{PrattInfix, PrattLHS, PrattRHS, Precedenced},
-  span::Spanned,
-  token::PrattToken,
+  Emitter, InputRef, Parse, ParseContext, Parser, SimpleSpan, emitter::PrattEmitter,
+  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced}, span::Spanned, token::PrattToken,
 };
 
 // ── The ladder. Plain `i64`s — no newtype, because `PrattPower` is implemented for the
@@ -353,10 +350,10 @@ produces one is rust-analyzer's, and the typed driver already supports it with n
 change at all.
 
 The rule that makes it work is a rule about
-[`ParsePrattLHS`](crate::parser::ParsePrattLHS): **only
-[`Prefix`](crate::parser::PrattLHS::Prefix) is held to "consume what you report".** A prefix
+[`ParsePrattLHS`](crate::pratt::ParsePrattLHS): **only
+[`Prefix`](crate::pratt::PrattLHS::Prefix) is held to "consume what you report".** A prefix
 report makes the driver re-enter the expression at the same position, so a zero-width one would
-descend forever, and the driver refuses it. An [`Operand`](crate::parser::PrattLHS::Operand)
+descend forever, and the driver refuses it. An [`Operand`](crate::pratt::PrattLHS::Operand)
 report causes no recursion and no fold, so a zero-width one costs nothing — and *that* is the
 licence an error node needs. Report an operand you did not consume, and the driver folds it
 like any other.
@@ -386,7 +383,7 @@ zero-width and the enclosing frame is handed the token it was waiting for. Anyth
 swallowed into a one-token error node, which is what guarantees the parse moves.
 
 Deciding that by peeking is safe because of the RHS channel's own contract:
-[`End`](crate::parser::PrattRHS::End) restores whatever the deciding read consumed, so a token
+[`End`](crate::pratt::PrattRHS::End) restores whatever the deciding read consumed, so a token
 this expression declines is handed back untouched.
 
 The same licence covers a case that has nothing to do with a *missing* operand. A token your

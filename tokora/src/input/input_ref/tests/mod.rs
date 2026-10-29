@@ -7,7 +7,7 @@ use crate::{
   Token,
   cache::DefaultCache,
   emitter::{Silent, Verbose},
-  error::{UnexpectedEot, token::UnexpectedToken},
+  error::{UnexpectedEot, UnexpectedToken},
   input::Input,
   lexer::LogosLexer,
   state::State,
@@ -1395,7 +1395,7 @@ fn non_lifo_poison_boundary_restore_is_rejected_in_debug() {
 // shared counter would instead re-trip on the first replayed token and hide the
 // prefix again.
 
-use crate::state::token_tracker::{TokenLimitExceeded, TokenLimiter};
+use crate::state::{TokenLimitExceeded, TokenLimiter};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum ByValErr {
@@ -5055,11 +5055,12 @@ fn try_attempt_closure_panic_releases_the_pinned_begin_point() {
 use hybrid_arraydeque::typenum::{U1 as W1, U2 as W2, U3 as W3};
 
 use crate::{
-  InputRef, ParseInput, Window,
+  InputRef, ParseInput,
   cache::{Peeked, PeekedTokenExt},
   emitter::Emitter,
-  error::token::UnexpectedTokenOf,
+  error::UnexpectedTokenOf,
   input::Cursor,
+  parse::Window,
   span::{SimpleSpan, Spanned},
 };
 
@@ -6989,7 +6990,7 @@ where
 
   fn emit_unexpected_token(
     &mut self,
-    err: crate::error::token::UnexpectedTokenOf<'inp, L, Lang>,
+    err: crate::error::UnexpectedTokenOf<'inp, L, Lang>,
   ) -> Result<(), ScanErr> {
     self.log.push(*err.span_ref());
     Ok(())
@@ -8109,7 +8110,7 @@ where
 
   fn emit_unexpected_token(
     &mut self,
-    err: crate::error::token::UnexpectedTokenOf<'inp, L, Lang>,
+    err: crate::error::UnexpectedTokenOf<'inp, L, Lang>,
   ) -> Result<(), BombErr> {
     let _ = err;
     self.emissions += 1;
@@ -8561,7 +8562,7 @@ where
       W::CAPACITY,
     >,
   ) where
-    W: crate::Window,
+    W: crate::parse::Window,
   {
     let fill = buf.remaining_capacity().min(self.items.len());
     for tok in self.items.iter().take(fill) {
@@ -12079,7 +12080,7 @@ fn the_descent_counter_saturates_and_the_verdict_never_reads_false_after_a_trip(
     BombEmitter::default(),
     DefaultCache::<'_, BombLexer<'_>>::default(),
   )
-  .with_recursion_limiter(crate::state::recursion_tracker::RecursionLimiter::with_limitation(0));
+  .with_recursion_limiter(crate::state::RecursionLimiter::with_limitation(0));
   let mut input = Input::<BombLexer<'_>, BombCtx<'_>, ()>::with_state_and_context(
     REFUSAL_SRC,
     BombTally::default(),

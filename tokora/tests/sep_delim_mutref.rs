@@ -2,7 +2,7 @@
 
 //! Tests exercising the **mut-ref** (`Collect<&mut DelimitedBy<...>, &mut Container>`)
 //! code path (Impl #3) for every separator-policy x count-modifier combination
-//! in the `parser/many/sep/delim/` directory.
+//! in the `combinator/many/sep/delim/` directory.
 //!
 //! 32 policy combos + 3 base (no policy) = 35 tests.
 
@@ -13,14 +13,14 @@ use common::E;
 use tokora::{
   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
   SimpleSpan,
+  combinator::{
+    AllowLeading, AllowTrailing, AtLeast, AtMost, Bounded, Collect, DelimitedBy, RequireLeading,
+    RequireTrailing, Separated,
+  },
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
     UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
-  },
-  parser::{
-    AllowLeading, AllowTrailing, AtLeast, AtMost, Bounded, Collect, DelimitedBy, RequireLeading,
-    RequireTrailing, Separated,
   },
   punct::{Bracket, Comma},
 };

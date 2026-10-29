@@ -4,7 +4,7 @@ use derive_more::{IsVariant, TryUnwrap, Unwrap};
 
 use crate::span::{Span, Spanned};
 
-use super::{Source, State, token::Token};
+use super::{Source, state::State, token::Token};
 
 /// A module containing integrations with the `logos` lexer library.
 #[cfg(feature = "logos_0_16")]
@@ -45,7 +45,7 @@ pub use logos::*;
 /// ## Basic Usage
 ///
 /// ```rust,ignore
-/// use tokora::{Lexed, TokenExt};
+/// use tokora::{TokenExt, lexer::Lexed};
 ///
 /// let mut lexer = logos::Lexer::<MyTokens>::new(input);
 ///
@@ -347,7 +347,7 @@ pub enum ReadFrontier<O> {
 /// The claim answers for **an item whose scan recorded no frontier in the lexer state** — and for
 /// one whose state holds a value recorded by a *different* scan, which is what a skipped trivia
 /// callback leaves behind. Only a value the item's own scan recorded answers instead of the claim
-/// (see [`State::take_probe`] and [`Probe`](crate::Probe)).
+/// (see [`State::take_probe`] and [`Probe`](crate::state::Probe)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ScanLookahead {
@@ -657,7 +657,7 @@ pub trait Lexer<'inp>: 'inp {
   ///
   /// If the state is valid, returns `Ok(())`, otherwise returns an error.
   ///
-  /// Not to be confused with [`Check::check`](crate::Check::check) (the parser-side value
+  /// Not to be confused with [`Check::check`](crate::parse::Check::check) (the parser-side value
   /// predicate) or [`State::check`] (the state's own validity probe, which this method
   /// typically wraps into the token's error type).
   fn check(&self) -> Result<(), <Self::Token as Token<'inp>>::Error>;
@@ -779,7 +779,7 @@ pub trait Lexer<'inp>: 'inp {
 /// compiles precisely because the two spellings are the same type:
 ///
 /// ```rust
-/// use tokora::{Lexer, SliceOf, Source};
+/// use tokora::{Lexer, Source, lexer::SliceOf};
 ///
 /// fn same_type<'inp, L: Lexer<'inp>>(
 ///   slice: <L::Source as Source<L::Offset>>::Slice<'inp>,

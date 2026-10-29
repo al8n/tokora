@@ -2,7 +2,7 @@
 // obligation when a type is handed to a dialect-generic signature without one.
 #![allow(dead_code)]
 
-use tokora::Dialect;
+use tokora::dialect::Dialect;
 
 struct NotADialect;
 
