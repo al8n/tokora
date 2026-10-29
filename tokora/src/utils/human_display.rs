@@ -243,44 +243,6 @@ impl<const N: usize> DisplayHuman for [char; N] {
   }
 }
 
-#[cfg(feature = "bytes_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
-impl DisplayHuman for bytes_1::Bytes {
-  #[inline]
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    self.as_ref().fmt(f)
-  }
-}
-
-#[cfg(feature = "bstr_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
-impl DisplayHuman for bstr_1::BStr {
-  #[inline]
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    fmt::Display::fmt(self, f)
-  }
-}
-
-#[cfg(feature = "hipstr_0_8")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
-const _: () = {
-  use hipstr_0_8::{HipByt, HipStr};
-
-  impl DisplayHuman for HipStr<'_> {
-    #[inline]
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-      fmt::Display::fmt(self, f)
-    }
-  }
-
-  impl DisplayHuman for HipByt<'_> {
-    #[inline]
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-      DisplayHuman::fmt(self.as_ref(), f)
-    }
-  }
-};
-
 /// A wrapper that implements `Display` using [`DisplayHuman`] formatting.
 ///
 /// This type is returned by [`DisplayHuman::display()`] and allows you to use

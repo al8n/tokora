@@ -271,6 +271,11 @@ where
   }
 }
 
-// Both cells run `Any::spanned().map(..)`, so they need the `map` family too.
-#[cfg(all(test, feature = "map"))]
+// Two suites with two gates: the `map` cells below need the `map` family, and the `slice` cells
+// need `std` and a logos lexer but not `map`. The module compiles for either; each suite's own
+// gate, written in `tests/mod.rs`, is exactly the one it had as a separate file.
+#[cfg(all(
+  test,
+  any(feature = "map", all(feature = "std", feature = "logos_0_16"))
+))]
 mod tests;

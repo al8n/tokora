@@ -248,7 +248,7 @@ fn try_driven_sites() -> [(&'static str, &'static str, bool); 4] {
     ),
     (
       "many/delim/repeated.rs",
-      include_str!("delim/repeated.rs"),
+      include_str!("delim/repeated/mod.rs"),
       false,
     ),
     (
@@ -845,12 +845,12 @@ fn driver_tree() -> [(
     ),
     (
       "many/delim/repeated.rs",
-      include_str!("delim/repeated.rs"),
+      include_str!("delim/repeated/mod.rs"),
       &[BOUNDS],
     ),
     (
       "many/delim/repeated_while.rs",
-      include_str!("delim/repeated_while.rs"),
+      include_str!("delim/repeated_while/mod.rs"),
       &[BOUNDS],
     ),
     (
@@ -951,7 +951,7 @@ fn every_while_decision_gate_is_terminal_aware() {
     ),
     (
       "many/delim/repeated_while.rs",
-      include_str!("delim/repeated_while.rs"),
+      include_str!("delim/repeated_while/mod.rs"),
     ),
     (
       "many/sep_while/parse/mod.rs",
@@ -1467,10 +1467,13 @@ pub(super) fn progress_guard_sites() -> [(&'static str, &'static str); 12] {
       "many/repeated_while/mod.rs",
       include_str!("repeated_while/mod.rs"),
     ),
-    ("many/delim/repeated.rs", include_str!("delim/repeated.rs")),
+    (
+      "many/delim/repeated.rs",
+      include_str!("delim/repeated/mod.rs"),
+    ),
     (
       "many/delim/repeated_while.rs",
-      include_str!("delim/repeated_while.rs"),
+      include_str!("delim/repeated_while/mod.rs"),
     ),
     ("many/sep/parse/mod.rs", include_str!("sep/parse/mod.rs")),
     ("many/sep/delim/mod.rs", include_str!("sep/delim/mod.rs")),

@@ -171,9 +171,9 @@ delegate `is_boundary` straight to the `[u8]` rule (`i <= len`); the text-shaped
 | [`bstr`](https://docs.rs/bstr) | `bstr_1` | `BStr` | borrowed | bytes — `u8` | `&'a BStr` |
 | [`hipstr`](https://docs.rs/hipstr) | `hipstr_0_8` | `HipStr<'_>` | owned *or* borrowed | text — `char` | `HipStr<'_>` |
 | [`hipstr`](https://docs.rs/hipstr) | `hipstr_0_8` | `HipByt<'_>` | owned *or* borrowed | bytes — `u8` | `HipByt<'_>` |
-| [`smol-bytes`](https://docs.rs/smol-bytes) | `smol_bytes_0_1` | `shared::Bytes` | owned (ref-counted, ≤62 B inline) | bytes — `u8` | `shared::Bytes` |
-| [`smol-bytes`](https://docs.rs/smol-bytes) | `smol_bytes_0_1` | `compact::Bytes` | owned (≤62 B inline) | bytes — `u8` | `compact::Bytes` |
-| [`smol-bytes`](https://docs.rs/smol-bytes) | `smol_bytes_0_1` | `Utf8Bytes` | owned (ref-counted, ≤62 B inline) | text — `char` | `Utf8Bytes` |
+| [`smol-bytes`](https://docs.rs/smol-bytes) | `smol-bytes_0_1` / `smol-bytes_0_2` | `shared::Bytes` | owned (ref-counted, ≤62 B inline) | bytes — `u8` | `shared::Bytes` |
+| [`smol-bytes`](https://docs.rs/smol-bytes) | `smol-bytes_0_1` / `smol-bytes_0_2` | `compact::Bytes` | owned (≤62 B inline) | bytes — `u8` | `compact::Bytes` |
+| [`smol-bytes`](https://docs.rs/smol-bytes) | `smol-bytes_0_1` / `smol-bytes_0_2` | `Utf8Bytes` | owned (ref-counted, ≤62 B inline) | text — `char` | `Utf8Bytes` |
 
 The single most important column is **`Slice<'a>`**. For the borrowed backends it is a plain
 reference, as you would expect. But for the *owned* backends it is the owner type again, not a
@@ -199,7 +199,8 @@ A quick tour of what each backend is *for*:
   stored inline, a reference-counted heap share, or a borrow — and slicing it preserves whichever
   it is, so it is the flexible choice when you do not know in advance whether inputs are tiny or
   huge.
-- **`smol_bytes_0_1`** exposes three impls from [`smol-bytes`](https://docs.rs/smol-bytes): the
+- **`smol-bytes_0_1`** and **`smol-bytes_0_2`** expose three impls each from
+  [`smol-bytes`](https://docs.rs/smol-bytes), one set per version: the
   byte-shaped `shared::Bytes` (the default; ref-counted heap with a 62-byte inline
   small-buffer optimization, and zero-copy convertible with `bytes::Bytes`), the byte-shaped
   `compact::Bytes` (same inline threshold, but it re-inlines a shrinking view to *release* its
@@ -211,10 +212,13 @@ A quick tour of what each backend is *for*:
 The feature that turns a backend on is `bytes_1`, not `bytes`; `hipstr_0_8`, not `hipstr`. Each
 versioned feature enables a `package`-renamed optional dependency pinned to one SemVer-major line
 of the upstream crate (`bytes_1 = { package = "bytes", version = "1", … }`), and a bare alias
-forwards to the current one (`bytes = ["bytes_1"]`). This is the same discipline the crate uses
-for the logos adapter (`logos_0_16`, the only supported major — 0.14 and 0.15 have been
-retired): the version in the name is what lets a future major be added as a purely additive
-feature, no breaking change to anyone pinned to the current one.
+forwards to the current one (`bytes = ["bytes_1"]`). The name is the crate's own plus its version,
+so a hyphenated crate keeps the hyphen in the feature and spells it `_` in the module and the
+extern crate (`smol-bytes_0_2` → `integration::smol_bytes_0_2`, `smol_bytes_0_2::shared::Bytes`);
+smol-bytes ships two such lines side by side, and `smol-bytes` aliases the newer. This is the
+same discipline the crate uses for the logos adapter (`logos_0_16`, the only supported major —
+0.14 and 0.15 have been retired): the version in the name is what lets a future major be added
+as a purely additive feature, no breaking change to anyone pinned to the current one.
 
 ## `no_std` posture
 
@@ -263,16 +267,16 @@ The feature graph layers up from there:
 
 The backend features themselves are uniform about `std`: none implies it.
 
-- `bytes_1`, `bstr_1`, `hipstr_0_8`, and `smol_bytes_0_1` all bring their crates in with
-  `default-features = false`, so enabling a backend does **not** drag in `std`. Every backend
-  compiles with neither `std` nor `alloc` turned on in tokora (the owned buffers still need a
-  global allocator to *link* into a final binary, but tokora's feature graph leaves that choice
+- `bytes_1`, `bstr_1`, `hipstr_0_8`, `smol-bytes_0_1` and `smol-bytes_0_2` all bring their crates
+  in with `default-features = false`, so enabling a backend does **not** drag in `std`. Every
+  backend compiles with neither `std` nor `alloc` turned on in tokora (the owned buffers still need
+  a global allocator to *link* into a final binary, but tokora's feature graph leaves that choice
   to you rather than forcing it).
-- `smol_bytes_0_1` additionally turns on smol-bytes' own `alloc` feature — the tier its buffer
-  types live on — so it requires smol-bytes ≥ 0.1.2, the first `rlib`-only release with an
-  `alloc` tier. (Earlier 0.1.x built a `cdylib` alongside the `rlib`, which needed `std`'s
-  global allocator and panic handler even to *check*; that is why this feature once implied
-  `std`.)
+- `smol-bytes_0_1` and `smol-bytes_0_2` additionally turn on smol-bytes' own `alloc` feature — the
+  tier its buffer types live on — so `smol-bytes_0_1` requires smol-bytes ≥ 0.1.2, the first
+  `rlib`-only release with an `alloc` tier. (Earlier 0.1.x built a `cdylib` alongside the `rlib`,
+  which needed `std`'s global allocator and panic handler even to *check*; that is why this
+  feature once implied `std`.)
 
 However far down you turn the graph, the parser you write does not change. It is generic over
 `L: Lexer`, and `L::Source` is *some* `Source`; the concrete choice of representation lives at the

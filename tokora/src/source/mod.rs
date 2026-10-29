@@ -2,22 +2,6 @@ use core::ops::RangeBounds;
 
 use crate::Slice;
 
-#[cfg(feature = "bytes_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
-mod bytes_1;
-
-#[cfg(feature = "bstr_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
-mod bstr_1;
-
-#[cfg(feature = "hipstr_0_8")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
-mod hipstr_0_8;
-
-#[cfg(feature = "smol_bytes_0_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "smol_bytes_0_1")))]
-mod smol_bytes_0_1;
-
 /// The **offset origin and byte extent** of a borrowed source: where every event's offsets are
 /// measured from, and how far the buffer they are measured into runs.
 ///

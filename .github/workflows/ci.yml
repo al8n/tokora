@@ -997,7 +997,7 @@ jobs:
         run: cargo test -p tokora --no-default-features --features alloc
       # The positive cell for CAS-less targets: `bstr` is the CAS-less-safe backing, pinned on
       # the real CAS-less target. The three CAS-needing backings (`bytes`, `hipstr`,
-      # `smol_bytes`) are documented on their guide rows rather than pinned here as
+      # `smol-bytes`) are documented on their guide rows rather than pinned here as
       # expected-failures — an expected-fail cell inverts silently the day upstream fixes it.
       - name: cargo check --target thumbv6m-none-eabi --no-default-features --features alloc,bstr_1
         run: cargo check --target thumbv6m-none-eabi --no-default-features --features alloc,bstr_1

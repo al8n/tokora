@@ -1899,7 +1899,7 @@ tooling included.
 | `conformance` | the `conformance` lexer test kit | implies `std` |
 | `fuzz` | the `fuzz` operation-script harness | implies `std` |
 | `trace` | [`traced`](crate::traced) + combinator instrumentation | implies `std`; zero-cost when off |
-| `bytes` / `bstr` / `hipstr` / `smol_bytes` | extra [`Source`](crate::Source)/[`Slice`](crate::Slice) backends | none implies `std`; each pins one upstream major |
+| `bytes` / `bstr` / `hipstr` / `smol-bytes` | extra [`Source`](crate::Source)/[`Slice`](crate::Slice) backends | none implies `std`; each pins one upstream major |
 | `smallvec` / `heapless` / `tinyvec` | extra [`Container`](crate::container::Container) backends | `smallvec` implies `alloc` |
 
 ### The combinator gates

@@ -37,7 +37,7 @@ mod lexeme;
 mod message;
 mod oneof;
 mod positioned_char;
-mod to_equivalent;
+pub(crate) mod to_equivalent;
 
 /// Enables destructuring a parsed element into its constituent components.
 ///
@@ -236,62 +236,6 @@ impl IsAsciiChar for [u8] {
   #[inline(always)]
   fn is_ascii_digit(&self) -> bool {
     self.len() == 1 && self[0].is_ascii_digit()
-  }
-}
-
-#[cfg(feature = "bstr_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bstr_1")))]
-impl IsAsciiChar for bstr_1::BStr {
-  #[inline(always)]
-  fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
-    <[u8] as IsAsciiChar>::is_ascii_char(self, ch)
-  }
-
-  #[inline(always)]
-  fn is_ascii_digit(&self) -> bool {
-    <[u8] as IsAsciiChar>::is_ascii_digit(self)
-  }
-}
-
-#[cfg(feature = "bytes_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bytes_1")))]
-impl IsAsciiChar for bytes_1::Bytes {
-  #[inline(always)]
-  fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
-    <[u8] as IsAsciiChar>::is_ascii_char(self, ch)
-  }
-
-  #[inline(always)]
-  fn is_ascii_digit(&self) -> bool {
-    <[u8] as IsAsciiChar>::is_ascii_digit(self)
-  }
-}
-
-#[cfg(feature = "hipstr_0_8")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
-impl IsAsciiChar for hipstr_0_8::HipByt<'_> {
-  #[inline(always)]
-  fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
-    <[u8] as IsAsciiChar>::is_ascii_char(self, ch)
-  }
-
-  #[inline(always)]
-  fn is_ascii_digit(&self) -> bool {
-    <[u8] as IsAsciiChar>::is_ascii_digit(self)
-  }
-}
-
-#[cfg(feature = "hipstr_0_8")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
-impl IsAsciiChar for hipstr_0_8::HipStr<'_> {
-  #[inline(always)]
-  fn is_ascii_char(&self, ch: ascii::AsciiChar) -> bool {
-    <str as IsAsciiChar>::is_ascii_char(self, ch)
-  }
-
-  #[inline(always)]
-  fn is_ascii_digit(&self) -> bool {
-    <str as IsAsciiChar>::is_ascii_digit(self)
   }
 }
 
