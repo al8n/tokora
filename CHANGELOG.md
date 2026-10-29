@@ -67,7 +67,7 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
-## Unreleased
+## 0.12.0 (2026-10-30)
 
 ### Changed (breaking)
 
@@ -394,7 +394,7 @@ and will red until they do.
   modules keep the underscore (`smol_bytes_0_1`, `smol_bytes_0_2`); only the Cargo feature and
   dependency names change.
 
-  | 0.11 | now |
+  | 0.11 | 0.12 |
   |---|---|
   | `smol_bytes_0_1` | `smol-bytes_0_1` |
   | `smol_bytes` (alias of `smol_bytes_0_1`) | `smol-bytes` (alias of `smol-bytes_0_2`); write `smol-bytes_0_1` to stay on smol-bytes 0.1 |

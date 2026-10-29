@@ -1,22 +1,12 @@
-//! The items the workloads name whose paths moved under the 0.12 export layout (one canonical
-//! path per item), imported from whichever layout the sibling `../tokora` has.
+//! The tokora items the workloads name whose paths have moved between releases, imported in one
+//! place.
 //!
-//! `build.rs` sets `tokora_0_11_layout` when it is the merge-base's 0.11 tree. Both arms import
-//! the same names, so `fixture.rs` and `workloads.rs` compile unchanged against either side —
-//! which is what keeps the instrument the constant of a comparison.
+//! `ci/icount/run.sh` builds this package against the branch's `tokora/` and again against the
+//! merge-base's, so `fixture.rs` and `workloads.rs` have to compile unchanged on both sides. A
+//! branch that moves an item they name imports it here, behind a cfg that a build script sets
+//! from the sibling tree, with a second arm for the base side's path; the workloads then stay
+//! the constant of the comparison.
 
-// The 0.11 paths: remove this arm, `build.rs` and the cfg once main carries the 0.12 layout.
-#[cfg(tokora_0_11_layout)]
-pub(crate) use tokora::{
-  error::{
-    syntax::{FullContainer, MissingSyntax, TooFew, TooMany},
-    token::{MissingToken, SeparatedError, UnexpectedToken},
-  },
-  parser::Action,
-  try_parse_input::ParseAttempt,
-};
-
-#[cfg(not(tokora_0_11_layout))]
 pub(crate) use tokora::{
   ParseAttempt,
   error::{

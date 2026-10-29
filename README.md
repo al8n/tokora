@@ -34,7 +34,7 @@ Most applications use the maintained Logos adapter:
 
 ```toml
 [dependencies]
-tokora = { version = "0.11", features = ["logos"] }
+tokora = { version = "0.12", features = ["logos"] }
 ```
 
 `logos` is the alias for the `logos_0_16` integration, the only Logos major tokora supports. The
@@ -257,14 +257,14 @@ Allocator-free `no_std`:
 
 ```toml
 [dependencies]
-tokora = { version = "0.11", default-features = false }
+tokora = { version = "0.12", default-features = false }
 ```
 
 `no_std` with `alloc`:
 
 ```toml
 [dependencies]
-tokora = { version = "0.11", default-features = false, features = ["alloc"] }
+tokora = { version = "0.12", default-features = false, features = ["alloc"] }
 ```
 
 Neither line enables a combinator family: `combinators` is a default feature, and both turn the
