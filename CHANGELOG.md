@@ -100,8 +100,7 @@ and will red until they do.
     `parse`, `parse_with`, `parse_with_state`, `parse_partial`, `InputRef`, `Lexer`,
     `ScanLookahead`, `ReadFrontier`, `Token`, `Source`, `Slice`, `Span`, `SimpleSpan`, `Emitter`
     and `EmitterView`, beside the six `#[macro_export]` macros and `logos` / `logos_0_16`.
-    Forty-eight names left the root for their modules, `Action` joined it, and `Accept` /
-    `Decline` are reachable only as `ParseAttempt::Accept` / `ParseAttempt::Decline`.
+    Forty-eight names left the root for their modules, and `Action` and `ParseAttempt` joined it.
   - **Five three-level families are flattened into their parents.** `state::{tracker,
     token_tracker, recursion_tracker}`, `cst::{error, event}`, `error::{syntax, token}`,
     `utils::{cmp, human_display, sdl_display, syntax_tree_display, marker}` and
@@ -117,18 +116,22 @@ and will red until they do.
     `tokora::conformance`'s.
   - **`tokora::prelude` is deleted.** Its names are all at the root except `span::Spanned` and
     `error::UnexpectedTokenOf`.
+  - **`tokora::try_parse_input` is no longer public.** `ParseAttempt` and `TryParseInput` are at
+    the root and in `tokora::parse`, and the two variants it re-exported, `Accept` and `Decline`,
+    are reachable only as `ParseAttempt::Accept` / `ParseAttempt::Decline`.
   - **Second paths are gone**: an item that had a non-root second path (`input::parse_partial`,
     `types::recovery::Status`, the prelude's re-exports, the root aliases of module items) keeps
     only its module path, plus the root where the item is one of the 29.
 
   The migration is mechanical, and every old path has exactly one replacement:
   `tokora::parser::X` becomes `tokora::combinator::X` for a combinator, `tokora::parse::X` for a
-  trait or driver, and `tokora::pratt::X` for a Pratt item; a three-level path drops its middle
-  segment. The table lists every public path that changed or disappeared:
+  trait or driver, and `tokora::pratt::X` for a Pratt item; `tokora::try_parse_input::ParseAttempt`
+  and `::TryParseInput` become `tokora::ParseAttempt` and `tokora::TryParseInput`; a three-level
+  path drops its middle segment. The table lists every public path of 0.11.0 that changed or
+  disappeared:
 
   | 0.11 | 0.12 |
   |---|---|
-  | `tokora::Accept` | `tokora::ParseAttempt::Accept` |
   | `tokora::Balance` | `tokora::input::Balance` |
   | `tokora::Branch` | `tokora::parse::Branch` |
   | `tokora::Cache` | `tokora::cache::Cache` |
@@ -139,7 +142,6 @@ and will red until they do.
   | `tokora::ComposableEmitter` | `tokora::emitter::ComposableEmitter` |
   | `tokora::CstEmitter` | `tokora::emitter::CstEmitter` |
   | `tokora::Decision` | `tokora::parse::Decision` |
-  | `tokora::Decline` | `tokora::ParseAttempt::Decline` |
   | `tokora::DefaultCache` | `tokora::cache::DefaultCache` |
   | `tokora::DelimClass` | `tokora::input::DelimClass` |
   | `tokora::Dialect` | `tokora::dialect::Dialect` |
@@ -363,6 +365,10 @@ and will red until they do.
   | `tokora::state::tracker::LimitExceeded` | `tokora::state::LimitExceeded` |
   | `tokora::state::tracker::Tracker` | `tokora::state::Tracker` |
   | `tokora::state::tracker::TrackerExt` | `tokora::state::TrackerExt` |
+  | `tokora::try_parse_input::Accept` | `tokora::ParseAttempt::Accept` |
+  | `tokora::try_parse_input::Decline` | `tokora::ParseAttempt::Decline` |
+  | `tokora::try_parse_input::ParseAttempt` | `tokora::parse::ParseAttempt` (and the root) |
+  | `tokora::try_parse_input::TryParseInput` | `tokora::parse::TryParseInput` (and the root) |
   | `tokora::types::recovery::Status` | `tokora::types::Status` |
   | `tokora::utils::cmp::Equivalent` | `tokora::utils::Equivalent` |
   | `tokora::utils::human_display::DisplayHuman` | `tokora::utils::DisplayHuman` |
