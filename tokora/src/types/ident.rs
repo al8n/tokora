@@ -54,7 +54,7 @@
 //! allowing creation of placeholder identifiers during error recovery:
 //!
 //! ```rust,ignore
-//! use tokora::{error::ErrorNode, types::RecoveryState};
+//! use tokora::{error::ErrorNode, types::recovery::RecoveryState};
 //!
 //! // Create placeholder for malformed identifier
 //! let bad_ident = Ident::<String, SimpleSpan, YulLang>::error(span);
@@ -65,7 +65,7 @@
 
 use core::marker::PhantomData;
 
-use super::recovery::Status;
+use super::Status;
 use crate::{
   error::ErrorNode,
   span::{AsSpan, SimpleSpan},
@@ -122,7 +122,7 @@ use crate::{
 /// ## Extracting Components
 ///
 /// ```rust
-/// # use tokora::{SimpleSpan, types::{Components, Ident}, utils::IntoComponents};
+/// # use tokora::{SimpleSpan, types::{Ident, recovery::Components}, utils::IntoComponents};
 /// # struct MyLang;
 /// # let span = SimpleSpan::new(0, 3);
 /// let ident = Ident::<&str, SimpleSpan, MyLang>::new(span, "foo");

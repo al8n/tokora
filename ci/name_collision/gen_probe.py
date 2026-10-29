@@ -438,7 +438,7 @@ pub fn lexer_value() -> PLexer<'static> {
 # WHY the subject satisfies the bound, and never read a green `ok*` on a `&mut`-self row as
 # evidence that the subject was right. `EMITTER_SUBJECT_FIXTURE` above is the worked example.
 
-# ── The subject for the `types` recovery traits, and WHY IT IS NOT `Ident` ───────────────
+# ── The subject for `tokora::types::recovery`, and WHY IT IS NOT `Ident` ─────────────────
 #
 # Both traits are implemented for `Ident` and for `Keyword`, and `Ident` is the one already in
 # the shared fixture's import list — so it is the obvious pick and it is the WRONG one, which
@@ -463,7 +463,7 @@ pub fn lexer_value() -> PLexer<'static> {
 RECOVERY_CARRIER = r'''
 use tokora::types::Keyword;
 
-/// A carrier tokora implements both recovery traits for, and which declares no
+/// A carrier tokora implements both `types::recovery` traits for, and which declares no
 /// inherent item of any probed name. Built directly: `Keyword::new` is public and const, and a
 /// parse would hand the value back through a grammar rather than to the line making the call.
 pub fn recovery_carrier() -> Keyword<&'static str> {
@@ -472,11 +472,11 @@ pub fn recovery_carrier() -> Keyword<&'static str> {
 '''
 
 RECOVERY_STATE_FIXTURE = (
-    new_module_imports("tokora::types", "RecoveryState") + RECOVERY_CARRIER
+    new_module_imports("tokora::types::recovery", "RecoveryState") + RECOVERY_CARRIER
 )
 
 FROM_COMPONENTS_FIXTURE = (
-    new_module_imports("tokora::types", "FromComponents") + RECOVERY_CARRIER
+    new_module_imports("tokora::types::recovery", "FromComponents") + RECOVERY_CARRIER
 )
 
 
@@ -695,13 +695,12 @@ TRAITS = {
     # The first owners here that the same diff introduces AND that live in a module the base ref
     # does not have. Both facts matter and they are answered in different places:
     #
-    #   * the module was new (`types::recovery`, public until 0.12.0 made it a private file and
-    #     re-exported its items from `types`), so a direct `use` of the trait through it failed on
-    #     base as an unresolved import of the MODULE, with the owner suppressed — and every row
-    #     scored INCONCL for want of a diagnostic naming the owner. `new_module_imports` splits
-    #     that into two errors, the second `unresolved import `new_module::RecoveryState``.
-    #     Measured on `a218439`, exactly the `tokora::diagnostic` shape that function was written
-    #     for. It now globs `tokora::types`, the module the traits are public in.
+    #   * the module is new, so a direct `use tokora::types::recovery::RecoveryState;` fails on
+    #     base as `unresolved import `tokora::types::recovery`` — the MODULE, with the owner
+    #     suppressed — and every row scores INCONCL for want of a diagnostic naming the owner.
+    #     `new_module_imports` splits that into two errors, the second `unresolved import
+    #     `new_module::RecoveryState``. Measured on `a218439`, exactly the `tokora::diagnostic`
+    #     shape that function was written for.
     #   * the owner is new, so the BASE side cannot compile and no row here can reach `loud`,
     #     `silent` or `ok*` — those all need a before-state. The three verdicts a new owner can
     #     reach are `new-owner` (head takes the call), `new-owner-err` (head refuses to choose)

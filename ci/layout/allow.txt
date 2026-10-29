@@ -18,3 +18,9 @@ utils::knowledge
 # `cst::token` would sit beside the trait `cst::Token` — and smear re-exports and expands the
 # module inside its own macro.
 cst::cast
+
+# `RecoveryState`, `FromComponents` and `Components` stay out of `types::*` so that a consumer's
+# second glob cannot silently rebind their trait methods (tokora#320): flattened into `types`, a
+# consumer's own same-named trait under another glob loses its calls to tokora's, with only a
+# future-incompatibility lint to say so. `types::Status` is the one name of that API in the glob.
+types::recovery
