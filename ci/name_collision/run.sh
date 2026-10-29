@@ -212,6 +212,25 @@ if [ "$total" -eq 0 ]; then
   exit 0
 fi
 
+# Prints an INCONCL row. A side that scored `no-compile` has its reason only in that side's build
+# log, which the next row overwrites, so the first few `error` lines of each such side are printed
+# under the row: the cause of an INCONCL is then readable from the job log instead of needing a
+# source audit to find. Diagnostics only: this function prints and changes nothing, and the
+# verdict, the counters and `status` are decided by the caller exactly as before.
+inconcl_row() {
+  printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+  local side r
+  for side in base head; do
+    r="$b"; [ "$side" = head ] && r="$h"
+    [ "$r" = no-compile ] || continue
+    echo "          $side side, first errors:"
+    # awk, not `grep | head`: under pipefail an early-closing `head` can SIGPIPE the writer, and
+    # cargo's closing `could not compile` line says nothing the row does not already say.
+    awk '/^error/ && !/^error: could not compile/ { print "            " $0; if (++n == 5) exit }' \
+      "$WORK/out-$side.txt" 2>/dev/null
+  done
+}
+
 seen_disclosed=""
 seen_nocollide=""
 
@@ -422,7 +441,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
       case "$b" in
         no-compile | unreached) ;;
         *)
-          printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+          inconcl_row
           echo "          the base side did not reach a normal compile-or-reject conclusion"
           echo "          (base=$b), so there is no valid before-state for this glob row — a"
           echo "          head-side ambiguity alone cannot stand in for one"
@@ -431,14 +450,14 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
           ;;
       esac
       if [ "$b" = no-compile ]; then
-        printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+        inconcl_row
         echo "          the base side did not compile, so nothing was compared"
         incon=$((incon + 1)); status=2
       elif [ "$h" = no-compile ] && [ -n "$said" ]; then
         printf "  glob-err %-41s base=%-12s head=%s   (collision rejected)\n" "$label" "$b" "$h"
         globerr=$((globerr + 1))
       elif [ "$h" = no-compile ]; then
-        printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+        inconcl_row
         echo "          the head side failed to build but no diagnostic names \`$name\` —"
         echo "          the probe broke for an unrelated reason and measured nothing"
         incon=$((incon + 1)); status=2
@@ -465,7 +484,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
         unprobed=$((unprobed + 1))
         [ "$status" -lt 1 ] && status=1
       else
-        printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+        inconcl_row
         echo "          the head side did not reach a normal compile-or-reject conclusion"
         echo "          (head=$h), so an attributed ambiguity diagnostic left in its log cannot"
         echo "          stand in for a completed head-side probe"
@@ -484,7 +503,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
   #      reporting clean, and it is the defect this harness exists for.
   case "$b$h" in
     *unreached*)
-      printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+      inconcl_row
       echo "          the probe ran but control never reached the call under test, so its"
       echo "          witness says nothing about the name"
       incon=$((incon + 1))
@@ -492,7 +511,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
       continue
       ;;
     *upstream-fail*)
-      printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+      inconcl_row
       echo "          a dependency failed to build, so the probe crate was never compiled"
       echo "          and this row measured nothing"
       incon=$((incon + 1))
@@ -500,7 +519,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
       continue
       ;;
     *bad-witness*)
-      printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+      inconcl_row
       echo "          a CONSUMER-CALLS or REACHED marker was missing or duplicated, so the"
       echo "          run cannot be interpreted at all"
       incon=$((incon + 1))
@@ -512,7 +531,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
     witness=1*) ;;
     no-compile) ;;
     *)
-      printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+      inconcl_row
       echo "          the consumer's own item did NOT run on the base side, so the probe"
       echo "          never exercised the name it claims to test"
       incon=$((incon + 1))
@@ -668,7 +687,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
       case "$h" in
         witness=0*)
           if [ -n "$owner_unused" ]; then
-            printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+            inconcl_row
             echo "          head reports the import of \`$owner\` UNUSED, so tokora's item on it was"
             echo "          never a candidate: the call went to an item of this name the SUBJECT"
             echo "          already carried, which the base ref has too. \`witness=0\` says only that"
@@ -701,7 +720,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
             seen_nocollide="$seen_nocollide $label"
             newownernc=$((newownernc + 1))
           else
-            printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+            inconcl_row
             echo "          head completed a run and resolved \`$owner\`, but \`$h\` is"
             echo "          CONSUMER-CALLS, not existence: a nonzero count means the CONSUMER's"
             echo "          own item took the call, so tokora's new \`$owner\` item was never a"
@@ -722,7 +741,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
             echo "          the disclosed outcome, one side at a time."
             newownererr=$((newownererr + 1))
           else
-            printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+            inconcl_row
             echo "          the owner \`$owner\` is unresolved on the BASE side and head does not"
             echo "          repeat that diagnostic — but head failed to build and NO diagnostic"
             echo "          names \`$name\` ambiguously, so head broke for a reason that is not"
@@ -733,7 +752,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
           fi
           ;;
         *)
-          printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+          inconcl_row
           echo "          the owner \`$owner\` is unresolved on the BASE side and head does not"
           echo "          repeat that diagnostic — but head never reached a completed run"
           echo "          (head=$h), so that silence is not evidence head resolved \`$owner\` at"
@@ -744,7 +763,7 @@ while IFS=$(printf '\t') read -r cat name owner spelling; do
           ;;
       esac
     else
-      printf "  INCONCL %-42s base=%-12s head=%s\n" "$label" "$b" "$h"
+      inconcl_row
       echo "          the probe does not compile on the BASE side and no base-side diagnostic"
       echo "          says \`$owner\` is unresolved there — so there is no before-state to"
       echo "          compare against and no evidence the owner is new. This is a broken probe,"
