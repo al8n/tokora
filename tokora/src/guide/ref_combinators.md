@@ -1927,7 +1927,7 @@ tooling included.
 | `alloc` | `Vec`/`String` drivers without `std` | the no-std + allocator tier |
 | *(neither)* | core-only parsing | bounded containers only |
 | `logos` / `logos_0_16` | the [`LogosLexer`](crate::lexer::LogosLexer) adapter | the alias selects the version; 0.16 is the only supported major |
-| `rowan` | the recording CST sink + typed lossless tree | implies `std`; the lossless-CST chapter |
+| `rowan` / `rowan_0_17` | the recording CST sink + typed lossless tree | the alias selects the version; implies `std`; the lossless-CST chapter |
 | `unstable-raw` | the raw `InputRef::{save, restore, commit}` checkpoint triple | otherwise the transaction guards are the surface |
 | `conformance` | the `conformance` lexer test kit | implies `std` |
 | `fuzz` | the `fuzz` operation-script harness | implies `std` |

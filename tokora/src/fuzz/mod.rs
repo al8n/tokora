@@ -71,7 +71,7 @@
 use std::vec::Vec;
 
 mod consume;
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 mod cst;
 mod fixtures;
 mod ops;
@@ -159,11 +159,11 @@ pub fn run_case(case: Case) -> Coverage {
     // to another consume tree, so seed determinism holds per build configuration.
     _ => {
       let src = gen_stream(&mut rng, /*allow_errors*/ false);
-      #[cfg(feature = "rowan")]
+      #[cfg(feature = "rowan_0_17")]
       {
         cst::run(&src, case.seed, &mut cov);
       }
-      #[cfg(not(feature = "rowan"))]
+      #[cfg(not(feature = "rowan_0_17"))]
       {
         let script = consume::gen_seq(&mut rng, 0);
         consume::run(&src, &script, &mut cov, case.seed ^ 0x0C57_FA11);

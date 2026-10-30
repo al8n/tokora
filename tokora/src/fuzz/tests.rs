@@ -37,7 +37,7 @@ fn corpus_passes_and_covers_every_op() {
   // this test and `fuzz_deep_run` never share a process, but `--include-ignored` puts them in
   // one and the maximum could then be the sweep's. The upper side is the per-case assertion in
   // `cst::run`, which is exact in every run and pinned at the deep sweep's figure.
-  #[cfg(feature = "rowan")]
+  #[cfg(feature = "rowan_0_17")]
   assert!(
     cst::deepest_tree_seen() >= cst::CORPUS_DEEPEST_TREE,
     "the default corpus no longer materializes a tree as deep as the recorded {}. Re-record \
@@ -63,7 +63,7 @@ fn fuzz_deep_run() {
   // that has to reach it. This is the only cell that runs this population, and `test (release)`
   // is the only CI job that runs this cell — which is why a bound pinned at the SMALLER
   // corpus's maximum was green everywhere else and red only there.
-  #[cfg(feature = "rowan")]
+  #[cfg(feature = "rowan_0_17")]
   assert_eq!(
     cst::deepest_tree_seen(),
     cst::DEEP_SWEEP_DEEPEST_TREE,

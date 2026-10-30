@@ -1025,7 +1025,7 @@ fn conformance_census_every_verbose_emit_channel_is_covered() {
 // not, so this leg carries its own byte-per-token lexer — the same shape
 // `tests/parser_node.rs` uses for the identical reason.
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 mod sink_leg {
   use super::ConfError;
 

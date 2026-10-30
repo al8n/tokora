@@ -511,7 +511,7 @@ pub trait Language: Sized + Copy + core::fmt::Debug + Eq + Ord + core::hash::Has
   type SyntaxKind: Sized + Copy + core::fmt::Debug + Eq + Ord + core::hash::Hash;
 }
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 impl<T: rowan::Language> Language for T {
   type SyntaxKind = T::Kind;
 }

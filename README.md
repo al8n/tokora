@@ -309,9 +309,9 @@ examples compile and run their tests with
 ## Features
 
 An integration feature is the crate's own name plus its version, so a hyphenated crate keeps its
-hyphen (`smol-bytes_0_2`). The unversioned name is an alias that selects the supported version, or
-the newest where two are supported, and a versioned feature enables the matching optional
-dependency.
+hyphen (`smol-bytes_0_2`), and `rowan` has none to keep (`rowan_0_17`). The unversioned name is an
+alias that selects the supported version, or the newest where two are supported, and a versioned
+feature enables the matching optional dependency.
 
 ### Library tiers
 
@@ -352,7 +352,8 @@ build on is unconditional: `Parser`, `Parse` and the `parse` drivers, the `Parse
 | --- | --- |
 | `logos` | Alias for `logos_0_16`. |
 | `logos_0_16` | Enables the `LogosLexer` adapter over `logos@0.16`, the only supported Logos major, and the `tokora::logos` / `tokora::logos_0_16` re-exports. |
-| `rowan` | Enables the recording CST sink and the typed lossless tree over `rowan@0.17`; implies `std`, not `logos`. **Read the [safety disclosure](#rowan-and-known-upstream-undefined-behaviour) before enabling it.** |
+| `rowan` | Alias for `rowan_0_17`. |
+| `rowan_0_17` | Enables the recording CST sink and the typed lossless tree over `rowan@0.17`; implies `std`, not `logos`. **Read the [safety disclosure](#rowan-and-known-upstream-undefined-behaviour) before enabling it.** |
 | `bytes` | Alias for `bytes_1`. |
 | `bytes_1` | Enables `bytes::Bytes` as a `Source` and `Slice`. |
 | `bstr` | Alias for `bstr_1`. |
@@ -394,13 +395,15 @@ still ends the process with nothing on any `Result` channel.
 
 A lossless sink requires a lexer that surfaces trivia (`Lexer::SURFACES_TRIVIA`). Tokora does not
 re-export Rowan; add `rowan = "0.17"` directly when implementing `rowan::Language`.
+The `rowan_0_17` feature names the integration's version; your own `rowan` dependency is a separate
+line in your manifest and unifies with it.
 
 ## Platform support
 
 Tokora's MSRV is Rust 1.95. The core supports allocator-free `no_std` (`no_std` without `alloc`)
 and allocation-enabled `no_std` (`no_std` with `alloc`). Disable default features for core-only
 parsing over bounded caches and containers, and enable `alloc` when a parser, container or selected
-facility needs allocation. `rowan`, `stacker`, `trace` and `fuzz` require `std`; `conformance` and
+facility needs allocation. `rowan_0_17` (and so its `rowan` alias), `stacker`, `trace` and `fuzz` require `std`; `conformance` and
 `smallvec` require `alloc`.
 
 Allocator-free `no_std`:

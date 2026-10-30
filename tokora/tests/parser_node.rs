@@ -1,4 +1,4 @@
-#![cfg(all(feature = "rowan", feature = "std", feature = "combinators"))]
+#![cfg(all(feature = "rowan_0_17", feature = "std", feature = "combinators"))]
 
 //! The `node()` combinator contract over a real recording sink, driven through the public
 //! lossless parse entry (`parse_lossless`, which mints the sink from the source it parses):

@@ -1,4 +1,4 @@
-#![cfg(all(feature = "rowan", feature = "std", feature = "combinators"))]
+#![cfg(all(feature = "rowan_0_17", feature = "std", feature = "combinators"))]
 
 //! **A lossless consumer can ask whether the recursion budget tripped** — `Cst::resource_trips`,
 //! from both drivers, in both directions.

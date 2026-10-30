@@ -1300,11 +1300,11 @@ impl RecursionLimiter {
   /// [`ParserContext::with_recursion_limiter`](crate::ParserContext::with_recursion_limiter), or —
   /// for a lossless parse, whose driver builds its own context —
   #[cfg_attr(
-    feature = "rowan",
+    feature = "rowan_0_17",
     doc = "[`parse_lossless_with_context`](crate::cst::parse_lossless_with_context)."
   )]
   #[cfg_attr(
-    not(feature = "rowan"),
+    not(feature = "rowan_0_17"),
     doc = "`cst::parse_lossless_with_context` (`rowan` only)."
   )]
   /// That asymmetry is

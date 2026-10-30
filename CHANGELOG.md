@@ -414,6 +414,14 @@ and will red until they do.
   0.2, and both versions can be enabled together because each type is a distinct one. The impls are
   ported unchanged: every method they call exists in 0.2 with the same meaning, and the 0.1 test
   matrices pass against 0.2.1 as they stand.
+- **The rowan integration is versioned: the `rowan_0_17` feature, with `rowan` as its alias.** An
+  integration feature is the crate's own name plus its version, and rowan has no hyphen to keep, so
+  the feature enabling the `rowan@0.17` integration (the recording `cst::Sink`, the typed lossless
+  tree, and the `CstText` impls on the other sources) is `rowan_0_17`, spelled like `logos_0_16` and
+  `bytes_1`. The unversioned `rowan` is an alias for it, so `features = ["rowan"]` in an existing
+  manifest keeps working and nothing is renamed or removed; a consumer that wants to stay on 0.17
+  after a newer line lands writes `rowan_0_17`. The `cfg`s in the crate now name `rowan_0_17`, so
+  enabling only the versioned feature gets the whole integration, exactly as `smol-bytes_0_2` does.
 
 ## 0.11.0 (2026-09-15)
 

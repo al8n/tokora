@@ -150,18 +150,18 @@
 //!
 //! - [rowan documentation](https://docs.rs/rowan) - The underlying CST library
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 use core::{
   cell::{Cell, RefCell},
   marker::PhantomData,
 };
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 use derive_more::{From, Into};
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 use rowan::{GreenNodeBuilder, Language, SyntaxNode, SyntaxToken};
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 use crate::syntax::Syntax;
 
 // The rowan-free event vocabulary. Its items' public path is `tokora::cst::Item`: the submodule
@@ -180,37 +180,37 @@ pub mod kinds;
 // keeps its gate.
 mod profile;
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 mod sink;
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 mod driver;
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 mod handle;
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 mod text;
 
 pub use profile::{CstProfile, KindValidator};
 
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub use driver::{
   parse_lossless, parse_lossless_partial, parse_lossless_partial_with_context,
   parse_lossless_with_context,
 };
 
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub use handle::Cst;
 
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub use sink::{FinishError, Sink, TriviaPolicy};
 
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub use text::CstText;
 
 /// The deepest a green tree this crate materializes may nest — **the root wrapper
@@ -349,8 +349,8 @@ pub use text::CstText;
 /// resources (64 MiB of heap stack segments there, a 2 MiB thread's drop recursion here) and
 /// arrive at the same magnitude by coincidence. Where they meet, the answer is a typed
 /// refusal instead of an abort, which is the trade this constant exists to make.
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub const MAX_TREE_DEPTH: usize = 1024;
 
 /// The stack a thread must have for the `rowan` doors to be safe on it — **2 MiB**, the amount
@@ -374,8 +374,8 @@ pub const MAX_TREE_DEPTH: usize = 1024;
 /// The main thread usually has more (8 MiB on Linux and macOS), and `RUST_MIN_STACK` or
 /// `std::thread::Builder::stack_size` can set a spawned thread either way. What this crate can
 /// state is the figure it derives against; sizing the thread is the caller's.
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub const MIN_SUPPORTED_STACK: usize = crate::state::recursion_tracker::measured::STACK;
 
 // ── THE MEASURED ROWS BEHIND `MAX_TREE_DEPTH` ────────────────────────────────────────────
@@ -398,7 +398,7 @@ pub const MIN_SUPPORTED_STACK: usize = crate::state::recursion_tracker::measured
 /// It is a **debug** figure and the shipped ceiling is derived from it in both profiles,
 /// because the frames are `rowan`'s: their optimisation is the dependency's, which this
 /// crate's own `debug_assertions` does not observe. See `MAX_TREE_DEPTH`.
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 const ROWAN_RECURSION_ABORTS_AT_DEBUG: usize = 4388;
 
 /// The same instrument and the same host, **release** (`opt-level = 3`,
@@ -412,7 +412,7 @@ const ROWAN_RECURSION_ABORTS_AT_DEBUG: usize = 4388;
 /// assertions below — that the release row is the looser of the two, and that the ceiling
 /// clears it by the same margin — so a future re-measurement that inverts the relation fails
 /// the build instead of quietly widening the wall.
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 const ROWAN_RECURSION_ABORTS_AT_RELEASE: usize = 9410;
 
 /// Bytes of stack one level of `rowan`'s recursive descent spends in a **debug** build —
@@ -421,7 +421,7 @@ const ROWAN_RECURSION_ABORTS_AT_RELEASE: usize = 9410;
 ///
 /// This is the constant that makes `MIN_SUPPORTED_STACK` a checked relation instead of a
 /// sentence: the assertions below price the whole ceiling in bytes against it.
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 const ROWAN_BYTES_PER_LEVEL_DEBUG: usize =
   crate::state::recursion_tracker::measured::STACK / ROWAN_RECURSION_ABORTS_AT_DEBUG;
 
@@ -435,7 +435,7 @@ const ROWAN_BYTES_PER_LEVEL_DEBUG: usize =
 /// said twice. The level form is a relation between two figures measured on one thread; the
 /// byte form is a relation between the ceiling and `MIN_SUPPORTED_STACK`, which is the thread
 /// itself. Change the stated minimum and the byte form is what notices.
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 const _: () = {
   use crate::state::{RecursionLimiter, recursion_tracker::policy::MIN_HEADROOM};
 
@@ -499,7 +499,7 @@ const _: () = {
 /// It is an `<=` and it currently holds with **equality** — 1024 against 1024 — which is the
 /// one place a published budget meets this ceiling. See `MAX_TREE_DEPTH` for why that is
 /// recorded rather than engineered away.
-#[cfg(all(feature = "rowan", feature = "stacker"))]
+#[cfg(all(feature = "rowan_0_17", feature = "stacker"))]
 const _: () = {
   use crate::state::RecursionLimiter;
 
@@ -636,8 +636,8 @@ const _: () = {
 /// for the same reason. Both are `O(MAX_TREE_DEPTH)`, not `O(children)`, and the query into the
 /// first is a binary search over an index-ascending slice, so it is `O(log MAX_TREE_DEPTH)`
 /// rather than a walk past every enclosing level.
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 #[derive(Debug)]
 pub struct SyntaxTreeBuilder<Lang> {
   builder: RefCell<GreenNodeBuilder<'static>>,
@@ -665,8 +665,8 @@ pub struct SyntaxTreeBuilder<Lang> {
 /// the reason [`SyntaxTreeBuilder`] gives. It is not branded to its builder — neither is `rowan`'s
 /// — and it does not need to be: a checkpoint carried to another builder is charged against *that*
 /// builder's stream, which is the same stream `rowan` will wrap.
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 #[derive(Debug, Clone, Copy)]
 pub struct TreeCheckpoint {
   inner: rowan::Checkpoint,
@@ -685,7 +685,7 @@ pub struct TreeCheckpoint {
 /// * `suffix_max` is strictly decreasing in depth and strictly increasing in index, and holds
 ///   exactly the indices whose depth exceeds every later depth;
 /// * `parents` holds the first-child index of each open node, outermost first.
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 #[derive(Debug)]
 struct Ledger {
   /// `(index, depth)`, strictly increasing in index and strictly decreasing in depth. At most
@@ -697,7 +697,7 @@ struct Ledger {
   len: usize,
 }
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 impl Ledger {
   const fn new() -> Self {
     Self {
@@ -745,7 +745,7 @@ impl Ledger {
   }
 }
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 impl<Lang> Default for SyntaxTreeBuilder<Lang>
 where
   Lang: Language,
@@ -756,7 +756,7 @@ where
   }
 }
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 impl<Lang> SyntaxTreeBuilder<Lang>
 where
   Lang: Language,
@@ -1071,8 +1071,8 @@ where
 /// # Type Parameters
 ///
 /// - `Lang`: The rowan [`Language`] type defining syntax kinds
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub trait Element<Lang: Language>: core::fmt::Debug {
   /// The syntax kind of this CST element.
   ///
@@ -1158,8 +1158,8 @@ pub trait Element<Lang: Language>: core::fmt::Debug {
 /// # Type Parameters
 ///
 /// - `Lang`: The rowan [`Language`] type defining syntax kinds
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub trait Token<Lang: Language>: Element<Lang> {
   /// Attempts to cast the given syntax token to this typed token.
   ///
@@ -1220,8 +1220,8 @@ pub trait Token<Lang: Language>: Element<Lang> {
 /// could be `Element<A> + Syntax<Lang = B>` and still satisfy `Node<A>`: a node claiming
 /// membership in one language while its kind authority answers for another. Nothing would
 /// reject it, and the mismatch would surface as a cast that never matches.
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub trait Node<Lang: Language>: Element<Lang> + Syntax<Lang = Lang> {
   /// Attempts to cast the given syntax node to this CST node.
   ///
@@ -1315,8 +1315,8 @@ pub trait Node<Lang: Language>: Element<Lang> + Syntax<Lang = Lang> {
 ///     }
 /// }
 /// ```
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub trait CastNode<Lang: Language>: Sized {
   /// Casts an untyped syntax node into this typed node, or returns `None` if it is not one.
   ///
@@ -1326,7 +1326,7 @@ pub trait CastNode<Lang: Language>: Sized {
   fn cast_node(syntax: SyntaxNode<Lang>) -> Option<Self>;
 }
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 impl<N, Lang> CastNode<Lang> for N
 where
   N: Node<Lang>,
@@ -1342,8 +1342,8 @@ where
 ///
 /// `NodeChildren` filters and casts child nodes to a specific typed node type,
 /// skipping any children that cannot be cast to the target type.
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 #[derive(Debug, From, Into)]
 #[repr(transparent)]
 pub struct NodeChildren<N, Lang: Language> {
@@ -1351,7 +1351,7 @@ pub struct NodeChildren<N, Lang: Language> {
   _m: PhantomData<N>,
 }
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 impl<N, Lang: Language> Clone for NodeChildren<N, Lang> {
   #[inline]
   fn clone(&self) -> Self {
@@ -1362,7 +1362,7 @@ impl<N, Lang: Language> Clone for NodeChildren<N, Lang> {
   }
 }
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 impl<N, Lang: Language> NodeChildren<N, Lang> {
   #[inline]
   fn new(parent: &SyntaxNode<Lang>) -> Self {
@@ -1389,7 +1389,7 @@ impl<N, Lang: Language> NodeChildren<N, Lang> {
   }
 }
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 impl<N, Lang> Iterator for NodeChildren<N, Lang>
 where
   N: CastNode<Lang>,
@@ -1415,16 +1415,16 @@ where
 /// blanket impl. [`token`](cast::token) is not node-typed at all — it matches on a
 /// [`Lang::Kind`](Language::Kind) value and needs no bound beyond the language, and neither do
 /// its multi-kind and plural forms, [`token_any`](cast::token_any) and [`tokens`](cast::tokens).
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub mod cast;
 
 // Error types for CST operations, public at `tokora::cst::Item` like `event`'s above.
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub use error::*;
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 pub(crate) mod error;
 
-#[cfg(all(test, feature = "rowan"))]
+#[cfg(all(test, feature = "rowan_0_17"))]
 mod tests;

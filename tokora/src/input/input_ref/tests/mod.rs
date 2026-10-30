@@ -6293,7 +6293,7 @@ fn lookahead_equivalence_over_call_patterns() {
 // cache-transparency (cached tree == uncached tree per cell × entry × prefill) — while the
 // syntactic diagnostics matrix continues to pin those shape premises.
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 mod cst_event_oracles {
   use super::*;
   use crate::cst::{Sink, event::Event};

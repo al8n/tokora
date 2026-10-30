@@ -534,7 +534,7 @@ in both directions.)
 
 The versioned backends use a **two-name convention**: a friendly alias (`bytes`) turns on the
 currently-supported versioned feature (`bytes_1`), which pulls the optional dependency
-(`dep:bytes_1`). This is the same shape as `logos` → `logos_0_16`.
+(`dep:bytes_1`). This is the same shape as `logos` → `logos_0_16` and `rowan` → `rowan_0_17`.
 
 ### Compilation tiers
 
@@ -610,7 +610,7 @@ CAS-free fallback.
 
 | Feature | Enables | Implies | no_std posture |
 |---------|---------|---------|----------------|
-| `rowan` | the recording CST sink + typed lossless tree (the Rowan chapter) | `dep:rowan`, **`std`** | requires `std` |
+| `rowan` / `rowan_0_17` | the recording CST sink + typed lossless tree (the Rowan chapter) | `rowan_0_17` → `dep:rowan`, **`std`** | requires `std` |
 | `unstable-raw` | the raw `InputRef::{save, restore, commit}` triple + `Checkpoint` construction | — | no_std-clean |
 | `trace` | [`traced`](crate::combinator::traced) + combinator instrumentation | **`std`** | requires `std`; zero-cost when off |
 | `conformance` | the `conformance` lexer test kit | **`std`** | requires `std` |
@@ -620,7 +620,7 @@ CAS-free fallback.
 ### no_std posture, in brief
 
 The base crate is `no-std` / `no-std::no-alloc` (its Cargo categories): drop `default` for core-only
-parsing, add `alloc` for the allocator tier, or keep `std`. Features that **force `std`**: `rowan`,
-`trace`, `conformance`, `fuzz`. Features that **force `alloc`**: `smallvec`. Every
+parsing, add `alloc` for the allocator tier, or keep `std`. Features that **force `std`**: `rowan_0_17`
+(so its `rowan` alias), `trace`, `conformance`, `fuzz`. Features that **force `alloc`**: `smallvec`. Every
 other feature adds no tier floor of its own — a third-party backend compiles wherever that crate's
 own `default-features = false` build does, which this table does not independently re-verify.

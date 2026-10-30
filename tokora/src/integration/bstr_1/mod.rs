@@ -1,5 +1,5 @@
 // `CstText` exists only with `rowan`, as did `cst/text.rs`, where these impls were.
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 mod cst_text;
 mod display_human;
 mod equivalent;

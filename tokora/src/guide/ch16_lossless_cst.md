@@ -17,7 +17,7 @@ Two crates share the work:
   you never call it), and node structure is declared with the
   [`node`](crate::combinator::node()) combinators. This half is rowan-free and compiles in every
   build.
-- **[rowan](https://docs.rs/rowan)** stores the finished tree. Under the `rowan` feature,
+- **[rowan](https://docs.rs/rowan)** stores the finished tree. Under the `rowan_0_17` feature,
   [`parse_lossless`](crate::cst::parse_lossless) drives the parse with a
   [`Sink`](crate::cst::Sink) emitter minted from the same source, buffering it as a flat
   event stream, and [`finish`](crate::cst::Cst::finish) materializes the returned
@@ -46,11 +46,13 @@ names both:
 
 ```toml
 [dependencies]
-tokora = { version = "0.12", features = ["logos", "rowan"] }
+tokora = { version = "0.12", features = ["logos", "rowan_0_17"] }
 rowan = "0.17"
 ```
 
-The `rowan` feature implies `std` (rowan itself requires it); it does not imply `logos`.
+The `rowan_0_17` feature implies `std` (rowan itself requires it); it does not imply `logos`. The
+unversioned `rowan` is an alias for it, so a manifest that says `features = ["rowan"]` keeps
+working.
 Only the *materializing* half — [`Sink`](crate::cst::Sink) and the typed tree views —
 lives behind the feature. The recording half ([`CstEmitter`](crate::emitter::CstEmitter),
 the [`node`](crate::combinator::node()) combinators, the marks) is unconditional, which is what
