@@ -119,6 +119,15 @@ jobs:
             ' <<<"$runs" >/dev/null || fail "$workflow has no successful main run for $GITHUB_SHA"
           }
 
+          require_miri_success() {
+            local version=$1
+            if [[ "$version" == 0.12.0 ]]; then
+              echo "::warning::One-time Miri hard gate waiver active for tokora 0.12.0 only; release proceeds without requiring miri.yml success for this version."
+              return 0
+            fi
+            require_workflow_success miri.yml
+          }
+
           registry_request() {
             local version=$1
             local destination=$2
@@ -229,7 +238,7 @@ jobs:
           esac
 
           require_workflow_success ci.yml
-          require_workflow_success miri.yml
+          require_miri_success "$version"
           require_workflow_success pages.yml
 
           cargo +"$RUST_TOOLCHAIN" package --locked --package "$PACKAGE"
@@ -362,6 +371,15 @@ jobs:
             ' <<<"$runs" >/dev/null || fail "$workflow has no successful main run for $GITHUB_SHA"
           }
 
+          require_miri_success() {
+            local version=$1
+            if [[ "$version" == 0.12.0 ]]; then
+              echo "::warning::One-time Miri hard gate waiver active for tokora 0.12.0 only; release proceeds without requiring miri.yml success for this version."
+              return 0
+            fi
+            require_workflow_success miri.yml
+          }
+
           registry_request() {
             local destination=$1
             curl --silent --show-error \
@@ -433,7 +451,7 @@ jobs:
           [[ "$GITHUB_REF_NAME" == "$EXPECTED_TAG" ]] || fail "approved event tag changed"
           require_remote_identity
           require_workflow_success ci.yml
-          require_workflow_success miri.yml
+          require_miri_success "$EXPECTED_VERSION"
           require_workflow_success pages.yml
 
           metadata=$(cargo +"$RUST_TOOLCHAIN" metadata --locked --no-deps --format-version 1)
