@@ -86,6 +86,8 @@ KIND_WORDS = {
     "external": "extern",
     # `pub extern crate rowan_0_17 as rowan;` is an `extern_crate` item, not a `use`; it is the same
     # kind of root name as the `pub use logos_0_16 as logos;` re-export and is listed the same way.
+    # rustdoc records it under the binding, name "rowan", and keeps the crate it was imported from,
+    # "rowan_0_17", in `extern_crate.rename`.
     "extern_crate": "extern",
 }
 
@@ -188,9 +190,11 @@ class Surface:
                 continue
             name = child.get("name")
             if k == "extern_crate":
-                # The name the crate is visible under is the rename, when there is one.
-                ec = child["inner"]["extern_crate"]
-                name = ec.get("rename") or ec.get("name") or name
+                # The item's own name is the binding the crate is visible under. For
+                # `pub extern crate rowan_0_17 as rowan;` rustdoc records name "rowan" and
+                # extern_crate.rename "rowan_0_17", the crate it was imported from, so `rename`
+                # is not the visible name.
+                name = name or child["inner"]["extern_crate"].get("name")
             if not name:
                 continue
             self._record(str(child_id), k, prefix + (name,))
@@ -493,10 +497,11 @@ def selftest():
     expect("an external item at utils::ext::Foreign and a glob over an enum hold every check",
            _check_set(f.doc(), root_list, allow), set())
 
-    # a `pub extern crate rowan_0_17 as rowan;` at the root is an `extern` name under its rename,
+    # a `pub extern crate rowan_0_17 as rowan;` at the root is an `extern` name under its binding,
     # beside the `pub use rowan_0_17;` that lists the versioned name
     f, root_list, allow = passing_fixture()
-    ext = f._add("rowan", {"extern_crate": {"name": "rowan_0_17", "rename": "rowan"}})
+    # (rustdoc stores the binding as the item name and the imported crate in `rename`)
+    ext = f._add("rowan", {"extern_crate": {"name": "rowan", "rename": "rowan_0_17"}})
     f.add(f.root, ext, f.use("rowan_0_17", 999_996))
     expect("a pub extern crate and its versioned re-export hold every check when listed",
            _check_set(f.doc(), root_list + ["extern rowan", "extern rowan_0_17"], allow), set())
