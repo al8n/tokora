@@ -653,12 +653,54 @@ jobs:
             *) fail "GitHub returned HTTP $release_code for Release $EXPECTED_TAG" ;;
           esac
 
+          release_notes="$RUNNER_TEMP/release-notes.md"
+          python3 - "$EXPECTED_VERSION" CHANGELOG.md "$release_notes" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          version, changelog_path, notes_path = sys.argv[1:]
+          lines = Path(changelog_path).read_text(encoding="utf-8").splitlines(keepends=True)
+          heading = re.compile(rf"## {re.escape(version)} \(\d{{4}}-\d{{2}}-\d{{2}}\)")
+          starts = [
+              index
+              for index, line in enumerate(lines)
+              if heading.fullmatch(line.rstrip("\r\n"))
+          ]
+
+          if len(starts) != 1:
+              print(
+                  f"::error::expected exactly one dated changelog heading for {version}, found {len(starts)}",
+                  file=sys.stderr,
+              )
+              raise SystemExit(1)
+
+          start = starts[0]
+          end = next(
+              (index for index in range(start + 1, len(lines)) if lines[index].startswith("## ")),
+              None,
+          )
+          if end is None:
+              print(
+                  f"::error::changelog section for {version} has no following level-two heading",
+                  file=sys.stderr,
+              )
+              raise SystemExit(1)
+
+          notes = "".join(lines[start:end])
+          if not "".join(lines[start + 1 : end]).strip():
+              print(f"::error::changelog section for {version} is empty", file=sys.stderr)
+              raise SystemExit(1)
+
+          Path(notes_path).write_text(notes, encoding="utf-8")
+          PY
+
           release_args=(
             "$EXPECTED_TAG"
             --repo "$GITHUB_REPOSITORY"
             --verify-tag
             --title "$EXPECTED_TAG"
-            --generate-notes
+            --notes-file "$release_notes"
           )
           if [[ "$EXPECTED_PRERELEASE" == true ]]; then
             release_args+=(--prerelease)
