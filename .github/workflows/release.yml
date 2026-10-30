@@ -27,6 +27,8 @@ jobs:
       contents: read
     outputs:
       checksum: ${{ steps.candidate.outputs.checksum }}
+      lock_b64: ${{ steps.candidate.outputs.lock_b64 }}
+      lock_sha: ${{ steps.candidate.outputs.lock_sha }}
       prerelease: ${{ steps.candidate.outputs.prerelease }}
       registry_state: ${{ steps.candidate.outputs.registry_state }}
       release_exists: ${{ steps.candidate.outputs.release_exists }}
@@ -155,7 +157,7 @@ jobs:
                 and .version.num == $version
                 and .version.yanked == false
                 and .version.checksum == $checksum
-                and .version.published_by.login == "al8n"
+                and .version.published_by == null
                 and .version.trustpub_data == {
                   provider: "github",
                   repository: $repository,
@@ -177,6 +179,19 @@ jobs:
               and .author.login == "github-actions[bot]"
             ' "$file" >/dev/null
           }
+
+          [[ ! -e Cargo.lock && ! -L Cargo.lock ]] || fail "the repository checkout must not contain Cargo.lock"
+          [[ -z $(git ls-files -- Cargo.lock) ]] || fail "Cargo.lock must remain untracked"
+          cargo +"$RUST_TOOLCHAIN" generate-lockfile
+          [[ -f Cargo.lock && -s Cargo.lock ]] || fail "cargo generate-lockfile did not create Cargo.lock"
+          lock_sha=$(sha256sum Cargo.lock | awk '{ print $1 }')
+          [[ "$lock_sha" =~ ^[0-9a-f]{64}$ ]] || fail "could not calculate the Cargo.lock checksum"
+          lock_b64=$(base64 --wrap=0 Cargo.lock)
+          [[ -n "$lock_b64" && ${#lock_b64} -le 500000 ]] || fail "encoded Cargo.lock is empty or too large for a job output"
+          [[ "$lock_b64" != *$'\n'* && "$lock_b64" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] || fail "encoded Cargo.lock is not single-line base64"
+          (( ${#lock_b64} % 4 == 0 )) || fail "encoded Cargo.lock has invalid length"
+          printf '%s' "$lock_b64" | base64 --decode >"$RUNNER_TEMP/Cargo.lock.roundtrip"
+          cmp -s Cargo.lock "$RUNNER_TEMP/Cargo.lock.roundtrip" || fail "Cargo.lock base64 round trip changed its bytes"
 
           metadata=$(cargo +"$RUST_TOOLCHAIN" metadata --locked --no-deps --format-version 1)
           publishable=$(jq -cer '
@@ -258,6 +273,8 @@ jobs:
 
           {
             echo "checksum=$checksum"
+            echo "lock_b64=$lock_b64"
+            echo "lock_sha=$lock_sha"
             echo "prerelease=$prerelease"
             echo "registry_state=$registry_state"
             echo "release_exists=$release_exists"
@@ -294,6 +311,8 @@ jobs:
         id: revalidate
         env:
           EXPECTED_CHECKSUM: ${{ needs.verify.outputs.checksum }}
+          EXPECTED_LOCK_B64: ${{ needs.verify.outputs.lock_b64 }}
+          EXPECTED_LOCK_SHA: ${{ needs.verify.outputs.lock_sha }}
           EXPECTED_PRERELEASE: ${{ needs.verify.outputs.prerelease }}
           EXPECTED_TAG: ${{ needs.verify.outputs.tag }}
           EXPECTED_VERSION: ${{ needs.verify.outputs.version }}
@@ -377,7 +396,7 @@ jobs:
                 and .version.num == $version
                 and .version.yanked == false
                 and .version.checksum == $checksum
-                and .version.published_by.login == "al8n"
+                and .version.published_by == null
                 and .version.trustpub_data == {
                   provider: "github",
                   repository: $repository,
@@ -397,6 +416,18 @@ jobs:
               and .author.login == "github-actions[bot]"
             ' "$file" >/dev/null
           }
+
+          [[ ! -e Cargo.lock && ! -L Cargo.lock ]] || fail "the approved checkout unexpectedly contains Cargo.lock"
+          [[ -z $(git ls-files -- Cargo.lock) ]] || fail "Cargo.lock must remain untracked"
+          [[ "$EXPECTED_LOCK_SHA" =~ ^[0-9a-f]{64}$ ]] || fail "pre-approval Cargo.lock checksum is missing or malformed"
+          [[ -n "$EXPECTED_LOCK_B64" && ${#EXPECTED_LOCK_B64} -le 500000 ]] || fail "pre-approval Cargo.lock payload is missing or too large"
+          [[ "$EXPECTED_LOCK_B64" != *$'\n'* && "$EXPECTED_LOCK_B64" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] || fail "pre-approval Cargo.lock payload is not single-line base64"
+          (( ${#EXPECTED_LOCK_B64} % 4 == 0 )) || fail "pre-approval Cargo.lock payload has invalid length"
+          printf '%s' "$EXPECTED_LOCK_B64" | base64 --decode >Cargo.lock
+          [[ -f Cargo.lock && -s Cargo.lock ]] || fail "reconstructed Cargo.lock is empty"
+          lock_sha=$(sha256sum Cargo.lock | awk '{ print $1 }')
+          [[ "$lock_sha" == "$EXPECTED_LOCK_SHA" ]] || fail "reconstructed Cargo.lock checksum does not match pre-approval resolution"
+          [[ $(base64 --wrap=0 Cargo.lock) == "$EXPECTED_LOCK_B64" ]] || fail "reconstructed Cargo.lock bytes are not canonical"
 
           [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF_TYPE" == tag ]] || fail "protected job requires a tag push"
           [[ "$GITHUB_REF_NAME" == "$EXPECTED_TAG" ]] || fail "approved event tag changed"
@@ -536,7 +567,7 @@ jobs:
               and .version.num == $version
               and .version.yanked == false
               and .version.checksum == $checksum
-              and .version.published_by.login == "al8n"
+              and .version.published_by == null
               and .version.trustpub_data == {
                 provider: "github",
                 repository: $repository,
