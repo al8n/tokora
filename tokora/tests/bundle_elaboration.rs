@@ -312,8 +312,8 @@ fn bundle_holds_for_the_builtin_contexts() {
 // `From<MissingToken>` onto the *concrete instantiation* of every bundle consumer — for the
 // emitters whose impls carry those bounds, i.e. `Fatal` and `Verbose` — whether or not any
 // policy builder is used. A bound derived from trait surface rather than behaviour is the
-// defect this release removed from `Silent`'s pratt impl; reintroducing it wholesale to fix a
-// doc claim would be a poor trade.
+// defect `Silent`'s pratt impl was cleared of; reintroducing it wholesale to fix a doc claim
+// would be a poor trade.
 
 /// A production under **one** bound that attaches a count policy. It does not compile if
 /// `PolicyParseContext` stops naming the three policy emitters, and it did not compile at all

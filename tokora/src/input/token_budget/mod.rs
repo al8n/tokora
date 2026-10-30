@@ -47,8 +47,8 @@
 /// [`state_mut`](crate::InputRef::state_mut) drops. The counter survives all three; the *stop*
 /// does not. A public `attempt` that drains to the refusal and declines therefore re-enters
 /// against the same unchanged [`spent`](TokenBudgetTally::spent), and the lexer runs again — once
-/// per call, without bound, for free. Measured before the preflight landed: a budget of **zero**
-/// funded one full `Lexer::lex` per re-entry (256 rounds → 256 invocations, `spent` still `0`) by
+/// per call, without bound, for free. Measured without the preflight: a budget of **zero**
+/// funds one full `Lexer::lex` per re-entry (256 rounds → 256 invocations, `spent` still `0`) by
 /// all three routes. **A durable counter is half a bound; the other half is enforcement that a
 /// rollback cannot refund.**
 ///

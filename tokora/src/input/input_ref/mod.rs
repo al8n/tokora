@@ -71,8 +71,7 @@ pub use descent::ResourceTripBaseline;
 /// a baseline judged against a different input panics rather than answering about a parse that
 /// handle knows nothing about, and a `'closure` brand, so a baseline cannot be stashed and carried
 /// into another handle invocation — which would silently turn the attempt-relative reading into a
-/// session-absolute one. Those guards used to be absent here, justified by the pair being
-/// crate-internal; publishing it is what removed the justification.
+/// session-absolute one.
 #[derive(Clone, Copy)]
 pub struct ScannerTripBaseline<'closure> {
   /// The counter's value when the baseline was taken.
@@ -257,13 +256,13 @@ pub struct ScannerAttempt<'inp, 'closure, L: Lexer<'inp>> {
 
 // GATED TO EXACTLY THE CFG THAT COMPILES ITS READERS, which is `tests`' and not `cfg(test)`.
 //
-// Every call site of `count` — twenty of them, on 2026-08-25 — is in `input_ref/tests.rs`, which
-// needs a logos lexer fixture and an allocator: `all(test, logos_0_16, std)`. The method's own
-// gate was `cfg(test)` alone, which is strictly wider, so a `--tests` selection with `std` but
-// without `logos_0_16` compiled the method and nothing that reads it. `deny(warnings)` turns that
-// into a build failure rather than a lint, and `--no-default-features --features rowan,combinators
-// --tests` is exactly such a selection — one of the eight legs `ci/feature_cfg_coverage.py
-// --print-legs` enumerates and CI runs (al8n/tokora#318).
+// Every call site of `count` is in `input_ref/tests.rs`, which needs a logos lexer fixture and an
+// allocator: `all(test, logos_0_16, std)`. The method's own gate was `cfg(test)` alone, which is
+// strictly wider, so a `--tests` selection with `std` but without `logos_0_16` compiled the method
+// and nothing that reads it. `deny(warnings)` turns that into a build failure rather than a lint,
+// and `--no-default-features --features rowan,combinators --tests` is exactly such a selection —
+// one of the eight legs `ci/feature_cfg_coverage.py --print-legs` enumerates and CI runs
+// (al8n/tokora#318).
 //
 // The answer is that the method is genuinely unused there, not that a reader is missing: the
 // crate-internal exact-tally cells are the only readers there have ever been, and they live where
@@ -1383,9 +1382,9 @@ where
   /// still unmade; a host that catches it and re-enters gets that item's work again, free, once per
   /// call. So this site calls [`lex`](crate::Lexer::lex) itself and charges the moment it answers
   /// `Some` — before the span is read, before the item is built, and with nothing between the two
-  /// but the `else` that returns. Measured on `2f74187`, at a ceiling of `4` with `span` armed to
-  /// panic: 4 / 16 / 256 caught retries funded 4 / 16 / 256 `Lexer::lex` calls with `spent` still
-  /// `0` (`a_panicking_lexer_span_cannot_un_charge_the_item_it_was_wrapping`).
+  /// but the `else` that returns. With the charge after the span, at a ceiling of `4` and `span`
+  /// armed to panic, 4 / 16 / 256 caught retries fund 4 / 16 / 256 `Lexer::lex` calls with
+  /// `spent` still `0` (`a_panicking_lexer_span_cannot_un_charge_the_item_it_was_wrapping`).
   ///
   /// **The order is the bound.** Asking after the lexer has already run refuses an item that the
   /// work has already been spent producing, and the refusal then has to live somewhere the caller
@@ -1394,9 +1393,9 @@ where
   /// [`set_state`](Self::set_state)/[`state_mut`](Self::state_mut) drop it outright. The spend is
   /// durable and the stop is refundable, so a public `attempt` that drains to the refusal and
   /// declines re-enters against an unchanged `spent` and runs the lexer again — once per call,
-  /// without bound, at no cost to the caller. Measured before this preflight existed: a budget of
-  /// **zero** funded 256 `Lexer::lex` calls over 256 declined attempts with `spent` still `0`, and
-  /// the same by `set_state` and by `state_mut`.
+  /// without bound, at no cost to the caller. Without this preflight, a budget of **zero** funds
+  /// 256 `Lexer::lex` calls over 256 declined attempts with `spent` still `0`, and the same by
+  /// `set_state` and by `state_mut`.
   ///
   /// So the gate is
   /// [`TokenBudgetTally::is_exhausted`](crate::input::TokenBudgetTally::is_exhausted),
@@ -1512,14 +1511,15 @@ where
   /// So that arm counts the trip and only then derives the boundary. Everything the settle below
   /// runs before its own decision — `Source::len`, the `Offset::Ord` against it, the destructor of
   /// the owned offset `len` hands back, and the boundary derivation — is consumer code, and on the
-  /// already-spent path each of those sat in front of a publication that was already owed. An
-  /// unwind there, caught inside an `attempt` whose baseline follows the first refusal, left the
-  /// attempt reading no new trip and an unpoisoned input. Measured on `2a91235`, ceiling `2` over
-  /// a four-item source with the boundary re-opened by a declining `attempt`: the armed
-  /// `L::Offset` destructor returns `(2 of 4 items reported Ok, probe spent, 0 trips, not
-  /// poisoned)` on the committing exit — **a successful parse over truncated input** — and the
-  /// same by `set_state` and at every `L::Offset::clone` of the derivation
-  /// (`a_second_entry_publishes_at_every_offset_destructor` and its `..._offset_clone` sibling).
+  /// already-spent path each of those would sit in front of a publication that is already owed. An
+  /// unwind there, caught inside an `attempt` whose baseline follows the first refusal, would leave
+  /// the attempt reading no new trip and an unpoisoned input. With the count after the derivation,
+  /// at ceiling `2` over a four-item source with the boundary re-opened by a declining `attempt`,
+  /// the armed `L::Offset` destructor returns
+  /// `(2 of 4 items reported Ok, probe spent, 0 trips, not poisoned)` on the committing exit — **a
+  /// successful parse over truncated input** — and the same by `set_state` and at every
+  /// `L::Offset::clone` of the derivation (`a_second_entry_publishes_at_every_offset_destructor`
+  /// and its `..._offset_clone` sibling).
   ///
   /// **The witness is the count, and the boundary is a memo.** They are published separately here,
   /// which is the one place in the crate they are — [`count_scanner_trip`](Self::count_scanner_trip)
@@ -1621,18 +1621,18 @@ where
     //
     // Deriving the boundary is three caller-implemented steps — `Cache::back` (through
     // `InputRef::offset`), `Span::end_ref` and `Offset::clone` (through `Frontier::boundary`) —
-    // and clamping it against an existing latch is a fourth, `Offset::Ord`. Every one of them can unwind, and running them *after* the refusal is
-    // decided put four foreign steps between the decision and the carriers that report it: an
-    // unwind there published the probe latch and neither the trip count nor the poison boundary,
-    // so a host that caught it inside an `attempt` and left — declining, or committing another
-    // branch — without re-entering the scanner saw two clean carriers and reported a **successful
-    // parse over input the budget had silently dropped**. `next` folds a terminal stop into
-    // `Ok(None)`, so the counter was the consumer's only evidence, and it was not written.
-    // Measured on `4e09636`, ceiling 2 over a four-item source: the derivation's `Cache::back`
-    // (#7 of 7) and its `L::Offset::clone` (#13 of 13) each returned `(2 items kept, probe spent,
-    // 0 trips, not poisoned)` on the committing exit
-    // (`a_refusal_survives_a_panicking_cache_back_in_its_boundary_derivation` and its
-    // `..._offset_clone_...` sibling).
+    // and clamping it against an existing latch is a fourth, `Offset::Ord`. Every one of them can
+    // unwind, and running them *after* the refusal is decided would put four foreign steps between
+    // the decision and the carriers that report it: an unwind there would publish the probe latch
+    // and neither the trip count nor the poison boundary, so a host that caught it inside an
+    // `attempt` and left — declining, or committing another branch — without re-entering the
+    // scanner would see two clean carriers and report a **successful parse over input the budget
+    // had silently dropped**. `next` folds a terminal stop into `Ok(None)`, so the counter is the
+    // consumer's only evidence. With the derivation after the decision, at ceiling 2 over a
+    // four-item source, the derivation's `Cache::back` (#7 of 7) and its `L::Offset::clone`
+    // (#13 of 13) each return `(2 items kept, probe spent, 0 trips, not poisoned)` on the
+    // committing exit (`a_refusal_survives_a_panicking_cache_back_in_its_boundary_derivation` and
+    // its `..._offset_clone_...` sibling).
     //
     // Hoisting is free of meaning: `Lexer::lex` cannot touch `self`, so the offset — and the
     // boundary derived from it — is the same value on either side of the call. It costs one
@@ -1654,14 +1654,12 @@ where
     // increment and one `mem::replace`; the boundary's derivation and clamp are already done, and
     // the refused item does not exist yet.
     //
-    // That ordering is what the probe calling `Lexer::lex` directly bought and what this
-    // completes. `Lexed::lex_spanned`'s second half is `Lexer::span` — caller code between the
-    // item's production and the latch — and an unwind there left the probe unspent with the lexer
-    // already advanced: measured on `2f74187`, 4 / 16 / 256 retries funded 4 / 16 / 256
-    // `Lexer::lex` calls at a ceiling of zero
-    // (`a_panicking_lexer_span_cannot_un_latch_the_one_shot_probe`). That cell used to accept a
-    // residual — the item was materialised before the trip count, so its `span` unwind deferred
-    // the stop by one entry. There is no residual now: the item is built after every write.
+    // That ordering is why the probe calls `Lexer::lex` directly. `Lexed::lex_spanned`'s second
+    // half is `Lexer::span` — caller code between the item's production and the latch — and an
+    // unwind there would leave the probe unspent with the lexer already advanced: 4 / 16 / 256
+    // retries funding 4 / 16 / 256 `Lexer::lex` calls at a ceiling of zero
+    // (`a_panicking_lexer_span_cannot_un_latch_the_one_shot_probe`). The item is built after every
+    // write, so its `span` unwind cannot defer the stop either.
     self.token_budget.latch_limit_probe();
     let displaced = self.publish_scanner_trip(stop);
     // Every durable fact is published, so consumer code may run again. The displaced boundary's
@@ -1821,10 +1819,10 @@ where
     // `Result<(), Token::Error>` — a **consumer-typed value, built inside the condition that
     // decides terminality** — and the scrutinee of an `if` is a temporary that dies at the end of
     // the condition, before the branch is entered. `Token::Error` is bounded `Clone + Debug` and
-    // nothing more, so that destructor is caller code and it used to run between the decision and
-    // both writes the decision obliges. Measured on `0f13f31`: a host that caught the unwind
-    // inside an `attempt` and committed reported `Ok` over **two of four** items with zero trips
-    // counted and the input unpoisoned — `(2 kept, 1 check error, 0 trips, not poisoned)`,
+    // nothing more, so that destructor is caller code, and tested-and-discarded it would run
+    // between the decision and both writes the decision obliges: a host that caught the unwind
+    // inside an `attempt` and committed would report `Ok` over **two of four** items with zero
+    // trips counted and the input unpoisoned — `(2 kept, 1 check error, 0 trips, not poisoned)`,
     // `a_limit_trip_is_all_or_nothing_at_every_lexer_error_destructor` at `Token::Error` drop #1
     // of 2.
     //
@@ -1884,9 +1882,8 @@ where
   /// It takes a [`StagedTrip`], and [`StagedTrip::stage`] is the only expression in the language
   /// that produces one: the type is a newtype over a representation private to the
   /// [`staged_trip`] module, so the comparison is already decided before this is callable and no
-  /// call site can forge a stop that skipped it. That is a **compiler** fact now; until R25 it was
-  /// a sentence in this paragraph, and a bare `enum` in `mod.rs` whose variants every descendant
-  /// of `input_ref` could name.
+  /// call site can forge a stop that skipped it. That is a **compiler** fact, not a sentence in
+  /// this paragraph.
   ///
   /// What is left is a `u64` increment and one `Option::replace` — which *is* `mem::replace`, a
   /// move, not an assignment. `*self.poison_boundary = Some(..)` would drop the displaced
@@ -1933,7 +1930,7 @@ where
   /// boundary — is deliberate: the reading is per attempt, and a second trip inside a later
   /// attempt must not compare equal to that attempt's baseline just because the position it
   /// latched is one an earlier trip had already reached. **Saturating** for the same reason the
-  /// descent counter is, and it used to wrap for the same wrong reason: an inequality against a
+  /// descent counter is, and wrapping would be wrong for the same reason: an inequality against a
   /// per-attempt baseline needs consecutive values to differ, which wrapping gives, but it also
   /// needs the value never to return to a baseline after a positive number of trips, which
   /// wrapping does not. See [`TRIP_COUNTER_EXHAUSTED`](super::TRIP_COUNTER_EXHAUSTED).
@@ -2221,10 +2218,10 @@ where
   /// still has a single home.
   #[inline(always)]
   fn commit_token(&mut self, tok: &L::Token, span: &L::Span, state: L::State) {
-    // The state travels WITH the span. It used to be the caller's job to write it on the next
-    // line, at sixteen call sites, and a caller that forgot published half a position: a
-    // committed span paired with the lexer state of somewhere else. Taking it here makes that
-    // unrepresentable rather than censused.
+    // The state travels WITH the span. Leaving it to the caller to write on the next line, at
+    // sixteen call sites, would let a caller that forgot publish half a position: a committed span
+    // paired with the lexer state of somewhere else. Taking it here makes that unrepresentable
+    // rather than censused.
     //
     // SETTLE_CENSUS: the clamp — the settle's ONE fallible step — runs here, and the two halves
     // below cannot fail. Split for the same reason `replace_position` is split from
@@ -2875,9 +2872,9 @@ where
   ///
   /// # It is not merely the chosen policy — it is the only buildable one
   ///
-  /// The deferral that carried this to the end of the campaign was framed as a *policy
-  /// decision* between commit, rollback and a hybrid. Two of those three are not available from
-  /// this drop site, which turns the decision into a structural fact plus a naming duty.
+  /// This reads like a *policy decision* between commit, rollback and a hybrid, but two of those
+  /// three are not available from this drop site, which turns the decision into a structural fact
+  /// plus a naming duty.
   ///
   /// `Session::drop` holds the lineage and the emitter, so it can release marks and pins. It
   /// does **not** hold the input itself: it cannot restore the span, the
@@ -2890,7 +2887,7 @@ where
   /// A `debug_assert!(points.is_empty())` on drop is also rejected, and for a reason worth
   /// stating rather than leaving as taste: abandonment via `?` through an enclosing rollback is
   /// a **legal** history, and an assert that fires on legal histories is exactly the class this
-  /// crate has spent the campaign narrowing.
+  /// crate works to eliminate.
   ///
   /// So: an abandoned session point commits. Handle death keeps committed progress and releases
   /// the point's mark; a point you need rolled back must be settled by
@@ -3852,18 +3849,17 @@ where
     // SETTLE_CENSUS — the rollback in two phases, because staging every dying value is not
     // available here and ordering is.
     //
-    // Every finding in this body had one shape: some owned value died while the rollback was
-    // half-done. The first repair staged the values the body DISPLACES (the parked entry, the
-    // watermark, the latch, the replaced pair) into one drop site. The next showed there is a
-    // second source it cannot reach — the values the body EVICTS: `reconcile_cache_geometry`
-    // drops cache entries through `clear`/`pop_front`, the tail prune through `pop_back`, and
-    // `abandon_points_above` drops whole `Checkpoint`s (each owning `L::Span` AND `L::State`)
-    // through `forget_kept_checkpoint`. None of those are values this body holds, so no drop site
-    // can collect them, and a staging buffer is not an option: checkpoints work in
-    // allocator-less builds, where there is nowhere to put an unbounded number of evicted
-    // entries.
+    // Every hazard in this body has one shape: some owned value dies while the rollback is
+    // half-done. Staging the values the body DISPLACES (the parked entry, the watermark, the latch,
+    // the replaced pair) into one drop site covers one source; there is a second it cannot reach —
+    // the values the body EVICTS: `reconcile_cache_geometry` drops cache entries through
+    // `clear`/`pop_front`, the tail prune through `pop_back`, and `abandon_points_above` drops
+    // whole `Checkpoint`s (each owning `L::Span` AND `L::State`) through `forget_kept_checkpoint`.
+    // None of those are values this body holds, so no drop site can collect them, and a staging
+    // buffer is not an option: checkpoints work in allocator-less builds, where there is nowhere to
+    // put an unbounded number of evicted entries.
     //
-    // So the fix is the order, not the buffer. Everything that runs caller code happens in
+    // So the answer is the order, not the buffer. Everything that runs caller code happens in
     // PHASE 1, while the input is still wholly on the branch being abandoned — a panic there
     // leaves it there, which is precisely the "unchanged" half of all-or-nothing. PHASE 2 then
     // installs every fact with no caller code among them at all. The cache evictions are safe to
@@ -3920,18 +3916,17 @@ where
     // ── CENSUS_PHASE_BOUNDARY — the restore. No caller code below this line except
     // `Emitter::rewind`.
     //
-    // That admission used to rest on the trait contracting `rewind` as non-panicking here. It
-    // no longer does: an emitter that can DETECT an unpaired settle may report it when no
-    // unwind is in flight (see `Emitter::rewind`'s mid-unwind contract), and the recording CST
-    // `Sink` takes that door. So the exception is now a known, measured hole rather than a
-    // proof — a panic from the rewind below leaves the lineage popped through the target id
-    // while the position, the three facts and the cache-push counter are never installed. That
-    // is a torn restore, and reordering this phase cannot close it: phase 1 has already
-    // abandoned the session points above the target and cleared the parked slot, neither of
-    // which is recoverable either. It is reachable only through the same double-settle bug the
-    // emitter is reporting, and only after that bug has already made the parse wrong.
-    // `restore_unchecked_is_not_transactional_across_the_settle_wall` in `cst/sink/tests.rs`
-    // pins both halves so the hole stays measured rather than assumed away. ──
+    // That admission cannot rest on the trait contracting `rewind` as non-panicking here: an
+    // emitter that can DETECT an unpaired settle may report it when no unwind is in flight (see
+    // `Emitter::rewind`'s mid-unwind contract), and the recording CST `Sink` takes that door. So
+    // the exception is a known, measured hole rather than a proof — a panic from the rewind below
+    // leaves the lineage popped through the target id while the position, the three facts and the
+    // cache-push counter are never installed. That is a torn restore, and reordering this phase
+    // cannot close it: phase 1 has already abandoned the session points above the target and
+    // cleared the parked slot, neither of which is recoverable either. It is reachable only through
+    // the same double-settle bug the emitter is reporting, and only after that bug has already made
+    // the parse wrong. `restore_unchecked_is_not_transactional_across_the_settle_wall` in
+    // `cst/sink/tests.rs` pins both halves so the hole stays measured rather than assumed away. ──
     #[cfg(any(feature = "std", feature = "alloc"))]
     self.live_pop_through(ckp_id);
     self.emitter().rewind(&cursor, emitter_checkpoint);
@@ -4195,7 +4190,7 @@ where
   ///   contract violation. [`Lexer::read_frontier`] states the relation this way, and this comment
   ///   must not restate it as a duty;
   /// - a **buggy** lexer's `ReadTo(0)` would, unfloored, yield an item the pre-0.10.0 holdback
-  ///   withheld — a regression introduced by the fix.
+  ///   withheld — a regression against that release.
   ///
   /// One comparison answers both: `effective = max(span.end, reported)` makes monotonicity a
   /// property of this function rather than of the ecosystem, so an under-report costs precision
@@ -4613,7 +4608,7 @@ where
 /// rounds, with the four competitor parsers compiled into the same binaries as controls (all
 /// within 0.5 % of 1.00). Changing **only** this return type takes an unbudgeted parse from
 /// **1.198×** the pre-budget commit to **1.125×**: **−6.1 %**, which is 37 % of the whole cost the
-/// budget added. The same ablation priced the arithmetic this repair does *not* touch — the
+/// budget added. The same ablation priced the arithmetic this shape does *not* touch — the
 /// exhaustion compare is +1.3 %, the `spend()` store is 0.0 %, and the per-driver gate's `bool`
 /// load is 0.0 %. The price was never the counter.
 enum MetCeiling {

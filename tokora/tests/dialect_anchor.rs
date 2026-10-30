@@ -22,7 +22,7 @@
 //! then checked to compile with the block intact. A rail that only ever ran in its passing state
 //! would prove nothing.
 //!
-//! **`PunctuatorToken` is deliberately *not* pinned here, and the reason is a finding.** A real
+//! **`PunctuatorToken` is deliberately *not* pinned here, for a reason worth recording.** A real
 //! dialect pins it — the consumer's does, alongside `IdentifierToken` and `KeywordToken` — but
 //! in *this* file it would not be load-bearing: the only production that needs a punctuator
 //! classification is the delimited one, and it already carries `Brace<…>: TypedDelimiter<…>`, which

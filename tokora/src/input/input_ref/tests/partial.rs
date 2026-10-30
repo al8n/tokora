@@ -1805,9 +1805,8 @@ fn try_expect_poison_at_frontier_beats_incomplete() {
 // ── The combinator Lego under both modes (the chain oracle) ──────────────────────────
 //
 // ONE `Cmpl`-generic CHAIN — free leaf atom → adapter → try-driven collection — assembled
-// once and driven under Complete AND Partial-chunked to equivalence. This is the test the
-// probe could not run: it needs the whole atoms wave (threaded builder returns, A-class
-// leaf impls, B-class collection impls) to compose.
+// once and driven under Complete AND Partial-chunked to equivalence. It needs the threaded
+// builder returns, the leaf atom impls and the try-driven collection impls together to compose.
 
 /// The write-once Lego chain, assembled INSIDE one `Cmpl`-generic fn (the corpus's
 /// parser-fn shape) and driven under both modes: `expect(word) → map(kind) → repeated →
@@ -2140,9 +2139,9 @@ fn probe_close_carries_the_closer_out_and_commit_probed_advances() {
   // An accepting probe takes the closer OUT of the input (carried in the `Close`
   // payload), and `commit_probed` settles it by value — advancing the cursor over it
   // with no re-scan. After the commit a follow-up `next()` sees the input exhausted: the
-  // closer is not left behind for a re-lex (the blackhole-cache double-scan the fix
-  // removes). This replaces the old "probe never advances / follow-up next() re-yields
-  // the closer" contract, which the carry-out changes for the `Close` case.
+  // closer is not left behind for a re-lex (the blackhole-cache double-scan). For the `Close`
+  // case the carry-out supersedes a "probe never advances / follow-up next() re-yields the
+  // closer" contract.
   let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_context(
     "a",
     (),
@@ -2173,14 +2172,15 @@ fn probe_close_carries_the_closer_out_and_commit_probed_advances() {
 fn commit_probed_lexes_the_closer_once_under_every_cache() {
   // The `separated_while` fallback: its delimited driver commits the closer via
   // the in-loop `try_expect` whenever it is at the cursor, so the `probe_close` Close arm —
-  // the Shape-B site this fix changes — is not reachable through the driver on a valid list.
+  // the Shape-B site — is not reachable through the driver on a valid list.
   // Pin the arm's *mechanism* directly instead, with a shared scan counter: `probe_close`
   // classifies the closer by lexing it ONCE, and `commit_probed` settles that carried token
   // by value with no re-lex, under the blackhole `()` cache and `DefaultCache` alike. (The
   // `sep` family reaches the identical Shape-B site through the driver — see
-  // `tests/probe_close_no_rescan.rs`; pre-fix, `()` re-lexed the closer for a tally of 2.)
+  // `tests/probe_close_no_rescan.rs`; a push-back shape re-lexes the closer under `()` for a
+  // tally of 2.)
 
-  // Blackhole `()` cache: the pre-fix push-back-then-`try_expect` re-lexed the closer.
+  // Blackhole `()` cache: a push-back-then-`try_expect` shape would re-lex the closer here.
   let tracker = LimitTracker::with_limit(usize::MAX);
   let scanned = tracker.counter();
   let mut input = Input::<LimLex<'_>, (Verbose<PErr>, ()), (), Complete>::with_state_and_context(
@@ -2243,7 +2243,7 @@ fn commit_probed_lexes_the_closer_once_under_every_cache() {
   // Additive pins, stated plainly: the property is believed to hold today (`ClosePayload::
   // Scanned` settles by value and `CacheFront` pops the front, neither of which reads the
   // capacity). The defect is missing evidence, and these are the evidence. A red cell here
-  // would be a new finding.
+  // would be a new defect.
   let tracker = LimitTracker::with_limit(usize::MAX);
   let scanned = tracker.counter();
   let mut input = Input::<

@@ -219,8 +219,8 @@
 //! and re-invoke the skeleton from inside the caller's own hole; the result would be the least
 //! readable macro in the crate, to retire about eight scattered lines per driver.
 //!
-//! **Why the price is not paid anyway.** The extraction was measured, in the function shape, on
-//! 2026-08-22: it preserved behaviour and moved three witnessed instruction-count rows —
+//! **Why the price is not paid anyway.** The extraction was measured, in the function shape: it
+//! preserves behaviour and moves three witnessed instruction-count rows —
 //! `at_least` +2.383%, `at_most_shallow` +1.214% (aarch64) / +1.030% (x86_64), `at_most` +0.535% —
 //! while nine rows read +0.000%. The cost is a codegen re-roll rather than a semantic tax
 //! (`try_element_cycle!`'s own documentation carries the evidence), so it lands unpredictably, per

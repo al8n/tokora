@@ -271,7 +271,7 @@ fn diagnostics(emitter: &Verbose<SErr>) -> usize {
   emitter.errors().values().flatten().count()
 }
 
-// ── T-15: the budget bounds cumulative work, and a terminal trip latches ───────
+// ── The budget bounds cumulative work, and a terminal trip latches ─────────────
 
 /// The budget refuses **before any work** once Σ attempt-lexable bytes would pass the cap,
 /// and the refusal is terminal.
@@ -436,11 +436,10 @@ fn the_by_value_tally_accumulates_within_an_attempt_and_resets_between_them() {
   );
 }
 
-// ── T-15b(a)/(c): cross-attempt diagnostic completeness ────────────────────────
+// ── Cross-attempt diagnostic completeness ──────────────────────────────────────
 
-/// **T-15b(a).** With the ordinary by-value ctx — a fresh collector per attempt — the
-/// **final** attempt's emitter is the complete story, because a from-base attempt re-derives
-/// every diagnostic from byte 0.
+/// With the ordinary by-value ctx — a fresh collector per attempt — the **final** attempt's emitter
+/// is the complete story, because a from-base attempt re-derives every diagnostic from byte 0.
 ///
 /// Falsified by: a final count that differs from the one-shot parse's count.
 #[test]
@@ -488,9 +487,9 @@ fn session_diagnostics_are_complete_across_attempts() {
   );
 }
 
-/// **T-15b(c).** Threading ONE collector through the by-value ctx is callable, and it
-/// **duplicates** the prefix's diagnostics once per attempt: complete-but-noisy, never
-/// lossy. Disclosed and pinned rather than claimed impossible.
+/// Threading ONE collector through the by-value ctx is callable, and it **duplicates** the prefix's
+/// diagnostics once per attempt: complete-but-noisy, never lossy. Disclosed and pinned rather than
+/// claimed impossible.
 ///
 /// The payload puts `@` mid-buffer in the FIRST attempt, so duplication and exactly-once
 /// give different numbers. Falsified by: a final count equal to the one-shot count (which is
@@ -527,10 +526,10 @@ fn threaded_collector_duplicates_rather_than_loses() {
   );
 }
 
-// ── T-17: the no-session path keeps its documented Θ ───────────────────────────
+// ── The no-session path keeps its documented Θ ─────────────────────────────────
 
 /// `parse_partial` re-drives the **whole prefix** every attempt. Pinned as documented
-/// behavior, not as an open defect: the docs now state the Θ and the session exists.
+/// behavior, not as an open defect: the docs state the Θ and the session exists.
 ///
 /// The instrument needs no counter. Hold the limiter at **one** word while the prefix grows:
 /// from the second attempt on the drain is cut to two words, because the attempt re-lexed

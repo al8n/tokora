@@ -405,7 +405,7 @@ const N: usize = 512;
 ///
 /// This is the measurement the unit "one charge per accepted item" was rejected on: the accept
 /// count is `1` and does not move with `N`, so a ceiling denominated in accepts sees none of it.
-/// Measured at `a9ed3de` over `N` in {64, 128, 512, 2048}: `accepted` stayed `1` while `scans` ran
+/// Measured over `N` in {64, 128, 512, 2048}: `accepted` stays `1` while `scans` runs
 /// {66, 130, 514, 2050} and `diagnostics` {64, 128, 512, 2048}.
 #[test]
 fn an_error_flood_is_one_accept_and_o_n_work_when_the_budget_is_unbounded() {
@@ -428,7 +428,7 @@ fn an_error_flood_is_one_accept_and_o_n_work_when_the_budget_is_unbounded() {
 }
 
 /// The same input under a **bounded** budget: the flood is cut at the ceiling. `charged` is the
-/// figure that moved with `N` above and does not move now, which is the whole of the fix.
+/// figure that moves with `N` above and does not move here, which is what the budget is for.
 #[test]
 fn a_bounded_budget_charges_the_error_flood_and_stops_it() {
   const B: usize = 8;
@@ -738,23 +738,24 @@ enum Reopen {
   SetState,
   /// [`InputRef::state_mut`], which runs the identical re-key before handing out the `&mut`.
   StateMut,
-  /// [`InputRef::sync_through`], a **fourth** boundary-clearing route the finding did not name: a
-  /// rewinding sync snapshots the boundary in its own positional memo (`ThroughEntry`, not a
-  /// `Checkpoint`) and `restore_entry` puts it back on the no-match exit — a door the checkpoint
-  /// machinery knows nothing about.
+  /// [`InputRef::sync_through`], a **fourth** boundary-clearing route: a rewinding sync snapshots
+  /// the boundary in its own positional memo (`ThroughEntry`, not a `Checkpoint`) and
+  /// `restore_entry` puts it back on the no-match exit — a door the checkpoint machinery knows
+  /// nothing about.
   ///
-  /// Measured, it is **not** a fourth attack: under the pre-fix ordering it cost a *constant* `1`
-  /// lexer call at a zero budget and `5` at `B = 4`, flat across 4, 16 and 256 rounds, where the
-  /// three rollback routes grew one per round. A refusal exits through the scan's **trip** exit,
-  /// which keeps its progress and never reaches the rewinding restore, so the boundary it latched
-  /// survives the call and the next round stops at it. The row is kept because that argument is
-  /// about which *exit* a refusal takes — a property of the sync drivers, not of the budget — and
-  /// the row is what would notice it changing.
+  /// Measured, it is **not** a fourth attack: even with the ceiling asked after the lex, it costs
+  /// a *constant* `1` lexer call at a zero budget and `5` at `B = 4`, flat across 4, 16 and 256
+  /// rounds, where the three rollback routes grow one per round. A refusal exits through the
+  /// scan's **trip** exit, which keeps its progress and never reaches the rewinding restore, so the
+  /// boundary it latched survives the call and the next round stops at it. The row is kept because
+  /// that argument is about which *exit* a refusal takes — a property of the sync drivers, not of
+  /// the budget — and the row is what would notice it changing.
   ///
-  /// Those two pre-fix figures are now what **all four** rows read, and the coincidence is worth
-  /// not misreading: this row measured `1` and `5` because a refusal kept the boundary it latched,
-  /// and every row measures them now because the ceiling funds exactly one at-limit probe. Same
-  /// numbers, different mechanism — which is precisely why the row still earns its place.
+  /// Those two figures are what **all four** rows read with the preflight in place, and the
+  /// coincidence is worth not misreading: this row reads `1` and `5` without the preflight because
+  /// a refusal keeps the boundary it latched, and every row reads them with it because the ceiling
+  /// funds exactly one at-limit probe. Same numbers, different mechanism — which is precisely why
+  /// the row still earns its place.
   SyncThrough,
 }
 
@@ -834,7 +835,7 @@ fn sweep(src: &str, budget: TokenBudget) -> [[(usize, usize); 3]; 4] {
 /// re-opened. One is not a weaker claim than zero: what an attack needs is a call *per round*, and
 /// the cell is flat in the round count.
 ///
-/// Falsifying output, measured against the pre-fix ordering (the ceiling asked *after* the lex):
+/// Falsifying output, measured with the ceiling asked *after* the lex:
 /// the scan count tracks the round count exactly — `(4, 0)`, `(16, 0)`, `(256, 0)` on the three
 /// rollback rows — while `spent` stays `0`, because a refusal is not a charge. A ceiling that
 /// authorizes nothing was funding one full lexer invocation per public call, and the attacker paid
@@ -857,9 +858,10 @@ fn a_zero_budget_funds_one_probe_however_often_the_stop_is_reopened() {
 /// is **invariant in the round count** — which is what "the budget bounds the work" actually
 /// consists of.
 ///
-/// Falsifying output, measured against the pre-fix ordering: `B + rounds` scans — `(8, 4)`,
-/// `(20, 4)`, `(260, 4)` at `B = 4` on the three rollback rows. The counter was durable and the
-/// enforcement was not, so `spent` sat pinned at the ceiling while the lexer ran without bound.
+/// Falsifying output, measured with the ceiling asked after the lex: `B + rounds` scans —
+/// `(8, 4)`, `(20, 4)`, `(260, 4)` at `B = 4` on the three rollback rows. The counter is durable
+/// and that enforcement is not, so `spent` sits pinned at the ceiling while the lexer runs without
+/// bound.
 /// The `SyncThrough` row read a flat `(5, 4)`: see [`Reopen`].
 #[test]
 fn an_exhausted_budget_funds_one_probe_however_often_the_stop_is_reopened() {
@@ -874,7 +876,7 @@ fn an_exhausted_budget_funds_one_probe_however_often_the_stop_is_reopened() {
 /// The re-opened stop is still **terminal** on every round: clearing the boundary buys a fresh
 /// *check*, never a fresh lex, and the check refuses.
 ///
-/// Guards the repair against the lazy fix of simply never re-latching: a preflight that refuses
+/// Guards against the lazy alternative of simply never re-latching: a preflight that refuses
 /// without recording the stop would leave a committed consume reporting a plain, non-terminal end
 /// of input, and a `PartialSession` would redrive on it forever.
 #[test]
@@ -950,10 +952,10 @@ fn drive_skip<'inp>(
 /// **Plant.** A budget of **zero** over an **empty** source. There is no item, so there is nothing
 /// to refuse: the answer is a genuine end of input.
 ///
-/// Falsifying output, measured against the preflight as it landed in `7a28068`:
+/// Falsifying output, measured against a preflight that asks `spent >= max` before it knows
+/// whether an item exists, so that its answer is a property of the counter alone:
 /// `Err(Eot(true))` — a ceiling that has refused nothing reporting a *terminal* stop over a source
-/// with nothing in it. The preflight asked `spent >= max` before it knew whether an item existed,
-/// so its answer was a property of the counter alone.
+/// with nothing in it.
 /// Read through the **committed** consume, deliberately: [`InputRef::next`] folds a terminal stop
 /// and a genuine end of input into the same `Ok(None)`, so it cannot see this defect at all.
 #[test]
@@ -986,9 +988,9 @@ fn a_zero_budget_over_an_empty_source_is_end_of_input_not_exhaustion() {
 /// ceiling of exactly the source's item count. After the last item the lex position *is* the end
 /// of the source, so the next step is an end of input — not the `max + 1`-th item being refused.
 ///
-/// Falsifying output, measured against `7a28068`: `Err(Eot(true))` after four items on a
-/// four-item source. A terminal-aware consumer rejects a document it fully parsed, and a
-/// `PartialSession` latches on it permanently.
+/// Falsifying output, measured against that counter-only preflight: `Err(Eot(true))` after four
+/// items on a four-item source. A terminal-aware consumer rejects a document it fully parsed, and
+/// a `PartialSession` latches on it permanently.
 #[test]
 fn a_budget_met_exactly_at_the_last_item_reports_a_genuine_end_of_input() {
   fn drive<'inp>(inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>) -> Result<usize, Err_> {
@@ -1063,8 +1065,9 @@ fn a_ceiling_of_one_ends_on_a_one_item_source_and_refuses_on_a_longer_one() {
 /// last token of `"aa  "` the lex position is `2` and the source length is `4`, so the positional
 /// test says input remains — and no item does. Only running the lexer once can tell the two apart.
 ///
-/// Falsifying output, measured against `7a28068`: `Err(Eot(true))` after two items. This is the
-/// shape almost every real lexer has, so it is the shape a calibrated ceiling meets in the field.
+/// Falsifying output, measured against that counter-only preflight: `Err(Eot(true))` after two
+/// items. This is the shape almost every real lexer has, so it is the shape a calibrated ceiling
+/// meets in the field.
 #[test]
 fn a_tail_the_lexer_skips_is_an_end_of_input_not_a_met_ceiling() {
   reset_scans();
@@ -1135,29 +1138,27 @@ fn a_probe_that_found_no_item_leaves_the_end_of_input_answer_stable() {
 
 // ── 6. The tally is the input's, and only the ceiling crosses the door ────────────────────────
 //
-// A budget is two things that were one type until this section existed: the **ceiling** a caller
-// configures, and the **tally** one `Input` keeps against it. `TokenBudget` is the first and is
-// `Copy`, because both `with_token_budget` doors are public and take it by value.
-// `TokenBudgetTally` is the second and is neither `Clone` nor `Copy`, has no public constructor,
-// and is reachable only by reference through `InputRef::token_budget`.
+// A budget is two things, kept as two types: the **ceiling** a caller configures, and the **tally**
+// one `Input` keeps against it. `TokenBudget` is the first and is `Copy`, because both
+// `with_token_budget` doors are public and take it by value. `TokenBudgetTally` is the second and
+// is neither `Clone` nor `Copy`, has no public constructor, and is reachable only by reference
+// through `InputRef::token_budget`.
 //
-// While they were one type, `Copy` carried the live cell through the doors. The reviewer's path,
-// reproduced at `6aa0b08`: drain a parse under a ceiling of 2 until it refuses, `*inp
-// .token_budget()` the value out, hand it to a **fresh** parse over an **empty** source. Through
-// `ParserContext::with_token_budget` and through a caller-written `ParseContext` reaching
-// `InputContext::with_token_budget`, both read
-// `(outcome: Err(terminal), refused_an_item: true, scans: 0)` — the first driver gate counted a
-// scanner trip and reported a terminal stop, with `Lexer::lex` never invoked in that input, on an
-// empty source. The redrive variant fed the same value to a second `PartialSession` attempt and
-// read `items=0 refused_an_item=true scans=0`.
+// As one type, `Copy` would carry the live cell through the doors. The path: drain a parse under a
+// ceiling of 2 until it refuses, copy `*inp.token_budget()` out, hand it to a **fresh** parse over
+// an **empty** source. Through `ParserContext::with_token_budget` and through a caller-written
+// `ParseContext` reaching `InputContext::with_token_budget`, both read
+// `(outcome: Err(terminal), refused_an_item: true, scans: 0)` — the first driver gate counts a
+// scanner trip and reports a terminal stop, with `Lexer::lex` never invoked in that input, on an
+// empty source. The redrive variant feeds the same value to a second `PartialSession` attempt and
+// reads `items=0 refused_an_item=true scans=0`.
 //
 // That is the counter's own defect pointed backwards. The rest of this suite exists because a
 // rollback must not refund work that happened; this section exists because a transplant must not
 // fabricate work that did not.
 //
-// The cells below carry the reviewer's path as far as the API still allows — a caller can copy the
-// ceiling, and there is nothing else left to copy — and verify each of the three bounds written at
-// the accessor.
+// The cells below carry that path as far as the API allows — a caller can copy the ceiling, and
+// there is nothing else left to copy — and verify each of the three bounds written at the accessor.
 
 /// A caller-written [`ParseContext`] reaching [`InputContext::with_token_budget`] directly: the
 /// second public door, and the one a `ParserContext` cell alone would not cover.
@@ -1228,8 +1229,8 @@ fn fresh(outcome: Result<(usize, bool, usize), Err_>, scans: usize) -> Fresh {
 /// Drains a parse to its refusal and hands back **everything a caller can still carry out of it**.
 ///
 /// That is the ceiling and nothing else. `inp.token_budget()` is a `&TokenBudgetTally`, which has
-/// no `Clone`, no `Copy` and no public constructor, so `*inp.token_budget()` does not compile:
-/// at `6aa0b08` it did, and it is what made the transplant possible.
+/// no `Clone`, no `Copy` and no public constructor, so `*inp.token_budget()` does not compile — and
+/// a copy out of the accessor is what would make the transplant possible.
 fn refuse_and_carry_the_ceiling() -> TokenBudget {
   fn drain<'inp>(inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>) -> Result<usize, Err_> {
     while inp.next()?.is_some() {}
@@ -1384,9 +1385,8 @@ fn a_fresh_input_refuses_nothing_it_was_not_asked_to_and_still_refuses_what_it_w
 /// into `Ok(None)` — so the session does **not** latch and a second attempt really runs. Attempt 2
 /// is then given everything attempt 1 left a caller holding, which is the ceiling.
 ///
-/// Falsifying output at `6aa0b08`, with `*inp.token_budget()` supplied as attempt 2's context:
-/// `items=0 refused_an_item=true scans=0`. The bound was written at the accessor while it was
-/// false.
+/// Falsifying output with a copyable tally, `*inp.token_budget()` supplied as attempt 2's context:
+/// `items=0 refused_an_item=true scans=0`.
 #[test]
 fn a_redrive_starts_its_tally_at_zero_and_lexes() {
   fn drain<'inp>(

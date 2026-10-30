@@ -988,17 +988,15 @@ fn rw_at_least_zero_fatal_is_unclosed() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Finding 2 — delimited `repeated_while`, `Action::Stop`, RECOVERING emitter.
+// Delimited `repeated_while`, `Action::Stop`, RECOVERING emitter.
 //
-// The delimited `repeated_while` driver used to emit the primary close diagnostic on
-// the `Action::Stop` path and then return WITHOUT running the repeated end handler
-// (`on_stop`). Under a fail-fast emitter the primary short-circuits, so the omission
-// was invisible; under a RECOVERING emitter it silently dropped the secondary
-// `TooFew`/bounds diagnostic (the plain, non-delimited `repeated_while` driver runs
-// it). The fix runs `on_stop` after the primary — the same primary-then-secondary
-// order the separated drivers established. `assert_unclosed_first` requires BOTH an
-// `Unclosed` (first) AND at least one secondary, so it was red before the fix
-// (no secondary) and is green after.
+// On the `Action::Stop` path the delimited `repeated_while` driver emits the primary close
+// diagnostic and then runs the repeated end handler (`on_stop`). Returning without it is
+// invisible under a fail-fast emitter, where the primary short-circuits, and under a RECOVERING
+// emitter silently drops the secondary `TooFew`/bounds diagnostic (the plain, non-delimited
+// `repeated_while` driver runs it). `on_stop` runs after the primary — the same
+// primary-then-secondary order the separated drivers use. `assert_unclosed_first` requires BOTH
+// an `Unclosed` (first) AND at least one secondary, so a driver that skips `on_stop` reds it.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // at_least with ZERO elements: `[` at EOF ⇒ Unclosed FIRST, then TooFew(0, 1).

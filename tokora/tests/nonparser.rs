@@ -871,10 +871,9 @@ fn branch_id() {
 /// the dispatch below uses, through a helper that takes the array by reference and never names
 /// `RangedUsize` at all.
 ///
-/// Before: `Id = RangedUsize<0, 2>`, so `new(0)` was `Some` (a legal id) and `new(2)` was
-/// `Some` — the over-admission, one past the last index, and a panic on dispatch.
-/// After: `Id = RangedUsize<1, 2>`, so `new(0)` and `new(3)` are both `None` and every value
-/// that exists is a valid index.
+/// `Id = RangedUsize<0, 2>` would make `new(0)` `Some` (a legal id) and `new(2)` `Some` — the
+/// over-admission, one past the last index, and a panic on dispatch. `Id = RangedUsize<1, 2>`
+/// makes `new(0)` and `new(3)` both `None`, and every value that exists is a valid index.
 #[test]
 fn array_choice_id_rejects_the_boundary() {
   /// Projects the array impl's `Id` and reports which of the four boundary values construct.

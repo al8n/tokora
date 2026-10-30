@@ -187,7 +187,7 @@ where
 //   +  infix Left        5   (SAME power as `;`, different associativity)
 //   /  postfix           5   (same power again, and postfix folds never touch the latch)
 //   ,  infix Left        2   (below `;`: folding one clears the latch)
-//   =  infix Right       1   (the enclosing operator that makes E2's misparse possible)
+//   =  infix Right       1   (the enclosing operator that makes the reassociation possible)
 
 const P_PREFIX: Power = Power(100);
 const P_HIGH: Power = Power(9);
@@ -364,9 +364,9 @@ where
 /// The middle field is the contract. `NonAssociativeChain::offset` is *defined* as the position
 /// the input was handed back at, so the claim a cell makes is `at == frontier` — and the frontier
 /// is **read**, from `InputRef::span().end()`, never assumed. The third field is the observable
-/// that kept drifting away from it: three review rounds derived the offset from something near the
-/// first token a scan can produce, and trivia, a multi-token operator's gap and a skipped lexer
-/// error each pushed that token past the position the caller was actually handed.
+/// that drifts away from it: an offset derived from something near the first token a scan can
+/// produce is wrong whenever trivia, a multi-token operator's gap or a skipped lexer error pushes
+/// that token past the position the caller was actually handed.
 ///
 /// The frontier is read **before** the token, because reading a token moves both.
 type Resumption = (usize, usize, Option<usize>);
@@ -708,22 +708,19 @@ fn limited<'inp>(limit: usize) -> ParserContext<'inp, TestLexer<'inp>, Fatal<Lim
 /// | 2 | 61.38s |
 ///
 /// `ci`'s failing leg is `x86_64-unknown-linux-gnu` on a shared runner, a different host and
-/// architecture than the one above, and it was already landing intermittently past the *native*
-/// 120s bound — over 1.7× the slower reading here — before this fix, so a small multiple would
-/// only relocate the same flake. ×10 over the slower reading (685.6s, rounded up to 700) absorbs
-/// that cross-host gap and ordinary scheduler noise while staying a bounded timeout: a genuine
-/// hang is still caught in about 12 minutes, comfortably inside CI's job-level timeout, instead of
-/// being masked indefinitely.
+/// architecture than the one above, and under Miri it lands intermittently past the *native* 120s
+/// bound — over 1.7× the slower reading here — so a small multiple would only relocate the same
+/// flake. ×10 over the slower reading (685.6s, rounded up to 700) absorbs that cross-host gap and
+/// ordinary scheduler noise while staying a bounded timeout: a genuine hang is still caught in
+/// about 12 minutes, comfortably inside CI's job-level timeout, instead of being masked
+/// indefinitely.
 ///
-/// **Cross-checked once the same defect turned up next door.** `pratt_limit_unit_sink.rs` carried
-/// the identical bug — the fix above corrected this bound and did not sweep for siblings — and
-/// its cell gives the cross-host factor a *measured* lower edge this one never had: 49.7s on this
-/// machine against a trip of a 60s wall on the `x86_64-unknown-linux-gnu` runner, so that runner
-/// is at least ×1.21 slower on an interpreted workload of this shape. A deadline that trips
-/// reports only "over the budget", never by how much, so ×1.21 is a floor rather than an
-/// estimate; ×10 over the reading above leaves the same order of headroom over it either way, and
-/// 700 stands. Re-read under Miri with this refactor in place, on a quiet machine: 67.15s and
-/// 66.65s, inside the range the table already records. The whole 37-cell file is 90s under Miri,
+/// **Cross-checked against `pratt_limit_unit_sink.rs`**, whose cell gives the cross-host factor a
+/// *measured* lower edge: 49.7s on this machine against a trip of a 60s wall on the
+/// `x86_64-unknown-linux-gnu` runner, so that runner is at least ×1.21 slower on an interpreted
+/// workload of this shape. A deadline that trips reports only "over the budget", never by how
+/// much, so ×1.21 is a floor rather than an estimate; ×10 over the reading above leaves the same
+/// order of headroom over it either way, and 700 stands. The whole 37-cell file is 90s under Miri,
 /// so this one cell is very nearly all of it — the ×10 buys margin on the only cell that needs
 /// any.
 const DEEP_STACK_BUDGET: common::WallClock = common::WallClock {
@@ -769,7 +766,7 @@ fn right_chain(depth: usize) -> String {
 /// The ladder-top case, typed: `1 ; 2 ; 3` folds once and then **fails** on the second `;`, which
 /// is handed back unconsumed.
 ///
-/// Before this contract landed the same input returned `Ok(("(1;2)", 2 tokens left))`.
+/// Without this contract the same input returns `Ok(("(1;2)", 2 tokens left))`.
 #[test]
 fn typed_repeat_at_the_top_level_is_rejected_and_hands_the_operator_back() {
   let got: Outcome = Parser::with_context(fatal_ctx())
@@ -784,11 +781,11 @@ fn typed_repeat_at_the_top_level_is_rejected_and_hands_the_operator_back() {
   );
 }
 
-/// **The E2 pin**, typed. `7 = 1 ; 2 ; 3` used to parse to completion as `((7=(1;2));3)` with an
-/// empty remainder: the frame holding the latch broke, and the enclosing `=` frame — whose own
-/// latch is `None` and whose floor admits power 5 — folded the second `;` itself. No EOI check
-/// can see that, because nothing is left over. This is the case that makes truncation
-/// unavailable as a contract, and it must stay an error forever.
+/// **The reassociation pin**, typed. Without this contract `7 = 1 ; 2 ; 3` parses to completion as
+/// `((7=(1;2));3)` with an empty remainder: the frame holding the latch breaks, and the enclosing
+/// `=` frame — whose own latch is `None` and whose floor admits power 5 — folds the second `;`
+/// itself. No EOI check can see that, because nothing is left over. This is the case that makes
+/// truncation unavailable as a contract, and it must stay an error forever.
 #[test]
 fn typed_repeat_under_an_enclosing_operator_is_rejected_not_reassociated() {
   let got: Outcome = Parser::with_context(fatal_ctx())
@@ -975,7 +972,7 @@ fn the_repeat_offset_is_the_same_with_a_prefilled_cache() {
   assert_eq!(at, frontier, "THE CONTRACT, under a prefilled cache too");
 }
 
-/// **Round 1's shape, re-verified against the settled contract: a multi-token operator.**
+/// **A multi-token operator.**
 ///
 /// `1 < > 2 < > 3` spells one non-associative operator with two tokens:
 ///
@@ -1037,11 +1034,11 @@ fn a_multi_token_repeat_is_named_where_the_handback_leaves_the_input() {
   );
 }
 
-/// **Round 3's shape: a non-fatal lexer error between the fold and the repeat.**
+/// **A non-fatal lexer error between the fold and the repeat.**
 ///
 /// This is the fixture that separates "the position the input was handed back at" from "the start
 /// of the first token a scan can produce", on a grammar with no trivia tokens and a one-token
-/// operator — the two shapes the earlier fixtures used to expose the gap. Nothing above it can:
+/// operator — the two shapes the fixtures above use to expose the gap. Nothing above it can:
 /// trivia is a *token*, and a skipped lexer error is not.
 ///
 /// ```text
@@ -1053,9 +1050,9 @@ fn a_multi_token_repeat_is_named_where_the_handback_leaves_the_input() {
 /// The scan skips 6..7, emits the error, and produces the `;` at 8. So a driver deriving its
 /// offset from that token reports **8** — three bytes past where its own rollback puts the input,
 /// and past a region a recoverer resuming at 8 would silently swallow together with the
-/// diagnostic that was just rewound off the log. Measured against the pre-fix driver, both cache
-/// states reported `(8, 5, Some(8))`: `at` and the frontier disagreed by exactly the error's
-/// region plus its surrounding spaces.
+/// diagnostic that was just rewound off the log. Measured against a driver that derives the
+/// offset from that token, both cache states report `(8, 5, Some(8))`: `at` and the frontier
+/// disagree by exactly the error's region plus its surrounding spaces.
 ///
 /// The emitter must be a **recording** one for the shape to exist at all — a `Fatal` emitter turns
 /// the lexer error into the parse's error and no repeat is ever reached — and the log is asserted
@@ -1134,7 +1131,7 @@ fn a_skipped_lexer_error_before_the_repeat_does_not_move_the_offset() {
 ///
 /// Beyond it the class is closed by construction rather than by enumeration — the offset is not
 /// *derived from* the restore target, it **is** the value the checkpoint was built from, with no
-/// statement between the two — which is the claim this round is really making.
+/// statement between the two — which is the claim really being made here.
 #[test]
 fn a_classifier_that_abandons_a_session_point_is_still_named_at_the_restore_target() {
   let got: Resumption = Parser::with_context(fatal_ctx())
@@ -1154,7 +1151,7 @@ fn a_classifier_that_abandons_a_session_point_is_still_named_at_the_restore_targ
   );
 }
 
-/// **Round 2's shape, re-verified: a classifier that skips trivia tokens.**
+/// **A classifier that skips trivia tokens.**
 ///
 /// [`trivia_rhs`] skips whitespace *tokens* before it reads the `;` — the shape a CST-style
 /// grammar has, and one `ParsePrattRHS` explicitly permits. On `1 ; 2   ; 3`:
@@ -1397,8 +1394,8 @@ fn an_explicit_recovery_may_spend_the_repeat() {
 //
 // `an_explicit_recovery_may_spend_the_repeat` above asserts the payload the recoverer is handed and
 // nothing about the input underneath it — which is exactly how "hand the error to `Recover` and the
-// offset it reads is the offset the retry begins at" survived twelve review rounds. These three
-// cells read the position.
+// offset it reads is the offset the retry begins at" can go unverified. These three cells read the
+// position.
 
 thread_local! {
   /// What a recovery handler observed: the error's offset, `span().end()`, and `cursor()`.
@@ -1490,8 +1487,8 @@ fn a_rollback_recovery_resumes_at_its_attempt_origin_not_at_the_offset() {
 /// handed is the other number — where the primary parser started.
 ///
 /// This is the control for the cell above: same fixture, same error, no rollback. `span().end()`
-/// in the handler **is** the offset, which is r15's checkable identity observed through a
-/// combinator rather than by catching the `Err` in grammar code.
+/// in the handler **is** the offset, which is the checkable identity `at == frontier` observed
+/// through a combinator rather than by catching the `Err` in grammar code.
 ///
 /// What makes it red: `InplaceRecover` gaining a rollback (the handler would read 0 and
 /// `observed == at` would fail); the handback moving away from `span().end()`; the `Cursor`
@@ -1663,20 +1660,19 @@ fn skip_then_retry_scans_from_the_attempt_origin_not_from_the_offset() {
 
 /// **What a caller *reads* names the handback, not the repeated operator.**
 ///
-/// Every other R2 cell asserts `offset()` off the converted payload, and `offset()` was right the
-/// whole time — so nothing here noticed that `Display` rendered `non-associative operator at 5
-/// cannot be chained at its own power` on the very fixture whose repeated `;` starts at **6**. The
-/// payload was correct and the sentence around it was not, and a caller that logs, wraps or
-/// snapshots the error only ever has the sentence.
+/// Every other R2 cell asserts `offset()` off the converted payload, and `offset()` can be right
+/// while `Display` renders `non-associative operator at 5 cannot be chained at its own power` on
+/// the very fixture whose repeated `;` starts at **6**. The payload correct and the sentence
+/// around it wrong is invisible to those cells, and a caller that logs, wraps or snapshots the
+/// error only ever has the sentence.
 ///
-/// So this cell reads `Display` on the value the **engine** built — captured in
-/// [`RENDERED_CHAIN`] at the `From` boundary, because `LimErr` keeps the offset rather than the
-/// payload — over a real `1 ; 2 ; 3` trip, and checks it against both measured numbers rather than
-/// against literals.
+/// So this cell reads `Display` on the value the **engine** built — captured in [`RENDERED_CHAIN`]
+/// at the `From` boundary, because `LimErr` keeps the offset rather than the payload — over a real
+/// `1 ; 2 ; 3` trip, and checks it against both measured numbers rather than against literals.
 ///
 /// The exact bytes are frozen separately, in `tests/render_freeze.rs`, on a hand-built value. That
 /// suite says *this string moved and must be disclosed*; this cell says *the string agrees with
-/// where the parse actually left the input*, which is the claim the old wording broke.
+/// where the parse actually left the input*, which a wording naming the operator breaks.
 ///
 /// What makes it red: the render presenting the offset as the operator's own position again
 /// (either negative pin); the render dropping the offset (the positive pin); the handback or the
@@ -1828,7 +1824,7 @@ where
   }
 }
 
-/// **Skips trivia before it reads the operator.** This is the classifier shape the finding is
+/// **Skips trivia before it reads the operator.** This is the classifier shape at issue:
 /// about: the operator's first token is not the first token the probe sees, so a position read
 /// ahead of this function names the whitespace rather than the `;`.
 fn trivia_rhs<'inp, Ctx>(
@@ -2142,8 +2138,8 @@ fn the_trip_is_identical_with_an_empty_and_a_prefilled_cache() {
 ///
 /// Paired with `pratt_limit_unit_sink.rs::a_discarding_sink_cannot_let_recovery_spend_a_trip`,
 /// which runs this ladder, this limit and this input through `()`. The two must keep agreeing:
-/// that agreement is the invariance issue #148 asked for, and until it landed they disagreed —
-/// this cell re-raised and its `()` twin spent the trip.
+/// that agreement is the invariance issue #148 asked for — without it, this cell re-raises and its
+/// `()` twin spends the trip.
 #[test]
 fn a_recoverer_re_raises_a_trip_instead_of_spending_it() {
   fn recovery<'inp, Ctx>(
@@ -2184,9 +2180,9 @@ fn a_recoverer_re_raises_a_trip_instead_of_spending_it() {
 ///
 /// Paired with
 /// `pratt_limit_unit_sink.rs::a_discarding_sink_cannot_let_skip_then_retry_burn_input_on_a_trip`,
-/// which runs this exact source through `()` and asserts the same `Some(0)` handback. That cell
-/// read `Some(68)` before issue #148 — the whole chain and the sync token skipped and committed —
-/// so the two files' agreement on this number is the observable the fix delivers.
+/// which runs this exact source through `()` and asserts the same `Some(0)` handback. Without the
+/// #148 behaviour that cell reads `Some(68)` — the whole chain and the sync token skipped and
+/// committed — so the two files' agreement on this number is the observable #148 delivers.
 #[test]
 fn skip_then_retry_re_raises_a_trip_without_skipping() {
   fn probe<'inp, Ctx>(
@@ -2673,9 +2669,9 @@ fn a_trip_leaves_the_depth_unchanged() {
 /// budget existed the same input killed the whole test process with `has overflowed its stack` —
 /// which is why this cell exists and why it must never be moved onto `on_a_deep_stack`.
 ///
-/// The limit is 32, half the default 64, on purpose — and the margin is chosen from a
-/// measurement rather than guessed. Bisected on this tree, one frame per level, on a 2 MiB
-/// thread, taking the last depth that completes before the process aborts:
+/// The limit is 32, half the default 64, on purpose — and the margin is chosen from a measurement
+/// rather than guessed. Bisected one frame per level, on a 2 MiB thread, taking the last depth that
+/// completes before the process aborts:
 ///
 /// | build | typed | token |
 /// |---|---|---|
@@ -2687,18 +2683,17 @@ fn a_trip_leaves_the_depth_unchanged() {
 /// 100 fit too, but only by 1.25× — close enough that a codegen change on another platform could
 /// turn this cell from a failure into a process abort, which is not a test result.
 ///
-/// The same table is why the shipped default stopped being the 500 this branch first carried.
-/// 500 was sized against the *release* ceilings on the top row and cleared them by ~7.7×, but the
-/// bottom row is the one an unconfigured parse meets in a test suite, and 500 is four times the
-/// debug token engine's 125: the stack aborted before the limiter could return anything.
+/// The same table rules out a shipped default of 500: sized against the *release* ceilings on the
+/// top row it clears them by ~7.7×, but the bottom row is the one an unconfigured parse meets in a
+/// test suite, and 500 is four times the debug token engine's 125 — the stack aborts before the
+/// limiter can return anything.
 ///
-/// **The table above is tokora's own frames, and the shipped default is no longer derived from
-/// it.** Its replacement, 64, cleared the tightest of these four by ~1.9× and was still too high,
-/// because a consumer's grammar runs *inside* this recursion and pays for both frames: one
-/// measured consumer aborts at **51**, below 64. `RecursionLimiter::PARSE_DEFAULT_DEPTH` carries
-/// that derivation and is 16, in every build. This cell's own 32 is
-/// unaffected — it is a *configured* budget chosen against the 125 in this table, which is the
-/// right table for a cell that runs tokora's grammar and nobody else's.
+/// **The table above is tokora's own frames, and the shipped default is not derived from it.** 64
+/// clears the tightest of these four by ~1.9× and is still too high, because a consumer's grammar
+/// runs *inside* this recursion and pays for both frames: one measured consumer aborts at **51**,
+/// below 64. `RecursionLimiter::PARSE_DEFAULT_DEPTH` carries that derivation and is 16, in every
+/// build. This cell's own 32 is unaffected — it is a *configured* budget chosen against the 125 in
+/// this table, which is the right table for a cell that runs tokora's grammar and nobody else's.
 #[test]
 fn a_configured_budget_holds_on_an_ordinary_thread_stack() {
   let src = prefix_chain(1_000);

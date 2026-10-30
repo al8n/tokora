@@ -334,7 +334,7 @@ fn skip<'a, C>(
 #[test]
 fn fast_paths_are_invisible_to_residency() {
   // Which residencies each capacity actually reached — a sweep that stops varying the thing it
-  // varies is the defect this file has now been caught by three times, so it is asserted.
+  // varies is an easy defect to miss, so it is asserted.
   let mut reached = [[false; 4]; 3];
   for &program in Program::ALL {
     for &src in SOURCES {
@@ -1012,8 +1012,7 @@ fn a_trip_inside_a_trivia_skip_latches_where_the_scan_latches() {
 /// no uncommitted frontier, so the second has nothing to do. The first splits: the **resident**
 /// run holds no token out of the stream while caller code runs, so it too has nothing to do, while
 /// the **lexing** run holds each token it lexes across the predicate and owes the put-back — which
-/// is why [`LexedFront`](super::skip_while) exists. This paragraph claimed the stronger, unsplit
-/// version for five review rounds, and the defect it was hiding sat in the half it waved away.
+/// is why [`LexedFront`](super::skip_while) exists.
 ///
 /// The claim is checkable either way, and this checks it: a predicate that panics on its `k`-th
 /// call must leave **exactly** the `k − 1` tokens it accepted consumed, and every other token
@@ -1029,11 +1028,10 @@ fn a_trip_inside_a_trivia_skip_latches_where_the_scan_latches() {
 /// are already resident and the panic can land on either side of the phase boundary, and at 1 and
 /// 2 it lands earlier.
 ///
-/// The depths are **widths**, and the residency each one leaves is measured. This sweep used to
-/// read `for _ in 0..prefill { peek::<U3>() }` over `[0, 1, 2, 5]` and call that four depths: the
-/// first of those peeks saturates the `U3` cache, so 1, 2 and 5 were one state and the claim that
-/// depth 5 left "every token already resident" was false twice over — the source has five tokens
-/// and the cache holds three.
+/// The depths are **widths**, and the residency each one leaves is measured:
+/// `for _ in 0..prefill { peek::<U3>() }` would saturate the `U3` cache on its first peek,
+/// collapsing every nonzero prefill into one state — and the source has five tokens while the
+/// cache holds three.
 #[test]
 fn a_panic_mid_skip_consumes_exactly_what_the_predicate_accepted() {
   // Five tokens, with a gap between each: `(0,1) (2,3) (4,5)` trivia, then `(6,7)` and `(8,9)`.
@@ -1112,12 +1110,12 @@ fn a_panic_mid_skip_consumes_exactly_what_the_predicate_accepted() {
       // …and the stream resumes AT the token the predicate never answered about — not merely
       // somewhere between it and the committed position.
       //
-      // This used to be the range `committed_end <= cursor && cursor <= start`, and with the gaps
-      // this fixture has on purpose that range holds two answers: the token PUT BACK (cursor at
-      // its own start) and the token DROPPED (cursor at the committed end, the token re-lexed by
-      // the next read). Both leave the drain above identical, because a re-lex reproduces the
-      // token exactly — so a range here was the whole of what a real divergence had to clear. It
-      // is an equality now, and the two routes are compared against each other, field by field, in
+      // A range `committed_end <= cursor && cursor <= start` would not do: with the gaps this
+      // fixture has on purpose that range holds two answers, the token PUT BACK (cursor at its
+      // own start) and the token DROPPED (cursor at the committed end, the token re-lexed by the
+      // next read). Both leave the drain above identical, because a re-lex reproduces the token
+      // exactly — so a range here would be the whole of what a real divergence had to clear. It
+      // is an equality, and the two routes are compared against each other, field by field, in
       // `the_two_completeness_routes_observe_the_same_unwound_skip`.
       assert_eq!(
         cursor,
@@ -1250,17 +1248,17 @@ fn note(effect: Effect) {
 
 /// The wide probes on, for as long as this guard lives.
 ///
-/// The ledger has two settings, and the reason is the contract's own history. The **narrow**
-/// setting — the default, and what every cell above uses — records the caller steps whose *order*
-/// is the finding: the clones, the marks, the cache calls, the caller's own closure. Those
-/// sequences are asserted whole, which is what makes them bite in both directions.
+/// The ledger has two settings. The **narrow** setting — the default, and what every cell above
+/// uses — records the caller steps whose *order* is the claim: the clones, the marks, the cache
+/// calls, the caller's own closure. Those sequences are asserted whole, which is what makes them
+/// bite in both directions.
 ///
-/// The **wide** setting adds the operations that are caller-supplied too but that no reading of
-/// this contract had thought to name: the `Drop` that goes with each elided clone, the
-/// `Source::len` and the `L::Offset` comparison the scan's closing clamp runs. Turning those on
-/// permanently would mean editing every whole-sequence assertion above each time a further one is
-/// found — which is exactly the list-maintenance the contract stopped doing when it replaced its
-/// enumeration of exclusions with a condition. So they are gated, and the cell that uses them
+/// The **wide** setting adds the operations that are caller-supplied too but that the narrow list
+/// does not name: the `Drop` that goes with each elided clone, the `Source::len` and the
+/// `L::Offset` comparison the scan's closing clamp runs. Turning those on permanently would mean
+/// editing every whole-sequence assertion above each time a further one is found — which is
+/// exactly the list-maintenance the contract avoids by stating a condition rather than
+/// enumerating exclusions. So they are gated, and the cell that uses them
 /// asserts what the *clause* actually says: that this route's side is **empty**, whatever the
 /// probe set happens to contain. A new probe added here strengthens that cell without touching
 /// any other.
@@ -2237,7 +2235,7 @@ fn position_of(ledger: &[Effect], effect: Effect) -> Option<usize> {
 
 // ── The measurement ───────────────────────────────────────────────────────────────────────────
 
-/// **The finding, measured.** A no-op skip over a resident head runs no caller clone and takes no
+/// **The claim, measured.** A no-op skip over a resident head runs no caller clone and takes no
 /// emitter mark; the scan it replaces runs both.
 ///
 /// Both ledgers are asserted whole, so the cell is red in either direction: it fails if the fast
@@ -2487,7 +2485,7 @@ fn head_read_ledger_cold() -> std::vec::Vec<Effect> {
 // of assumed.
 //
 // All of them are red against a build that runs the slow route: ablate either fast path and its
-// two columns collapse onto each other, and the assertion that carries the finding fails.
+// two columns collapse onto each other, and the assertion that carries the claim fails.
 
 /// How many caller `Clone` calls the input layer has run since [`record`] started this ledger.
 ///
@@ -2591,7 +2589,7 @@ fn scan_asking_about_clones(skip_when: fn(usize) -> bool) -> Left {
 /// predicate keyed on that counter therefore answers one way here and the other way there, and
 /// the answer to a skip predicate is the skip.
 ///
-/// Both directions are pinned, because the reviewer's claim is symmetric — the fast path can stop
+/// Both directions are pinned, because the claim is symmetric — the fast path can stop
 /// where the scan skips *and* skip where the scan stops:
 ///
 /// | resident head | fast path | the scan |
@@ -2746,10 +2744,9 @@ fn an_offset_clone_counting_f_can_change_the_value_peek_head_map_returns() {
 //
 // The two cells above fail clause 2 — their predicate and their `f` read the input layer. The two
 // below satisfy clause 2 completely and fail clause 1 instead, in its non-unwinding half. That is
-// the sharper statement, and the one three rounds of narrowing kept missing: a caller can record
-// nothing but its own calls, answer from nothing but the token it was handed, and still see the
-// two routes disagree — because *whether the caller's code was reached at all* depends on where
-// in the route a panicking caller `Clone` sits.
+// the sharper statement: a caller can record nothing but its own calls, answer from nothing but the
+// token it was handed, and still see the two routes disagree — because *whether the caller's code
+// was reached at all* depends on where in the route a panicking caller `Clone` sits.
 
 /// A predicate that observes nothing: it records its own call and accepts every token. Under
 /// clause 2 this caller is entirely in contract — it reads no clone count, no mark, no cache call.
@@ -2963,9 +2960,8 @@ fn count_of(ledger: &[Effect], effect: Effect) -> usize {
 /// quantifier rather than a table.
 ///
 /// A clone this route does not take is a value it never produces, and therefore one it never
-/// drops. `Drop` is caller code exactly as `Clone` is, and no enumeration of this contract's
-/// exclusions ever listed it: it was found by working out what a *condition* would have to say,
-/// not by a fifth reading of the differences.
+/// drops. `Drop` is caller code exactly as `Clone` is, and an enumeration of exclusions does not
+/// list it unless someone thinks to: a *condition* covers it without naming it.
 ///
 /// So the assertion is shaped the way the clause is. With the [wide](Wide) probes on — the `Drop`
 /// of `L::State` and `L::Offset`, the [`Source::len`](crate::Source::len) and the `L::Offset`
@@ -2982,9 +2978,8 @@ fn count_of(ledger: &[Effect], effect: Effect) -> usize {
 /// | `L::Offset` compare | 0 | 1 | 0 against 1 |
 ///
 /// The last two rows are the point of the whole exercise: they are caller-supplied operations that
-/// the measured table on [`skip_while`](InputRef::skip_while) does not carry and that no round of
-/// review had named, and the contract needed no amendment to cover them, because it stopped
-/// naming a set.
+/// the measured table on [`skip_while`](InputRef::skip_while) does not carry, and the contract
+/// needs no amendment to cover them, because it does not name a set.
 ///
 /// This is a **documented precondition, not a supported behaviour.** Neither column is a promise.
 /// Red against a build that runs the slow route: ablate the probe and the left column becomes the
@@ -3154,11 +3149,11 @@ fn skip_while_asking_about_addresses(via_scan: bool) -> (Left, usize, std::vec::
 /// | is my argument the entry still in the cache? | yes — skip it | no — stop |
 /// | tokens consumed | **1** | **0** |
 ///
-/// This class was never reported by any review of the fast paths, and it is not even new to them:
-/// the cache has always been an invisible optimization, and how deep a caller peeked has always
-/// decided whether a token is read in place or copied. That is precisely why it belongs in a
-/// condition on the caller and not in a list of one route's differences — the positive form covers
-/// it without an amendment, which is what the positive form is for.
+/// This class is not even new to the fast paths: the cache has always been an invisible
+/// optimization, and how deep a caller peeked has always decided whether a token is read in place
+/// or copied. That is precisely why it belongs in a condition on the caller and not in a list of
+/// one route's differences — the positive form covers it without an amendment, which is what the
+/// positive form is for.
 ///
 /// This is a **documented precondition, not a supported behaviour.** Neither column is a promise.
 /// Red against a build that runs the slow route: ablate the probe and this route reads the moved
@@ -3805,11 +3800,11 @@ fn the_two_completeness_routes_observe_the_same_skip_when_the_lexer_or_the_emitt
 
   // The inventory guard: what FAULTY IS, pinned independently of what it adds up to. A replacement
   // fixture cannot reproduce another fixture's identity — only, possibly, its effects — so this is
-  // what actually closes the swap Codex's finding describes: a fixture exercising a distinct
-  // high-risk route (a zero-budget trip, a trip behind a crossed lexer error) traded for a
-  // different one that happens to land on the same seven totals below. `Fixture::identity` is a
-  // plain projection of the struct's own fields; it does not know which constructor built the
-  // fixture, so this list is not a second copy of the constructor calls above it.
+  // what actually closes the swap: a fixture exercising a distinct high-risk route (a zero-budget
+  // trip, a trip behind a crossed lexer error) traded for a different one that happens to land on
+  // the same seven totals below. `Fixture::identity` is a plain projection of the struct's own
+  // fields; it does not know which constructor built the fixture, so this list is not a second copy
+  // of the constructor calls above it.
   const FAULTY_IDENTITIES: &[(&str, Option<usize>, Option<usize>)] = &[
     ("ab !! cd", None, None),
     ("!! ab", None, None),
@@ -4116,8 +4111,8 @@ where
 /// channel [`Emitter::commit_token`](crate::Emitter::commit_token) feeds is not one of them, so no
 /// field here can carry it. Measured: removing the notification from a site a parked token's
 /// consumption reaches leaves this cell green. A regression confined to that one notification, on
-/// a parked token, had no observer anywhere in this sweep family — closing it needed a case built
-/// on the effect ledger rather than another [`SkipRun`] field, and
+/// a parked token, has no observer anywhere in this sweep family — it needs a case built on the
+/// effect ledger rather than another [`SkipRun`] field, and
 /// [`the_committed_token_side_channel_is_fed_over_a_parked_front`] at the foot of this file is
 /// that case. It stays a separate cell on purpose: the two ask different questions of the same
 /// residency, and folding the ledger into `SkipRun` would make every value comparison in this file
@@ -4472,10 +4467,10 @@ where
 ///
 /// …plus the whole of [`UnwoundSkip`], as the neighbouring sweeps compare the whole of `SkipRun`.
 ///
-/// Red against `a826ffe`, measured rather than asserted: `"~ ~ ab cd"` at prefill 0 with the panic
-/// on call 3 reported `cursor: 3` against `4`, `parked: false` against `true`, `depth: 0` against
-/// `1` and `drain_lexed: 2` against `1` — the complete-input route dropping the freshly-lexed
-/// stopper where the scanned route parked it. The panic sweep above stayed green throughout.
+/// Red against a complete-input route that drops the freshly-lexed stopper where the scanned
+/// route parks it, measured rather than asserted: `"~ ~ ab cd"` at prefill 0 with the panic on
+/// call 3 reports `cursor: 3` against `4`, `parked: false` against `true`, `depth: 0` against `1`
+/// and `drain_lexed: 2` against `1`. The panic sweep above stays green throughout.
 ///
 /// # What this cell does not cover, and where that is pinned instead
 ///

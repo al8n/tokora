@@ -225,7 +225,7 @@ fn rollback_restores_the_cursor_and_the_emission_log() {
   );
   assert_eq!(t.diags_after_work, 1, "and genuinely emitted a diagnostic");
 
-  // The whole point of the wave:
+  // The whole point:
   assert_eq!(
     t.at_after_decide, t.at_mark,
     "rollback restored the CURSOR to the mark"

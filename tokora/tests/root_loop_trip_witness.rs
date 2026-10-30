@@ -1260,7 +1260,7 @@ fn a_token_budget_refusal_outlives_the_re_key_that_clears_a_lexer_trip() {
   );
 }
 
-/// The **descent** witness has no such gap, and that is why it is the half this branch publishes.
+/// The **descent** witness has no such gap, and that is why it is the half that is public.
 ///
 /// A resource-limit refusal from [`InputRef::descend`] is *returned*, never routed through the
 /// emitter, so no emitter can unmark it and no emitter can convert it away from the counter that

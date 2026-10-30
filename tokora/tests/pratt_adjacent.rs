@@ -816,7 +816,7 @@ fn ladder(src: &str, pays_every_rung: bool) -> Run {
 /// arm, or pass `None` instead of `Some(&committed)` at its descent, and this cell reads
 /// `LADDER_RUNGS + 1` entries and `LADDER_RUNGS` folds — with `Ok`, not an error, because the
 /// document's one byte reaches the deepest frame and satisfies every ancestor's charge on the way
-/// back up. That is the whole finding: a charge read on the way up cannot price what the way down
+/// back up. That is the whole point: a charge read on the way up cannot price what the way down
 /// built. The rung count is under the recursion budget precisely so the cell reds on those
 /// numbers rather than on `RecursionLimitReached`, which a driver with no bound at all would also
 /// eventually reach.

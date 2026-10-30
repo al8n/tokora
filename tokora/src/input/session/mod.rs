@@ -19,7 +19,7 @@
 //! defect being hidden: it is the price of a continuation-free design, and it is exactly why
 //! the budget is a *required* constructor argument rather than an option. A resuming mode
 //! that lexes only `[committed, len)` — O(total bytes) for parsers that commit incrementally
-//! — is designed and prototype-verified, and ships in a later wave;
+//! — is designed and prototype-verified but not yet shipped;
 //! [`ReplayMode`] is sealed and additive precisely so that arrival costs nothing.
 //!
 //! # Nothing here is omittable

@@ -128,8 +128,8 @@ fn display_renders_are_frozen() {
     "missing token 'comma' at 5, expected '}', message: needed"
   );
 
-  // `UnexpectedToken` — all four arms. These had NO render pin before this release, which is
-  // exactly why its doubled "expected" outlived the repair of its sibling's.
+  // `UnexpectedToken` — all four arms. With no render pin, its doubled "expected" outlived the
+  // repair of its sibling's.
   let u_bare: UnexpectedToken<'_, &str, &str, SimpleSpan> =
     UnexpectedToken::new(SimpleSpan::new(5usize, 10usize));
   assert_eq!(format!("{}", ShowUnexpected(u_bare)), "unexpected token");
@@ -153,7 +153,7 @@ fn display_renders_are_frozen() {
     "unexpected token, expected one of: '+', '-'"
   );
 
-  // `SeparatedError` — a rendered surface that did not exist before this release.
+  // `SeparatedError`.
   let sep: SeparatedError<'_, &str, &str, SimpleSpan> = SeparatedError::leading(
     UnexpectedToken::expected_one_with_found(SimpleSpan::new(5usize, 10usize), ":", ";"),
   )
@@ -195,16 +195,15 @@ fn display_renders_are_frozen() {
     "element 4 of this construct was refused by a destination that holds at most 3"
   );
 
-  // The delimiter family, whose `kind` field moved a derived `Debug` this release.
+  // The delimiter family, whose `kind` field renders as the delimiter pair, not a derived `Debug`.
   let unclosed: Unclosed<Paren, SimpleSpan> = Unclosed::paren(SimpleSpan::new(0usize, 1usize));
   assert_eq!(format!("{unclosed}"), "unclosed delimiter '()'");
 
-  // The two pratt carriers. Both are new in this release, and both were unpinned here until a
-  // review found `NonAssociativeChain` rendering `non-associative operator at 5 …` for an offset
-  // that is the **handback** position — on `1 ; 2 ; 3` the operator starts at 6, not 5. `offset()`
-  // was pinned in four suites and every one of them stayed green, which is the argument for a
-  // freeze per *type* rather than per accessor: a carrier nobody pinned is a carrier whose text
-  // can say anything.
+  // The two pratt carriers. Unpinned, `NonAssociativeChain` rendered
+  // `non-associative operator at 5 …` for an offset that is the **handback** position — on
+  // `1 ; 2 ; 3` the operator starts at 6, not 5 — while `offset()` was pinned in four suites and
+  // every one of them stayed green. That is the argument for a freeze per *type* rather than per
+  // accessor: a carrier nobody pinned is a carrier whose text can say anything.
   let chain: NonAssociativeChain = NonAssociativeChain::of(5);
   assert_eq!(
     format!("{chain}"),

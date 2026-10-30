@@ -117,27 +117,27 @@ pub(super) struct ThroughEntry<Span, State, Offset> {
   error_end: Offset,
   /// The position a rewind resumes from, cloned at capture rather than read back at restore.
   ///
-  /// `Emitter::rewind` needs the offset the parse returns to. That used to be obtained inside
-  /// `restore_entry` by reading `cursor()` back off the input once the position had been
-  /// reinstalled — an `L::Offset::clone`, caller code, standing between the restore and the
-  /// rewind that completes it. A panic there skipped the rewind entirely and `ScanScope::drop`
-  /// then RELEASED the mark instead, so an abandoned scan's diagnostics survived into a parse
-  /// that had rewound past them.
+  /// `Emitter::rewind` needs the offset the parse returns to. Obtaining it inside `restore_entry`
+  /// by reading `cursor()` back off the input once the position had been reinstalled would put an
+  /// `L::Offset::clone`, caller code, between the restore and the rewind that completes it. A
+  /// panic there would skip the rewind entirely and `ScanScope::drop` would then RELEASE the mark
+  /// instead, so an abandoned scan's diagnostics would survive into a parse that had rewound past
+  /// them.
   ///
-  /// Hoisting that clone to the top of `restore_entry` was not enough, and the sweep in
-  /// `r9_restore_entry_is_atomic_at_every_offset_clone` is what showed it: wherever inside the
-  /// body the clone sits, failing it still skips the rewind. The operation has to leave the body.
-  /// Captured here it runs BEFORE the emitter mark is taken, where the only thing an unwind
-  /// discards is a half-built snapshot that owes nothing to anyone.
+  /// Hoisting that clone to the top of `restore_entry` is not enough, and the sweep in
+  /// `r9_restore_entry_is_atomic_at_every_offset_clone` shows it: wherever inside the body the
+  /// clone sits, failing it still skips the rewind. The operation has to leave the body. Captured
+  /// here it runs BEFORE the emitter mark is taken, where the only thing an unwind discards is a
+  /// half-built snapshot that owes nothing to anyone.
   rewind_to: Offset,
   /// The poison latch as it stood at entry.
   ///
-  /// The fifth fact, and the one this snapshot was missing. A limit trip latches the boundary
-  /// inside `classify` **before** its diagnostic is emitted, so an unwind out of the diagnostic
-  /// path — or out of any caller code after the latch — reaches a rewinding mode's restore with a
-  /// boundary the rewound lineage never produced. Restoring span, state, watermark and mark and
-  /// leaving that standing poisons the input at a position nothing committed ever reached, with no
-  /// diagnostic to show for it. `Checkpoint` has always carried it; this memo had not.
+  /// The fifth fact. A limit trip latches the boundary inside `classify` **before** its diagnostic
+  /// is emitted, so an unwind out of the diagnostic path — or out of any caller code after the
+  /// latch — reaches a rewinding mode's restore with a boundary the rewound lineage never produced.
+  /// Restoring span, state, watermark and mark and leaving that standing poisons the input at a
+  /// position nothing committed ever reached, with no diagnostic to show for it. `Checkpoint`
+  /// carries it too.
   poison_boundary: Option<Offset>,
 }
 
@@ -227,12 +227,13 @@ where
   /// returns `None`; a `through` mode consumes it (commits at its span, adopting the state that
   /// produced it) and returns `Some(tok)`.
   ///
-  /// This used to also commit the frontier, and fusing the two was a window: both were handed
+  /// It does not also commit the frontier: fusing the two is a window, since both would be handed
   /// over before the scope was disarmed, so a panic in the first — `unconsume` reaches the
   /// public [`Cache::push_front`](crate::cache::Cache::push_front), which nothing makes
-  /// infallible — took the frontier down with it and the diagnosed prefix was never committed. A
-  /// catching host that retried then re-lexed and re-diagnosed the whole prefix. One handover per
-  /// call: the scope still owns the frontier while this runs, so its `Drop` can still commit it.
+  /// infallible — would take the frontier down with it and the diagnosed prefix would never be
+  /// committed; a catching host that retried would then re-lex and re-diagnose the whole prefix.
+  /// One handover per call: the scope still owns the frontier while this runs, so its `Drop` can
+  /// still commit it.
   fn settle_stop(
     ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     stopper: Fetched<'inp, L>,
@@ -324,8 +325,8 @@ where
 /// `Option<Fetched>` could not say that. `None` meant both "no token is out of the stream" and
 /// "one was handed to a settle that may not have finished", and those need opposite repairs: the
 /// first is already contiguous, the second is a hole between the committed position and whatever
-/// the stream still retains. Every finding on this edge reduced to that conflation,
-/// so the state names it.
+/// the stream still retains. Every defect on this edge reduces to that conflation, so the state
+/// names it.
 enum TokenSlot<'inp, L>
 where
   L: Lexer<'inp>,
@@ -503,16 +504,16 @@ where
   /// Derived, not stored, because the answer changes as an exit hands things over — which is the
   /// defect a stored sticky flag leaves in place. Two clauses:
   ///
-  /// - a **committing mode** always keeps: that is the ratified posture, measured against the
+  /// - a **committing mode** always keeps: that is the chosen posture, measured against the
   ///   alternative;
   /// - a **rewinding mode** keeps only once the predicate has answered *stop* **and** the scope can
   ///   still perform the commit that a stop's disposition requires. `frontier.is_some()` is that
   ///   second condition, and it is why this cannot be a flag: the frontier leaves mid-exit.
   ///
-  /// Both halves matter, and each was a finding. Without the first clause `SyncBalanced`'s
-  /// interrupted stop threw away a prefix its own stop keeps. Without the second, an interrupted
-  /// `commit_at` left a rewinding mode's emissions describing a prefix the position does not
-  /// cover — duplicate diagnostics on retry, where abandoning rewinds them.
+  /// Both halves matter. Without the first clause `SyncBalanced`'s interrupted stop throws away a
+  /// prefix its own stop keeps. Without the second, an interrupted `commit_at` leaves a rewinding
+  /// mode's emissions describing a prefix the position does not cover — duplicate diagnostics on
+  /// retry, where abandoning rewinds them.
   ///
   /// `M::HOLDS_ENTRY` is a constant, so a committing mode folds this to `true` and drops the
   /// abandon arm entirely.
@@ -543,7 +544,7 @@ where
   /// that consumes it, so there is nothing left to defend there and nothing to change.
   ///
   /// What is *not* safe is putting fallible work between the take and the record, which is what
-  /// the stop exit used to do by fusing the token settle and the frontier commit into one hook.
+  /// fusing the token settle and the frontier commit into one hook at the stop exit would do.
   /// If a caller ever needs work in between, the frontier has to stay in the scope for it.
   #[inline(always)]
   fn take_frontier(&mut self) -> AtFrontier<L::Span, L::State> {

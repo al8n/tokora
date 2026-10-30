@@ -832,9 +832,9 @@ fn node_over_a_diagnostics_only_emitter_is_inert() {
 // and both cells below pin it shut: the report still reaches the diagnostic log, and it licenses
 // nothing.
 //
-// Both cells are **falsifiable**: each asserts the refusal that the base branch did *not*
-// produce. Run against the pre-fix tree, each returned `Ok` with the uncovered byte tiled as
-// `K_GAP` — the plausible tree the coverage law exists to refuse.
+// Both cells are **falsifiable**: each asserts a refusal that a sink licensing the caller-picked
+// span does *not* produce — against such a sink each returns `Ok` with the uncovered byte tiled as
+// `K_GAP`, the plausible tree the coverage law exists to refuse.
 //
 // **And it is two doors, not three.** `finish`'s verdict is a function of exactly three things —
 // the recorded `Token` spans, the recorded `Diag` spans, and the bound source's length — so the
@@ -858,7 +858,7 @@ fn consume_only_the_first(inp: &mut Ir<'_, '_>) -> Result<(), TestErr> {
 /// not thereby license them: `inp.emit_lexer_error(span)` is a *report*, and the report is
 /// delivered — but `finish` still refuses the uncovered `b`.
 ///
-/// Falsified by an `Ok` tree (the pre-fix verdict) or by a missing diagnostic.
+/// Falsified by an `Ok` tree or by a missing diagnostic.
 #[test]
 fn a_handle_raised_lexer_error_reports_without_licensing_the_gap() {
   let (cst, res) = parse_lossless(
@@ -948,8 +948,8 @@ fn drain_foreign<'inp>(
 /// through the view into the original sink.
 ///
 /// The foreign buffer `z!` is chosen so its refused byte sits at offset `1..2`, exactly where the
-/// original source's unconsumed `b` sits. Pre-fix, that foreign error licensed the original
-/// source's byte and `finish` returned a plausible `ab` tree. It must not.
+/// original source's unconsumed `b` sits. Licensed by that foreign error, the original source's
+/// byte would let `finish` return a plausible `ab` tree. It must not.
 ///
 /// `bound_source` is deliberately **not** forwarded — the documented residue of the runtime
 /// handshake — so the second parse's attach-time source check sees an emitter that binds no
@@ -999,11 +999,11 @@ fn an_orphan_view_wrapper_carries_a_foreign_lexer_error_but_licenses_no_gap() {
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // The sink suite holds these three laws at the event level. Here they are through the PUBLIC
-// surface only, because that is where the adversarial finding lived: `EventMark` is a
-// deliberately unbranded `Copy` POD (a pratt driver holds one across arbitrarily many folds),
-// so the raw bracket — `ParseState::cst_start` / `cst_demote` — composes freely with session
-// points, which are public and non-lexical by design. A driver can therefore roll back INTO a
-// bracket's own window, and both exits have to answer that the same way.
+// surface only, because that is where the hazard lives: `EventMark` is a deliberately unbranded
+// `Copy` POD (a pratt driver holds one across arbitrarily many folds), so the raw bracket —
+// `ParseState::cst_start` / `cst_demote` — composes freely with session points, which are public
+// and non-lexical by design. A driver can therefore roll back INTO a bracket's own window, and both
+// exits have to answer that the same way.
 
 /// **The reachability pin that decided the remedy.** A live emitter row can sit ABOVE an
 /// up-front bracket's slot at demote time, on a fully supported and completely harmless
@@ -1039,11 +1039,11 @@ fn a_live_point_above_the_slot_at_demote_time_is_a_legal_and_harmless_history() 
   );
 }
 
-/// **The finding, inverted, at the public surface.** The raw bracket takes its FAILING exit
-/// below a session point, and the driver then rolls back into the window. Every documented duty
-/// is upheld — the bracket takes exactly one closing exit, and the point settles newest-first —
-/// so `restore`'s contract ("the buffer as it was when the mark was captured") says the node is
-/// open again and `finish` must refuse `UnclosedNodes`.
+/// **The in-place defect, inverted, at the public surface.** The raw bracket takes its FAILING exit
+/// below a session point, and the driver then rolls back into the window. Every documented duty is
+/// upheld — the bracket takes exactly one closing exit, and the point settles newest-first — so
+/// `restore`'s contract ("the buffer as it was when the mark was captured") says the node is open
+/// again and `finish` must refuse `UnclosedNodes`.
 ///
 /// It now does. Under the eager in-place rewrite this same drive returned a *tree* with the node
 /// silently gone: the rollback discarded the demote's own evidence but kept its effect, leaving
@@ -1199,7 +1199,7 @@ fn raw_innermost_first_bracket_exits_are_admitted_and_abandon_both() {
 //
 // The session-point block further up asks what happens when a point sits ABOVE a bracket's
 // slot. This block asks the mirror question — a point opened BEFORE the bracket, rolled back
-// BELOW its start — which is the one an external review raised against the blessed combinator.
+// BELOW its start — which is the one that matters for the blessed combinator.
 //
 // The answer has two halves, and they are pinned separately because they are different kinds
 // of fact:
@@ -1255,10 +1255,9 @@ fn raw_demote_after_a_rollback_below_the_start_panics() {
 /// which is a *public API argument*, not an internal handback. It panics too, on the
 /// pre-existing `validate_mark` wall, and on the **success** exit rather than the failing one.
 ///
-/// The cell exists because the finding framed the panic as a regression the up-front bracket
-/// introduced. It is not: a rollback below a pending wrap's anchor has always been a
-/// spend-time panic, and the retro shape reaches it on the exit a grammar is *more* likely to
-/// take.
+/// The cell exists because the panic can look like a regression the up-front bracket introduced. It
+/// is not: a rollback below a pending wrap's anchor has always been a spend-time panic, and the
+/// retro shape reaches it on the exit a grammar is *more* likely to take.
 #[test]
 #[should_panic(expected = "stale EventMark")]
 fn retro_node_at_over_a_mark_staled_by_the_same_rollback_panics_too() {

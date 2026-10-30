@@ -19,7 +19,7 @@
 //! `ParseInput::parse_input` and non-fused `DispatchOnKind::parse_input`) were already correct: a
 //! cache-hit miss surfaces a recoverable unexpected token through their miss branch, and their
 //! terminal witness runs only on the empty-cache end-of-input arm, where the lex offset equals the
-//! committed cursor. Their cases below hold on the pre-fix tip too and pin that they stay correct.
+//! committed cursor. Their cases below pin that they stay correct.
 
 use core::cell::Cell;
 use std::rc::Rc;

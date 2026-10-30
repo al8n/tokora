@@ -3,7 +3,7 @@
 //!
 //! # Why this file exists
 //!
-//! tokora ships **two** Pratt drivers, and until this file only one of them was measured:
+//! tokora ships **two** Pratt drivers:
 //!
 //! * the **token-level** one — [`InputRef::pratt`] → `pratt_in`, in
 //!   `src/input/input_ref/pratt.rs`. It opens no transaction at all: acceptance *is* the
@@ -13,12 +13,12 @@
 //!   probe for the next operator inside a transaction it can restore.
 //!
 //! `parser_combinators.rs`'s `pratt_expr` calls `inp.pratt(...)` — the **token-level** one.
-//! No benchmark in this repository ever constructed the typed [`Pratt`] combinator, so a
-//! change that rewrote the typed driver end to end could not move a single benchmark number.
-//! That was not a suspicion: a harness running only `pratt_expr` compiled byte-identical
-//! across a branch that replaced the typed driver's transaction structure wholesale.
+//! No other benchmark in this repository constructs the typed [`Pratt`] combinator, so without
+//! this file a change that rewrote the typed driver end to end could not move a single benchmark
+//! number: a harness running only `pratt_expr` compiles byte-identical across a wholesale
+//! replacement of the typed driver's transaction structure.
 //!
-//! This file closes that hole. Everything in it drives the typed combinator and nothing else.
+//! Everything in this file drives the typed combinator and nothing else.
 //!
 //! # What the typed driver's transaction structure costs
 //!
@@ -74,10 +74,10 @@
 //!   returns: the loop runs `d` times at recursion depth **2**, never deeper, and peak retention
 //!   is `O(1)` at every depth under *either* shape.
 //!
-//!   The control used to exist at depths 2 and 64 only. That left `right_chain/{1,8,32}`
-//!   uncontrolled, and a throughput trend read across those three cells would have been read as
-//!   evidence about retention when it was evidence about fixture mix. It is at every depth now,
-//!   and the pair — never the lone cell — is the unit of result.
+//!   The control exists at every depth: with a control at depths 2 and 64 only,
+//!   `right_chain/{1,8,32}` would be uncontrolled, and a throughput trend read across those three
+//!   cells would be read as evidence about retention when it is evidence about fixture mix. The
+//!   pair — never the lone cell — is the unit of result.
 //!
 //! # What is and is not comparable
 //!
@@ -92,14 +92,14 @@
 //! link of a chain. So operand and token density **per byte** are one constant across the whole
 //! group.
 //!
-//! That fixed width pins the **source-token** density and nothing else — not *lexer* work per
-//! byte, which is counted in scans and so includes the probe re-lexes below. In particular it
-//! does **not** make the depth cells comparable to one another, though an earlier revision of
-//! this header claimed it did. A depth-`d` expression is `BYTES_PER_OPERAND * (d + 1)` bytes
-//! carrying `d` operators, `d` folds and one `parse_input` call, so folds per byte rise with
-//! depth while expressions per byte fall — between depths 1 and 64 the first very nearly doubles
-//! and the second falls by a factor of 32. That mix shift **is** the depth axis, so a throughput
-//! trend read along it is a trend in the fixture mix and says nothing about retention.
+//! That fixed width pins the **source-token** density and nothing else — not *lexer* work per byte,
+//! which is counted in scans and so includes the probe re-lexes below. In particular it does
+//! **not** make the depth cells comparable to one another. A depth-`d` expression is
+//! `BYTES_PER_OPERAND * (d + 1)` bytes carrying `d` operators, `d` folds and one `parse_input`
+//! call, so folds per byte rise with depth while expressions per byte fall — between depths 1 and
+//! 64 the first very nearly doubles and the second falls by a factor of 32. That mix shift **is**
+//! the depth axis, so a throughput trend read along it is a trend in the fixture mix and says
+//! nothing about retention.
 //!
 //! What is comparable is the pair at a **single** depth. [`check_pair`] asserts that
 //! `right_chain/d` and `left_chain/d` are equal in length and equal byte for byte except at
@@ -158,15 +158,15 @@
 //!
 //! # Every measured parse is checked against a value the parser did not produce
 //!
-//! `parse_once` used to assert only that the parse returned `Ok`, and criterion `black_box`es
-//! the accumulator without looking at it — so "consumed every token" was the whole semantic
-//! contract. A driver that consumed every token while skipping folds, flipping an associativity
-//! or returning a cheaper accumulated value satisfied that contract completely, did **less**
-//! work, and would have reported a *better* number for doing less. Each [`Cell`] therefore
-//! carries the accumulator the drain must return, computed by the generator from the operands it
-//! emitted and the associativity it wrote ([`expected_expression`]) — never by running the
-//! parser, which would agree with any driver including a broken one. [`parse_once`] compares
-//! every parse against it, on the criterion path and the fixed-iteration path alike.
+//! Asserting only that the parse returned `Ok` is not enough, because criterion `black_box`es the
+//! accumulator without looking at it — so "consumed every token" would be the whole semantic
+//! contract. A driver that consumed every token while skipping folds, flipping an associativity or
+//! returning a cheaper accumulated value would satisfy that contract completely, do **less** work,
+//! and report a *better* number for doing less. Each [`Cell`] therefore carries the accumulator the
+//! drain must return, computed by the generator from the operands it emitted and the associativity
+//! it wrote ([`expected_expression`]) — never by running the parser, which would agree with any
+//! driver including a broken one. [`parse_once`] compares every parse against it, on the criterion
+//! path and the fixed-iteration path alike.
 //!
 //! The check has two known structural blind spots, and both are pinned rather than described:
 //!
@@ -211,16 +211,15 @@
 //!
 //! # Recorded measurements
 //!
-//! **Everything numeric below is a dated record of a run that happened, not a claim this file
+//! **Everything numeric below is a record of a run that happened, not a claim this file
 //! checks.** Nothing here is re-derived by the committed code, by CI, or by any assertion; a
 //! change to the driver, the fixture or the machine invalidates it silently. Read a figure here
 //! as "this was measured, then, there" and re-run before relying on one. Every *structural*
 //! claim about the fixtures has been moved out of this section and into
 //! [`Cell::check_invariants`] and [`check_pair`], which do fail when they stop holding.
 //!
-//! Recorded **2026-08-03**, in the commit that introduced this file (`49e1a8d`, "perf(bench):
-//! cover the typed pratt driver (#155)"), on an Apple-silicon laptop with unrelated work running
-//! throughout. The toolchain was not recorded. Reproduce the sweep with:
+//! Recorded when this file was introduced (#155), on an Apple-silicon laptop with unrelated work
+//! running throughout. The toolchain was not recorded. Reproduce the sweep with:
 //!
 //! ```text
 //! cargo bench -p tokora-benches --bench pratt_typed -- --warm-up-time 1 --measurement-time 3
@@ -265,7 +264,7 @@
 //! and the median is not monotone in depth either (furthest below 1.0 around depth 32, back
 //! toward it at 64), so it does not read as a retention curve either.
 //!
-//! That was a real finding — a bound on the trade this file was written to price, read off the
+//! That is a real result — a bound on the trade this file was written to price, read off the
 //! statistic that is actually paired. It is **not** a proof that retention is free: a heavier
 //! `L::State`, a deeper chain, or a machine with a smaller cache could all move it, and the small
 //! residual in the right side's favour at the middle depths is itself unexplained (the probe-kind
@@ -441,25 +440,24 @@ impl State for ExprState {
   ///
   /// Per *scan*, not per source token. `lex` runs this after every successful scan, and a probe
   /// that declines rolls back a token that is then lexed again, so the fixture's source-token
-  /// density does not bound how often it runs — an earlier revision of this comment justified the
-  /// tax by that density ("exactly two tokens per seven bytes"), which is the wrong quantity and
-  /// is withdrawn. What the **pairing** buys, and it is not a per-byte rate, is that the tax is
+  /// density does not bound how often it runs: "exactly two tokens per seven bytes" is the wrong
+  /// quantity. What the **pairing** buys, and it is not a per-byte rate, is that the tax is
   /// *matched*: `right_chain/d` and `left_chain/d` agree on both quantities that drive the scan
   /// count — the same source tokens (asserted, see [`check_pair`]) and the same operator-probe
-  /// count, of which the same number are declines that roll back (counted once, not asserted;
-  /// see the header's *Recorded measurements*). So it falls equally on the two halves of every
-  /// pair and adds no unequal right-versus-left work. It does **not** cancel: like the drain, it
-  /// is a common additive cost, and a common additive cost pulls a ratio toward 1.0 rather than
-  /// dropping out of it.
+  /// count, of which the same number are declines that roll back (counted once, not asserted; see
+  /// the header's *Recorded measurements*). So it falls equally on the two halves of every pair and
+  /// adds no unequal right-versus-left work. It does **not** cancel: like the drain, it is a common
+  /// additive cost, and a common additive cost pulls a ratio toward 1.0 rather than dropping out of
+  /// it.
   ///
   /// # Why [`black_box`], and not the condition alone
   ///
-  /// An earlier revision loaded both values and spelled the veto as
-  /// `mode == MODE_POISON && indent == u16::MAX` with no barrier, on the theory that a
-  /// condition the optimizer cannot fold is a condition it has to evaluate — and therefore two
-  /// loads per token. A disassembly refuted that (recorded in the header); `&&` short-circuits,
-  /// and the optimizer picks which side to short-circuit on, so "unreachable by construction" is
-  /// not a property that keeps a load alive — it is a property the optimizer exploits.
+  /// Loading both values and spelling the veto as `mode == MODE_POISON && indent == u16::MAX` with
+  /// no barrier, on the theory that a condition the optimizer cannot fold is a condition it has to
+  /// evaluate — and therefore two loads per token — does not hold. A disassembly refutes it
+  /// (recorded in the header); `&&` short-circuits, and the optimizer picks which side to
+  /// short-circuit on, so "unreachable by construction" is not a property that keeps a load alive —
+  /// it is a property the optimizer exploits.
   ///
   /// The observation is therefore explicit. `black_box` is an opaque barrier: each loaded value
   /// must be materialized before it and nothing downstream may reason about it, so both indexed
@@ -781,14 +779,13 @@ where
 /// its `;`, a rollback that regressed and consumed the `;`, a fixture whose construction
 /// drifted — is a failure.
 ///
-/// It used to be an exit. `try_expect` returning `None` simply `break`ed and the drain returned
-/// `Ok(acc)`, which means a driver regression that ate the first expression's terminator would
-/// have parsed **one** expression of a 128 KiB fixture, left the other ~18 000 unread, and
-/// reported success — while criterion went on charging `Throughput::Bytes(src.len())` for every
-/// byte never lexed. Throughput inflated over unparsed input is the one way this file can be
-/// wrong that its own numbers cannot reveal: the figure simply gets better. So the terminator
-/// is required, and requiring it is what makes "the loop ended" and "the fixture was consumed"
-/// the same statement.
+/// It is not an exit. If `try_expect` returning `None` simply `break`ed and the drain returned
+/// `Ok(acc)`, a driver regression that ate the first expression's terminator would have parsed
+/// **one** expression of a 128 KiB fixture, left the other ~18 000 unread, and reported success —
+/// while criterion went on charging `Throughput::Bytes(src.len())` for every byte never lexed.
+/// Throughput inflated over unparsed input is the one way this file can be wrong that its own
+/// numbers cannot reveal: the figure simply gets better. So the terminator is required, and
+/// requiring it is what makes "the loop ended" and "the fixture was consumed" the same statement.
 ///
 /// [`InputRef::peek_one`]: tokora::InputRef::peek_one
 fn typed_pratt_drain<'inp, Ctx>(
@@ -988,13 +985,13 @@ fn expected_expression(operands: &[i64], assoc: Assoc) -> i64 {
 ///
 /// # Why an expected value, when the parse already returns `Ok`
 ///
-/// It did not used to have one. [`parse_once`] asserted only that the parse reached the end of
-/// its input, and criterion `black_box`es the accumulator without looking at it — so full
-/// consumption was the entire semantic contract. That leaves a whole class of regression
-/// invisible *and flattering*: a driver that consumes every token but skips folds, flips an
-/// associativity, or returns a cheaper accumulated value passes every cell, does **less** work
-/// than it should, and reports a better number for it. "It parsed" and "it parsed correctly" are
-/// different statements and only the second one makes a throughput figure mean anything.
+/// Asserting only that the parse reached the end of its input is not enough, because criterion
+/// `black_box`es the accumulator without looking at it — so full consumption would be the entire
+/// semantic contract. That leaves a whole class of regression invisible *and flattering*: a driver
+/// that consumes every token but skips folds, flips an associativity, or returns a cheaper
+/// accumulated value passes every cell, does **less** work than it should, and reports a better
+/// number for it. "It parsed" and "it parsed correctly" are different statements and only the
+/// second one makes a throughput figure mean anything.
 ///
 /// [`expected`](Cell::expected) is computed by the generator from the operands it emitted and the
 /// associativity it wrote, in [`expected_expression`]. Deriving it by running the parser would
@@ -1331,8 +1328,8 @@ fn cells() -> Vec<Cell> {
 /// right accumulator. The figure the library actually installs is deliberately not named here:
 /// it is `RecursionLimiter::PARSE_DEFAULT_DEPTH` — public since the `stacker` feature work, and
 /// still not a literal worth copying, because it is a library figure derived from a stack
-/// measurement that this crate does not own. An earlier revision of this comment named
-/// `RecursionLimiter::new` for it, which is a *different* default and a larger one.
+/// measurement that this crate does not own. It is not `RecursionLimiter::new`'s figure, which is
+/// a *different* default and a larger one.
 ///
 /// # Why the fix is here, not in the fixture
 ///
@@ -1384,8 +1381,7 @@ const _: () = {
 /// real deepest fixture:
 ///
 /// * under a default [`Parser`] the parse must **fail**. If it ever stops failing, the whole
-///   constant is unnecessary and the paragraph explaining it is stale — which is exactly the
-///   state an earlier revision of that paragraph was already in.
+///   constant is unnecessary and the paragraph explaining it is stale.
 /// * under [`bench_parser`] it must succeed **and** produce the generator's accumulator, so a
 ///   ceiling that merely stops the panic without letting the fixture parse is not mistaken for
 ///   a fix.

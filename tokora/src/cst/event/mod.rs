@@ -4,7 +4,7 @@
 //!
 //! Its laws — the two verbs, canonicalization, the depth model and eras — are documented on
 //! `cst` itself (`crate::cst`, section *The event vocabulary*), where these items are public; this
-//! file is private (#350, rule 5).
+//! file is private, and the parent re-exports its items.
 
 #[cfg(feature = "rowan")]
 use core::num::NonZeroU32;

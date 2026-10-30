@@ -30,9 +30,9 @@ use crate::span::SimpleSpan;
 
 mod errors;
 
-// Token-level and syntax-level error types. Their public path is `tokora::error::Item`
-// (#350, rule 5); the submodules stay `pub(crate)` so the crate's own paths into them keep
-// resolving.
+// Token-level and syntax-level error types. Their public path is `tokora::error::Item`: the
+// submodule files stay private and the parent re-exports. The submodules stay `pub(crate)` so the
+// crate's own paths into them keep resolving.
 pub use syntax::*;
 pub use token::*;
 

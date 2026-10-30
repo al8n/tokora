@@ -511,13 +511,12 @@ fn stacked_savepoint_after_raw_restore_panics_stale() {
 
 #[test]
 fn stacked_savepoint_survives_state_surgery() {
-  // FLIPPED from the old `stacked_savepoint_after_set_state_panics_stale`. State surgery is
-  // transactional, not invalidating (the pre-copy restore architecture pure-copies every
-  // lineage fact), so a savepoint taken before it REMAINS VALID: `rollback_to` it undoes the
-  // surgery. At HEAD `set_state` cleared the live lineage, so this rollback_to panicked as
-  // stale. The savepoint's checkpoint captures a poisoned pre-surgery state; rolling back to
-  // it restores the regime, the poison boundary, the dedup watermark, and the position, and
-  // scanning resumes under the OLD regime.
+  // State surgery is transactional, not invalidating (the pre-copy restore architecture
+  // pure-copies every lineage fact), so a savepoint taken before it REMAINS VALID:
+  // `rollback_to` it undoes the surgery. A `set_state` that cleared the live lineage would make
+  // this rollback_to panic as stale. The savepoint's checkpoint captures a poisoned pre-surgery
+  // state; rolling back to it restores the regime, the poison boundary, the dedup watermark, and
+  // the position, and scanning resumes under the OLD regime.
   //   "1 @ 3 4": `@` is a plain lexer error; the limit-2 limiter trips on the 3rd number.
   use hybrid_arraydeque::typenum::U6;
 
@@ -544,7 +543,7 @@ fn stacked_savepoint_survives_state_surgery() {
     txn.set_state(TokenLimiter::with_limitation(usize::MAX));
     assert!(!txn.is_poisoned(), "the surgery re-keys the boundary away");
 
-    // At HEAD this panicked as stale; post-fix `sp` is still live and rolls back across it.
+    // `sp` is still live and rolls back across the surgery.
     txn.rollback_to(sp);
 
     // The surgery is undone: the pre-surgery regime, boundary, and position returned.
@@ -715,12 +714,10 @@ fn stacked_savepoints_survive_nested_attempt_and_transaction() {
   expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
 )]
 fn stacked_raw_restore_below_base_panics_at_the_restore() {
-  // The stacked twin of the scenario converted from `stacked_base_drop_after_raw_restore_
-  // below_base_does_not_resurrect`. save A, begin_stacked (base above A), savepoint, consume,
-  // then raw-restore to A through the guard. A predates the guard's begin point, so restoring
-  // it would invalidate the pinned base (and every savepoint above it) — the pin check panics
-  // AT THE RESTORE. At HEAD the restore succeeded and the rolling-back drop silently committed
-  // the abandoned work.
+  // save A, begin_stacked (base above A), savepoint, consume, then raw-restore to A through the
+  // guard. A predates the guard's begin point, so restoring it would invalidate the pinned base
+  // (and every savepoint above it) — the pin check panics AT THE RESTORE. Were the restore to
+  // succeed, the rolling-back drop would silently commit the abandoned work.
   let mut input = silent_input("1 2 3 4 5");
   let mut inp = input.as_ref();
 
@@ -739,10 +736,8 @@ fn stacked_raw_restore_below_base_panics_at_the_restore() {
   expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
 )]
 fn stacked_explicit_rollback_after_raw_restore_below_base_panics_at_restore() {
-  // Converted from `stacked_explicit_rollback_after_raw_restore_below_base_panics_stale`. The
-  // panic now fires AT THE RAW RESTORE, before the explicit `rollback`. At HEAD the raw restore
-  // succeeded and `rollback` panicked as stale ("transaction base is stale"); post-fix the
-  // pinned restore panics first.
+  // The panic fires AT THE RAW RESTORE, before the explicit `rollback` could panic as stale
+  // ("transaction base is stale").
   let mut input = silent_input("1 2 3 4 5");
   let mut inp = input.as_ref();
 

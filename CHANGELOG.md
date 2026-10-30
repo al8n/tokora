@@ -67,13 +67,13 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
-## Unreleased
+## 0.12.0 (2026-10-30)
 
 ### Changed (breaking)
 
 - **One canonical path per public item: `tokora::parse`, `tokora::combinator` (formerly
   `tokora::parser`), the feature-gated `tokora::pratt`, a 29-item crate root, and no public path
-  deeper than `tokora::<module>::<Item>`** (#350). Every item now lives in the module of its
+  deeper than `tokora::<module>::<Item>`** (#351). Every item now lives in the module of its
   concept, and the only other path an item can have is the crate root.
 
   - **`tokora::parse`** is a new public module: the parsing traits and the types their contracts
@@ -387,14 +387,14 @@ and will red until they do.
   | `tokora::utils::syntax_tree_display::SyntaxTreeDisplay` | `tokora::utils::SyntaxTreeDisplay` |
 
 - **The smol-bytes features are named for the crate, and the `smol-bytes` alias selects 0.2**
-  (#350). An integration feature is the crate's own name plus its version, so the hyphen the crate
+  (#351). An integration feature is the crate's own name plus its version, so the hyphen the crate
   carries stays in the feature: `smol_bytes_0_1` is now `smol-bytes_0_1`, the dependency key is
   renamed with it, and the unversioned alias moves from `smol_bytes` (which selected 0.1) to
   `smol-bytes`, which selects the newest line, 0.2. In Rust the extern crates and the private
   modules keep the underscore (`smol_bytes_0_1`, `smol_bytes_0_2`); only the Cargo feature and
   dependency names change.
 
-  | 0.11 | now |
+  | 0.11 | 0.12 |
   |---|---|
   | `smol_bytes_0_1` | `smol-bytes_0_1` |
   | `smol_bytes` (alias of `smol_bytes_0_1`) | `smol-bytes` (alias of `smol-bytes_0_2`); write `smol-bytes_0_1` to stay on smol-bytes 0.1 |
@@ -404,11 +404,11 @@ and will red until they do.
 
 ### Added
 
-- **`tokora::logos_0_16`, and the public modules `tokora::parse` and `tokora::pratt`** (#350).
+- **`tokora::logos_0_16`, and the public modules `tokora::parse` and `tokora::pratt`** (#351).
   `tokora::logos_0_16` is the versioned name of the `tokora::logos` re-export, so a derive pinned
   to logos 0.16 keeps writing `#[logos(crate = tokora::logos_0_16)]` after a newer integration
   lands; the two modules are described under the layout entry above.
-- **smol-bytes 0.2 beside 0.1: the `smol-bytes_0_2` feature** (#350). The same four types as the 0.1
+- **smol-bytes 0.2 beside 0.1: the `smol-bytes_0_2` feature** (#351). The same four types as the 0.1
   integration — `shared::Bytes`, `compact::Bytes`, `Utf8Bytes` and `compact::Utf8Bytes` — implement
   `Source`, `Slice`, `CstText`, `Equivalent`, `ToEquivalent` and `IntoEquivalent` over smol-bytes
   0.2, and both versions can be enabled together because each type is a distinct one. The impls are

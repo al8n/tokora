@@ -157,7 +157,7 @@ pub type ListOf<'inp, L, Ctx, Lang, T> = Result<Vec<T>, ErrorOf<'inp, L, Ctx, La
 #[inline]
 // STAYS COMPLETE-TYPED: this constructor's ENGINE is the decision-window
 // class — its body drives `separated_while` with a peek predicate, and `SeparatedWhile`
-// is Complete-only this release. The returned closure is therefore typed at the default
+// is Complete-only. The returned closure is therefore typed at the default
 // (`Complete`) rather than generic over the completeness parameter; it generalizes for
 // free once the frontier-window rule lands and the engine relaxes.
 pub fn separated1<'inp, Sep, L, Ctx, Lang, P, T, Peek>(

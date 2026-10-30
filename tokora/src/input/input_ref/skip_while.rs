@@ -241,12 +241,12 @@ where
   /// how this contract was arrived at. The table carries the steps the ledger was built to watch.
   /// The scan's closing commit also runs a [`Source::len`](crate::Source::len) and one `L::Offset`
   /// comparison — the clamp inside `commit_position`, measured once each on the scan and zero
-  /// times here for a no-op skip — and those are simply two the table never had. Successive
-  /// readings of this method have each found an operation the previous naming did not contain, so
-  /// the condition below is quantified over **all** caller-supplied code and every list inside it,
-  /// this table included, is illustration. What `tests::fast_path` pins is the *emptiness* of this
-  /// route's side for a no-op skip, not an inventory of the scan's: an inventory would be one
-  /// review round out of date.
+  /// times here for a no-op skip — and those are simply two the table never had. Each reading of
+  /// this method can find an operation a previous naming did not contain, so the condition below
+  /// is quantified over **all** caller-supplied code and every list inside it, this table
+  /// included, is illustration. What `tests::fast_path` pins is the *emptiness* of this route's
+  /// side for a no-op skip, not an inventory of the scan's: an inventory would always be out of
+  /// date.
   ///
   /// ### What this route does differently — the whole of it
   ///

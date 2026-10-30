@@ -433,13 +433,12 @@ fn separated1_by_is_the_method_form_of_separated1() {
   // only the absolute-assertion cells — the ones that name an expected value instead of
   // comparing two implementations — and they cover it *only for the inputs they name*.
   //
-  // An earlier version of this comment said the free function's own rows above cover it.
-  // That was false, and it was false in a way worth recording: mutating `list` itself to
-  // drop the last item whenever input ends at EOF after items passed every cell in this
-  // file and every one of the 6318 tests in the crate. The differential rows agreed because
-  // both sides were wrong together, and no absolute cell named that input. The gap was the
-  // sentence's, not the instrument's. `list_stops_at_end_of_input_keeping_every_item` below
-  // now names it; the limit above is what remains after that.
+  // The free function's own rows above do not cover it, in a way worth recording: mutating `list`
+  // itself to drop the last item whenever input ends at EOF after items passes every cell in this
+  // file and every other test in the crate. The differential rows agree because both sides are
+  // wrong together, and no absolute cell names that input.
+  // `list_stops_at_end_of_input_keeping_every_item` below names it; the limit above is what remains
+  // after that.
   for src in [
     "A , B , C",
     "A ,",

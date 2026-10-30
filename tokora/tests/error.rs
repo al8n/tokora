@@ -1999,7 +1999,7 @@ fn missing_token_into_unit() {
 // pinned — which is exactly why the unpinned one's stutter outlived the repair of the pinned
 // one. The third carrier is new here and is born under the rule.
 
-/// `UnexpectedToken`'s renders were never pinned at all. Before this commit these read
+/// `UnexpectedToken`'s renders were never pinned at all. Unpinned, they read
 /// `unexpected token, expected expected '}'` and nothing in the suite said so.
 #[test]
 fn unexpected_token_render_says_expected_once() {

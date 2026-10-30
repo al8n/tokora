@@ -36,7 +36,7 @@ pub use state::ParseState;
 pub use try_parse::input::{ParseAttempt, TryParseInput};
 
 // The traits below are declared beside the code that consumes them and re-exported from here
-// alone: a trait is never reachable under `combinator` (#350, rule 3).
+// alone: a trait is never reachable under `combinator`.
 pub use crate::check::Check;
 pub use crate::combinator::recover::{InplaceRecoverInput, RecoverInput};
 pub use crate::require::Require;

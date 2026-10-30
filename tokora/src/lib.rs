@@ -33,9 +33,10 @@ mod trace;
 #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_16")))]
 pub use logos_0_16 as logos;
 
-// The versioned name of the same crate (#350, rule 6): a consumer pinned to logos 0.16 keeps
-// writing `#[logos(crate = tokora::logos_0_16)]` after a newer integration lands and the
-// unversioned `tokora::logos` moves on to it.
+// The versioned name of the same crate: a versioned integration counts with its unversioned alias
+// as one canonical path, and a consumer pinned to logos 0.16 keeps writing
+// `#[logos(crate = tokora::logos_0_16)]` after a newer integration lands and the unversioned
+// `tokora::logos` moves on to it.
 #[cfg(feature = "logos_0_16")]
 #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_16")))]
 pub use logos_0_16;
@@ -81,7 +82,7 @@ pub mod combinator;
 
 pub mod parse;
 
-// The Pratt subsystem: one module behind one feature (#350, rule 4).
+// The Pratt subsystem: one module behind one feature.
 #[cfg(feature = "pratt")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 pub mod pratt;

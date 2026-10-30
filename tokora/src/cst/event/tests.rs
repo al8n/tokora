@@ -188,8 +188,8 @@ const NUMBER_WORDS: &[&str] = &[
 /// Every variant the `Event` enum in `source` declares, in declaration order.
 ///
 /// Read through `syn`, which refuses what it cannot parse instead of scanning for a shape:
-/// three review rounds of #183 each patched a substring matcher and each was followed by a
-/// new gap in it, which is a property of text scanning rather than of any one pattern.
+/// a substring matcher patched once per gap keeps gaining new gaps, which is a property of text
+/// scanning rather than of any one pattern.
 fn declared_variants(source: &str) -> std::vec::Vec<std::string::String> {
   let file = syn::parse_file(source)
     .expect("GUIDE_EVENT_CENSUS: `cst/event.rs` must parse, or the census reads nothing");

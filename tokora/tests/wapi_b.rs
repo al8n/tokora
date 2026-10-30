@@ -513,13 +513,12 @@ fn fluent_labelled_matches_the_free_function() {
   const ALPHA: &str = " alpha 1 ";
   const BETA: &str = " beta 2 ";
 
-  // Two *different* names, and that is the whole point. Asserting one name is observable
-  // does not show the name was routed: a witness that matches text is satisfiable by every
-  // producer of that text, and an implementation that ignored its argument and passed the
-  // literal this cell asserts on would be such a producer. That is not hypothetical — it
-  // was the defect here, found by mutation after the first repair. One name cannot
-  // distinguish "routed" from "hardcoded to the value I happened to check"; two can, since
-  // no constant satisfies both rows.
+  // Two *different* names, and that is the whole point. Asserting one name is observable does not
+  // show the name was routed: a witness that matches text is satisfiable by every producer of that
+  // text, and an implementation that ignored its argument and passed the literal this cell asserts
+  // on would be such a producer. That is not hypothetical — a mutation run produced exactly that
+  // implementation. One name cannot distinguish "routed" from "hardcoded to the value I happened to
+  // check"; two can, since no constant satisfies both rows.
   fn probe_method_alpha<'inp>(
     inp: &mut InputRef<'inp, '_, TestLexer<'inp>, VCtx<'inp>>,
   ) -> Result<Vec<&'static str>, E> {

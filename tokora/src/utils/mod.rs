@@ -15,8 +15,8 @@ pub use to_equivalent::*;
 pub use hybrid_arraydeque::{self as arraydeque, ArrayDeque, typenum};
 
 // Comparing traits, the human-friendly, SDL and syntax-tree display traits, and marker types.
-// Their public path is `tokora::utils::Item` (#350, rule 5); the submodules stay `pub(crate)` so
-// the crate's own paths into them keep resolving.
+// Their public path is `tokora::utils::Item`: the submodule files stay private and the parent
+// re-exports. The submodules stay `pub(crate)` so the crate's own paths into them keep resolving.
 pub use cmp::*;
 pub use human_display::*;
 pub use marker::*;

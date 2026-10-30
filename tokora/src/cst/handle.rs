@@ -393,7 +393,7 @@ where
   ///
   /// Two properties follow, and they are the whole point of stating placement this way. Both are
   /// pinned as laws over a corpus rather than as table rows, because a hand-written "the same
-  /// stream, one token longer" is exactly the thing three rounds of this rule got wrong.
+  /// stream, one token longer" is easy to get wrong.
   ///
   /// - **Nothing that follows a run can move it.** Two streams that share a prefix through the
   ///   token a run trails place that run in the same node — including when one of them simply

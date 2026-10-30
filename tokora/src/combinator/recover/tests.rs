@@ -102,8 +102,8 @@ fn recover_success_does_not_grow_lineage_stack() {
   // One input, one parse session: a `Recover`-wrapped sub-parser applied repeatedly.
   // Every application takes the success path, which keeps (commits) its progress — so the
   // live-checkpoint lineage stack must return to its baseline length after each iteration.
-  // Before the fix, `Recover`'s `Ok` branch left the `save()`d id on the stack, so this
-  // count grew by one per successful parse without bound.
+  // A `Recover` whose `Ok` branch leaves the `save()`d id on the stack grows this count by one
+  // per successful parse without bound.
   let src = "1 ".repeat(128);
   let mut input = Input::<Lex<'_>, Ctx<'_>, ()>::with_state_and_context(
     src.as_str(),

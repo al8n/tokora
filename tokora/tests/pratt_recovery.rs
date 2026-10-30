@@ -12,13 +12,11 @@
 //!
 //! The test lane never runs an example's own `#[cfg(test)] mod tests`: `cargo test
 //! --all-features` *compiles* every example and runs none of them. The only step that passes
-//! `--examples` lives in the pages workflow, and until the fix in this same change it ran under
-//! `--no-default-features --features std,logos`, where every example in the tree is filtered
-//! out by its `required-features` and cargo reports `no targets matched; this is a no-op` — so
-//! a pin written inside the example was a pin nothing checked anywhere. That step now names
-//! `rowan` and `combinators` and does run each example's `test_example` cell, but it belongs to
-//! a deploy workflow rather than to the test job, so the pins stay where `cargo test
-//! --all-features` reaches them unconditionally.
+//! `--examples` lives in the pages workflow. It names `rowan` and `combinators` — under
+//! `--no-default-features --features std,logos` every example in the tree is filtered out by its
+//! `required-features` and cargo reports `no targets matched; this is a no-op` — and it does run
+//! each example's `test_example` cell, but it belongs to a deploy workflow rather than to the test
+//! job, so the pins stay where `cargo test --all-features` reaches them unconditionally.
 //!
 //! So the example is pulled in as a module and pinned from a real integration test. That also
 //! makes the example's own `main` — the assertions it prints — run for free, under the

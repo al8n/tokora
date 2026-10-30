@@ -228,7 +228,6 @@ impl<'inp, L, P, O, Condition, Ctx, Delim, W, Lang: ?Sized>
               return Ok(span);
             }
             Action::Continue => {
-              // TODO(al8n): tracing dropped element
               let item = self.parser.f.parse_input(inp)?;
               admit_element(counts, &mut nums, &mut full, container, item, inp, &anchor)?;
             }

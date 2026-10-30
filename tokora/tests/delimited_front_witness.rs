@@ -858,8 +858,8 @@ fn separated_while_close_probe_precedes_any_element() {
 
 /// The **value**-change defeater: `!` lexes as `Num(1)` or `Num(2)` by state, so the flagged and
 /// re-lexed tokens share a span AND a kind. A witness carrying "span plus kind" — the obvious
-/// sharpening, and the one an outside reviewer proposed — cannot tell these apart and would
-/// suppress here exactly as the watermark does, losing a report whose payload differs.
+/// sharpening — cannot tell these apart and would suppress here exactly as the watermark does,
+/// losing a report whose payload differs.
 #[test]
 fn a_same_kind_relex_is_still_a_distinct_diagnostic() {
   reset_once();

@@ -377,10 +377,9 @@ fn a_non_sticky_refusal_is_reported_once_and_stops_nothing() {
 /// `Option` is conforming — it refuses exactly when full — so this is not an adversarial
 /// container, and `collect_with` is the supported way to hand one to a driver. It refuses the
 /// construct's *first* element, and every number the driver has says so: one element parsed,
-/// destination capacity one. A diagnostic that asserted the first exceeded the second rendered
-/// *"found 1 elements, which exceeds the maximum capacity of 1"*, which is false; the payload
-/// before this branch said `2`, a total the driver can only reach by trusting an occupancy it
-/// never reads.
+/// destination capacity one. A diagnostic asserting the first exceeded the second would render
+/// *"found 1 elements, which exceeds the maximum capacity of 1"*, which is false; a payload of `2`
+/// is a total the driver can only reach by trusting an occupancy it never reads.
 ///
 /// The refusal is what the driver witnessed and the refusal is what it reports.
 #[test]

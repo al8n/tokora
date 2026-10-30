@@ -589,12 +589,12 @@ fn txn_commit_removes_id_from_live_stack() {
 
 #[test]
 fn txn_drop_and_explicit_rollback_agree_after_state_surgery() {
-  // The finding's divergence, resolved. State surgery inside a guard, then compare an
-  // implicit drop-rollback against an explicit `rollback()`. At HEAD they DIVERGED:
-  // `set_state` cleared the live-checkpoint lineage, so the drop path (`restore_unchecked`)
-  // silently restored the pre-surgery snapshot while the explicit path (checked `restore`)
-  // debug-panicked as non-LIFO. Post-fix both restore identically, undoing the surgery: the
-  // pre-surgery regime, poison boundary, dedup watermark, and position all return.
+  // State surgery inside a guard, then compare an implicit drop-rollback against an explicit
+  // `rollback()`. A `set_state` that cleared the live-checkpoint lineage would make them
+  // DIVERGE: the drop path (`restore_unchecked`) would silently restore the pre-surgery
+  // snapshot while the explicit path (checked `restore`) debug-panicked as non-LIFO. Both
+  // restore identically, undoing the surgery: the pre-surgery regime, poison boundary, dedup
+  // watermark, and position all return.
   //   "1 @ 3 4": `@` is a plain lexer error; the limit-2 limiter trips on the 3rd number.
   use hybrid_arraydeque::typenum::U6;
 
@@ -679,7 +679,7 @@ fn txn_drop_and_explicit_rollback_agree_after_state_surgery() {
   let dropped = run(false);
   let explicit = run(true);
 
-  // The finding, resolved: the two rollback paths produce identical state.
+  // The two rollback paths produce identical state.
   assert_eq!(
     dropped, explicit,
     "drop-rollback and explicit rollback produce identical state after state surgery"
@@ -767,8 +767,7 @@ fn txn_rollback_after_state_surgery_restores_poison_and_diagnostic() {
   // and emitting the limit diagnostic exactly once), begin a transaction, do state surgery
   // (the re-key drops the boundary — forward semantics), then EXPLICITLY roll back. The
   // rollback undoes the surgery: the original poison boundary returns paired with its single
-  // retained diagnostic — no duplicate, no diagnostic-less latch. At HEAD the explicit
-  // rollback debug-panicked (the surgery cleared the lineage).
+  // retained diagnostic — no duplicate, no diagnostic-less latch.
   let cache = DefaultCache::<'_, NumLexer<'_>>::default();
   let mut input = Input::<NumLexer<'_>, NumVerboseCtx<'_>, ()>::with_state_and_context(
     "1 2 3 4 5 6",
@@ -842,12 +841,10 @@ fn txn_rollback_after_state_surgery_restores_poison_and_diagnostic() {
   expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
 )]
 fn txn_raw_restore_below_base_panics_at_the_restore() {
-  // The exact scenario converted from `txn_drop_after_raw_restore_below_base_does_not_
-  // resurrect`. save A, begin (rollback policy), consume, then raw-restore to A through the
-  // guard. A predates the guard's begin point, so restoring it would invalidate the guard's
-  // pinned base — the pin check panics AT THE RESTORE. At HEAD the restore instead succeeded
-  // and, with further parsing before the drop, the rolling-back drop silently committed the
-  // abandoned work.
+  // save A, begin (rollback policy), consume, then raw-restore to A through the guard. A
+  // predates the guard's begin point, so restoring it would invalidate the guard's pinned base —
+  // the pin check panics AT THE RESTORE. Were the restore to succeed, then with further parsing
+  // before the drop the rolling-back drop would silently commit the abandoned work.
   let mut input = silent_input("1 2 3 4 5");
   let mut inp = input.as_ref();
 
@@ -864,10 +861,8 @@ fn txn_raw_restore_below_base_panics_at_the_restore() {
   expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
 )]
 fn txn_explicit_rollback_after_raw_restore_below_base_panics_at_restore() {
-  // Converted from `txn_explicit_rollback_after_raw_restore_below_base_panics_stale`. The panic
-  // now fires AT THE RAW RESTORE (detect-at-cause), before the explicit `rollback` is ever
-  // reached. At HEAD the raw restore succeeded and the later `rollback` panicked as stale
-  // ("transaction base is stale"); post-fix the pinned restore panics first.
+  // The panic fires AT THE RAW RESTORE (detect-at-cause), before the explicit `rollback` is
+  // ever reached — rather than as a stale `rollback` later ("transaction base is stale").
   let mut input = silent_input("1 2 3 4 5");
   let mut inp = input.as_ref();
 
@@ -885,11 +880,9 @@ fn txn_explicit_rollback_after_raw_restore_below_base_panics_at_restore() {
   expected = "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
 )]
 fn txn_commit_policy_raw_restore_below_base_panics_at_restore() {
-  // Converted from `txn_commit_policy_drop_after_raw_restore_below_base_is_noop`. A Commit-
-  // policy guard pins its base on entry exactly like a Rollback-policy one — it still logically
-  // owns the region from its begin point forward — so a raw restore below the base panics AT
-  // THE RESTORE too. At HEAD the restore succeeded and the Commit-policy drop was a harmless
-  // no-op (it only forgets the already-absent id); post-fix the restore never lands.
+  // A Commit-policy guard pins its base on entry exactly like a Rollback-policy one — it still
+  // logically owns the region from its begin point forward — so a raw restore below the base
+  // panics AT THE RESTORE too, and never lands.
   let mut input = silent_input("1 2 3 4 5");
   let mut inp = input.as_ref();
 

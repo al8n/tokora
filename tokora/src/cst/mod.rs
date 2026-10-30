@@ -164,8 +164,10 @@ use rowan::{GreenNodeBuilder, Language, SyntaxNode, SyntaxToken};
 #[cfg(feature = "rowan")]
 use crate::syntax::Syntax;
 
-// The rowan-free event vocabulary. Its items' public path is `tokora::cst::Item` (#350, rule 5);
-// the submodule stays `pub(crate)` so the crate's own paths into it keep resolving.
+// The rowan-free event vocabulary. Its items' public path is `tokora::cst::Item`: the submodule
+// file stays private and the parent re-exports, so no public path is deeper than
+// `tokora::<module>::<Item>`. The submodule stays `pub(crate)` so the crate's own paths into it
+// keep resolving.
 pub use event::*;
 pub(crate) mod event;
 pub mod kinds;

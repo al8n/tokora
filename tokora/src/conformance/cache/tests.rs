@@ -37,9 +37,9 @@ use crate::{
 /// beside each corpus token is a **different value at every position** (`lexed` runs 1..=12 over
 /// [`SRC`]).
 ///
-/// Before #183 this was `()` — logos' default `Extras`, which is what a lexer gets when it is not
-/// given one — and a single-valued state makes the kit's state comparison vacuous: there is
-/// nothing for a cache to re-associate wrongly. Every state mutant below rests on this counter,
+/// A single-valued state — logos' default `()` `Extras`, which is what a lexer gets when it is
+/// not given one — makes the kit's state comparison vacuous: there is nothing for a cache to
+/// re-associate wrongly. Every state mutant below rests on this counter,
 /// and [`corpus_is_pairwise_distinct_on_all_three_axes`] is what stops a later `SRC` edit from
 /// quietly taking it away again.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -59,9 +59,9 @@ impl crate::state::State for CState {
 ///
 /// Both halves matter, and they are different properties. Alternating *kinds* is what makes a
 /// neighbour swap visible; distinct *payloads* are what make a swap between two same-kind entries
-/// at a distance visible, since the payload is the slice and no two positions share one. Before
-/// #183 this enum was a single fieldless variant — one inhabitant — so a token comparison over it
-/// could not have failed even if the kit had made one.
+/// at a distance visible, since the payload is the slice and no two positions share one. A single
+/// fieldless variant — one inhabitant — would make a token comparison over it impossible to fail
+/// even if the kit made one.
 #[derive(Debug, Clone, PartialEq, crate::logos::Logos)]
 #[logos(crate = crate::logos, skip r"[ \t]+", extras = CState)]
 enum CTok<'a> {
@@ -137,7 +137,7 @@ type CLex<'a> = LogosLexer<'a, CTok<'a>>;
 /// refuse; the window is what the kit's peek prefill draws on, at every depth up to a buffer with
 /// no room left, from tokens the cache under test is not itself holding.
 ///
-/// **Heterogeneous on all three axes** since #183. Spans are pairwise distinct from any source;
+/// **Heterogeneous on all three axes**. Spans are pairwise distinct from any source;
 /// the alternation of letters and digits makes the token *kinds* alternate, the slices make the
 /// token *values* pairwise distinct, and [`CState`]'s counter makes the states pairwise distinct.
 /// That is what gives the entry comparison anything to discriminate — see
@@ -309,12 +309,11 @@ const STALE_TAIL_RESIDENCY_PEEK: u8 = 21;
 /// which is arm-blind by construction, so nothing about the oracle itself needed to change.
 const OWNED_PEEK: u8 = 22;
 /// [`OWNED_PEEK`] with a defect specific to that arm: every `Maybe::Owned` entry it pushes is a
-/// clone of the FRONT token rather than the token at its own position, so the first entry of a
-/// peek is right by coincidence — the front IS the first expected entry — and every entry behind
-/// it is wrong. `front`, `back`, `len` and a hypothetical `Maybe::Ref` peek over the same data
-/// would all still answer correctly; only the OWNED arm itself diverges, which is exactly the
-/// shape the module docs name as invisible before #186: "an implementation whose owned arm is
-/// wrong ... is certified by the kit regardless."
+/// clone of the FRONT token rather than the token at its own position, so the first entry of a peek
+/// is right by coincidence — the front IS the first expected entry — and every entry behind it is
+/// wrong. `front`, `back`, `len` and a hypothetical `Maybe::Ref` peek over the same data would all
+/// still answer correctly; only the OWNED arm itself diverges, which is exactly the shape #186 is
+/// about: an owned arm that is wrong while every other observable answers correctly.
 const WRONG_OWNED_PEEK: u8 = 23;
 /// `is_empty()` returns `true` unconditionally, independent of `len()` (#180 part A, item 1).
 ///
@@ -358,12 +357,10 @@ const SILENT_PUSH_MANY: u8 = 29;
 /// entry back. A `clear` that unlinks the run without dropping it, and a `pop` that reads the
 /// old link, is the natural shape of it.
 ///
-/// This is the mutant [`POISONING_CLEAR`]'s sibling fix shipped without. `assert_empty` used to
-/// run its pop probe against a throwaway `C::new()` rather than against the cache under test, so
-/// "after clear() a pop must not answer" was asked of a cache that had never been cleared —
-/// which is no question at all. The probe now runs on the cleared cache itself, and this cell is
-/// what makes that change bite: a fresh `C::new()` has nothing stashed, so before the fix this
-/// defect was certified in full (#180 part A, item 2).
+/// `assert_empty` runs its pop probe on the cleared cache itself rather than on a throwaway
+/// `C::new()`, because "after clear() a pop must not answer" is only a question about the cache
+/// that was cleared. A fresh `C::new()` has nothing stashed, so a probe against one would certify
+/// this defect in full; this cell is what makes the probe's placement bite (#180 part A, item 2).
 const RESURRECTING_CLEAR: u8 = 30;
 /// `peek_one` names the **back** entry instead of the front, with `peek`, `front`, `back`, `len`
 /// and every span accessor left correct (#180 part A, item 4).
@@ -576,13 +573,12 @@ const TRY_POP_FRONT_IF_PREDICATES_ON_THE_BACK: u8 = 46;
 /// predicate the **back** entry, and is otherwise conforming — a `true` answer still removes and
 /// returns exactly the front, a `false` answer still removes nothing.
 ///
-/// The assertion this cell is the witness for is not a new one: check 9 has recorded the span
-/// `pop_front_if` hands its predicate since the check was written. What it never had was a cache
-/// that disagrees with it — every fixture above predicates on `self.items.front()`, including
-/// [`WRONG_POP_FRONT_IF`], whose defect is in what it returns and not in what it asks about. So
-/// the `pop_front_if` half of "the predicate sees the front entry" was an assertion with nothing
-/// behind it, which is the same shape as the `try_pop_front_if` half having no assertion at all,
-/// and it turned up in the sweep that followed the review finding rather than in the finding.
+/// Check 9 records the span `pop_front_if` hands its predicate, and this cell is the cache that
+/// disagrees with it — every fixture above predicates on `self.items.front()`, including
+/// [`WRONG_POP_FRONT_IF`], whose defect is in what it returns and not in what it asks about.
+/// Without it, the `pop_front_if` half of "the predicate sees the front entry" is an assertion
+/// with nothing behind it, the same shape as the `try_pop_front_if` half having no assertion at
+/// all.
 ///
 /// Correct at `len <= 1`, where front and back are the same entry.
 const POP_FRONT_IF_PREDICATES_ON_THE_BACK: u8 = 47;
@@ -590,11 +586,11 @@ const POP_FRONT_IF_PREDICATES_ON_THE_BACK: u8 = 47;
 // ── #183: the entry observable — cells that corrupt the token or the state and nothing else ──
 //
 // Every cell from here down leaves the SPANS of everything it touches exactly where a conforming
-// cache would put them. That is the point: each is invisible to a kit that compares spans, which
-// is what this kit did until #183, and each fires on exactly one of the two comparisons the entry
-// observable adds. A generic fixture cannot fabricate an `L::State` value — but it can
-// **re-associate** the ones it was handed, and that is the real defect class: a struct-of-arrays
-// cache with index skew, an implementor pairing `state[i - 1]` with `token[i]`.
+// cache would put them. That is the point: each is invisible to a kit that compares only spans, and
+// each fires on exactly one of the two comparisons the entry observable adds. A generic fixture
+// cannot fabricate an `L::State` value — but it can **re-associate** the ones it was handed, and
+// that is the real defect class: a struct-of-arrays cache with index skew, an implementor pairing
+// `state[i - 1]` with `token[i]`.
 //
 // The gates are the file's existing convention: each conforms at `len <= 1`, where the entry a
 // neighbour skew reaches for is the entry itself.
@@ -614,8 +610,8 @@ const STATE_LAG: u8 = 48;
 ///
 /// [`WRONG_FRONT_IDENTITY`]'s successor one level deeper. That cell made the reference name the
 /// wrong slot outright, which the span half of the edge-identity read catches; this one makes the
-/// reference name the right slot and carry the wrong state, which nothing before #183 could see —
-/// even the #180 fix compared only the reference's span.
+/// reference name the right slot and carry the wrong state, which a comparison of the reference's
+/// span alone cannot see.
 const EDGE_STATE_SKEW: u8 = 49;
 /// [`EDGE_STATE_SKEW`] on the other half: `front()`/`back()` return the right span and the right
 /// state with the **neighbour's token** between them.
@@ -642,8 +638,8 @@ const OWNED_PEEK_STATE_SKEW: u8 = 53;
 /// right states, and every token the front entry's.
 ///
 /// This is the owned-arm instance of the same span-only comparison #183 is about. Its sibling is
-/// caught today because cloning the whole front entry moves the spans too; take that away and the
-/// kit had nothing left to notice.
+/// caught because cloning the whole front entry moves the spans too; take that away and a
+/// span-only kit has nothing left to notice.
 const OWNED_PEEK_TOKEN_SKEW: u8 = 54;
 /// `peek_one` answers with an owned entry carrying the front's span and token and the **back's**
 /// state. Correct at `len <= 1`, where the two ends are the same entry.
@@ -655,8 +651,8 @@ const PEEK_ONE_STATE_SKEW: u8 = 55;
 const PEEK_ONE_TOKEN_SKEW: u8 = 56;
 /// A refused push hands back the offered span and token with a **resident** entry's `L::State`.
 ///
-/// Span-identical to the token that was offered, so the refusal round-trip saw nothing wrong with
-/// it before #183 — and the input layer's put-back path parks exactly this value and later
+/// Span-identical to the token that was offered, so a span-only refusal round-trip sees nothing
+/// wrong with it — and the input layer's put-back path parks exactly this value and later
 /// restores a lexer from it.
 const REFUSAL_STATE_SWAP: u8 = 57;
 /// `push_many`'s overflow iterator hands back entries with the right spans, in the right order,
@@ -674,26 +670,26 @@ const PUSH_MANY_STATE_SWAP: u8 = 58;
 /// caller's validation predicate was never meant to see. A predicate that reads the state to
 /// decide whether to consume is deciding on the wrong lexer position.
 ///
-/// Scoped to `try_pop_front_if` as of #183's ninth round. It skewed both methods before, which
-/// looked like twice the coverage and was not: `F: FnOnce` puts the defect on every arm, so the
-/// first recording assertion to run reports it and the others are never reached — the
-/// `pop_front_if` half could not fire while a `try_pop_front_if` arm ran earlier.
-/// [`POP_FRONT_IF_PREDICATE_ARG_STATE_SKEW`] is the sibling that covers the other method.
+/// Scoped to `try_pop_front_if` alone. Skewing both methods would look like twice the coverage
+/// and is not: `F: FnOnce` puts the defect on every arm, so the first recording assertion to run
+/// reports it and the others are never reached — the `pop_front_if` half could not fire while a
+/// `try_pop_front_if` arm ran earlier. [`POP_FRONT_IF_PREDICATE_ARG_STATE_SKEW`] is the sibling
+/// that covers the other method.
 const PREDICATE_ARG_STATE_SKEW: u8 = 59;
 /// [`REFUSAL_STATE_SWAP`] on the token half: the offered span and state come back with a
 /// **resident** entry's token between them.
 ///
-/// Required by the #183 cross-model gate. The refusal round-trip compares the whole entry, and
-/// its state sibling corrupts only the state — so without this cell the token half at that site
-/// would be a comparison nothing could fail, which is the defect class the issue exists to close.
+/// The refusal round-trip compares the whole entry, and its state sibling corrupts only the
+/// state — so without this cell the token half at that site would be a comparison nothing could
+/// fail, which is the defect class #183 exists to close.
 const REFUSAL_TOKEN_SWAP: u8 = 60;
 /// [`PUSH_MANY_STATE_SWAP`] on the token half: overflow entries come back with the right spans
-/// and the right states and a **resident** entry's token. Required by the #183 cross-model gate,
-/// for the reason [`REFUSAL_TOKEN_SWAP`] is.
+/// and the right states and a **resident** entry's token, for the reason [`REFUSAL_TOKEN_SWAP`]
+/// is.
 const PUSH_MANY_TOKEN_SWAP: u8 = 61;
 /// [`PREDICATE_ARG_STATE_SKEW`] on the token half: `try_pop_front_if`'s predicate is handed the
-/// front's span and state with the **back's** token. Required by the #183 cross-model gate, for
-/// the reason [`REFUSAL_TOKEN_SWAP`] is, and scoped to the same method as its state sibling.
+/// front's span and state with the **back's** token, for the reason [`REFUSAL_TOKEN_SWAP`] is,
+/// and scoped to the same method as its state sibling.
 const PREDICATE_ARG_TOKEN_SKEW: u8 = 62;
 /// `peek` caches a **lookahead frontier** — the `L::State` of the newest entry in the run it just
 /// served — and every later pop on that instance reports that cached state instead of the state
@@ -709,9 +705,9 @@ const PREDICATE_ARG_TOKEN_SKEW: u8 = 62;
 /// instance that has never been peeked — `check_pop_order`, `check_push_front`'s three drains and
 /// the residency sweeps in checks 6 and 8 all pop a cache built fresh and peek it, if at all,
 /// only afterwards — so the frontier is unset and this cell is conforming there. Only
-/// `check_peek_across_mutations` peeks an instance and then pops it, and until #183's review that
-/// drain bound the popped value and checked it for **presence alone**: no mutant on any return
-/// path could reach a value the kit discarded.
+/// `check_peek_across_mutations` peeks an instance and then pops it, so that drain compares the
+/// popped value rather than checking it for **presence alone**: no mutant on any return path can
+/// reach a value the kit discards.
 ///
 /// Honest at `len <= 1`, where the newest entry and the one a pop removes are the same one.
 const POST_PEEK_POP_STATE_SKEW: u8 = 63;
@@ -722,8 +718,8 @@ const POST_PEEK_POP_STATE_SKEW: u8 = 63;
 /// [`push_front`](crate::cache::Cache::push_front) promise `Ok` with *a reference to the cached
 /// token*, so this violates the contract outright — and it is invisible to everything downstream,
 /// because `front`, `back`, the pops and `peek` all read **storage**, and storage here is
-/// flawless. The only observable that diverges is the value the push call itself handed back,
-/// which every push in this kit reduced to `is_ok()` until #183's second review round.
+/// flawless. The only observable that diverges is the value the push call itself hands back, so
+/// the kit compares it rather than reducing it to `is_ok()`.
 ///
 /// Both push arms are corrupted, and both route through the kit's single accepted-push
 /// comparison, so this one cell pins that read wherever it happens. Gated on a neighbour existing
@@ -750,28 +746,28 @@ const UNEXPECTED_REFUSAL_ENTRY_SWAP: u8 = 65;
 /// spare from the moment the cache holds anything, and corrupts the entry it hands back.
 ///
 /// Check 3's push is the site where the same call can produce a warranted refusal or an
-/// unwarranted one, and until #183's fifth round the unwarranted branch asserted its way out
-/// before the returned entry reached any comparison — the wrapper-level fix from round 4 did not
-/// reach it, because this site never goes through `accepted_push_back`. Fires at check 3's second
-/// push, the first `push_back` in the kit that lands on a non-empty cache with room left.
+/// unwarranted one, and the unwarranted branch must compare the returned entry before it fails —
+/// the `accepted_push_*` wrappers do not cover it, because this site never goes through
+/// `accepted_push_back`. Fires at check 3's second push, the first `push_back` in the kit that
+/// lands on a non-empty cache with room left.
 const EARLY_PUSH_BACK_REFUSAL_ENTRY_SWAP: u8 = 66;
 /// The prepend twin: refuses a `push_front` with room to spare and corrupts what it hands back.
 ///
 /// Fires in check 5's loop, at the first front push after the seeding append — the other mixed
-/// site, and the other half of what round 5 closes.
+/// site.
 const EARLY_PUSH_FRONT_REFUSAL_ENTRY_SWAP: u8 = 67;
 /// [`PREDICATE_ARG_STATE_SKEW`] on the `pop_front_if` arm: the predicate is handed the front's
 /// span and token with the **back's** `L::State`, and everything downstream — the removal, the
 /// return value, the residency — is the conforming behaviour computed from the front.
 ///
-/// From #183's ninth round, and it is the cell for the hole that round found. Check 9's
-/// **declining** arm — a `false` predicate, which must remove nothing and answer `None` — used to
-/// throw its predicate's argument away, because the site had been classified by its RETURN. The
-/// return is genuinely an absence law; the argument is not, and `pop_front_if` hands caller code
-/// a real entry before it learns the answer. So a cache could show the declining predicate
-/// someone else's `L::State`, answer `None`, leave residency untouched, and be certified.
+/// Check 9's **declining** arm — a `false` predicate, which must remove nothing and answer
+/// `None` — reads its predicate's argument even though the site's RETURN is an absence law: the
+/// argument is not, and `pop_front_if` hands caller code a real entry before it learns the
+/// answer. A kit that classified the site by its return alone would let a cache show the
+/// declining predicate someone else's `L::State`, answer `None`, leave residency untouched, and
+/// be certified.
 ///
-/// This is the mutant that makes the new comparison bite, and it lands **on the declining arm**:
+/// This is the mutant that makes that comparison bite, and it lands **on the declining arm**:
 /// it is the first recording predicate check 9 runs, so this cell reports there rather than at
 /// the true-predicate arm below it. It fails on the entry comparison and not on residency —
 /// nothing is removed — which is what distinguishes it from `WRONG_POP_FRONT_IF`.
@@ -1030,11 +1026,11 @@ where
     // and the return value below are the conforming ones, taken from the front, so only what the
     // caller's validation predicate was shown diverges.
     //
-    // `pop_front_if`'s own selector, separate from `try_pop_front_if`'s below. One selector used
-    // to skew both methods, which read as covering both and could only ever report at one of
+    // `pop_front_if`'s own selector, separate from `try_pop_front_if`'s below. One selector
+    // skewing both methods would read as covering both and could only ever report at one of
     // them: `F: FnOnce` makes the defect present on every arm, so the FIRST recording assertion
     // to run consumes it and no later one is reached. Split, each method's predicate-argument
-    // read is pinned by a mutant that can actually land on it (#183 round 9).
+    // read is pinned by a mutant that can actually land on it.
     if D == POP_FRONT_IF_PREDICATE_ARG_STATE_SKEW && self.items.len() >= 2 {
       let answer = {
         let front = self.items.front().expect("len >= 2");
@@ -1679,9 +1675,8 @@ where
       return other;
     }
     // #183: the offered token comes back at its own span, with a RESIDENT entry's state or token
-    // substituted. Span-identical to what was offered, so the round-trip saw nothing wrong with
-    // it while it compared spans — and the input layer parks this value and later restores from
-    // it.
+    // substituted. Span-identical to what was offered, so a span-only round-trip sees nothing
+    // wrong with it — and the input layer parks this value and later restores from it.
     if (D == REFUSAL_STATE_SWAP || D == REFUSAL_TOKEN_SWAP)
       && let Some(resident) = self.items.back()
     {
@@ -1711,14 +1706,14 @@ where
     if self.items.len() == self.cap {
       return Err(self.refuse(tok));
     }
-    // #183 round 4: a refusal the contract does not allow — there is room — reached only once a
+    // #183: a refusal the contract does not allow — there is room — reached only once a
     // prepend has landed on this instance, which is the gate that puts the first hit on an
     // `accepted_push_*` site rather than on the two loops that drive refusals deliberately.
     //
     // The corruption is applied HERE and not in `refuse`, which the capacity check above shares:
     // routing it through there would corrupt the WARRANTED refusals too, and this cell would
     // land on check 3's round-trip — `REFUSAL_STATE_SWAP`'s site — instead of on the unexpected
-    // one it exists for. (It did, the first time this cell was written.)
+    // one it exists for.
     if D == UNEXPECTED_REFUSAL_ENTRY_SWAP && self.front_pushes.get() > 0 {
       return Err(match self.items.back() {
         Some(resident) => Self::with_state(&tok, resident.state.clone()),
@@ -1727,7 +1722,7 @@ where
     }
     // The same shape at check 3's MIXED site: refuse with room from the first non-empty cache,
     // and corrupt the entry handed back. Reached before any `accepted_push_back`, so it lands on
-    // the branch round 4's wrapper-level fix could not see.
+    // the branch the `accepted_push_*` wrappers never see.
     if D == EARLY_PUSH_BACK_REFUSAL_ENTRY_SWAP
       && let Some(resident) = self.items.back()
     {
@@ -1763,7 +1758,7 @@ where
       // happened at all, which is what no driver in the kit ever put in front of a `push_back`.
       self.items.swap(1, 2);
     }
-    // #183 round 3: storage above is faithful; the reference handed back is not. Assembled from
+    // #183: storage above is faithful; the reference handed back is not. Assembled from
     // the entry just pushed and its neighbour's state, so nothing that reads the store can see it.
     if D == WRONG_ACCEPTED_PUSH_REF && self.items.len() >= 2 {
       let n = self.items.len();
@@ -1817,7 +1812,7 @@ where
 /// reach it on its own, since `Options` is an associated type it has no way to fabricate a value
 /// of — and capacity 1 is chosen for it because that is the most degenerate capacity a cache can
 /// have and still hold anything: several checks take a different path there, and one of them,
-/// the prepend law, could not be driven at all before #180 part A, item 10.
+/// the prepend law, is reachable there only through its refusal half (#180 part A, item 10).
 fn run_queue<const D: u8>() {
   CacheHarness::<CLex<'_>, Queue<'_, CLex<'_>, D>>::new(SRC)
     .named("third-party queue")
@@ -1849,9 +1844,9 @@ fn cache_kit_catches_a_wrong_owned_peek() {
   run_queue::<WRONG_OWNED_PEEK>();
 }
 
-/// #180 part A, item 1: `is_empty()` is never asserted FALSE anywhere in the kit before this
-/// fixture — `LYING_IS_EMPTY` returns `true` unconditionally and, before the fix this fixture
-/// proves, that constant answer was certified by the kit at every capacity this suite drives.
+/// #180 part A, item 1: this fixture is what asserts `is_empty()` FALSE — `LYING_IS_EMPTY` returns
+/// `true` unconditionally, and without the assertion it proves, that constant answer would be
+/// certified by the kit at every capacity this suite drives.
 #[test]
 #[should_panic(expected = "empty-invariants")]
 fn cache_kit_catches_a_lying_is_empty() {
@@ -1875,23 +1870,22 @@ fn cache_kit_catches_a_poisoning_clear() {
   run_queue::<POISONING_CLEAR>();
 }
 
-/// #180 part A, item 2, second half — the one that shipped with no mutant behind it.
-/// `assert_empty`'s pop probe used to run against a throwaway `C::new()`; it now runs against
-/// the cache under test, which is the only way "after clear() a pop must not answer" is a
-/// question about the cache that was cleared. `RESURRECTING_CLEAR` is the defect that change
-/// catches and the unfixed probe cannot: `clear()` unlinks the run without dropping it, every
-/// point observable answers for an empty cache, and the first `pop_front` after it hands the
-/// stashed entry back. A fresh `C::new()` has nothing stashed, so it answers `None` and the old
-/// probe was satisfied.
+/// #180 part A, item 2, second half. `assert_empty`'s pop probe runs against the cache under
+/// test rather than a throwaway `C::new()`, which is the only way "after clear() a pop must not
+/// answer" is a question about the cache that was cleared. `RESURRECTING_CLEAR` is the defect
+/// that placement catches and a probe on a fresh cache cannot: `clear()` unlinks the run without
+/// dropping it, every point observable answers for an empty cache, and the first `pop_front`
+/// after it hands the stashed entry back. A fresh `C::new()` has nothing stashed, so it answers
+/// `None` and such a probe is satisfied.
 #[test]
 #[should_panic(expected = "a pop answered on an empty cache")]
 fn cache_kit_catches_a_resurrecting_clear() {
   run_queue::<RESURRECTING_CLEAR>();
 }
 
-/// #180 part A, item 4, first half: `peek_one` had no mutant at all. The assertion that it names
-/// the front entry existed and had never been run against a cache that disagrees with it, because
-/// `peek_one` is a default method and no fixture had ever overridden it. This is that mutant.
+/// #180 part A, item 4, first half: the mutant behind the assertion that `peek_one` names the
+/// front entry. `peek_one` is a default method, so without a fixture that overrides it that
+/// assertion never runs against a cache that disagrees with it.
 #[test]
 #[should_panic(expected = "peek_one() named")]
 fn cache_kit_catches_a_wrong_peek_one() {
@@ -1946,10 +1940,10 @@ fn cache_kit_catches_a_wrong_with_options() {
   run_queue::<WRONG_WITH_OPTIONS>();
 }
 
-/// #180 part A, item 10: check 5 returned at its first line for `cap < 2`, so capacity 1 — the
-/// one capacity where EVERY front push is refused — was never driven at all. The prepend order
-/// is genuinely not observable there, but the refusal half is, and no other check reaches it on
-/// the `push_front` arm. Caught by check 5's round-trip, on the capacity-1 pass.
+/// #180 part A, item 10: capacity 1 is the one capacity where EVERY front push is refused, so
+/// check 5 drives it rather than returning early for `cap < 2`. The prepend order is genuinely not
+/// observable there, but the refusal half is, and no other check reaches it on the `push_front`
+/// arm. Caught by check 5's round-trip, on the capacity-1 pass.
 #[test]
 #[should_panic(expected = "a refused push_front returned a DIFFERENT token")]
 fn cache_kit_catches_a_corrupt_front_refusal_at_capacity_one() {
@@ -1998,19 +1992,17 @@ fn cache_kit_catches_a_try_pop_front_if_that_predicates_on_the_back() {
 /// The same defect on the `pop_front_if` arm, and the witness for an assertion that was already
 /// there.
 ///
-/// Check 9 has recorded the span `pop_front_if` hands its predicate since it was written, but
-/// every fixture predicated on the front, so nothing ever made that assertion fire — the
-/// `try_pop_front_if` finding is an assertion missing where the property is claimed, and this is
-/// the same property claimed by an assertion with no mutant behind it. Both halves of check 9's
-/// "the predicate sees the front entry" are witnessed as of this pair.
+/// Check 9 records the span `pop_front_if` hands its predicate, but every other fixture
+/// predicates on the front, so nothing else makes that assertion fire — the `try_pop_front_if`
+/// cell covers an assertion missing where the property is claimed, and this one covers the same
+/// property claimed by an assertion with no mutant behind it. Together the pair witnesses both
+/// halves of check 9's "the predicate sees the front entry".
 ///
-/// The `expected` string names the **declining** arm as of #183's ninth round, and this is the
-/// one firing site in the kit that round moved. It is the same assertion on the same method —
-/// `assert_recorded_predicate_arg`'s span half, reached through `recording_pop_front_if` — at an
-/// earlier call: the false-predicate arm did not read its argument at all before that round, so
-/// the true-predicate arm below was the first `pop_front_if` that looked. Closing the hole put a
-/// reader in front of it. The move was found by the before/after firing-message diff rather than
-/// reasoned about, and the vacated arm still carries the identical routed assertion.
+/// The `expected` string names the **declining** arm. It is the same assertion on the same
+/// method — `assert_recorded_predicate_arg`'s span half, reached through
+/// `recording_pop_front_if` — at the earliest call that reads the argument: the false-predicate
+/// arm reads it before the true-predicate arm below does, and that arm still carries the
+/// identical routed assertion.
 #[test]
 #[should_panic(expected = "pop_front_if()'s false predicate was handed")]
 fn cache_kit_catches_a_pop_front_if_that_predicates_on_the_back() {
@@ -2347,7 +2339,7 @@ fn cache_kit_catches_a_push_front_refused_by_an_empty_cache() {
 // ── #183: the entry observable, and the fifteen cells that keep it from being vacuous ────
 //
 // Every cell below leaves the spans of everything it touches where a conforming cache would put
-// them, so **every one of them passed the kit in full before #183**. Each pins exactly one of the
+// them, so **every one of them passes a span-only kit in full**. Each pins exactly one of the
 // two comparisons the entry observable adds, at one site, through the `entry-token` and
 // `entry-state` message tags: an `expected` string that named only the site would match the span
 // half too and prove nothing.
@@ -2434,7 +2426,7 @@ fn cache_kit_catches_a_push_back_that_stores_the_previous_entrys_state() {
 ///
 /// The expected message names the `front()` read, which is the first edge the residency oracle
 /// compares. `WRONG_FRONT_IDENTITY` is the same accessor caught by the span half; this cell is
-/// what is left of that defect once the span is right, and nothing before #183 could see it.
+/// what is left of that defect once the span is right, which only a state comparison can see.
 #[test]
 #[should_panic(expected = "entry-state] edge-identity front()")]
 fn cache_kit_catches_an_edge_reference_carrying_the_neighbours_state() {
@@ -2516,7 +2508,7 @@ fn cache_kit_catches_a_refusal_that_swaps_in_a_residents_state() {
   run_queue::<REFUSAL_STATE_SWAP>();
 }
 
-/// Mutant 13 (added by the #183 cross-model gate): the refusal round-trip's **token** half.
+/// Mutant 13: the refusal round-trip's **token** half.
 ///
 /// Without this cell that half would be a comparison nothing in the suite could fail: mutant 10
 /// corrupts only the state, and no other cell reaches a refused push's return value at all.
@@ -2538,8 +2530,8 @@ fn cache_kit_catches_a_push_many_that_rewrites_the_overflows_state() {
   run_queue::<PUSH_MANY_STATE_SWAP>();
 }
 
-/// Mutant 14 (added by the #183 cross-model gate): the `push_many` overflow's **token** half, for
-/// the reason [`cache_kit_catches_a_refusal_that_swaps_in_a_residents_token`] exists.
+/// Mutant 14: the `push_many` overflow's **token** half, for the reason
+/// [`cache_kit_catches_a_refusal_that_swaps_in_a_residents_token`] exists.
 #[test]
 #[should_panic(expected = "entry-token] push-many overflow entry #0")]
 fn cache_kit_catches_a_push_many_that_rewrites_the_overflows_token() {
@@ -2554,12 +2546,11 @@ fn cache_kit_catches_a_push_many_that_rewrites_the_overflows_token() {
 /// the same site caught by the span half; this is a predicate shown the right token at a lexer
 /// position it never occupied.
 ///
-/// Scoped to `try_pop_front_if` in #183's ninth round, when the declining `pop_front_if` arm
-/// gained a reader and became the first recording predicate in the check. This mutant used to
-/// skew both methods and could only ever report at whichever ran first, so the `pop_front_if`
-/// half was coverage-shaped and never fired; scoping it here keeps this cell on the site its
-/// `expected` has always named, and [`cache_kit_catches_a_declining_predicate_shown_the_backs_state`]
-/// pins the other method for real.
+/// Scoped to `try_pop_front_if`, because the declining `pop_front_if` arm is the first recording
+/// predicate in the check: a mutant skewing both methods could only ever report at whichever ran
+/// first, leaving the other half coverage-shaped and never firing. Scoping it here keeps this cell
+/// on the site its `expected` names, and
+/// [`cache_kit_catches_a_declining_predicate_shown_the_backs_state`] pins the other method.
 #[test]
 #[should_panic(
   expected = "entry-state] pop-front-if try_pop_front_if()'s Err-path predicate argument"
@@ -2568,8 +2559,8 @@ fn cache_kit_catches_a_predicate_shown_the_backs_state() {
   run_queue::<PREDICATE_ARG_STATE_SKEW>();
 }
 
-/// Mutant 15 (added by the #183 cross-model gate): the predicate argument's **token** half, for
-/// the reason [`cache_kit_catches_a_refusal_that_swaps_in_a_residents_token`] exists.
+/// Mutant 15: the predicate argument's **token** half, for the reason
+/// [`cache_kit_catches_a_refusal_that_swaps_in_a_residents_token`] exists.
 #[test]
 #[should_panic(
   expected = "entry-token] pop-front-if try_pop_front_if()'s Err-path predicate argument"
@@ -2578,16 +2569,13 @@ fn cache_kit_catches_a_predicate_shown_the_backs_token() {
   run_queue::<PREDICATE_ARG_TOKEN_SKEW>();
 }
 
-/// Mutant 16, from #183's own adversarial review: `peek` caches a lookahead frontier and every
-/// later pop on that instance reports its `L::State` instead of the removed entry's.
+/// Mutant 16: `peek` caches a lookahead frontier and every later pop on that instance reports its
+/// `L::State` instead of the removed entry's.
 ///
-/// This is the #183 defect class surviving **inside** the #183 fix, on the peek-then-consume path
-/// the issue's severity argument rests on. It is also the one site the PR's residual-coverage
-/// argument did not cover: that argument is about comparisons reached through a return path some
-/// other mutant already corrupts, and this one was reached by nothing, because
-/// `check_peek_across_mutations` bound its popped value and asserted `is_some()` on it. **A
-/// discarded value cannot be pinned by a mutant on any return path** — the only fix is to compare
-/// it, which is what the drain now does.
+/// This is the #183 defect class on the peek-then-consume path the issue's severity argument
+/// rests on. No other mutant's return path reaches it, because the only drain that pops a peeked
+/// instance is `check_peek_across_mutations`'s. **A discarded value cannot be pinned by a mutant
+/// on any return path** — the only answer is to compare it, which is what that drain does.
 ///
 /// The expected message names the drain's **first** pop. Every other drain in the kit pops an
 /// instance that has never been peeked, so the frontier is unset and this fixture is conforming at
@@ -2606,45 +2594,42 @@ fn cache_kit_catches_a_peek_that_poisons_the_state_of_later_pops() {
   run_queue::<POST_PEEK_POP_STATE_SKEW>();
 }
 
-/// Mutant 17, from #183's third review round: the push stores perfectly and returns an `Ok`
-/// reference assembled from a different resident.
+/// Mutant 17: the push stores perfectly and returns an `Ok` reference assembled from a different
+/// resident.
 ///
-/// Rounds 2 and 3 found the same class in two places — a value a `Cache` method handed back that
-/// the kit reduced to presence: first a popped entry, then an accepted push's reference. So the
-/// kit now reads **every** such value, and this cell is what keeps the push half of that from
-/// being a check nothing can fail. The contract is explicit — `Ok` carries *a reference to the
-/// cached token* — and the violation is invisible to every other oracle here, because they all
-/// observe storage and this cell's storage is flawless.
+/// The kit reads **every** value a `Cache` method hands back rather than reducing it to presence,
+/// and this cell is what keeps the push half of that from being a check nothing can fail. The
+/// contract is explicit — `Ok` carries *a reference to the cached token* — and the violation is
+/// invisible to every other oracle here, because they all observe storage and this cell's storage
+/// is flawless.
 ///
 /// The expected message names `push_back #1` in check 3, which is the first accepted push in the
 /// whole kit that lands with a neighbour already resident: every earlier one goes into an empty
 /// cache, where the entry pushed and the entry beside it are the same one and this cell is
 /// conforming.
 ///
-/// One cell for both arms, because both route through the kit's single accepted-push comparison —
-/// the same granularity argument the two rounds before this one recorded: the removable units are
-/// that one call, which this pins, and the shared entry helper's branches, which nine cells above
-/// already pin.
+/// One cell for both arms, because both route through the kit's single accepted-push comparison:
+/// the removable units are that one call, which this pins, and the shared entry helper's
+/// branches, which nine cells above already pin.
 #[test]
 #[should_panic(expected = "entry-state] accepted-push push_back #1")]
 fn cache_kit_catches_an_accepted_push_that_returns_the_wrong_reference() {
   run_queue::<WRONG_ACCEPTED_PUSH_REF>();
 }
 
-/// Mutant 18, from #183's fourth review round, and the one that finishes the class: a push
-/// refused with room to spare that also corrupts the entry it hands back.
+/// Mutant 18: a push refused with room to spare that also corrupts the entry it hands back.
 ///
-/// The `accepted_push_*` wrappers used to take `Err`, panic on the refusal and drop the returned
-/// value — the last `Cache` return in the kit read for its shape and not its contents. This cell
-/// is what makes the fix bite, and the `expected` string is the evidence for **which** assertion
-/// fires: `entry-state] unexpected-refusal`, the entry comparison, not the refusal panic that
-/// follows it. Without the comparison the refusal message would be all that ever appeared.
+/// The `accepted_push_*` wrappers compare the entry a refusal hands back before they panic on the
+/// refusal, rather than dropping it unread. This cell is what makes that comparison bite, and the
+/// `expected` string is the evidence for **which** assertion fires:
+/// `entry-state] unexpected-refusal`, the entry comparison, not the refusal panic that follows it.
+/// Without the comparison the refusal message would be all that ever appeared.
 ///
 /// It is a claim-accuracy cell rather than a coverage one, and says so plainly: reaching it needs
 /// a refusal the contract forbids, which the kit already fails on. No cache is certified because
-/// of this. What was untrue before it is the kit's claim that every value a `Cache` method hands
-/// back is compared or is a documented exception — and an enumeration with an unlisted third case
-/// is the same defect class as an oracle that does not look, one level up.
+/// of this. What it keeps true is the kit's claim that every value a `Cache` method hands back is
+/// compared or is a documented exception — and an enumeration with an unlisted third case is the
+/// same defect class as an oracle that does not look, one level up.
 #[test]
 #[should_panic(
   expected = "entry-state] unexpected-refusal push_back #1 building an interleaved residency"
@@ -2653,13 +2638,12 @@ fn cache_kit_catches_an_unwarranted_refusal_that_corrupts_the_returned_entry() {
   run_queue::<UNEXPECTED_REFUSAL_ENTRY_SWAP>();
 }
 
-/// Mutant 19, from #183's fifth review round: the **mixed** `push_back` site.
+/// Mutant 19: the **mixed** `push_back` site.
 ///
-/// Round 4 put the unexpected-refusal comparison in the `accepted_push_*` wrappers, which was
-/// right and incomplete — check 3's push never goes through a wrapper, because a refusal there is
-/// sometimes legitimate. The same call, two meanings, and the unwarranted one asserted its way
-/// out before the entry was read. The comparison now lives in `push_back_expecting`, told which
-/// meaning applies by `must_accept`, and this cell is what makes that bite.
+/// The `accepted_push_*` wrappers carry the unexpected-refusal comparison, but check 3's push
+/// never goes through a wrapper, because a refusal there is sometimes legitimate: the same call
+/// has two meanings. So the comparison also lives in `push_back_expecting`, told which meaning
+/// applies by `must_accept`, and this cell is what makes that bite.
 ///
 /// The `expected` string carries a trailing colon so it pins **this** site: mutant 18's message
 /// continues `push_back #1 building an interleaved residency`, and a bare `#1` would match both.
@@ -2676,12 +2660,12 @@ fn cache_kit_catches_an_early_push_front_refusal_that_corrupts_the_returned_entr
   run_queue::<EARLY_PUSH_FRONT_REFUSAL_ENTRY_SWAP>();
 }
 
-/// Mutant 21, from #183's ninth review round: the **declining** `pop_front_if` predicate is shown
-/// the back's `L::State`, and everything else about the call conforms.
+/// Mutant 21: the **declining** `pop_front_if` predicate is shown the back's `L::State`, and
+/// everything else about the call conforms.
 ///
-/// The round's finding was a classification error, not a missing assertion. Check 9's
-/// false-predicate arm sat among the kit's absence exceptions — "it returns `None`, so there is
-/// no entry to compare" — which is true of the RETURN and says nothing about the ARGUMENT.
+/// The hole this pins is a classification error, not a missing assertion. Classing check 9's
+/// false-predicate arm as an absence exception — "it returns `None`, so there is no entry to
+/// compare" — is true of the RETURN and says nothing about the ARGUMENT.
 /// `pop_front_if` hands caller code a real entry *before* it learns the answer, so a cache can
 /// answer `None` correctly, remove nothing, keep every span in place, and still run the caller's
 /// validation predicate against a lexer position that entry never occupied.
@@ -2689,7 +2673,7 @@ fn cache_kit_catches_an_early_push_front_refusal_that_corrupts_the_returned_entr
 /// The `expected` string names `false-predicate argument`, which pins the declining arm
 /// specifically: `POP_FRONT_IF_PREDICATE_ARG_STATE_SKEW` is wrong on every `pop_front_if` arm —
 /// `F: FnOnce` settles the entry before the answer exists — and this is simply the first of them
-/// the kit now reads.
+/// the kit reads.
 ///
 /// It fails on the **entry comparison**, not on residency, and that is the whole point of the
 /// cell: `WRONG_POP_FRONT_IF` already covers a declining call that removes something. This one
@@ -2702,31 +2686,30 @@ fn cache_kit_catches_a_declining_predicate_shown_the_backs_state() {
 
 // ── CACHE_CALL_CENSUS ────────────────────────────────────────────────────────────────
 //
-// Four review rounds of #183 found the same defect four times: a value a `Cache` method handed
-// the kit that the kit reduced to `is_ok()`/`is_some()` and never compared. R1 a popped entry,
-// R2 the same on the peek-then-consume path, R3 every accepted push's `Ok` reference, R4/R5 the
-// `Err` of a refusal at the two sites where a refusal may be either warranted or not.
+// The defect this guards against is a value a `Cache` method hands the kit that the kit reduces
+// to `is_ok()`/`is_some()` and never compares: a popped entry, the same on the peek-then-consume
+// path, an accepted push's `Ok` reference, the `Err` of a refusal at the two sites where a
+// refusal may be either warranted or not.
 //
-// Each round the fix was correct and each round the *method* was the same: enumerate the sites
-// by hand and argue the residue is fine. Four hand enumerations, four misses. The enumeration by
-// **shape** was complete — `Some` / `None` / `Ok` / `Err`-expected / `Err`-unexpected, and there
-// is no sixth — but the enumeration by **site** was not, because a site can be two shapes at
-// once and a census organised by shape cannot see that.
+// Enumerating those sites by hand and arguing the residue is fine is the method that misses
+// them. The enumeration by **shape** is complete — `Some` / `None` / `Ok` / `Err`-expected /
+// `Err`-unexpected, and there is no sixth — but an enumeration by **site** is not, because a site
+// can be two shapes at once and a census organised by shape cannot see that.
 //
 // So this is the guard that replaces the argument: a mechanical scan of the kit's own source
 // that fails, naming the function and line, the moment a `Cache` call appears anywhere it is not
 // registered below. It cannot prove a value is compared — Rust has no call-site reflection, and
 // `RECORD_CENSUS` and `SETTLE_CENSUS` live with the same limit — but it makes the *existence* of
-// a site impossible to overlook, which is the step that kept failing.
+// a site impossible to overlook, which is the step hand enumeration misses.
 
 /// The `Cache` methods whose return value carries an entry, and every spelling the scanner
 /// recognises for a call to one.
 ///
 /// Two spellings per method: the method-call form (`cache.pop_front(`) and the qualified form
 /// (`Cache::pop_front(`, `C::pop_front(`, `<C as Cache<..>>::pop_front(`, `Self::pop_front(` —
-/// all of which end in `::pop_front(`). The qualified form was invisible to this census until
-/// #183's sixth review round, which is exactly the kind of gap the bounds note below exists to
-/// keep honest rather than to pretend away.
+/// all of which end in `::pop_front(`). A census that knew only the method-call form would miss
+/// the qualified one, which is exactly the kind of gap the bounds note below exists to keep honest
+/// rather than to pretend away.
 ///
 /// `len`, `remaining`, `is_empty`, `span`, `front_span`, `back_span` and `clear` are deliberately
 /// absent: they return counts, spans or nothing, so there is no entry behind them for an oracle
@@ -2966,11 +2949,11 @@ const ANCHOR: &str = "CACHE_CALL_CENSUS:";
 ///
 /// `syn` hands the walk a macro **invocation**, never its expansion, so a macro this list does not
 /// name could expand to anything — `cache_call!(cache)` names nothing guarded, parses as an
-/// expression list, and expands to `cache.pop_front()`. #183's eighth round found exactly that,
-/// and it recorded neither a call nor a warning. Rather than widen the census's bound to admit it,
-/// the bound is made **true**: the census governs one file, so requiring every macro in that file
-/// to come from a closed list is enforceable, and then "a guarded call appears literally in the
-/// source" is a wall rather than a caveat.
+/// expression list, and expands to `cache.pop_front()`, recording neither a call nor a warning.
+/// Rather than widen the census's bound to admit it, the bound is made **true**: the census
+/// governs one file, so requiring every macro in that file to come from a closed list is
+/// enforceable, and then "a guarded call appears literally in the source" is a wall rather than a
+/// caveat.
 ///
 /// The admission criterion is one property, and it is the reason walking the *body* is sound for
 /// everything here: **the expansion adds no call the author chose.** Stated that precisely on
@@ -3110,12 +3093,12 @@ fn census_receiver(expr: &syn::Expr) -> std::string::String {
 
 /// An identifier as the census compares it, with the `r#` of a raw identifier stripped.
 ///
-/// `Ident::to_string` **keeps** the `r#`, and #183's eighth round found what that costs:
-/// `cache.r#pop_front()` and `Cache::r#pop_front(cache)` are ordinary calls to a guarded method
-/// that no comparison against [`GUARDED_METHODS`] can match. The source parses, so they were not
-/// reported as an opaque macro either — simply invisible, in every form. It cuts the other way
-/// too: `r#cache.pop_front()` would have missed the `cache` row in [`CALL_SITES`] and been
-/// reported as an unregistered receiver.
+/// `Ident::to_string` **keeps** the `r#`, which has a cost: `cache.r#pop_front()` and
+/// `Cache::r#pop_front(cache)` are ordinary calls to a guarded method that no comparison against
+/// [`GUARDED_METHODS`] can match. The source parses, so they would not be reported as an opaque
+/// macro either — simply invisible, in every form. It cuts the other way too:
+/// `r#cache.pop_front()` would miss the `cache` row in [`CALL_SITES`] and be reported as an
+/// unregistered receiver.
 ///
 /// Deliberately a string strip rather than `syn::ext::IdentExt::unraw`, which rebuilds the
 /// identifier through `Ident::new` — and `Ident::new` panics on a keyword. `unraw` on a
@@ -3275,8 +3258,7 @@ impl<'ast> syn::visit::Visit<'ast> for CensusVisitor {
   }
 
   fn visit_macro(&mut self, node: &'ast syn::Macro) {
-    // `syn` hands back a macro's tokens, not its expansion — so this method has two jobs, and
-    // #183's eighth round found that only the first was being done.
+    // `syn` hands back a macro's tokens, not its expansion — so this method has two jobs.
     //
     // The first is to walk what IS here: most of the kit's guarded calls sit inside `assert!`,
     // whose body is an expression list, so parse that and visit it like any other expression.
@@ -3434,8 +3416,8 @@ fn census_scan(src: &str) -> CensusScan {
 ///
 /// A fourth is gone too, and it went the other way — not because the parse made it false, but
 /// because it *was* false. It read: a call can hide only in a macro body the parse cannot read.
-/// #183's eighth round falsified it with a body that parses perfectly: `cache_call!(cache)` names
-/// nothing guarded, is one clean expression, and expands to `cache.pop_front()`. The bound was not
+/// A body that parses perfectly falsifies it: `cache_call!(cache)` names nothing guarded, is one
+/// clean expression, and expands to `cache.pop_front()`. The bound was not
 /// about *unparseable* bodies at all; it was about **expansion**, which `syn` never performs.
 /// Widening the wording to admit that would have been honest and useless. Instead the claim is
 /// made true: **every macro invocation and every attribute in this file must come from a closed
@@ -3556,7 +3538,7 @@ fn census_drift(found: &CensusScan) -> std::vec::Vec<std::string::String> {
   }
 
   // 5. A macro whose expansion is not accounted for. `syn` never expands, so an unlisted macro
-  //    could produce any call at all while its invocation names none — the R8 falsification.
+  //    could produce any call at all while its invocation names none.
   //    A `macro_rules` definition lands here too: its path is not on the list.
   for (f, path, line) in &found.unknown_macros {
     drift.push(std::format!(
@@ -3704,8 +3686,8 @@ impl Thing {
   //
   // The first is the ordinary anchored call. The next three are the layouts the substring
   // matcher could not see, because Rust allows whitespace and newlines around `.` and `::` and
-  // a text scan cannot. The turbofish pair is the #183-round-six mis-specification from both
-  // sides: with the turbofish and without it.
+  // a text scan cannot. The turbofish pair is the same generic call written with the turbofish
+  // and without it.
   let must = [
     ("anchored_router", "pop_front", "cache", 5, Some("routed")),
     ("spaced", "pop_back", "cache", 9, None),
@@ -3727,10 +3709,10 @@ impl Thing {
       35,
       Some("not-a-cache-call"),
     ),
-    // The three raw-identifier forms, #183's eighth round. `Ident::to_string` keeps the `r#`, so
-    // every one of these was a real call to a guarded method that matched nothing — and, because
-    // the source parses, was not reported as an opaque macro or as drift either. Invisible, not
-    // merely unclassified.
+    // The three raw-identifier forms. `Ident::to_string` keeps the `r#`, so without unrawing each
+    // of these is a real call to a guarded method that matches nothing — and, because the source
+    // parses, is not reported as an opaque macro or as drift either. Invisible, not merely
+    // unclassified.
     ("raw_method", "pop_front", "cache", 52, None),
     ("raw_qualified", "pop_back", "cache", 56, None),
     // The same normalisation on the RECEIVER, which fails the other way: unrawed, this is the
@@ -3772,8 +3754,8 @@ impl Thing {
      coverage: {:?}",
     found.orphan_anchors
   );
-  // A macro that is not on the list is refused rather than read. `cache_call!(cache)` is the R8
-  // falsification exactly: nothing guarded in its tokens, a body that parses as one clean
+  // A macro that is not on the list is refused rather than read. `cache_call!(cache)` is the
+  // whole problem in one line: nothing guarded in its tokens, a body that parses as one clean
   // expression, and an expansion that can be `cache.pop_front()`. Walking it harder finds
   // nothing; the only sound answer is to refuse it.
   assert!(
@@ -3823,7 +3805,7 @@ impl Thing {
 /// expression list. The expansion is accounted for — that is what admission to
 /// [`MACRO_ALLOWLIST`] means — but the body was not walked, so a call written inside it went
 /// unseen. Both halves are planted here, including the raw-identifier form, which is the quietest
-/// of all: unread tokens, and a spelling that matched nothing until #183's eighth round.
+/// of all: unread tokens, and a spelling that matches nothing unless it is unrawed.
 ///
 /// A macro that is **not** allowlisted is a different answer, not a smaller one: it is refused
 /// outright and its tokens are not read, because the tokens of a macro whose meaning is unknown
@@ -3892,8 +3874,9 @@ impl Thing {
     found.opaque_macros
   );
   // Defining a macro in the censused file, and invoking it: both refused by MACRO_ALLOWLIST, and
-  // this is the pair that made the R8 bound false. The definition may live anywhere in the crate;
-  // the invocation is what has to be here, and the invocation is what is checked.
+  // this is the pair that shows a parseable macro body can still hide a call. The definition may
+  // live anywhere in the crate; the invocation is what has to be here, and the invocation is what
+  // is checked.
   assert!(
     found.unknown_macros
       == std::vec![
@@ -3929,10 +3912,8 @@ impl Thing {
 /// situation the message exists for.
 ///
 /// So this plants one source that trips all seven at once and asserts the exact lines. The
-/// planted file is also the permanent form of the two falsifications #183's eighth round left
-/// open: `r#pop_front` for the raw-identifier finding, `hidden!` for the macro-expansion one.
-/// Both were reproduced by hand against the recovered census — green, with the calls live — and a
-/// reproduction that is not a test is a story, so they are tests.
+/// planted file also carries the two census holes as tests: `r#pop_front` for the raw-identifier
+/// spelling, `hidden!` for the macro expansion.
 #[test]
 #[cfg_attr(
   miri,
@@ -3972,8 +3953,8 @@ impl Thing {
       "conformance/cache.rs:4: `drained_front` calls `cache.pop_front` with no `// CACHE_CALL_CENSUS: <kind>` anchor of its own"
     ),
     // 1b. Anchored `absence` where CALL_SITES registers `routed`: a site reclassified by editing
-    //     one of the two places. Also the RAW-IDENTIFIER finding — `r#pop_front` is seen at all
-    //     only because the walk unraws, and before that it matched nothing anywhere.
+    //     one of the two places. Also the RAW-IDENTIFIER case — `r#pop_front` is seen at all only
+    //     because the walk unraws; otherwise it matches nothing anywhere.
     std::string::String::from(
       "conformance/cache.rs:6: `drained_front`'s `cache.pop_front` is anchored `absence` but registered `routed`"
     ),
@@ -3993,8 +3974,8 @@ impl Thing {
     std::string::String::from(
       "conformance/cache.rs:12: `push_back_expecting` names a guarded method as a function item rather than calling it; a call through that pointer would be invisible to this census"
     ),
-    // 5. The MACRO-EXPANSION finding: an invocation naming nothing guarded, which the census now
-    //    refuses instead of walking.
+    // 5. The MACRO-EXPANSION case: an invocation naming nothing guarded, which the census refuses
+    //    instead of walking.
     std::string::String::from(
       "conformance/cache.rs:13: `push_back_expecting` invokes `hidden!`, which is not in MACRO_ALLOWLIST; syn does not expand macros, so its expansion could contain a guarded call that appears nowhere in this source"
     ),

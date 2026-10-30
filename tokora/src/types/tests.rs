@@ -97,8 +97,8 @@ fn ident_map_preserves_recovery_status() {
   let span = SimpleSpan::new(4, 7);
 
   // Recovery status is orthogonal to the source representation, so a source-only `map` must
-  // carry it across. The valid row is the non-vacuity control: it passes both before and after
-  // the fix, so a green table is evidence about the two recovery rows.
+  // carry it across. The valid row is the non-vacuity control: it passes whether or not the status
+  // is carried, so a green table is evidence about the two recovery rows.
   let rows: [(&str, Borrowed, &str, [bool; 3]); 3] = [
     (
       "valid",
@@ -862,8 +862,8 @@ fn keywords_inherent_decomposition_agrees_with_the_trait_one() {
 }
 
 /// The states an `ErrorNode` constructor declares survive the same trip. This is the shape a
-/// consumer actually writes — take a recovered node apart, put it back — and the one that used to
-/// come back valid.
+/// consumer actually writes — take a recovered node apart, put it back — and the one a lossy trip
+/// would bring back valid.
 #[test]
 fn an_error_node_placeholder_survives_a_decompose_and_rebuild() {
   use crate::utils::IntoComponents;
@@ -1048,7 +1048,7 @@ fn no_carrier_demands_a_trait_of_its_language_marker() {
   assert_eq!(eq_list, eq_list.clone());
 }
 
-// --- A name this branch adds must not silently displace a consumer's own ---
+// --- A name tokora adds must not silently displace a consumer's own ---
 
 /// A downstream crate's scope, reproduced: the carriers are imported, and
 /// [`RecoveryState`](super::recovery::RecoveryState) deliberately is **not**. That is the position an
@@ -1063,10 +1063,10 @@ mod consumer_scope {
 
   /// A downstream extension trait with the three names, meaning something of its own.
   ///
-  /// This is the review's example for tokora#320: a consumer whose `is_valid` asks whether a
-  /// `LitDecimal`'s payload actually parses as a number. `LitDecimal::new` marks every payload
-  /// `Status::Valid`, so if tokora's answer displaced this one the check would be bypassed and
-  /// `"nope"` would read as a valid decimal, with nothing at the call site to say so.
+  /// This is tokora#320's example: a consumer whose `is_valid` asks whether a `LitDecimal`'s
+  /// payload actually parses as a number. `LitDecimal::new` marks every payload `Status::Valid`, so
+  /// if tokora's answer displaced this one the check would be bypassed and `"nope"` would read as a
+  /// valid decimal, with nothing at the call site to say so.
   trait ConsumerChecks {
     fn is_valid(&self) -> bool;
     fn is_error(&self) -> bool;
@@ -1155,7 +1155,7 @@ mod consumer_scope {
     }
   }
 
-  /// The extension trait that the round-4 reasoning said could not be displaced silently.
+  /// The extension trait a new-return-type argument says cannot be displaced silently.
   trait ConsumerStatus {
     fn status(&self) -> SemanticStatus;
   }
@@ -1170,10 +1170,10 @@ mod consumer_scope {
     }
   }
 
-  /// **The cell that refutes the round-4 argument, and pins the repair.**
+  /// **The cell that refutes the new-return-type argument, and pins the trait shape.**
   ///
-  /// `status` was briefly inherent on all nineteen carriers, kept there to stay `const`, on the
-  /// reasoning that a *return* type which did not exist before could not be displaced silently: a
+  /// An inherent `status` on all nineteen carriers, kept there to stay `const`, rests on the
+  /// reasoning that a *return* type which did not exist before cannot be displaced silently: a
   /// consumer whose `status()` returned something else would get a type error.
   ///
   /// A differing return type is only loud **if the caller stores the value**. The chain below
@@ -1228,8 +1228,8 @@ mod consumer_scope {
     assert_eq!(semantic, SemanticStatus::Overflows);
   }
 
-  /// A downstream extension trait over `Ident`, in the shape the round-6 review describes: an
-  /// `is_valid` that merely accepts a non-empty payload.
+  /// A downstream extension trait over `Ident`: an `is_valid` that merely accepts a non-empty
+  /// payload.
   ///
   /// The shape matters. `Ident::error(span)` carries the `"<error>"` sentinel, which **is**
   /// non-empty, so this check says *valid* about a value tokora knows is a recovery placeholder.
@@ -1323,19 +1323,19 @@ mod consumer_scope {
 
   /// **The fifth failure mode: an argument whose type the parameter chooses.**
   ///
-  /// A draft of this branch shipped `with_status` as a `pub const fn` inherent on all nineteen
-  /// carriers, arguing it could not be displaced silently because its third parameter is a
-  /// [`Status`](crate::types::Status), a type no pre-upgrade expression can produce. That holds
-  /// for expressions whose type comes from the *expression* — `Default::default()`, `x.into()`,
-  /// an associated constant, a bounded generic call — all of which were measured and all of which
-  /// fail with `E0277` or `E0308`.
+  /// An inherent `pub const fn with_status` on all nineteen carriers would seem safe from silent
+  /// displacement because its third parameter is a [`Status`](crate::types::Status), a type no
+  /// pre-upgrade expression can produce. That holds for expressions whose type comes from the
+  /// *expression* — `Default::default()`, `x.into()`, an associated constant, a bounded generic
+  /// call — all of which were measured and all of which fail with `E0277` or `E0308`.
   ///
-  /// It is false for expressions whose type comes from the **parameter**. Measured across the two
-  /// revisions: an unchanged `unsafe { core::mem::zeroed() }` infers as the consumer's enum
-  /// before and as tokora's `Status` after, both compile, and dispatch moves from the consumer's
-  /// trait to tokora's inherent function. `Reject = 0` becomes `Status::Valid`, so a rejection
-  /// silently becomes valid syntax. `transmute::<u8, _>(0)` does the same, and
-  /// `MaybeUninit::uninit().assume_init()` is worse — it yields whatever the stack held.
+  /// It is false for expressions whose type comes from the **parameter**. Measured with and
+  /// without such an inherent function: an unchanged `unsafe { core::mem::zeroed() }` infers as
+  /// the consumer's enum without it and as tokora's `Status` with it, both compile, and dispatch
+  /// moves from the consumer's trait to tokora's inherent function. `Reject = 0` becomes
+  /// `Status::Valid`, so a rejection silently becomes valid syntax. `transmute::<u8, _>(0)` does
+  /// the same, and `MaybeUninit::uninit().assume_init()` is worse — it yields whatever the stack
+  /// held.
   ///
   /// So the constructor is not in the inherent namespace at all: it is
   /// [`FromComponents::from_components`](crate::types::recovery::FromComponents::from_components),
@@ -1396,11 +1396,11 @@ struct PatLang;
 
 /// **Structural matching, which is not observable by rendering.**
 ///
-/// Round 3 replaced six derives with hand-written impls and checked the change by *rendering* —
-/// `Debug`'s field order, `PartialEq`'s short-circuit order, `Hash`'s bytes — and concluded
-/// nothing else moved. One thing had: `#[derive(PartialEq)]` also emits `StructuralPartialEq`,
-/// and without it a `const` of the type is rejected in a pattern with *"constant of non-structural
-/// type"*. No amount of printing a value can see that; only using one in a pattern can.
+/// Replacing derives with hand-written impls and checking the change by *rendering* — `Debug`'s
+/// field order, `PartialEq`'s short-circuit order, `Hash`'s bytes — misses one thing:
+/// `#[derive(PartialEq)]` also emits `StructuralPartialEq`, and without it a `const` of the type is
+/// rejected in a pattern with *"constant of non-structural type"*. No amount of printing a value
+/// can see that; only using one in a pattern can.
 ///
 /// So `PartialEq`/`Eq` are derived again while `Debug`, `Clone`, `Copy` and `Hash` stay written
 /// out. The cell below is the differential: with the derives removed it does not compile, and the
@@ -1529,10 +1529,10 @@ mod second_glob {
 /// payload the caller's own check rejects then reports valid. `(.., b)` and `.1` are the same
 /// defect in other spellings.
 ///
-/// That was the third exemption of its kind refuted on this branch — after *the return type
-/// differs* and *the argument type is a `Status`* — and all three estimated the set of things a
-/// consumer could have written, and estimated it too small. So the repair is not a better-argued
-/// exemption but a shape no tuple pattern can match at all.
+/// That is the third exemption of its kind to fail — after *the return type differs* and *the
+/// argument type is a `Status`* — and all three estimate the set of things a consumer could have
+/// written, and estimate it too small. So the answer is not a better-argued exemption but a shape
+/// no tuple pattern can match at all.
 ///
 /// # How that was established
 ///
@@ -1579,8 +1579,8 @@ fn the_components_struct_binds_by_name_not_by_position() {
     "the status binds by name, and `new` declared it valid"
   );
 
-  // The `..` that used to move: with a struct it can only elide *named* fields, so the binding
-  // that survives is the one the author named, not the one position three happens to hold.
+  // The `..` that a tuple would let move: with a struct it can only elide *named* fields, so the
+  // binding that survives is the one the author named, not the one position three happens to hold.
   let Components { payload, .. } = IntoComponents::into_components(lit);
   assert_eq!(
     payload, "nope",

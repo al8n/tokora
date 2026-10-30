@@ -233,7 +233,7 @@ fn a_refused_open_latches_the_builder_for_good() {
 }
 
 /// The builder door's half of the minimum-stack contract, run rather than asserted — the sink
-/// suite's twin, and the shape the review named: **a refusal that drops an already-completed
+/// suite's twin, and the shape that matters: **a refusal that drops an already-completed
 /// tree at the ceiling.**
 ///
 /// `the_builder_refuses_a_retro_wrap_that_crosses_the_ceiling` establishes that the refusal

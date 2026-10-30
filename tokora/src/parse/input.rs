@@ -816,13 +816,13 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   ///
   /// # Availability
   ///
-  /// Complete inputs only ([`Complete`](crate::input::Complete)), and the context must be
-  /// a [`ComposableParseContext`]. The completeness pin is **inherited from the free
-  /// [`list`](crate::combinator::list)**, which carries it already: this method cannot be
-  /// wider than the function it delegates to, and widening that function would re-bound a
-  /// pre-existing item, which this wave does not do. Streaming callers keep the
-  /// element-level primitives. (Contrast [`select!`](crate::select), whose runtime is new
-  /// here and is therefore generic over completeness.)
+  /// Complete inputs only ([`Complete`](crate::input::Complete)), and the context must be a
+  /// [`ComposableParseContext`]. The completeness pin is **inherited from the free
+  /// [`list`](crate::combinator::list)**, which carries it already: this method cannot be wider
+  /// than the function it delegates to, and widening that function would re-bound a pre-existing
+  /// item. Streaming callers keep the element-level primitives. (Contrast
+  /// [`select!`](crate::select), whose runtime is new here and is therefore generic over
+  /// completeness.)
   ///
   /// The `alloc`/`std` gate is the free function's too — `list` returns a `Vec`.
   #[cfg(all(feature = "many", any(feature = "alloc", feature = "std")))]

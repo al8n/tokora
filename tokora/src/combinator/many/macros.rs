@@ -78,7 +78,6 @@ macro_rules! try_element_cycle {
         // One admission, and it settles this element's count bound before the destination is
         // offered the element — see `many::admit_element` for why that order is the function's
         // rather than this cycle's.
-        // TODO(al8n): tracing dropped element
         Ok(Accept(item)) => admit_element($counts, &mut $nums, &mut $full, $container, item, $inp, &$anchor)?,
         // No more elements. The plain driver breaks with the baseline; the delimited one probes
         // the close position here, which is the delimiter's entire contribution to this cycle.

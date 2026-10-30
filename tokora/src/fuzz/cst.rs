@@ -353,14 +353,13 @@ pub(crate) const CORPUS_DEEPEST_TREE: usize = 4;
 /// The deepest green tree the **deep** sweep — seeds `0..50_000`, `fuzz_deep_run` — materializes,
 /// and therefore the figure the per-case bound in [`run`] is pinned at.
 ///
-/// **TWO POPULATIONS RUN THE PER-CASE ASSERTION, AND THE BOUND BELONGS TO THE LARGER ONE.** It
-/// was pinned at [`CORPUS_DEEPEST_TREE`] for one revision: a maximum measured over 256 seeds,
-/// enforced over every case including the 50 000-seed sweep, which reaches deeper. The sweep is
-/// `#[ignore]`d, so the ordinary suite never ran it and the branch's whole gate list was green;
-/// the only CI job that runs it is `test (release)` (`ci.yml`, `-- --ignored --exact
-/// fuzz::tests::fuzz_deep_run`), so the failure read as profile-dependent and was not — the deep
-/// sweep panics identically in debug, and the default corpus passes identically in release.
-/// Measured both ways: 4 over 256 seeds, 6 over 50 000, in either profile.
+/// **TWO POPULATIONS RUN THE PER-CASE ASSERTION, AND THE BOUND BELONGS TO THE LARGER ONE.** Pinning
+/// it at [`CORPUS_DEEPEST_TREE`] — a maximum measured over 256 seeds — would enforce it over every
+/// case including the 50 000-seed sweep, which reaches deeper. The sweep is `#[ignore]`d, so the
+/// ordinary suite never runs it; the only CI job that runs it is `test (release)` (`ci.yml`,
+/// `-- --ignored --exact fuzz::tests::fuzz_deep_run`), so such a failure reads as profile-dependent
+/// and is not — the deep sweep panics identically in debug, and the default corpus passes
+/// identically in release. Measured both ways: 4 over 256 seeds, 6 over 50 000, in either profile.
 ///
 /// **This is the corpus-margin figure, and it is a live assertion rather than a sentence.**
 /// `gen_seq` bounds generated scope nesting at `MAX_DEPTH` and a scope is one `node()` bracket,

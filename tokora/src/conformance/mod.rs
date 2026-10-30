@@ -243,9 +243,9 @@
 //! **from**: `InputRef::lexer` rebuilds the lexer at the lookahead frontier out of the state the
 //! newest retained entry carries ([`crate::Lexer::with_state`] + [`crate::Lexer::bump`]), and
 //! the rollback path reads the same field off the entries
-//! `pop_back` hands out. A cache that returns the right spans beside the wrong states does not
-//! merely fail to be certified: until #183 it **passed**, in full, and then corrupted every
-//! restore that resumed from it.
+//! `pop_back` hands out. A cache that returns the right spans beside the wrong states is not a
+//! cosmetic failure: a span-only kit **passes** it, in full, and it then corrupts every restore
+//! that resumes from it (#183).
 //!
 //! Each check is one law from the [`Cache`](crate::cache::Cache) trait contract:
 //!
@@ -360,17 +360,15 @@
 //!    `pop_front` would return from an identically filled cache. Against an empty cache, both
 //!    answer `None` and the predicate never runs at all — there is no front to hand it. The
 //!    predicate's **argument** is recorded and compared at **every arm that runs it** — both
-//!    methods, and the DECLINING answer as well as the accepting one. It took two findings to get
-//!    there. The two `try_pop_front_if` closures used to throw the argument away, so everything
-//!    the check asserted about that method was its return value and its residency. Then the
-//!    `pop_front_if` arm driven with a `false` predicate turned out to do the same, because a
-//!    site that answers `None` had been filed under "absence is the law" — a classification made
-//!    on what the call RETURNS, when what makes these two methods different is that they hand an
-//!    entry to caller code BEFORE they know what to return. Either way an override that ran the
-//!    caller's validation predicate against `back()` and then produced the conforming return and
-//!    the conforming residency satisfied all of it. That is a cache whose caller-supplied
-//!    predicate decides whether to remove or retain the front on the strength of unrelated
-//!    lookahead, certified by a check whose own prose named the property it was not testing.
+//!    methods, and the DECLINING answer as well as the accepting one. Throwing the argument away
+//!    in a closure, or filing a `pop_front_if` site that answers `None` under "absence is the
+//!    law" — a classification made on what the call RETURNS, when what makes these two methods
+//!    different is that they hand an entry to caller code BEFORE they know what to return — would
+//!    let an override that ran the caller's validation predicate against `back()`, and then
+//!    produced the conforming return and the conforming residency, satisfy all of it: a cache
+//!    whose caller-supplied predicate decides whether to remove or retain the front on the
+//!    strength of unrelated lookahead, certified by a check whose own prose named the property it
+//!    was not testing.
 //! 10. **`push_many`** — accepts tokens in order until the cache is full, then hands the
 //!     remainder back through the returned iterator, unchanged and in the order they arrived.
 //!
@@ -511,8 +509,9 @@
 //! implementor's own `#[test]`s, and a failure is a bug in the emitter.
 
 // The cache harness and the emitter source-binding assertions. Their public path is
-// `tokora::conformance::Item` (#350, rule 5); the submodules stay `pub(crate)` so the crate's own
-// paths into them keep resolving.
+// `tokora::conformance::Item`: the submodule files stay private and the parent re-exports, so no
+// public path is deeper than `tokora::<module>::<Item>`. The submodules stay `pub(crate)` so the
+// crate's own paths into them keep resolving.
 pub use cache::*;
 pub use emitter::*;
 
@@ -551,10 +550,9 @@ const ATTEMPTS_PER_DRAIN_MULTIPLE: usize = 4;
 /// `usize::MAX` too — a value those comparisons *do* reach, but only after `usize::MAX` attempts,
 /// which on a 64-bit target is not a refusal anybody is present for. The guard is then configured
 /// into uselessness: an endless lexer spins for as long as the process lives, instead of reaching
-/// the `lex-budget` refusal the knob's documentation promises. Under the `spent += 1; spent >
-/// limit` order this section used to describe, it was worse than useless — the comparison
-/// genuinely never held and the increment overflowed first — but a bound no run arrives at is the
-/// same absent guard either way.
+/// the `lex-budget` refusal the knob's documentation promises. Under a `spent += 1; spent > limit`
+/// order it would be worse than useless — the comparison genuinely never holds and the increment
+/// overflows first — but a bound no run arrives at is the same absent guard either way.
 ///
 /// So the multiples are bounded here, and every ceiling derived from one is computed with checked
 /// arithmetic (see [`Harness::budget`] and `CacheHarness::corpus`) so that the *product* cannot
@@ -564,26 +562,26 @@ const ATTEMPTS_PER_DRAIN_MULTIPLE: usize = 4;
 ///
 /// # A cap is enforced by refusing, not by clamping
 ///
-/// Both knobs used to `clamp` to this value, and a clamp *is* a silent lowering of the caller's
-/// budget. The kit then refuses the dense-but-finite lexer that fits the requested budget and not
-/// the clamped one, reporting it as nonterminating — a conforming lexer rejected, from a setting
-/// accepted without a word. Both knobs now panic above this cap and name themselves and this
-/// number, so a caller who needs more is told the kit cannot certify it instead of being handed a
-/// verdict about their lexer. Below `1` they still adjust silently: that direction only widens the
+/// A clamp to this value *is* a silent lowering of the caller's budget: the kit would then refuse
+/// the dense-but-finite lexer that fits the requested budget and not the clamped one, reporting it
+/// as nonterminating — a conforming lexer rejected, from a setting accepted without a word. So
+/// both knobs panic above this cap and name themselves and this number, and a caller who needs
+/// more is told the kit cannot certify it instead of being handed a verdict about their lexer.
+/// Below `1` they still adjust silently: that direction only widens the
 /// budget, and a wider budget cannot manufacture a failure.
 ///
 /// # And a ceiling has to be one the arithmetic survives
 ///
 /// The comparison is `>=` and it runs *before* the counter is incremented, on every counter here,
 /// which is what keeps a ceiling at the top of a counter's range an enforced-but-useless one
-/// rather than a destructive one: that many attempts pass and the next is refused. It used to be
-/// `spent += 1; spent > limit`, which at such a ceiling overflowed before it compared — debug
-/// panicked with the wrong message and release wrapped the count to zero and ran on.
+/// rather than a destructive one: that many attempts pass and the next is refused.
+/// `spent += 1; spent > limit` would overflow at such a ceiling before it compared — debug
+/// panicking with the wrong message and release wrapping the count to zero and running on.
 ///
 /// The cap above keeps a *configured* ceiling in a range a run reaches. A *derived* one is kept in
 /// range by width instead: [`lex_attempt_ceiling`] is quadratic in the source, so it computes and
-/// counts in `u128` rather than in a `usize` it used to outgrow — see there for the ordinary lexer
-/// over an ordinary source that a 32-bit `usize` was falsely refusing.
+/// counts in `u128` rather than in a `usize` it would outgrow — see there for the ordinary lexer
+/// over an ordinary source that a 32-bit `usize` would falsely refuse.
 const MAX_BUDGET_MULTIPLE: usize = 1 << 16;
 
 /// A conformance harness that drives a [`Lexer`] implementation `L` against the lexer
@@ -719,12 +717,11 @@ where
   /// # Why the maximum is a refusal and not a clamp
   ///
   /// The cap itself is not tidiness, and what an uncapped `usize::MAX` would do is **three
-  /// separate failures** rather than the single "the guards stop working" this paragraph used to
-  /// claim. A budget of `usize::MAX` feeds three different guards and breaks each one differently:
+  /// separate failures** rather than a single "the guards stop working". A budget of `usize::MAX`
+  /// feeds three different guards and breaks each one differently:
   ///
   /// - **The item guards go out of reach, and only those.** `out.len() > budget` cannot hold when
-  ///   `budget` is `usize::MAX`, because no `Vec` holds that many items. This is the one guard the
-  ///   old wording described correctly.
+  ///   `budget` is `usize::MAX`, because no `Vec` holds that many items.
   /// - **The per-instance ceiling *overflows*.** It is `budget + 1`, so at `usize::MAX` it wraps
   ///   to `0` in release and panics with an arithmetic message in debug. A per-instance ceiling of
   ///   zero is not an inert guard — it refuses every lexer on its **first** attempt. The failure
@@ -788,8 +785,8 @@ where
   ///
   /// Panics when `budget_multiple * source_units + 64` does not fit in a `usize` with room above
   /// it for the exhaustion probe. Reaching it needs a source of more than `usize::MAX / 65536`
-  /// units — 256 TiB on a 64-bit target — so what this replaces is not a run that used to work: it
-  /// is a budget silently swapped for one the caller never asked for.
+  /// units — 256 TiB on a 64-bit target — so the panic replaces no run that could work: the
+  /// alternative is a budget silently swapped for one the caller never asked for.
   fn budget(&self, src: &'inp L::Source) -> usize {
     let units = src.slice(..).map(|s| s.len()).unwrap_or(0);
     representable_budget(self.budget_multiple, units).unwrap_or_else(|| {
@@ -1804,8 +1801,7 @@ impl RefillCoverage {
 ///
 /// # A budget bounds only the loops that increment it
 ///
-/// That sentence is the whole rule, and this counter is where four rounds of getting it wrong
-/// ended up. The kit lexes in two shapes:
+/// That sentence is the whole rule, and it is easy to get wrong. The kit lexes in two shapes:
 ///
 /// - **directly**, in [`lex_run`], [`check_sticky`], [`check_span_after_exhaustion`],
 ///   [`check_resume`] and [`CacheHarness::corpus`](cache::CacheHarness) — there the counter and the
@@ -2155,7 +2151,7 @@ type Bud<'inp, L> = Budgeted<L, <L as Lexer<'inp>>::State>;
 /// [`instance_ceiling(budget)`](instance_ceiling) attempts — one for every item the tier's own
 /// budget allows, plus the exhaustion probe. It is **not** what bounds the run: [`LexTally`] is. A
 /// guard is allowed to be narrower than the bound; it is not allowed to *be* the bound while a
-/// loop underneath it resets it, which is exactly what this ceiling used to do.
+/// loop underneath it resets it, which a count per instance does.
 ///
 /// ## The case it makes clearer
 ///
@@ -2168,12 +2164,12 @@ type Bud<'inp, L> = Budgeted<L, <L as Lexer<'inp>>::State>;
 ///
 /// ## Why the number may only come from the tally
 ///
-/// It used to be `DEFAULT_BUDGET_MULTIPLE * units + BUDGET_FLOOR`, computed in
-/// [`wrap`](Self::wrap) from the source *this instance* was handed, and that was wrong twice over:
-/// it ignored [`Harness::budget_multiple`], so a lexer certified under a raised budget was refused
-/// at the default anyway; and in the partial tier the source is a *prefix*, so the ceiling shrank
-/// with the cut while the run it was bounding did not. Both directions produced the same failure —
-/// a **conforming lexer rejected** — which is the one failure a narrower guard may never cause,
+/// `DEFAULT_BUDGET_MULTIPLE * units + BUDGET_FLOOR`, computed in [`wrap`](Self::wrap) from the
+/// source *this instance* was handed, would be wrong twice over: it ignores
+/// [`Harness::budget_multiple`], so a lexer certified under a raised budget is refused at the
+/// default anyway; and in the partial tier the source is a *prefix*, so the ceiling shrinks with
+/// the cut while the run it is bounding does not. Both directions produce the same failure — a
+/// **conforming lexer rejected** — which is the one failure a narrower guard may never cause,
 /// because the sharper message it exists to give is worth nothing if it is a lie.
 ///
 /// So the number is derived once, from the configured budget, and carried on the tally: every
@@ -3269,7 +3265,7 @@ enum Divergence {
 ///
 /// The four stream comparisons in this module and `cache`'s purity comparison all read their
 /// answer from here, so the ordering between a position and a count cannot come to hold at one of
-/// them and not at another — the shape rounds 2 through 4 each hit by repairing a site.
+/// them and not at another — the shape that repairing one site at a time keeps missing.
 ///
 /// `counts_differ` is the caller's, because the two legs do not agree on what a count difference
 /// *is*: inequality for a stream compared against a stream, and `got` longer than `expected` for
@@ -3418,8 +3414,8 @@ where
 
 /// Both sides' [`refuse_non_reflexive`] for one failed item comparison, asked of the operation
 /// that decided it. Shared by every site that compares two items — no count is given, because a
-/// count in a comment is a thing that drifts and this branch has already had to correct one: the
-/// population is whichever sites call this, and calling it is the only way to reach the refusal.
+/// count in a comment is a thing that drifts: the population is whichever sites call this, and
+/// calling it is the only way to reach the refusal.
 fn refuse_decided(idx: usize, op: &str, at: &str, decided: &Decided, expected: &str, got: &str) {
   refuse_component(idx, op, at, "item", decided, expected, got);
 }
@@ -3427,8 +3423,8 @@ fn refuse_decided(idx: usize, op: &str, at: &str, decided: &Decided, expected: &
 /// [`refuse_decided`] where the two sides are not items: one `slice()` against the source, one
 /// `read_frontier()` reading against the next, one span endpoint against another.
 ///
-/// `noun` is what the side being refused *is*, and it is a parameter rather than the constant it
-/// used to be because these comparisons draw verdicts from values no item holds. A refusal that
+/// `noun` is what the side being refused *is*, and it is a parameter rather than a constant
+/// because these comparisons draw verdicts from values no item holds. A refusal that
 /// called a source slice an "item" would be describing something the comparison never had.
 fn refuse_component(
   idx: usize,
@@ -3455,8 +3451,8 @@ fn refuse_component(
 /// comparison fails for a reason that is a **fact about the value type** and not about the lexer,
 /// the cache or the input layer under test.
 ///
-/// The components bounded to a *total* equality reach this line too, and that is the round-5
-/// residue rather than an oversight. `Eq` and `Ord` do promise reflexivity — but they are markers,
+/// The components bounded to a *total* equality reach this line too, and that is deliberate
+/// rather than an oversight. `Eq` and `Ord` do promise reflexivity — but they are markers,
 /// nothing verifies the promise, and a caller who breaks one has broken a **stronger** contract,
 /// not put themselves outside this kit's reach. Refusing there says the same true thing: the
 /// comparison that failed was the caller's and the kit convicted nobody. The tag stays
@@ -3495,10 +3491,10 @@ fn refuse_component(
 /// genuinely non-conforming lexer whose payloads *are* reflexive never reaches this line and
 /// still fails the ordinary way, with the ordinary tag.
 ///
-/// Since round 5 it is reached later still: only once [`Ranking`] has run every remaining step of
-/// the same search — the rest of the item, the rest of the stream, the item count, the other arm
-/// — and found nothing the kit could convict on. A refusal is now the answer of last resort in
-/// the strict sense, and that is the second half of the same rule.
+/// It is reached later still: only once [`Ranking`] has run every remaining step of the same
+/// search — the rest of the item, the rest of the stream, the item count, the other arm — and
+/// found nothing the kit could convict on. A refusal is the answer of last resort in the strict
+/// sense, and that is the second half of the same rule.
 ///
 /// # This is not a relaxation of the contract
 ///
@@ -3772,10 +3768,10 @@ where
   L::Token: PartialEq,
   <L::Token as Token<'inp>>::Error: PartialEq,
 {
-  // The item comparisons and the length check are ONE ranked search, and the order they used to
-  // run in was the defect: a `[Tok(NaN)]` against a `[Tok(NaN), Tok(0.0)]` refused at position 0
-  // and never reached the length check, while the extra item proves replay divergence with no
-  // caller equality consulted at all. See `diverge` and `Ranking`.
+  // The item comparisons and the length check are ONE ranked search, because running them in
+  // sequence is the defect: a `[Tok(NaN)]` against a `[Tok(NaN), Tok(0.0)]` would refuse at
+  // position 0 and never reach the length check, while the extra item proves replay divergence
+  // with no caller equality consulted at all. See `diverge` and `Ranking`.
   match diverge(expected, got, expected.len() != got.len(), |a, b| {
     a.compare(b)
   }) {
@@ -4150,10 +4146,9 @@ where
 /// follows is reported against the lexer.
 ///
 /// So the table is checked again once the driver will not be called again. That closes the window
-/// the driver's own **callbacks** open, and it closes nothing else — which is the correction to
-/// what this paragraph used to claim. It said the second pass was the first moment at which "these
-/// bytes are a prefix of the source" was a statement about all of them at the same time, and it is
-/// not: the pass itself runs caller code at every step (`Source::as_slice`, `Source::slice`, the
+/// the driver's own **callbacks** open, and it closes nothing else. The second pass is not a moment
+/// at which "these bytes are a prefix of the source" is a statement about all of them at the same
+/// time: the pass itself runs caller code at every step (`Source::as_slice`, `Source::slice`, the
 /// slice's `PartialEq`, and the destructor of the `got` value it drops *after* a successful
 /// comparison), and the schedules then lex those same references through more of it. A driver that
 /// retained a handle — a `Cell`, a shared or atomic cell, an arena — can still write through it at
@@ -4601,11 +4596,11 @@ where
 /// This answers one question, the layer's rule 1, and it answers it only for an item that already
 /// survived the terminal probe.
 ///
-/// The comment that used to stand here said terminality need not be re-ranked, because ranking it
-/// would change only which items a driver commits and not whether the state that crossed the
-/// buffer was right. That was wrong in its own terms: a terminal stop means **no state crosses the
-/// buffer at all**, because the layer emits, latches and never refills. Withholding a terminal
-/// error and re-driving it on the grown buffer is a transition production does not have.
+/// Terminality must be re-ranked here, even though re-ranking it seems to change only which items
+/// a driver commits and not whether the state that crossed the buffer was right: a terminal stop
+/// means **no state crosses the buffer at all**, because the layer emits, latches and never
+/// refills. Withholding a terminal error and re-driving it on the grown buffer is a transition
+/// production does not have.
 fn withheld_at_frontier<'inp, L>(lexer: &L, span: &L::Span, len: usize) -> bool
 where
   L: Lexer<'inp, Offset = usize>,
@@ -5088,10 +5083,10 @@ const RAISED: Arm = Arm {
 ///
 /// # The two arms are ONE verdict, and the ranking runs across them
 ///
-/// They were two `assert` calls in a fixed order, and the second could not be reached until the
-/// first had returned — so an inconclusive divergence on the committed arm withheld a conclusive
-/// one on the raised-error arm, which is round 5's finding one level above the position/count
-/// ordering [`diverge`] repairs. Both arms carry the same tag and describe one schedule's one
+/// As two `assert` calls in a fixed order, the second could not be reached until the first had
+/// returned — so an inconclusive divergence on the committed arm would withhold a conclusive one
+/// on the raised-error arm, the withholding defect one level above the position/count ordering
+/// [`diverge`] repairs. Both arms carry the same tag and describe one schedule's one
 /// observation of the layer; the header splits them into two sequences for a documented reason
 /// about *where* an error sits, not because they are two laws. So [`Ranking`] composes here too,
 /// over whole [`Divergence`]s rather than over components, and the committed arm is still run and

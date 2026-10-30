@@ -842,12 +842,11 @@ where
   ///   3. reconciling *is* the input layer's specified answer for an abandoned point crossed by
   ///      an enclosing rollback.
   ///
-  ///   Naming the verb is itself part of the fix. This settle used to be spelled `drop(txn)` —
-  ///   correct, because the policy is `Rollback`, but correct only as long as a reader knew that
-  ///   and no later edit "tidied" it into `txn.rollback()`. The driver's five cycle-scoped exits
-  ///   are the same argument arriving one scope down, and there it had already gone wrong: they
-  ///   spelled their restore with the checked verb, so a hook that abandoned a point turned an
-  ///   ordinary handback into a panic. Both scopes now say what they mean.
+  ///   Naming the verb is part of the contract. Spelled `drop(txn)`, this settle would be correct
+  ///   — the policy is `Rollback` — but only as long as a reader knew that and no later edit
+  ///   "tidied" it into `txn.rollback()`. The driver's five cycle-scoped exits are the same
+  ///   argument one scope down: spelling their restore with the checked verb turns an ordinary
+  ///   handback into a panic whenever a hook abandoned a point. Both scopes say what they mean.
   ///
   /// `Fault::Keep` — every `?`-propagation out of caller code — commits, exactly as dropping the
   /// old `Commit` cycle guard on a `?` did. A `?` is a return and not an unwind, so no policy has
@@ -1792,17 +1791,16 @@ where
           // read — `inp.span().end() == at`, checkable by the caller and pinned that way in
           // `pratt_limit.rs`.
           //
-          // That is what closes the class three review rounds kept re-finding. Every earlier source
-          // was adjacent to the restore target rather than equal to it, and each one drifted on a
-          // different input: the committed span read AFTER the classifier names the classifier's
-          // last token — an operator's tail for a multi-token spelling (`not in`, `is not`, `<>`) —
-          // and a `peek_one` taken BEFORE it names the first token the scanner can produce, which
-          // skips whatever the scanner skips. Trivia the classifier would have skipped, a
-          // multi-token operator's gap and a non-fatal lexer error the peek stepped over and emitted
-          // are all bytes that sit between the restore target and that first token; each in turn was
-          // reported as a position the caller had not been handed. The restore target has no such
-          // window: nothing runs between the read and the checkpoint, and the rollback's whole job is
-          // to put that checkpoint back.
+          // That is what closes the class. Every source adjacent to the restore target rather than
+          // equal to it drifts on some input: the committed span read AFTER the classifier names
+          // the classifier's last token — an operator's tail for a multi-token spelling (`not in`,
+          // `is not`, `<>`) — and a `peek_one` taken BEFORE it names the first token the scanner
+          // can produce, which skips whatever the scanner skips. Trivia the classifier would have
+          // skipped, a multi-token operator's gap and a non-fatal lexer error the peek stepped over
+          // and emitted are all bytes that sit between the restore target and that first token;
+          // each one reports a position the caller had not been handed. The restore target has no
+          // such window: nothing runs between the read and the checkpoint, and the rollback's whole
+          // job is to put that checkpoint back.
           //
           // What this offset does NOT claim is the offending operator's head, and that is not a
           // shortfall the driver could close. `parse_pratt_rhs` is caller code holding a whole

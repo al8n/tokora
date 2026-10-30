@@ -8,9 +8,9 @@
 //! One parsed element can be refused twice at once: by the repetition's own `at_most`/`bounded`
 //! maximum, and by a destination with no room left. Which diagnostic is primary decides the
 //! *public* answer under [`Fatal`](tokora::emitter::Fatal), which stops at the first one — so
-//! before #277 the same input, the same limits and the same container returned `TooMany` under
-//! `repeated` and `FullContainer` under `separated`, purely because the caller picked another
-//! builder.
+//! without one rule (#277) the same input, the same limits and the same container could return
+//! `TooMany` under `repeated` and `FullContainer` under `separated`, purely because the caller
+//! picked another builder.
 //!
 //! The two candidates are **not symmetric**, and neither the input nor the limits pick between
 //! them — the history does:
@@ -43,8 +43,8 @@
 //!
 //! The law is about **one** element. When the destination fills at element 3 and the maximum is
 //! first exceeded at element 5, the refusal really did happen first, and every driver reports
-//! `[FullContainer, TooMany]` — before this change and after it. The control table below is that
-//! history, and it is what separates "the collision was fixed" from "the order was flipped
+//! `[FullContainer, TooMany]` — with or without the single-element fix. The control table below
+//! is that row, and it is what separates "the collision was fixed" from "the order was flipped
 //! globally".
 //!
 //! # Why a table
@@ -423,8 +423,8 @@ driver_table!(collision {
 // elements. The refusal lands on element 3 and the maximum on element 5, so they are DIFFERENT
 // elements and the refusal genuinely came first.
 //
-// Every row here reads `[Full(3, 2), TooMany(5, 4)]` before this change and after it. That is the
-// point: it is the row a repair that simply flipped the order everywhere would break.
+// Every row here reads `[Full(3, 2), TooMany(5, 4)]` with or without the single-element fix. That
+// is the point: it is the row a repair that simply flipped the order everywhere would break.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 driver_table!(control {
@@ -569,8 +569,8 @@ fn the_count_verdict_sits_where_its_fact_became_true() {
 /// The twenty-five collision rows are the eight driver families crossed with `at_most` and
 /// `bounded` (sixteen, and the default separator policy is among them), plus the eight
 /// non-default separator policies on the `sep` shape and one of them on `sep_while` (nine more).
-/// Twenty-one of the twenty-five were red before #277; the four that were already right are the
-/// two plain families, which had the hook in front of the push all along.
+/// Without #277 twenty-one of the twenty-five are red; the four that are right regardless are the
+/// two plain families, which put the hook in front of the push.
 #[test]
 fn the_table_covers_every_declared_repetition_family() {
   assert_eq!(

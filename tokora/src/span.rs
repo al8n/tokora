@@ -5,7 +5,8 @@ use core::{
 
 use crate::utils::{Ignored, IntoComponents};
 
-// Declared in the private `located` module and public here, the module of its concept (#350).
+// Declared in the private `located` module and public here, the module of its concept: one
+// canonical path per item.
 pub use crate::located::Located;
 
 /// A trait representing a span in the source code.

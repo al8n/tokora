@@ -729,17 +729,16 @@ fn dispatch_bench(c: &mut Criterion) {
 //     gap with tokens that belong after it — a hole in the window rather than a short
 //     one. The fill's overflow-free exit returns before all three.
 //
-// That all of this was unreached was measured, not surveyed: on 2026-08-03, against
-// `1fbd16e`, with an env-selected `panic!` planted at each of the four sites (hit exit,
-// staging push, endpoint witness, `rotate_left`), all 45 shipped ids across
-// `input_scan`, `parser_combinators`, `pratt_typed`, `cst` and `backtrack` ran clean
-// under `--test` at every site — 180 runs. `r4_peek1_hit8` tripped the hit exit alone;
-// `r4_peek8_heavy_staged` tripped the other three and not the hit exit. That is a record
-// of one run and nothing here re-derives it — what the committed code does check is the
-// weaker and more useful thing: that each probe below still reaches the path its id
-// names. Both drivers carry the arithmetic that reaches their exit as a `CHECK`-gated
-// assertion rather than as a comment; see `probe_calibration`. `CHECK` is a const
-// parameter, so the measured monomorphisation contains none of it.
+// That all of this is unreached was measured, not surveyed: with an env-selected `panic!` planted
+// at each of the four sites (hit exit, staging push, endpoint witness, `rotate_left`), all 45
+// shipped ids across `input_scan`, `parser_combinators`, `pratt_typed`, `cst` and `backtrack` ran
+// clean under `--test` at every site — 180 runs. `r4_peek1_hit8` tripped the hit exit alone;
+// `r4_peek8_heavy_staged` tripped the other three and not the hit exit. That is a record of one run
+// and nothing here re-derives it — what the committed code does check is the weaker and more useful
+// thing: that each probe below still reaches the path its id names. Both drivers carry the
+// arithmetic that reaches their exit as a `CHECK`-gated assertion rather than as a comment; see
+// `probe_calibration`. `CHECK` is a const parameter, so the measured monomorphisation contains none
+// of it.
 //
 // The fixtures are `dispatch_source()` and the 8-kind `DispTok` / `DispTokHeavy`
 // lexers above: the heavy one is what makes the staged path's per-token `L::State`
@@ -748,18 +747,17 @@ fn dispatch_bench(c: &mut Criterion) {
 //
 // ── First reading of the staged path, and it cannot be re-derived ─────────────
 //
-// A DATED RECORD, not a claim this file checks. These ids were first run on
-// 2026-08-03 across the merge of #164, which replaced a separate `W::CAPACITY`
-// staging array with in-buffer staging plus one `rotate_left` and promoted
-// `assert_cache_copy`'s endpoint half to release-active. Same machine
-// (aarch64-apple-darwin), same fixture, same `bench` profile, one commit apart —
-// and the pre-#164 half can no longer be reproduced, because that shape is gone.
+// A RECORD, not a claim this file checks. These ids were first run across #164, which replaced
+// a separate `W::CAPACITY` staging array with in-buffer staging plus one `rotate_left` and
+// promoted `assert_cache_copy`'s endpoint half to release-active. Same machine
+// (aarch64-apple-darwin), same fixture, same `bench` profile, one commit apart — and the
+// pre-#164 half cannot be reproduced, because that shape is gone.
 //
-//   | build                                  | r4_peek1_hit8 | r4_peek8_heavy_staged |
-//   |----------------------------------------|---------------|-----------------------|
-//   | d59bb4e, separate staging array        | 596.06 µs     | 2.7728 ms             |
-//   | 1fbd16e, in-buffer staging + rotation  | 588.7–595.2 µs| 4.5049–4.5647 ms      |
-//   | 1fbd16e, endpoint witness no-oped      | —             | 4.2915 ms             |
+//   | build                                | r4_peek1_hit8 | r4_peek8_heavy_staged |
+//   |--------------------------------------|---------------|-----------------------|
+//   | separate staging array (before #164) | 596.06 µs     | 2.7728 ms             |
+//   | in-buffer staging + rotation         | 588.7–595.2 µs| 4.5049–4.5647 ms      |
+//   | in-buffer, endpoint witness no-oped  | —             | 4.2915 ms             |
 //
 // So on THIS fixture the hit exit is unmoved (−1.2%, and p = 0.36 between two runs
 // of the same build) while the staged path is ~1.63× slower, of which the
