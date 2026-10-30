@@ -125,7 +125,7 @@ conformance = ["alloc"]
 fuzz = ["std"]
 
 rowan = ["rowan_0_17"]
-rowan_0_17 = ["dep:rowan", "std"]
+rowan_0_17 = ["dep:rowan_0_17", "std"]
 
 bytes = ["bytes_1"]
 bytes_1 = ["dep:bytes_1"]
@@ -192,14 +192,7 @@ tinyvec_1 = { package = "tinyvec", version = "1", default-features = false, opti
 logos_0_16 = { package = "logos", version = "0.16", default-features = false, optional = true, features = [
   "export_derive",
 ] }
-# The dependency key stays `rowan`, unlike the other integrations' versioned keys: the
-# integration tests, the `_cst` examples, the trybuild fixtures and the guide's doctests are
-# separate crates that see a dependency by its manifest key, and they name `rowan::Language` as a
-# consumer does (README: add `rowan = "0.17"` directly). A key of `rowan_0_17` would need an
-# `extern crate` in each of them, and a dev-dependency under the plain name is refused by cargo
-# ("depends on crate `rowan` multiple times with different names"). The `rowan_0_17` feature
-# is what carries the version; rename the key when a second rowan line is supported.
-rowan = { version = "0.17", optional = true }
+rowan_0_17 = { package = "rowan", version = "0.17", optional = true }
 
 [dev-dependencies]
 proc-macro2 = { version = "1", default-features = false, features = [

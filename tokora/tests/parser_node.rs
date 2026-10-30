@@ -244,20 +244,20 @@ fn profile() -> CstProfile<Tok> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum RawLang {}
 
-impl rowan::Language for RawLang {
+impl tokora::rowan::Language for RawLang {
   type Kind = u16;
 
-  fn kind_from_raw(raw: rowan::SyntaxKind) -> u16 {
+  fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> u16 {
     raw.0
   }
 
-  fn kind_to_raw(kind: u16) -> rowan::SyntaxKind {
-    rowan::SyntaxKind(kind)
+  fn kind_to_raw(kind: u16) -> tokora::rowan::SyntaxKind {
+    tokora::rowan::SyntaxKind(kind)
   }
 }
 
-fn tree(green: rowan::GreenNode) -> rowan::SyntaxNode<RawLang> {
-  rowan::SyntaxNode::new_root(green)
+fn tree(green: tokora::rowan::GreenNode) -> tokora::rowan::SyntaxNode<RawLang> {
+  tokora::rowan::SyntaxNode::new_root(green)
 }
 
 /// Runs `parser` over `src` through the lossless driver, then materializes.
@@ -266,7 +266,7 @@ fn run<O>(
   parser: impl for<'c> FnMut(&mut Ir<'_, 'c>) -> Result<O, TestErr>,
 ) -> (
   Result<O, TestErr>,
-  Result<rowan::GreenNode, tokora::cst::FinishError>,
+  Result<tokora::rowan::GreenNode, tokora::cst::FinishError>,
 ) {
   let (cst, res) = parse_lossless(
     src,

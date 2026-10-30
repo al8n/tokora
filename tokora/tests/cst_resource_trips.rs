@@ -433,24 +433,25 @@ fn run_complete(src: &str, partial_door: bool) -> (usize, Result<i64, TestErr>, 
   } else {
     cst.finish(K_ROOT)
   };
-  let text = rowan::SyntaxNode::<RawLang>::new_root(green.expect("the tree must materialize"))
-    .text()
-    .to_string();
+  let text =
+    tokora::rowan::SyntaxNode::<RawLang>::new_root(green.expect("the tree must materialize"))
+      .text()
+      .to_string();
   (trips, res, emitter.diagnostics().len(), text)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum RawLang {}
 
-impl rowan::Language for RawLang {
+impl tokora::rowan::Language for RawLang {
   type Kind = u16;
 
-  fn kind_from_raw(raw: rowan::SyntaxKind) -> u16 {
+  fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> u16 {
     raw.0
   }
 
-  fn kind_to_raw(kind: u16) -> rowan::SyntaxKind {
-    rowan::SyntaxKind(kind)
+  fn kind_to_raw(kind: u16) -> tokora::rowan::SyntaxKind {
+    tokora::rowan::SyntaxKind(kind)
   }
 }
 
@@ -679,9 +680,10 @@ fn the_partial_driver_carries_the_count_too() {
     } else {
       cst.finish(K_ROOT)
     };
-    let text = rowan::SyntaxNode::<RawLang>::new_root(green.expect("the tree must materialize"))
-      .text()
-      .to_string();
+    let text =
+      tokora::rowan::SyntaxNode::<RawLang>::new_root(green.expect("the tree must materialize"))
+        .text()
+        .to_string();
     (trips, res, emitter.diagnostics().len(), text)
   };
 

@@ -41,13 +41,13 @@ is wanted.
 
 ## Enable Rowan
 
-Rowan is an optional dependency and tokora does not re-export it, so a tree-building crate
-names both:
+Rowan is an optional dependency that tokora re-exports as `tokora::rowan` (pinned:
+`tokora::rowan_0_17`), so a tree-building crate names only tokora and writes
+`tokora::rowan::Language`, `tokora::rowan::SyntaxNode` and the rest through it:
 
 ```toml
 [dependencies]
 tokora = { version = "0.12", features = ["logos", "rowan_0_17"] }
-rowan = "0.17"
 ```
 
 The `rowan_0_17` feature implies `std` (rowan itself requires it); it does not imply `logos`. The
@@ -113,7 +113,7 @@ unified kind space maps it like this:
 #   fn kind(&self) -> Tok { *self }
 #   fn is_trivia(&self) -> bool { matches!(self, Tok::Whitespace | Tok::Comment | Tok::Comma) }
 # }
-use rowan::Language;
+use tokora::rowan::Language;
 use tokora::cst::{CstProfile, KindValidator};
 
 /// The dialect's whole u16 space: token images first, node kinds after, plus the three
@@ -169,7 +169,7 @@ enum QueryLang {}
 impl Language for QueryLang {
   type Kind = SyntaxKind;
 
-  fn kind_from_raw(raw: rowan::SyntaxKind) -> SyntaxKind {
+  fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> SyntaxKind {
     // `#[repr(u16)]` with default discriminants: the raw value is the declaration index.
     const KINDS: [SyntaxKind; 18] = [
       K::Whitespace, K::Comment, K::Comma, K::Ident, K::Int, K::LBrace, K::RBrace,
@@ -179,14 +179,14 @@ impl Language for QueryLang {
     KINDS[raw.0 as usize]
   }
 
-  fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind {
-    rowan::SyntaxKind(kind as u16)
+  fn kind_to_raw(kind: SyntaxKind) -> tokora::rowan::SyntaxKind {
+    tokora::rowan::SyntaxKind(kind as u16)
   }
 }
 
 assert_eq!(map_token(&Tok::Colon), SyntaxKind::Colon.raw());
 assert_eq!(
-  QueryLang::kind_from_raw(rowan::SyntaxKind(SyntaxKind::Field.raw())),
+  QueryLang::kind_from_raw(tokora::rowan::SyntaxKind(SyntaxKind::Field.raw())),
   SyntaxKind::Field,
 );
 ```
@@ -284,9 +284,9 @@ structure*. Helpers that merely consume keep the plain emitter bound.
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # enum QueryLang {}
-# impl rowan::Language for QueryLang {
+# impl tokora::rowan::Language for QueryLang {
 #   type Kind = SyntaxKind;
-#   fn kind_from_raw(raw: rowan::SyntaxKind) -> SyntaxKind {
+#   fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> SyntaxKind {
 #     const KINDS: [SyntaxKind; 18] = [
 #       K::Whitespace, K::Comment, K::Comma, K::Ident, K::Int, K::LBrace, K::RBrace,
 #       K::LParen, K::RParen, K::Colon, K::SelectionSet, K::Field, K::Alias, K::Arguments,
@@ -294,7 +294,7 @@ structure*. Helpers that merely consume keep the plain emitter bound.
 #     ];
 #     KINDS[raw.0 as usize]
 #   }
-#   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
+#   fn kind_to_raw(kind: SyntaxKind) -> tokora::rowan::SyntaxKind { tokora::rowan::SyntaxKind(kind as u16) }
 # }
 use tokora::{
   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
@@ -498,7 +498,7 @@ assert_eq!(user.children[0].name, "name");
 // Materialize once. The handle is consumed; the inner emitter comes back with the tree,
 // so collected diagnostics (chapter 7) survive materialization.
 let (green, _emitter) = cst.finish(K::Root.raw());
-let tree = rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
+let tree = tokora::rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
 
 // The round-trip law — the reason to build a CST at all:
 assert_eq!(tree.text().to_string(), src);
@@ -627,9 +627,9 @@ the mark, including tokens committed before the wrap was conceivable.
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # enum QueryLang {}
-# impl rowan::Language for QueryLang {
+# impl tokora::rowan::Language for QueryLang {
 #   type Kind = SyntaxKind;
-#   fn kind_from_raw(raw: rowan::SyntaxKind) -> SyntaxKind {
+#   fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> SyntaxKind {
 #     const KINDS: [SyntaxKind; 18] = [
 #       K::Whitespace, K::Comment, K::Comma, K::Ident, K::Int, K::LBrace, K::RBrace,
 #       K::LParen, K::RParen, K::Colon, K::SelectionSet, K::Field, K::Alias, K::Arguments,
@@ -637,7 +637,7 @@ the mark, including tokens committed before the wrap was conceivable.
 #     ];
 #     KINDS[raw.0 as usize]
 #   }
-#   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
+#   fn kind_to_raw(kind: SyntaxKind) -> tokora::rowan::SyntaxKind { tokora::rowan::SyntaxKind(kind as u16) }
 # }
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
@@ -809,7 +809,7 @@ assert_eq!(fields[0].alias.as_deref(), Some("author"));
 assert_eq!(fields[0].name, "user");
 
 let (green, _emitter) = cst.finish(K::Root.raw());
-let tree = rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
+let tree = tokora::rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
 assert_eq!(tree.text().to_string(), src);
 
 // The retro-wrap in the finished tree: Field's first child is the Alias node, spanning
@@ -918,9 +918,9 @@ formatting data *without* a tree in the dependency closure; under a sink they ar
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # enum QueryLang {}
-# impl rowan::Language for QueryLang {
+# impl tokora::rowan::Language for QueryLang {
 #   type Kind = SyntaxKind;
-#   fn kind_from_raw(raw: rowan::SyntaxKind) -> SyntaxKind {
+#   fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> SyntaxKind {
 #     const KINDS: [SyntaxKind; 18] = [
 #       K::Whitespace, K::Comment, K::Comma, K::Ident, K::Int, K::LBrace, K::RBrace,
 #       K::LParen, K::RParen, K::Colon, K::SelectionSet, K::Field, K::Alias, K::Arguments,
@@ -928,7 +928,7 @@ formatting data *without* a tree in the dependency closure; under a sink they ar
 #     ];
 #     KINDS[raw.0 as usize]
 #   }
-#   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
+#   fn kind_to_raw(kind: SyntaxKind) -> tokora::rowan::SyntaxKind { tokora::rowan::SyntaxKind(kind as u16) }
 # }
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
@@ -1089,7 +1089,7 @@ let (cst, parsed) = parse_lossless(
 );
 parsed.unwrap();
 let (green, _emitter) = cst.finish(K::Root.raw());
-let tree = rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
+let tree = tokora::rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
 assert_eq!(tree.text().to_string(), src);
 
 let tokens: Vec<_> = tree
@@ -1119,7 +1119,7 @@ let (cst, res) = parse_lossless(
 assert_eq!(res, Err(QueryError::Lex));
 
 let (green, _emitter) = cst.finish_partial(K::Root.raw());
-let tree = rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
+let tree = tokora::rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
 assert_eq!(tree.text().to_string(), src, "aborted parse, intact text");
 assert!(
   tree
@@ -1724,9 +1724,9 @@ scan — no sync point found — rewinds its speculative events entirely.)
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # enum QueryLang {}
-# impl rowan::Language for QueryLang {
+# impl tokora::rowan::Language for QueryLang {
 #   type Kind = SyntaxKind;
-#   fn kind_from_raw(raw: rowan::SyntaxKind) -> SyntaxKind {
+#   fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> SyntaxKind {
 #     const KINDS: [SyntaxKind; 18] = [
 #       K::Whitespace, K::Comment, K::Comma, K::Ident, K::Int, K::LBrace, K::RBrace,
 #       K::LParen, K::RParen, K::Colon, K::SelectionSet, K::Field, K::Alias, K::Arguments,
@@ -1734,7 +1734,7 @@ scan — no sync point found — rewinds its speculative events entirely.)
 #     ];
 #     KINDS[raw.0 as usize]
 #   }
-#   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
+#   fn kind_to_raw(kind: SyntaxKind) -> tokora::rowan::SyntaxKind { tokora::rowan::SyntaxKind(kind as u16) }
 # }
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
@@ -1949,7 +1949,7 @@ let salvaged = parsed.unwrap();
 assert_eq!(salvaged, 2, "`user` and `name` both survive the garbage between them");
 
 let (green, emitter) = cst.finish(K::Root.raw());
-let tree = rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
+let tree = tokora::rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
 assert_eq!(tree.text().to_string(), src, "recovery does not break the round trip");
 
 // One hole, one error node — holding the real skipped tokens.
@@ -2056,9 +2056,9 @@ the wall that keeps a hand-rolled mistake loud:
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # enum QueryLang {}
-# impl rowan::Language for QueryLang {
+# impl tokora::rowan::Language for QueryLang {
 #   type Kind = SyntaxKind;
-#   fn kind_from_raw(raw: rowan::SyntaxKind) -> SyntaxKind {
+#   fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> SyntaxKind {
 #     const KINDS: [SyntaxKind; 18] = [
 #       K::Whitespace, K::Comment, K::Comma, K::Ident, K::Int, K::LBrace, K::RBrace,
 #       K::LParen, K::RParen, K::Colon, K::SelectionSet, K::Field, K::Alias, K::Arguments,
@@ -2066,7 +2066,7 @@ the wall that keeps a hand-rolled mistake loud:
 #     ];
 #     KINDS[raw.0 as usize]
 #   }
-#   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
+#   fn kind_to_raw(kind: SyntaxKind) -> tokora::rowan::SyntaxKind { tokora::rowan::SyntaxKind(kind as u16) }
 # }
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseContext, Parser,
@@ -2126,7 +2126,7 @@ let (cst, _res) = parse_lossless(
   unfinished,
 );
 let (green, _emitter) = cst.finish_partial(K::Root.raw());
-let tree = rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
+let tree = tokora::rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
 assert_eq!(tree.text().to_string(), src);
 assert_eq!(tree.first_child().unwrap().kind(), SyntaxKind::SelectionSet);
 ```
@@ -2286,9 +2286,9 @@ Reading this chapter's tree wants the second position:
 # }
 # #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 # enum QueryLang {}
-# impl rowan::Language for QueryLang {
+# impl tokora::rowan::Language for QueryLang {
 #   type Kind = SyntaxKind;
-#   fn kind_from_raw(raw: rowan::SyntaxKind) -> SyntaxKind {
+#   fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> SyntaxKind {
 #     const KINDS: [SyntaxKind; 18] = [
 #       K::Whitespace, K::Comment, K::Comma, K::Ident, K::Int, K::LBrace, K::RBrace,
 #       K::LParen, K::RParen, K::Colon, K::SelectionSet, K::Field, K::Alias, K::Arguments,
@@ -2296,7 +2296,7 @@ Reading this chapter's tree wants the second position:
 #     ];
 #     KINDS[raw.0 as usize]
 #   }
-#   fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind { rowan::SyntaxKind(kind as u16) }
+#   fn kind_to_raw(kind: SyntaxKind) -> tokora::rowan::SyntaxKind { tokora::rowan::SyntaxKind(kind as u16) }
 # }
 # use tokora::{
 #   Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, TryParseInput,
@@ -2471,17 +2471,17 @@ use tokora::cst::{CastNode, NodeChildren, cast};
 
 /// Navigation-only typed nodes. Each is a newtype over the untyped node, and the whole of
 /// what either implements is one kind check and one wrap.
-struct SelectionSetNode(rowan::SyntaxNode<QueryLang>);
-struct FieldNode(rowan::SyntaxNode<QueryLang>);
+struct SelectionSetNode(tokora::rowan::SyntaxNode<QueryLang>);
+struct FieldNode(tokora::rowan::SyntaxNode<QueryLang>);
 
 impl CastNode<QueryLang> for SelectionSetNode {
-  fn cast_node(syntax: rowan::SyntaxNode<QueryLang>) -> Option<Self> {
+  fn cast_node(syntax: tokora::rowan::SyntaxNode<QueryLang>) -> Option<Self> {
     (syntax.kind() == K::SelectionSet).then_some(Self(syntax))
   }
 }
 
 impl CastNode<QueryLang> for FieldNode {
-  fn cast_node(syntax: rowan::SyntaxNode<QueryLang>) -> Option<Self> {
+  fn cast_node(syntax: tokora::rowan::SyntaxNode<QueryLang>) -> Option<Self> {
     (syntax.kind() == K::Field).then_some(Self(syntax))
   }
 }
@@ -2520,7 +2520,7 @@ let (cst, parsed) = parse_lossless(
 );
 parsed.unwrap();
 let (green, _emitter) = cst.finish(K::Root.raw());
-let tree = rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
+let tree = tokora::rowan::SyntaxNode::<QueryLang>::new_root(green.unwrap());
 
 // One cast at the root; from there the walk is typed the rest of the way down.
 let top: SelectionSetNode = cast::child(&tree).expect("Root wraps one SelectionSet");

@@ -610,7 +610,7 @@ CAS-free fallback.
 
 | Feature | Enables | Implies | no_std posture |
 |---------|---------|---------|----------------|
-| `rowan` / `rowan_0_17` | the recording CST sink + typed lossless tree (the Rowan chapter) | `rowan_0_17` → `dep:rowan`, **`std`** | requires `std` |
+| `rowan` / `rowan_0_17` | the recording CST sink + typed lossless tree (the Rowan chapter), and the `tokora::rowan` / `tokora::rowan_0_17` re-exports | `rowan_0_17` → `dep:rowan_0_17`, **`std`** | requires `std` |
 | `unstable-raw` | the raw `InputRef::{save, restore, commit}` triple + `Checkpoint` construction | — | no_std-clean |
 | `trace` | [`traced`](crate::combinator::traced) + combinator instrumentation | **`std`** | requires `std`; zero-cost when off |
 | `conformance` | the `conformance` lexer test kit | **`std`** | requires `std` |

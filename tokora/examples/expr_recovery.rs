@@ -109,7 +109,7 @@
 //! showing an unconfigured parse is the honest thing for a reader to copy — a deeper budget is a
 //! claim about the stack the parse runs on, and only the caller can make it.
 
-use rowan::{Language, NodeOrToken, SyntaxNode};
+use tokora::rowan::{Language, NodeOrToken, SyntaxNode};
 use tokora::{
   Emitter, InputRef, ParseContext, ParseInput, SimpleSpan, Token as TokenT,
   cache::DefaultCache,
@@ -416,7 +416,7 @@ pub(crate) enum ExprLang {}
 impl Language for ExprLang {
   type Kind = SyntaxKind;
 
-  fn kind_from_raw(raw: rowan::SyntaxKind) -> SyntaxKind {
+  fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> SyntaxKind {
     const KINDS: [SyntaxKind; 16] = [
       K::Whitespace,
       K::Num,
@@ -438,8 +438,8 @@ impl Language for ExprLang {
     KINDS[raw.0 as usize]
   }
 
-  fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind {
-    rowan::SyntaxKind(kind as u16)
+  fn kind_to_raw(kind: SyntaxKind) -> tokora::rowan::SyntaxKind {
+    tokora::rowan::SyntaxKind(kind as u16)
   }
 }
 

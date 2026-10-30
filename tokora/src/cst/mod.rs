@@ -1019,7 +1019,7 @@ where
   ///
   /// ```rust,ignore
   /// use tokora::cst::SyntaxTreeBuilder;
-  /// use rowan::SyntaxNode;
+  /// use tokora::rowan::SyntaxNode;
   ///
   /// let builder = SyntaxTreeBuilder::<MyLanguage>::new();
   ///
@@ -1297,7 +1297,7 @@ pub trait Node<Lang: Language>: Element<Lang> + Syntax<Lang = Lang> {
 /// A navigation-only node — no [`Syntax`], no components, no counts:
 ///
 /// ```rust,ignore
-/// use rowan::SyntaxNode;
+/// use tokora::rowan::SyntaxNode;
 /// use tokora::cst::{CastNode, cast};
 ///
 /// struct Field(SyntaxNode<MyLang>);

@@ -41,6 +41,22 @@ pub use logos_0_16 as logos;
 #[cfg_attr(docsrs, doc(cfg(feature = "logos_0_16")))]
 pub use logos_0_16;
 
+// `tokora::rowan` resolves to the one supported rowan version, 0.17, so a `rowan::Language`
+// implementation written through it names the same rowan the `cst` types are built over. The plain
+// `rowan` feature enables `rowan_0_17`, and the unversioned name follows the newest supported line
+// when a second one lands. A crate-root `extern crate` also puts `rowan` in the extern prelude, so
+// the `rowan::…` paths inside this crate resolve to the same version.
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
+pub extern crate rowan_0_17 as rowan;
+
+// The versioned name of the same crate, pinned: a consumer on rowan 0.17 keeps writing
+// `tokora::rowan_0_17` after a newer integration lands and the unversioned `tokora::rowan` moves
+// on to it.
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
+pub use rowan_0_17;
+
 // The crate root is an explicit list, by one criterion: a name a production must have in scope —
 // the traits whose methods it calls, the types its signature spells, and the drivers. Every item
 // here also lives in the module of its concept, and nothing else is re-exported into the root;

@@ -217,7 +217,7 @@ EXTRA_LEGS = [
         "features": "std,logos,combinators",
         "tests": True,
         # FALSE SINCE THE `rowan,logos,combinators` LEG BELOW EXISTED, AND THAT IS NOT A DEMOTION
-        # OF THIS LEG. `rowan = ["rowan_0_17"]` and `rowan_0_17 = ["dep:rowan", "std"]`, so that
+        # OF THIS LEG. `rowan = ["rowan_0_17"]` and `rowan_0_17 = ["dep:rowan_0_17", "std"]`, so that
         # leg resolves to a strict SUPERSET of this one and satisfies every predicate this one does; sole coverage is a claim about
         # the leg list, and the leg list grew. What holds this leg is `unique_suites`: it is the
         # smallest configuration compiling the 82 suites gated on the umbrella, the only one that
@@ -313,7 +313,7 @@ EXTRA_LEGS = [
         # refuses to count as coverage — and the gate reported that in a green log line instead
         # of failing on it.
         #
-        # `rowan = ["rowan_0_17"]` and `rowan_0_17 = ["dep:rowan", "std"]`, so naming `rowan`
+        # `rowan = ["rowan_0_17"]` and `rowan_0_17 = ["dep:rowan_0_17", "std"]`, so naming `rowan`
         # reaches `rowan_0_17` and `std` and the feature strings do not have to. The predicates
         # name the LITERAL `rowan_0_17` and the legs name the alias, for the reason the
         # `std,logos,combinators` leg states for `logos`: the alias pulls the versioned feature
@@ -425,7 +425,7 @@ EXTRA_LEGS = [
         # own derivation block. The predicate is the only thing that reads them together, so
         # this is the only leg in which it is checked at all.
         #
-        # `stacker = ["dep:stacker", "std", "pratt"]` and `rowan_0_17 = ["dep:rowan", "std"]`
+        # `stacker = ["dep:stacker", "std", "pratt"]` and `rowan_0_17 = ["dep:rowan_0_17", "std"]`
         # (`rowan` is its alias), so `std` and `pratt` arrive with the pair and are not named.
         # Neither the
         # `std,logos,combinators,stacker` leg (no `rowan`) nor either `rowan,*` leg (no

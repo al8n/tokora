@@ -45,9 +45,11 @@ macro select
 macro syntax_kinds
 macro try_select
 
-# The logos re-export and its versioned name (rule 6).
+# The logos and rowan re-exports and their versioned names (rule 6).
 extern logos
 extern logos_0_16
+extern rowan
+extern rowan_0_17
 
 # The public modules.
 mod cache

@@ -239,7 +239,7 @@ The crate root holds exactly the names a production needs in scope: the parsing 
 `parse_with_state`, `parse_partial`), the input and lexer vocabulary (`InputRef`, `Lexer`,
 `ScanLookahead`, `ReadFrontier`, `Token`, `Source`, `Slice`, `Span`, `SimpleSpan`), and the emitter
 (`Emitter`, `EmitterView`). Beside them sit the `attempt!`, `keyword!`, `punctuator!`, `select!`,
-`syntax_kinds!` and `try_select!` macros, and the `logos` / `logos_0_16` re-exports. Each of those
+`syntax_kinds!` and `try_select!` macros, and the `logos` / `logos_0_16` and `rowan` / `rowan_0_17` re-exports. Each of those
 names also lives in the module of its concept, and everything else is reached through its module.
 There is no prelude: a file imports what it uses.
 
@@ -309,7 +309,7 @@ examples compile and run their tests with
 ## Features
 
 An integration feature is the crate's own name plus its version, so a hyphenated crate keeps its
-hyphen (`smol-bytes_0_2`), and `rowan` has none to keep (`rowan_0_17`). The unversioned name is an
+hyphen (`smol-bytes_0_2`), and a crate without one is just the name and version (`rowan_0_17`). The unversioned name is an
 alias that selects the supported version, or the newest where two are supported, and a versioned
 feature enables the matching optional dependency.
 
@@ -353,7 +353,7 @@ build on is unconditional: `Parser`, `Parse` and the `parse` drivers, the `Parse
 | `logos` | Alias for `logos_0_16`. |
 | `logos_0_16` | Enables the `LogosLexer` adapter over `logos@0.16`, the only supported Logos major, and the `tokora::logos` / `tokora::logos_0_16` re-exports. |
 | `rowan` | Alias for `rowan_0_17`. |
-| `rowan_0_17` | Enables the recording CST sink and the typed lossless tree over `rowan@0.17`; implies `std`, not `logos`. **Read the [safety disclosure](#rowan-and-known-upstream-undefined-behaviour) before enabling it.** |
+| `rowan_0_17` | Enables the recording CST sink and the typed lossless tree over `rowan@0.17`, and the `tokora::rowan` / `tokora::rowan_0_17` re-exports; implies `std`, not `logos`. **Read the [safety disclosure](#rowan-and-known-upstream-undefined-behaviour) before enabling it.** |
 | `bytes` | Alias for `bytes_1`. |
 | `bytes_1` | Enables `bytes::Bytes` as a `Source` and `Slice`. |
 | `bstr` | Alias for `bstr_1`. |
@@ -393,10 +393,10 @@ still ends the process with nothing on any `Result` channel.
 
 ### `rowan` and known upstream undefined behaviour
 
-A lossless sink requires a lexer that surfaces trivia (`Lexer::SURFACES_TRIVIA`). Tokora does not
-re-export Rowan; add `rowan = "0.17"` directly when implementing `rowan::Language`.
-The `rowan_0_17` feature names the integration's version; your own `rowan` dependency is a separate
-line in your manifest and unifies with it.
+A lossless sink requires a lexer that surfaces trivia (`Lexer::SURFACES_TRIVIA`). Tokora
+re-exports Rowan as `tokora::rowan` (pinned: `tokora::rowan_0_17`), so implement
+`tokora::rowan::Language` without a `rowan` dependency of your own, and the tree types you name are
+the ones the `cst` module is built over.
 
 ## Platform support
 

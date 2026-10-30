@@ -15,7 +15,7 @@
 //!
 //! Run: `cargo run --example s_expression_cst --features "std,logos,rowan"`
 
-use rowan::{Language, NodeOrToken, SyntaxNode};
+use tokora::rowan::{Language, NodeOrToken, SyntaxNode};
 use tokora::{
   Emitter, InputRef, ParseContext, ParseInput, Token as TokenT,
   cache::DefaultCache,
@@ -221,7 +221,7 @@ enum SExprLang {}
 impl Language for SExprLang {
   type Kind = SyntaxKind;
 
-  fn kind_from_raw(raw: rowan::SyntaxKind) -> SyntaxKind {
+  fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> SyntaxKind {
     // `#[repr(u16)]` with default discriminants: raw value == declaration index.
     const KINDS: [SyntaxKind; 22] = [
       K::Whitespace,
@@ -250,8 +250,8 @@ impl Language for SExprLang {
     KINDS[raw.0 as usize]
   }
 
-  fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind {
-    rowan::SyntaxKind(kind as u16)
+  fn kind_to_raw(kind: SyntaxKind) -> tokora::rowan::SyntaxKind {
+    tokora::rowan::SyntaxKind(kind as u16)
   }
 }
 
