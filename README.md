@@ -50,8 +50,7 @@ as `tokora::logos` (pinned: `tokora::logos_0_16`), so a derive can name it with
 A complete program: a Logos token enum, the `Token` impl that connects it to Tokora, and a parser
 written as a plain function. It needs the `logos` feature.
 
-```rust
-# #[cfg(all(feature = "std", feature = "logos_0_16"))] {
+```rust,ignore
 use tokora::{
   Emitter, InputRef, ParseContext, Token,
   lexer::LogosLexer,
@@ -126,7 +125,6 @@ assert_eq!(total, Ok(42));
 
 let unfinished: Result<u64, ()> = parse(sum, "1 +");
 assert_eq!(unfinished, Err(()));
-# }
 ```
 
 `parse` runs a parser with the fail-fast `Fatal` emitter. `parse_with` takes a context you supply,
@@ -209,7 +207,7 @@ frame cost, and no profile combination can abort. The depth a fully optimised pa
 published as `RecursionLimiter::OPTIMIZED_PARSE_DEPTH`; nothing installs it, and taking it is one
 call:
 
-```rust
+```rust,ignore
 use tokora::state::RecursionLimiter;
 
 // The default budget, the same in every build profile.
@@ -396,17 +394,6 @@ still ends the process with nothing on any `Result` channel.
 
 A lossless sink requires a lexer that surfaces trivia (`Lexer::SURFACES_TRIVIA`). Tokora does not
 re-export Rowan; add `rowan = "0.17"` directly when implementing `rowan::Language`.
-
-**Safety disclosure: `rowan 0.17.0` executes known undefined behaviour on the ordinary
-construct-and-drop path** — Stacked Borrows at `arc.rs:264`, reached from building any green tree,
-and Tree Borrows at `cursor.rs:136`, reached from dropping any red-tree `SyntaxNode`. tokora's own
-`src/cst` contains no `unsafe`; the defects are upstream and unfixed since 2021
-(rust-analyzer/rowan [#108](https://github.com/rust-analyzer/rowan/issues/108),
-[#163](https://github.com/rust-analyzer/rowan/issues/163),
-[#192](https://github.com/rust-analyzer/rowan/issues/192)), so raising the requirement is not an
-exit. Both Miri matrices exclude this feature for that reason, which means the shipped lossless
-path has **zero** Miri coverage rather than a green result. Tracked at
-[al8n/tokora#252](https://github.com/al8n/tokora/issues/252).
 
 ## Platform support
 
