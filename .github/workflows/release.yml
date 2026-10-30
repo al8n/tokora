@@ -1,0 +1,641 @@
+name: Release tokora
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: crates-io-tokora
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  PACKAGE: tokora
+  RUST_TOOLCHAIN: 1.95.0
+  CRATES_API: https://crates.io/api/v1
+
+jobs:
+  verify:
+    name: Verify release candidate
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      checksum: ${{ steps.candidate.outputs.checksum }}
+      prerelease: ${{ steps.candidate.outputs.prerelease }}
+      registry_state: ${{ steps.candidate.outputs.registry_state }}
+      release_exists: ${{ steps.candidate.outputs.release_exists }}
+      tag: ${{ steps.candidate.outputs.tag }}
+      version: ${{ steps.candidate.outputs.version }}
+    steps:
+      - name: Checkout the event commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Install Rust 1.95.0
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --no-self-update
+
+      - name: Verify identity, gates, package, registry, and release state
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          fail() {
+            echo "::error::$*"
+            exit 1
+          }
+
+          require_remote_main() {
+            local expected_sha=$1
+            local remote_main
+            if ! remote_main=$(git ls-remote --exit-code origin refs/heads/main | awk 'NR == 1 { print $1 }'); then
+              fail "could not read refs/heads/main from origin"
+            fi
+            [[ "$remote_main" =~ ^[0-9a-f]{40}$ ]] || fail "origin/main did not resolve to one commit"
+            [[ "$remote_main" == "$expected_sha" ]] || fail "origin/main moved: expected $expected_sha, found $remote_main"
+          }
+
+          require_remote_tag() {
+            local tag=$1
+            local expected_sha=$2
+            local tag_object tag_commit
+            if ! tag_object=$(git ls-remote --exit-code origin "refs/tags/$tag" | awk 'NR == 1 { print $1 }'); then
+              fail "remote tag $tag does not exist"
+            fi
+            if ! tag_commit=$(git ls-remote --exit-code origin "refs/tags/$tag^{}" | awk 'NR == 1 { print $1 }'); then
+              fail "remote tag $tag is not annotated"
+            fi
+            [[ "$tag_object" =~ ^[0-9a-f]{40}$ ]] || fail "remote tag $tag did not resolve to one tag object"
+            [[ "$tag_commit" =~ ^[0-9a-f]{40}$ ]] || fail "remote tag $tag did not peel to one commit"
+            [[ "$tag_object" != "$tag_commit" ]] || fail "remote tag $tag is not annotated"
+            [[ "$tag_commit" == "$expected_sha" ]] || fail "remote tag $tag peels to $tag_commit, not $expected_sha"
+          }
+
+          require_no_remote_tag() {
+            local tag=$1
+            local output status
+            set +e
+            output=$(git ls-remote --exit-code origin "refs/tags/$tag" 2>&1)
+            status=$?
+            set -e
+            case "$status" in
+              2) return 0 ;;
+              0) fail "remote tag $tag already exists" ;;
+              *)
+                printf '%s\n' "$output" >&2
+                fail "could not determine whether remote tag $tag exists"
+                ;;
+            esac
+          }
+
+          require_workflow_success() {
+            local workflow=$1
+            local runs
+            if ! runs=$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs" \
+              -f branch=main -f per_page=100); then
+              fail "could not read $workflow runs"
+            fi
+            jq -e --arg sha "$GITHUB_SHA" '
+              any(.workflow_runs[];
+                .head_sha == $sha
+                and .head_branch == "main"
+                and .status == "completed"
+                and .conclusion == "success"
+                and (.event == "push" or .event == "workflow_dispatch"))
+            ' <<<"$runs" >/dev/null || fail "$workflow has no successful main run for $GITHUB_SHA"
+          }
+
+          registry_request() {
+            local version=$1
+            local destination=$2
+            curl --silent --show-error \
+              --header "User-Agent: tokora-release/$GITHUB_RUN_ID" \
+              --header "Cache-Control: no-cache" \
+              --output "$destination" \
+              --write-out '%{http_code}' \
+              "$CRATES_API/crates/$PACKAGE/$version"
+          }
+
+          release_request() {
+            local tag=$1
+            local destination=$2
+            curl --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              --output "$destination" \
+              --write-out '%{http_code}' \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/$tag"
+          }
+
+          require_same_run_version() {
+            local file=$1
+            local version=$2
+            local checksum=$3
+            jq -e \
+              --arg package "$PACKAGE" \
+              --arg version "$version" \
+              --arg checksum "$checksum" \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg run_id "$GITHUB_RUN_ID" \
+              --arg sha "$GITHUB_SHA" '
+                .version.crate == $package
+                and .version.num == $version
+                and .version.yanked == false
+                and .version.checksum == $checksum
+                and .version.published_by.login == "al8n"
+                and .version.trustpub_data == {
+                  provider: "github",
+                  repository: $repository,
+                  run_id: $run_id,
+                  sha: $sha
+                }
+              ' "$file" >/dev/null
+          }
+
+          require_expected_release() {
+            local file=$1
+            local tag=$2
+            local prerelease=$3
+            jq -e --arg tag "$tag" --argjson prerelease "$prerelease" '
+              .tag_name == $tag
+              and .name == $tag
+              and .draft == false
+              and .prerelease == $prerelease
+              and .author.login == "github-actions[bot]"
+            ' "$file" >/dev/null
+          }
+
+          metadata=$(cargo +"$RUST_TOOLCHAIN" metadata --locked --no-deps --format-version 1)
+          publishable=$(jq -cer '
+            [.packages[]
+              | select(.publish == null or (.publish | index("crates-io")))
+              | .name]
+            | sort
+          ' <<<"$metadata")
+          [[ "$publishable" == '["tokora"]' ]] || fail "expected tokora to be the sole crates.io-publishable package, found $publishable"
+
+          package_count=$(jq -er --arg package "$PACKAGE" '[.packages[] | select(.name == $package)] | length' <<<"$metadata")
+          [[ "$package_count" == 1 ]] || fail "cargo metadata returned $package_count packages named $PACKAGE"
+          version=$(jq -er --arg package "$PACKAGE" '.packages[] | select(.name == $package) | .version' <<<"$metadata")
+          [[ -n "$version" ]] || fail "cargo metadata returned an empty $PACKAGE version"
+          tag="v$version"
+          prerelease=false
+          [[ "$version" == *-* ]] && prerelease=true
+
+          head_sha=$(git rev-parse "HEAD^{commit}")
+          [[ "$head_sha" == "$GITHUB_SHA" ]] || fail "checkout is $head_sha, not event SHA $GITHUB_SHA"
+          require_remote_main "$GITHUB_SHA"
+
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch)
+              [[ "$GITHUB_REF" == refs/heads/main ]] || fail "manual verification must be dispatched from main"
+              [[ "$GITHUB_REF_TYPE" == branch ]] || fail "manual verification must use a branch ref"
+              require_no_remote_tag "$tag"
+              ;;
+            push)
+              [[ "$GITHUB_REF_TYPE" == tag ]] || fail "push release must be triggered by a tag"
+              [[ "$GITHUB_REF_NAME" == "$tag" ]] || fail "event tag $GITHUB_REF_NAME does not match manifest tag $tag"
+              require_remote_tag "$tag" "$GITHUB_SHA"
+              ;;
+            *) fail "unsupported event $GITHUB_EVENT_NAME" ;;
+          esac
+
+          require_workflow_success ci.yml
+          require_workflow_success miri.yml
+          require_workflow_success pages.yml
+
+          cargo +"$RUST_TOOLCHAIN" package --locked --package "$PACKAGE"
+          git diff --exit-code || fail "package verification modified tracked files"
+          crate_file="target/package/$PACKAGE-$version.crate"
+          [[ -s "$crate_file" ]] || fail "cargo package did not create $crate_file"
+          checksum=$(sha256sum "$crate_file" | awk '{ print $1 }')
+          [[ "$checksum" =~ ^[0-9a-f]{64}$ ]] || fail "could not calculate the package checksum"
+
+          registry_file="$RUNNER_TEMP/registry-version.json"
+          if ! registry_code=$(registry_request "$version" "$registry_file"); then
+            fail "could not read $PACKAGE $version from crates.io"
+          fi
+          case "$registry_code" in
+            404)
+              registry_state=absent
+              ;;
+            200)
+              [[ "$GITHUB_EVENT_NAME" == push ]] || fail "$PACKAGE $version is already published; manual dispatch is verify-only for an unpublished version"
+              require_same_run_version "$registry_file" "$version" "$checksum" || fail "$PACKAGE $version exists with different provenance, state, or content"
+              registry_state=same-run
+              ;;
+            *) fail "crates.io returned HTTP $registry_code for $PACKAGE $version" ;;
+          esac
+
+          release_file="$RUNNER_TEMP/github-release.json"
+          if ! release_code=$(release_request "$tag" "$release_file"); then
+            fail "could not read GitHub Release $tag"
+          fi
+          case "$release_code" in
+            404)
+              release_exists=false
+              ;;
+            200)
+              [[ "$registry_state" == same-run ]] || fail "GitHub Release $tag exists before this run published the crate"
+              require_expected_release "$release_file" "$tag" "$prerelease" || fail "GitHub Release $tag has unexpected author or state"
+              release_exists=true
+              ;;
+            *) fail "GitHub returned HTTP $release_code for Release $tag" ;;
+          esac
+
+          {
+            echo "checksum=$checksum"
+            echo "prerelease=$prerelease"
+            echo "registry_state=$registry_state"
+            echo "release_exists=$release_exists"
+            echo "tag=$tag"
+            echo "version=$version"
+          } >>"$GITHUB_OUTPUT"
+
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            echo "Manual verification passed for $PACKAGE $version; publishing is disabled for workflow_dispatch."
+          fi
+
+  publish:
+    name: Publish and create GitHub Release
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout the approved event commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Install Rust 1.95.0
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --no-self-update
+
+      - name: Revalidate after environment approval
+        id: revalidate
+        env:
+          EXPECTED_CHECKSUM: ${{ needs.verify.outputs.checksum }}
+          EXPECTED_PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+          EXPECTED_TAG: ${{ needs.verify.outputs.tag }}
+          EXPECTED_VERSION: ${{ needs.verify.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          fail() {
+            echo "::error::$*"
+            exit 1
+          }
+
+          require_remote_identity() {
+            local remote_main tag_object tag_commit
+            if ! remote_main=$(git ls-remote --exit-code origin refs/heads/main | awk 'NR == 1 { print $1 }'); then
+              fail "could not read refs/heads/main from origin"
+            fi
+            if ! tag_object=$(git ls-remote --exit-code origin "refs/tags/$EXPECTED_TAG" | awk 'NR == 1 { print $1 }'); then
+              fail "remote tag $EXPECTED_TAG no longer exists"
+            fi
+            if ! tag_commit=$(git ls-remote --exit-code origin "refs/tags/$EXPECTED_TAG^{}" | awk 'NR == 1 { print $1 }'); then
+              fail "remote tag $EXPECTED_TAG is no longer annotated"
+            fi
+            [[ "$remote_main" == "$GITHUB_SHA" ]] || fail "origin/main moved to $remote_main after verification"
+            [[ "$tag_object" =~ ^[0-9a-f]{40}$ ]] || fail "remote tag $EXPECTED_TAG did not resolve to one tag object"
+            [[ "$tag_object" != "$tag_commit" ]] || fail "remote tag $EXPECTED_TAG is not annotated"
+            [[ "$tag_commit" == "$GITHUB_SHA" ]] || fail "remote tag $EXPECTED_TAG now peels to $tag_commit"
+            [[ $(git rev-parse "HEAD^{commit}") == "$GITHUB_SHA" ]] || fail "checkout no longer matches event SHA"
+          }
+
+          require_workflow_success() {
+            local workflow=$1
+            local runs
+            if ! runs=$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs" \
+              -f branch=main -f per_page=100); then
+              fail "could not read $workflow runs"
+            fi
+            jq -e --arg sha "$GITHUB_SHA" '
+              any(.workflow_runs[];
+                .head_sha == $sha
+                and .head_branch == "main"
+                and .status == "completed"
+                and .conclusion == "success"
+                and (.event == "push" or .event == "workflow_dispatch"))
+            ' <<<"$runs" >/dev/null || fail "$workflow has no successful main run for $GITHUB_SHA"
+          }
+
+          registry_request() {
+            local destination=$1
+            curl --silent --show-error \
+              --header "User-Agent: tokora-release/$GITHUB_RUN_ID" \
+              --header "Cache-Control: no-cache" \
+              --output "$destination" \
+              --write-out '%{http_code}' \
+              "$CRATES_API/crates/$PACKAGE/$EXPECTED_VERSION"
+          }
+
+          release_request() {
+            local destination=$1
+            curl --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              --output "$destination" \
+              --write-out '%{http_code}' \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/$EXPECTED_TAG"
+          }
+
+          require_same_run_version() {
+            local file=$1
+            jq -e \
+              --arg package "$PACKAGE" \
+              --arg version "$EXPECTED_VERSION" \
+              --arg checksum "$EXPECTED_CHECKSUM" \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg run_id "$GITHUB_RUN_ID" \
+              --arg sha "$GITHUB_SHA" '
+                .version.crate == $package
+                and .version.num == $version
+                and .version.yanked == false
+                and .version.checksum == $checksum
+                and .version.published_by.login == "al8n"
+                and .version.trustpub_data == {
+                  provider: "github",
+                  repository: $repository,
+                  run_id: $run_id,
+                  sha: $sha
+                }
+              ' "$file" >/dev/null
+          }
+
+          require_expected_release() {
+            local file=$1
+            jq -e --arg tag "$EXPECTED_TAG" --argjson prerelease "$EXPECTED_PRERELEASE" '
+              .tag_name == $tag
+              and .name == $tag
+              and .draft == false
+              and .prerelease == $prerelease
+              and .author.login == "github-actions[bot]"
+            ' "$file" >/dev/null
+          }
+
+          [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF_TYPE" == tag ]] || fail "protected job requires a tag push"
+          [[ "$GITHUB_REF_NAME" == "$EXPECTED_TAG" ]] || fail "approved event tag changed"
+          require_remote_identity
+          require_workflow_success ci.yml
+          require_workflow_success miri.yml
+          require_workflow_success pages.yml
+
+          metadata=$(cargo +"$RUST_TOOLCHAIN" metadata --locked --no-deps --format-version 1)
+          publishable=$(jq -cer '
+            [.packages[]
+              | select(.publish == null or (.publish | index("crates-io")))
+              | .name]
+            | sort
+          ' <<<"$metadata")
+          [[ "$publishable" == '["tokora"]' ]] || fail "publishable workspace set changed after approval: $publishable"
+          version=$(jq -er --arg package "$PACKAGE" '.packages[] | select(.name == $package) | .version' <<<"$metadata")
+          [[ "$version" == "$EXPECTED_VERSION" ]] || fail "manifest version changed after approval"
+          [[ "v$version" == "$EXPECTED_TAG" ]] || fail "manifest tag changed after approval"
+
+          cargo +"$RUST_TOOLCHAIN" package --locked --package "$PACKAGE"
+          git diff --exit-code || fail "package verification modified tracked files"
+          crate_file="target/package/$PACKAGE-$EXPECTED_VERSION.crate"
+          [[ -s "$crate_file" ]] || fail "cargo package did not create $crate_file"
+          checksum=$(sha256sum "$crate_file" | awk '{ print $1 }')
+          [[ "$checksum" == "$EXPECTED_CHECKSUM" ]] || fail "package checksum changed after approval"
+
+          registry_file="$RUNNER_TEMP/registry-version-revalidated.json"
+          if ! registry_code=$(registry_request "$registry_file"); then
+            fail "could not re-read $PACKAGE $EXPECTED_VERSION from crates.io"
+          fi
+          case "$registry_code" in
+            404)
+              registry_state=absent
+              ;;
+            200)
+              require_same_run_version "$registry_file" || fail "$PACKAGE $EXPECTED_VERSION appeared with different provenance, state, or content"
+              registry_state=same-run
+              ;;
+            *) fail "crates.io returned HTTP $registry_code for $PACKAGE $EXPECTED_VERSION" ;;
+          esac
+
+          release_file="$RUNNER_TEMP/github-release-revalidated.json"
+          if ! release_code=$(release_request "$release_file"); then
+            fail "could not re-read GitHub Release $EXPECTED_TAG"
+          fi
+          case "$release_code" in
+            404)
+              release_exists=false
+              ;;
+            200)
+              [[ "$registry_state" == same-run ]] || fail "GitHub Release $EXPECTED_TAG appeared before this run published the crate"
+              require_expected_release "$release_file" || fail "GitHub Release $EXPECTED_TAG has unexpected author or state"
+              release_exists=true
+              ;;
+            *) fail "GitHub returned HTTP $release_code for Release $EXPECTED_TAG" ;;
+          esac
+
+          {
+            echo "registry_state=$registry_state"
+            echo "release_exists=$release_exists"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Authenticate with crates.io
+        if: steps.revalidate.outputs.registry_state == 'absent'
+        id: crates-io-auth
+        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+
+      - name: Publish tokora
+        if: steps.revalidate.outputs.registry_state == 'absent'
+        id: cargo-publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
+        shell: bash
+        run: |
+          set +e
+          cargo +"$RUST_TOOLCHAIN" publish --locked --package "$PACKAGE"
+          status=$?
+          set -e
+          echo "exit_code=$status" >>"$GITHUB_OUTPUT"
+
+      - name: Verify authoritative crates.io record
+        env:
+          EXPECTED_CHECKSUM: ${{ needs.verify.outputs.checksum }}
+          EXPECTED_VERSION: ${{ needs.verify.outputs.version }}
+          PUBLISH_EXIT: ${{ steps.cargo-publish.outputs.exit_code }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          fail() {
+            echo "::error::$*"
+            exit 1
+          }
+
+          crate_file="target/package/$PACKAGE-$EXPECTED_VERSION.crate"
+          [[ -s "$crate_file" ]] || fail "local package $crate_file disappeared"
+          checksum=$(sha256sum "$crate_file" | awk '{ print $1 }')
+          [[ "$checksum" == "$EXPECTED_CHECKSUM" ]] || fail "cargo publish changed the package checksum"
+
+          registry_file="$RUNNER_TEMP/registry-version-final.json"
+          found=false
+          for attempt in $(seq 1 60); do
+            if ! code=$(curl --silent --show-error \
+              --header "User-Agent: tokora-release/$GITHUB_RUN_ID" \
+              --header "Cache-Control: no-cache" \
+              --output "$registry_file" \
+              --write-out '%{http_code}' \
+              "$CRATES_API/crates/$PACKAGE/$EXPECTED_VERSION"); then
+              fail "could not poll crates.io for $PACKAGE $EXPECTED_VERSION"
+            fi
+            case "$code" in
+              200)
+                found=true
+                break
+                ;;
+              404)
+                sleep 5
+                ;;
+              5??)
+                echo "crates.io returned HTTP $code on poll $attempt; retrying"
+                sleep 5
+                ;;
+              *) fail "crates.io returned HTTP $code while polling $PACKAGE $EXPECTED_VERSION" ;;
+            esac
+          done
+          [[ "$found" == true ]] || fail "$PACKAGE $EXPECTED_VERSION did not appear on crates.io"
+
+          jq -e \
+            --arg package "$PACKAGE" \
+            --arg version "$EXPECTED_VERSION" \
+            --arg checksum "$EXPECTED_CHECKSUM" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg sha "$GITHUB_SHA" '
+              .version.crate == $package
+              and .version.num == $version
+              and .version.yanked == false
+              and .version.checksum == $checksum
+              and .version.published_by.login == "al8n"
+              and .version.trustpub_data == {
+                provider: "github",
+                repository: $repository,
+                run_id: $run_id,
+                sha: $sha
+              }
+            ' "$registry_file" >/dev/null || fail "$PACKAGE $EXPECTED_VERSION has mismatched provenance, state, or content"
+
+          if [[ -n "$PUBLISH_EXIT" && "$PUBLISH_EXIT" != 0 ]]; then
+            echo "::warning::cargo publish exited $PUBLISH_EXIT, but crates.io confirms this exact run, commit, and package checksum"
+          fi
+
+      - name: Create or verify GitHub Release
+        env:
+          EXPECTED_PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+          EXPECTED_TAG: ${{ needs.verify.outputs.tag }}
+          EXPECTED_VERSION: ${{ needs.verify.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_EXISTED: ${{ steps.revalidate.outputs.release_exists }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          fail() {
+            echo "::error::$*"
+            exit 1
+          }
+
+          require_remote_identity() {
+            local remote_main tag_object tag_commit
+            if ! remote_main=$(git ls-remote --exit-code origin refs/heads/main | awk 'NR == 1 { print $1 }'); then
+              fail "could not read refs/heads/main before creating the GitHub Release"
+            fi
+            if ! tag_object=$(git ls-remote --exit-code origin "refs/tags/$EXPECTED_TAG" | awk 'NR == 1 { print $1 }'); then
+              fail "remote tag $EXPECTED_TAG disappeared before creating the GitHub Release"
+            fi
+            if ! tag_commit=$(git ls-remote --exit-code origin "refs/tags/$EXPECTED_TAG^{}" | awk 'NR == 1 { print $1 }'); then
+              fail "remote tag $EXPECTED_TAG is no longer annotated"
+            fi
+            [[ "$remote_main" == "$GITHUB_SHA" ]] || fail "origin/main moved to $remote_main before release creation"
+            [[ "$tag_object" =~ ^[0-9a-f]{40}$ && "$tag_object" != "$tag_commit" ]] || fail "remote tag $EXPECTED_TAG is not annotated"
+            [[ "$tag_commit" == "$GITHUB_SHA" ]] || fail "remote tag $EXPECTED_TAG now peels to $tag_commit"
+          }
+
+          release_request() {
+            local destination=$1
+            curl --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              --output "$destination" \
+              --write-out '%{http_code}' \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/$EXPECTED_TAG"
+          }
+
+          require_expected_release() {
+            local file=$1
+            jq -e --arg tag "$EXPECTED_TAG" --argjson prerelease "$EXPECTED_PRERELEASE" '
+              .tag_name == $tag
+              and .name == $tag
+              and .draft == false
+              and .prerelease == $prerelease
+              and .author.login == "github-actions[bot]"
+            ' "$file" >/dev/null
+          }
+
+          require_remote_identity
+
+          release_file="$RUNNER_TEMP/github-release-final.json"
+          if ! release_code=$(release_request "$release_file"); then
+            fail "could not read GitHub Release $EXPECTED_TAG"
+          fi
+          case "$release_code" in
+            200)
+              [[ "$RELEASE_EXISTED" == true ]] || fail "GitHub Release $EXPECTED_TAG appeared during this run"
+              require_expected_release "$release_file" || fail "existing GitHub Release $EXPECTED_TAG has unexpected author or state"
+              echo "GitHub Release $EXPECTED_TAG already exists from this run; recovery is complete."
+              exit 0
+              ;;
+            404)
+              [[ "$RELEASE_EXISTED" == false ]] || fail "GitHub Release $EXPECTED_TAG disappeared during this run"
+              ;;
+            *) fail "GitHub returned HTTP $release_code for Release $EXPECTED_TAG" ;;
+          esac
+
+          release_args=(
+            "$EXPECTED_TAG"
+            --repo "$GITHUB_REPOSITORY"
+            --verify-tag
+            --title "$EXPECTED_TAG"
+            --generate-notes
+          )
+          if [[ "$EXPECTED_PRERELEASE" == true ]]; then
+            release_args+=(--prerelease)
+          fi
+          gh release create "${release_args[@]}"
+
+          if ! release_code=$(release_request "$release_file"); then
+            fail "could not verify GitHub Release $EXPECTED_TAG after creation"
+          fi
+          [[ "$release_code" == 200 ]] || fail "GitHub Release $EXPECTED_TAG was not readable after creation"
+          require_expected_release "$release_file" || fail "new GitHub Release $EXPECTED_TAG has unexpected author or state"
