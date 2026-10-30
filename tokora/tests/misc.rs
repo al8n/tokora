@@ -34,9 +34,9 @@ macro_rules! ignored_parser {
 // 493-497, 551-552, and cast.rs 8-9, 17, 20.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-#[cfg(all(test, feature = "rowan"))]
+#[cfg(all(test, feature = "rowan_0_17"))]
 mod cst_coverage {
-  use rowan::{GreenNodeBuilder, Language as RowanLanguage, SyntaxKind, SyntaxNode};
+  use tokora::rowan::{GreenNodeBuilder, Language as RowanLanguage, SyntaxKind, SyntaxNode};
   use tokora::{
     cst::{Element, Node, NodeChildren, NodeMismatch, SyntaxTreeBuilder, cast},
     syntax::Syntax,

@@ -124,7 +124,8 @@ conformance = ["alloc"]
 # `fuzz` module, which runs as ordinary `#[test]`s on stable Rust.
 fuzz = ["std"]
 
-rowan = ["dep:rowan", "std"]
+rowan = ["rowan_0_17"]
+rowan_0_17 = ["dep:rowan_0_17", "std"]
 
 bytes = ["bytes_1"]
 bytes_1 = ["dep:bytes_1"]
@@ -191,7 +192,7 @@ tinyvec_1 = { package = "tinyvec", version = "1", default-features = false, opti
 logos_0_16 = { package = "logos", version = "0.16", default-features = false, optional = true, features = [
   "export_derive",
 ] }
-rowan = { version = "0.17", optional = true }
+rowan_0_17 = { package = "rowan", version = "0.17", optional = true }
 
 [dev-dependencies]
 proc-macro2 = { version = "1", default-features = false, features = [
@@ -238,34 +239,34 @@ path = "examples/c_expression.rs"
 required-features = ["std", "logos", "combinators"]
 
 # Lossless-CST twins of the four examples above: each parses the same grammar as its twin but
-# builds a rowan concrete syntax tree through a `cst::Sink`, so it needs `rowan` as well.
+# builds a rowan concrete syntax tree through a `cst::Sink`, so it needs `rowan_0_17` as well.
 # The error-recovery example: the only in-tree grammar that parses malformed input to
-# completion. Needs `rowan` because half of what it demonstrates is the shape of the CST the
+# completion. Needs `rowan_0_17` because half of what it demonstrates is the shape of the CST the
 # recovery leaves behind (a real, sometimes zero-width, error node).
 [[example]]
 name = "expr_recovery"
 path = "examples/expr_recovery.rs"
-required-features = ["std", "logos", "rowan", "combinators"]
+required-features = ["std", "logos", "rowan_0_17", "combinators"]
 
 [[example]]
 name = "calculator_cst"
 path = "examples/calculator_cst.rs"
-required-features = ["std", "logos", "rowan", "combinators"]
+required-features = ["std", "logos", "rowan_0_17", "combinators"]
 
 [[example]]
 name = "s_expression_cst"
 path = "examples/s_expression_cst.rs"
-required-features = ["std", "logos", "rowan", "combinators"]
+required-features = ["std", "logos", "rowan_0_17", "combinators"]
 
 [[example]]
 name = "json_cst"
 path = "examples/json_cst.rs"
-required-features = ["std", "logos", "rowan", "combinators"]
+required-features = ["std", "logos", "rowan_0_17", "combinators"]
 
 [[example]]
 name = "c_expression_cst"
 path = "examples/c_expression_cst.rs"
-required-features = ["std", "logos", "rowan", "combinators"]
+required-features = ["std", "logos", "rowan_0_17", "combinators"]
 
 [package.metadata.docs.rs]
 all-features = true

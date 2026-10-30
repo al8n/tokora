@@ -117,7 +117,14 @@ def namespace(idx, mod_id, _memo=None, _stack=None, paths=None):
             if not nm:
                 continue
             sub = cid if "module" in cinner else None
-            out.setdefault(nm, (kind_of(child), sub))
+            kind = kind_of(child)
+            if kind == "extern_crate":
+                # `pub extern crate rowan_0_17 as rowan;`: a crate in the type namespace, which
+                # is the namespace the probe constructs a `module` collision in, as it does for
+                # the `pub use logos_0_16 as logos;` re-export. The visible name is the item's own
+                # name; extern_crate.rename holds the crate it was imported from.
+                kind = "module"
+            out.setdefault(nm, (kind, sub))
 
     _stack.discard(key)
     _memo[key] = out

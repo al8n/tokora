@@ -217,8 +217,8 @@ EXTRA_LEGS = [
         "features": "std,logos,combinators",
         "tests": True,
         # FALSE SINCE THE `rowan,logos,combinators` LEG BELOW EXISTED, AND THAT IS NOT A DEMOTION
-        # OF THIS LEG. `rowan = ["dep:rowan", "std"]`, so that leg resolves to a strict SUPERSET
-        # of this one and satisfies every predicate this one does; sole coverage is a claim about
+        # OF THIS LEG. `rowan = ["rowan_0_17"]` and `rowan_0_17 = ["dep:rowan_0_17", "std"]`, so that
+        # leg resolves to a strict SUPERSET of this one and satisfies every predicate this one does; sole coverage is a claim about
         # the leg list, and the leg list grew. What holds this leg is `unique_suites`: it is the
         # smallest configuration compiling the 82 suites gated on the umbrella, the only one that
         # compiles them with `rowan` off. Delete the rowan legs and the gate will say to set this
@@ -308,13 +308,16 @@ EXTRA_LEGS = [
         # DECLARED FOR SUITES, NOT FOR A PREDICATE. `tokora/src/` has no multi-feature predicate
         # naming `rowan` at all; what this leg is for is `tokora/tests/`, where
         # `cst_resource_trips` and `parser_node` carry the crate-level gate
-        # `all(rowan, std, combinators)`. Until 2026-08-11 no declared leg compiled either, so
+        # `all(rowan_0_17, std, combinators)`. Until 2026-08-11 no declared leg compiled either, so
         # `--all-features` was their only build anywhere — the configuration this whole script
         # refuses to count as coverage — and the gate reported that in a green log line instead
         # of failing on it.
         #
-        # `rowan = ["dep:rowan", "std"]`, so naming `rowan` reaches `std` and the feature string
-        # does not have to. This is the LOGOS-OFF half of the pair: the only configuration that
+        # `rowan = ["rowan_0_17"]` and `rowan_0_17 = ["dep:rowan_0_17", "std"]`, so naming `rowan`
+        # reaches `rowan_0_17` and `std` and the feature strings do not have to. The predicates
+        # name the LITERAL `rowan_0_17` and the legs name the alias, for the reason the
+        # `std,logos,combinators` leg states for `logos`: the alias pulls the versioned feature
+        # transitively, and a leg naming it also proves the alias still resolves. This is the LOGOS-OFF half of the pair: the only configuration that
         # type-checks those two bodies without a lexer, which is what would catch one of them
         # growing a dependency on the `logos` surface it does not gate on. Measured on
         # 2026-08-11 by planting an unconditional `compile_error!` in all three `rowan` suites:
@@ -326,12 +329,12 @@ EXTRA_LEGS = [
         "tests": True,
         "unique_predicates": False,
         "unique_suites": True,
-        # The other half: `pratt_recovery` gates on `all(std, rowan, combinators, logos_0_16)`,
+        # The other half: `pratt_recovery` gates on `all(std, rowan_0_17, combinators, logos_0_16)`,
         # so it needs a lexer too and the leg above cannot reach it. Any leg that can is
         # a superset of `std,logos,combinators`, which is why that leg's `unique_predicates` is
         # now False — see the note there. It is not a reason to fold the two into one: this leg
         # has a lexer, so it cannot make the logos-off claim the leg above exists for.
-        "why": "pratt_recovery, all(std, rowan, combinators, logos_0_16)",
+        "why": "pratt_recovery, all(std, rowan_0_17, combinators, logos_0_16)",
     },
     {
         "features": "std,logos,combinators,tinyvec_1",
@@ -411,7 +414,7 @@ EXTRA_LEGS = [
         "unique_predicates": True,
         "unique_suites": False,
         # DECLARED FOR ONE PREDICATE, and it is the smallest set that satisfies it:
-        # `all(rowan, stacker)`, in `src/cst/mod.rs`, guarding the `const` assertion that
+        # `all(rowan_0_17, stacker)`, in `src/cst/mod.rs`, guarding the `const` assertion that
         # `RecursionLimiter::SEGMENTED_PRATT_DEPTH <= cst::MAX_TREE_DEPTH`.
         #
         # The two constants bound different resources — 64 MiB of heap stack segments there, a
@@ -422,12 +425,13 @@ EXTRA_LEGS = [
         # own derivation block. The predicate is the only thing that reads them together, so
         # this is the only leg in which it is checked at all.
         #
-        # `stacker = ["dep:stacker", "std", "pratt"]` and `rowan = ["dep:rowan", "std"]`, so
-        # `std` and `pratt` arrive with the pair and are not named. Neither the
+        # `stacker = ["dep:stacker", "std", "pratt"]` and `rowan_0_17 = ["dep:rowan_0_17", "std"]`
+        # (`rowan` is its alias), so `std` and `pratt` arrive with the pair and are not named.
+        # Neither the
         # `std,logos,combinators,stacker` leg (no `rowan`) nor either `rowan,*` leg (no
         # `stacker`) reaches it, and no `--each-feature` leg names two features at once — which
         # is what makes the `unique_predicates` claim above true and checked.
-        "why": "all(rowan, stacker) — SEGMENTED_PRATT_DEPTH against cst::MAX_TREE_DEPTH",
+        "why": "all(rowan_0_17, stacker) — SEGMENTED_PRATT_DEPTH against cst::MAX_TREE_DEPTH",
     },
 ]
 

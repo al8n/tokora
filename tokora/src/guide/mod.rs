@@ -74,8 +74,8 @@ pub mod arch_atomic_emitter {
   #![doc = include_str!("arch_atomic_emitter.md")]
 }
 
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub mod arch_event_stream_cst {
   #![doc = include_str!("arch_event_stream_cst.md")]
 }
@@ -108,8 +108,8 @@ pub mod ch15_c_expression_example {
   #![doc = include_str!("ch15_c_expression_example.md")]
 }
 
-#[cfg(feature = "rowan")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rowan")))]
+#[cfg(feature = "rowan_0_17")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rowan_0_17")))]
 pub mod ch16_lossless_cst {
   #![doc = include_str!("ch16_lossless_cst.md")]
 }

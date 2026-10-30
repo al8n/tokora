@@ -1,6 +1,6 @@
 #![cfg(all(
   feature = "std",
-  feature = "rowan",
+  feature = "rowan_0_17",
   feature = "combinators",
   feature = "logos_0_16"
 ))]

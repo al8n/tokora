@@ -542,7 +542,7 @@ as a token, so `SURFACES_TRIVIA` is honestly `true` — and nothing but core tok
 #   fn read_frontier(&self) -> tokora::ReadFrontier<usize> { tokora::ReadFrontier::SpanEnd }
 #   fn bump(&mut self, n: &usize) { self.pos += n; }
 # }
-use rowan::Language;
+use tokora::rowan::Language;
 use tokora::{
   Emitter, InputRef as In, ParseContext, ParseInput, cache::DefaultCache, combinator::node,
   cst::{CstProfile, KindValidator, parse_lossless}, emitter::{CstEmitter, Fatal},
@@ -574,11 +574,11 @@ fn profile() -> CstProfile<Tok> {
 enum Lang {}
 impl Language for Lang {
   type Kind = K;
-  fn kind_from_raw(raw: rowan::SyntaxKind) -> K {
+  fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> K {
     const KINDS: [K; 6] = [K::Num, K::Plus, K::Expr, K::Error, K::Gap, K::Root];
     KINDS[raw.0 as usize]
   }
-  fn kind_to_raw(k: K) -> rowan::SyntaxKind { rowan::SyntaxKind(k as u16) }
+  fn kind_to_raw(k: K) -> tokora::rowan::SyntaxKind { tokora::rowan::SyntaxKind(k as u16) }
 }
 
 type Ln<'a> = CharLexer<'a>;
@@ -648,7 +648,7 @@ let green = green_straight.unwrap();
 assert_eq!(green, green_backtracked.unwrap());
 
 // And the round-trip law holds — the reason to build a CST at all.
-let tree = rowan::SyntaxNode::<Lang>::new_root(green);
+let tree = tokora::rowan::SyntaxNode::<Lang>::new_root(green);
 assert_eq!(tree.text().to_string(), src);
 
 // The structure is the grammar's: Root > Expr > [Num "1", Plus "+", Num "2"].

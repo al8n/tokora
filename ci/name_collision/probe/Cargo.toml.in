@@ -15,12 +15,12 @@ publish = false
 # in". A feature point hardcoded here is a silent disagreement with the surface being probed.
 tokora = { path = "TOKORA_PATH", default-features = false, features = [TOKORA_FEATURES] }
 otherlib = { path = "otherlib" }
-# A direct dependency, because a consumer of tokora's `rowan` feature has one: the typed-CST
-# fixture names `rowan::Language`, `rowan::SyntaxKind` and `rowan::SyntaxNode`, and tokora
-# re-exports none of them. The requirement matches tokora's own so cargo unifies the two onto
-# one version — a second rowan would make `SyntaxNode<Lang>` a different type and the
+# A direct dependency, because the probe is built against BASE as well as head and base has no
+# `tokora::rowan` re-export: the typed-CST fixture names `rowan::Language`, `rowan::SyntaxKind` and
+# `rowan::SyntaxNode` through it. The requirement matches tokora's own (0.17) so cargo unifies the
+# two onto one version — a second rowan would make `SyntaxNode<Lang>` a different type and the
 # fixture's `Node` impl would not satisfy tokora's trait at all.
-rowan = "0.16"
+rowan = "0.17"
 
 [features]
 inferred = []

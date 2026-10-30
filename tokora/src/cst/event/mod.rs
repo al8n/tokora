@@ -6,7 +6,7 @@
 //! `cst` itself (`crate::cst`, section *The event vocabulary*), where these items are public; this
 //! file is private, and the parent re-exports its items.
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 use core::num::NonZeroU32;
 
 use crate::{Lexer, emitter::CstEmitter};
@@ -40,7 +40,7 @@ pub const TOMBSTONE: u16 = u16::MAX;
 /// [`CstEmitter`] transport — is unconditional.
 ///
 /// The `S` parameter is the lexer's span type; only `Token` carries one.
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Event<S> {
   /// Opens a node of `kind`, closed by the matching [`FinishNode`](Event::FinishNode) —
@@ -178,7 +178,7 @@ pub(crate) enum Event<S> {
   },
 }
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 impl<S> Event<S> {
   /// This event's contribution to the derived open-node depth (the module-level depth
   /// model): `+1` for a real [`StartNode`](Self::StartNode) or a [`StartAt`](Self::StartAt),
@@ -281,7 +281,7 @@ impl EventMark {
 
   /// Creates a mark naming the tombstone at `index`, issued under `era` by the sink
   /// witnessed as `sink`. Crate-private: only a recording sink mints live marks.
-  #[cfg(feature = "rowan")]
+  #[cfg(feature = "rowan_0_17")]
   #[inline(always)]
   pub(crate) const fn new(index: u64, era: u64, sink: usize) -> Self {
     Self { index, era, sink }
@@ -320,7 +320,7 @@ impl EventMark {
   }
 
   /// The issuing sink's witness id (validated at every spend, in every build).
-  #[cfg(feature = "rowan")]
+  #[cfg(feature = "rowan_0_17")]
   #[inline(always)]
   pub(crate) const fn sink(&self) -> usize {
     self.sink
@@ -345,7 +345,7 @@ impl EventMark {
 /// or higher low-water mark (any mark the older entry would invalidate, the newer one also
 /// invalidates), so entries are merged on push and the stack is strictly increasing in both
 /// era and low-water mark.
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TruncationLedger {
   /// The monotone era source: the era stamped into marks issued *now*. Bumped by every
@@ -357,7 +357,7 @@ pub(crate) struct TruncationLedger {
   entries: std::vec::Vec<(u64, u64)>,
 }
 
-#[cfg(feature = "rowan")]
+#[cfg(feature = "rowan_0_17")]
 impl TruncationLedger {
   /// A fresh history: era 0, no truncations.
   #[inline(always)]
@@ -567,5 +567,5 @@ impl CompletedMarker {
   }
 }
 
-#[cfg(all(test, feature = "rowan"))]
+#[cfg(all(test, feature = "rowan_0_17"))]
 mod tests;

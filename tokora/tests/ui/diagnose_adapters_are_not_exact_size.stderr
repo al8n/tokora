@@ -13,8 +13,8 @@ error[E0277]: the trait bound `Labels<'_, Subject>: ExactSizeIterator` is not sa
              ArrayChunks<I, N>
              ArrayWindows<'_, T, N>
              Box<I, A>
+             Children<'_>
              Chunks<'_, T>
-             ChunksExact<'_, T>
            and $N others
 note: required by a bound in `requires_exact_size`
   --> tests/ui/diagnose_adapters_are_not_exact_size.rs:73:27
@@ -37,8 +37,8 @@ error[E0277]: the trait bound `PathSegments<'_, Subject>: ExactSizeIterator` is 
              ArrayChunks<I, N>
              ArrayWindows<'_, T, N>
              Box<I, A>
+             Children<'_>
              Chunks<'_, T>
-             ChunksExact<'_, T>
            and $N others
 note: required by a bound in `requires_exact_size`
   --> tests/ui/diagnose_adapters_are_not_exact_size.rs:73:27

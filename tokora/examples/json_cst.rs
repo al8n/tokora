@@ -15,7 +15,7 @@
 //!
 //! Run: `cargo run --example json_cst --features "std,logos,rowan"`
 
-use rowan::{Language, NodeOrToken, SyntaxNode};
+use tokora::rowan::{Language, NodeOrToken, SyntaxNode};
 use tokora::{
   Emitter, InputRef, ParseContext, ParseInput, Token as TokenT,
   cache::DefaultCache,
@@ -187,7 +187,7 @@ enum JsonLang {}
 impl Language for JsonLang {
   type Kind = SyntaxKind;
 
-  fn kind_from_raw(raw: rowan::SyntaxKind) -> SyntaxKind {
+  fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> SyntaxKind {
     const KINDS: [SyntaxKind; 18] = [
       K::Whitespace,
       K::True,
@@ -211,8 +211,8 @@ impl Language for JsonLang {
     KINDS[raw.0 as usize]
   }
 
-  fn kind_to_raw(kind: SyntaxKind) -> rowan::SyntaxKind {
-    rowan::SyntaxKind(kind as u16)
+  fn kind_to_raw(kind: SyntaxKind) -> tokora::rowan::SyntaxKind {
+    tokora::rowan::SyntaxKind(kind as u16)
   }
 }
 

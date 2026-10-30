@@ -20,7 +20,7 @@ use tokora::cst::{Element, Node, SyntaxError};
 use tokora::syntax::Syntax;
 use tokora::utils::{ArrayDeque, typenum::U0};
 
-use rowan::{Language, SyntaxNode};
+use tokora::rowan::{Language, SyntaxNode};
 
 macro_rules! lang {
   ($name:ident, $kind:ident) => {
@@ -37,14 +37,14 @@ macro_rules! lang {
 
     impl Language for $name {
       type Kind = $kind;
-      fn kind_from_raw(raw: rowan::SyntaxKind) -> Self::Kind {
+      fn kind_from_raw(raw: tokora::rowan::SyntaxKind) -> Self::Kind {
         match raw.0 {
           0 => $kind::Only,
           _ => $kind::Root,
         }
       }
-      fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind {
-        rowan::SyntaxKind(kind as u16)
+      fn kind_to_raw(kind: Self::Kind) -> tokora::rowan::SyntaxKind {
+        tokora::rowan::SyntaxKind(kind as u16)
       }
     }
   };

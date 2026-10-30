@@ -118,7 +118,7 @@ name: CI
 #   * the `std,logos,trace,rowan,combinators` rustdoc build — the `name-collision` job's own
 #     feature point — is the only leg that documents a `rowan`-gated chapter while `stacker` is
 #     off, and it refines the bare-config bullet above rather than repeating it. Bare config
-#     cannot see this class: `guide::ch16_lossless_cst` is itself `#[cfg(feature = "rowan")]`,
+#     cannot see this class: `guide::ch16_lossless_cst` is itself `#[cfg(feature = "rowan_0_17")]`,
 #     so a link INSIDE it is never compiled there at all, while `--all-features` resolves it.
 #     #340's intra-doc link to `SEGMENTED_PRATT_DEPTH` was invisible to every other line here
 #     and reached `main` as `error: could not document tokora`, `#![deny(warnings)]` at
