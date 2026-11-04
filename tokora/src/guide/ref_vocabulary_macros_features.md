@@ -613,7 +613,7 @@ CAS-free fallback.
 | `rowan` / `rowan_0_17` | the recording CST sink + typed lossless tree (the Rowan chapter), and the `tokora::rowan` / `tokora::rowan_0_17` re-exports | `rowan_0_17` → `dep:rowan_0_17`, **`std`** | requires `std` |
 | `unstable-raw` | the raw `InputRef::{save, restore, commit}` triple + `Checkpoint` construction | — | no_std-clean |
 | `trace` | [`traced`](crate::combinator::traced) + combinator instrumentation | **`std`** | requires `std`; zero-cost when off |
-| `conformance` | the `conformance` lexer test kit | **`std`** | requires `std` |
+| `conformance` | the `conformance` lexer test kit | **`alloc`** | requires `alloc` |
 | `fuzz` | the `fuzz` operation-script harness | **`std`** | requires `std` |
 | `stacker` | runs each **Pratt frame prologue** on a fresh heap stack segment when the native stack is nearly exhausted. It does not raise the recursion budget — see [Recursion limits](super::ref_pratt#recursion-limits) | `dep:stacker`, **`std`**, `pratt` | requires `std` |
 
@@ -621,6 +621,7 @@ CAS-free fallback.
 
 The base crate is `no-std` / `no-std::no-alloc` (its Cargo categories): drop `default` for core-only
 parsing, add `alloc` for the allocator tier, or keep `std`. Features that **force `std`**: `rowan_0_17`
-(so its `rowan` alias), `trace`, `conformance`, `fuzz`. Features that **force `alloc`**: `smallvec`. Every
-other feature adds no tier floor of its own — a third-party backend compiles wherever that crate's
-own `default-features = false` build does, which this table does not independently re-verify.
+(so its `rowan` alias), `stacker`, `trace`, `fuzz`. Features that **force `alloc`**: `conformance`,
+`smallvec`. Every other feature adds no tier floor of its own — a third-party backend compiles
+wherever that crate's own `default-features = false` build does, which this table does not
+independently re-verify.

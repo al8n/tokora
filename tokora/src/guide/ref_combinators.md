@@ -1929,9 +1929,10 @@ tooling included.
 | `logos` / `logos_0_16` | the [`LogosLexer`](crate::lexer::LogosLexer) adapter | the alias selects the version; 0.16 is the only supported major |
 | `rowan` / `rowan_0_17` | the recording CST sink + typed lossless tree | the alias selects the version; implies `std`; the lossless-CST chapter |
 | `unstable-raw` | the raw `InputRef::{save, restore, commit}` checkpoint triple | otherwise the transaction guards are the surface |
-| `conformance` | the `conformance` lexer test kit | implies `std` |
+| `conformance` | the `conformance` lexer test kit | implies `alloc` |
 | `fuzz` | the `fuzz` operation-script harness | implies `std` |
 | `trace` | [`traced`](crate::combinator::traced) + combinator instrumentation | implies `std`; zero-cost when off |
+| `stacker` | a fresh heap stack segment under each Pratt frame prologue when the native stack is nearly exhausted | implies `std` and `pratt`; it does not raise the recursion budget — see [Recursion limits](super::ref_pratt#recursion-limits) |
 | `bytes` / `bstr` / `hipstr` / `smol-bytes` | extra [`Source`](crate::Source)/[`Slice`](crate::Slice) backends | none implies `std`; each pins one upstream major |
 | `smallvec` / `heapless` / `tinyvec` | extra [`Container`](crate::container::Container) backends | `smallvec` implies `alloc` |
 
