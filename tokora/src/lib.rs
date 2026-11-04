@@ -120,8 +120,9 @@ pub mod utils;
 /// Container trait for accumulating parsed results.
 ///
 /// Defines the [`Container`](container::Container) trait for types that can accumulate
-/// parsing results. Implemented for standard collections like `Vec`, arrays, and
-/// `ArrayDeque`, enabling parsers to collect multiple elements into containers.
+/// parsing results. Implemented for `Vec` and `VecDeque` (with `alloc`), the fixed-capacity
+/// `ArrayDeque`, and `Option`, which holds one; the `smallvec`, `heapless` and `tinyvec`
+/// features add their vectors. Parsers collect multiple elements into any of them.
 pub mod container;
 
 /// Atomically composable error handling and reporting.
@@ -197,10 +198,13 @@ pub mod span;
 /// Slice abstractions for different string types.
 ///
 /// Defines the [`Slice`] trait for working with string slices in a
-/// generic way. Supports multiple string types through feature flags:
-/// - `bytes`: `&[u8]` (byte slices)
+/// generic way. `str` and `[u8]` implement it in every build, and so does a shared
+/// reference to any implementor, so `&str` and `&[u8]` need no feature. Feature flags
+/// add more:
+/// - `bytes`: `bytes::Bytes`
 /// - `bstr`: `bstr::BStr` (byte strings)
-/// - `hipstr`: `hipstr::HipStr` (inline/heap strings)
+/// - `hipstr`: `hipstr::HipStr` and `hipstr::HipByt` (inline/heap strings)
+/// - `smol-bytes`: smol-bytes' shared and compact byte and UTF-8 buffers
 pub mod slice;
 
 /// State management for lexers.
