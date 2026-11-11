@@ -90,13 +90,13 @@ impl Location {
 
 /// A secondary position with a phrase explaining what is there.
 ///
-/// "declared here", "first defined here", "the other selection" — the second half of a diagnostic
-/// that is about a *relationship* between two places. The text is `&'static str` on purpose: a
-/// label's phrase is the fixed thing its rule always says, not something computed from the input,
-/// so it needs neither a lifetime nor an allocation. Every other part of the contract has its own
-/// allocation-free representation — coordinates by value, variable text borrowed, as
-/// [`PathSegment`](super::PathSegment) borrows a response key — and the
-/// [module documentation](super#nothing-here-allocates) sets the three of them out together.
+/// "declared here", "first defined here", "the other selection", "expected `HashSet<String>`" —
+/// the second half of a diagnostic that is about a *relationship* between two places. The phrase
+/// is borrowed for as long as the diagnostic it came from is: a rule's fixed phrase is a string
+/// literal and satisfies that trivially, and a phrase that names something from the input is
+/// composed by the producer and lent from storage it holds. Either way, reading a label
+/// allocates nothing; the [module documentation](super#nothing-here-allocates) sets out this
+/// representation beside the other two.
 ///
 /// This is not the label stack a [`labelled`](crate::combinator::labelled) parser pushes and a collecting
 /// emitter captures. That one is the *"while parsing X"* context open at the moment of emission,
@@ -111,15 +111,15 @@ impl Location {
 /// assert_eq!(label.location().span(), Some(SimpleSpan::new(3, 7)));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Label {
+pub struct Label<'a> {
   location: Location,
-  text: &'static str,
+  text: &'a str,
 }
 
-impl Label {
+impl<'a> Label<'a> {
   /// Attaches `text` to `location`.
   #[inline]
-  pub const fn new(location: Location, text: &'static str) -> Self {
+  pub const fn new(location: Location, text: &'a str) -> Self {
     Self { location, text }
   }
 
@@ -131,7 +131,7 @@ impl Label {
 
   /// Returns what the label says.
   #[inline]
-  pub const fn text(&self) -> &'static str {
+  pub const fn text(&self) -> &'a str {
     self.text
   }
 }

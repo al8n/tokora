@@ -6,11 +6,12 @@
 //!    ask a `&dyn Diagnose` every question the trait has — code, severity, primary, primary
 //!    label, every secondary label, every result-path segment, help — and write the message into
 //!    a buffer it already owns, without touching the allocator. That is what makes the contract
-//!    usable in a request path. It holds because every vocabulary type is `Copy`, because label
-//!    and help text are `&'static`, and — the part a fixture has to carry or the measurement is
-//!    weaker than the claim — because variable *structured* data is **borrowed** rather than
-//!    owned or stringified. `Rejected` below stores a `String` and hands back
-//!    `PathSegment::Field(&self.field)`, so the borrowed arm is on the measured path.
+//!    usable in a request path. It holds because every vocabulary type is `Copy`, and — the part a
+//!    fixture has to carry or the measurement is weaker than the claim — because everything that
+//!    varies with the input is **borrowed** from the diagnostic rather than owned or stringified
+//!    by the read. `Rejected` below stores a `String` and hands back
+//!    `PathSegment::Field(&self.field)`, and `Composed` lends its primary label, its label and its
+//!    help line from `String`s it owns, so every borrowed arm is on the measured path.
 //!
 //! 2. **The counts and the indexed accessors agree — and the adapters hold when they do not.**
 //!    An impl owes a count equal to what its accessor yields, and nothing enforces that, so the
@@ -139,6 +140,11 @@ impl<const N: usize> fmt::Write for StackBuffer<N> {
 // the subjects
 // ---------------------------------------------------------------------------------------------
 
+// A fixture whose texts are string literals spells `primary_label` and `help` as
+// `Option<&'static str>`, the trait's 0.12 spelling, and keeps it on purpose: that pins an impl
+// whose texts are literals compiling unchanged against the trait's `Option<&str>`, which is what
+// smear's eight impls rely on. `Composed` is the one subject that spells the trait's own.
+
 /// The document-shaped diagnostic: two source positions, no result path.
 ///
 /// This is what every lexical and syntactic error looks like — a primary span, a secondary label
@@ -176,7 +182,7 @@ impl Diagnose for Redefined {
     1
   }
 
-  fn label(&self, index: usize) -> Option<Label> {
+  fn label(&self, index: usize) -> Option<Label<'_>> {
     match index {
       0 => Some(Label::new(
         Location::new(1, self.first),
@@ -236,7 +242,7 @@ impl Diagnose for Rejected {
     0
   }
 
-  fn label(&self, _: usize) -> Option<Label> {
+  fn label(&self, _: usize) -> Option<Label<'_>> {
     None
   }
 
@@ -257,6 +263,74 @@ impl Diagnose for Rejected {
   }
 }
 
+/// The borrowing diagnostic: every text it answers is composed once, when the value is built, and
+/// lent from there.
+///
+/// Its primary label, its one secondary label and its help line each name something from the
+/// input, so each is a `String` the value owns and the accessors answer with a borrow of it. The
+/// other subjects answer string literals, which reach no allocator under any representation; this
+/// is the one that puts the borrowed arm of every text on the measured path. It has no result path.
+///
+/// It is built outside the measured window, as a producer builds its diagnostic: composing the
+/// phrases is the producer's cost, and reading them back is what is being counted.
+struct Composed {
+  expected: String,
+  declared: String,
+  hint: String,
+  here: SimpleSpan,
+  there: SimpleSpan,
+}
+
+impl fmt::Display for Composed {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.write_str("mismatched types")
+  }
+}
+
+impl Diagnose for Composed {
+  fn code(&self) -> Code {
+    Code::new("mylang::check::mismatched-types")
+  }
+
+  fn severity(&self) -> Severity {
+    Severity::Error
+  }
+
+  fn primary(&self) -> Location {
+    Location::new(0, self.here)
+  }
+
+  fn primary_label(&self) -> Option<&str> {
+    Some(self.expected.as_str())
+  }
+
+  fn labels(&self) -> usize {
+    1
+  }
+
+  fn label(&self, index: usize) -> Option<Label<'_>> {
+    match index {
+      0 => Some(Label::new(
+        Location::new(0, self.there),
+        self.declared.as_str(),
+      )),
+      _ => None,
+    }
+  }
+
+  fn path_segments(&self) -> usize {
+    0
+  }
+
+  fn path_segment(&self, _: usize) -> Option<PathSegment<'_>> {
+    None
+  }
+
+  fn help(&self) -> Option<&str> {
+    Some(self.hint.as_str())
+  }
+}
+
 fn redefined() -> Redefined {
   Redefined {
     name: "width",
@@ -269,6 +343,16 @@ fn rejected() -> Rejected {
   Rejected {
     field: String::from("heroes"),
     index: 2,
+  }
+}
+
+fn composed() -> Composed {
+  Composed {
+    expected: String::from("expected `HashSet<String>`"),
+    declared: String::from("found `Vec<String>` here"),
+    hint: String::from("did you mean `MainDb`?"),
+    here: SimpleSpan::new(60, 66),
+    there: SimpleSpan::new(20, 31),
   }
 }
 
@@ -351,9 +435,22 @@ fn the_gate_counts() {
 fn reading_the_contract_allocates_nothing() {
   let document = redefined();
   let result = rejected();
+  let borrowing = composed();
+
+  // The subject that makes this a measurement of borrowed text has to lend some: one that
+  // answered `None` would pass the gate below having read nothing.
+  assert_eq!(
+    borrowing.primary_label(),
+    Some("expected `HashSet<String>`")
+  );
+  assert_eq!(
+    borrowing.label(0).map(|label| label.text()),
+    Some("found `Vec<String>` here")
+  );
+  assert_eq!(borrowing.help(), Some("did you mean `MainDb`?"));
 
   // Assembled outside the window: the storage is the harness's, not the contract's.
-  let contract: [&dyn Diagnose; 2] = [&document, &result];
+  let contract: [&dyn Diagnose; 3] = [&document, &result, &borrowing];
   let mut sink = StackBuffer::<256>::new();
   let _ = allocations(|| {});
 
@@ -395,7 +492,7 @@ fn rendering_into_a_fresh_string_does_allocate() {
 /// `labels()` is the number of consecutive `Some` indices from zero, and nothing past it answers.
 #[test]
 fn label_counts_agree_with_the_accessor() {
-  for subject in [&redefined() as &dyn Diagnose, &rejected()] {
+  for subject in [&redefined() as &dyn Diagnose, &rejected(), &composed()] {
     let count = subject.labels();
     for index in 0..count {
       assert!(
@@ -471,10 +568,10 @@ fn the_adapters_cap_their_length_and_are_fused() {
   assert_eq!(labels.next(), None);
 }
 
-/// The adapter yields exactly what the indexed accessor does, for both subjects.
+/// The adapter yields exactly what the indexed accessor does, for every subject.
 #[test]
 fn the_adapters_agree_with_the_indices() {
-  for subject in [&redefined() as &dyn Diagnose, &rejected()] {
+  for subject in [&redefined() as &dyn Diagnose, &rejected(), &composed()] {
     let indexed: Vec<_> = (0..subject.labels())
       .map(|index| subject.label(index).expect("counted"))
       .collect();
@@ -664,7 +761,7 @@ impl Diagnose for Adversary {
   fn labels(&self) -> usize {
     self.declared(&self.label_count_reads)
   }
-  fn label(&self, index: usize) -> Option<Label> {
+  fn label(&self, index: usize) -> Option<Label<'_>> {
     self
       .present(index, &self.label_reads)
       .then(|| Label::new(Location::entire(0), "adversary"))
@@ -875,7 +972,7 @@ impl Diagnose for HugeCount {
   fn labels(&self) -> usize {
     HUGE
   }
-  fn label(&self, index: usize) -> Option<Label> {
+  fn label(&self, index: usize) -> Option<Label<'_>> {
     (index == 0).then(|| Label::new(Location::entire(0), "the only one"))
   }
   fn path_segments(&self) -> usize {
@@ -946,7 +1043,7 @@ fn a_declared_count_does_not_become_a_reservation() {
 
   let subject: &dyn Diagnose = &HugeCount;
 
-  let collected: Vec<Label> = subject.labels_iter().collect();
+  let collected: Vec<Label<'_>> = subject.labels_iter().collect();
   assert_eq!(collected.len(), 1);
   assert!(
     collected.capacity() < CEILING,
@@ -954,7 +1051,7 @@ fn a_declared_count_does_not_become_a_reservation() {
     collected.capacity()
   );
 
-  let mut extended: Vec<Label> = Vec::new();
+  let mut extended: Vec<Label<'_>> = Vec::new();
   extended.extend(subject.labels_iter());
   assert_eq!(extended.len(), 1);
   assert!(

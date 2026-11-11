@@ -18,8 +18,8 @@
 //!   the message text;
 //! - a [`Severity`];
 //! - a primary [`Location`], and optionally a phrase for it;
-//! - zero or more [`Label`]s — secondary positions with static text, "declared here", "the other
-//!   selection";
+//! - zero or more [`Label`]s — secondary positions, each with a phrase: "declared here", "the other
+//!   selection", "expected `HashSet<String>`";
 //! - zero or more [`PathSegment`]s — a coordinate in a produced *result*, for errors that happen
 //!   after the document was accepted;
 //! - a `help` line, where the rule has something actionable to say;
@@ -35,11 +35,11 @@
 //!
 //! # Why indexed access instead of iterators
 //!
-//! `fn labels(&self) -> impl Iterator<Item = Label>` and its GAT spelling both make [`Diagnose`]
-//! dyn-incompatible, and `&dyn Diagnose` is the entire point: a driver holds lexical errors,
-//! syntactic errors and a front end's own semantic diagnostics in one rendering pass, and boxing
-//! each one to get there would allocate for a value that was designed not to. A count plus an
-//! indexed accessor is dyn-safe and allocation-free, and that is the whole of the reason.
+//! `fn labels(&self) -> impl Iterator<Item = Label<'_>>` and its GAT spelling both make
+//! [`Diagnose`] dyn-incompatible, and `&dyn Diagnose` is the entire point: a driver holds lexical
+//! errors, syntactic errors and a front end's own semantic diagnostics in one rendering pass, and
+//! boxing each one to get there would allocate for a value that was designed not to. A count plus
+//! an indexed accessor is dyn-safe and allocation-free, and that is the whole of the reason.
 //!
 //! [`DiagnoseExt`] puts the iterators back on top, for callers holding a concrete type or a
 //! `&dyn Diagnose` alike.
@@ -116,22 +116,28 @@
 //! - **Coordinates travel by value.** A [`Location`]'s source index and span, a
 //!   [`PathSegment::Index`], a [`Severity`]. These vary with the input and are `Copy`, so reading
 //!   them off a diagnostic moves no ownership.
-//! - **Fixed text is `&'static str`.** A [`Code`]'s identifier, a [`Label`]'s phrase, a `help`
-//!   line: what the rule always says, baked into the binary rather than built per diagnostic.
-//! - **Variable text is borrowed.** A response key in a [`PathSegment::Field`] comes from the
-//!   document, so it can be neither a coordinate nor `&'static`. It is a `&str` into a buffer the
-//!   producer already holds, which is what [`PathSegment`]'s lifetime parameter is for. It must
-//!   **not** be flattened into the message instead: a result path that exists only as prose is
-//!   not a result path, and nothing downstream can read it.
+//! - **Identifiers are `&'static str`.** A [`Code`] is the thing a consumer keys off, so it is
+//!   fixed by the rule and baked into the binary rather than built per diagnostic.
+//! - **Text is borrowed.** A [`Label`]'s phrase, the primary label, the `help` line and a
+//!   [`PathSegment::Field`]'s response key are each a `&str` into storage the diagnostic already
+//!   holds, for as long as the diagnostic is borrowed — which is what [`Label`]'s and
+//!   [`PathSegment`]'s lifetime parameters are for. A rule that always says the same thing lends a
+//!   string literal; a phrase that names something from the input — "expected `HashSet<String>`",
+//!   "did you mean `MainDb`?" — is composed when the value that implements [`Diagnose`] is built,
+//!   and lent from there. A response key must **not** be flattened into the message instead: a
+//!   result path that exists only as prose is not a result path, and nothing downstream can read
+//!   it.
 //!
 //! Every one of those is `Copy`, which is what makes the whole structure readable through
-//! `&dyn Diagnose` without a single move. What is left for [`Display`](core::fmt::Display) is the
-//! variable *prose* — the name that was rejected, the type that was expected — rendered on demand
-//! and only if somebody asks.
+//! `&dyn Diagnose` without a single move. Composing a phrase is the producer's cost, paid once
+//! when the diagnostic is built; reading it is a borrow. What is left for
+//! [`Display`](core::fmt::Display) is the message itself, rendered on demand and only if somebody
+//! asks.
 //!
 //! So a renderer can read a diagnostic's whole structure, and write its message into a buffer it
 //! already owns, without touching the allocator. `tests/diagnostic_contract.rs` measures that
-//! rather than asserting it, over a subject whose path segment borrows from an owned `String`.
+//! rather than asserting it, over a subject whose path segment borrows from an owned `String` and
+//! one whose primary label, label and help line do.
 //!
 //! # This module is the contract, not an implementation of it
 //!
@@ -179,7 +185,10 @@ pub use severity::Severity;
 ///   and nothing downstream can recover what was past it.
 /// - [`primary`](Self::primary) is **total**. Every diagnostic has one, and an input with no
 ///   positions in it answers [`Location::entire`] rather than a fabricated range.
-/// - Reading any of them must not allocate.
+/// - Reading any of them must not allocate. A phrase that names something from the input is
+///   composed when the value that implements the trait is built, and lent from there — never
+///   composed inside an accessor: `&self` plus a `OnceCell<String>` filled on first read compiles,
+///   and allocates on read.
 ///
 /// # Reading one
 ///
@@ -221,13 +230,13 @@ pub use severity::Severity;
 ///   fn primary(&self) -> Location {
 ///     Location::new(0, self.here)
 ///   }
-///   fn primary_label(&self) -> Option<&'static str> {
+///   fn primary_label(&self) -> Option<&str> {
 ///     Some("redefined here")
 ///   }
 ///   fn labels(&self) -> usize {
 ///     1
 ///   }
-///   fn label(&self, index: usize) -> Option<Label> {
+///   fn label(&self, index: usize) -> Option<Label<'_>> {
 ///     match index {
 ///       0 => Some(Label::new(Location::new(0, self.first), "first defined here")),
 ///       _ => None,
@@ -239,7 +248,7 @@ pub use severity::Severity;
 ///   fn path_segment(&self, _: usize) -> Option<PathSegment<'_>> {
 ///     None
 ///   }
-///   fn help(&self) -> Option<&'static str> {
+///   fn help(&self) -> Option<&str> {
 ///     Some("rename one of the two definitions")
 ///   }
 /// }
@@ -271,13 +280,13 @@ pub trait Diagnose: core::fmt::Display {
 
   /// Returns a phrase to put beside the primary position, where a short one says more than an
   /// underline alone.
-  fn primary_label(&self) -> Option<&'static str>;
+  fn primary_label(&self) -> Option<&str>;
 
   /// Returns how many secondary labels the diagnostic carries.
   fn labels(&self) -> usize;
 
   /// Returns the `index`th secondary label, or `None` past the end.
-  fn label(&self, index: usize) -> Option<Label>;
+  fn label(&self, index: usize) -> Option<Label<'_>>;
 
   /// Returns how many result-path segments the diagnostic carries.
   ///
@@ -290,7 +299,7 @@ pub trait Diagnose: core::fmt::Display {
   fn path_segment(&self, index: usize) -> Option<PathSegment<'_>>;
 
   /// Returns what the reader can do about it, where the rule has something actionable to say.
-  fn help(&self) -> Option<&'static str>;
+  fn help(&self) -> Option<&str>;
 }
 
 /// Erasure is the shape the whole contract is built for, so a method added in a form that is not
@@ -343,11 +352,11 @@ pub struct Labels<'a, D: ?Sized> {
   end: usize,
 }
 
-impl<D> Iterator for Labels<'_, D>
+impl<'a, D> Iterator for Labels<'a, D>
 where
   D: Diagnose + ?Sized,
 {
-  type Item = Label;
+  type Item = Label<'a>;
 
   #[inline]
   fn next(&mut self) -> Option<Self::Item> {
