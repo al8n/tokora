@@ -67,6 +67,36 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
+## Unreleased
+
+### Changed (breaking)
+
+- **A label's phrase, the primary label and the `help` line are borrowed from the diagnostic,
+  not `&'static str`, so they can name something from the input** (#359).
+  `Diagnose::primary_label` and `Diagnose::help` return `Option<&str>` and `Diagnose::label`
+  returns `Option<Label<'_>>`; `Label` is `Label<'a>`, and `Label::new` takes and `Label::text`
+  returns a `&'a str`; `Labels` yields `Label<'a>`, as `PathSegments` yields `PathSegment<'a>`.
+  A rule that always says the same thing still returns a string literal. A phrase such as
+  "expected `HashSet<String>`" is composed when the diagnostic is built and lent from there, so
+  reading a diagnostic still allocates nothing, and `Label` is still `Copy` and 48 bytes. `Code`
+  does not change.
+
+  | 0.12 | 0.13 |
+  |---|---|
+  | `fn primary_label(&self) -> Option<&'static str>` | `fn primary_label(&self) -> Option<&str>` |
+  | `fn label(&self, index: usize) -> Option<Label>` | `fn label(&self, index: usize) -> Option<Label<'_>>` |
+  | `fn help(&self) -> Option<&'static str>` | `fn help(&self) -> Option<&str>` |
+  | `Label`, `Label::new(Location, &'static str)`, `Label::text() -> &'static str` | `Label<'a>`, `Label::new(Location, &'a str)`, `Label::text() -> &'a str` |
+
+  An implementor's bodies do not change, and an impl whose texts are literals may keep
+  `-> Option<&'static str>`. Spell `-> Option<Label<'_>>`: a bare `Option<Label>` now draws
+  rustc's default `mismatched_lifetime_syntaxes` warning. An impl that forwards to another
+  diagnostic (`self.inner.help()`) spells the trait's `Option<&str>`. A consumer gives `Label` a
+  lifetime wherever it names it — a struct field and an impl header no longer compile without
+  one — and a text read from a diagnostic is borrowed for as long as the diagnostic is: code
+  that kept one past that, or needed it `'static` (a `'static` field, `thread::spawn`,
+  `Box<dyn Any>`), copies it into storage of its own.
+
 ## 0.12.0 (2026-10-30)
 
 ### Changed (breaking)

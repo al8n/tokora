@@ -56,7 +56,7 @@ impl Diagnose for Subject {
   fn labels(&self) -> usize {
     0
   }
-  fn label(&self, _: usize) -> Option<Label> {
+  fn label(&self, _: usize) -> Option<Label<'_>> {
     None
   }
   fn path_segments(&self) -> usize {
