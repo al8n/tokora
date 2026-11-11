@@ -47,7 +47,7 @@ Rowan is an optional dependency that tokora re-exports as `tokora::rowan` (pinne
 
 ```toml
 [dependencies]
-tokora = { version = "0.12", features = ["logos", "rowan_0_17"] }
+tokora = { version = "0.13", features = ["logos", "rowan_0_17"] }
 ```
 
 The `rowan_0_17` feature implies `std` (rowan itself requires it); it does not imply `logos`. The
