@@ -437,6 +437,18 @@ fn reading_the_contract_allocates_nothing() {
   let result = rejected();
   let borrowing = composed();
 
+  // The subject that makes this a measurement of borrowed text has to lend some: one that
+  // answered `None` would pass the gate below having read nothing.
+  assert_eq!(
+    borrowing.primary_label(),
+    Some("expected `HashSet<String>`")
+  );
+  assert_eq!(
+    borrowing.label(0).map(|label| label.text()),
+    Some("found `Vec<String>` here")
+  );
+  assert_eq!(borrowing.help(), Some("did you mean `MainDb`?"));
+
   // Assembled outside the window: the storage is the harness's, not the contract's.
   let contract: [&dyn Diagnose; 3] = [&document, &result, &borrowing];
   let mut sink = StackBuffer::<256>::new();

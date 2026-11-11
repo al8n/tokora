@@ -35,11 +35,11 @@
 //!
 //! # Why indexed access instead of iterators
 //!
-//! `fn labels(&self) -> impl Iterator<Item = Label>` and its GAT spelling both make [`Diagnose`]
-//! dyn-incompatible, and `&dyn Diagnose` is the entire point: a driver holds lexical errors,
-//! syntactic errors and a front end's own semantic diagnostics in one rendering pass, and boxing
-//! each one to get there would allocate for a value that was designed not to. A count plus an
-//! indexed accessor is dyn-safe and allocation-free, and that is the whole of the reason.
+//! `fn labels(&self) -> impl Iterator<Item = Label<'_>>` and its GAT spelling both make
+//! [`Diagnose`] dyn-incompatible, and `&dyn Diagnose` is the entire point: a driver holds lexical
+//! errors, syntactic errors and a front end's own semantic diagnostics in one rendering pass, and
+//! boxing each one to get there would allocate for a value that was designed not to. A count plus
+//! an indexed accessor is dyn-safe and allocation-free, and that is the whole of the reason.
 //!
 //! [`DiagnoseExt`] puts the iterators back on top, for callers holding a concrete type or a
 //! `&dyn Diagnose` alike.
