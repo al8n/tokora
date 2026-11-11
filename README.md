@@ -36,7 +36,7 @@ any lexer you write, and can build lossless syntax trees on Rowan.
 
 ```toml
 [dependencies]
-tokora = { version = "0.12", features = ["logos"] }
+tokora = { version = "0.13", features = ["logos"] }
 ```
 
 The default features are `std` and the `combinators` umbrella. `logos` adds `LogosLexer`, the
@@ -410,14 +410,14 @@ Allocator-free `no_std`:
 
 ```toml
 [dependencies]
-tokora = { version = "0.12", default-features = false }
+tokora = { version = "0.13", default-features = false }
 ```
 
 `no_std` with `alloc`:
 
 ```toml
 [dependencies]
-tokora = { version = "0.12", default-features = false, features = ["alloc"] }
+tokora = { version = "0.13", default-features = false, features = ["alloc"] }
 ```
 
 Neither line enables a combinator family, because `combinators` is a default feature and both turn
