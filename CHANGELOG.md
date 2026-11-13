@@ -67,7 +67,7 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
-## Unreleased
+## 0.13.1 (2026-11-13)
 
 ### Source-breaking additions that can change behaviour with *no diagnostic at the call site*
 

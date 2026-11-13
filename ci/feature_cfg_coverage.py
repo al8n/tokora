@@ -89,13 +89,13 @@ helper leaking into a suite would show up.
 
 Nor is it "is there a feature every other covering leg has on that I have off". That is a
 question about ONE feature, and a leg protects a CONFIGURATION — everything it has off, at
-once. The two agree on today's tree and come apart on a change `tokora/Cargo.toml` already
-discusses: split the umbrella into per-family `std,logos,<family> --tests` legs and every
-family is on in some legs and off in others, so no single feature is common to all the
-alternatives, while none of them compiles the eight with ALL thirteen off. The derived quantity
-is therefore SUBSET DOMINANCE — another covering leg whose enabled features are a subset of
-this one's has off everything this one has off — and `load_bearing_suites` carries the argument
-for `<=` over `==`. Nothing names `combinators`; it falls out.
+once. The two agree on today's tree and come apart on one plausible change: split the umbrella
+into per-family `std,logos,<family> --tests` legs and every family is on in some legs and off in
+others, so no single feature is common to all the alternatives, while none of them compiles the
+eight with ALL thirteen off. The derived quantity is therefore SUBSET DOMINANCE — another
+covering leg whose enabled features are a subset of this one's has off everything this one has
+off — and `load_bearing_suites` carries the argument for `<=` over `==`. Nothing names
+`combinators`; it falls out.
 
 BOUNDS, stated so a green is not read as more than it is:
 
@@ -772,10 +772,9 @@ def load_bearing_suites(suite_hits, features_of):
     the others, minus mine — asks about ONE feature. What a leg protects is a CONFIGURATION:
     everything it has off, at once. Split the alternatives finely enough and no single feature
     is common to all of them while the configuration is reproduced by none. That is not
-    hypothetical here. Add the per-family `std,logos,<family> --tests` legs that
-    `tokora/Cargo.toml` already discusses under WHAT RE-GATING THE 82 WOULD NOT BUY, and every
-    combinator family becomes absent from some other leg, so the intersection for
-    `std,logos,trace` empties — while no remaining leg compiles those eight suites with all
+    hypothetical here. Add per-family `std,logos,<family> --tests` legs, one per combinator
+    family, and every combinator family becomes absent from some other leg, so the intersection
+    for `std,logos,trace` empties — while no remaining leg compiles those eight suites with all
     thirteen families off, which is the only reason that leg is declared. Case H of the
     self-test is that tree, and it is red under the intersection.
 

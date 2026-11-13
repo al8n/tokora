@@ -30,10 +30,10 @@ description = "tokora's criterion benchmarks. Not published; exists so `criterio
 # Here there is nothing to skip on. This package pins the feature point on its `tokora`
 # dependency below, so the five benches compile under every configuration this package can be
 # built in, and `required-features` would be a tautology. The skip hazard is removed by
-# construction rather than guarded against — though `bench (smoke)` in `.github/workflows/ci.yml`
-# still names each target it builds, derived from `cargo metadata`, because a `[[bench]]`
-# section that goes missing is a different failure from a skipped one and `--benches` would
-# shrug at it.
+# construction rather than guarded against — though `bench (smoke)` in
+# `.github/workflows/perf.yml` still names each target it builds, derived from `cargo metadata`,
+# because a `[[bench]]` section that goes missing is a different failure from a skipped one and
+# `--benches` would shrug at it.
 
 [dependencies]
 # The exact union of the `required-features` the five `[[bench]]` sections used to declare in

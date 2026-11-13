@@ -9,8 +9,9 @@ a path that names nothing, or names a stale artefact of an older build that happ
 
 The FLOOR is the other half. `cargo bench --no-run` over a package whose `[[bench]]` section went
 missing prints nothing about it and exits 0, and a gate that then measured four targets would
-report green over the fifth having disappeared — the shape `bench (smoke)` in `.github/workflows/
-ci.yml` already guards with its own `EXPECTED_AT_LEAST`. Raise both when a bench is added.
+report green over the fifth having disappeared — the shape `bench (smoke)` in
+`.github/workflows/perf.yml` already guards with its own `EXPECTED_AT_LEAST`. Raise both when a
+bench is added.
 """
 
 import json

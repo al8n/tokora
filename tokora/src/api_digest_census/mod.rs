@@ -115,11 +115,12 @@
 //!
 //! Without this module the two `--lib` shards for each target and borrow model (the ones that
 //! compile it) run 1h23m–1h49m under Stacked Borrows and 2h33m–4h39m under Tree Borrows. With it
-//! under Miri every run reports `cancelled=12, success=13`: exactly those twelve `--lib` shards
-//! (`ci/miri_shard.py` puts `--lib` on shard 0 for the `logos` pass and shard 1 for the `raw`
-//! pass) hit GitHub's default job ceiling — a cancelled run's annotation reads "exceeded the
-//! maximum execution time of 6h0m0s" — and `miri.yml` sets no `timeout-minutes` of its own, so a
-//! run that cannot finish is reported `cancelled` rather than `failed`.
+//! under Miri every run of `miri.yml`, which then carried both models, reported
+//! `cancelled=12, success=13`: exactly those twelve `--lib` shards (`ci/miri_shard.py` puts
+//! `--lib` on shard 0 for the `logos` pass and shard 1 for the `raw` pass) hit GitHub's default
+//! job ceiling — a cancelled run's annotation reads "exceeded the maximum execution time of
+//! 6h0m0s" — and no Miri workflow sets a `timeout-minutes` of its own, so a run that cannot
+//! finish is reported `cancelled` rather than `failed`.
 //!
 //! This is the crate's first use of `cfg_attr(miri, ignore)`; the next module reaching for the
 //! same exemption should read this note rather than re-derive it, and should reach for it only

@@ -122,10 +122,11 @@ jobs:
           require_miri_success() {
             local version=$1
             if [[ "$version" == 0.12.0 ]]; then
-              echo "::warning::One-time Miri hard gate waiver active for tokora 0.12.0 only; release proceeds without requiring miri.yml success for this version."
+              echo "::warning::One-time Miri hard gate waiver active for tokora 0.12.0 only; release proceeds without requiring miri-tb.yml or miri-sb.yml success for this version."
               return 0
             fi
-            require_workflow_success miri.yml
+            require_workflow_success miri-tb.yml
+            require_workflow_success miri-sb.yml
           }
 
           registry_request() {
@@ -237,6 +238,18 @@ jobs:
             *) fail "unsupported event $GITHUB_EVENT_NAME" ;;
           esac
 
+          # What a release asks for, each as a successful `push` or `workflow_dispatch` run on
+          # `main` for this exact commit: `ci.yml`, both Miri models and `pages.yml`. The two
+          # models are two workflow files, `miri-tb.yml` and `miri-sb.yml`, and
+          # `require_miri_success` asks each for its own green run; a paused one has no run to
+          # find, so it holds the release until it is enabled again and has run on this commit
+          # (a dispatch on `main` will do).
+          #
+          # `perf.yml` is not asked, on purpose: it is performance, not correctness, and its
+          # `wall clock (advisory)` job is advisory by design. Of its three jobs only
+          # `bench (smoke)` runs on a push, and a release waited on it through `ci.yml` until the
+          # split; it no longer does. `clippy` and `msrv`, which compile the same five benches,
+          # stayed in `ci.yml` and are still asked.
           require_workflow_success ci.yml
           require_miri_success "$version"
           require_workflow_success pages.yml
@@ -374,10 +387,11 @@ jobs:
           require_miri_success() {
             local version=$1
             if [[ "$version" == 0.12.0 ]]; then
-              echo "::warning::One-time Miri hard gate waiver active for tokora 0.12.0 only; release proceeds without requiring miri.yml success for this version."
+              echo "::warning::One-time Miri hard gate waiver active for tokora 0.12.0 only; release proceeds without requiring miri-tb.yml or miri-sb.yml success for this version."
               return 0
             fi
-            require_workflow_success miri.yml
+            require_workflow_success miri-tb.yml
+            require_workflow_success miri-sb.yml
           }
 
           registry_request() {
@@ -450,6 +464,8 @@ jobs:
           [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF_TYPE" == tag ]] || fail "protected job requires a tag push"
           [[ "$GITHUB_REF_NAME" == "$EXPECTED_TAG" ]] || fail "approved event tag changed"
           require_remote_identity
+          # The set `verify` asks for, asked again after approval; `perf.yml` is not in it, for
+          # the reason given there.
           require_workflow_success ci.yml
           require_miri_success "$EXPECTED_VERSION"
           require_workflow_success pages.yml

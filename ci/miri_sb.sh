@@ -134,8 +134,8 @@ cargo miri setup
 # than leaving this note to rot.
 #
 # Recorded for 0.9.0 by al8n/tokit#235. The same answer is written where the other re-enablers
-# arrive from: `ci/miri_tb.sh`, `.github/workflows/miri.yml`, `tokora/Cargo.toml`'s `rowan`
-# feature, and the changelog's known-limitation entry.
+# arrive from: `ci/miri_tb.sh`, the headers of `.github/workflows/miri-tb.yml` and
+# `.github/workflows/miri-sb.yml`, and the changelog's known-limitation entry.
 
 export MIRIFLAGS="-Zmiri-strict-provenance -Zmiri-disable-isolation -Zmiri-symbolic-alignment-check"
 export RUSTFLAGS="--cfg test_$CONFIG_FLAGS"

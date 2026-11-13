@@ -137,7 +137,7 @@ def main():
             print(
                 f"\nnote: the `{CONTROL}` control moved {control[3]:+.3f}% as well. It reaches no "
                 "repetition engine, so a shared cause in the scanner, the lexer or the input "
-                "layer fits the evidence better than a change in `parser/many/`."
+                "layer fits the evidence better than a change in `combinator/many/`."
             )
         elif all(r[3] > args.threshold for r in axes):
             print(

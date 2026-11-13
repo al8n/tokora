@@ -33,7 +33,7 @@ description = "tokora's instruction-count workloads over the repetition matrix. 
 #
 # ── AND WHY IT IS A `[[bin]]` AND NOT A `[[bench]]` ─────────────────────────────────────────
 #
-# `bench (smoke)` in `.github/workflows/ci.yml` derives its target list from `cargo metadata`
+# `bench (smoke)` in `.github/workflows/perf.yml` derives its target list from `cargo metadata`
 # and runs every `[[bench]]` in `tokora-benches` with `-- --test`. A `[[bench]]` here would
 # either be missed by that job (a bench nothing builds — #181's shape) or picked up by it and
 # run without valgrind, where it measures nothing and merely burns a minute. A `[[bin]]` is
