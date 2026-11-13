@@ -64,11 +64,12 @@ after it.
 One `save` captures both channels; one `restore` replays both. That is the entire reason a declined
 speculative branch leaves *no diagnostic* behind, exactly as it leaves no cursor movement behind —
 the two were saved as a unit and are restored as a unit. The reference emitter,
-[`Verbose`](crate::emitter::Verbose), makes the mechanism concrete: its `checkpoint` is the length
-of its emission log, and its `rewind` pops every entry recorded past the mark, newest first. Its
-`release` — the settle for a branch that was *kept* rather than abandoned — is a deliberate no-op,
-because a kept mark is just a number going out of scope. The demo at the end of this chapter drives
-exactly this pair.
+[`Verbose`](crate::emitter::Verbose), makes the mechanism concrete: its `checkpoint` counts what it
+holds (the length of its emission log, plus the errors it refused if it was built with a ceiling),
+and its `rewind` uncounts the errors refused past the mark and then pops every entry recorded past
+it, newest first. Its `release` — the settle for a branch that was *kept* rather than abandoned — is
+a deliberate no-op, because a kept mark is just a number going out of scope. The demo at the end of
+this chapter drives exactly this pair.
 
 The engine chapter framed all of this as *"consumption and emission share one handle, and one
 timeline"*. The checkpoint is the object that makes the timeline rewindable: it is the seam where

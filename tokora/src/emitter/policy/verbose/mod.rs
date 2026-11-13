@@ -160,7 +160,8 @@ pub(crate) enum Channel {
 /// `Ok(())`, and the parse goes on.
 ///
 /// - **A refused error is counted**, in [`refused_errors()`](Self::refused_errors). A refused
-///   warning or skipped region is dropped and not counted.
+///   warning or skipped region is dropped and not counted. A parse emitted no error only when
+///   [`errors()`](Self::errors) is empty *and* `refused_errors()` is zero.
 /// - **Every accessor speaks of the records kept**: [`errors()`](Self::errors),
 ///   [`labels()`](Self::labels), [`warnings()`](Self::warnings),
 ///   [`warning_labels()`](Self::warning_labels), [`skipped_regions()`](Self::skipped_regions),
@@ -284,7 +285,7 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
   ///
   /// The count is a `usize`, and it does not wrap: an error emitted while `usize::MAX` errors
   /// are already refused panics instead of being counted, and leaves the emitter as it was. Only
-  /// a target whose `usize` is 32 bits wide can reach that count in practice.
+  /// a target whose `usize` is narrower than 64 bits can reach that count in practice.
   #[inline(always)]
   pub const fn refused_errors(&self) -> usize {
     self.store.refused_errors()

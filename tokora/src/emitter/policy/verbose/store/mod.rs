@@ -300,8 +300,8 @@ impl<Error, S> Store<Error, S> {
   /// anywhere in this body leaves no payload, no label entry and no log entry:
   /// [`errors`](Self::errors), [`labels`](Self::labels), replay, [`mark`](Self::mark) and
   /// [`rewind_to`](Self::rewind_to) all behave as if the call never happened. The caller code a
-  /// record can run is exactly two `S: Clone`s, the `S: Ord` comparisons of the two map descents,
-  /// and — when the span is one the channel already holds — the two `S::drop`s that
+  /// record that is kept can run is exactly two `S: Clone`s, the `S: Ord` comparisons of the two
+  /// map descents, and — when the span is one the channel already holds — the two `S::drop`s that
   /// [`entry`](BTreeMap::entry) runs on the key it was handed and did not need to store. All of
   /// it is above the commit point. The destructors belong in that list even though this path
   /// happens to keep them above the line: a generic parameter is the caller's type wherever it
@@ -357,7 +357,7 @@ impl<Error, S> Store<Error, S> {
   ///
   /// Refusing an error while `usize::MAX` errors are already refused panics before anything is
   /// committed, which is the store's posture on a capacity overflow (see above). Only a target
-  /// whose `usize` is 32 bits wide can reach that count in practice.
+  /// whose `usize` is narrower than 64 bits can reach that count in practice.
   #[inline(always)]
   pub(super) fn record(&mut self, span: S, err: Error)
   where
@@ -548,8 +548,8 @@ impl<Error, S> Store<Error, S> {
   ///
   /// # One unwound entry is panic-atomic
   ///
-  /// Each turn of the loop is one [`unwind_one`] interval, and the interval runs **no caller
-  /// code at all**. Both channel handles are taken before anything moves, exactly as
+  /// Each turn that unwinds a kept entry is one [`unwind_one`] interval, and the interval runs
+  /// **no caller code at all**. Both channel handles are taken before anything moves, exactly as
   /// [`record`](Self::record) takes both descents before it inserts anything, because a
   /// [`BTreeMap`] descent is where the caller's `S: Ord` and `S: Clone` run. Everything after
   /// that — popping each group, taking out the entry when a group empties, popping the log —
