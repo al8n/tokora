@@ -67,6 +67,24 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
+## Unreleased
+
+### Added
+
+- **`Verbose::with_max_diagnostics`, a ceiling on the diagnostics `Verbose` keeps, with
+  `max_diagnostics()` and `refused_errors()`.** `Verbose::new()` keeps every diagnostic a parse
+  emits, so a text full of errors makes it keep as many records as the text provokes.
+  `with_max_diagnostics(max)` keeps the first `max` emissions, all three channels together, and
+  evicts none of them. Every emission after them is refused: its `emit_*` call still answers
+  `Ok(())`, and the parse goes on. A refused error is counted in `refused_errors()`; a refused
+  warning or skipped region is dropped and not counted. `errors()`, the other channel accessors
+  and the `diagnostics()` replay speak of the records kept, so such a `Verbose` holds at most `max`
+  records and one count, whatever the input. Its mark counts the records kept and the errors
+  refused, and a rewind undoes refused errors before it unwinds a kept record, so the count is
+  exact under any rollback: an error refused in an abandoned branch and emitted again is counted
+  once. `with_max_diagnostics(usize::MAX)` is `new()`, and `new()` and `Default` behave exactly as
+  they did; no existing signature changes.
+
 ## 0.13.0 (2026-11-12)
 
 ### Changed (breaking)

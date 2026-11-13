@@ -364,7 +364,7 @@ implementation is the `rowan`-gated `cst::Sink`; see [`crate::cst`] and the
 | Emitter | `Error` | Behavior | Reach for it when |
 |---------|---------|----------|-------------------|
 | [`Fatal<E, Lang=()>`](crate::emitter::Fatal) | `E` | returns the error, so `?` ends the parse; stores nothing, allocates nothing | the first error ends the job (config, query, protocol frame) |
-| [`Verbose<E, S=SimpleSpan, Lang=()>`](crate::emitter::Verbose) | `E` | records every diagnostic, span-keyed, and continues | a human reads the output (compiler, IDE) — needs `std`/`alloc` |
+| [`Verbose<E, S=SimpleSpan, Lang=()>`](crate::emitter::Verbose) | `E` | records every diagnostic, span-keyed, and continues; `with_max_diagnostics(n)` keeps the first `n` and counts the errors past them | a human reads the output (compiler, IDE) — needs `std`/`alloc` |
 | [`Silent<E, Lang=()>`](crate::emitter::Silent) | `E` | drops every diagnostic; keeps the error type | best-effort parse where diagnostics are unwanted |
 | [`Ignored`](crate::emitter::Ignored) | `()` | drops everything; the error type collapses to `()` | you want the value, never the errors |
 | `cst::Sink` (`rowan`) | inner's | a tree-building emitter: buffers CST events on the rewind timeline, forwarding diagnostics to an inner emitter | building a lossless syntax tree ([`crate::cst`]) |

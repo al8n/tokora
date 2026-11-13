@@ -6950,8 +6950,8 @@ type ScanLexer<'a> = LogosLexer<'a, ScanTok>;
 
 /// A **mark-keyed** emitter with a rewindable emission log: one live row per outstanding
 /// capture, and each row remembers the log length at capture. `Verbose` cannot serve here — its
-/// mark is a log length, so a stranded mark is invisible; and a pure row ledger cannot show that
-/// a rewind restored the emissions. The unwind edge has to be judged on both at once.
+/// mark is a count of what it holds, so a stranded mark is invisible; and a pure row ledger cannot
+/// show that a rewind restored the emissions. The unwind edge has to be judged on both at once.
 #[derive(Debug, Default)]
 struct ScanLedger {
   log: std::vec::Vec<crate::span::SimpleSpan>,

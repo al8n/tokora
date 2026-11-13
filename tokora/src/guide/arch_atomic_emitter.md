@@ -278,7 +278,7 @@ reading them side by side is the clearest way to see the trait's range.
 | Emitter | `Error` | Effect | State |
 |---|---|---|---|
 | [`Fatal<E>`](crate::emitter::Fatal) | `E` | returns the error, so the first diagnostic ends the parse | none (zero-sized) |
-| [`Verbose<E, S>`](crate::emitter::Verbose) | `E` | records every diagnostic and continues | span-keyed channels on one log (`std`/`alloc`) |
+| [`Verbose<E, S>`](crate::emitter::Verbose) | `E` | records every diagnostic, or the first `n` under `with_max_diagnostics(n)`, and continues | span-keyed channels on one log (`std`/`alloc`) |
 | [`Silent<E>`](crate::emitter::Silent) | `E` | drops every diagnostic; keeps the error type | none (zero-sized) |
 | [`Ignored`](crate::emitter::Ignored) | `()` | drops everything; error type collapses to `()` | none (zero-sized) |
 | `cst::Sink` | inner's | buffers tree events on the rewind timeline, forwarding diagnostics to an inner emitter | event log + inner (`rowan`) |

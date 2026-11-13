@@ -50,12 +50,15 @@ pub(crate) enum Channel {
   SkippedRegion,
 }
 
-/// A verbose emitter that collects all errors during parsing.
+/// A verbose emitter that collects the diagnostics of a parse: all of them, or as many as its
+/// ceiling allows.
 ///
 /// Unlike [`Fatal`](super::fatal::Fatal) which stops at the first error, or [`Silent`](super::silent::Silent)
-/// which ignores errors silently, `Verbose` collects all errors encountered during parsing and
-/// continues parsing where possible. This makes it ideal for compiler diagnostics, IDE integration,
-/// and development scenarios where you need comprehensive error reporting.
+/// which ignores errors silently, `Verbose` collects the errors encountered during parsing and
+/// continues parsing where possible: every one of them, or the first ones up to a ceiling it was
+/// built with (see [below](#a-ceiling-on-the-diagnostics-kept)). This makes it ideal for compiler
+/// diagnostics, IDE integration, and development scenarios where you need comprehensive error
+/// reporting.
 ///
 /// `Verbose` is a **complete implementation** of all atomic emitter traits, providing a pre-built bundle
 /// for comprehensive error collection. It implements:
@@ -100,7 +103,7 @@ pub(crate) enum Channel {
 /// |---------|----------|---------------|----------|
 /// | [`Fatal`](super::fatal::Fatal) | Stop on first error | Implements all | Runtime, REPL, fail-fast scenarios |
 /// | [`Silent`](super::silent::Silent) | Ignore all errors | Implements all | Error recovery, best-effort parsing |
-/// | `Verbose` | Collect all errors | Implements all | Compilers, IDEs, comprehensive diagnostics |
+/// | `Verbose` | Collect every error, or up to a ceiling | Implements all | Compilers, IDEs, comprehensive diagnostics |
 /// | Custom | User-defined | Implement only what you need | Specialized use cases |
 ///
 /// Thanks to Tokora's **atomically composable trait design**, you can implement only the emitter traits
@@ -147,6 +150,33 @@ pub(crate) enum Channel {
 /// [`DiagnosticKind::SkippedRegion`](crate::emitter::DiagnosticKind::SkippedRegion) carrying the
 /// skipped-token count (its span and labels ride the [`Diagnostic`] as for any other record).
 ///
+/// # A ceiling on the diagnostics kept
+///
+/// [`new()`](Self::new) keeps every diagnostic, so a text full of errors makes it keep as many
+/// records as the text provokes. [`with_max_diagnostics(max)`](Self::with_max_diagnostics) keeps
+/// at most `max`, all three channels together: the first `max` emissions are kept, and none is
+/// ever evicted to make room for a later one. An emission made once `max` are kept is
+/// **refused**, and nothing of it is stored. A refusal is not fatal: the `emit_*` call answers
+/// `Ok(())`, and the parse goes on.
+///
+/// - **A refused error is counted**, in [`refused_errors()`](Self::refused_errors). A refused
+///   warning or skipped region is dropped and not counted.
+/// - **Every accessor speaks of the records kept**: [`errors()`](Self::errors),
+///   [`labels()`](Self::labels), [`warnings()`](Self::warnings),
+///   [`warning_labels()`](Self::warning_labels), [`skipped_regions()`](Self::skipped_regions),
+///   [`skipped_region_labels()`](Self::skipped_region_labels), and the replay
+///   [`diagnostics()`](Self::diagnostics), whose exact length is the number kept.
+/// - **A mark counts the records kept and the errors refused.** A
+///   [`rewind`](Emitter::rewind) undoes the refused errors before it unwinds a kept record,
+///   which is the emission order: an error is refused only once the ceiling is full, so every
+///   refused error is newer than every kept record. The count is therefore exact under any
+///   rewind, and an error refused in an abandoned branch and emitted again is counted once.
+/// - **Memory:** a `Verbose` with a ceiling holds at most `max` records and one count, whatever
+///   the input.
+///
+/// [`max_diagnostics()`](Self::max_diagnostics) reads the ceiling back. It is `usize::MAX` for
+/// [`new()`](Self::new) and `Default`, which is no ceiling at all.
+///
 /// # Where the storage lives
 ///
 /// All of it sits behind a write-chokepointed private `store` submodule: the maps, the log
@@ -183,7 +213,8 @@ where
 }
 
 impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
-  /// Creates a new `Verbose` emitter with an empty error collection.
+  /// Creates a new `Verbose` emitter with an empty error collection and no ceiling: it keeps
+  /// every diagnostic.
   ///
   /// # Examples
   ///
@@ -199,6 +230,64 @@ impl<Error, S, Lang: ?Sized> Verbose<Error, S, Lang> {
       store: Store::new(),
       _lang: PhantomData,
     }
+  }
+
+  /// Creates a `Verbose` emitter that keeps at most `max_diagnostics` diagnostics, all three
+  /// channels together.
+  ///
+  /// The first `max_diagnostics` emissions are kept. Every emission after them is refused and
+  /// the parse goes on: its `emit_*` call answers `Ok(())`. A refused error is counted in
+  /// [`refused_errors`](Self::refused_errors); a refused warning or skipped region is not
+  /// counted. A ceiling of `0` keeps nothing. See
+  /// [the ceiling](Self#a-ceiling-on-the-diagnostics-kept) for what a mark and a rewind do with
+  /// the refused errors.
+  ///
+  /// `with_max_diagnostics(usize::MAX)` **is** [`new()`](Self::new): the same value, and
+  /// therefore the same behaviour. There is no ceiling above it to distinguish it from.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use tokora::emitter::Verbose;
+  ///
+  /// let emitter = Verbose::<()>::with_max_diagnostics(1_024);
+  /// assert_eq!(emitter.max_diagnostics(), 1_024);
+  /// assert_eq!(emitter.refused_errors(), 0);
+  /// assert_eq!(Verbose::<()>::new().max_diagnostics(), usize::MAX);
+  /// ```
+  #[inline(always)]
+  pub const fn with_max_diagnostics(max_diagnostics: usize) -> Self {
+    Self {
+      store: Store::with_max_diagnostics(max_diagnostics),
+      _lang: PhantomData,
+    }
+  }
+
+  /// The ceiling on the diagnostics this emitter keeps: `usize::MAX` when none was set, which is
+  /// what [`new()`](Self::new) and `Default` build.
+  #[inline(always)]
+  pub const fn max_diagnostics(&self) -> usize {
+    self.store.max_diagnostics()
+  }
+
+  /// The error emissions refused past the ceiling: counted, and not kept.
+  ///
+  /// Only errors are counted. A warning or skipped region refused past the ceiling is dropped
+  /// and leaves no trace. The count rewinds with the emissions: a [`rewind`](Emitter::rewind)
+  /// undoes the errors refused after its mark, so an error refused in an abandoned branch and
+  /// emitted again is counted once. The total of [`errors()`](Self::errors)' groups plus this
+  /// count is therefore the number of errors a `Verbose` with no ceiling holds after the same
+  /// parse.
+  ///
+  /// It is `0` while fewer than [`max_diagnostics()`](Self::max_diagnostics) diagnostics are
+  /// kept, and always `0` for a `Verbose` with no ceiling.
+  ///
+  /// The count is a `usize`, and it does not wrap: an error emitted while `usize::MAX` errors
+  /// are already refused panics instead of being counted, and leaves the emitter as it was. Only
+  /// a target whose `usize` is 32 bits wide can reach that count in practice.
+  #[inline(always)]
+  pub const fn refused_errors(&self) -> usize {
+    self.store.refused_errors()
   }
 
   /// Records `err` in the **error** channel at `span` — the error channel's one write.
@@ -437,14 +526,15 @@ where
   /// Rewind the error state to a checkpoint, emission-aware.
   ///
   /// `checkpoint` is the [`checkpoint`](Emitter::checkpoint) mark captured at the
-  /// save point: the emission-log length at that instant. Every diagnostic
-  /// recorded *after* it — exactly the emissions of the abandoned branch — is
-  /// dropped, newest first, by popping the matching entry off its span's group;
-  /// everything recorded before survives. The decision is purely by emission
-  /// order, so a zero-width error emitted during a speculative branch is removed
-  /// while an earlier zero-width error at the *same* offset is kept — a
-  /// distinction the former span-end offset heuristic could not make. `cursor`
-  /// is unused.
+  /// save point: the number of diagnostics kept at that instant plus the number of
+  /// errors refused past the ceiling. Every emission made *after* it — exactly the
+  /// emissions of the abandoned branch — is undone, newest first: the errors refused
+  /// after it are uncounted, and then every diagnostic recorded after it is dropped by
+  /// popping the matching entry off its span's group; everything recorded before
+  /// survives. The decision is purely by emission order, so a zero-width error emitted
+  /// during a speculative branch is removed while an earlier zero-width error at the
+  /// *same* offset is kept — a distinction the former span-end offset heuristic could
+  /// not make. `cursor` is unused.
   ///
   /// # Caller code on the rollback path, and what that costs mid-unwind
   ///
@@ -454,7 +544,8 @@ where
   /// span key of a group that has emptied, and the span key inside the log entry that named it.
   /// Comparison, clone and destructor are all caller code, and this method cannot suppress a
   /// panic raised inside any of them. A generic parameter is the caller's type in every position
-  /// it appears, and destruction is one of those positions.
+  /// it appears, and destruction is one of those positions. Uncounting an error refused past the
+  /// ceiling is a subtraction, and runs none of it.
   ///
   /// Each unwound entry is **panic-atomic**: every descent is taken before anything moves, and
   /// the pops, the emptied-group removals and the log pop that follow compare nothing, clone
@@ -486,12 +577,13 @@ where
   /// Releasing a kept checkpoint is a **deliberate no-op** for `Verbose`, and that is the
   /// reference posture for value-keyed emitters.
   ///
-  /// `Verbose` keeps no per-checkpoint table to evict: its mark is nothing but the emission
-  /// log's length ([`checkpoint`](Emitter::checkpoint) above), and its rollback state lives
-  /// *in the emission values themselves* — [`rewind`](Emitter::rewind) pops log entries and
-  /// their parallel-map groups by value, never consulting a mark-keyed row. A kept branch
-  /// therefore leaves nothing behind that a release could reclaim; the default empty body is
-  /// the whole implementation, spelled out here so the choice is legible rather than
+  /// `Verbose` keeps no per-checkpoint table to evict: its mark is nothing but a count of what
+  /// it holds, the emission log's length plus the errors refused past its ceiling
+  /// ([`checkpoint`](Emitter::checkpoint) above), and its rollback state lives *in the emission
+  /// values themselves* — [`rewind`](Emitter::rewind) uncounts refused errors and pops log
+  /// entries and their parallel-map groups by value, never consulting a mark-keyed row. A kept
+  /// branch therefore leaves nothing behind that a release could reclaim; the default empty
+  /// body is the whole implementation, spelled out here so the choice is legible rather than
   /// incidental. That property is exactly what makes `Verbose` a
   /// [`ValueKeyedEmitter`](crate::emitter::ValueKeyedEmitter), and therefore admissible inside
   /// the recording CST sink. An emitter that *does* key bookkeeping on marks overrides this to

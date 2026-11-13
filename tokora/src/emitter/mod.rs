@@ -562,13 +562,14 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// being called: emitters that key their rollback state on emission *values* rather than
   #[cfg_attr(
     any(feature = "std", feature = "alloc"),
-    doc = " on a per-mark table — [`Verbose`], whose mark is just its log length and whose rewind"
+    doc = " on a per-mark table — [`Verbose`], whose mark counts the records it keeps and the errors"
   )]
   #[cfg_attr(
     not(any(feature = "std", feature = "alloc")),
-    doc = " on a per-mark table — `Verbose`, whose mark is just its log length and whose rewind"
+    doc = " on a per-mark table — `Verbose`, whose mark counts the records it keeps and the errors"
   )]
-  /// pops entries by value — legitimately inherit the no-op default, and stateless emitters
+  /// it refused, and whose rewind uncounts and pops entries by value — legitimately inherit the
+  /// no-op default, and stateless emitters
   /// ([`Fatal`], [`Silent`], [`Ignored`](crate::utils::Ignored)) have nothing to
   /// reclaim in the first place. One mark is released at most once, and marks arrive
   /// last-in, first-out on the crate's own paths (guards and scans settle newest-first).
@@ -901,14 +902,15 @@ where
 /// - **value-keyed** — the reading *is* a fact about the emission state and nothing else exists:
 #[cfg_attr(
   any(feature = "std", feature = "alloc"),
-  doc = "   [`Verbose`]'s mark is its log length, a token tracker's is its count, a stateless emitter's"
+  doc = "   [`Verbose`]'s mark counts the records it keeps and the errors it refused, a token"
 )]
 #[cfg_attr(
   not(any(feature = "std", feature = "alloc")),
-  doc = "   `Verbose`'s mark is its log length, a token tracker's is its count, a stateless emitter's"
+  doc = "   `Verbose`'s mark counts the records it keeps and the errors it refused, a token"
 )]
-///   is the constant `0`. [`rewind`](Emitter::rewind) restores by value — reclaiming everything
-///   above the mark as a range — and [`release`](Emitter::release) has nothing to reclaim.
+///   tracker's is its count, a stateless emitter's is the constant `0`.
+///   [`rewind`](Emitter::rewind) restores by value — reclaiming everything above the mark as a
+///   range — and [`release`](Emitter::release) has nothing to reclaim.
 /// - **table-keyed** — the reading is a *key* into per-capture bookkeeping the emitter allocated
 ///   at [`checkpoint`](Emitter::checkpoint) time and expects to reclaim at the matching settle.
 ///
