@@ -266,3 +266,193 @@ fn diagnostics_len_is_exact_after_partial_consumption() {
   assert!(diags.next().is_none());
   assert_eq!(diags.size_hint(), (0, Some(0)));
 }
+
+// ── The ceiling, through the emitter ─────────────────────────────────────────
+
+type Dummy = crate::lexer::DummyLexer;
+
+fn warn(v: &mut Verbose<(), SimpleSpan>, span: SimpleSpan) {
+  let _ = <Verbose<(), SimpleSpan> as Emitter<'_, Dummy>>::emit_warning(v, Spanned::new(span, ()));
+}
+
+fn checkpoint(v: &mut Verbose<(), SimpleSpan>) -> u64 {
+  <Verbose<(), SimpleSpan> as Emitter<'_, Dummy>>::checkpoint(v)
+}
+
+/// Drives `Emitter::rewind` the way the input layer does at a restore.
+fn rewind(v: &mut Verbose<(), SimpleSpan>, mark: u64) {
+  let origin = 0usize;
+  <Verbose<(), SimpleSpan> as Emitter<'_, Dummy>>::rewind(
+    v,
+    crate::input::Cursor::from_ref(&origin),
+    mark,
+  );
+}
+
+fn at(offset: usize) -> SimpleSpan {
+  SimpleSpan::new(offset, offset + 1)
+}
+
+/// Past the ceiling every route still answers `Ok(())`, so the parse goes on: an error route,
+/// the warning route and the hole route, each over a full `Verbose`. Only the error route's
+/// refusal is counted, and none of the three is kept.
+#[test]
+fn every_route_answers_ok_past_the_ceiling() {
+  type V = Verbose<(), SimpleSpan>;
+  let mut v = V::with_max_diagnostics(1);
+  emit(&mut v, at(0));
+
+  assert_eq!(
+    <V as Emitter<'_, Dummy>>::emit_error(&mut v, Spanned::new(at(1), ())),
+    Ok(()),
+    "the error route answers `Ok(())` past the ceiling"
+  );
+  assert_eq!(
+    <V as Emitter<'_, Dummy>>::emit_lexer_error(&mut v, Spanned::new(at(2), ())),
+    Ok(()),
+    "so does the lexer-error route"
+  );
+  assert_eq!(
+    <V as Emitter<'_, Dummy>>::emit_warning(&mut v, Spanned::new(at(3), ())),
+    Ok(()),
+    "the warning route answers `Ok(())` past the ceiling"
+  );
+  assert_eq!(
+    <V as Emitter<'_, Dummy>>::emit_skipped_region(&mut v, at(4), 2),
+    Ok(()),
+    "the hole route answers `Ok(())` past the ceiling"
+  );
+
+  assert_eq!(v.diagnostics().len(), 1, "only the first emission is kept");
+  assert_eq!(v.errors().len(), 1);
+  assert!(v.warnings().is_empty() && v.skipped_regions().is_empty());
+  assert_eq!(
+    v.refused_errors(),
+    2,
+    "the two error routes' refusals are counted; the warning's and the hole's are not"
+  );
+}
+
+/// `Emitter::checkpoint` reads the kept records plus the refused errors, and `Emitter::rewind`
+/// to a mark undoes the refused errors above it before it unwinds a kept record.
+#[test]
+fn checkpoint_and_rewind_through_the_emitter_carry_the_refused_errors() {
+  let mut v = Verbose::<(), SimpleSpan>::with_max_diagnostics(2);
+  emit(&mut v, at(0));
+  hole(&mut v, at(1), 1);
+  let full = checkpoint(&mut v);
+  assert_eq!(full, 2, "two kept records");
+
+  emit(&mut v, at(2));
+  warn(&mut v, at(3));
+  emit(&mut v, at(4));
+  assert_eq!(
+    checkpoint(&mut v),
+    4,
+    "two kept records and two refused errors; the refused warning does not move the mark"
+  );
+  assert_eq!(v.refused_errors(), 2);
+
+  rewind(&mut v, full);
+  let mark = checkpoint(&mut v);
+  assert_eq!(
+    (v.diagnostics().len(), v.refused_errors(), mark),
+    (2, 0, 2),
+    "the rewind to the full mark uncounts both refused errors and unwinds no kept record"
+  );
+
+  rewind(&mut v, 1);
+  let mark = checkpoint(&mut v);
+  assert_eq!(
+    (v.diagnostics().len(), v.refused_errors(), mark),
+    (1, 0, 1),
+    "below the refused errors, a kept record unwinds as it always has"
+  );
+  assert!(
+    v.skipped_regions().is_empty(),
+    "the kept hole was the newest record"
+  );
+}
+
+/// A `Verbose` with no ceiling is 0.13.0's: through `new()`, `Default` and
+/// `with_max_diagnostics(usize::MAX)` alike, every emission on every channel is kept and moves
+/// the mark by exactly one, nothing is refused, and the ceiling reads `usize::MAX`.
+#[test]
+fn no_ceiling_is_0_13_0() {
+  assert_eq!(
+    format!("{:?}", Verbose::<(), SimpleSpan>::new()),
+    format!(
+      "{:?}",
+      Verbose::<(), SimpleSpan>::with_max_diagnostics(usize::MAX)
+    ),
+    "`with_max_diagnostics(usize::MAX)` is the same value as `new()`"
+  );
+
+  for (name, mut v) in [
+    ("new()", Verbose::<(), SimpleSpan>::new()),
+    ("default()", Verbose::<(), SimpleSpan>::default()),
+    (
+      "with_max_diagnostics(usize::MAX)",
+      Verbose::<(), SimpleSpan>::with_max_diagnostics(usize::MAX),
+    ),
+  ] {
+    assert_eq!(v.max_diagnostics(), usize::MAX, "{name} sets no ceiling");
+    for offset in 0..6usize {
+      match offset % 3 {
+        0 => emit(&mut v, at(offset)),
+        1 => warn(&mut v, at(offset)),
+        _ => hole(&mut v, at(offset), offset),
+      }
+      assert_eq!(
+        checkpoint(&mut v),
+        offset as u64 + 1,
+        "{name}: every emission moves the mark by one"
+      );
+      assert_eq!(v.refused_errors(), 0, "{name} refuses nothing");
+    }
+    assert_eq!(v.diagnostics().len(), 6, "{name} keeps every diagnostic");
+  }
+}
+
+/// `Clone` and `Debug` carry the ceiling and the count, and a clone's count is its own: each of
+/// the two rewinds independently, and the clone goes on refusing at the same ceiling.
+#[test]
+fn a_clone_carries_the_ceiling_and_the_count() {
+  let mut original = Verbose::<(), SimpleSpan>::with_max_diagnostics(1);
+  emit(&mut original, at(0));
+  let kept = checkpoint(&mut original);
+  emit(&mut original, at(1));
+  emit(&mut original, at(2));
+
+  let mut twin = original.clone();
+  assert_eq!(
+    (twin.max_diagnostics(), twin.refused_errors()),
+    (1, 2),
+    "the clone carries the ceiling and the count"
+  );
+  let shown = format!("{twin:?}");
+  assert!(
+    shown.contains("max_diagnostics: 1, refused_errors: 2 }"),
+    "`Debug` shows the ceiling and the count: {shown}"
+  );
+
+  rewind(&mut original, kept);
+  assert_eq!(
+    (original.refused_errors(), twin.refused_errors()),
+    (0, 2),
+    "rewinding the original leaves the clone's count alone"
+  );
+  rewind(&mut twin, kept + 1);
+  assert_eq!(
+    (original.refused_errors(), twin.refused_errors()),
+    (0, 1),
+    "and rewinding the clone leaves the original's"
+  );
+
+  emit(&mut twin, at(3));
+  assert_eq!(
+    (twin.diagnostics().len(), twin.refused_errors()),
+    (1, 2),
+    "the clone's ceiling still refuses"
+  );
+}

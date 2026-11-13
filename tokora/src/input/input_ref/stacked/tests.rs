@@ -793,7 +793,7 @@ fn stacked_rollback_to_savepoint_with_live_base_is_legal() {
 
 /// A mark-keyed emitter: one live row per outstanding capture, settled by `rewind`
 /// (the capture and every younger one) or `release` (that capture alone). `Verbose`
-/// cannot show this — its mark is a log length, so a stranded mark is invisible.
+/// cannot show this — its mark is a count of what it holds, so a stranded mark is invisible.
 #[derive(Debug, Default)]
 struct MarkLedger {
   next: core::cell::Cell<u64>,

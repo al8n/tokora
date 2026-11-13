@@ -193,3 +193,39 @@ resource_trips/discarded
 clear/discarded
 iter_mut/discarded
 pop/discarded
+
+# ── `Verbose`'s two getters — a PRE-EXISTING emitter gaining a ceiling ────────────────────
+#
+# `Verbose` is the collecting emitter, a concrete public struct that every release in the
+# CHANGELOG has shipped. #361 gives it a ceiling on the diagnostics it keeps, and with it three
+# public names: the associated fn `with_max_diagnostics(usize)` and two `&self` getters,
+# `max_diagnostics` and `refused_errors`, each returning a plain `usize`. A consumer holding a
+# `Verbose` already had somewhere to hang those names, and an inherent item wins the pick.
+#
+# The rows, base ade8303 against this branch:
+#
+#     loud    max_diagnostics/used          base=witness=1  head=no-compile
+#     SILENT  max_diagnostics/discarded     base=witness=1  head=witness=0
+#     loud    refused_errors/used           base=witness=1  head=no-compile
+#     SILENT  refused_errors/discarded      base=witness=1  head=witness=0
+#
+# They are the `Cst::resource_trips` shape exactly: a `&self` getter returning a plain `usize`,
+# on a concrete struct that already shipped. A disclosed row that does not reproduce is STALE and
+# fails the run, so the two lines below stand on this branch's own measurement. Each `used` row
+# is `loud` by E0308 against the consumer's `-> u8`, so the discarded return is the whole of the
+# difference: `usize` carries no `#[must_use]` and `unused_must_use` does not fire on it. Same
+# discriminator as every row above: the lint, not an attribute.
+#
+# `with_max_diagnostics` is not here. Both of its rows are `loud` by the probe's own arity
+# (E0061: tokora's takes one argument and the consumer's none), which says nothing about the
+# name. Read it as unprobed, not as safe (README, "What this harness does NOT test").
+#
+# NOT a bounded receiver. `Verbose<E, S, Lang>` is a concrete public struct; there is no blanket
+# impl to reject anybody, exactly as for `RecursionLimiter::unlimited`, `ParseState`'s four,
+# `Cst::resource_trips` and `Errors`' three.
+#
+# `#[must_use]` was considered and rejected for the reason it was rejected for those: it does
+# not reach a consumer who *assigns* the result — the silent case that matters and that this
+# harness cannot generate — while firing on legitimate discards.
+max_diagnostics/discarded
+refused_errors/discarded

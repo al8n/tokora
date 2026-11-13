@@ -224,14 +224,15 @@ Three methods make the emitter's log rewindable in step with the cursor, and tog
 - [`release`](crate::Emitter::release)`(mark)` is the eviction dual: it tells the emitter a mark was
   **kept** rather than rewound, so any per-mark bookkeeping can be reclaimed.
 
-[`Verbose`](crate::emitter::Verbose) is the reference. Its `checkpoint` is the length of its emission
-log; its `rewind` pops every entry recorded past the mark, newest first, each dropping from the
-channel the log entry names; and its `release` is a deliberate no-op, because its rollback state
-lives *in the recorded values themselves* — a kept mark is just a number going out of scope, with
-nothing to evict. That the model keys on emission **order** rather than on a source offset is what
-lets `rewind` drop a speculative zero-width diagnostic while keeping an earlier one at the *same*
-offset — the distinction a span-offset heuristic could not make, and the exact defect the
-predecessor design shipped (see the checkpoint chapter's
+[`Verbose`](crate::emitter::Verbose) is the reference. Its `checkpoint` counts what it holds: the
+length of its emission log, plus the errors it refused if it was built with a ceiling; its `rewind`
+uncounts the errors refused past the mark and then pops every entry recorded past it, newest first,
+each dropping from the channel the log entry names; and its `release` is a deliberate no-op, because
+its rollback state lives *in the recorded values themselves* — a kept mark is just a number going
+out of scope, with nothing to evict. That the model keys on emission **order** rather than on a
+source offset is what lets `rewind` drop a speculative zero-width diagnostic while keeping an
+earlier one at the *same* offset — the distinction a span-offset heuristic could not make, and the
+exact defect the predecessor design shipped (see the checkpoint chapter's
 [why-a-copy-not-a-merge](super::arch_checkpoint_rewind) discussion).
 
 The advisory status of `release` is the subtle half. A mark can be abandoned with *neither* a rewind
@@ -278,7 +279,7 @@ reading them side by side is the clearest way to see the trait's range.
 | Emitter | `Error` | Effect | State |
 |---|---|---|---|
 | [`Fatal<E>`](crate::emitter::Fatal) | `E` | returns the error, so the first diagnostic ends the parse | none (zero-sized) |
-| [`Verbose<E, S>`](crate::emitter::Verbose) | `E` | records every diagnostic and continues | span-keyed channels on one log (`std`/`alloc`) |
+| [`Verbose<E, S>`](crate::emitter::Verbose) | `E` | records every diagnostic, or the first `n` under `with_max_diagnostics(n)`, and continues | span-keyed channels on one log (`std`/`alloc`) |
 | [`Silent<E>`](crate::emitter::Silent) | `E` | drops every diagnostic; keeps the error type | none (zero-sized) |
 | [`Ignored`](crate::emitter::Ignored) | `()` | drops everything; error type collapses to `()` | none (zero-sized) |
 | `cst::Sink` | inner's | buffers tree events on the rewind timeline, forwarding diagnostics to an inner emitter | event log + inner (`rowan`) |

@@ -182,9 +182,11 @@ boundary.
 Parsers are generic over their parse context, which carries the emitter. `parse` and
 `Parser::new()` use `Fatal`, which turns the first diagnostic into the parse's error.
 `emitter::Verbose` (`std` or `alloc`) records every diagnostic together with its open `labelled`
-context, and lets a recovering grammar continue; `Silent` and `Ignored` discard diagnostics,
-keeping or erasing the error type. Structured lexer, token, separator, container, and Pratt errors
-convert into the application's error type through `From` implementations.
+context, or the first `n` when it is built with `Verbose::with_max_diagnostics(n)`, counting the
+errors it refuses past them, and lets a recovering grammar continue; `Silent` and `Ignored`
+discard diagnostics, keeping or erasing the error type. Structured lexer, token, separator,
+container, and Pratt errors convert into the application's error type through `From`
+implementations.
 
 Recovery is explicit. `recover` rewinds to where the failed parser started and runs a recovery
 parser; `inplace_recover` continues from the failure position. `sync_balanced` and

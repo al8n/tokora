@@ -1585,6 +1585,44 @@ fn drive() {{
   {call}
 }}
 """ + WITNESS
+    if owner == "Verbose":
+        # A PRE-EXISTING public struct, the collecting emitter every release in the CHANGELOG
+        # has shipped, so a consumer holding one already had somewhere to hang these names and
+        # the base side is a real before-state. #361 gives it a ceiling, and with it two `&self`
+        # getters that return a plain `usize`: `max_diagnostics` and `refused_errors`. So this is
+        # the pre-existing-owner shape `INHERENT_SUBJECTS`' header prescribes: the consumer's
+        # item returns `u8` and the `used` spelling binds that `u8`, the base side compiles and
+        # runs the consumer's item, and a head-side E0308 against tokora's `usize` is the honest
+        # `loud` verdict.
+        #
+        # The subject is `Verbose<PErr>` at the default span and language, built by `new()`,
+        # which every base ref has. The binding is `mut` for the reason `Errors` gives: the
+        # consumer's item takes `&mut self`, and on the base side it is the only candidate. And
+        # `drive()` allows `unused_mut` because on the head side both getters take `&self`, so
+        # the `mut` goes unused there and would hand the head side a warning the base side does
+        # not emit: a diagnostic the template made, not one the name did.
+        call = f"let _v: u8 = v.{name}();" if spelling == "used" else f"v.{name}();"
+        return ITEM_FIXTURE + f"""
+use tokora::emitter::Verbose;
+
+pub trait ConsumerExt {{
+  fn {name}(&mut self) -> u8;
+}}
+
+impl ConsumerExt for Verbose<PErr> {{
+  fn {name}(&mut self) -> u8 {{
+    ran();
+    7
+  }}
+}}
+
+#[allow(unused_mut)]
+fn drive() {{
+  let mut v: Verbose<PErr> = Verbose::new();
+  reached();
+  {call}
+}}
+""" + WITNESS
     if owner == "ParseAttempt":
         call = f"let _v: u8 = a.{name}();" if spelling == "used" else f"a.{name}();"
         return ITEM_FIXTURE + f"""
@@ -1708,6 +1746,39 @@ pub trait ConsumerAssoc {{
 }}
 
 impl ConsumerAssoc for RecursionLimiter {{
+  fn {name}() -> u8 {{
+    ran();
+    7
+  }}
+}}
+
+fn drive() {{
+  use ConsumerAssoc as _;
+  reached();
+  {call}
+}}
+''' + WITNESS
+    if owner == "Verbose":
+        # The path-resolved half of the same pre-existing owner as `inherent_method`'s `Verbose`
+        # branch: #361's `Verbose::with_max_diagnostics(max_diagnostics: usize) -> Self`. Like
+        # `RecursionLimiter` above, it HAS a before-state: a consumer's
+        # `impl ConsumerAssoc for Verbose<PErr>` compiles on both sides, and the two rows measure
+        # which item the path call selects. Tokora's takes one argument and the consumer's none,
+        # so on the head side the call fails on the probe's own arity (E0061): a `loud` verdict
+        # about this probe, not about the name (README, "What this harness does NOT test").
+        call = (
+            f"let _v: u8 = <Verbose<PErr>>::{name}();"
+            if spelling == "used"
+            else f"<Verbose<PErr>>::{name}();"
+        )
+        return ITEM_FIXTURE + f'''
+use tokora::emitter::Verbose;
+
+pub trait ConsumerAssoc {{
+  fn {name}() -> u8;
+}}
+
+impl ConsumerAssoc for Verbose<PErr> {{
   fn {name}() -> u8 {{
     ran();
     7

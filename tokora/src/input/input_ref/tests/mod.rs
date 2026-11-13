@@ -4426,6 +4426,22 @@ fn bal_input(src: &str, limit: usize) -> Input<'_, BalLexer<'_>, BalVerboseCtx<'
   )
 }
 
+/// [`bal_input`]'s twin over a `Verbose` that keeps at most `max_diagnostics` diagnostics, with no
+/// token limit.
+fn bal_input_capped(
+  src: &str,
+  max_diagnostics: usize,
+) -> Input<'_, BalLexer<'_>, BalVerboseCtx<'_>, ()> {
+  Input::with_state_and_context(
+    src,
+    TokenLimiter::with_limitation(usize::MAX),
+    crate::input::InputContext::new(
+      Verbose::<ByValErr>::with_max_diagnostics(max_diagnostics),
+      DefaultCache::<'_, BalLexer<'_>>::default(),
+    ),
+  )
+}
+
 #[test]
 fn sync_balanced_skips_enclosed_sync_tokens() {
   // Nesting: the `;` inside the parenthesized garbage is at depth 1, where the sync
@@ -4908,6 +4924,53 @@ fn sync_balanced_hole_emission_unwinds_on_rollback() {
     .map(|g| g.len())
     .sum();
   assert_eq!(holes, 1);
+}
+
+#[test]
+fn a_failed_sync_balanced_past_the_ceiling_counts_its_lexer_errors_once() {
+  // The ceiling is already full when the scan starts, so every lexer error the scan crosses is
+  // refused and counted. The scan finds no sync point and rewinds, and the consume after it lexes
+  // the same bytes again: the rewind must uncount what the scan counted, or each of those errors
+  // is counted twice. Kept plus refused must be what the same run reports with no ceiling.
+  //   @ 1 @ 2 @   (each `@` is a lexer error: [0, 1), [4, 5) and [8, 9))
+  fn kept_and_refused<'inp>(
+    mut input: Input<'inp, BalLexer<'inp>, BalVerboseCtx<'inp>, ()>,
+  ) -> (usize, usize) {
+    {
+      let mut inp = input.as_ref();
+      let one = inp.next().unwrap().expect("`1` follows the first `@`");
+      assert!(matches!(one.data(), BalTok::Num));
+      assert!(
+        inp
+          .sync_balanced(parens, |t| matches!(t.data(), BalTok::Semi))
+          .unwrap()
+          .is_none(),
+        "no sync point: the balanced sync fails and rewinds"
+      );
+      while inp.next().unwrap().is_some() {}
+    }
+    let kept: usize = input.emitter().errors().values().map(|g| g.len()).sum();
+    (kept, input.emitter().refused_errors())
+  }
+
+  let (reported, refused) = kept_and_refused(bal_input("@ 1 @ 2 @", usize::MAX));
+  assert_eq!(
+    (reported, refused),
+    (3, 0),
+    "with no ceiling each `@` is reported once and nothing is refused"
+  );
+
+  let (kept, refused) = kept_and_refused(bal_input_capped("@ 1 @ 2 @", 1));
+  assert_eq!(
+    kept, 1,
+    "a ceiling of one keeps the first `@`, the one reported before the scan"
+  );
+  assert_eq!(
+    kept + refused,
+    reported,
+    "kept plus refused is the uncapped count: the failed scan's refused lexer errors were \
+     uncounted by its rewind, and counted once when the consume lexed them again"
+  );
 }
 
 // ── Panic safety: an unwinding closure must not strand the attempt's pinned begin point ──────
@@ -6950,8 +7013,8 @@ type ScanLexer<'a> = LogosLexer<'a, ScanTok>;
 
 /// A **mark-keyed** emitter with a rewindable emission log: one live row per outstanding
 /// capture, and each row remembers the log length at capture. `Verbose` cannot serve here — its
-/// mark is a log length, so a stranded mark is invisible; and a pure row ledger cannot show that
-/// a rewind restored the emissions. The unwind edge has to be judged on both at once.
+/// mark is a count of what it holds, so a stranded mark is invisible; and a pure row ledger cannot
+/// show that a rewind restored the emissions. The unwind edge has to be judged on both at once.
 #[derive(Debug, Default)]
 struct ScanLedger {
   log: std::vec::Vec<crate::span::SimpleSpan>,

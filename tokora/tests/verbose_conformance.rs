@@ -188,8 +188,9 @@ type Vb = Verbose<ConfError>;
 ///
 /// `Emitter::checkpoint` returns the same number, but it is a **capture** — it takes `&mut self`
 /// because for a recording emitter it registers a row a later settle must spend (al8n/tokora#257).
-/// What this suite asks is an observation, and `Verbose` answers it on its own read surface: the
-/// mark *is* the emission log's length, and `diagnostics()` replays exactly that log.
+/// What this suite asks is an observation, and `Verbose` answers it on its own read surface: for an
+/// emitter with no ceiling, which is every one in this suite, the mark *is* the emission log's
+/// length, and `diagnostics()` replays exactly that log.
 fn mark(v: &Vb) -> u64 {
   v.diagnostics().len() as u64
 }

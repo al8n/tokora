@@ -153,6 +153,24 @@ pub(super) struct LogEntry<S> {
 /// Every field is private to this module by design (see the module docs): the write surface is
 /// [`record`](Self::record) / [`record_warning`](Self::record_warning) /
 /// [`record_hole`](Self::record_hole) and nothing else.
+///
+/// # The ceiling, and the invariant it rests on
+///
+/// A store keeps at most `max_diagnostics` records, all three channels together, so the log
+/// never holds more entries than that. An emission that reaches a write while the log is full is
+/// **refused** by that write's first statement, and nothing of it is stored. A refused error is
+/// counted in `refused_errors`; a refused warning or hole is not counted and changes nothing.
+/// [`mark`](Self::mark) is the log's length plus that count, and
+/// [`rewind_to`](Self::rewind_to) undoes refused errors before it unwinds a kept record.
+///
+/// That order is the emission order because of one invariant: **`refused_errors > 0` implies
+/// that the log holds exactly `max_diagnostics` entries.** An error is refused only while the
+/// log is full, and a kept record is unwound only once no refused error is left, so every
+/// refused error is newer than every kept record: the refused errors are a suffix of the
+/// emission order, and one count describes them exactly under any rewind. The invariant is
+/// debug-asserted where a record is kept and before every step of a rewind. It is also why the
+/// ceiling is fixed when the store is made: raising it while errors are refused would keep a
+/// record above them, and lowering it below the log's length would need eviction.
 #[derive(Debug)]
 pub(super) struct Store<Error, S> {
   errs: BTreeMap<S, Vec<Error>>,
@@ -185,20 +203,27 @@ pub(super) struct Store<Error, S> {
   holes: BTreeMap<S, Vec<usize>>,
   /// Parallel to `holes`, exactly as `label_snapshots` is parallel to `errs`.
   hole_label_snapshots: BTreeMap<S, Vec<Vec<&'static str>>>,
-  /// The `(channel, span)` of every emission, in emission order — the single ordering
+  /// The `(channel, span)` of every kept emission, in emission order — the single ordering
   /// authority across *all* channels. An entry's index in this log is its monotonic sequence
-  /// number; [`mark`](Self::mark) is the log length and [`rewind_to`](Self::rewind_to) unwinds
-  /// the tail back to a mark, popping the matching record — and its label snapshot — off the
-  /// channel named by the entry's [`Channel`] tag. This is what lets rewind drop a speculative
-  /// zero-width diagnostic while keeping an earlier one at the same span, and what lets
-  /// [`diagnostics()`](Self::diagnostics) reconstruct the true interleaving of the payload
-  /// channels — a distinction span-ordered storage alone cannot make.
+  /// number; [`mark`](Self::mark) counts the log's entries and the refused errors above them,
+  /// and [`rewind_to`](Self::rewind_to) unwinds the tail back to a mark, popping the matching
+  /// record — and its label snapshot — off the channel named by the entry's [`Channel`] tag.
+  /// This is what lets rewind drop a speculative zero-width diagnostic while keeping an earlier
+  /// one at the same span, and what lets [`diagnostics()`](Self::diagnostics) reconstruct the
+  /// true interleaving of the payload channels — a distinction span-ordered storage alone
+  /// cannot make.
   log: Vec<LogEntry<S>>,
   /// The currently-open label stack, pushed by
   /// [`enter_label`](super::Emitter::enter_label) and popped by
   /// [`exit_label`](super::Emitter::exit_label). Snapshotted (cloned) into the recording
   /// channel at each emit; a push/pop never allocates and an empty snapshot clones for free.
   stack: Vec<&'static str>,
+  /// The most entries `log` may hold: `usize::MAX` when the store was made with no ceiling.
+  /// Fixed when the store is made (see the type docs).
+  max_diagnostics: usize,
+  /// The errors refused while `log` held `max_diagnostics` entries, and not yet undone by a
+  /// rewind. Every one of them is newer than every entry of `log`.
+  refused_errors: usize,
 }
 
 impl<Error, S> Default for Store<Error, S> {
@@ -224,14 +249,23 @@ where
       hole_label_snapshots: self.hole_label_snapshots.clone(),
       log: self.log.clone(),
       stack: self.stack.clone(),
+      max_diagnostics: self.max_diagnostics,
+      refused_errors: self.refused_errors,
     }
   }
 }
 
 impl<Error, S> Store<Error, S> {
-  /// An empty store: no diagnostics, no log, no open labels.
+  /// An empty store with no ceiling: no diagnostics, no log, no open labels.
   #[inline(always)]
   pub(super) const fn new() -> Self {
+    Self::with_max_diagnostics(usize::MAX)
+  }
+
+  /// An empty store that keeps at most `max_diagnostics` records, all three channels together.
+  /// `usize::MAX` is no ceiling: it is what [`new`](Self::new) builds.
+  #[inline(always)]
+  pub(super) const fn with_max_diagnostics(max_diagnostics: usize) -> Self {
     Self {
       errs: BTreeMap::new(),
       label_snapshots: BTreeMap::new(),
@@ -241,6 +275,8 @@ impl<Error, S> Store<Error, S> {
       hole_label_snapshots: BTreeMap::new(),
       log: Vec::new(),
       stack: Vec::new(),
+      max_diagnostics,
+      refused_errors: 0,
     }
   }
 
@@ -253,9 +289,9 @@ impl<Error, S> Store<Error, S> {
   /// point for diagnostic labels. Cloning an empty stack does not allocate, so an
   /// unlabelled emission pays nothing beyond the parallel bookkeeping.
   ///
-  /// The debug assert is the parallel-map tripwire: the payload group and its label
-  /// snapshots are only ever grown here, one element each, so a span where they have drifted
-  /// apart means a write that went round this chokepoint — which is exactly the class of
+  /// The debug assert below the commit point is the parallel-map tripwire: the payload group and
+  /// its label snapshots are only ever grown here, one element each, so a span where they have
+  /// drifted apart means a write that went round this chokepoint — which is exactly the class of
   /// defect that voids the mark, the unwind and the replay for the channel that did it.
   ///
   /// # A record is panic-atomic
@@ -264,8 +300,8 @@ impl<Error, S> Store<Error, S> {
   /// anywhere in this body leaves no payload, no label entry and no log entry:
   /// [`errors`](Self::errors), [`labels`](Self::labels), replay, [`mark`](Self::mark) and
   /// [`rewind_to`](Self::rewind_to) all behave as if the call never happened. The caller code a
-  /// record can run is exactly two `S: Clone`s, the `S: Ord` comparisons of the two map descents,
-  /// and — when the span is one the channel already holds — the two `S::drop`s that
+  /// record that is kept can run is exactly two `S: Clone`s, the `S: Ord` comparisons of the two
+  /// map descents, and — when the span is one the channel already holds — the two `S::drop`s that
   /// [`entry`](BTreeMap::entry) runs on the key it was handed and did not need to store. All of
   /// it is above the commit point. The destructors belong in that list even though this path
   /// happens to keep them above the line: a generic parameter is the caller's type wherever it
@@ -300,11 +336,51 @@ impl<Error, S> Store<Error, S> {
   /// `len ≈ isize::MAX`, in a process already out of address space — happens after **both**
   /// groups exist, leaving the two maps holding a matching pair of empty groups rather than one
   /// orphan.
+  ///
+  /// # Past the ceiling an error is refused, and counted
+  ///
+  /// The first statement compares the log's length with the ceiling: two `usize`s, no caller
+  /// code. While the log holds `max_diagnostics` entries the error is **refused**. Nothing of it
+  /// is stored — no payload, no label snapshot, no log entry — and it is counted in
+  /// `refused_errors` instead, which [`mark`](Self::mark) adds to the log's length. Nothing is
+  /// compared and nothing is cloned on this path, the label stack and the span included.
+  ///
+  /// A refusal is panic-atomic by the same recipe. The caller code it runs is the destructors of
+  /// what it was handed and does not keep: the payload's, then the span's. That is
+  /// [`unwind_one`]'s release order, and it keeps an unwinding span destructor from dragging the
+  /// payload's into its unwind. Both run before anything is committed. The one step that can
+  /// fail without caller code, the checked increment of the count, comes before them, and the
+  /// commit, one store of that count, comes after them and cannot fail. So a destructor that
+  /// unwinds leaves the store exactly as it was, the mark and the count included.
+  ///
+  /// # Panics
+  ///
+  /// Refusing an error while `usize::MAX` errors are already refused panics before anything is
+  /// committed, which is the store's posture on a capacity overflow (see above). Only a target
+  /// whose `usize` is narrower than 64 bits can reach that count in practice.
   #[inline(always)]
   pub(super) fn record(&mut self, span: S, err: Error)
   where
     S: Ord + Clone,
   {
+    if self.log.len() >= self.max_diagnostics {
+      // ── refused: the one step that can fail without caller code, with nothing committed ──
+      let refused_errors = self
+        .refused_errors
+        .checked_add(1)
+        .expect("more errors refused past the ceiling than a `usize` counts");
+      // ── the destructors of what is not kept, the payload first ──
+      drop(err);
+      drop(span);
+      // ── commit: one store, which cannot fail ──
+      self.refused_errors = refused_errors;
+      return;
+    }
+    debug_assert!(
+      self.refused_errors_imply_a_full_log(),
+      "a log below its ceiling holds no refused error: an error is refused only while the log \
+       is full, and a kept record is unwound only once no refused error is left"
+    );
     // ── every fallible step, with nothing yet written ──
     let snapshot = self.stack.clone();
     let label_key = span.clone();
@@ -338,11 +414,27 @@ impl<Error, S> Store<Error, S> {
   /// emission tagged [`Severity::Warning`]. The shared `log` keeps both channels on one
   /// emission timeline, so a [`rewind_to`](Self::rewind_to) unwinds warnings and errors
   /// together in reverse emission order.
+  ///
+  /// Past the ceiling a warning is refused by the same first statement, and it is **not
+  /// counted**: the payload's destructor and then the span's run, and nothing is committed, so
+  /// the store, the mark included, is exactly what it was. A destructor that unwinds leaves it
+  /// that way too.
   #[inline(always)]
   pub(super) fn record_warning(&mut self, span: S, warning: Error)
   where
     S: Ord + Clone,
   {
+    if self.log.len() >= self.max_diagnostics {
+      // ── refused, and not counted: the payload's destructor, the span's, and no commit ──
+      drop(warning);
+      drop(span);
+      return;
+    }
+    debug_assert!(
+      self.refused_errors_imply_a_full_log(),
+      "a log below its ceiling holds no refused error: an error is refused only while the log \
+       is full, and a kept record is unwound only once no refused error is left"
+    );
     // Panic-atomic by the same recipe as [`record`](Self::record): both descents first, then a
     // commit that neither compares nor clones.
     let snapshot = self.stack.clone();
@@ -377,11 +469,26 @@ impl<Error, S> Store<Error, S> {
   /// the log entry is tagged [`Channel::SkippedRegion`]. The shared `log` keeps all record
   /// kinds on one emission timeline, so a [`rewind_to`](Self::rewind_to) unwinds hole records
   /// together with diagnostics in reverse emission order.
+  ///
+  /// Past the ceiling a hole is refused by the same first statement, and it is **not counted**:
+  /// the span's destructor runs, the only caller code a refused hole has (its payload is a
+  /// `usize`), and nothing is committed, so the store, the mark included, is exactly what it
+  /// was. A destructor that unwinds leaves it that way too.
   #[inline(always)]
   pub(super) fn record_hole(&mut self, span: S, skipped: usize)
   where
     S: Ord + Clone,
   {
+    if self.log.len() >= self.max_diagnostics {
+      // ── refused, and not counted: the span's destructor, and nothing to commit ──
+      drop(span);
+      return;
+    }
+    debug_assert!(
+      self.refused_errors_imply_a_full_log(),
+      "a log below its ceiling holds no refused error: an error is refused only while the log \
+       is full, and a kept record is unwound only once no refused error is left"
+    );
     // Panic-atomic by the same recipe as [`record`](Self::record); the payload is a `usize`,
     // so this body has one fewer fallible input than its two siblings.
     let snapshot = self.stack.clone();
@@ -411,26 +518,38 @@ impl<Error, S> Store<Error, S> {
     });
   }
 
-  /// The emission mark: the log's length, an opaque monotone counter that advances by exactly
-  /// one per recorded emission on every channel.
+  /// The emission mark: the log's length plus the errors refused above it, an opaque monotone
+  /// counter. A kept record moves it by one on every channel, and so does a refused error; a
+  /// refused warning or hole leaves it where it was.
+  ///
+  /// The sum is taken in `u64`, not in `usize`: with refused errors a mark can exceed
+  /// `usize::MAX` on a 32-bit target. It cannot overflow a `u64`, because it is at most the
+  /// number of emissions the store has been handed.
   #[inline(always)]
   pub(super) fn mark(&self) -> u64 {
-    self.log.len() as u64
+    self.log.len() as u64 + self.refused_errors as u64
   }
 
-  /// Unwinds every emission recorded after `mark`, newest first.
+  /// Undoes every emission recorded after `mark`, newest first: the refused errors above the
+  /// log, then its kept entries.
+  ///
+  /// The refused errors go first because they are newer than every kept entry (see the type
+  /// docs), and undoing one is a subtraction from the count, which runs no caller code. Only
+  /// once none is left does a step unwind a kept entry.
   ///
   /// Each span's group grows in emission order, so the matching entry to drop is always its
   /// last one. The [`Channel`] tag names the maps the entry was recorded in, so the pop lands
   /// in the right channel. The dropped entry takes its label snapshot with it — labels
   /// captured into an entry are rewound together with it, and any later re-emission re-derives
-  /// labels from the then-current stack. A mark beyond the current length is clamped: `Verbose`
+  /// labels from the then-current stack. A mark beyond the current one is clamped: `Verbose`
   /// keeps no per-mark bookkeeping, so a stale mark can only name a suffix that is already gone.
+  /// The clamp compares in `u64`: a mark this store returned can exceed `usize::MAX` on a 32-bit
+  /// target, and casting it to `usize` first would truncate it into a deeper rewind.
   ///
   /// # One unwound entry is panic-atomic
   ///
-  /// Each turn of the loop is one [`unwind_one`] interval, and the interval runs **no caller
-  /// code at all**. Both channel handles are taken before anything moves, exactly as
+  /// Each turn that unwinds a kept entry is one [`unwind_one`] interval, and the interval runs
+  /// **no caller code at all**. Both channel handles are taken before anything moves, exactly as
   /// [`record`](Self::record) takes both descents before it inserts anything, because a
   /// [`BTreeMap`] descent is where the caller's `S: Ord` and `S: Clone` run. Everything after
   /// that — popping each group, taking out the entry when a group empties, popping the log —
@@ -464,33 +583,48 @@ impl<Error, S> Store<Error, S> {
   where
     S: Ord + Clone,
   {
-    let mark = (mark as usize).min(self.log.len());
-    while self.log.len() > mark {
-      match self
-        .log
-        .last()
-        .expect("log length exceeds the mark")
-        .channel
-      {
-        Channel::Diagnostic(Severity::Error) => {
-          unwind_one(&mut self.errs, &mut self.label_snapshots, &mut self.log);
-        }
-        Channel::Diagnostic(Severity::Warning) => {
-          unwind_one(
-            &mut self.warns,
-            &mut self.warn_label_snapshots,
-            &mut self.log,
-          );
-        }
-        Channel::SkippedRegion => {
-          unwind_one(
-            &mut self.holes,
-            &mut self.hole_label_snapshots,
-            &mut self.log,
-          );
+    let mark = mark.min(self.mark());
+    while self.mark() > mark {
+      debug_assert!(
+        self.refused_errors_imply_a_full_log(),
+        "refused errors sit on a full log: a kept record is unwound only once none is left"
+      );
+      if let Some(left) = self.refused_errors.checked_sub(1) {
+        self.refused_errors = left;
+      } else {
+        match self
+          .log
+          .last()
+          .expect("log length exceeds the mark")
+          .channel
+        {
+          Channel::Diagnostic(Severity::Error) => {
+            unwind_one(&mut self.errs, &mut self.label_snapshots, &mut self.log);
+          }
+          Channel::Diagnostic(Severity::Warning) => {
+            unwind_one(
+              &mut self.warns,
+              &mut self.warn_label_snapshots,
+              &mut self.log,
+            );
+          }
+          Channel::SkippedRegion => {
+            unwind_one(
+              &mut self.holes,
+              &mut self.hole_label_snapshots,
+              &mut self.log,
+            );
+          }
         }
       }
     }
+  }
+
+  /// The ceiling's invariant (see the type docs): `refused_errors > 0` implies that the log
+  /// holds exactly `max_diagnostics` entries.
+  #[inline(always)]
+  fn refused_errors_imply_a_full_log(&self) -> bool {
+    self.refused_errors == 0 || self.log.len() == self.max_diagnostics
   }
 
   /// Pushes a *"while parsing X"* label onto the open-label stack; the next recorded
@@ -542,7 +676,19 @@ impl<Error, S> Store<Error, S> {
     &self.hole_label_snapshots
   }
 
-  /// Replays every recorded diagnostic — errors, warnings and holes — in emission order.
+  /// The ceiling on kept records: `usize::MAX` when the store was made with none.
+  #[inline(always)]
+  pub(super) const fn max_diagnostics(&self) -> usize {
+    self.max_diagnostics
+  }
+
+  /// The errors refused past the ceiling and not undone since.
+  #[inline(always)]
+  pub(super) const fn refused_errors(&self) -> usize {
+    self.refused_errors
+  }
+
+  /// Replays every kept diagnostic — errors, warnings and holes — in emission order.
   #[inline(always)]
   pub(super) fn diagnostics(&self) -> Diagnostics<'_, S, Error> {
     Diagnostics::new(
@@ -583,5 +729,12 @@ impl<Error, S> Store<Error, S> {
 /// entries already unwound stay unwound and the one that panicked is untouched, with nothing
 /// half-done in between. And a retried rewind still lands on exactly the clean result, because a
 /// rollback that cannot be resumed is not a rollback.
+///
+/// The ceiling adds cells on both sides, over stores made by its own constructor. A refusal
+/// joins the record sweep as it stands, over a full store: its oracle is already "the observable
+/// state, the count and the ceiling included, is what it was". Its cells with nothing to arm, a
+/// refused hole's payload and every refusal's comparisons and clones, are zero pins of their own.
+/// On the rollback side, undoing refused errors is pinned at zero on all four axes, and a rewind
+/// that crosses from refused errors into kept records is swept like any other.
 #[cfg(all(test, feature = "std"))]
 mod tests;

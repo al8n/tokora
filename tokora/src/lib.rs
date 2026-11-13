@@ -133,11 +133,11 @@ pub mod container;
 /// - [`Fatal`](emitter::Fatal): Fail-fast on first error (for runtime/REPL)
 #[cfg_attr(
   any(feature = "std", feature = "alloc"),
-  doc = " - [`Verbose`](emitter::Verbose): Collect all errors (for compiler diagnostics)"
+  doc = " - [`Verbose`](emitter::Verbose): Collect every error, or up to a ceiling (for compiler diagnostics)"
 )]
 #[cfg_attr(
   not(any(feature = "std", feature = "alloc")),
-  doc = " - `Verbose`: Collect all errors (for compiler diagnostics)"
+  doc = " - `Verbose`: Collect every error, or up to a ceiling (for compiler diagnostics)"
 )]
 /// - [`Silent`](emitter::Silent): Suppress errors (for speculative parsing)
 pub mod emitter;
