@@ -106,10 +106,10 @@ therefore not fail fast and would not run fast — it would quietly do the entir
 times over, and pass. Refusing an empty slice is the only thing standing between a plan bug and
 a four-fold increase in the wall clock this file exists to reduce.
 
-`SHARD_TOTAL` lives here and nowhere else. The workflow does not spell out `[0, 1, 2, 3]`; the
-`miri-shard-plan` job asks this file for the shard list and the Miri matrices are built from
-that output. A shard list and a shard count that are written down twice can disagree, and the
-disagreement that matters — a shard dropped from the list while the count stays — removes a
+`SHARD_TOTAL` lives here and nowhere else. The workflows do not spell out `[0, 1, 2, 3]`; each
+Miri workflow's `miri-shard-plan` job asks this file for the shard list, and its matrix is built
+from that output. A shard list and a shard count that are written down twice can disagree, and
+the disagreement that matters — a shard dropped from the list while the count stays — removes a
 quarter of the suite from CI without reddening anything.
 
 Sorting is Python's, not the shell's: `sort(1)` is locale-dependent and the runners are not all
@@ -149,7 +149,7 @@ from pathlib import Path
 
 # The number of shards. Changing this number is the whole knob: the matrices, the pinning and
 # the partition all follow from it. See the header for why it is not also written in the
-# workflow.
+# workflows.
 #
 # 4 is the knee. The integration work is ~50 minutes on the worst cell and divides cleanly, but
 # the indivisible lib runs are ~32 minutes each, so the cell cannot go below ~33 minutes however

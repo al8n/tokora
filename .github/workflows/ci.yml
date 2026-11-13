@@ -208,14 +208,17 @@ name: CI
 # ── THIS IS THE FAST LANE ───────────────────────────────────────────────────────────────────
 #
 # Every job here runs on `ubuntu-latest`. Since #216 so does every job in every OTHER workflow —
-# `miri.yml`, `perf.yml`, `pages.yml`, `loc.yml` and `release.yml` — and this repository now asks
-# for no macOS runner at all, from anywhere. That was 16 jobs per push, all of them Miri's apple
-# cells, and it was never Miri that needed the host: `criterion` in tokora's `[dev-dependencies]`
-# pulled `alloca`, whose cc-rs build script cannot be run for an apple target from Linux.
-# `miri.yml`'s `miri-tb` header carries the measurement and the in-CI run that proved it.
+# `miri-tb.yml`, `miri-sb.yml`, `perf.yml`, `pages.yml`, `loc.yml` and `release.yml` — and this
+# repository now asks for no macOS runner at all, from anywhere. That was 16 jobs per push, all of
+# them Miri's apple cells, and it was never Miri that needed the host: `criterion` in tokora's
+# `[dev-dependencies]` pulled `alloca`, whose cc-rs build script cannot be run for an apple target
+# from Linux. `miri-tb.yml`'s `miri-tb` header carries the measurement and the in-CI run that
+# proved it.
 #
-# The Miri matrices still live in `.github/workflows/miri.yml`, and that file's header carries
-# the measurement that separated them (#213): on 2026-08-05 five consecutive main commits merged
+# The Miri matrices live in workflows of their own, `.github/workflows/miri-tb.yml` (Tree Borrows)
+# and `.github/workflows/miri-sb.yml` (Stacked Borrows): one file, `miri.yml`, until 2026-11-13,
+# split then so that each model can be paused alone. Both headers carry the measurement that
+# separated Miri from this workflow (#213): on 2026-08-05 five consecutive main commits merged
 # with no CI verdict at all, because a run's conclusion is a property of the WHOLE run and the
 # 24 Miri cells never got runners. In the measured run, 34 of 59 jobs finished inside 50
 # minutes — two of them RED — and none of those 34 verdicts could be read. Their host is no
@@ -229,11 +232,11 @@ name: CI
 # header says what moving them did change.
 #
 # So the contract is: this workflow now holds correctness alone, its conclusion is the one a
-# merge waits for, and it is answerable in tens of minutes. `Miri` and `perf` each report on
-# their own clock, and this workflow's conclusion waits for neither. Adding a `runs-on:` here
-# that is not `ubuntu-latest` gives that up — the whole lane is then only as fast as its slowest
-# host, which is the state the Miri split undid, and the queue #157 measured at 269–347 minutes
-# is what a macOS runner request buys.
+# merge waits for, and it is answerable in tens of minutes. The two Miri workflows and `perf`
+# each report on their own clock, and this workflow's conclusion waits for none of them. Adding a
+# `runs-on:` here that is not `ubuntu-latest` gives that up — the whole lane is then only as fast
+# as its slowest host, which is the state #213's split undid, and the queue #157 measured at
+# 269–347 minutes is what a macOS runner request buys.
 
 # `paths-ignore` deliberately does NOT carry a blanket `**.md`: the guide chapters under
 # `tokora/src/guide/` are Markdown compiled as doctests through `include_str!` and `README.md`
@@ -266,13 +269,14 @@ concurrency:
   # into a group that already has one in progress cancels whichever run was PENDING there
   # regardless of that setting, and a main run only has to be pending for as long as it takes the
   # next push to arrive. That was the Miri matrices' doing when they were in this file (#141);
-  # they are in `miri.yml` now and keyed the same way, as is `perf.yml`, and this lane still
-  # queues behind runner availability whenever several branches are in flight — so the SHA
-  # keying is load-bearing in every file that carries it and is not a Miri workaround that the
-  # split retired.
+  # they are in `miri-tb.yml` and `miri-sb.yml` now and keyed the same way, as is `perf.yml`, and
+  # this lane still queues behind runner availability whenever several branches are in flight —
+  # so the SHA keying is load-bearing in every file that carries it and is not a Miri workaround
+  # that the split retired.
   #
   # `${{ github.workflow }}` leading the group is also what keeps the lanes apart: `CI-...`,
-  # `Miri-...` and `perf-...` are different groups, so none of them can cancel another's run.
+  # `Miri (Tree Borrows)-...`, `Miri (Stacked Borrows)-...` and `perf-...` are different groups,
+  # so none of them can cancel another's run.
   group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && github.sha || '' }}
   cancel-in-progress: ${{ !(github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
@@ -987,9 +991,9 @@ jobs:
   #
   # `--feature-powerset --depth 2` would close it and is the wrong trade at 38 features: ~703
   # configurations buys a gate nobody keeps. That was written when the Miri queue was also in
-  # this workflow and the argument was partly a wall-clock one; Miri is in `miri.yml` now and the
-  # argument is unchanged, because ~780 `cargo check` legs would themselves make this lane the
-  # slow one. So the legs are derived from the cfgs that ACTUALLY EXIST, and
+  # this workflow and the argument was partly a wall-clock one; Miri has workflows of its own now
+  # and the argument is unchanged, because ~780 `cargo check` legs would themselves make this
+  # lane the slow one. So the legs are derived from the cfgs that ACTUALLY EXIST, and
   # `ci/feature_cfg_coverage.py` is what stops that derivation going stale — a fixed leg list is
   # a snapshot, and the next `all(...)` predicate someone writes would be uncovered again with
   # green CI.

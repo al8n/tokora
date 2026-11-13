@@ -1,8 +1,27 @@
-name: Miri
+name: Miri (Stacked Borrows)
 
+# ── ONE HALF OF WHAT `miri.yml` WAS ─────────────────────────────────────────────────────────
+#
+# Until 2026-11-13 one workflow, `miri.yml`, carried both Miri matrices. It is two now: this one,
+# Stacked Borrows, and `.github/workflows/miri-tb.yml`, Tree Borrows. GitHub pauses a WORKFLOW,
+# never a job, so while the two models shared a file neither could be paused without the other;
+# split, either can be paused alone while the other keeps reporting.
+#
+# It is a scheduling change, not a coverage change. Every cell below runs what it ran in
+# `miri.yml` — the same matrix, steps, flags, `fail-fast`, cache key and script — and reports
+# under the same name, `miri-sb-<target>-shard<n>`. The one thing no longer shared is the shard
+# plan: a `needs:` cannot reach across workflows, so each half runs its own copy of
+# `miri-shard-plan` (see the job).
+#
+# The release asks for both halves by file name, in `release.yml`'s `require_miri_success`. A
+# paused half therefore holds every release until it has run green on the release commit again.
+#
+# The rest of this header is `miri.yml`'s history, the same in both halves; keep it so. "Miri"
+# in it means both models.
+#
 # ── THE SLOW LANE ───────────────────────────────────────────────────────────────────────────
 #
-# Miri lives in its own workflow so that `CI` can reach a CONCLUSION. Measured 2026-08-05 on
+# Miri lives in workflows of its own so that `CI` can reach a CONCLUSION. Measured 2026-08-05 on
 # `main` (#213): five consecutive main commits merged with no CI verdict at all — one run sat
 # `queued` for 3h02m — while `loc` and `Deploy mdBook` completed on the same refs in the same
 # window, so it was never an outage.
@@ -14,31 +33,32 @@ name: Miri
 # `name-collision-probe` as well on the next one) sitting inside runs whose conclusion stayed
 # `null`. A verdict that never arrives is not a slow gate, it is no gate.
 #
-# WHY MIRI AND NOTHING ELSE. #213 proposed moving the sanitizers and the cross matrix here too.
-# The workflow said otherwise: `sanitizer` and `cross` are `ubuntu-latest`, and every one of
+# WHY MIRI AND NOTHING ELSE. #213 proposed moving the sanitizers and the cross matrix out of `CI`
+# too. The workflow said otherwise: `sanitizer` and `cross` are `ubuntu-latest`, and every one of
 # their cells completed in the measured run. When the split was made, the 16 apple-darwin cells
-# of the two matrices below were the only macOS-bound cells in the repository — the 269–347
+# of the two Miri matrices were the only macOS-bound cells in the repository — the 269–347
 # minute macOS queue #157 measured, and the whole of it — so the line was drawn where the hosts
-# were.
+# were. The performance lanes left `CI` much later, on 2026-11-13, and for another reason: so
+# that they can be paused. They are `perf.yml`.
 #
-# THE HOSTS ARE ALL THE SAME NOW, AND THIS FILE STAYS SPLIT ANYWAY. #216 removed the macOS
-# requirement: every cell below is `ubuntu-latest`, and the repository has no macOS-bound job
+# THE HOSTS ARE ALL THE SAME NOW, AND MIRI STAYS SPLIT ANYWAY. #216 removed the macOS
+# requirement: every Miri cell is `ubuntu-latest`, and the repository has no macOS-bound job
 # left in any workflow. That retires the argument the split was originally made on, and NOT the
 # split — what makes `CI` unreadable is a run that cannot conclude, and Miri is still the long
 # pole by an order of magnitude. Before sharding, one Tree-Borrows cell was 116.9 minutes; the
-# whole of `CI` answers in tens of minutes. Folding these 25 cells back in would put that answer
+# whole of `CI` answers in tens of minutes. Folding the Miri cells back in would put that answer
 # behind them again for a different reason than last time and with the same result, so the
-# contract is unchanged: `CI` is what a merge waits for, `Miri` reports on its own clock.
+# contract is unchanged: `CI` is what a merge waits for, and Miri reports on its own clock.
 #
 # The SCHEDULING-not-coverage promise the split was made under is also unchanged by #216. Every
-# job, matrix cell and step below runs what it ran before: same targets, same shards, same
+# Miri job, matrix cell and step runs what it ran before: same targets, same shards, same
 # `MIRIFLAGS`, same scripts, same 24 cells plus the plan job. Only `runs-on` changed.
 #
-# ── WHAT THESE 24 CELLS DO NOT COVER, AND WHY IT IS NOT AN OVERSIGHT: `rowan` ───────────────
+# ── WHAT THE 24 MIRI CELLS DO NOT COVER, AND WHY IT IS NOT AN OVERSIGHT: `rowan` ────────────
 #
-# Every cell below runs `ci/miri_sb.sh` or `ci/miri_tb.sh`, and those run two feature sets —
+# Every Miri cell runs `ci/miri_sb.sh` or `ci/miri_tb.sh`, and those run two feature sets —
 # `logos` and `logos,unstable-raw`. `rowan` is in neither, and it is not in `default`, so no
-# cell in this workflow has ever COMPILED the lossless CST materialization path. Measured on
+# Miri cell has ever COMPILED the lossless CST materialization path. Measured on
 # `543ce6d`: 66 mentions of `feature = "rowan"` across 8 files under `tokora/src`, of which 41
 # are `#[cfg]` gates whose code exists only when the feature is on. Across all three targets and
 # both models that is ZERO coverage of that path, not reduced coverage — and it is the path
@@ -58,8 +78,9 @@ name: Miri
 # attempt, PR #211, is a draft whose own description says the immutable path still fails, so
 # this is not a wait measured in weeks. The two scripts carry the full account with backtraces
 # and the exact repro command — read `ci/miri_sb.sh` before adding a feature here. Recorded for
-# 0.9.0 by al8n/tokit#235; the sibling notes are in both scripts, in `tokora/Cargo.toml`'s
-# `rowan` feature, and in the changelog's known-limitation entry.
+# 0.9.0 by al8n/tokit#235; the sibling notes are in both scripts, in the other Miri workflow's
+# copy of this header, in `tokora/Cargo.toml`'s `rowan` feature, and in the changelog's
+# known-limitation entry.
 
 # Triggers, `paths-ignore` and the concurrency rule are deliberately identical to
 # `.github/workflows/ci.yml`; read the comments there for why the ignore list carries no blanket
@@ -85,15 +106,16 @@ on:
     - cron: "0 1 1 * *"
 
 concurrency:
-  # Same expression as `CI`'s, and `${{ github.workflow }}` leading it is what keeps the two
-  # lanes independent: `CI-refs/heads/main-<sha>` and `Miri-refs/heads/main-<sha>` are different
-  # groups, so neither lane can ever cancel the other's run. The rest is #141 unchanged — one
-  # in-flight run per ref, except on `main`, where the group is keyed on the commit SHA so that
-  # every main commit gets its own group and its own verdict. Do NOT collapse that back to one
-  # group per ref: `cancel-in-progress: false` does not protect a main run on its own, because a
-  # run queued into a group that already has one in progress cancels whichever run was PENDING
-  # there regardless of that setting — and this workflow is precisely the one whose runs stay
-  # pending long enough for the next push to do it.
+  # Same expression as `CI`'s, and `${{ github.workflow }}` leading it is what keeps the lanes
+  # independent: `CI-refs/heads/main-<sha>`, `Miri (Tree Borrows)-refs/heads/main-<sha>` and
+  # `Miri (Stacked Borrows)-refs/heads/main-<sha>` are different groups, so no lane can ever
+  # cancel another's run, which is also why the two Miri halves must keep different `name:`s.
+  # The rest is #141 unchanged — one in-flight run per ref, except on `main`, where the group is
+  # keyed on the commit SHA so that every main commit gets its own group and its own verdict. Do
+  # NOT collapse that back to one group per ref: `cancel-in-progress: false` does not protect a
+  # main run on its own, because a run queued into a group that already has one in progress
+  # cancels whichever run was PENDING there regardless of that setting — and this workflow is
+  # precisely the one whose runs stay pending long enough for the next push to do it.
   group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') && github.sha || '' }}
   cancel-in-progress: ${{ !(github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
@@ -108,12 +130,12 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  # ── Gate: Miri — the shard plan the two Miri matrices are built from ────────
+  # ── Gate: Miri — the shard plan this workflow's matrix is built from ────────
   # Miri sets this workflow's wall clock on its own, and set the whole of `CI`'s before the
   # split; Miri and only Miri is sharded.
   #
   # The shard COUNT lives in `ci/miri_shard.py` and the LIST is generated from it here, so the
-  # matrices below never spell out `[0, 1, 2, 3]`: a count and a list written down separately can
+  # matrix below never spells out `[0, 1, 2, 3]`: a count and a list written down separately can
   # disagree silently, dropping a quarter of the suite from Miri while every job stays green.
   #
   # `ci/miri_shard.py` re-proves the whole partition inside every Miri job anyway; running it
@@ -121,6 +143,11 @@ jobs:
   # `cargo miri setup` in every cell. `selftest` runs before `plan` for the reason the changelog
   # self-test runs before its gate in `CI`: a self-test CI never exercises rots, and a green
   # `plan` proves nothing about a guard nobody has watched fail on cue.
+  #
+  # This job is the one thing the two Miri workflows do not share: each runs an identical copy,
+  # because a `needs:` cannot reach across workflows. Both copies read the same
+  # `ci/miri_shard.py` on the same commit, so they cannot plan differently, and either half still
+  # has its plan while the other is paused.
   #
   # No `rustup` step on purpose — it needs `cargo metadata --no-deps` and nothing else, and must
   # not add minutes to the head of the critical path it exists to shorten.
@@ -137,72 +164,10 @@ jobs:
         id: plan
         run: python3 ci/miri_shard.py plan
 
-  # ── Gate: Miri (Tree Borrows) ───────────────────────────────────────────────
-  # `fail-fast: false` on both Miri matrices, because sharding changes what a fast failure costs:
-  # the first shard to go red would otherwise cancel every other shard on every target, leaving
-  # a report that says nothing about the rest of the suite and a next push that re-runs all of it.
-  #
-  # ── WHY THE APPLE CELLS NO LONGER NEED A macOS HOST ─────────────────────────
-  # They ran on `macos-latest` until #216, under an `os` matrix axis and three `exclude` entries
-  # per matrix that pinned each target to the only host that could build it. Miri was never the
-  # reason — it interprets a TARGET, and `cargo miri setup --target x86_64-apple-darwin` /
-  # `--target aarch64-apple-darwin` each build a full darwin sysroot (core, alloc, std, test,
-  # panic_unwind, proc_macro) on an ubuntu runner in about fourteen seconds. `cargo build` was:
-  # both apple legs died before Miri ran, in `alloca v0.4.0`'s cc-rs build script, which invokes
-  # the host `cc` with `-arch x86_64 -mmacosx-version-min=10.7` (and `-arch arm64
-  # -mmacosx-version-min=11.0`) — flags a Linux `cc` rejects and only Apple clang plus the macOS
-  # SDK can serve.
-  #
-  # `alloca` was reached through exactly one edge: `criterion`, an unconditional entry in
-  # tokora's `[dev-dependencies]`. Cargo resolves dev-dependencies per PACKAGE, not per target,
-  # so `--test span` built criterion too. #216 moved the five benches into the `tokora-benches`
-  # workspace member and criterion with them — cargo has no optional dev-dependency, so a
-  # package boundary is the only available seam — and the apple legs then build and interpret on
-  # ubuntu exactly as the linux one does. Measured in CI, on a Linux runner, before the fix was
-  # written: run 31082043450, job 92552854128 (branch `ci/miri-linux-probe-216`, `ubuntu-latest`)
-  # built both darwin sysroots, got exit 101 from `cargo miri test --target x86_64-apple-darwin`
-  # inside `alloca`'s build script on the `-arch` flag, and then — with `criterion = "0.8"`
-  # deleted from `tokora/Cargo.toml` and nothing else touched — passed the identical command on
-  # BOTH apple targets, 95 tests each (3 `downcast` + 2 `dialect_anchor` + 90 `span`).
-  #
-  # So there is no `os` axis here any more, and no `exclude` list: every cell is `ubuntu-latest`.
-  # Putting `criterion` back into `tokora/Cargo.toml` — or adding any dev-dependency with a
-  # cc-rs build script — puts these 16 cells back on a macOS runner and the 269–347 minute queue
-  # #157 measured back in front of them. `tokora/Cargo.toml` says so where the table is.
-  miri-tb:
-    name: miri-tb-${{ matrix.target }}-shard${{ matrix.shard }}
-    needs: miri-shard-plan
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-apple-darwin
-          - aarch64-apple-darwin
-        cfg:
-          - all_tests
-        # Generated from `SHARD_TOTAL` in `ci/miri_shard.py`; never written out here.
-        shard: ${{ fromJSON(needs.miri-shard-plan.outputs.shards) }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Cache cargo build and registry
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-miri-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-miri-
-      - name: Miri
-        run: |
-          bash ci/miri_tb.sh ${{ matrix.target }} ${{ matrix.cfg }} ${{ matrix.shard }}
-
   # ── Gate: Miri (Stacked Borrows) ────────────────────────────────────────────
-  # Deliberately the same matrix as `miri-tb` above, `runs-on` included; the note there on why
-  # the apple cells no longer need a macOS host covers these eight too.
+  # Deliberately the same matrix as `miri-tb` in `miri-tb.yml`, `runs-on` included; the notes
+  # there on `fail-fast: false` and on why the apple cells no longer need a macOS host cover
+  # these cells too.
   miri-sb:
     name: miri-sb-${{ matrix.target }}-shard${{ matrix.shard }}
     needs: miri-shard-plan
