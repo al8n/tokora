@@ -61,7 +61,7 @@ set -euo pipefail
 # an x86_64 runner's numbers are its own and are not comparable to a developer's. What carries
 # across is the shape — a floor of exactly zero and a plant an order of magnitude above the
 # threshold — and the `icount` job re-checks the floor on the host it actually runs on every
-# time this workflow is dispatched on `main`.
+# time `perf.yml` is dispatched on `main`.
 #
 #   1. **The gate's own floor.** `--self` builds the identical source twice, in two directories,
 #      into two target directories, and measures both. All thirteen workloads came back at a

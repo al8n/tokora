@@ -101,7 +101,7 @@ set -euo pipefail
 
 # ── The threshold, and the measurement it came from ─────────────────────────────────────────
 #
-# DERIVED, on the runner, in this configuration. Re-derive it by dispatching this workflow: a
+# DERIVED, on the runner, in this configuration. Re-derive it by dispatching `perf.yml`: a
 # dispatch runs `--self`, and so does any pull request whose `tokora/` tree is the merge-base's.
 #
 # **The self-comparison, 2026-08-29, `ubuntu-latest`, run 33225301618.** Same commit both sides,
