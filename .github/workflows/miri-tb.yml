@@ -79,8 +79,7 @@ name: Miri (Tree Borrows)
 # this is not a wait measured in weeks. The two scripts carry the full account with backtraces
 # and the exact repro command — read `ci/miri_sb.sh` before adding a feature here. Recorded for
 # 0.9.0 by al8n/tokit#235; the sibling notes are in both scripts, in the other Miri workflow's
-# copy of this header, in `tokora/Cargo.toml`'s `rowan` feature, and in the changelog's
-# known-limitation entry.
+# copy of this header, and in the changelog's known-limitation entry.
 
 # Triggers, `paths-ignore` and the concurrency rule are deliberately identical to
 # `.github/workflows/ci.yml`; read the comments there for why the ignore list carries no blanket
@@ -196,7 +195,7 @@ jobs:
   # Putting `criterion` back into `tokora/Cargo.toml` — or adding any dev-dependency with a
   # cc-rs build script — puts the 16 apple cells, eight here and eight in `miri-sb.yml`, back on
   # a macOS runner and the 269–347 minute queue #157 measured back in front of them.
-  # `tokora/Cargo.toml` says so where the table is.
+  # `tokora-benches/Cargo.toml`'s header, where criterion lives now, says why.
   miri-tb:
     name: miri-tb-${{ matrix.target }}-shard${{ matrix.shard }}
     needs: miri-shard-plan

@@ -79,8 +79,7 @@ name: Miri (Stacked Borrows)
 # this is not a wait measured in weeks. The two scripts carry the full account with backtraces
 # and the exact repro command — read `ci/miri_sb.sh` before adding a feature here. Recorded for
 # 0.9.0 by al8n/tokit#235; the sibling notes are in both scripts, in the other Miri workflow's
-# copy of this header, in `tokora/Cargo.toml`'s `rowan` feature, and in the changelog's
-# known-limitation entry.
+# copy of this header, and in the changelog's known-limitation entry.
 
 # Triggers, `paths-ignore` and the concurrency rule are deliberately identical to
 # `.github/workflows/ci.yml`; read the comments there for why the ignore list carries no blanket

@@ -55,7 +55,7 @@
 #      the leg: split the alternatives finely enough and no single feature is common to all of
 #      them while the CONFIGURATION the leg protects is still reproduced by none. This case
 #      appends two further legs that compile one of the leg's shared suites with a different
-#      extra feature each — the per-family split `tokora/Cargo.toml` already discusses — strips
+#      extra feature each — a per-family split of the umbrella, in miniature — strips
 #      the leg's `src/` sites as F does, and demands the same refusal. It is the case that tells
 #      "is there a feature they all have" apart from "does another leg reproduce this
 #      configuration"; the first answers no here and recommends deletion.

@@ -204,7 +204,7 @@ jobs:
   # return the same number.
   #
   # It exists because #259 consolidates 259 files and 338 `impl` blocks of
-  # `tokora/src/parser/many` into shared engines, under a requirement that performance be
+  # `tokora/src/combinator/many` into shared engines, under a requirement that performance be
   # unchanged. That matrix exists BECAUSE each combination is monomorphised, so consolidating it
   # is exactly the shape that loses inlining — and "did we lose inlining" is what an instruction
   # count directly answers. The criterion benches cannot: the repetition engine is a third to a
@@ -264,13 +264,13 @@ jobs:
   # bookkeeping. `workflow_dispatch` is kept: dispatching this workflow ON `main` makes HEAD its
   # own merge-base, which runs the self-comparison and re-checks the zero the threshold rests on.
   #
-  # There is deliberately NO `paths:` filter narrowing this to `tokora/src/parser/**`. The
+  # There is deliberately NO `paths:` filter narrowing this to `tokora/src/combinator/**`. The
   # repetition engines are generic over the lexer, the emitter, the container and `InputRef`, and
   # they are `#[inline]`-heavy across all four: a change in `tokora/src/input/`, `src/lexer/`,
   # `src/container/`, `src/emitter/` or a dependency requirement in `tokora/Cargo.toml` can cost
-  # them their inlining without touching a file under `parser/many/`. A filter narrower than the
-  # code a gate protects is the defect this repository has hit six times (#181, #195, #200, #208,
-  # #217, #220), and it would exempt exactly the regressions that are hardest to attribute.
+  # them their inlining without touching a file under `combinator/many/`. A filter narrower than
+  # the code a gate protects is the defect this repository has hit six times (#181, #195, #200,
+  # #208, #217, #220), and it would exempt exactly the regressions that are hardest to attribute.
   icount:
     name: instruction counts
     runs-on: ubuntu-latest

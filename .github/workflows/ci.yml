@@ -66,19 +66,19 @@ name: CI
 # job lives now — on `main` that runs exactly this self-comparison, on the host the job actually
 # gets.
 #
-# Both gates' self-tests ARE in the set above: neither is Linux-only, both need only python3, and
-# both run in about a second:
+# Both gates' self-tests belong in the set above: neither is Linux-only, both need only python3,
+# and both run in about a second:
 #
 #     bash ci/icount/compare_selftest.sh
 #     bash ci/wallclock/compare_selftest.sh
 #
-# It is the instruction-count gate's own noise floor — the same commit built and measured twice —
-# and it is what the `icount` job's threshold rests on. Dispatching `perf.yml` on `main`, where
-# that job lives now, runs exactly that comparison on a runner, which is the way to re-check it
-# without a Linux box.
+# `ci/icount/run.sh --self` is the instruction-count gate's own noise floor — the same commit
+# built and measured twice — and it is what the `icount` job's threshold rests on. Dispatching
+# `perf.yml` on `main`, where that job lives now, runs exactly that comparison on a runner, which
+# is the way to re-check it without a Linux box.
 #
 # Two of those lines carry a package selection that is not decoration. The workspace declares
-# `default-members = ["tokora"]` — see the root `Cargo.toml` for why — so a bare `cargo clippy`
+# `default-members = ["tokora"]` — the `clippy` job below says why — so a bare `cargo clippy`
 # or `cargo bench` at the root does NOT see `tokora-benches`, the member the five benches moved
 # to in #216. `--workspace` on the clippy line and `-p tokora-benches` on the bench line are
 # what keep those five targets in the local set; without them both commands are green and build
@@ -368,7 +368,7 @@ jobs:
       - name: clippy --workspace --all-features --all-targets --no-deps -D warnings
         run: cargo +stable clippy --workspace --all-features --all-targets --no-deps -- -D warnings
 
-  # ── Gate: MSRV (the workspace `rust-version`; see the policy note in Cargo.toml) ─
+  # ── Gate: MSRV (the workspace `rust-version`) ───────────────────────────────
   msrv:
     name: msrv
     runs-on: ubuntu-latest
