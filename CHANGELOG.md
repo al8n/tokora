@@ -69,6 +69,53 @@ and will red until they do.
 
 ## Unreleased
 
+### Source-breaking additions that can change behaviour with *no diagnostic at the call site*
+
+This release adds three public names to a type that already shipped, and the two-sided
+name-collision probe measures two of them **silent** in one of their two spellings. Disclosed
+here because a consumer cannot discover it from a compiler diagnostic.
+
+#### `Verbose::max_diagnostics` and `Verbose::refused_errors` — SILENT on a discarded return
+
+**You are exposed if you wrote a `max_diagnostics` or a `refused_errors` method of your own on
+[`Verbose`](https://docs.rs/tokora/latest/tokora/emitter/struct.Verbose.html)**, the collecting
+emitter every release in this changelog has shipped. An extension trait was the only way to carry
+a ceiling or a count beside it; that helper now competes with a tokora method of the same name on
+the same receiver, and an inherent item wins the pick.
+
+The rows of `ci/name_collision/`, two-sided, base `ade8303` against this branch:
+
+```text
+loud    max_diagnostics/used              base=witness=1  head=no-compile
+SILENT  max_diagnostics/discarded         base=witness=1  head=witness=0
+loud    refused_errors/used               base=witness=1  head=no-compile
+SILENT  refused_errors/discarded          base=witness=1  head=witness=0
+loud    with_max_diagnostics/used         base=witness=1  head=no-compile
+loud    with_max_diagnostics/discarded    base=witness=1  head=no-compile
+```
+
+On the two discarded rows both sides compile, **neither emits any diagnostic**, and the two run
+different programs: yours before, tokora's after. The `used` rows are `loud` on the same probe
+(`E0308` against the consumer's `-> u8`), so a **discarded return** is the whole of the
+difference: both getters return a plain `usize`, which carries no `#[must_use]` and which
+`unused_must_use` does not fire on, the same discriminator every earlier silent row came down to.
+**The remedy is UFCS**: `MyTrait::max_diagnostics(&verbose)` pins your method by name and is
+immune to this.
+
+Both `with_max_diagnostics` rows are `loud` by the probe's own arity (`E0061`: the probe's
+consumer takes no argument and tokora's takes one). That verdict is about the probe, not the name:
+an associated function of your own with tokora's signature is not probed, so read it as unprobed
+rather than as safe.
+
+`#[must_use]` was considered and rejected for the reason it was rejected for
+`RecursionLimiter::unlimited` and `Cst::resource_trips`: it does not reach a consumer who
+*assigns* the result, the silent case that matters and the one the harness cannot generate, while
+firing on legitimate discards. Disclosure is the honest instrument.
+
+Recorded in `ci/name_collision/disclosed.txt`. It is disclosed on **this** branch because the
+probe's inventory is a two-sided delta: once this merges the names exist on both sides, the rows
+leave every future plan, and the harness can never re-litigate them.
+
 ### Added
 
 - **`Verbose::with_max_diagnostics`, a ceiling on the diagnostics `Verbose` keeps, with
