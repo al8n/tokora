@@ -1791,6 +1791,53 @@ fn hole_wrap_rewinds_with_the_log() {
   assert_eq!(sink.events().len(), 1, "wrap, tokens, and Diag all unwind");
 }
 
+/// The capped inner's kept records and refused errors, read off the sink.
+fn inner_tally(sink: &VerboseSink<'_>) -> (usize, usize) {
+  (
+    sink.inner_ref().diagnostics().len(),
+    sink.inner_ref().refused_errors(),
+  )
+}
+
+/// An inner `Verbose` with a ceiling rewinds with the log like any other: the row the sink
+/// captures at `checkpoint` holds the inner's mark, which counts the errors it refused. So a
+/// rolled-back branch that emitted past the ceiling leaves the inner's count and mark as they
+/// were, and a kept one leaves them moved.
+#[test]
+fn a_capped_inner_rewinds_its_refused_errors_with_the_log() {
+  let mut sink: VerboseSink<'_> = Sink::new("", Verbose::with_max_diagnostics(2), profile());
+  emit_error(&mut sink, 0, 1);
+  emit_error(&mut sink, 1, 2);
+  emit_error(&mut sink, 2, 3);
+  assert_eq!(
+    inner_tally(&sink),
+    (2, 1),
+    "the ceiling keeps two and counts the third"
+  );
+
+  let rolled_back = Emitter::<MiniLexer<'_>>::checkpoint(&mut sink);
+  emit_error(&mut sink, 3, 4);
+  emit_error(&mut sink, 4, 5);
+  assert_eq!(inner_tally(&sink), (2, 3));
+  rewind(&mut sink, rolled_back);
+  assert_eq!(
+    inner_tally(&sink),
+    (2, 1),
+    "the rolled-back branch's refused errors are uncounted with its Diag slots"
+  );
+  assert_eq!(sink.events().len(), 3);
+
+  let kept = Emitter::<MiniLexer<'_>>::checkpoint(&mut sink);
+  emit_error(&mut sink, 5, 6);
+  Emitter::<MiniLexer<'_>>::release(&mut sink, kept);
+  assert_eq!(
+    inner_tally(&sink),
+    (2, 2),
+    "the kept branch's refused error stays counted"
+  );
+  assert_eq!(sink.events().len(), 4);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // #177 — the wrap start is FLOORED at the youngest positional fact
 // ═══════════════════════════════════════════════════════════════════════════════

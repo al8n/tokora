@@ -729,5 +729,12 @@ impl<Error, S> Store<Error, S> {
 /// entries already unwound stay unwound and the one that panicked is untouched, with nothing
 /// half-done in between. And a retried rewind still lands on exactly the clean result, because a
 /// rollback that cannot be resumed is not a rollback.
+///
+/// The ceiling adds cells on both sides, over stores made by its own constructor. A refusal
+/// joins the record sweep as it stands, over a full store: its oracle is already "the observable
+/// state, the count and the ceiling included, is what it was". Its cells with nothing to arm, a
+/// refused hole's payload and every refusal's comparisons and clones, are zero pins of their own.
+/// On the rollback side, undoing refused errors is pinned at zero on all four axes, and a rewind
+/// that crosses from refused errors into kept records is swept like any other.
 #[cfg(all(test, feature = "std"))]
 mod tests;

@@ -1,4 +1,5 @@
 use super::Store;
+use crate::emitter::DiagnosticKind;
 use core::cell::Cell;
 use std::{
   format,
@@ -205,9 +206,11 @@ impl Channel {
   }
 
   /// Everything a caller can see of this channel: the payload map, the **label map beside
-  /// it**, the mark, and the replay. The label map is in here deliberately — the record
-  /// orphan is invisible to any check that reads only the payload side of a representation
-  /// documented as parallel, which is exactly how it survived the previous matrix.
+  /// it**, the mark, the refused-error count and the ceiling, and the replay. The label map is
+  /// in here deliberately — the record orphan is invisible to any check that reads only the
+  /// payload side of a representation documented as parallel, which is exactly how it survived
+  /// the previous matrix. The count and the ceiling are in here for the same reason: a sweep
+  /// whose oracle is "nothing changed" checks only what this prints.
   fn observable(self, store: &Store<BombErr, BombSpan>) -> String {
     let (payload, labels) = match self {
       Channel::Error => (
@@ -228,17 +231,29 @@ impl Channel {
       .map(|d| format!("{:?}@{:?}{:?}", d.kind(), d.span(), d.labels()))
       .collect();
     format!(
-      "mark={} payload={payload} labels={labels} replay={replay:?}",
-      store.mark()
+      "mark={} refused_errors={} max_diagnostics={} payload={payload} labels={labels} \
+       replay={replay:?}",
+      store.mark(),
+      store.refused_errors(),
+      store.max_diagnostics()
     )
   }
 }
 
-/// A store with one `channel` record at each span in `spans`, in order.
+/// A store with one `channel` record at each span in `spans`, in order, and no ceiling.
 fn seeded(channel: Channel, spans: &[usize]) -> Store<BombErr, BombSpan> {
-  let mut store = Store::<BombErr, BombSpan>::new();
+  seeded_under(channel, spans, usize::MAX)
+}
+
+/// A store made by its own constructor with a ceiling of `max`: a `channel` record at each of
+/// the first `max` spans, then an **error** at each span past them, which the full store refuses
+/// and counts. So a store of any channel can carry refused errors above its kept records; with
+/// `max` at `usize::MAX` this is `seeded`.
+fn seeded_under(channel: Channel, spans: &[usize], max: usize) -> Store<BombErr, BombSpan> {
+  let mut store = Store::<BombErr, BombSpan>::with_max_diagnostics(max);
   for (seq, &span) in spans.iter().enumerate() {
-    channel.write(&mut store, BombSpan(span), seq as u32);
+    let writer = if seq < max { channel } else { Channel::Error };
+    writer.write(&mut store, BombSpan(span), seq as u32);
   }
   store
 }
@@ -247,7 +262,18 @@ fn seeded(channel: Channel, spans: &[usize]) -> Store<BombErr, BombSpan> {
 /// none of them armed. Both the sweeps and the zero-pin below start here, so "how many" is one
 /// measurement rather than two that can drift apart.
 fn record_calls(channel: Channel, axis: Axis, seed: &[usize], at_span: usize) -> usize {
-  let mut cal = seeded(channel, seed);
+  record_calls_under(channel, axis, seed, at_span, usize::MAX)
+}
+
+/// `record_calls` over a store seeded under a ceiling of `max` (see `seeded_under`).
+fn record_calls_under(
+  channel: Channel,
+  axis: Axis,
+  seed: &[usize],
+  at_span: usize,
+  max: usize,
+) -> usize {
+  let mut cal = seeded_under(channel, seed, max);
   axis.arm(0);
   channel.write(&mut cal, BombSpan(at_span), 99);
   let calls = axis.count();
@@ -257,7 +283,18 @@ fn record_calls(channel: Channel, axis: Axis, seed: &[usize], at_span: usize) ->
 
 /// How many `axis` calls `rewind_to(keep)` makes over a store seeded at `spans`, none armed.
 fn rewind_calls(channel: Channel, axis: Axis, spans: &[usize], keep: usize) -> usize {
-  let mut cal = seeded(channel, spans);
+  rewind_calls_under(channel, axis, spans, keep, usize::MAX)
+}
+
+/// `rewind_calls` over a store seeded under a ceiling of `max` (see `seeded_under`).
+fn rewind_calls_under(
+  channel: Channel,
+  axis: Axis,
+  spans: &[usize],
+  keep: usize,
+  max: usize,
+) -> usize {
+  let mut cal = seeded_under(channel, spans, max);
   axis.arm(0);
   cal.rewind_to(keep as u64);
   let calls = axis.count();
@@ -268,7 +305,13 @@ fn rewind_calls(channel: Channel, axis: Axis, spans: &[usize], keep: usize) -> u
 /// Arms every call of `axis` that one record at `at_span` makes into a store seeded at
 /// `seed`, and asserts each one leaves the channel byte-for-byte as it was.
 fn record_sweep(channel: Channel, axis: Axis, seed: &[usize], at_span: usize) {
-  let calls = record_calls(channel, axis, seed, at_span);
+  record_sweep_under(channel, axis, seed, at_span, usize::MAX);
+}
+
+/// `record_sweep` over a store seeded under a ceiling of `max` (see `seeded_under`). With `max`
+/// at most `seed.len()` the store is full, and the write under test is refused.
+fn record_sweep_under(channel: Channel, axis: Axis, seed: &[usize], at_span: usize, max: usize) {
+  let calls = record_calls_under(channel, axis, seed, at_span, max);
   assert!(
     calls > 0,
     "`{}` runs no {} the sweep can arm, so this cell measures nothing",
@@ -277,7 +320,7 @@ fn record_sweep(channel: Channel, axis: Axis, seed: &[usize], at_span: usize) {
   );
 
   for at in 1..=calls {
-    let mut store = seeded(channel, seed);
+    let mut store = seeded_under(channel, seed, max);
     let before = channel.observable(&store);
     axis.arm(at);
     let caught = catch_unwind(AssertUnwindSafe(|| {
@@ -309,13 +352,19 @@ fn record_sweep(channel: Channel, axis: Axis, seed: &[usize], at_span: usize) {
 /// must still land on the clean result: a rollback whose only ordering authority has already
 /// been popped cannot be resumed, which is the shape of the defect this pins.
 fn rewind_sweep(channel: Channel, axis: Axis, spans: &[usize], keep: usize) {
+  rewind_sweep_under(channel, axis, spans, keep, usize::MAX);
+}
+
+/// `rewind_sweep` over a store seeded under a ceiling of `max` (see `seeded_under`), its clean
+/// twin seeded under the same ceiling.
+fn rewind_sweep_under(channel: Channel, axis: Axis, spans: &[usize], keep: usize, max: usize) {
   let clean = |to: u64| {
-    let mut twin = seeded(channel, spans);
+    let mut twin = seeded_under(channel, spans, max);
     twin.rewind_to(to);
     channel.observable(&twin)
   };
   let target = clean(keep as u64);
-  let calls = rewind_calls(channel, axis, spans, keep);
+  let calls = rewind_calls_under(channel, axis, spans, keep, max);
   assert!(
     calls > 0,
     "`rewind_to` over the {} channel runs no {} the sweep can arm, so this cell measures \
@@ -325,7 +374,7 @@ fn rewind_sweep(channel: Channel, axis: Axis, spans: &[usize], keep: usize) {
   );
 
   for at in 1..=calls {
-    let mut store = seeded(channel, spans);
+    let mut store = seeded_under(channel, spans, max);
     axis.arm(at);
     let caught = catch_unwind(AssertUnwindSafe(|| store.rewind_to(keep as u64)));
     disarm();
@@ -570,4 +619,369 @@ fn unarmed_records_are_unaffected() {
       channel.name()
     );
   }
+}
+
+// ── The ceiling: a refusal's atomicity, and rollbacks over refused errors ─────────────────
+
+/// A full store: its ceiling is `SEED`'s length, so a write after the seed is refused. One short
+/// of it, `SEED`'s last span is itself an error the store refused (see `seeded_under`), so the
+/// write under test meets a full store that has already counted one.
+const FULL: usize = SEED.len();
+
+/// Past the ceiling a write is refused, and the only caller code a refusal runs is the
+/// destructors of what it was handed and does not keep. Arming each of them in turn over a
+/// full store, with and without an error already refused, on every channel that has the
+/// destructor: an unwinding destructor leaves the store exactly as it was, the mark and the
+/// count included, which is the oracle `record_sweep` already holds every write to.
+#[test]
+fn a_refusal_is_atomic_under_a_panicking_span_drop() {
+  for channel in [Channel::Error, Channel::Warning, Channel::Hole] {
+    for max in [FULL, FULL - 1] {
+      for at_span in [FRESH, EXISTING] {
+        record_sweep_under(channel, Axis::SpanDrop, SEED, at_span, max);
+      }
+    }
+  }
+}
+
+/// The payload's destructor, the first a refusal runs: the hole channel has no payload, so its
+/// cell is the zero pin below.
+#[test]
+fn a_refusal_is_atomic_under_a_panicking_payload_drop() {
+  for channel in [Channel::Error, Channel::Warning] {
+    for max in [FULL, FULL - 1] {
+      for at_span in [FRESH, EXISTING] {
+        record_sweep_under(channel, Axis::PayloadDrop, SEED, at_span, max);
+      }
+    }
+  }
+}
+
+/// What a refusal runs, counted rather than assumed: exactly one span destructor on every
+/// channel, exactly one payload destructor on the two payload channels and none on the hole
+/// channel, and no span comparison and no span clone on any of them.
+#[test]
+fn a_refusal_runs_only_the_destructors_of_what_it_drops() {
+  for channel in [Channel::Error, Channel::Warning, Channel::Hole] {
+    let payloads = usize::from(!matches!(channel, Channel::Hole));
+    for max in [FULL, FULL - 1] {
+      for at_span in [FRESH, EXISTING] {
+        let calls = |axis: Axis| record_calls_under(channel, axis, SEED, at_span, max);
+        assert_eq!(
+          calls(Axis::SpanDrop),
+          1,
+          "a refused `{}` must destroy exactly the span it was handed",
+          channel.name()
+        );
+        assert_eq!(
+          calls(Axis::PayloadDrop),
+          payloads,
+          "a refused `{}` must destroy exactly the payload it was handed, and a hole has none",
+          channel.name()
+        );
+        assert_eq!(
+          calls(Axis::Clone),
+          0,
+          "a refused `{}` cloned a span: a refusal stores nothing, so it clones nothing",
+          channel.name()
+        );
+        assert_eq!(
+          calls(Axis::Cmp),
+          0,
+          "a refused `{}` compared a span: a refusal descends no map",
+          channel.name()
+        );
+      }
+    }
+  }
+}
+
+/// Six emissions under a ceiling of four: a store seeded with them (see `seeded_under`) keeps
+/// four records of its channel and has refused two errors above them, so its mark is six.
+const REFUSING: &[usize] = &[10, 20, 30, 30, 40, 20];
+const REFUSING_MAX: usize = 4;
+
+/// Undoing a refused error is a subtraction from a count, so a rewind that undoes refused errors
+/// and nothing else runs no caller code: zero on all four axes, on every channel, whether it
+/// undoes one of them or both.
+#[test]
+fn undoing_a_refused_error_runs_no_caller_code() {
+  for channel in [Channel::Error, Channel::Warning, Channel::Hole] {
+    for keep in [REFUSING_MAX, REFUSING_MAX + 1] {
+      for axis in [Axis::Clone, Axis::Cmp, Axis::SpanDrop, Axis::PayloadDrop] {
+        assert_eq!(
+          rewind_calls_under(channel, axis, REFUSING, keep, REFUSING_MAX),
+          0,
+          "undoing refused errors down to mark {keep} over the {} channel ran {}",
+          channel.name(),
+          axis.name()
+        );
+      }
+    }
+  }
+}
+
+/// A rewind that crosses from refused errors into kept records undoes the refused errors first
+/// and then unwinds kept entries as a store with no ceiling does, so it is atomic at each armed
+/// call exactly as that store's rewind is, against a clean twin seeded under the same ceiling.
+#[test]
+fn a_rewind_across_refused_errors_into_kept_records_is_atomic() {
+  for channel in [Channel::Error, Channel::Warning, Channel::Hole] {
+    for axis in [Axis::Cmp, Axis::Clone, Axis::SpanDrop] {
+      rewind_sweep_under(channel, axis, REFUSING, 1, REFUSING_MAX);
+    }
+  }
+  for channel in [Channel::Error, Channel::Warning] {
+    rewind_sweep_under(channel, Axis::PayloadDrop, REFUSING, 1, REFUSING_MAX);
+  }
+  assert_eq!(
+    rewind_calls_under(Channel::Hole, Axis::PayloadDrop, REFUSING, 1, REFUSING_MAX),
+    0,
+    "the skipped-region channel ran an `Error` destructor, but it stores no `Error`"
+  );
+}
+
+// ── The ceiling: what a full store keeps, refuses and counts ──────────────────────────────
+
+/// One replayed record: its channel (`'E'`, `'W'` or `'H'`), its span, and its payload (the
+/// error value, or a hole's skipped count).
+type Kept = (char, usize, usize);
+
+/// The kept records, replayed in emission order.
+fn kept(store: &Store<BombErr, BombSpan>) -> Vec<Kept> {
+  store
+    .diagnostics()
+    .map(|d| match d.kind() {
+      DiagnosticKind::Error(e) => ('E', d.span().0, e.0 as usize),
+      DiagnosticKind::Warning(e) => ('W', d.span().0, e.0 as usize),
+      DiagnosticKind::SkippedRegion(skipped) => ('H', d.span().0, skipped),
+    })
+    .collect()
+}
+
+/// What a rewind must restore: the kept records, the refused-error count and the mark.
+type State = (Vec<Kept>, usize, u64);
+
+fn state(store: &Store<BombErr, BombSpan>) -> State {
+  (kept(store), store.refused_errors(), store.mark())
+}
+
+/// The `State` holding `records`, with `refused` errors counted and the mark at `mark`.
+fn holding(records: &[Kept], refused: usize, mark: u64) -> State {
+  (records.to_vec(), refused, mark)
+}
+
+/// A sequence over all three channels. Under a ceiling of two it keeps an error and a hole, then
+/// refuses an error, a warning, an error, a hole and an error.
+const MIXED: &[(Channel, usize)] = &[
+  (Channel::Error, 10),
+  (Channel::Hole, 20),
+  (Channel::Error, 30),
+  (Channel::Warning, 40),
+  (Channel::Error, 50),
+  (Channel::Hole, 60),
+  (Channel::Error, 70),
+];
+
+/// A store with a ceiling of `max` that has taken the first `upto` emissions of `MIXED`, each
+/// carrying its index as its payload.
+fn mixed(max: usize, upto: usize) -> Store<BombErr, BombSpan> {
+  let mut store = Store::<BombErr, BombSpan>::with_max_diagnostics(max);
+  for (seq, &(channel, span)) in MIXED[..upto].iter().enumerate() {
+    channel.write(&mut store, BombSpan(span), seq as u32);
+  }
+  store
+}
+
+/// Ceiling three: an error, a hole and a warning, then an error, an error, a hole and a warning.
+/// The first three are kept in order, the two later errors are counted, and the later hole and
+/// warning leave no trace. Refuses evicting the oldest records, counting a refused warning or
+/// hole, and a ceiling for each channel.
+#[test]
+fn a_full_store_refuses_and_counts_errors() {
+  let mut store = Store::<BombErr, BombSpan>::with_max_diagnostics(3);
+  let emissions: [(Channel, usize); 7] = [
+    (Channel::Error, 10),
+    (Channel::Hole, 20),
+    (Channel::Warning, 30),
+    (Channel::Error, 40),
+    (Channel::Error, 50),
+    (Channel::Hole, 60),
+    (Channel::Warning, 70),
+  ];
+  for (seq, (channel, span)) in emissions.into_iter().enumerate() {
+    channel.write(&mut store, BombSpan(span), seq as u32);
+  }
+  assert_eq!(
+    state(&store),
+    holding(&[('E', 10, 0), ('H', 20, 1), ('W', 30, 2)], 2, 5),
+    "the first three are kept in emission order, only the two errors past them are counted, \
+     and the mark is the three kept plus the two refused"
+  );
+  assert_eq!(
+    (
+      store.errors().len(),
+      store.warnings().len(),
+      store.skipped_regions().len()
+    ),
+    (1, 1, 1),
+    "each channel's map holds its one kept record and nothing refused"
+  );
+}
+
+/// On each channel, below the ceiling and past it: a kept record moves the mark by one, a
+/// refused error moves it by one, and a refused warning or hole leaves it where it was. Refuses
+/// a mark that is the log's length, and one that moves on a refused warning or hole.
+#[test]
+fn the_mark_counts_kept_records_and_refused_errors() {
+  for channel in [Channel::Error, Channel::Warning, Channel::Hole] {
+    let counted = u64::from(matches!(channel, Channel::Error));
+    let mut store = Store::<BombErr, BombSpan>::with_max_diagnostics(2);
+    for (seq, span) in [10, 20, 30, 40].into_iter().enumerate() {
+      let before = store.mark();
+      channel.write(&mut store, BombSpan(span), seq as u32);
+      let (side, want) = if seq < 2 {
+        ("below", 1)
+      } else {
+        ("past", counted)
+      };
+      assert_eq!(
+        store.mark() - before,
+        want,
+        "`{}` #{seq}, {side} the ceiling of two, moved the mark by the wrong amount",
+        channel.name()
+      );
+    }
+    assert_eq!(
+      (store.diagnostics().len(), store.refused_errors() as u64),
+      (2, 2 * counted),
+      "`{}`: two kept, and the two past the ceiling counted only if they are errors",
+      channel.name()
+    );
+  }
+}
+
+/// Ceiling two, and the state after every emission of `MIXED`, which refuses past the ceiling on
+/// all three channels. Rewound from every point of the sequence — its end, its middle, its
+/// start — to the mark taken at every earlier point, and once more step by step down one store:
+/// the kept records, the count and the mark are exactly what they were when that mark was
+/// taken. Refuses a count that a rewind does not restore, and a kept record unwound while a
+/// refused error is left above it.
+#[test]
+fn a_rewind_undoes_refused_errors_first_and_restores_the_count() {
+  let taken: Vec<State> = (0..=MIXED.len())
+    .map(|upto| state(&mixed(2, upto)))
+    .collect();
+  assert_eq!(
+    taken.last(),
+    Some(&holding(&[('E', 10, 0), ('H', 20, 1)], 3, 5)),
+    "the sequence ends with three refused errors above a full log"
+  );
+
+  for from in 0..=MIXED.len() {
+    for (to, then) in taken.iter().enumerate().take(from + 1) {
+      let mut store = mixed(2, from);
+      store.rewind_to(then.2);
+      assert_eq!(
+        &state(&store),
+        then,
+        "a rewind from after emission {from} to the mark taken after emission {to}"
+      );
+    }
+  }
+
+  let mut store = mixed(2, MIXED.len());
+  for (to, then) in taken.iter().enumerate().rev().skip(1) {
+    store.rewind_to(then.2);
+    assert_eq!(
+      &state(&store),
+      then,
+      "step by step down one store, the rewind to the mark taken after emission {to}"
+    );
+  }
+}
+
+/// An error refused, rewound and emitted again is counted once: the rewind uncounted it.
+#[test]
+fn an_error_refused_rewound_and_emitted_again_is_counted_once() {
+  let mut store = Store::<BombErr, BombSpan>::with_max_diagnostics(1);
+  Channel::Error.write(&mut store, BombSpan(10), 0);
+  let before = store.mark();
+  Channel::Error.write(&mut store, BombSpan(20), 1);
+  assert_eq!(
+    state(&store),
+    holding(&[('E', 10, 0)], 1, 2),
+    "refused, and counted"
+  );
+  store.rewind_to(before);
+  assert_eq!(
+    state(&store),
+    holding(&[('E', 10, 0)], 0, 1),
+    "uncounted by the rewind"
+  );
+  Channel::Error.write(&mut store, BombSpan(20), 1);
+  assert_eq!(
+    state(&store),
+    holding(&[('E', 10, 0)], 1, 2),
+    "emitted again, it is counted once"
+  );
+}
+
+/// Fill the store, refuse two errors, rewind below the ceiling and emit an error: it is kept,
+/// and nothing is counted as refused. Refuses a store that goes on refusing once it has
+/// refused, and a count that survives a rewind below the ceiling.
+#[test]
+fn a_store_below_its_ceiling_after_a_rewind_keeps_again() {
+  let mut store = Store::<BombErr, BombSpan>::with_max_diagnostics(2);
+  Channel::Error.write(&mut store, BombSpan(10), 0);
+  let below = store.mark();
+  Channel::Warning.write(&mut store, BombSpan(20), 1);
+  Channel::Error.write(&mut store, BombSpan(30), 2);
+  Channel::Error.write(&mut store, BombSpan(40), 3);
+  assert_eq!(
+    state(&store),
+    holding(&[('E', 10, 0), ('W', 20, 1)], 2, 4),
+    "full, with two errors refused"
+  );
+  store.rewind_to(below);
+  assert_eq!(
+    state(&store),
+    holding(&[('E', 10, 0)], 0, 1),
+    "below the ceiling, with nothing refused"
+  );
+  Channel::Error.write(&mut store, BombSpan(50), 4);
+  assert_eq!(
+    state(&store),
+    holding(&[('E', 10, 0), ('E', 50, 4)], 0, 2),
+    "the error is kept, and nothing is counted as refused"
+  );
+}
+
+/// A ceiling of zero keeps nothing: every error is counted, every warning and hole is dropped,
+/// and a rewind only uncounts. Refuses reading zero as no ceiling, and keeping a first record.
+#[test]
+fn a_ceiling_of_zero_keeps_nothing() {
+  let mut store = mixed(0, MIXED.len());
+  assert_eq!(
+    state(&store),
+    holding(&[], 4, 4),
+    "all four of `MIXED`'s errors are counted, and nothing is kept"
+  );
+  assert!(
+    store.errors().is_empty()
+      && store.labels().is_empty()
+      && store.warnings().is_empty()
+      && store.warning_labels().is_empty()
+      && store.skipped_regions().is_empty()
+      && store.skipped_region_labels().is_empty(),
+    "no channel map holds anything"
+  );
+  store.rewind_to(1);
+  assert_eq!(
+    state(&store),
+    holding(&[], 1, 1),
+    "a rewind uncounts the errors refused after its mark"
+  );
+  store.rewind_to(0);
+  assert_eq!(state(&store), holding(&[], 0, 0));
 }
