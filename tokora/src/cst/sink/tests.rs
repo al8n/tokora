@@ -1838,6 +1838,48 @@ fn a_capped_inner_rewinds_its_refused_errors_with_the_log() {
   assert_eq!(sink.events().len(), 4);
 }
 
+/// A refused hole still wraps its tokens: the sink wraps a hole before it forwards the report,
+/// whatever the inner then answers. `hole_wrap_rewinds_with_the_log`'s three tokens and hole,
+/// over an inner that keeps nothing: the wrap and the `Diag` slot are in the event log, and the
+/// inner keeps nothing and counts nothing.
+#[test]
+fn a_refused_hole_still_wraps_its_tokens() {
+  let mut sink: VerboseSink<'_> = Sink::new("xab", Verbose::with_max_diagnostics(0), profile());
+  sink.record_token(&MiniTok(b'x'), &span(0, 1));
+  sink.record_token(&MiniTok(b'a'), &span(1, 2));
+  sink.record_token(&MiniTok(b'b'), &span(2, 3));
+  Emitter::<MiniLexer<'_>>::emit_skipped_region(&mut sink, span(1, 3), 2).expect("collects");
+  assert_eq!(
+    sink.events(),
+    &[
+      Event::Token {
+        kind: K_TOK,
+        span: span(0, 1)
+      },
+      Event::StartNode {
+        kind: K_ERR,
+        forward_parent: None
+      },
+      Event::Token {
+        kind: K_TOK,
+        span: span(1, 2)
+      },
+      Event::Token {
+        kind: K_TOK,
+        span: span(2, 3)
+      },
+      Event::FinishNode { kind: K_ERR },
+      Event::Diag { error_span: None },
+    ],
+    "the hole's tokens are wrapped and its Diag slot is appended, though the inner refused it"
+  );
+  assert_eq!(
+    inner_tally(&sink),
+    (0, 0),
+    "a refused hole is neither kept nor counted"
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // #177 — the wrap start is FLOORED at the youngest positional fact
 // ═══════════════════════════════════════════════════════════════════════════════

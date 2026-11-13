@@ -432,7 +432,7 @@ fn a_clone_carries_the_ceiling_and_the_count() {
   );
   let shown = format!("{twin:?}");
   assert!(
-    shown.contains("max_diagnostics: 1") && shown.contains("refused_errors: 2"),
+    shown.contains("max_diagnostics: 1, refused_errors: 2 }"),
     "`Debug` shows the ceiling and the count: {shown}"
   );
 

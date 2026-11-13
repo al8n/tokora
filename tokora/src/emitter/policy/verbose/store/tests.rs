@@ -696,6 +696,53 @@ fn a_refusal_runs_only_the_destructors_of_what_it_drops() {
   }
 }
 
+/// A refusal destroys the payload before the span, so a span destructor that unwinds drags no
+/// payload destructor into its unwind: the payload's count sampled when the span's bomb fires
+/// already equals its count once the panic is caught. Span first, the two differ by one.
+#[test]
+fn a_refusal_destroys_the_payload_before_the_span() {
+  for channel in [Channel::Error, Channel::Warning] {
+    for max in [FULL, FULL - 1] {
+      let mut store = seeded_under(channel, SEED, max);
+      arm_payload_drop(0);
+      PAYLOAD_DROPS_AT_PANIC.with(|c| c.set(usize::MAX));
+      arm_span_drop(1);
+      let caught = catch_unwind(AssertUnwindSafe(|| {
+        channel.write(&mut store, BombSpan(FRESH), 99)
+      }));
+      disarm();
+      assert!(caught.is_err());
+      assert_eq!(
+        PAYLOAD_DROPS_AT_PANIC.with(Cell::get),
+        PAYLOAD_DROPS.with(Cell::get),
+        "the payload's destructor ran during the unwind"
+      );
+    }
+  }
+}
+
+/// The count does not wrap: an error refused while `usize::MAX` errors are already counted
+/// panics, and leaves the store as it was, the count and the mark included. A ceiling of zero
+/// keeps the invariant true with the count at its maximum, and keeps the mark inside a `u64`.
+#[test]
+fn a_refusal_past_usize_max_refused_errors_panics_and_changes_nothing() {
+  let mut store = Store::<BombErr, BombSpan>::with_max_diagnostics(0);
+  store.refused_errors = usize::MAX;
+  let before = Channel::Error.observable(&store);
+  let caught = catch_unwind(AssertUnwindSafe(|| {
+    Channel::Error.write(&mut store, BombSpan(FRESH), 99)
+  }));
+  assert!(
+    caught.is_err(),
+    "an error refused past `usize::MAX` refused errors must panic rather than wrap the count"
+  );
+  assert_eq!(
+    Channel::Error.observable(&store),
+    before,
+    "the panicking refusal changed the store"
+  );
+}
+
 /// Six emissions under a ceiling of four: a store seeded with them (see `seeded_under`) keeps
 /// four records of its channel and has refused two errors above them, so its mark is six.
 const REFUSING: &[usize] = &[10, 20, 30, 30, 40, 20];
