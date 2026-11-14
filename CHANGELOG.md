@@ -67,9 +67,9 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
-## Unreleased
+## 0.13.2 (2026-11-15)
 
-<a id="unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>
+<a id="0.13.2-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>
 
 ### Source-breaking additions that can change behaviour with *no diagnostic at the call site*
 
@@ -132,7 +132,7 @@ Recorded in `ci/name_collision/disclosed.txt` and `ci/name_collision/no_collisio
 **this** branch because the probe's inventory is a two-sided delta: once this merges the names
 exist on both sides, the rows leave every future plan, and the harness can never re-litigate them.
 
-<a id="unreleased-source-breaking-additions-that-fail-loudly"></a>
+<a id="0.13.2-source-breaking-additions-that-fail-loudly"></a>
 
 ### Source-breaking additions that fail *loudly*
 
@@ -170,7 +170,7 @@ exist on both sides, the rows leave every future plan, and the harness can never
   `cursor_trimmed` and on each `_trimmed` method. Under a zero-capacity cache the peeked token is
   retained nowhere, so the consume lexes it again and the token budget is charged twice — except a
   token a non-final partial input withholds, which is lexed once under either cache (see
-  [Fixed](#unreleased-fixed)). The early lex can change an outcome: a parser that would not have
+  [Fixed](#0.13.2-fixed)). The early lex can change an outcome: a parser that would not have
   read the next token still meets its lexer-error diagnostics, a fatal emitter's rejection of one
   (the parse's `Err`), a limit trip and the budget charge, and for a parser that would have, a
   fatal rejection leaves the committed position before the rejected lexeme rather than past it.
@@ -184,10 +184,10 @@ exist on both sides, the rows leave every future plan, and the harness can never
   `sliced`, `located`, the CST layer, and every span that reads the lookahead position —
   `ParseState::span` and `slice`, the collection spans, the `delimited` shapes' span and the
   repetition handlers' spans — measure exactly what they measured before. The new names collide
-  with a consumer's own: see the [silent](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site)
-  and [loud](#unreleased-source-breaking-additions-that-fail-loudly) disclosures above.
+  with a consumer's own: see the [silent](#0.13.2-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site)
+  and [loud](#0.13.2-source-breaking-additions-that-fail-loudly) disclosures above.
 
-<a id="unreleased-fixed"></a>
+<a id="0.13.2-fixed"></a>
 
 ### Fixed
 
